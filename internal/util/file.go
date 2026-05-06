@@ -944,6 +944,9 @@ const (
 	maxFileManifestEntries = 1_000_000
 	maxFileManifests       = 100_000
 	maxPendingManifests    = 2 * maxFileManifests
+
+	manifestPendingCapExceededFormat = "manifest cleanup under %q exceeded pending manifest cap of %d while processing %q"
+	manifestCountExceededFormat      = "manifest cleanup under %q exceeded %d manifests while processing %q"
 )
 
 // Clean walks the manifest and any nested manifests it references, removing recorded entries.
@@ -996,7 +999,7 @@ func (manifest *fileManifest) clean(l log.Logger, fsys vfs.FS, rootDir, manifest
 		if maxPendingNextRelPaths < 0 {
 			return fileManifestLimitError{
 				message: fmt.Sprintf(
-					"manifest cleanup under %q exceeded pending manifest cap of %d while processing %q",
+					manifestPendingCapExceededFormat,
 					rootDir,
 					maxPendingManifests,
 					currentRelPath,
@@ -1008,7 +1011,7 @@ func (manifest *fileManifest) clean(l log.Logger, fsys vfs.FS, rootDir, manifest
 		if maxManifestNextRelPaths < 0 {
 			return fileManifestLimitError{
 				message: fmt.Sprintf(
-					"manifest cleanup under %q exceeded %d manifests while processing %q",
+					manifestCountExceededFormat,
 					rootDir,
 					maxFileManifests,
 					currentRelPath,
@@ -1033,7 +1036,7 @@ func (manifest *fileManifest) clean(l log.Logger, fsys vfs.FS, rootDir, manifest
 		if len(pending)+len(nextRelPaths) > maxPendingManifests {
 			return fileManifestLimitError{
 				message: fmt.Sprintf(
-					"manifest cleanup under %q exceeded pending manifest cap of %d while processing %q",
+					manifestPendingCapExceededFormat,
 					rootDir,
 					maxPendingManifests,
 					currentRelPath,
@@ -1044,7 +1047,7 @@ func (manifest *fileManifest) clean(l log.Logger, fsys vfs.FS, rootDir, manifest
 		if attemptedManifests+len(pending)+len(nextRelPaths) > maxFileManifests {
 			return fileManifestLimitError{
 				message: fmt.Sprintf(
-					"manifest cleanup under %q exceeded %d manifests while processing %q",
+					manifestCountExceededFormat,
 					rootDir,
 					maxFileManifests,
 					currentRelPath,
@@ -1198,7 +1201,7 @@ func (manifest *fileManifest) cleanManifestEntries(
 			if len(manifestRelPaths) >= maxPendingNextRelPaths {
 				return manifestRelPaths, fileManifestLimitError{
 					message: fmt.Sprintf(
-						"manifest cleanup under %q exceeded pending manifest cap of %d while processing %q",
+						manifestPendingCapExceededFormat,
 						rootDir,
 						maxPendingManifests,
 						manifestPath,
@@ -1209,7 +1212,7 @@ func (manifest *fileManifest) cleanManifestEntries(
 			if len(manifestRelPaths) >= maxManifestNextRelPaths {
 				return manifestRelPaths, fileManifestLimitError{
 					message: fmt.Sprintf(
-						"manifest cleanup under %q exceeded %d manifests while processing %q",
+						manifestCountExceededFormat,
 						rootDir,
 						maxFileManifests,
 						manifestPath,

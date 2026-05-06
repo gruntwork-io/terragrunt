@@ -61,6 +61,8 @@ var ErrNoHardLink = errors.New("hard link not supported")
 // ErrNoLock is returned when a filesystem does not support locking.
 var ErrNoLock = errors.New("locking not supported")
 
+const maxSymlinkEvaluations = 255
+
 // NewOSFS returns a filesystem backed by the real operating system filesystem.
 func NewOSFS() FS {
 	return &osFS{afero.NewOsFs()}
@@ -691,112 +693,165 @@ func lstatIfPossible(fsys FS, path string) (os.FileInfo, error) {
 	return fsys.Stat(path)
 }
 
-func walkSymlinks(fsys FS, path string) (string, error) {
-	const maxSymlinkEvaluations = 255
+type symlinkWalkState struct {
+	path        string
+	vol         string
+	dest        string
+	volLen      int
+	start       int
+	linksWalked int
+}
 
+func newSymlinkWalkState(path string) *symlinkWalkState {
 	volLen := len(filepath.VolumeName(path))
-	pathSeparator := string(os.PathSeparator)
-
 	if volLen < len(path) && os.IsPathSeparator(path[volLen]) {
 		volLen++
 	}
 
 	vol := path[:volLen]
-	dest := vol
-	linksWalked := 0
 
-	for start := volLen; start < len(path); {
-		for start < len(path) && os.IsPathSeparator(path[start]) {
-			start++
-		}
+	return &symlinkWalkState{
+		path:   path,
+		vol:    vol,
+		dest:   vol,
+		volLen: volLen,
+		start:  volLen,
+	}
+}
 
-		end := start
-		for end < len(path) && !os.IsPathSeparator(path[end]) {
-			end++
-		}
+func walkSymlinks(fsys FS, path string) (string, error) {
+	state := newSymlinkWalkState(path)
 
-		isWindowsDot := runtime.GOOS == "windows" && path[len(filepath.VolumeName(path)):] == "."
-
-		if end == start {
+	for state.start < len(state.path) {
+		part, end, ok := state.nextComponent()
+		if !ok {
 			break
 		}
 
-		part := path[start:end]
-		if part == "." && !isWindowsDot {
-			start = end
-
-			continue
-		}
-
-		if part == ".." {
-			dest = walkSymlinksParent(dest, volLen, pathSeparator)
-			start = end
-
-			continue
-		}
-
-		if len(dest) > len(filepath.VolumeName(dest)) && !os.IsPathSeparator(dest[len(dest)-1]) {
-			dest += pathSeparator
-		}
-
-		dest += part
-
-		info, err := Lstat(fsys, dest)
+		keepWalking, err := state.processComponent(fsys, part, end)
 		if err != nil {
 			return "", err
 		}
 
-		if info.Mode()&fs.ModeSymlink == 0 {
-			if !info.Mode().IsDir() && end < len(path) {
-				return "", syscall.ENOTDIR
-			}
-
-			start = end
-
-			continue
-		}
-
-		linksWalked++
-		if linksWalked > maxSymlinkEvaluations {
-			return "", errors.New("EvalSymlinks: too many links")
-		}
-
-		link, err := Readlink(fsys, dest)
-		if err != nil {
-			return "", err
-		}
-
-		if isWindowsDot && !filepath.IsAbs(link) {
+		if !keepWalking {
 			break
 		}
-
-		path = link + path[end:]
-
-		linkVolLen := len(filepath.VolumeName(link))
-		switch {
-		case linkVolLen > 0:
-			if linkVolLen < len(link) && os.IsPathSeparator(link[linkVolLen]) {
-				linkVolLen++
-			}
-
-			vol = link[:linkVolLen]
-			dest = vol
-			end = len(vol)
-			volLen = linkVolLen
-		case len(link) > 0 && os.IsPathSeparator(link[0]):
-			dest = link[:1]
-			end = 1
-			vol = link[:1]
-			volLen = 1
-		default:
-			dest = walkSymlinksLinkParent(dest, vol, volLen)
-			end = 0
-		}
-
-		start = end
 	}
 
-	return filepath.Clean(dest), nil
+	return filepath.Clean(state.dest), nil
+}
+
+func (state *symlinkWalkState) nextComponent() (string, int, bool) {
+	start := state.start
+	for start < len(state.path) && os.IsPathSeparator(state.path[start]) {
+		start++
+	}
+
+	end := start
+	for end < len(state.path) && !os.IsPathSeparator(state.path[end]) {
+		end++
+	}
+
+	if end == start {
+		return "", end, false
+	}
+
+	return state.path[start:end], end, true
+}
+
+func (state *symlinkWalkState) processComponent(fsys FS, part string, end int) (bool, error) {
+	isWindowsDot := runtime.GOOS == "windows" && state.path[len(filepath.VolumeName(state.path)):] == "."
+	if part == "." && !isWindowsDot {
+		state.start = end
+
+		return true, nil
+	}
+
+	if part == ".." {
+		state.dest = walkSymlinksParent(state.dest, state.volLen, string(os.PathSeparator))
+		state.start = end
+
+		return true, nil
+	}
+
+	state.appendPart(part)
+
+	info, err := Lstat(fsys, state.dest)
+	if err != nil {
+		return false, err
+	}
+
+	if info.Mode()&fs.ModeSymlink == 0 {
+		return state.processRegularComponent(info, end)
+	}
+
+	return state.processSymlinkComponent(fsys, end, isWindowsDot)
+}
+
+func (state *symlinkWalkState) appendPart(part string) {
+	if len(state.dest) > len(filepath.VolumeName(state.dest)) && !os.IsPathSeparator(state.dest[len(state.dest)-1]) {
+		state.dest += string(os.PathSeparator)
+	}
+
+	state.dest += part
+}
+
+func (state *symlinkWalkState) processRegularComponent(info os.FileInfo, end int) (bool, error) {
+	if !info.Mode().IsDir() && end < len(state.path) {
+		return false, syscall.ENOTDIR
+	}
+
+	state.start = end
+
+	return true, nil
+}
+
+func (state *symlinkWalkState) processSymlinkComponent(fsys FS, end int, isWindowsDot bool) (bool, error) {
+	state.linksWalked++
+	if state.linksWalked > maxSymlinkEvaluations {
+		return false, errors.New("EvalSymlinks: too many links")
+	}
+
+	link, err := Readlink(fsys, state.dest)
+	if err != nil {
+		return false, err
+	}
+
+	if isWindowsDot && !filepath.IsAbs(link) {
+		return false, nil
+	}
+
+	state.path = link + state.path[end:]
+	state.applyLink(link)
+
+	return true, nil
+}
+
+func (state *symlinkWalkState) applyLink(link string) {
+	linkVolLen := len(filepath.VolumeName(link))
+	switch {
+	case linkVolLen > 0:
+		state.applyVolumeLink(link, linkVolLen)
+	case len(link) > 0 && os.IsPathSeparator(link[0]):
+		state.dest = link[:1]
+		state.start = 1
+		state.vol = link[:1]
+		state.volLen = 1
+	default:
+		state.dest = walkSymlinksLinkParent(state.dest, state.vol, state.volLen)
+		state.start = 0
+	}
+}
+
+func (state *symlinkWalkState) applyVolumeLink(link string, linkVolLen int) {
+	if linkVolLen < len(link) && os.IsPathSeparator(link[linkVolLen]) {
+		linkVolLen++
+	}
+
+	state.vol = link[:linkVolLen]
+	state.dest = state.vol
+	state.start = len(state.vol)
+	state.volLen = linkVolLen
 }
 
 func walkSymlinksParent(dest string, volLen int, pathSeparator string) string {
