@@ -20,6 +20,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Run runs the list command.
@@ -71,6 +74,11 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"dependencies": opts.Dependencies || opts.Mode == ModeDAG,
 	}, func(ctx context.Context) error {
 		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
+
+		if span := trace.SpanFromContext(ctx); span.IsRecording() {
+			span.SetAttributes(attribute.Int("component_count", len(components)))
+		}
+
 		return discoverErr
 	})
 	if err != nil {
@@ -110,6 +118,10 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"config_count": len(components),
 	}, func(ctx context.Context) error {
 		listedComponents = discoveredToListed(l, components, opts)
+
+		if span := trace.SpanFromContext(ctx); span.IsRecording() {
+			span.SetAttributes(attribute.Int("listed_count", len(listedComponents)))
+		}
 
 		return nil
 	})
