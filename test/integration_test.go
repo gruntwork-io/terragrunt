@@ -3307,6 +3307,66 @@ func TestReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
 	assert.Equal(t, "from-auth-provider", outputs["secret"].Value)
 }
 
+func TestReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "run-all-call-count")
+	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
+	logPath := filepath.Join(rootPath, "calls.jsonl")
+
+	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all apply --non-interactive "+
+				"--working-dir %s --auth-provider-cmd %s",
+			rootPath,
+			authProviderCmd,
+		),
+	)
+
+	logBytes, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+
+	type authCall struct {
+		Timestamp  string `json:"ts"`
+		WorkingDir string `json:"working_dir"`
+		PID        int    `json:"pid"`
+	}
+
+	lines := strings.Split(strings.TrimRight(string(logBytes), "\n"), "\n")
+	calls := make([]authCall, 0, len(lines))
+
+	for i, line := range lines {
+		var call authCall
+
+		require.NoErrorf(t, json.Unmarshal([]byte(line), &call), "line %d: %q", i+1, line)
+
+		calls = append(calls, call)
+	}
+
+	t.Logf("auth-provider-cmd invocations:\n%s", string(logBytes))
+
+	// Five invocations are expected, in this order:
+	//
+	//   1. Discovery relationship phase parses `dep`.
+	//   2. Discovery relationship phase parses `dependent`.
+	//   3. Runner pool task parses `dep`for apply.
+	//   4. Runner pool task parses `dependent` for apply.
+	//   5. While `dependent`'s HCL is being decoded, the `dependency.dep`
+	//      block fetches `dep`'s outputs, which requires parsing `dep` again.
+	//
+	assert.Len(t, calls, 5)
+
+	for _, call := range calls {
+		assert.NotContains(t, call.WorkingDir, ".terragrunt-cache")
+	}
+}
+
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 	t.Parallel()
 
