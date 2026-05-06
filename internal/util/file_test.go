@@ -206,26 +206,19 @@ func TestFileManifestCleanRemovesInRootEntry(t *testing.T) {
 	assert.NoFileExists(t, staleFile, "in-root manifest entry must still be cleaned")
 }
 
-func TestFileManifestCleanRemovesRelativeInRootEntry(t *testing.T) { //nolint:paralleltest // depends on stable process CWD
+func TestFileManifestCleanRemovesRelativeInRootEntry(t *testing.T) {
+	t.Parallel()
+
 	l := logger.CreateLogger()
 
 	root := helpers.TmpDirWOSymlinks(t)
 	staleFile := filepath.Join(root, "stale.tf")
 	require.NoError(t, os.WriteFile(staleFile, []byte("stale"), 0o600))
 
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-
-	rootRel, err := filepath.Rel(cwd, root)
-	require.NoError(t, err)
-
-	staleFileRel, err := filepath.Rel(cwd, staleFile)
-	require.NoError(t, err)
-
 	manifestName := testManifestName
-	writeManifest(t, filepath.Join(rootRel, manifestName), staleFileRel)
+	writeManifest(t, filepath.Join(root, manifestName), "stale.tf")
 
-	manifest := util.NewFileManifest(rootRel, manifestName)
+	manifest := util.NewFileManifest(root, manifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	assert.NoFileExists(t, staleFile, "relative in-root manifest entry must still be cleaned")
@@ -274,6 +267,30 @@ func TestFileManifestCleanRejectsSymlinkEscapes(t *testing.T) {
 	require.NoError(t, manifest.Clean(l))
 
 	assert.FileExists(t, sentinel, "manifest cleanup must not follow symlink parents outside the root")
+}
+
+func TestFileManifestCleanRejectsSymlinkedManifestRoot(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	physicalRoot := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(physicalRoot, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	linkParent := helpers.TmpDirWOSymlinks(t)
+	rootLink := filepath.Join(linkParent, "cache-link")
+
+	if err := os.Symlink(physicalRoot, rootLink); err != nil {
+		t.Skipf("symlinks are not available: %v", err)
+	}
+
+	writeManifest(t, filepath.Join(rootLink, testManifestName), filepath.Join(rootLink, "sentinel.txt"))
+
+	manifest := util.NewFileManifest(rootLink, testManifestName)
+	require.ErrorContains(t, manifest.Clean(l), "must not contain symlinks")
+
+	assert.FileExists(t, sentinel, "manifest cleanup must reject a symlinked manifest root before removing entries")
 }
 
 func TestFileManifestCleanRemovesManifestNamedDirectory(t *testing.T) {
