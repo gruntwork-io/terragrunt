@@ -956,7 +956,7 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 
 	rootDir = filepath.Clean(rootDir)
 
-	rootExists, err := manifestRootExistsWithoutSymlinks(rootDir)
+	rootExists, err := manifestRootExistsWithoutSymlinks(vfs.NewOSFS(), rootDir)
 	if err != nil {
 		return err
 	}
@@ -1856,8 +1856,8 @@ func isFileManifestDecodeError(err error) bool {
 	return errors.As(err, &decodeErr)
 }
 
-func manifestRootExistsWithoutSymlinks(rootDir string) (bool, error) {
-	info, err := os.Lstat(rootDir)
+func manifestRootExistsWithoutSymlinks(fsys vfs.FS, rootDir string) (bool, error) {
+	info, err := vfs.Lstat(fsys, rootDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil
 	}
@@ -1874,7 +1874,7 @@ func manifestRootExistsWithoutSymlinks(rootDir string) (bool, error) {
 		return true, nil
 	}
 
-	evaluatedRootDir, err := filepath.EvalSymlinks(rootDir)
+	evaluatedRootDir, err := vfs.EvalSymlinks(fsys, rootDir)
 	if err != nil {
 		return false, errors.New(err)
 	}

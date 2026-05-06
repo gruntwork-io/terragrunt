@@ -11,10 +11,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/charlievieth/fastwalk"
@@ -47,6 +49,10 @@ type Locker interface {
 	// TryLock attempts a non-blocking lock for the given name.
 	// Returns the unlocker and true if acquired, nil and false otherwise.
 	TryLock(name string) (Unlocker, bool, error)
+}
+
+type symlinkEvaluator interface {
+	EvalSymlinksIfPossible(name string) (string, bool, error)
 }
 
 // ErrNoHardLink is returned when a filesystem does not support hard links.
@@ -104,6 +110,18 @@ func ReadFile(fs FS, filename string) ([]byte, error) {
 // Lstat returns file info for path without following the final symlink when the filesystem supports it.
 func Lstat(fs FS, path string) (os.FileInfo, error) {
 	return lstatIfPossible(fs, path)
+}
+
+// EvalSymlinks returns path after evaluating symlinks using the supplied filesystem.
+func EvalSymlinks(fsys FS, path string) (string, error) {
+	if evaluator, ok := fsys.(symlinkEvaluator); ok {
+		resolved, supported, err := evaluator.EvalSymlinksIfPossible(path)
+		if supported {
+			return resolved, err
+		}
+	}
+
+	return walkSymlinks(fsys, path)
 }
 
 // ParentPathHasSymlink reports whether rel cannot be safely traversed under rootDir.
@@ -303,6 +321,12 @@ func (fs *osFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	info, err := os.Lstat(name)
 
 	return info, true, err
+}
+
+func (*osFS) EvalSymlinksIfPossible(name string) (string, bool, error) {
+	resolved, err := filepath.EvalSymlinks(name)
+
+	return resolved, true, err
 }
 
 func (fs *osFS) Lock(name string) (Unlocker, error) {
@@ -665,6 +689,148 @@ func lstatIfPossible(fsys FS, path string) (os.FileInfo, error) {
 	}
 
 	return fsys.Stat(path)
+}
+
+func walkSymlinks(fsys FS, path string) (string, error) {
+	const maxSymlinkEvaluations = 255
+
+	volLen := len(filepath.VolumeName(path))
+	pathSeparator := string(os.PathSeparator)
+
+	if volLen < len(path) && os.IsPathSeparator(path[volLen]) {
+		volLen++
+	}
+
+	vol := path[:volLen]
+	dest := vol
+	linksWalked := 0
+
+	for start := volLen; start < len(path); {
+		for start < len(path) && os.IsPathSeparator(path[start]) {
+			start++
+		}
+
+		end := start
+		for end < len(path) && !os.IsPathSeparator(path[end]) {
+			end++
+		}
+
+		isWindowsDot := runtime.GOOS == "windows" && path[len(filepath.VolumeName(path)):] == "."
+
+		if end == start {
+			break
+		}
+
+		part := path[start:end]
+		if part == "." && !isWindowsDot {
+			start = end
+
+			continue
+		}
+
+		if part == ".." {
+			dest = walkSymlinksParent(dest, volLen, pathSeparator)
+			start = end
+
+			continue
+		}
+
+		if len(dest) > len(filepath.VolumeName(dest)) && !os.IsPathSeparator(dest[len(dest)-1]) {
+			dest += pathSeparator
+		}
+
+		dest += part
+
+		info, err := Lstat(fsys, dest)
+		if err != nil {
+			return "", err
+		}
+
+		if info.Mode()&fs.ModeSymlink == 0 {
+			if !info.Mode().IsDir() && end < len(path) {
+				return "", syscall.ENOTDIR
+			}
+
+			start = end
+
+			continue
+		}
+
+		linksWalked++
+		if linksWalked > maxSymlinkEvaluations {
+			return "", errors.New("EvalSymlinks: too many links")
+		}
+
+		link, err := Readlink(fsys, dest)
+		if err != nil {
+			return "", err
+		}
+
+		if isWindowsDot && !filepath.IsAbs(link) {
+			break
+		}
+
+		path = link + path[end:]
+
+		linkVolLen := len(filepath.VolumeName(link))
+		switch {
+		case linkVolLen > 0:
+			if linkVolLen < len(link) && os.IsPathSeparator(link[linkVolLen]) {
+				linkVolLen++
+			}
+
+			vol = link[:linkVolLen]
+			dest = vol
+			end = len(vol)
+			volLen = linkVolLen
+		case len(link) > 0 && os.IsPathSeparator(link[0]):
+			dest = link[:1]
+			end = 1
+			vol = link[:1]
+			volLen = 1
+		default:
+			dest = walkSymlinksLinkParent(dest, vol, volLen)
+			end = 0
+		}
+
+		start = end
+	}
+
+	return filepath.Clean(dest), nil
+}
+
+func walkSymlinksParent(dest string, volLen int, pathSeparator string) string {
+	var idx int
+	for idx = len(dest) - 1; idx >= volLen; idx-- {
+		if os.IsPathSeparator(dest[idx]) {
+			break
+		}
+	}
+
+	if idx < volLen || dest[idx+1:] == ".." {
+		if len(dest) > volLen {
+			dest += pathSeparator
+		}
+
+		return dest + ".."
+	}
+
+	return dest[:idx]
+}
+
+func walkSymlinksLinkParent(dest string, vol string, volLen int) string {
+	var idx int
+	for idx = len(dest) - 1; idx >= volLen; idx-- {
+		if os.IsPathSeparator(dest[idx]) {
+			break
+		}
+	}
+
+	if idx < volLen {
+		return vol
+	}
+
+	return dest[:idx]
 }
 
 // walkDir recursively descends path, calling walkDirFn.

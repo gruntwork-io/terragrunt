@@ -225,6 +225,43 @@ func TestSymlink(t *testing.T) {
 	})
 }
 
+func TestEvalSymlinks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns regular path unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/real/sub", 0o755))
+
+		resolved, err := vfs.EvalSymlinks(fs, "/root/real/sub")
+
+		require.NoError(t, err)
+		assert.Equal(t, "/root/real/sub", resolved)
+	})
+
+	t.Run("resolves parent symlink", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/real/sub", 0o755))
+		require.NoError(t, vfs.Symlink(fs, "/root/real", "/root/link"))
+
+		resolved, err := vfs.EvalSymlinks(fs, "/root/link/sub")
+
+		require.NoError(t, err)
+		assert.Equal(t, "/root/real/sub", resolved)
+	})
+
+	t.Run("missing path returns error", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := vfs.EvalSymlinks(vfs.NewMemMapFS(), "/root/missing")
+
+		require.Error(t, err)
+	})
+}
+
 func TestParentPathHasSymlink(t *testing.T) {
 	t.Parallel()
 
