@@ -73,7 +73,8 @@ func TestResolveProviderURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := handlers.ResolveProviderURL(tt.providersV1, tt.registryName, tt.pathParts...)
+			result, err := handlers.ResolveProviderURL(tt.providersV1, tt.registryName, tt.pathParts...)
+			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expected, result.String())
 		})

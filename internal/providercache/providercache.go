@@ -646,13 +646,15 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 // if they are not already present. This ensures the cache server handles them.
 // See: https://github.com/gruntwork-io/terragrunt/issues/5916
 func AppendCustomHostRegistries(hosts []cliconfig.ConfigHost, registryNames []string) []string {
+	toAdd := make([]string, 0, len(hosts))
+
 	for _, host := range hosts {
 		if !slices.Contains(registryNames, host.Name) {
-			registryNames = append(registryNames, host.Name)
+			toAdd = append(toAdd, host.Name)
 		}
 	}
 
-	return registryNames
+	return slices.Concat(registryNames, toAdd)
 }
 
 // populateCustomHostDiscoveryCache pre-populates the discovery URL cache for custom hosts

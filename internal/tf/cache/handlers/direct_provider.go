@@ -42,8 +42,11 @@ func (handler *DirectProviderHandler) GetVersions(ctx context.Context, provider 
 		return nil, err
 	}
 
-	reqURL := ResolveProviderURL(apiURLs.ProvidersV1, provider.RegistryName,
+	reqURL, err := ResolveProviderURL(apiURLs.ProvidersV1, provider.RegistryName,
 		provider.Namespace, provider.Name, "versions")
+	if err != nil {
+		return nil, err
+	}
 
 	versions := struct {
 		Versions models.Versions `json:"versions"`
@@ -63,8 +66,11 @@ func (handler *DirectProviderHandler) GetPlatform(ctx context.Context, provider 
 		return nil, err
 	}
 
-	platformURL := ResolveProviderURL(apiURLs.ProvidersV1, provider.RegistryName,
+	platformURL, err := ResolveProviderURL(apiURLs.ProvidersV1, provider.RegistryName,
 		provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch)
+	if err != nil {
+		return nil, err
+	}
 
 	var resp = new(models.ResponseBody)
 
@@ -80,7 +86,7 @@ func (handler *DirectProviderHandler) GetPlatform(ctx context.Context, provider 
 // ResolveProviderURL builds a provider API URL. If providersV1 is an absolute URL
 // (starts with http:// or https://), it is used as the base. Otherwise, it is
 // treated as a relative path on the registry host.
-func ResolveProviderURL(providersV1, registryName string, pathParts ...string) *url.URL {
+func ResolveProviderURL(providersV1, registryName string, pathParts ...string) (*url.URL, error) {
 	subPath := path.Join(pathParts...)
 
 	if strings.HasPrefix(providersV1, "http://") || strings.HasPrefix(providersV1, "https://") {
@@ -92,9 +98,12 @@ func ResolveProviderURL(providersV1, registryName string, pathParts ...string) *
 			raw = base + "/" + subPath
 		}
 
-		u, _ := url.Parse(raw) //nolint:errcheck // base is a validated URL from discovery
+		u, err := url.Parse(raw)
+		if err != nil {
+			return nil, err
+		}
 
-		return u
+		return u, nil
 	}
 
 	// Relative path — build URL with registry host
@@ -102,5 +111,5 @@ func ResolveProviderURL(providersV1, registryName string, pathParts ...string) *
 		Scheme: "https",
 		Host:   registryName,
 		Path:   path.Join(providersV1, subPath),
-	}
+	}, nil
 }
