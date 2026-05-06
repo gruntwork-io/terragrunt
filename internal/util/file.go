@@ -940,9 +940,6 @@ type fileManifestEntry struct {
 	IsDir bool
 }
 
-// fileManifestMagic prefixes Terragrunt-written manifests so new-format manifests can be distinguished from legacy gob manifests.
-const fileManifestMagic = "TerragruntManifestV1\n"
-
 // Clean recursively removes files recorded in the manifest, keeping all operations bounded to ManifestFolder.
 func (manifest *fileManifest) Clean(l log.Logger) error {
 	rootDir, err := filepath.Abs(manifest.ManifestFolder)
@@ -960,99 +957,103 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 
 // clean reads one manifest file and removes its entries using root-confined vfs operations.
 func (manifest *fileManifest) clean(l log.Logger, fsys vfs.FS, rootDir, manifestRelPath string) error {
-	if parentHasSymlink, err := relPathHasSymlink(fsys, rootDir, manifestRelPath); err != nil {
+	file, manifestPath, ok, err := openManifestFileForClean(l, fsys, rootDir, manifestRelPath)
+	if err != nil || !ok {
 		return err
+	}
+
+	defer closeAndRemoveManifest(l, file, fsys, rootDir, manifestRelPath, manifestPath)
+
+	entries, err := decodeFileManifestEntries(gob.NewDecoder(file))
+	if err != nil {
+		return err
+	}
+
+	return manifest.cleanManifestEntries(l, fsys, rootDir, entries)
+}
+
+func openManifestFileForClean(l log.Logger, fsys vfs.FS, rootDir, manifestRelPath string) (vfs.File, string, bool, error) {
+	if parentHasSymlink, err := relPathHasSymlink(fsys, rootDir, manifestRelPath); err != nil {
+		return nil, "", false, err
 	} else if parentHasSymlink {
 		l.Warnf("Skipping manifest %s: parent path contains a symlink", filepath.Join(rootDir, manifestRelPath))
 
-		return nil
+		return nil, "", false, nil
 	}
 
 	manifestPath := filepath.Join(rootDir, manifestRelPath)
 
 	info, err := vfs.Lstat(fsys, manifestPath)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil
+		return nil, "", false, nil
 	}
 
 	if err != nil {
-		return err
+		return nil, "", false, err
 	}
 
 	if info.IsDir() || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return removeManifestPath(fsys, rootDir, manifestRelPath)
+		return nil, "", false, removeManifestPath(fsys, rootDir, manifestRelPath)
 	}
 
 	file, err := fsys.Open(manifestPath)
 	if err != nil {
-		return err
+		return nil, "", false, err
 	}
 
-	defer func(name string) {
-		if err := file.Close(); err != nil {
-			l.Warnf("Error closing file %s: %v", name, err)
-		}
+	return file, manifestPath, true, nil
+}
 
-		if err := removeManifestPath(fsys, rootDir, manifestRelPath); err != nil {
-			l.Warnf("Error removing manifest file %s: %v", name, err)
-		}
-	}(manifestPath)
-
-	decoder, legacy, err := newFileManifestDecoder(file)
-	if err != nil {
-		return err
+func closeAndRemoveManifest(l log.Logger, file vfs.File, fsys vfs.FS, rootDir, manifestRelPath, manifestPath string) {
+	if err := file.Close(); err != nil {
+		l.Warnf("Error closing file %s: %v", manifestPath, err)
 	}
 
-	if legacy {
-		l.Warnf("Reading legacy manifest %s without Terragrunt header", manifestPath)
+	if err := removeManifestPath(fsys, rootDir, manifestRelPath); err != nil {
+		l.Warnf("Error removing manifest file %s: %v", manifestPath, err)
 	}
+}
 
-	entries, err := decodeFileManifestEntries(decoder)
-	if err != nil {
-		if legacy {
-			l.Warnf("Ignoring legacy manifest %s: %v", manifestPath, err)
-
-			return nil
-		}
-
-		return err
-	}
-
+func (manifest *fileManifest) cleanManifestEntries(l log.Logger, fsys vfs.FS, rootDir string, entries []fileManifestEntry) error {
 	for _, entry := range entries {
-		rel, ok := relPathInsideRoot(rootDir, entry.Path)
-		if !ok {
-			l.Warnf("Skipping manifest entry %q: resolves outside manifest root %q", entry.Path, rootDir)
-			continue
-		}
-
-		if entry.IsDir {
-			manifestRelPath := filepath.Join(rel, manifest.ManifestFile)
-			if err := manifest.clean(l, fsys, rootDir, manifestRelPath); err != nil {
-				return errors.New(err)
-			}
-
-			continue
-		}
-
-		if err := removeManifestEntry(l, fsys, rootDir, rel); err != nil {
-			return errors.New(err)
+		if err := manifest.cleanManifestEntry(l, fsys, rootDir, entry); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-// Create will create the manifest file with the Terragrunt magic header used by newer Clean calls.
+func (manifest *fileManifest) cleanManifestEntry(l log.Logger, fsys vfs.FS, rootDir string, entry fileManifestEntry) error {
+	rel, ok := relPathInsideRoot(rootDir, entry.Path)
+	if !ok {
+		l.Warnf("Skipping manifest entry %q: resolves outside manifest root %q", entry.Path, rootDir)
+
+		return nil
+	}
+
+	if entry.IsDir {
+		manifestRelPath := filepath.Join(rel, manifest.ManifestFile)
+		if err := manifest.clean(l, fsys, rootDir, manifestRelPath); err != nil {
+			return errors.New(err)
+		}
+
+		return nil
+	}
+
+	if err := removeManifestEntry(l, fsys, rootDir, rel); err != nil {
+		return errors.New(err)
+	}
+
+	return nil
+}
+
+// Create will create the manifest file.
 func (manifest *fileManifest) Create() error {
 	const ownerWriteGlobalReadPerms = 0o644
 
 	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
 	if err != nil {
-		return err
-	}
-
-	if _, err := fileHandle.WriteString(fileManifestMagic); err != nil {
-		_ = fileHandle.Close()
 		return err
 	}
 
@@ -1538,19 +1539,6 @@ func SkipDirIfIgnorable(dir string) error {
 	}
 
 	return nil
-}
-
-func newFileManifestDecoder(file vfs.File) (*gob.Decoder, bool, error) {
-	header := make([]byte, len(fileManifestMagic))
-	if _, err := io.ReadFull(file, header); err == nil && string(header) == fileManifestMagic {
-		return gob.NewDecoder(file), false, nil
-	}
-
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return nil, false, err
-	}
-
-	return gob.NewDecoder(file), true, nil
 }
 
 func decodeFileManifestEntries(decoder *gob.Decoder) ([]fileManifestEntry, error) {

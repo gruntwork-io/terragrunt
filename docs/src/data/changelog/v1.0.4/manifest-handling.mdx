@@ -5,4 +5,4 @@ category: "bug-fixes"
 
 #### Hardened module manifest handling
 
-Terragrunt now writes a Terragrunt-owned header to `.terragrunt-module-manifest` files and bounds every cleanup entry to the manifest's own folder, so a malformed manifest cannot delete files outside the cache. Legacy Terragrunt manifests are still cleaned during upgrade with the same path bounds.
+Terragrunt now bounds every `.terragrunt-module-manifest` cleanup entry to the manifest's own folder, so a malformed manifest cannot delete files outside the cache. Existing Terragrunt manifests keep the same gob format and are cleaned with the same path bounds.

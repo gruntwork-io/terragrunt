@@ -1026,7 +1026,7 @@ func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
 	assert.FileExists(t, sentinel, "forged manifest entry must not have deleted the sentinel outside the cache")
 }
 
-// encodeForgedManifest builds a headered .terragrunt-module-manifest with one file entry per supplied path so tests can plant adversarial inputs.
+// encodeForgedManifest builds a gob-encoded .terragrunt-module-manifest with one file entry per supplied path so tests can plant adversarial inputs.
 func encodeForgedManifest(t *testing.T, paths ...string) []byte {
 	t.Helper()
 
@@ -1036,7 +1036,6 @@ func encodeForgedManifest(t *testing.T, paths ...string) []byte {
 	}
 
 	var buf bytes.Buffer
-	buf.WriteString("TerragruntManifestV1\n")
 
 	enc := gob.NewEncoder(&buf)
 

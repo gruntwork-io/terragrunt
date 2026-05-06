@@ -166,8 +166,8 @@ func TestFileManifest(t *testing.T) {
 	}
 }
 
-// TestFileManifestCleanRejectsLegacyOutOfRootEntry pins that legacy manifests are migrated without allowing out-of-root cleanup.
-func TestFileManifestCleanRejectsLegacyOutOfRootEntry(t *testing.T) {
+// TestFileManifestCleanRejectsOutOfRootEntry pins that manifests cannot drive out-of-root cleanup.
+func TestFileManifestCleanRejectsOutOfRootEntry(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -180,15 +180,15 @@ func TestFileManifestCleanRejectsLegacyOutOfRootEntry(t *testing.T) {
 	manifestName := testManifestName
 	manifestPath := filepath.Join(root, manifestName)
 
-	writeLegacyManifest(t, manifestPath, sentinel)
+	writeManifest(t, manifestPath, sentinel)
 
 	manifest := util.NewFileManifest(root, manifestName)
 	require.NoError(t, manifest.Clean(l))
 
-	assert.FileExists(t, sentinel, "out-of-root legacy manifest entry must be ignored")
+	assert.FileExists(t, sentinel, "out-of-root manifest entry must be ignored")
 }
 
-func TestFileManifestCleanMigratesLegacyInRootEntry(t *testing.T) {
+func TestFileManifestCleanRemovesInRootEntry(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -198,15 +198,15 @@ func TestFileManifestCleanMigratesLegacyInRootEntry(t *testing.T) {
 	require.NoError(t, os.WriteFile(staleFile, []byte("stale"), 0o600))
 
 	manifestName := testManifestName
-	writeLegacyManifest(t, filepath.Join(root, manifestName), staleFile)
+	writeManifest(t, filepath.Join(root, manifestName), staleFile)
 
 	manifest := util.NewFileManifest(root, manifestName)
 	require.NoError(t, manifest.Clean(l))
 
-	assert.NoFileExists(t, staleFile, "in-root legacy manifest entry must still be cleaned")
+	assert.NoFileExists(t, staleFile, "in-root manifest entry must still be cleaned")
 }
 
-func TestFileManifestCleanMigratesLegacyRelativeInRootEntry(t *testing.T) {
+func TestFileManifestCleanRemovesRelativeInRootEntry(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -225,16 +225,16 @@ func TestFileManifestCleanMigratesLegacyRelativeInRootEntry(t *testing.T) {
 	require.NoError(t, err)
 
 	manifestName := testManifestName
-	writeLegacyManifest(t, filepath.Join(rootRel, manifestName), staleFileRel)
+	writeManifest(t, filepath.Join(rootRel, manifestName), staleFileRel)
 
 	manifest := util.NewFileManifest(rootRel, manifestName)
 	require.NoError(t, manifest.Clean(l))
 
-	assert.NoFileExists(t, staleFile, "relative in-root legacy manifest entry must still be cleaned")
+	assert.NoFileExists(t, staleFile, "relative in-root manifest entry must still be cleaned")
 }
 
-// TestFileManifestCleanRejectsOutOfRootEntries pins that a manifest with the Terragrunt header still cannot remove outside ManifestFolder.
-func TestFileManifestCleanRejectsOutOfRootEntries(t *testing.T) {
+// TestFileManifestCleanRejectsCreatedOutOfRootEntries pins that Terragrunt-created manifests cannot remove outside ManifestFolder.
+func TestFileManifestCleanRejectsCreatedOutOfRootEntries(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -251,7 +251,7 @@ func TestFileManifestCleanRejectsOutOfRootEntries(t *testing.T) {
 
 	require.NoError(t, manifest.Clean(l))
 
-	assert.FileExists(t, sentinel, "out-of-root entry must not be removed even from a headered manifest")
+	assert.FileExists(t, sentinel, "out-of-root entry must not be removed from a Terragrunt-created manifest")
 }
 
 func TestFileManifestCleanRejectsSymlinkEscapes(t *testing.T) {
@@ -318,7 +318,7 @@ func TestFileManifestCleanRemovesNestedManifestNamedDirectory(t *testing.T) {
 	require.NoDirExists(t, nestedManifestDir)
 }
 
-func writeLegacyManifest(t *testing.T, path string, paths ...string) {
+func writeManifest(t *testing.T, path string, paths ...string) {
 	t.Helper()
 
 	type entry struct {
