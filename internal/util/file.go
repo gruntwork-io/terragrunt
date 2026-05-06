@@ -1005,8 +1005,6 @@ func (manifest *fileManifest) cleanOneManifest(l log.Logger, fsys vfs.FS, rootDi
 	entries, err := decodeFileManifestEntries(gob.NewDecoder(file))
 	if err != nil {
 		l.Warnf("Ignoring invalid manifest %s: %v", manifestPath, err)
-
-		return nil, nil
 	}
 
 	return manifest.cleanManifestEntries(l, fsys, rootDir, entries)
@@ -1597,13 +1595,14 @@ func decodeFileManifestEntries(decoder *gob.Decoder) ([]fileManifestEntry, error
 				return entries, nil
 			}
 
-			return nil, err
+			return entries, err
+		}
+
+		if len(entries) >= maxFileManifestEntries {
+			return entries, errors.Errorf("manifest contains more than %d entries", maxFileManifestEntries)
 		}
 
 		entries = append(entries, entry)
-		if len(entries) > maxFileManifestEntries {
-			return nil, errors.Errorf("manifest contains more than %d entries", maxFileManifestEntries)
-		}
 	}
 }
 

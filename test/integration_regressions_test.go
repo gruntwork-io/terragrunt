@@ -984,7 +984,7 @@ func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
 	t.Cleanup(func() { _ = srv.Close() })
 
 	require.NoError(t, srv.CommitFile("main.tf", []byte("# benign\n"), "module"))
-	require.NoError(t, srv.CommitFile(".terragrunt-module-manifest", encodeForgedManifest(t, sentinel), "forged manifest"))
+	require.NoError(t, srv.CommitFile(".terragrunt-module-manifest", encodeForgedManifest(t, forgedFile(sentinel)), "forged manifest"))
 
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
@@ -999,30 +999,55 @@ func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
 	)
 	require.NoError(t, err, "init must succeed: stdout=%s stderr=%s", stdout, stderr)
 
-	cachedMain := findCachedFile(t, filepath.Join(consumer, ".terragrunt-cache"), "main.tf")
-	assert.NotEmpty(t, cachedMain, "the benign main.tf from the module must be present in the cache")
+	cacheRoot := filepath.Join(consumer, ".terragrunt-cache")
+	cachedMain := findCachedFile(t, cacheRoot, "main.tf")
+	require.NotEmpty(t, cachedMain, "the benign main.tf from the module must be present in the cache")
 
+	cachedModuleDir := filepath.Dir(cachedMain)
+	staleCanary := filepath.Join(cachedModuleDir, "stale-canary.tf")
+	require.NoError(t, os.WriteFile(staleCanary, []byte("must be cleaned"), 0o600))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(cachedModuleDir, ".terragrunt-module-manifest"),
+		encodeForgedManifest(t, forgedFile(staleCanary), forgedFile(sentinel), forgedDir(sentinelDir)),
+		0o600,
+	))
+
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+consumer+" -- init -backend=false",
+	)
+	require.NoError(t, err, "second init must succeed: stdout=%s stderr=%s", stdout, stderr)
+
+	assert.NoFileExists(t, staleCanary, "forged manifest must have been processed and removed the in-cache canary")
 	assert.FileExists(t, sentinel, "forged manifest entry must not have deleted the sentinel outside the cache")
 }
 
 // encodeForgedManifest builds a gob-encoded .terragrunt-module-manifest with one file entry per supplied path so tests can plant adversarial inputs.
-func encodeForgedManifest(t *testing.T, paths ...string) []byte {
+func encodeForgedManifest(t *testing.T, entries ...forgedManifestEntry) []byte {
 	t.Helper()
-
-	type entry struct {
-		Path  string
-		IsDir bool
-	}
 
 	var buf bytes.Buffer
 
 	enc := gob.NewEncoder(&buf)
 
-	for _, p := range paths {
-		require.NoError(t, enc.Encode(entry{Path: p, IsDir: false}))
+	for _, entry := range entries {
+		require.NoError(t, enc.Encode(entry))
 	}
 
 	return buf.Bytes()
+}
+
+type forgedManifestEntry struct {
+	Path  string
+	IsDir bool
+}
+
+func forgedFile(path string) forgedManifestEntry {
+	return forgedManifestEntry{Path: path}
+}
+
+func forgedDir(path string) forgedManifestEntry {
+	return forgedManifestEntry{Path: path, IsDir: true}
 }
 
 // findCachedFile returns the first path under cacheRoot whose basename matches name, or "" if not found.

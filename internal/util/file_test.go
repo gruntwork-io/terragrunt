@@ -350,6 +350,26 @@ func TestFileManifestCleanRemovesInvalidManifest(t *testing.T) {
 	require.NoFileExists(t, manifestPath)
 }
 
+func TestFileManifestCleanRemovesDecodedEntriesFromPartiallyInvalidManifest(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	staleFile := filepath.Join(root, "stale.tf")
+	manifestPath := filepath.Join(root, testManifestName)
+
+	require.NoError(t, os.WriteFile(staleFile, []byte("stale"), 0o600))
+
+	writePartialInvalidManifest(t, manifestPath, staleFile)
+
+	manifest := util.NewFileManifest(root, testManifestName)
+	require.NoError(t, manifest.Clean(l))
+
+	require.NoFileExists(t, staleFile)
+	require.NoFileExists(t, manifestPath)
+}
+
 func writeManifest(t *testing.T, path string, paths ...string) {
 	t.Helper()
 
@@ -360,6 +380,22 @@ func writeDirectoryManifest(t *testing.T, path string, paths ...string) {
 	t.Helper()
 
 	writeManifestEntries(t, path, true, paths...)
+}
+
+func writePartialInvalidManifest(t *testing.T, path string, manifestEntry string) {
+	t.Helper()
+
+	writeManifestEntries(t, path, false, manifestEntry)
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
+
+	_, err = f.Write([]byte("not a gob entry"))
+	require.NoError(t, err)
 }
 
 func writeManifestEntries(t *testing.T, path string, isDir bool, paths ...string) {

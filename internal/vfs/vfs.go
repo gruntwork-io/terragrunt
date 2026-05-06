@@ -107,6 +107,7 @@ func Lstat(fs FS, path string) (os.FileInfo, error) {
 }
 
 // ParentPathHasSymlink reports whether any parent component in rel is a symlink under root.
+// It also reports true for unsafe relative paths that would escape root.
 // The final path component is not checked, so callers can safely remove a leaf symlink.
 func ParentPathHasSymlink(fsys FS, root, rel string) (bool, error) {
 	rel = filepath.Clean(rel)
