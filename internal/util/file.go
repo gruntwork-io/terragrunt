@@ -262,24 +262,6 @@ func IsFile(path string) bool {
 	return err == nil && !fileInfo.IsDir()
 }
 
-// GetPathRelativeTo returns the relative path you would have to take to get from basePath to path.
-func GetPathRelativeTo(path string, basePath string) (string, error) {
-	if path == "" {
-		path = "."
-	}
-
-	if basePath == "" {
-		basePath = "."
-	}
-
-	relPath, err := filepath.Rel(basePath, path)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	return relPath, nil
-}
-
 // ReadFileAsString returns the contents of the file at the given path as a string.
 func ReadFileAsString(path string) (string, error) {
 	bytes, err := os.ReadFile(path)
@@ -325,9 +307,9 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 			continue
 		}
 
-		relativeExpandGlobPath, err := GetPathRelativeTo(absoluteExpandGlobPath, source)
+		relativeExpandGlobPath, err := filepath.Rel(source, absoluteExpandGlobPath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("relativize glob match %q against source %q: %w", absoluteExpandGlobPath, source, err)
 		}
 
 		includeExpandedGlobs = append(includeExpandedGlobs, filepath.ToSlash(relativeExpandGlobPath))
@@ -428,7 +410,7 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 	}
 
 	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
-		relativePath, err := GetPathRelativeTo(absolutePath, source)
+		relativePath, err := filepath.Rel(source, absolutePath)
 		if err != nil {
 			return false
 		}
@@ -765,9 +747,9 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 	}
 
 	for _, file := range files {
-		fileRelativePath, err := GetPathRelativeTo(file, source)
+		fileRelativePath, err := filepath.Rel(source, file)
 		if err != nil {
-			return err
+			return fmt.Errorf("relativize %q against source %q: %w", file, source, err)
 		}
 
 		if !filter(file) {

@@ -63,7 +63,7 @@ const (
 	DynamodbPayPerRequestBillingMode = "PAY_PER_REQUEST"
 
 	sleepBetweenRetriesWaitingForEncryption = 20 * time.Second
-	maxRetriesWaitingForEncryption          = 15
+	maxRetriesWaitingForEncryption          = 30
 )
 
 var tableCreateDeleteSemaphore = NewCountingSemaphore(dynamoParallelOperations)
