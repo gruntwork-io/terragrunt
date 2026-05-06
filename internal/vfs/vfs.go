@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/charlievieth/fastwalk"
 	"github.com/gofrs/flock"
@@ -103,6 +104,40 @@ func ReadFile(fs FS, filename string) ([]byte, error) {
 // Lstat returns file info for path without following the final symlink when the filesystem supports it.
 func Lstat(fs FS, path string) (os.FileInfo, error) {
 	return lstatIfPossible(fs, path)
+}
+
+// ParentPathHasSymlink reports whether any parent component in rel is a symlink under root.
+// The final path component is not checked, so callers can safely remove a leaf symlink.
+func ParentPathHasSymlink(fsys FS, root, rel string) (bool, error) {
+	rel = filepath.Clean(rel)
+	if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return true, nil
+	}
+
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) > 0 {
+		parts = parts[:len(parts)-1]
+	}
+
+	current := filepath.Clean(root)
+	for _, part := range parts {
+		current = filepath.Join(current, part)
+
+		info, err := Lstat(fsys, current)
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+
+		if err != nil {
+			return false, err
+		}
+
+		if info.Mode()&os.ModeSymlink != 0 {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // MkdirTemp creates a temporary directory on the given filesystem.
@@ -340,15 +375,24 @@ func (fs *memMapFS) ReadlinkIfPossible(name string) (string, error) {
 
 func (fs *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	if _, ok := fs.symlinks[name]; ok {
-		info, err := fs.Fs.Stat(name)
-
-		return info, true, err
+		return symlinkFileInfo{name: filepath.Base(name)}, true, nil
 	}
 
 	info, err := fs.Fs.Stat(name)
 
 	return info, false, err
 }
+
+type symlinkFileInfo struct {
+	name string
+}
+
+func (info symlinkFileInfo) Name() string       { return info.name }
+func (info symlinkFileInfo) Size() int64        { return 0 }
+func (info symlinkFileInfo) Mode() os.FileMode  { return os.ModeSymlink | os.ModePerm }
+func (info symlinkFileInfo) ModTime() time.Time { return time.Time{} }
+func (info symlinkFileInfo) IsDir() bool        { return false }
+func (info symlinkFileInfo) Sys() any           { return nil }
 
 func (fs *memMapFS) Lock(name string) (Unlocker, error) {
 	l := fs.getOrCreateLock(name)

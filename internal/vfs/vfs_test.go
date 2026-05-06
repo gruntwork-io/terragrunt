@@ -225,6 +225,57 @@ func TestSymlink(t *testing.T) {
 	})
 }
 
+func TestParentPathHasSymlink(t *testing.T) {
+	t.Parallel()
+
+	t.Run("parent path contains symlink", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/real", 0o755))
+		require.NoError(t, vfs.Symlink(fs, "/root/real", "/root/link"))
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(fs, "/root", "link/file.txt")
+
+		require.NoError(t, err)
+		assert.True(t, hasSymlink)
+	})
+
+	t.Run("leaf symlink is not considered parent symlink", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/real", 0o755))
+		require.NoError(t, vfs.Symlink(fs, "/root/real", "/root/link"))
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(fs, "/root", "link")
+
+		require.NoError(t, err)
+		assert.False(t, hasSymlink)
+	})
+
+	t.Run("regular parents", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/real", 0o755))
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(fs, "/root", "real/file.txt")
+
+		require.NoError(t, err)
+		assert.False(t, hasSymlink)
+	})
+
+	t.Run("invalid relative path is unsafe", func(t *testing.T) {
+		t.Parallel()
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "../escape.txt")
+
+		require.NoError(t, err)
+		assert.True(t, hasSymlink)
+	})
+}
+
 func TestUnzip(t *testing.T) {
 	t.Parallel()
 

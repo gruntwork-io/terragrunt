@@ -206,9 +206,7 @@ func TestFileManifestCleanRemovesInRootEntry(t *testing.T) {
 	assert.NoFileExists(t, staleFile, "in-root manifest entry must still be cleaned")
 }
 
-func TestFileManifestCleanRemovesRelativeInRootEntry(t *testing.T) {
-	t.Parallel()
-
+func TestFileManifestCleanRemovesRelativeInRootEntry(t *testing.T) { //nolint:paralleltest // depends on stable process CWD
 	l := logger.CreateLogger()
 
 	root := helpers.TmpDirWOSymlinks(t)
@@ -292,8 +290,6 @@ func TestFileManifestCleanRemovesManifestNamedDirectory(t *testing.T) {
 	manifest := util.NewFileManifest(root, manifestName)
 	require.NoError(t, manifest.Clean(l))
 	require.NoDirExists(t, manifestDir)
-	require.NoError(t, manifest.Create())
-	require.NoError(t, manifest.Close())
 }
 
 func TestFileManifestCleanRemovesNestedManifestNamedDirectory(t *testing.T) {

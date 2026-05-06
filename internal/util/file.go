@@ -1013,7 +1013,7 @@ func (manifest *fileManifest) cleanOneManifest(l log.Logger, fsys vfs.FS, rootDi
 }
 
 func openManifestFileForClean(l log.Logger, fsys vfs.FS, rootDir, manifestRelPath string) (vfs.File, bool, error) {
-	parentHasSymlink, err := relPathHasSymlink(fsys, rootDir, manifestRelPath)
+	parentHasSymlink, err := vfs.ParentPathHasSymlink(fsys, rootDir, manifestRelPath)
 	if err != nil {
 		return nil, false, err
 	}
@@ -1613,7 +1613,7 @@ func removeManifestEntry(l log.Logger, fsys vfs.FS, rootDir, rel string) error {
 		return nil
 	}
 
-	hasSymlink, err := relPathHasSymlink(fsys, rootDir, rel)
+	hasSymlink, err := vfs.ParentPathHasSymlink(fsys, rootDir, rel)
 	if err != nil {
 		return err
 	}
@@ -1637,7 +1637,7 @@ func removeManifestPath(fsys vfs.FS, rootDir, rel string) error {
 		return nil
 	}
 
-	hasSymlink, err := relPathHasSymlink(fsys, rootDir, rel)
+	hasSymlink, err := vfs.ParentPathHasSymlink(fsys, rootDir, rel)
 	if err != nil {
 		return err
 	}
@@ -1653,38 +1653,6 @@ func removeManifestPath(fsys vfs.FS, rootDir, rel string) error {
 	return nil
 }
 
-func relPathHasSymlink(fsys vfs.FS, rootDir, rel string) (bool, error) {
-	rel, ok := cleanRootRelPath(rel)
-	if !ok {
-		return true, nil
-	}
-
-	parts := strings.Split(rel, string(filepath.Separator))
-	if len(parts) > 0 {
-		parts = parts[:len(parts)-1]
-	}
-
-	current := filepath.Clean(rootDir)
-	for _, part := range parts {
-		current = filepath.Join(current, part)
-
-		info, err := vfs.Lstat(fsys, current)
-		if errors.Is(err, fs.ErrNotExist) {
-			return false, nil
-		}
-
-		if err != nil {
-			return false, err
-		}
-
-		if info.Mode()&os.ModeSymlink != 0 {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
 func cleanRootRelPath(rel string) (string, bool) {
 	rel = filepath.Clean(rel)
 	if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
@@ -1694,8 +1662,10 @@ func cleanRootRelPath(rel string) (string, bool) {
 	return rel, true
 }
 
-// relPathInsideRoot returns target relative to rootDir; ok=false when target escapes, equals rootDir, or rootDir is not absolute.
-// Relative targets are resolved from the current working directory to preserve manifests written with relative destinations.
+// relPathInsideRoot returns target relative to rootDir; ok=false when target escapes.
+// Relative manifest entries are resolved against the process CWD, not rootDir,
+// because adversarial relative paths must be judged the same way os.Remove used
+// to resolve legacy entries. Do not replace this with filepath.Join(rootDir, target).
 func relPathInsideRoot(rootDir, target string) (string, bool) {
 	if !filepath.IsAbs(rootDir) {
 		return "", false

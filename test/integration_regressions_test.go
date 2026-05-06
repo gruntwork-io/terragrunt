@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -969,29 +971,6 @@ func TestDAGQueueDisplay(t *testing.T) {
 	})
 }
 
-// findCachedFile returns the first path under cacheRoot whose basename matches name, or "" if not found.
-func findCachedFile(t *testing.T, cacheRoot, name string) string {
-	t.Helper()
-
-	var found string
-
-	walkErr := filepath.WalkDir(cacheRoot, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if !d.IsDir() && filepath.Base(path) == name {
-			found = path
-			return filepath.SkipAll
-		}
-
-		return nil
-	})
-	require.NoError(t, walkErr, "walking %s", cacheRoot)
-
-	return found
-}
-
 // TestForgedModuleManifestDoesNotEscapeCache pins that a forged .terragrunt-module-manifest shipped inside a downloaded git module does not delete a sentinel file outside the cache.
 func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
 	t.Parallel()
@@ -1044,4 +1023,27 @@ func encodeForgedManifest(t *testing.T, paths ...string) []byte {
 	}
 
 	return buf.Bytes()
+}
+
+// findCachedFile returns the first path under cacheRoot whose basename matches name, or "" if not found.
+func findCachedFile(t *testing.T, cacheRoot, name string) string {
+	t.Helper()
+
+	var found string
+
+	walkErr := vfs.WalkDir(vfs.NewOSFS(), cacheRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !d.IsDir() && filepath.Base(path) == name {
+			found = path
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+	require.NoError(t, walkErr, "walking %s", cacheRoot)
+
+	return found
 }
