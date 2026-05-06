@@ -325,7 +325,14 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			return nil, err
 		}
 
-		depCtx.DownloadDir = filepath.Join(filepath.Dir(depPath), util.TerragruntCacheDir)
+		// Only fall back to the dependency's local .terragrunt-cache when the caller
+		// is using its own default download dir (i.e. no custom TG_DOWNLOAD_DIR is set).
+		// WithDependencyConfigPath already handles propagation correctly; this guard
+		// prevents overwriting a user-set custom directory.
+		_, callerDefaultDir := util.DefaultWorkingAndDownloadDirs(pctx.TerragruntConfigPath)
+		if pctx.DownloadDir == callerDefaultDir {
+			depCtx.DownloadDir = filepath.Join(filepath.Dir(depPath), util.TerragruntCacheDir)
+		}
 
 		if depCtx.IAMRoleOptions != depCtx.OriginalIAMRoleOptions {
 			depCtx.IAMRoleOptions = iam.RoleOptions{}
@@ -897,6 +904,10 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 // by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
 // target module.
 func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
+	// Save the caller's config path and download dir before WithDependencyConfigPath reassigns pctx.
+	callerConfigPath := pctx.TerragruntConfigPath
+	callerDownloadDir := pctx.DownloadDir
+
 	l, pctx, err := pctx.WithDependencyConfigPath(l, targetConfig)
 	if err != nil {
 		return nil, err
@@ -908,10 +919,14 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	pctx.TerraformCommand = "output"
 	pctx.TerraformCliArgs = iacargs.New().SetCommand("output").AppendFlag("-json")
 
-	// DownloadDir needs to be the dependency's default download directory
-	_, downloadDir := util.DefaultWorkingAndDownloadDirs(targetConfig)
-
-	pctx.DownloadDir = downloadDir
+	// Only override DownloadDir to the dependency's default when no custom TG_DOWNLOAD_DIR was
+	// set by the caller. WithDependencyConfigPath already propagates a user-set custom dir;
+	// we only apply the dep's local .terragrunt-cache as a fallback for the default case.
+	_, callerDefaultDir := util.DefaultWorkingAndDownloadDirs(callerConfigPath)
+	if callerDownloadDir == callerDefaultDir {
+		_, downloadDir := util.DefaultWorkingAndDownloadDirs(targetConfig)
+		pctx.DownloadDir = downloadDir
+	}
 
 	// Clear IAM if changed from original
 	if pctx.IAMRoleOptions != pctx.OriginalIAMRoleOptions {
