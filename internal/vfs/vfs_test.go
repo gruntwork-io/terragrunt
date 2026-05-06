@@ -266,10 +266,50 @@ func TestParentPathHasSymlink(t *testing.T) {
 		assert.False(t, hasSymlink)
 	})
 
+	t.Run("missing parent is not treated as symlink", func(t *testing.T) {
+		t.Parallel()
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "missing/file.txt")
+
+		require.NoError(t, err)
+		assert.False(t, hasSymlink)
+	})
+
+	t.Run("current directory is unsafe", func(t *testing.T) {
+		t.Parallel()
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", ".")
+
+		require.NoError(t, err)
+		assert.True(t, hasSymlink)
+	})
+
+	t.Run("absolute relative path is unsafe", func(t *testing.T) {
+		t.Parallel()
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "/root/file.txt")
+
+		require.NoError(t, err)
+		assert.True(t, hasSymlink)
+	})
+
 	t.Run("invalid relative path is unsafe", func(t *testing.T) {
 		t.Parallel()
 
 		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "../escape.txt")
+
+		require.NoError(t, err)
+		assert.True(t, hasSymlink)
+	})
+
+	t.Run("deep nested parent symlink", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/a/b/real", 0o755))
+		require.NoError(t, vfs.Symlink(fs, "/root/a/b/real", "/root/a/b/link"))
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(fs, "/root", "a/b/link/file.txt")
 
 		require.NoError(t, err)
 		assert.True(t, hasSymlink)

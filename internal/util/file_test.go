@@ -1,6 +1,7 @@
 package util_test
 
 import (
+	"bytes"
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	tglog "github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -331,10 +333,10 @@ func TestFileManifestCleanRemovesNestedManifestNamedDirectory(t *testing.T) {
 	require.NoDirExists(t, nestedManifestDir)
 }
 
-func TestFileManifestCleanRejectsSelfReferencingDirectoryCycle(t *testing.T) {
+func TestFileManifestCleanBreaksDirectoryCycle(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
+	l, logs := createBufferedLogger()
 
 	root := helpers.TmpDirWOSymlinks(t)
 	manifestPath := filepath.Join(root, testManifestName)
@@ -350,24 +352,27 @@ func TestFileManifestCleanRejectsSelfReferencingDirectoryCycle(t *testing.T) {
 
 	require.NoFileExists(t, manifestPath)
 	require.NoFileExists(t, nestedManifestPath)
+	assert.Contains(t, logs.String(), "already processed")
 }
 
 func TestFileManifestCleanRemovesInvalidManifest(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
+	l, logs := createBufferedLogger()
 
 	root := helpers.TmpDirWOSymlinks(t)
 	manifestPath := filepath.Join(root, testManifestName)
-	require.NoError(t, os.WriteFile(manifestPath, []byte("not a gob manifest\n"), 0o600))
+	writeInvalidGobManifest(t, manifestPath)
 
 	manifest := util.NewFileManifest(root, testManifestName)
 	require.NoError(t, manifest.Clean(l))
 
 	require.NoFileExists(t, manifestPath)
+	assert.Contains(t, logs.String(), "Ignoring invalid manifest")
+	assert.Contains(t, logs.String(), manifestPath)
 }
 
-func TestFileManifestCleanRemovesDecodedEntriesFromPartiallyInvalidManifest(t *testing.T) {
+func TestFileManifestCleanProcessesPartialManifest(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -385,6 +390,125 @@ func TestFileManifestCleanRemovesDecodedEntriesFromPartiallyInvalidManifest(t *t
 
 	require.NoFileExists(t, staleFile)
 	require.NoFileExists(t, manifestPath)
+}
+
+func TestFileManifestCleanContinuesAfterEntryCleanupError(t *testing.T) {
+	t.Parallel()
+
+	l, logs := createBufferedLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifestPath := filepath.Join(root, testManifestName)
+	lockedDir := filepath.Join(root, "locked")
+	nestedDir := filepath.Join(root, "nested")
+	nestedManifestPath := filepath.Join(nestedDir, testManifestName)
+	nestedStaleFile := filepath.Join(nestedDir, "stale.tf")
+
+	require.NoError(t, os.MkdirAll(lockedDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(lockedDir, "child.tf"), []byte("child"), 0o600))
+	require.NoError(t, os.MkdirAll(nestedDir, 0o700))
+	require.NoError(t, os.WriteFile(nestedStaleFile, []byte("stale"), 0o600))
+
+	writeManifestEntryList(t, manifestPath, manifestFile(lockedDir), manifestDir(nestedDir))
+	writeManifest(t, nestedManifestPath, nestedStaleFile)
+
+	manifest := util.NewFileManifest(root, testManifestName)
+	require.NoError(t, manifest.Clean(l))
+
+	require.DirExists(t, lockedDir)
+	require.NoFileExists(t, nestedStaleFile)
+	require.NoFileExists(t, manifestPath)
+	require.NoFileExists(t, nestedManifestPath)
+	assert.Contains(t, logs.String(), "Error cleaning manifest entry")
+	assert.Contains(t, logs.String(), lockedDir)
+}
+
+func TestFileManifestCleanProcessesDecodedDirFromPartialManifest(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifestPath := filepath.Join(root, testManifestName)
+	nestedDir := filepath.Join(root, "nested")
+	nestedManifestPath := filepath.Join(nestedDir, testManifestName)
+	nestedStaleFile := filepath.Join(nestedDir, "stale.tf")
+
+	require.NoError(t, os.MkdirAll(nestedDir, 0o700))
+	require.NoError(t, os.WriteFile(nestedStaleFile, []byte("stale"), 0o600))
+
+	writePartialInvalidManifestEntryList(t, manifestPath, manifestDir(nestedDir))
+	writeManifest(t, nestedManifestPath, nestedStaleFile)
+
+	manifest := util.NewFileManifest(root, testManifestName)
+	require.NoError(t, manifest.Clean(l))
+
+	require.NoFileExists(t, nestedStaleFile)
+	require.NoFileExists(t, manifestPath)
+	require.NoFileExists(t, nestedManifestPath)
+}
+
+func TestFileManifestCleanTreatsUnexpectedEOFAsEOF(t *testing.T) {
+	t.Parallel()
+
+	l, logs := createBufferedLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifestPath := filepath.Join(root, testManifestName)
+	staleFile := filepath.Join(root, "stale.tf")
+
+	require.NoError(t, os.WriteFile(staleFile, []byte("stale"), 0o600))
+	writeUnexpectedEOFManifest(t, manifestPath, manifestFile(staleFile), manifestFile(filepath.Join(root, "partial.tf")))
+
+	manifest := util.NewFileManifest(root, testManifestName)
+	require.NoError(t, manifest.Clean(l))
+
+	require.NoFileExists(t, staleFile)
+	require.NoFileExists(t, manifestPath)
+	assert.NotContains(t, logs.String(), "Ignoring invalid manifest")
+}
+
+func TestFileManifestCleanRejectsTooManyReferencedManifests(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	const testMaxFileManifests = 100_000
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifestPath := filepath.Join(root, testManifestName)
+	entries := make([]manifestTestEntry, 0, testMaxFileManifests)
+
+	for idx := 0; idx < testMaxFileManifests; idx++ {
+		entries = append(entries, manifestDir(filepath.Join(root, fmt.Sprintf("dir-%06d", idx))))
+	}
+
+	writeManifestEntryList(t, manifestPath, entries...)
+
+	manifest := util.NewFileManifest(root, testManifestName)
+	err := manifest.Clean(l)
+
+	require.ErrorContains(t, err, "exceeded 100000 manifests")
+	assert.Contains(t, err.Error(), root)
+}
+
+func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger().WithOptions(tglog.WithLevel(tglog.ErrorLevel))
+
+	const testMaxFileManifestEntries = 1_000_000
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifestPath := filepath.Join(root, testManifestName)
+
+	writeRepeatedManifestEntry(t, manifestPath, testMaxFileManifestEntries+1, manifestFile(""))
+
+	manifest := util.NewFileManifest(root, testManifestName)
+	err := manifest.Clean(l)
+
+	require.ErrorContains(t, err, "entry cap")
+	assert.Contains(t, err.Error(), root)
 }
 
 func writeManifest(t *testing.T, path string, paths ...string) {
@@ -415,13 +539,45 @@ func writePartialInvalidManifest(t *testing.T, path string, manifestEntry string
 	require.NoError(t, err)
 }
 
+func writeInvalidGobManifest(t *testing.T, path string) {
+	t.Helper()
+
+	f, err := os.Create(path)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
+
+	require.NoError(t, gob.NewEncoder(f).Encode("not a manifest entry"))
+}
+
+type manifestTestEntry struct {
+	Path  string
+	IsDir bool
+}
+
+func manifestFile(path string) manifestTestEntry {
+	return manifestTestEntry{Path: path}
+}
+
+func manifestDir(path string) manifestTestEntry {
+	return manifestTestEntry{Path: path, IsDir: true}
+}
+
 func writeManifestEntries(t *testing.T, path string, isDir bool, paths ...string) {
 	t.Helper()
 
-	type entry struct {
-		Path  string
-		IsDir bool
+	entries := make([]manifestTestEntry, 0, len(paths))
+	for _, p := range paths {
+		entries = append(entries, manifestTestEntry{Path: p, IsDir: isDir})
 	}
+
+	writeManifestEntryList(t, path, entries...)
+}
+
+func writeManifestEntryList(t *testing.T, path string, entries ...manifestTestEntry) {
+	t.Helper()
 
 	f, err := os.Create(path)
 	require.NoError(t, err)
@@ -431,9 +587,69 @@ func writeManifestEntries(t *testing.T, path string, isDir bool, paths ...string
 	}()
 
 	enc := gob.NewEncoder(f)
-	for _, p := range paths {
-		require.NoError(t, enc.Encode(entry{Path: p, IsDir: isDir}))
+	for _, entry := range entries {
+		require.NoError(t, enc.Encode(entry))
 	}
+}
+
+func writeRepeatedManifestEntry(t *testing.T, path string, count int, entry manifestTestEntry) {
+	t.Helper()
+
+	f, err := os.Create(path)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
+
+	enc := gob.NewEncoder(f)
+	for range count {
+		require.NoError(t, enc.Encode(entry))
+	}
+}
+
+func writePartialInvalidManifestEntryList(t *testing.T, path string, entries ...manifestTestEntry) {
+	t.Helper()
+
+	writeManifestEntryList(t, path, entries...)
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
+
+	_, err = f.Write([]byte("not a gob entry"))
+	require.NoError(t, err)
+}
+
+func writeUnexpectedEOFManifest(t *testing.T, path string, validEntry manifestTestEntry, partialEntry manifestTestEntry) {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	enc := gob.NewEncoder(&buf)
+	require.NoError(t, enc.Encode(validEntry))
+
+	validLen := buf.Len()
+
+	require.NoError(t, enc.Encode(partialEntry))
+
+	data := buf.Bytes()
+
+	partialLen := (len(data) - validLen) / 2
+	if partialLen == 0 {
+		partialLen = 1
+	}
+
+	require.NoError(t, os.WriteFile(path, data[:validLen+partialLen], 0o600))
+}
+
+func createBufferedLogger() (tglog.Logger, *bytes.Buffer) {
+	buf := &bytes.Buffer{}
+
+	return logger.CreateLogger().WithOptions(tglog.WithOutput(buf)), buf
 }
 
 func TestContainsPath(t *testing.T) {

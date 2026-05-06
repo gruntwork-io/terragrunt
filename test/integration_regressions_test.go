@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -1005,12 +1006,15 @@ func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
 
 	cachedModuleDir := filepath.Dir(cachedMain)
 	staleCanary := filepath.Join(cachedModuleDir, "stale-canary.tf")
+	forgedManifestPath := filepath.Join(cachedModuleDir, ".terragrunt-module-manifest")
+
 	require.NoError(t, os.WriteFile(staleCanary, []byte("must be cleaned"), 0o600))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(cachedModuleDir, ".terragrunt-module-manifest"),
+		forgedManifestPath,
 		encodeForgedManifest(t, forgedFile(staleCanary), forgedFile(sentinel), forgedDir(sentinelDir)),
 		0o600,
 	))
+	require.FileExists(t, forgedManifestPath, "test setup must plant the forged cache manifest before the second init")
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -1020,6 +1024,17 @@ func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
 
 	assert.NoFileExists(t, staleCanary, "forged manifest must have been processed and removed the in-cache canary")
 	assert.FileExists(t, sentinel, "forged manifest entry must not have deleted the sentinel outside the cache")
+
+	manifestEntries := readForgedManifestEntries(t, forgedManifestPath)
+	manifestPaths := make([]string, 0, len(manifestEntries))
+
+	for _, entry := range manifestEntries {
+		manifestPaths = append(manifestPaths, entry.Path)
+	}
+
+	assert.NotContains(t, manifestPaths, staleCanary, "fresh manifest should not retain the forged in-cache canary entry")
+	assert.NotContains(t, manifestPaths, sentinel, "fresh manifest should not retain the forged out-of-cache file entry")
+	assert.NotContains(t, manifestPaths, sentinelDir, "fresh manifest should not retain the forged out-of-cache directory entry")
 }
 
 // encodeForgedManifest builds a gob-encoded .terragrunt-module-manifest with one file entry per supplied path so tests can plant adversarial inputs.
@@ -1035,6 +1050,33 @@ func encodeForgedManifest(t *testing.T, entries ...forgedManifestEntry) []byte {
 	}
 
 	return buf.Bytes()
+}
+
+func readForgedManifestEntries(t *testing.T, path string) []forgedManifestEntry {
+	t.Helper()
+
+	file, err := os.Open(path)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, file.Close())
+	}()
+
+	decoder := gob.NewDecoder(file)
+	entries := []forgedManifestEntry{}
+
+	for {
+		var entry forgedManifestEntry
+		if err := decoder.Decode(&entry); err != nil {
+			if errors.Is(err, io.EOF) {
+				return entries
+			}
+
+			require.NoError(t, err)
+		}
+
+		entries = append(entries, entry)
+	}
 }
 
 type forgedManifestEntry struct {
