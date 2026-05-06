@@ -410,6 +410,7 @@ func (fs *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	return info, false, err
 }
 
+// symlinkFileInfo reports symlink metadata for links stored in memMapFS's side table.
 type symlinkFileInfo struct {
 	name string
 }
@@ -693,6 +694,7 @@ func lstatIfPossible(fsys FS, path string) (os.FileInfo, error) {
 	return fsys.Stat(path)
 }
 
+// symlinkWalkState tracks progress while resolving symlinks without using the OS filesystem.
 type symlinkWalkState struct {
 	path        string
 	vol         string
