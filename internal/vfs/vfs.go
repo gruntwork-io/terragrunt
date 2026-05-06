@@ -100,6 +100,11 @@ func ReadFile(fs FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fs, filename)
 }
 
+// Lstat returns file info for path without following the final symlink when the filesystem supports it.
+func Lstat(fs FS, path string) (os.FileInfo, error) {
+	return lstatIfPossible(fs, path)
+}
+
 // MkdirTemp creates a temporary directory on the given filesystem.
 func MkdirTemp(fs FS, dir, pattern string) (string, error) {
 	return afero.TempDir(fs, dir, pattern)

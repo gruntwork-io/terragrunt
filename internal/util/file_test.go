@@ -1,6 +1,7 @@
 package util_test
 
 import (
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -17,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const testManifestName = ".terragrunt-test-manifest"
 
 func TestCanonicalPath(t *testing.T) {
 	t.Parallel()
@@ -142,7 +145,7 @@ func TestFileManifest(t *testing.T) {
 
 	// create a manifest
 	l := logger.CreateLogger()
-	manifest := util.NewFileManifest(dir, ".terragrunt-test-manifest")
+	manifest := util.NewFileManifest(dir, testManifestName)
 	require.NoError(t, manifest.Create())
 	// check the file manifest has been created
 	assert.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
@@ -160,6 +163,179 @@ func TestFileManifest(t *testing.T) {
 	// test if the files have been deleted
 	for _, file := range testfiles {
 		assert.False(t, util.FileExists(file))
+	}
+}
+
+// TestFileManifestCleanRejectsLegacyOutOfRootEntry pins that legacy manifests are migrated without allowing out-of-root cleanup.
+func TestFileManifestCleanRejectsLegacyOutOfRootEntry(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	outsideDir := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(outsideDir, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifestName := testManifestName
+	manifestPath := filepath.Join(root, manifestName)
+
+	writeLegacyManifest(t, manifestPath, sentinel)
+
+	manifest := util.NewFileManifest(root, manifestName)
+	require.NoError(t, manifest.Clean(l))
+
+	assert.FileExists(t, sentinel, "out-of-root legacy manifest entry must be ignored")
+}
+
+func TestFileManifestCleanMigratesLegacyInRootEntry(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	staleFile := filepath.Join(root, "stale.tf")
+	require.NoError(t, os.WriteFile(staleFile, []byte("stale"), 0o600))
+
+	manifestName := testManifestName
+	writeLegacyManifest(t, filepath.Join(root, manifestName), staleFile)
+
+	manifest := util.NewFileManifest(root, manifestName)
+	require.NoError(t, manifest.Clean(l))
+
+	assert.NoFileExists(t, staleFile, "in-root legacy manifest entry must still be cleaned")
+}
+
+func TestFileManifestCleanMigratesLegacyRelativeInRootEntry(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	staleFile := filepath.Join(root, "stale.tf")
+	require.NoError(t, os.WriteFile(staleFile, []byte("stale"), 0o600))
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	rootRel, err := filepath.Rel(cwd, root)
+	require.NoError(t, err)
+
+	staleFileRel, err := filepath.Rel(cwd, staleFile)
+	require.NoError(t, err)
+
+	manifestName := testManifestName
+	writeLegacyManifest(t, filepath.Join(rootRel, manifestName), staleFileRel)
+
+	manifest := util.NewFileManifest(rootRel, manifestName)
+	require.NoError(t, manifest.Clean(l))
+
+	assert.NoFileExists(t, staleFile, "relative in-root legacy manifest entry must still be cleaned")
+}
+
+// TestFileManifestCleanRejectsOutOfRootEntries pins that a manifest with the Terragrunt header still cannot remove outside ManifestFolder.
+func TestFileManifestCleanRejectsOutOfRootEntries(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	outsideDir := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(outsideDir, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifest := util.NewFileManifest(root, testManifestName)
+	require.NoError(t, manifest.Create())
+	require.NoError(t, manifest.AddFile(sentinel))
+	require.NoError(t, manifest.Close())
+
+	require.NoError(t, manifest.Clean(l))
+
+	assert.FileExists(t, sentinel, "out-of-root entry must not be removed even from a headered manifest")
+}
+
+func TestFileManifestCleanRejectsSymlinkEscapes(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	outsideDir := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(outsideDir, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	root := helpers.TmpDirWOSymlinks(t)
+	if err := os.Symlink(outsideDir, filepath.Join(root, "link")); err != nil {
+		t.Skipf("symlinks are not available: %v", err)
+	}
+
+	manifest := util.NewFileManifest(root, testManifestName)
+	require.NoError(t, manifest.Create())
+	require.NoError(t, manifest.AddFile(filepath.Join(root, "link", "sentinel.txt")))
+	require.NoError(t, manifest.Close())
+
+	require.NoError(t, manifest.Clean(l))
+
+	assert.FileExists(t, sentinel, "manifest cleanup must not follow symlink parents outside the root")
+}
+
+func TestFileManifestCleanRemovesManifestNamedDirectory(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifestName := testManifestName
+	manifestDir := filepath.Join(root, manifestName)
+	require.NoError(t, os.MkdirAll(manifestDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(manifestDir, "trapped.tf"), []byte("trap"), 0o600))
+
+	manifest := util.NewFileManifest(root, manifestName)
+	require.NoError(t, manifest.Clean(l))
+	require.NoDirExists(t, manifestDir)
+	require.NoError(t, manifest.Create())
+	require.NoError(t, manifest.Close())
+}
+
+func TestFileManifestCleanRemovesNestedManifestNamedDirectory(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifestName := testManifestName
+	nestedDir := filepath.Join(root, "sub")
+	nestedManifestDir := filepath.Join(nestedDir, manifestName)
+	require.NoError(t, os.MkdirAll(nestedManifestDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(nestedManifestDir, "trapped.tf"), []byte("trap"), 0o600))
+
+	manifest := util.NewFileManifest(root, manifestName)
+	require.NoError(t, manifest.Create())
+	require.NoError(t, manifest.AddDirectory(nestedDir))
+	require.NoError(t, manifest.Close())
+
+	require.NoError(t, manifest.Clean(l))
+
+	require.NoDirExists(t, nestedManifestDir)
+}
+
+func writeLegacyManifest(t *testing.T, path string, paths ...string) {
+	t.Helper()
+
+	type entry struct {
+		Path  string
+		IsDir bool
+	}
+
+	f, err := os.Create(path)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
+
+	enc := gob.NewEncoder(f)
+	for _, p := range paths {
+		require.NoError(t, enc.Encode(entry{Path: p, IsDir: false}))
 	}
 }
 

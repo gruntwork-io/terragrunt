@@ -3,7 +3,6 @@ package run
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -22,7 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -72,12 +70,6 @@ func DownloadTerraformSource(
 	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r)
 	if err != nil {
 		return nil, err
-	}
-
-	if downloaded {
-		if err := setupWorkingDir(vfs.NewOSFS(), terraformSource.WorkingDir); err != nil {
-			return nil, err
-		}
 	}
 
 	// When no download was needed (AlreadyHaveLatestCode=true) and the source
@@ -485,37 +477,4 @@ func (err DownloadingTerraformSourceErr) Error() string {
 
 func (err DownloadingTerraformSourceErr) Unwrap() error {
 	return err.ErrMsg
-}
-
-// setupWorkingDir strips any .terragrunt-module-manifest entries from cacheDir, walking via fsys without following symbolic links.
-func setupWorkingDir(fsys vfs.FS, cacheDir string) error {
-	return vfs.WalkDir(fsys, cacheDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			// fs.ErrNotExist covers both a missing cacheDir at top and a per-entry TOCTOU race; both are no-ops for the scrub.
-			if errors.Is(err, fs.ErrNotExist) {
-				return nil
-			}
-
-			return err
-		}
-
-		// Never delete the walk root itself even if its basename matches ModuleManifestName.
-		if path == cacheDir {
-			return nil
-		}
-
-		if d.Name() != ModuleManifestName {
-			return nil
-		}
-
-		if err := fsys.RemoveAll(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-
-		if d.IsDir() {
-			return fs.SkipDir
-		}
-
-		return nil
-	})
 }
