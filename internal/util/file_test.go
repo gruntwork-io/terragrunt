@@ -318,7 +318,55 @@ func TestFileManifestCleanRemovesNestedManifestNamedDirectory(t *testing.T) {
 	require.NoDirExists(t, nestedManifestDir)
 }
 
+func TestFileManifestCleanRejectsSelfReferencingDirectoryCycle(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifestPath := filepath.Join(root, testManifestName)
+	nestedDir := filepath.Join(root, "sub")
+	nestedManifestPath := filepath.Join(nestedDir, testManifestName)
+	require.NoError(t, os.MkdirAll(nestedDir, 0o700))
+
+	writeDirectoryManifest(t, manifestPath, nestedDir)
+	writeDirectoryManifest(t, nestedManifestPath, nestedDir)
+
+	manifest := util.NewFileManifest(root, testManifestName)
+	require.NoError(t, manifest.Clean(l))
+
+	require.NoFileExists(t, manifestPath)
+	require.NoFileExists(t, nestedManifestPath)
+}
+
+func TestFileManifestCleanRemovesInvalidManifest(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifestPath := filepath.Join(root, testManifestName)
+	require.NoError(t, os.WriteFile(manifestPath, []byte("not a gob manifest\n"), 0o600))
+
+	manifest := util.NewFileManifest(root, testManifestName)
+	require.NoError(t, manifest.Clean(l))
+
+	require.NoFileExists(t, manifestPath)
+}
+
 func writeManifest(t *testing.T, path string, paths ...string) {
+	t.Helper()
+
+	writeManifestEntries(t, path, false, paths...)
+}
+
+func writeDirectoryManifest(t *testing.T, path string, paths ...string) {
+	t.Helper()
+
+	writeManifestEntries(t, path, true, paths...)
+}
+
+func writeManifestEntries(t *testing.T, path string, isDir bool, paths ...string) {
 	t.Helper()
 
 	type entry struct {
@@ -335,7 +383,7 @@ func writeManifest(t *testing.T, path string, paths ...string) {
 
 	enc := gob.NewEncoder(f)
 	for _, p := range paths {
-		require.NoError(t, enc.Encode(entry{Path: p, IsDir: false}))
+		require.NoError(t, enc.Encode(entry{Path: p, IsDir: isDir}))
 	}
 }
 
