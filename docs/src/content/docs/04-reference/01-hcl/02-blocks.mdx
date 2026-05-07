@@ -136,6 +136,16 @@ supported:
   - The working directory for hooks associated with `init-from-module` will run in the terragrunt config directory,
     while the working directory for hooks associated with `init` will be the OpenTofu/Terraform module.
 
+- `generate`: A `before_hook` or `after_hook` with `commands = ["generate"]` runs immediately before or after
+  Terragrunt evaluates the unit's `generate` blocks (and the `remote_state.generate` attribute, when configured).
+  This is the right place for actions that need to prepare or react to the cache working directory before
+  the OpenTofu/Terraform `init` stage. For example, a `before_hook` keyed on `generate` is the canonical place to
+  remove auxiliary files written outside the `generate` blocks before the new generated files are emitted.
+  - The working directory for `generate` hooks is the cache working directory (the same directory the generated
+    files are written into), so relative `execute` paths reference files alongside the generated output.
+  - The `generate` phase always runs once per Terragrunt invocation, so these hooks fire on every run regardless of
+    whether the source download stage was skipped.
+
 Complete Example:
 
 ```hcl

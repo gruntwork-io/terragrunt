@@ -36,6 +36,7 @@ const (
 	testFixtureTerragruntHookIfParameter                          = "fixtures/hooks/if-parameter"
 	testFixtureHooksPathPreservation                              = "fixtures/hooks/path-preservation"
 	testFixtureHooksExitCodeError                                 = "fixtures/hooks/exit-code-error"
+	testFixtureHooksBeforeGenerate                                = "fixtures/hooks/before-generate"
 )
 
 func TestTerragruntHookIfParameter(t *testing.T) {
@@ -481,4 +482,26 @@ func TestTerragruntHookExitCodeError(t *testing.T) {
 	// Error message should show exit code and the actual hook output
 	assert.Contains(t, output, `exited with non-zero exit code 2`)
 	assert.Contains(t, output, "lint warning: something is wrong")
+}
+
+func TestTerragruntBeforeAndAfterGenerateHooksFire(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeGenerate)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeGenerate)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeGenerate)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt init --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	require.NoError(t, err)
+
+	output := stdout.String() + stderr.String()
+	assert.Contains(t, output, "BEFORE_GENERATE_NO_TGEN_YET", "before_hook for the generate command must run before code generation")
+	assert.Contains(t, output, "AFTER_GENERATE_TGEN_PRESENT", "after_hook for the generate command must run after code generation")
+	assert.Contains(t, output, "tgen_providers.tf", "after_hook must see the file written by the generate block")
+	assert.True(t, helpers.FileExistsInCache(t, rootPath, "tgen_providers.tf"), "generated file must remain in the cache after the run")
 }

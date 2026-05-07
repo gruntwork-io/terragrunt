@@ -49,6 +49,50 @@ In this example configuration, whenever Terragrunt runs `tofu apply` or `tofu pl
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
 block](/reference/hcl/blocks#terraform).
 
+## Execution order
+
+Each invocation of Terragrunt runs through the following phases. The bracketed labels are the
+synthetic command names you can use in `commands = [...]` for `before_hook`, `after_hook`, and
+`error_hook` blocks. The OpenTofu/Terraform command name (`init`, `plan`, `apply`, ...) only
+matches hooks during the final phase.
+
+1. Configuration parse and `locals` evaluation.
+2. Source download (`init-from-module`). Hooks here run in the terragrunt configuration directory.
+   Skipped when the cache already has the latest source.
+3. Code generation (`generate`). Hooks here run in the cache working directory, where the
+   generated `.tf` files land. This is the right place to clean stale files, fetch secrets, or
+   otherwise prepare the working directory before generation.
+4. OpenTofu/Terraform invocation (`init`, `plan`, `apply`, ...). Hooks here run in the cache
+   working directory and match by the OpenTofu/Terraform command name.
+
+## Cleaning generated files before generation
+
+Use a `before_hook` keyed on the `generate` command to remove leftover artifacts before the new
+generated files are written. The hook runs in the cache working directory, so a relative pattern
+matches files written by previous runs of the unit:
+
+```hcl
+terraform {
+  before_hook "cleanup_tgen" {
+    commands = ["generate"]
+    execute  = ["bash", "-c", "rm -f tgen_*"]
+  }
+}
+
+generate "providers" {
+  path      = "tgen_providers.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+# ...
+EOF
+}
+```
+
+In most cases you do not need to write this hook by hand: Terragrunt automatically removes
+files emitted by `generate` blocks (and `remote_state.generate`) that were tracked on the
+previous run but are no longer requested. The hook is only needed when you also produce
+auxiliary files outside of `generate` blocks that should be cleared each run.
+
 ## Hook Context
 
 All hooks add extra environment variables when executing the hook's run command:

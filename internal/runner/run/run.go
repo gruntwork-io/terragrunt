@@ -161,7 +161,7 @@ func Run(
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	if err = GenerateConfig(l, updatedOpts, cfg); err != nil {
+	if err = runGenerateWithHooks(ctx, l, updatedOpts, cfg, r); err != nil {
 		return err
 	}
 
@@ -187,6 +187,11 @@ func Run(
 }
 
 // GenerateConfig handles code generation using config types (for backwards compatibility).
+//
+// Files emitted by `generate` blocks (and the `remote_state.generate` attribute) are tracked in
+// `.terragrunt-generate-manifest` inside the cache working directory. On every run, files that
+// were tracked by the previous run but no longer exist among the new outputs are removed, so a
+// removed or renamed `generate` block does not leave a stale `.tf` file behind.
 func GenerateConfig(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
 
@@ -194,25 +199,36 @@ func GenerateConfig(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
+	previousPaths, err := readGenerateManifest(opts.WorkingDir)
+	if err != nil {
+		return err
+	}
+
+	currentPaths := make(map[string]struct{}, len(cfg.GenerateConfigs)+1)
+
 	for _, genCfg := range cfg.GenerateConfigs {
 		if err := codegen.WriteToFile(l, opts.WorkingDir, &genCfg); err != nil {
 			return err
 		}
-	}
 
-	if cfg.RemoteState.Config != nil && cfg.RemoteState.Generate != nil {
-		if err := cfg.RemoteState.GenerateOpenTofuCode(l, opts.WorkingDir); err != nil {
-			return err
-		}
-	} else if cfg.RemoteState.Config != nil {
-		// We use else if here because we don't need to check the backend configuration is defined when the remote state
-		// block has a `generate` attribute configured.
-		if err := checkTerraformCodeDefinesBackend(opts, cfg.RemoteState.BackendName); err != nil {
-			return err
+		// Track files that exist on disk after codegen. This covers both files we just wrote
+		// and files left in place by `disable = true; if_disabled = "skip"`, so the next run's
+		// orphan cleanup does not remove a file the user explicitly asked us to leave alone.
+		target := resolveGeneratePath(opts.WorkingDir, genCfg.Path)
+		if util.FileExists(target) {
+			currentPaths[filepath.Clean(target)] = struct{}{}
 		}
 	}
 
-	return nil
+	if err := generateRemoteStateAndTrack(l, opts, cfg, currentPaths); err != nil {
+		return err
+	}
+
+	if err := removeStaleGenerateOutputs(l, previousPaths, currentPaths); err != nil {
+		return err
+	}
+
+	return writeGenerateManifest(opts.WorkingDir, currentPaths)
 }
 
 // Runs tofu/terraform with the given options and CLI args.
@@ -765,4 +781,140 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 	}
 
 	return varFile, nil
+}
+
+// runGenerateWithHooks wraps GenerateConfig with before_hook and after_hook
+// matching commands = ["generate"]. The hook working directory defaults to the
+// cache working dir, matching where generated files land.
+func runGenerateWithHooks(
+	ctx context.Context,
+	l log.Logger,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+	r *report.Report,
+) error {
+	genOpts := opts.Clone()
+	genOpts.TerraformCommand = tf.CommandNameGenerate
+
+	return RunActionWithHooks(ctx, l, "generate", genOpts, cfg, r, func(_ context.Context) error {
+		return GenerateConfig(l, opts, cfg)
+	})
+}
+
+// resolveGeneratePath returns the absolute target path for a generate-block file path,
+// resolving relative paths against the cache working directory.
+func resolveGeneratePath(workingDir, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+
+	return filepath.Join(workingDir, path)
+}
+
+// generateRemoteStateAndTrack writes the remote_state.generate file when configured and adds it
+// to the current-paths set. When no generate attribute is present, the user's own backend code
+// must define the backend.
+func generateRemoteStateAndTrack(
+	l log.Logger,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+	currentPaths map[string]struct{},
+) error {
+	if cfg.RemoteState.Config == nil {
+		return nil
+	}
+
+	if cfg.RemoteState.Generate == nil {
+		return checkTerraformCodeDefinesBackend(opts, cfg.RemoteState.BackendName)
+	}
+
+	if err := cfg.RemoteState.GenerateOpenTofuCode(l, opts.WorkingDir); err != nil {
+		return err
+	}
+
+	target := resolveGeneratePath(opts.WorkingDir, cfg.RemoteState.Generate.Path)
+	if util.FileExists(target) {
+		currentPaths[filepath.Clean(target)] = struct{}{}
+	}
+
+	return nil
+}
+
+// readGenerateManifest reads the JSON-encoded list of generate-output paths written by the
+// previous run. A missing manifest is not an error; it simply means there are no paths to
+// reconcile (first run after upgrade or fresh cache).
+func readGenerateManifest(workingDir string) (map[string]struct{}, error) {
+	manifestPath := filepath.Join(workingDir, GenerateManifestName)
+
+	contents, err := os.ReadFile(manifestPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return map[string]struct{}{}, nil
+	}
+
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	if len(contents) == 0 {
+		return map[string]struct{}{}, nil
+	}
+
+	var paths []string
+	if err := json.Unmarshal(contents, &paths); err != nil {
+		return nil, errors.New(err)
+	}
+
+	previous := make(map[string]struct{}, len(paths))
+	for _, path := range paths {
+		previous[filepath.Clean(path)] = struct{}{}
+	}
+
+	return previous, nil
+}
+
+// writeGenerateManifest writes the current set of generate-output paths to the manifest as a
+// stable, lexicographically-sorted JSON array so subsequent runs can reconcile against it.
+func writeGenerateManifest(workingDir string, currentPaths map[string]struct{}) error {
+	paths := make([]string, 0, len(currentPaths))
+	for path := range currentPaths {
+		paths = append(paths, path)
+	}
+
+	slices.Sort(paths)
+
+	contents, err := json.MarshalIndent(paths, "", "  ")
+	if err != nil {
+		return errors.New(err)
+	}
+
+	const ownerWriteGlobalReadPerms = 0o644
+	if err := os.WriteFile(filepath.Join(workingDir, GenerateManifestName), contents, ownerWriteGlobalReadPerms); err != nil {
+		return errors.New(err)
+	}
+
+	return nil
+}
+
+// removeStaleGenerateOutputs removes files recorded by the previous run that are not in the
+// current run's output set. Missing files are tolerated (already cleaned up out of band).
+func removeStaleGenerateOutputs(
+	l log.Logger,
+	previousPaths map[string]struct{},
+	currentPaths map[string]struct{},
+) error {
+	for path := range previousPaths {
+		if _, kept := currentPaths[path]; kept {
+			continue
+		}
+
+		err := os.Remove(path)
+		if err == nil || errors.Is(err, os.ErrNotExist) {
+			l.Debugf("Removed stale generate output %s", path)
+			continue
+		}
+
+		return errors.New(err)
+	}
+
+	return nil
 }

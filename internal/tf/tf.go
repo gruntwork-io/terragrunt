@@ -15,6 +15,7 @@ const (
 
 	CommandNameInit           = "init"
 	CommandNameInitFromModule = "init-from-module"
+	CommandNameGenerate       = "generate"
 	CommandNameImport         = "import"
 	CommandNamePlan           = "plan"
 	CommandNameApply          = "apply"

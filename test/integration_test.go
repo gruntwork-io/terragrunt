@@ -2848,6 +2848,53 @@ func TestTerragruntGenerateBlockSkip(t *testing.T) {
 	assert.False(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
+func TestTerragruntStaleGenerateOutputCleanup(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	unitPath := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "stale-cleanup", "unit")
+
+	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
+	require.True(t, helpers.FileExistsInCache(t, unitPath, "tgen_providers.tf"), "first run must create tgen_providers.tf in the cache")
+
+	updatedConfig := []byte(`terraform {
+  source = "./base-module"
+}
+`)
+	require.NoError(t, os.WriteFile(filepath.Join(unitPath, "terragrunt.hcl"), updatedConfig, 0o644))
+
+	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
+	assert.False(t, helpers.FileExistsInCache(t, unitPath, "tgen_providers.tf"), "stale tgen_providers.tf must be removed after the generate block is deleted")
+}
+
+func TestTerragruntRenamedGeneratePathCleansOldFile(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	unitPath := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "stale-cleanup", "unit")
+
+	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
+	require.True(t, helpers.FileExistsInCache(t, unitPath, "tgen_providers.tf"), "first run must create tgen_providers.tf in the cache")
+
+	renamedConfig := []byte(`terraform {
+  source = "./base-module"
+}
+
+generate "providers" {
+  path      = "tgen_provider_aws.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+# Renamed generated provider config for the rename test.
+EOF
+}
+`)
+	require.NoError(t, os.WriteFile(filepath.Join(unitPath, "terragrunt.hcl"), renamedConfig, 0o644))
+
+	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
+	assert.True(t, helpers.FileExistsInCache(t, unitPath, "tgen_provider_aws.tf"), "renamed generate path must produce the new file")
+	assert.False(t, helpers.FileExistsInCache(t, unitPath, "tgen_providers.tf"), "old generated file must be removed when the generate path is renamed")
+}
+
 func TestTerragruntGenerateBlockOverwrite(t *testing.T) {
 	t.Parallel()
 
