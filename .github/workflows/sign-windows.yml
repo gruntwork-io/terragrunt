@@ -25,11 +25,16 @@ on:
         required: false
         type: string
         default: 'windows-signed-files'
+      skip_build:
+        description: 'Skip the internal build job and sign artifacts uploaded earlier in this workflow run'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   build:
     name: Build (windows/${{ matrix.arch }})
-    if: github.event_name == 'workflow_dispatch'
+    if: ${{ inputs.skip_build != true }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
