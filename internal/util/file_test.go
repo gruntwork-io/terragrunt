@@ -1440,8 +1440,9 @@ func TestLoadEnvFile(t *testing.T) {
 	t.Run("env var expanded in value", func(t *testing.T) {
 		t.Parallel()
 
-		home := os.Getenv("HOME")
-		require.NotEmpty(t, home, "HOME must be set")
+		home, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.NotEmpty(t, home)
 
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("MYPATH=$HOME/.terraformrc\n"), 0600))

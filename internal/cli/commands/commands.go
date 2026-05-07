@@ -465,6 +465,12 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	}
 
 	for k, v := range envFromFile {
+		if existing := os.Getenv(k); existing != "" {
+			l.Debugf(".terragrunt-env: overriding %s (old=%q new=%q)", k, existing, v)
+		} else {
+			l.Debugf(".terragrunt-env: setting %s=%q", k, v)
+		}
+
 		if err := os.Setenv(k, v); err != nil {
 			return errors.New(err)
 		}

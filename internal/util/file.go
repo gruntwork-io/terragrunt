@@ -1428,6 +1428,31 @@ func ExcludeFiltersFromFile(baseDir, filename string) ([]string, error) {
 	return filters, nil
 }
 
+// processEnvValue strips optional surrounding quotes, expands environment variables,
+// and resolves path-like values (absolute, ./ or ../ prefixed) relative to baseDir.
+// URL values (containing ://) are left unchanged.
+func processEnvValue(baseDir, raw string) string {
+	val := raw
+
+	if n := len(val); n >= 2 && ((val[0] == '"' && val[n-1] == '"') || (val[0] == '\'' && val[n-1] == '\'')) {
+		val = val[1 : n-1]
+	}
+
+	val = os.ExpandEnv(val)
+
+	looksLikePath := !strings.Contains(val, "://") &&
+		(filepath.IsAbs(val) || strings.HasPrefix(val, "./") || strings.HasPrefix(val, "../"))
+
+	if looksLikePath {
+		val = filepath.Clean(val)
+		if !filepath.IsAbs(val) {
+			val = filepath.Join(baseDir, val)
+		}
+	}
+
+	return val
+}
+
 // FindAndLoadEnvFile walks up the directory tree from startDir looking for filename.
 // It returns the result of LoadEnvFile for the first (nearest) file found, or nil if none exists.
 func FindAndLoadEnvFile(startDir, filename string) (map[string]string, error) {
@@ -1485,20 +1510,7 @@ func LoadEnvFile(baseDir, filename string) (map[string]string, error) {
 		}
 
 		key = strings.TrimSpace(key)
-		val = strings.TrimSpace(val)
-
-		if n := len(val); n >= 2 && ((val[0] == '"' && val[n-1] == '"') || (val[0] == '\'' && val[n-1] == '\'')) {
-			val = val[1 : n-1]
-		}
-
-		val = os.ExpandEnv(val)
-
-		if strings.Contains(val, "/") && !strings.Contains(val, "://") {
-			val = filepath.Clean(val)
-			if !filepath.IsAbs(val) {
-				val = filepath.Join(baseDir, val)
-			}
-		}
+		val = processEnvValue(baseDir, strings.TrimSpace(val))
 
 		result[key] = val
 	}
