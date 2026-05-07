@@ -1428,6 +1428,84 @@ func ExcludeFiltersFromFile(baseDir, filename string) ([]string, error) {
 	return filters, nil
 }
 
+// FindAndLoadEnvFile walks up the directory tree from startDir looking for filename.
+// It returns the result of LoadEnvFile for the first (nearest) file found, or nil if none exists.
+func FindAndLoadEnvFile(startDir, filename string) (map[string]string, error) {
+	dir := startDir
+
+	for {
+		result, err := LoadEnvFile(dir, filename)
+		if err != nil {
+			return nil, err
+		}
+
+		if result != nil {
+			return result, nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return nil, nil
+		}
+
+		dir = parent
+	}
+}
+
+// LoadEnvFile reads key=value pairs from filename in baseDir and returns them as a map.
+// Values are expanded via os.ExpandEnv; path-like values (containing / but not ://) are
+// additionally cleaned with filepath.Clean to resolve relative segments like ../../.
+// Returns nil without error if the file does not exist.
+func LoadEnvFile(baseDir, filename string) (map[string]string, error) {
+	path, err := CanonicalPath(filename, baseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if !FileExists(path) || !IsFile(path) {
+		return nil, nil
+	}
+
+	content, err := ReadFileAsString(path)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]string)
+
+	for _, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		key, val, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+
+		key = strings.TrimSpace(key)
+		val = strings.TrimSpace(val)
+
+		if n := len(val); n >= 2 && ((val[0] == '"' && val[n-1] == '"') || (val[0] == '\'' && val[n-1] == '\'')) {
+			val = val[1 : n-1]
+		}
+
+		val = os.ExpandEnv(val)
+
+		if strings.Contains(val, "/") && !strings.Contains(val, "://") {
+			val = filepath.Clean(val)
+			if !filepath.IsAbs(val) {
+				val = filepath.Join(baseDir, val)
+			}
+		}
+
+		result[key] = val
+	}
+
+	return result, nil
+}
+
 // GetFiltersFromFile returns a list of filter queries from the given filename, where each filter query starts on a new line.
 func GetFiltersFromFile(baseDir, filename string) ([]string, error) {
 	filename, err := CanonicalPath(filename, baseDir)

@@ -457,6 +457,21 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.WorkingDir = filepath.Clean(opts.WorkingDir)
 
+	// Apply .terragrunt-env before any initialization that reads os.Environ (e.g., provider cache server).
+	// Searches from WorkingDir upward so a single file in the project root covers all modules.
+	envFromFile, err := util.FindAndLoadEnvFile(opts.WorkingDir, ".terragrunt-env")
+	if err != nil {
+		return err
+	}
+
+	for k, v := range envFromFile {
+		if err := os.Setenv(k, v); err != nil {
+			return errors.New(err)
+		}
+
+		opts.Env[k] = v
+	}
+
 	l = l.WithField(placeholders.WorkDirKeyName, opts.WorkingDir)
 
 	opts.RootWorkingDir = opts.WorkingDir
