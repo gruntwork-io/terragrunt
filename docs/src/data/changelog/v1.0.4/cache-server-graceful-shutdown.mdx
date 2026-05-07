@@ -1,0 +1,10 @@
+---
+version: "v1.0.4"
+category: "bug-fixes"
+---
+
+#### Provider Cache Server now drains pending downloads on shutdown
+
+When Terragrunt finished a run with the Provider Cache Server enabled, the cache server stopped instantly rather than letting in-flight provider downloads complete. Downloads still being served to OpenTofu/Terraform were cut off mid-response, and successful runs ended with a `context canceled` error in the logs.
+
+Terragrunt now waits for those downloads to finish before stopping the cache server, and a graceful shutdown is no longer reported as an error.
