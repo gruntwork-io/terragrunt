@@ -62,7 +62,8 @@ Each invocation of Terragrunt runs through these phases:
    no longer requested. There are no user-facing hooks at this phase: generation is automatic
    and unconditional.
 4. OpenTofu/Terraform invocation. Hooks keyed on the OpenTofu/Terraform command (`init`, `plan`,
-   `apply`, ...) run here, in the cache working directory.
+   `apply`, ...) run here, in the OpenTofu/Terraform working directory. When Terragrunt downloads
+   a source, that working directory is inside `.terragrunt-cache`.
 
 A `before_hook` with `commands = ["init"]` will therefore see every file written by the
 `generate` blocks and the `remote_state.generate` attribute already in place.

@@ -2851,32 +2851,23 @@ func TestTerragruntGenerateBlockSkip(t *testing.T) {
 func TestTerragruntStaleGenerateOutputCleanup(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
-	unitPath := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "stale-cleanup", "unit")
-
-	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
-	require.True(t, helpers.FileExistsInCache(t, unitPath, "tgen_providers.tf"), "first run must create tgen_providers.tf in the cache")
-
-	updatedConfig := []byte(`terraform {
+	testCases := []struct {
+		name              string
+		updatedConfig     string
+		expectedNewFile   string
+		expectedStaleFile string
+	}{
+		{
+			name: "removed generate block",
+			updatedConfig: `terraform {
   source = "./base-module"
 }
-`)
-	require.NoError(t, os.WriteFile(filepath.Join(unitPath, "terragrunt.hcl"), updatedConfig, 0o644))
-
-	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
-	assert.False(t, helpers.FileExistsInCache(t, unitPath, "tgen_providers.tf"), "stale tgen_providers.tf must be removed after the generate block is deleted")
-}
-
-func TestTerragruntRenamedGeneratePathCleansOldFile(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
-	unitPath := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "stale-cleanup", "unit")
-
-	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
-	require.True(t, helpers.FileExistsInCache(t, unitPath, "tgen_providers.tf"), "first run must create tgen_providers.tf in the cache")
-
-	renamedConfig := []byte(`terraform {
+`,
+			expectedStaleFile: "tgen_providers.tf",
+		},
+		{
+			name: "renamed generate path",
+			updatedConfig: `terraform {
   source = "./base-module"
 }
 
@@ -2887,12 +2878,36 @@ generate "providers" {
 # Renamed generated provider config for the rename test.
 EOF
 }
-`)
-	require.NoError(t, os.WriteFile(filepath.Join(unitPath, "terragrunt.hcl"), renamedConfig, 0o644))
+`,
+			expectedNewFile:   "tgen_provider_aws.tf",
+			expectedStaleFile: "tgen_providers.tf",
+		},
+	}
 
-	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
-	assert.True(t, helpers.FileExistsInCache(t, unitPath, "tgen_provider_aws.tf"), "renamed generate path must produce the new file")
-	assert.False(t, helpers.FileExistsInCache(t, unitPath, "tgen_providers.tf"), "old generated file must be removed when the generate path is renamed")
+	for _, tc := range testCases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+			unitPath := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "stale-cleanup", "unit")
+
+			helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
+			require.True(t, helpers.FileExistsInCache(t, unitPath, tc.expectedStaleFile), "first run must create %s in the cache", tc.expectedStaleFile)
+
+			staleGeneratedFile := helpers.FindCachedFile(t, unitPath, tc.expectedStaleFile)
+			require.NoError(t, os.WriteFile(staleGeneratedFile, []byte("this is not valid terraform\n"), 0o644))
+			require.NoError(t, os.WriteFile(filepath.Join(unitPath, "terragrunt.hcl"), []byte(tc.updatedConfig), 0o644))
+
+			helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
+			assert.False(t, helpers.FileExistsInCache(t, unitPath, tc.expectedStaleFile), "stale generated file must be removed before OpenTofu parses the cache")
+
+			if tc.expectedNewFile != "" {
+				assert.True(t, helpers.FileExistsInCache(t, unitPath, tc.expectedNewFile), "renamed generate path must produce the new file")
+			}
+		})
+	}
 }
 
 func TestTerragruntGenerateBlockOverwrite(t *testing.T) {

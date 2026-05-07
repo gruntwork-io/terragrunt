@@ -31,8 +31,8 @@ const (
 
 	// GenerateManifestName is the manifest for files written by `generate` blocks (and the `remote_state.generate`
 	// attribute) into the cache working directory. It is read at the start of each generate phase so that files
-	// produced by a previous run but no longer requested by the current configuration can be removed before the new
-	// files are written.
+	// produced by a previous run but no longer requested by the current configuration can be removed before
+	// OpenTofu/Terraform parses the working directory.
 	GenerateManifestName = ".terragrunt-generate-manifest"
 
 	// ModuleInitRequiredFile is a file to indicate that init should be executed.

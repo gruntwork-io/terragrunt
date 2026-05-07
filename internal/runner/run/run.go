@@ -190,8 +190,8 @@ func Run(
 //
 // Files emitted by `generate` blocks (and the `remote_state.generate` attribute) are tracked in
 // `.terragrunt-generate-manifest` inside the cache working directory. On every run, files that
-// were tracked by the previous run but no longer exist among the new outputs are removed, so a
-// removed or renamed `generate` block does not leave a stale `.tf` file behind.
+// were tracked by the previous run but are no longer requested by the current configuration are
+// removed before OpenTofu/Terraform sees the module.
 func GenerateConfig(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
 
@@ -199,36 +199,51 @@ func GenerateConfig(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
-	previousPaths, err := readGenerateManifest(opts.WorkingDir)
+	previousPaths, err := readGenerateManifest(l, opts.WorkingDir)
 	if err != nil {
+		return err
+	}
+
+	requestedPaths, err := requestedGeneratePaths(l, opts.WorkingDir, cfg)
+	if err != nil {
+		return err
+	}
+
+	if err := removeStaleGenerateOutputs(l, opts.WorkingDir, previousPaths, requestedPaths); err != nil {
 		return err
 	}
 
 	currentPaths := make(map[string]struct{}, len(cfg.GenerateConfigs)+1)
 
 	for _, genCfg := range cfg.GenerateConfigs {
+		target := resolveGeneratePath(opts.WorkingDir, genCfg.Path)
+		fileExistedBefore := util.FileExists(target)
+
+		wasTracked, err := manifestContainsPath(l, opts.WorkingDir, previousPaths, target)
+		if err != nil {
+			return err
+		}
+
 		if err := codegen.WriteToFile(l, opts.WorkingDir, &genCfg); err != nil {
 			return err
 		}
 
-		// Track files that exist on disk after codegen. This covers both files we just wrote
-		// and files left in place by `disable = true; if_disabled = "skip"`, so the next run's
-		// orphan cleanup does not remove a file the user explicitly asked us to leave alone.
-		target := resolveGeneratePath(opts.WorkingDir, genCfg.Path)
-		if util.FileExists(target) {
-			currentPaths[filepath.Clean(target)] = struct{}{}
+		if shouldTrackGenerateConfig(target, &genCfg, fileExistedBefore, wasTracked) {
+			if err := addGenerateManifestPath(l, opts.WorkingDir, currentPaths, target); err != nil {
+				return err
+			}
+
+			if err := writeGenerateManifest(l, opts.WorkingDir, currentPaths); err != nil {
+				return err
+			}
 		}
 	}
 
-	if err := generateRemoteStateAndTrack(l, opts, cfg, currentPaths); err != nil {
+	if err := generateRemoteStateAndTrack(l, opts, cfg, previousPaths, currentPaths); err != nil {
 		return err
 	}
 
-	if err := removeStaleGenerateOutputs(l, previousPaths, currentPaths); err != nil {
-		return err
-	}
-
-	return writeGenerateManifest(opts.WorkingDir, currentPaths)
+	return writeGenerateManifest(l, opts.WorkingDir, currentPaths)
 }
 
 // Runs tofu/terraform with the given options and CLI args.
@@ -800,6 +815,7 @@ func generateRemoteStateAndTrack(
 	l log.Logger,
 	opts *Options,
 	cfg *runcfg.RunConfig,
+	previousPaths map[string]struct{},
 	currentPaths map[string]struct{},
 ) error {
 	if cfg.RemoteState.Config == nil {
@@ -810,13 +826,28 @@ func generateRemoteStateAndTrack(
 		return checkTerraformCodeDefinesBackend(opts, cfg.RemoteState.BackendName)
 	}
 
+	target := resolveGeneratePath(opts.WorkingDir, cfg.RemoteState.Generate.Path)
+	fileExistedBefore := util.FileExists(target)
+
+	wasTracked, err := manifestContainsPath(l, opts.WorkingDir, previousPaths, target)
+	if err != nil {
+		return err
+	}
+
 	if err := cfg.RemoteState.GenerateOpenTofuCode(l, opts.WorkingDir); err != nil {
 		return err
 	}
 
-	target := resolveGeneratePath(opts.WorkingDir, cfg.RemoteState.Generate.Path)
-	if util.FileExists(target) {
-		currentPaths[filepath.Clean(target)] = struct{}{}
+	ifExists, err := codegen.GenerateConfigExistsFromString(cfg.RemoteState.Generate.IfExists)
+	if err != nil {
+		return err
+	}
+
+	genCfg := &codegen.GenerateConfig{IfExists: ifExists}
+	if shouldTrackGenerateConfig(target, genCfg, fileExistedBefore, wasTracked) {
+		if err := addGenerateManifestPath(l, opts.WorkingDir, currentPaths, target); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -825,7 +856,7 @@ func generateRemoteStateAndTrack(
 // readGenerateManifest reads the JSON-encoded list of generate-output paths written by the
 // previous run. A missing manifest is not an error; it simply means there are no paths to
 // reconcile (first run after upgrade or fresh cache).
-func readGenerateManifest(workingDir string) (map[string]struct{}, error) {
+func readGenerateManifest(l log.Logger, workingDir string) (map[string]struct{}, error) {
 	manifestPath := filepath.Join(workingDir, GenerateManifestName)
 
 	contents, err := os.ReadFile(manifestPath)
@@ -843,12 +874,20 @@ func readGenerateManifest(workingDir string) (map[string]struct{}, error) {
 
 	var paths []string
 	if err := json.Unmarshal(contents, &paths); err != nil {
-		return nil, errors.New(err)
+		l.Warnf("Ignoring malformed generate manifest %s: %v", manifestPath, err)
+
+		if removeErr := os.Remove(manifestPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			l.Warnf("Error removing malformed generate manifest %s: %v", manifestPath, removeErr)
+		}
+
+		return map[string]struct{}{}, nil
 	}
 
 	previous := make(map[string]struct{}, len(paths))
 	for _, path := range paths {
-		previous[filepath.Clean(path)] = struct{}{}
+		if err := addGenerateManifestPath(l, workingDir, previous, path); err != nil {
+			return nil, err
+		}
 	}
 
 	return previous, nil
@@ -856,7 +895,7 @@ func readGenerateManifest(workingDir string) (map[string]struct{}, error) {
 
 // writeGenerateManifest writes the current set of generate-output paths to the manifest as a
 // stable, lexicographically-sorted JSON array so subsequent runs can reconcile against it.
-func writeGenerateManifest(workingDir string, currentPaths map[string]struct{}) error {
+func writeGenerateManifest(l log.Logger, workingDir string, currentPaths map[string]struct{}) error {
 	paths := make([]string, 0, len(currentPaths))
 	for path := range currentPaths {
 		paths = append(paths, path)
@@ -870,7 +909,39 @@ func writeGenerateManifest(workingDir string, currentPaths map[string]struct{}) 
 	}
 
 	const ownerWriteGlobalReadPerms = 0o644
-	if err := os.WriteFile(filepath.Join(workingDir, GenerateManifestName), contents, ownerWriteGlobalReadPerms); err != nil {
+
+	manifestPath := filepath.Join(workingDir, GenerateManifestName)
+
+	tmpFile, err := os.CreateTemp(workingDir, GenerateManifestName+".tmp-*")
+	if err != nil {
+		return errors.New(err)
+	}
+
+	tmpPath := tmpFile.Name()
+
+	defer func() {
+		if err := os.Remove(tmpPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			l.Warnf("Error removing temporary generate manifest %s: %v", tmpPath, err)
+		}
+	}()
+
+	if _, err := tmpFile.Write(contents); err != nil {
+		return errors.New(errors.Join(err, tmpFile.Close()))
+	}
+
+	if err := tmpFile.Sync(); err != nil {
+		return errors.New(errors.Join(err, tmpFile.Close()))
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return errors.New(err)
+	}
+
+	if err := os.Chmod(tmpPath, ownerWriteGlobalReadPerms); err != nil {
+		return errors.New(err)
+	}
+
+	if err := os.Rename(tmpPath, manifestPath); err != nil {
 		return errors.New(err)
 	}
 
@@ -881,6 +952,7 @@ func writeGenerateManifest(workingDir string, currentPaths map[string]struct{}) 
 // current run's output set. Missing files are tolerated (already cleaned up out of band).
 func removeStaleGenerateOutputs(
 	l log.Logger,
+	workingDir string,
 	previousPaths map[string]struct{},
 	currentPaths map[string]struct{},
 ) error {
@@ -889,7 +961,7 @@ func removeStaleGenerateOutputs(
 			continue
 		}
 
-		err := os.Remove(path)
+		err := removeGenerateManifestPath(l, workingDir, path)
 		if err == nil || errors.Is(err, os.ErrNotExist) {
 			l.Debugf("Removed stale generate output %s", path)
 			continue
@@ -899,4 +971,103 @@ func removeStaleGenerateOutputs(
 	}
 
 	return nil
+}
+
+func requestedGeneratePaths(l log.Logger, workingDir string, cfg *runcfg.RunConfig) (map[string]struct{}, error) {
+	paths := make(map[string]struct{}, len(cfg.GenerateConfigs)+1)
+
+	for _, genCfg := range cfg.GenerateConfigs {
+		if err := addGenerateManifestPath(l, workingDir, paths, resolveGeneratePath(workingDir, genCfg.Path)); err != nil {
+			return nil, err
+		}
+	}
+
+	if cfg.RemoteState.Config != nil && cfg.RemoteState.Generate != nil {
+		if err := addGenerateManifestPath(l, workingDir, paths, resolveGeneratePath(workingDir, cfg.RemoteState.Generate.Path)); err != nil {
+			return nil, err
+		}
+	}
+
+	return paths, nil
+}
+
+func shouldTrackGenerateConfig(target string, genCfg *codegen.GenerateConfig, fileExistedBefore bool, wasTracked bool) bool {
+	if genCfg.Disable {
+		return genCfg.IfDisabled == codegen.DisabledSkip && fileExistedBefore && wasTracked && util.FileExists(target)
+	}
+
+	if fileExistedBefore && genCfg.IfExists == codegen.ExistsSkip {
+		return wasTracked && util.FileExists(target)
+	}
+
+	return util.FileExists(target)
+}
+
+func manifestContainsPath(l log.Logger, workingDir string, paths map[string]struct{}, path string) (bool, error) {
+	rel, ok, err := generateManifestRelPath(l, workingDir, path)
+	if err != nil || !ok {
+		return false, err
+	}
+
+	_, found := paths[rel]
+
+	return found, nil
+}
+
+func addGenerateManifestPath(l log.Logger, workingDir string, paths map[string]struct{}, path string) error {
+	rel, ok, err := generateManifestRelPath(l, workingDir, path)
+	if err != nil || !ok {
+		return err
+	}
+
+	paths[rel] = struct{}{}
+
+	return nil
+}
+
+func generateManifestRelPath(l log.Logger, workingDir string, path string) (string, bool, error) {
+	rootDir := filepath.Clean(workingDir)
+	targetPath := filepath.Clean(path)
+
+	if !filepath.IsAbs(targetPath) {
+		targetPath = filepath.Join(rootDir, targetPath)
+	} else if !filepath.IsAbs(rootDir) {
+		l.Warnf("Skipping generate manifest entry %q: manifest root %q is not absolute", path, rootDir)
+
+		return "", false, nil
+	}
+
+	rel, err := filepath.Rel(rootDir, targetPath)
+	if err != nil {
+		return "", false, errors.New(err)
+	}
+
+	rel = filepath.Clean(rel)
+	if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		l.Warnf("Skipping generate manifest entry %q: resolves outside manifest root %q", path, rootDir)
+
+		return "", false, nil
+	}
+
+	hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewOSFS(), rootDir, rel)
+	if err != nil {
+		return "", false, err
+	}
+
+	if hasSymlink {
+		l.Warnf("Skipping generate manifest entry %s: parent path contains a symlink", filepath.Join(rootDir, rel))
+
+		return "", false, nil
+	}
+
+	return rel, true, nil
+}
+
+func removeGenerateManifestPath(l log.Logger, workingDir string, path string) error {
+	rel, ok, err := generateManifestRelPath(l, workingDir, path)
+	if err != nil || !ok {
+		return err
+	}
+
+	return os.Remove(filepath.Join(filepath.Clean(workingDir), rel))
 }
