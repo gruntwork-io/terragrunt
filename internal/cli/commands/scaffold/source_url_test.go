@@ -20,8 +20,9 @@ func TestBuildSourceURL(t *testing.T) {
 		{
 			name:        "catalog URL gets ref from resolved",
 			originalURL: "github.com/gruntwork-io/terragrunt-scale-catalog//modules/azure/resource-group",
-			resolvedURL: "git::https://github.com/gruntwork-io/terragrunt-scale-catalog.git//modules/azure/resource-group?ref=v1.10.2",
-			expected:    "github.com/gruntwork-io/terragrunt-scale-catalog//modules/azure/resource-group?ref=v1.10.2",
+			resolvedURL: "git::https://github.com/gruntwork-io/terragrunt-scale-catalog.git//" +
+				"modules/azure/resource-group?ref=v1.10.2",
+			expected: "github.com/gruntwork-io/terragrunt-scale-catalog//modules/azure/resource-group?ref=v1.10.2",
 		},
 		{
 			name:        "original already has ref",
