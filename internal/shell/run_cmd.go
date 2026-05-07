@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -198,10 +199,11 @@ func RunCommandWithOutput(
 		commandDir = runOpts.WorkingDir
 	}
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+command, map[string]any{
-		"command": command,
-		"args":    fmt.Sprintf("%v", args),
-		"dir":     commandDir,
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+filepath.Base(command), map[string]any{
+		"binary":      filepath.Base(command),
+		"binary_path": command,
+		"args":        fmt.Sprintf("%v", args),
+		"dir":         commandDir,
 	}, func(ctx context.Context) error {
 		runErr := runCommand(ctx, l, e, runOpts, commandDir, suppressStdout, needsPTY, command, args, &output)
 
