@@ -161,7 +161,7 @@ func Run(
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	if err = runGenerateWithHooks(ctx, l, updatedOpts, cfg, r); err != nil {
+	if err = GenerateConfig(l, updatedOpts, cfg); err != nil {
 		return err
 	}
 
@@ -781,24 +781,6 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 	}
 
 	return varFile, nil
-}
-
-// runGenerateWithHooks wraps GenerateConfig with before_hook and after_hook
-// matching commands = ["generate"]. The hook working directory defaults to the
-// cache working dir, matching where generated files land.
-func runGenerateWithHooks(
-	ctx context.Context,
-	l log.Logger,
-	opts *Options,
-	cfg *runcfg.RunConfig,
-	r *report.Report,
-) error {
-	genOpts := opts.Clone()
-	genOpts.TerraformCommand = tf.CommandNameGenerate
-
-	return RunActionWithHooks(ctx, l, "generate", genOpts, cfg, r, func(_ context.Context) error {
-		return GenerateConfig(l, opts, cfg)
-	})
 }
 
 // resolveGeneratePath returns the absolute target path for a generate-block file path,
