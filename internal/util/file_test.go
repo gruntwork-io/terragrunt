@@ -1452,6 +1452,21 @@ func TestLoadEnvFile(t *testing.T) {
 		assert.Equal(t, map[string]string{"MYPATH": filepath.Join(home, ".terraformrc")}, result)
 	})
 
+	t.Run("brace-style env var expanded in value", func(t *testing.T) {
+		t.Parallel()
+
+		home, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.NotEmpty(t, home)
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("MYPATH=${HOME}/.terraformrc\n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"MYPATH": filepath.Join(home, ".terraformrc")}, result)
+	})
+
 	t.Run("path with dot-dot segments cleaned", func(t *testing.T) {
 		t.Parallel()
 
