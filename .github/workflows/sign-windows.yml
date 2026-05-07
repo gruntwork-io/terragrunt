@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: 'windows-signed-files'
+      skip_build:
+        description: 'Skip the build job (caller already provides signed-ready binaries)'
+        required: false
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       artifact_pattern:
@@ -25,11 +30,16 @@ on:
         required: false
         type: string
         default: 'windows-signed-files'
+      skip_build:
+        description: 'Skip the build job (caller already provides signed-ready binaries)'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   build:
     name: Build (windows/${{ matrix.arch }})
-    if: github.event_name == 'workflow_dispatch'
+    if: ${{ !inputs.skip_build }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
