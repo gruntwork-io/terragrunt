@@ -419,7 +419,8 @@ func downloadTemplate(
 	}
 
 	l.Debugf("Downloading template from %s into %s", baseURL.String(), templateDir)
-	// Downloading baseURL to support boilerplate dependencies and partials. Go-getter discards all but specified folder if one is provided.
+	// Downloading baseURL to support boilerplate dependencies and partials.
+	// Go-getter discards all but specified folder if one is provided.
 	if _, err := getter.GetAny(ctx, templateDir, baseURL.String()); err != nil {
 		return "", errors.New(err)
 	}
@@ -558,7 +559,8 @@ func parseModuleURL(
 }
 
 // rewriteModuleURL rewrites module url to git ssh if required
-// github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
+// github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
 func rewriteModuleURL(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -585,7 +587,8 @@ func rewriteModuleURL(
 		return parsedModuleURL, nil
 	}
 	// try to rewrite module url if is https and is requested to be git
-	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
+	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+	// git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
 	if parsedValue.scheme == "https" && sourceURLType == sourceURLTypeGit {
 		gitUser := sourceGitSSHUser
 		if value, found := vars[sourceGitSSHUserVar]; found {
@@ -606,7 +609,8 @@ func rewriteModuleURL(
 }
 
 // rewriteTemplateURL rewrites template url with reference to tag
-// github.com/denis256/terragrunt-tests.git//scaffold/base-template => github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8
+// github.com/denis256/terragrunt-tests.git//scaffold/base-template =>
+// github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8
 func rewriteTemplateURL(
 	ctx context.Context,
 	l log.Logger,
@@ -663,7 +667,8 @@ func addRefToModuleURL(
 	ref := params.Get(refParam)
 	if ref == "" {
 		// if ref is not passed, find last release tag
-		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
+		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
 		rootSourceURL, _, err := tf.SplitSourceURL(l, moduleURL)
 		if err != nil {
 			return nil, errors.New(err)
