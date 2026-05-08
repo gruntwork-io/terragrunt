@@ -31,7 +31,7 @@ func TestDefaultClientCoversCanonicalProtocols(t *testing.T) {
 
 	assert.True(t, hasGetter[*getter.GitGetter](client.Getters), "git")
 	assert.True(t, hasGetter[*getter.HgGetter](client.Getters), "hg")
-	assert.True(t, hasGetter[*getter.HTTPGetter](client.Getters), "http(s)")
+	assert.True(t, hasGetter[*getter.HTTPSchemeGetter](client.Getters), "http(s)")
 	assert.True(t, hasGetter[*getter.SmbClientGetter](client.Getters), "smb-client")
 	assert.True(t, hasGetter[*getter.SmbMountGetter](client.Getters), "smb-mount")
 	assert.True(t, hasGetter[*getter.FileGetter](client.Getters), "file")

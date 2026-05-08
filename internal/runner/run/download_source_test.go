@@ -653,9 +653,10 @@ func TestBuildDownloadClientHTTPNetrc(t *testing.T) {
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
 
-	httpGetter, ok := findGetter[*getter.HTTPGetter](client.Getters)
+	wrapped, ok := findGetter[*getter.HTTPSchemeGetter](client.Getters)
 	require.True(t, ok, "client should register an HttpGetter")
-	assert.True(t, httpGetter.Netrc, "HttpGetter must have Netrc enabled for ~/.netrc authentication")
+	require.NotNil(t, wrapped.Inner)
+	assert.True(t, wrapped.Inner.Netrc, "HttpGetter must have Netrc enabled for ~/.netrc authentication")
 }
 
 // TestBuildDownloadClientCoversDefaultSchemes verifies that the canonical
@@ -683,7 +684,7 @@ func TestBuildDownloadClientCoversDefaultSchemes(t *testing.T) {
 	_, ok = findGetter[*getter.RegistryGetter](client.Getters)
 	assert.True(t, ok, "RegistryGetter (tfr scheme)")
 
-	_, ok = findGetter[*getter.HTTPGetter](client.Getters)
+	_, ok = findGetter[*getter.HTTPSchemeGetter](client.Getters)
 	assert.True(t, ok, "HttpGetter (http/https schemes)")
 
 	_, ok = findGetter[*getter.HgGetter](client.Getters)

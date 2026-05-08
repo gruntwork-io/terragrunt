@@ -82,15 +82,23 @@ func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 //     it through to git makes git look up the missing "git-remote-git"
 //     helper.
 //  2. Convert "ssh://git@host/path" into the SCP-style "git@host:path"
-//     git expects for SSH cloning.
+//     git expects for SSH cloning. URLs that carry an explicit port
+//     (e.g. "ssh://git@host:2222/path") keep the URL form because git's
+//     SCP shorthand has no syntax for a port.
 func GitCloneURL(urlStr string) string {
 	urlStr = strings.TrimPrefix(urlStr, "git::")
 
-	if after, ok := strings.CutPrefix(urlStr, "ssh://"); ok {
-		return strings.Replace(after, "/", ":", 1)
+	if !strings.HasPrefix(urlStr, "ssh://") {
+		return urlStr
 	}
 
-	return urlStr
+	if u, err := url.Parse(urlStr); err == nil && u.Port() != "" {
+		return urlStr
+	}
+
+	after := strings.TrimPrefix(urlStr, "ssh://")
+
+	return strings.Replace(after, "/", ":", 1)
 }
 
 // GetFile is not supported for the CAS getter.

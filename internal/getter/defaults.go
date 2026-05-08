@@ -25,10 +25,12 @@ func newHTTPGetter(extra http.Header) *getter.HttpGetter {
 //
 //  1. tfr (Terraform Registry): must precede git so tfr:// wins forced
 //     detection.
-//  2. CAS git wrapper: when CAS is enabled it intercepts git URLs ahead of
+//  2. CAS protocol getter: when CAS is enabled it resolves `cas::` source
+//     references produced by `update_source_with_cas` stack rewrites.
+//  3. CAS git wrapper: when CAS is enabled it intercepts git URLs ahead of
 //     the bare GitGetter so plain `git::` sources route through CAS.
-//  3. Optional caller-prepended getters (tests).
-//  4. The default protocol set: git, hg, smb, http(s), s3, gcs, file.
+//  4. Optional caller-prepended getters (tests).
+//  5. The default protocol set: git, hg, smb, http(s), s3, gcs, file.
 //
 // File goes last so it doesn't claim sources that other detectors recognize.
 func buildGetters(b *builder) []Getter {
@@ -47,15 +49,18 @@ func buildGetters(b *builder) []Getter {
 
 	gitGetter = NewGitGetter()
 
-	httpGetter = newHTTPGetter(b.httpExtraHeader)
-	httpsGetter = newHTTPGetter(b.httpsExtraHeader)
+	httpGetter = &HTTPSchemeGetter{Inner: newHTTPGetter(b.httpExtraHeader), Scheme: "http"}
+	httpsGetter = &HTTPSchemeGetter{Inner: newHTTPGetter(b.httpsExtraHeader), Scheme: "https"}
 
 	if b.tfRegistry != nil {
 		out = append(out, b.tfRegistry)
 	}
 
 	if b.casStore != nil {
-		out = append(out, NewCASGetter(b.logger, b.casStore, b.casCloneOpts))
+		out = append(out,
+			NewCASProtocolGetter(b.logger, b.casStore),
+			NewCASGetter(b.logger, b.casStore, b.casCloneOpts),
+		)
 	}
 
 	out = append(out, b.prepended...)

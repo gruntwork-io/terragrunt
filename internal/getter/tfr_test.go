@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -167,7 +168,7 @@ func newRegistryTestClient(t *testing.T, httpClient *http.Client, impl tfimpl.Ty
 	return getter.NewClient(
 		getter.WithCustomGettersPrepended(
 			tfr,
-			&getter.HTTPGetter{Client: httpClient, Netrc: true},
+			&gogetter.HttpGetter{Client: httpClient, Netrc: true},
 		),
 	)
 }

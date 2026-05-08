@@ -44,7 +44,6 @@ type (
 // (defined in git.go), not the upstream go-getter/v2 GitGetter.
 type (
 	HgGetter        = getter.HgGetter
-	HTTPGetter      = getter.HttpGetter
 	SmbClientGetter = getter.SmbClientGetter
 	SmbMountGetter  = getter.SmbMountGetter
 	FileGetter      = getter.FileGetter

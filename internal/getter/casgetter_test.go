@@ -40,6 +40,16 @@ func TestGitCloneURL(t *testing.T) {
 			in:   "https://github.com/foo/bar.git",
 			want: "https://github.com/foo/bar.git",
 		},
+		{
+			name: "ssh url with custom port keeps url form",
+			in:   "ssh://git@github.com:2222/gruntwork-io/terragrunt.git",
+			want: "ssh://git@github.com:2222/gruntwork-io/terragrunt.git",
+		},
+		{
+			name: "git:: ssh url with custom port keeps url form",
+			in:   "git::ssh://git@github.com:2222/gruntwork-io/terragrunt.git",
+			want: "ssh://git@github.com:2222/gruntwork-io/terragrunt.git",
+		},
 	}
 
 	for _, tt := range tests {
