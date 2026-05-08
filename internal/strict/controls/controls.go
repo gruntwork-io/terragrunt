@@ -84,7 +84,7 @@ const (
 	// `exclude_from_copy` pattern matching from zglob to gobwas.
 	FastCopy = "fast-copy"
 
-	// LegacyGCSPublicPrefix preserves the pre-v1.0.4 behavior of auto-prefixing
+	// LegacyGCSPublicPrefix preserves the pre-v1.0.5 behavior of auto-prefixing
 	// plain `https://www.googleapis.com/storage/...` source URLs with `gcs::`
 	// so they route through the credentialed gcs getter. Default behavior keeps
 	// the rewrite (with a deprecation warning); enabling the control disables
@@ -322,7 +322,7 @@ func New() strict.Controls {
 		},
 		&Control{
 			Name:        LegacyGCSPublicPrefix,
-			Description: "Stops auto-prefixing plain `https://www.googleapis.com/storage/...` source URLs with `gcs::`. Pre-v1.0.4 Terragrunt routed those URLs through the credentialed gcs getter; v1.0.4+ routes them through the http getter for anonymous access. The legacy prefix-rewrite is restored by default with a deprecation warning. Enable this control to opt into the new behavior and silence the warning.",
+			Description: "Stops auto-prefixing plain `https://www.googleapis.com/storage/...` source URLs with `gcs::`. Pre-v1.0.5 Terragrunt routed those URLs through the credentialed gcs getter; v1.0.5+ routes them through the http getter for anonymous access. The legacy prefix-rewrite is restored by default with a deprecation warning. Enable this control to opt into the new behavior and silence the warning.",
 			Warning:     LegacyGCSDeprecationWarning,
 			Category:    stageCategory,
 		},

@@ -25,7 +25,7 @@ var (
 	forcedRegexp     = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
 	httpSchemeRegexp = regexp.MustCompile(`(?i)^https?://`)
 
-	// publicGoogleAPIsStorage matches the URL shape pre-v1.0.4 normalizeSourceURL
+	// publicGoogleAPIsStorage matches the URL shape pre-v1.0.5 normalizeSourceURL
 	// auto-prefixed with `gcs::`: an http(s) URL whose host is
 	// www.googleapis.com under the /storage/ path. Hostnames like
 	// storage.googleapis.com (the bucket-name-as-subdomain form) are

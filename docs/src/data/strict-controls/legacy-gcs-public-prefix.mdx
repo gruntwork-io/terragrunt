@@ -1,10 +1,10 @@
 ---
 name: legacy-gcs-public-prefix
 status: active
-since: "1.0.4"
+since: "1.0.5"
 ---
 
-Stops auto-prefixing plain `https://www.googleapis.com/storage/...` source URLs with `gcs::`. Pre-v1.0.4 Terragrunt routed those URLs through the credentialed GCS getter; v1.0.4+ routes them through the HTTP getter for anonymous access. The legacy prefix-rewrite is restored by default with a deprecation warning. Enable this control to opt into the new behavior and silence the warning.
+Stops auto-prefixing plain `https://www.googleapis.com/storage/...` source URLs with `gcs::`. Pre-v1.0.5 Terragrunt routed those URLs through the credentialed GCS getter; v1.0.5+ routes them through the HTTP getter for anonymous access. The legacy prefix-rewrite is restored by default with a deprecation warning. Enable this control to opt into the new behavior and silence the warning.
 
 ### `legacy-gcs-public-prefix` - Reason
 
