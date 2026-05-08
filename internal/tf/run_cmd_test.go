@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -76,7 +77,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	l := logger.CreateLogger()
 	l = withLogger(l)
 
-	out, err := tf.RunCommandWithOutput(t.Context(), l, configbridge.TFRunOptsFromOpts(terragruntOptions), "same")
+	out, err := tf.RunCommandWithOutput(t.Context(), l, vexec.NewOSExec(), configbridge.TFRunOptsFromOpts(terragruntOptions), "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

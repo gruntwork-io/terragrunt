@@ -11,10 +11,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/charlievieth/fastwalk"
 	"github.com/gofrs/flock"
@@ -48,11 +51,18 @@ type Locker interface {
 	TryLock(name string) (Unlocker, bool, error)
 }
 
+// symlinkEvaluator lets filesystem implementations provide native symlink resolution.
+type symlinkEvaluator interface {
+	EvalSymlinksIfPossible(name string) (string, bool, error)
+}
+
 // ErrNoHardLink is returned when a filesystem does not support hard links.
 var ErrNoHardLink = errors.New("hard link not supported")
 
 // ErrNoLock is returned when a filesystem does not support locking.
 var ErrNoLock = errors.New("locking not supported")
+
+const maxSymlinkEvaluations = 255
 
 // NewOSFS returns a filesystem backed by the real operating system filesystem.
 func NewOSFS() FS {
@@ -100,6 +110,58 @@ func ReadFile(fs FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fs, filename)
 }
 
+// Lstat returns file info for path without following the final symlink when the filesystem supports it.
+func Lstat(fs FS, path string) (os.FileInfo, error) {
+	return lstatIfPossible(fs, path)
+}
+
+// EvalSymlinks returns path after evaluating symlinks using the supplied filesystem.
+func EvalSymlinks(fsys FS, path string) (string, error) {
+	if evaluator, ok := fsys.(symlinkEvaluator); ok {
+		resolved, supported, err := evaluator.EvalSymlinksIfPossible(path)
+		if supported {
+			return resolved, err
+		}
+	}
+
+	return walkSymlinks(fsys, path)
+}
+
+// ParentPathHasSymlink reports whether rel cannot be safely traversed under rootDir.
+// It returns true when rel is empty, ".", absolute, escapes rootDir with "..", or has a symlink in a parent component.
+// The final path component is not checked, so callers can safely remove a leaf symlink.
+func ParentPathHasSymlink(fsys FS, rootDir, rel string) (bool, error) {
+	rel = filepath.Clean(rel)
+	if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return true, nil
+	}
+
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) > 0 {
+		parts = parts[:len(parts)-1]
+	}
+
+	current := filepath.Clean(rootDir)
+	for _, part := range parts {
+		current = filepath.Join(current, part)
+
+		info, err := Lstat(fsys, current)
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+
+		if err != nil {
+			return false, err
+		}
+
+		if info.Mode()&os.ModeSymlink != 0 {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // MkdirTemp creates a temporary directory on the given filesystem.
 func MkdirTemp(fs FS, dir, pattern string) (string, error) {
 	return afero.TempDir(fs, dir, pattern)
@@ -125,6 +187,18 @@ func Symlink(fs FS, oldname, newname string) error {
 	}
 
 	return linker.SymlinkIfPossible(oldname, newname)
+}
+
+// Readlink reads the target of a symbolic link. It uses afero's
+// ReadlinkIfPossible which is supported by OsFs and any FS implementing
+// afero.Symlinker.
+func Readlink(fs FS, name string) (string, error) {
+	reader, ok := fs.(afero.Symlinker)
+	if !ok {
+		return "", &os.PathError{Op: "readlink", Path: name, Err: afero.ErrNoSymlink}
+	}
+
+	return reader.ReadlinkIfPossible(name)
 }
 
 // Lock acquires a blocking lock for the given name on the filesystem.
@@ -252,6 +326,12 @@ func (fs *osFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	return info, true, err
 }
 
+func (*osFS) EvalSymlinksIfPossible(name string) (string, bool, error) {
+	resolved, err := filepath.EvalSymlinks(name)
+
+	return resolved, true, err
+}
+
 func (fs *osFS) Lock(name string) (Unlocker, error) {
 	l := flock.New(name)
 	if err := l.Lock(); err != nil {
@@ -323,15 +403,25 @@ func (fs *memMapFS) ReadlinkIfPossible(name string) (string, error) {
 
 func (fs *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	if _, ok := fs.symlinks[name]; ok {
-		info, err := fs.Fs.Stat(name)
-
-		return info, true, err
+		return symlinkFileInfo{name: filepath.Base(name)}, true, nil
 	}
 
 	info, err := fs.Fs.Stat(name)
 
 	return info, false, err
 }
+
+// symlinkFileInfo reports symlink metadata for links stored in memMapFS's side table.
+type symlinkFileInfo struct {
+	name string
+}
+
+func (info symlinkFileInfo) Name() string       { return info.name }
+func (info symlinkFileInfo) Size() int64        { return 0 }
+func (info symlinkFileInfo) Mode() os.FileMode  { return os.ModeSymlink | os.ModePerm }
+func (info symlinkFileInfo) ModTime() time.Time { return time.Time{} }
+func (info symlinkFileInfo) IsDir() bool        { return false }
+func (info symlinkFileInfo) Sys() any           { return nil }
 
 func (fs *memMapFS) Lock(name string) (Unlocker, error) {
 	l := fs.getOrCreateLock(name)
@@ -605,6 +695,202 @@ func lstatIfPossible(fsys FS, path string) (os.FileInfo, error) {
 	return fsys.Stat(path)
 }
 
+// symlinkWalkState tracks progress while resolving symlinks without using the OS filesystem.
+type symlinkWalkState struct {
+	path        string
+	vol         string
+	dest        string
+	volLen      int
+	start       int
+	linksWalked int
+}
+
+func newSymlinkWalkState(path string) *symlinkWalkState {
+	volLen := len(filepath.VolumeName(path))
+	if volLen < len(path) && os.IsPathSeparator(path[volLen]) {
+		volLen++
+	}
+
+	vol := path[:volLen]
+
+	return &symlinkWalkState{
+		path:   path,
+		vol:    vol,
+		dest:   vol,
+		volLen: volLen,
+		start:  volLen,
+	}
+}
+
+func walkSymlinks(fsys FS, path string) (string, error) {
+	state := newSymlinkWalkState(path)
+
+	for state.start < len(state.path) {
+		part, end, ok := state.nextComponent()
+		if !ok {
+			break
+		}
+
+		keepWalking, err := state.processComponent(fsys, part, end)
+		if err != nil {
+			return "", err
+		}
+
+		if !keepWalking {
+			break
+		}
+	}
+
+	return filepath.Clean(state.dest), nil
+}
+
+func (state *symlinkWalkState) nextComponent() (string, int, bool) {
+	start := state.start
+	for start < len(state.path) && os.IsPathSeparator(state.path[start]) {
+		start++
+	}
+
+	end := start
+	for end < len(state.path) && !os.IsPathSeparator(state.path[end]) {
+		end++
+	}
+
+	if end == start {
+		return "", end, false
+	}
+
+	return state.path[start:end], end, true
+}
+
+func (state *symlinkWalkState) processComponent(fsys FS, part string, end int) (bool, error) {
+	isWindowsDot := runtime.GOOS == "windows" && state.path[len(filepath.VolumeName(state.path)):] == "."
+	if part == "." && !isWindowsDot {
+		state.start = end
+
+		return true, nil
+	}
+
+	if part == ".." {
+		state.dest = walkSymlinksParent(state.dest, state.volLen, string(os.PathSeparator))
+		state.start = end
+
+		return true, nil
+	}
+
+	state.appendPart(part)
+
+	info, err := Lstat(fsys, state.dest)
+	if err != nil {
+		return false, err
+	}
+
+	if info.Mode()&fs.ModeSymlink == 0 {
+		return state.processRegularComponent(info, end)
+	}
+
+	return state.processSymlinkComponent(fsys, end, isWindowsDot)
+}
+
+func (state *symlinkWalkState) appendPart(part string) {
+	if len(state.dest) > len(filepath.VolumeName(state.dest)) && !os.IsPathSeparator(state.dest[len(state.dest)-1]) {
+		state.dest += string(os.PathSeparator)
+	}
+
+	state.dest += part
+}
+
+func (state *symlinkWalkState) processRegularComponent(info os.FileInfo, end int) (bool, error) {
+	if !info.Mode().IsDir() && end < len(state.path) {
+		return false, syscall.ENOTDIR
+	}
+
+	state.start = end
+
+	return true, nil
+}
+
+func (state *symlinkWalkState) processSymlinkComponent(fsys FS, end int, isWindowsDot bool) (bool, error) {
+	state.linksWalked++
+	if state.linksWalked > maxSymlinkEvaluations {
+		return false, errors.New("EvalSymlinks: too many links")
+	}
+
+	link, err := Readlink(fsys, state.dest)
+	if err != nil {
+		return false, err
+	}
+
+	if isWindowsDot && !filepath.IsAbs(link) {
+		return false, nil
+	}
+
+	state.path = link + state.path[end:]
+	state.applyLink(link)
+
+	return true, nil
+}
+
+func (state *symlinkWalkState) applyLink(link string) {
+	linkVolLen := len(filepath.VolumeName(link))
+	switch {
+	case linkVolLen > 0:
+		state.applyVolumeLink(link, linkVolLen)
+	case len(link) > 0 && os.IsPathSeparator(link[0]):
+		state.dest = link[:1]
+		state.start = 1
+		state.vol = link[:1]
+		state.volLen = 1
+	default:
+		state.dest = walkSymlinksLinkParent(state.dest, state.vol, state.volLen)
+		state.start = 0
+	}
+}
+
+func (state *symlinkWalkState) applyVolumeLink(link string, linkVolLen int) {
+	if linkVolLen < len(link) && os.IsPathSeparator(link[linkVolLen]) {
+		linkVolLen++
+	}
+
+	state.vol = link[:linkVolLen]
+	state.dest = state.vol
+	state.start = len(state.vol)
+	state.volLen = linkVolLen
+}
+
+func walkSymlinksParent(dest string, volLen int, pathSeparator string) string {
+	var idx int
+	for idx = len(dest) - 1; idx >= volLen; idx-- {
+		if os.IsPathSeparator(dest[idx]) {
+			break
+		}
+	}
+
+	if idx < volLen || dest[idx+1:] == ".." {
+		if len(dest) > volLen {
+			dest += pathSeparator
+		}
+
+		return dest + ".."
+	}
+
+	return dest[:idx]
+}
+
+func walkSymlinksLinkParent(dest string, vol string, volLen int) string {
+	var idx int
+	for idx = len(dest) - 1; idx >= volLen; idx-- {
+		if os.IsPathSeparator(dest[idx]) {
+			break
+		}
+	}
+
+	if idx < volLen {
+		return vol
+	}
+
+	return dest[:idx]
+}
+
 // walkDir recursively descends path, calling walkDirFn.
 // Adapted from https://go.dev/src/path/filepath/path.go
 func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) error {
@@ -616,7 +902,7 @@ func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) erro
 		return err
 	}
 
-	entries, err := readDirEntries(fsys, path)
+	entries, err := ReadDirEntries(fsys, path)
 	if err != nil {
 		err = walkDirFn(path, d, err)
 		if err != nil {
@@ -642,9 +928,12 @@ func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) erro
 	return nil
 }
 
-// readDirEntries reads the directory named by dirname and returns
-// a sorted list of directory entries.
-func readDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
+// ReadDirEntries reads the directory named by dirname and returns a sorted
+// list of directory entries. It prefers the fs.ReadDirFile fast path when the
+// backing file supports it, and otherwise falls back to Readdir wrapped in
+// FileInfoDirEntry so backings that only expose the legacy os.File API still
+// work.
+func ReadDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 	f, err := fsys.Open(dirname)
 	if err != nil {
 		return nil, err

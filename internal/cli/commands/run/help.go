@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -59,7 +60,7 @@ func runTFHelp(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 
 	terraformHelpCmd := []string{tf.FlagNameHelpLong, cliCtx.Command.Name}
 
-	out, err := tf.RunCommandWithOutput(ctx, l, configbridge.TFRunOptsFromOpts(opts), terraformHelpCmd...)
+	out, err := tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), configbridge.TFRunOptsFromOpts(opts), terraformHelpCmd...)
 	if err != nil {
 		var processError util.ProcessExecutionError
 		if ok := errors.As(err, &processError); ok {

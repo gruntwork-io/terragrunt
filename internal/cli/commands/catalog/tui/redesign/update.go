@@ -2,7 +2,6 @@ package redesign
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -67,15 +66,12 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 					var content string
 
 					if selectedComponent.IsMarkDown() {
-						style := "dark"
-						if !lipgloss.HasDarkBackground(os.Stdin, os.Stdout) {
-							style = "light"
-						}
-
-						renderer, err := glamour.NewTermRenderer(
-							glamour.WithStandardStyle(style),
-							glamour.WithWordWrap(m.width),
+						var (
+							renderer *glamour.TermRenderer
+							err      error
 						)
+
+						m, renderer, err = m.markdownRenderer()
 						if err != nil {
 							return m, rendererErrCmd(err)
 						}
@@ -220,6 +216,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, nil
+	case tea.BackgroundColorMsg:
+		dark := msg.IsDark()
+		if dark != m.hasDarkBG {
+			m.mdRenderer = nil
+		}
+
+		m.hasDarkBG = dark
+
 	case tea.WindowSizeMsg:
 		h, v := AppStyle.GetFrameSize()
 
@@ -227,6 +231,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		const tabBarHeight = 2
 		for i := range int(numTabs) {
 			m.lists[i].SetSize(msg.Width-h, msg.Height-v-tabBarHeight)
+		}
+
+		if msg.Width != m.width {
+			m.mdRenderer = nil
 		}
 
 		m.width = msg.Width

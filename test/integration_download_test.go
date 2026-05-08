@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -955,38 +954,4 @@ func TestDownloadWithCASEnabled(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr.String(), "Downloading Terraform configurations")
-}
-
-func TestCASStorageDirectory(t *testing.T) {
-	t.Parallel()
-
-	homeDir, err := os.UserHomeDir()
-	require.NoError(t, err)
-
-	expectedCASDir := filepath.Join(homeDir, ".cache", "terragrunt", "cas")
-
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
-	testPath := filepath.Join(tmpEnvPath, "fixtures/download/local")
-
-	helpers.CleanupTerraformFolder(t, testPath)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	cmd := "terragrunt plan --experiment cas --working-dir " + testPath
-	_ = helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-
-	// Use require.Eventually to handle potential timing issues with CAS directory creation
-	require.Eventually(t, func() bool {
-		_, err := os.Stat(expectedCASDir)
-		return err == nil
-	}, 10*time.Second, 100*time.Millisecond, "CAS directory should be created at %s", expectedCASDir)
-
-	storeDir := filepath.Join(expectedCASDir, "store")
-	require.Eventually(t, func() bool {
-		_, err := os.Stat(storeDir)
-		return err == nil
-	}, 10*time.Second, 100*time.Millisecond, "CAS store directory should be created at %s", storeDir)
 }

@@ -99,7 +99,7 @@ func TestPathRelativeToInclude(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params)
+		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params, tc.configPath)
 		l := logger.CreateLogger()
 		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
@@ -164,7 +164,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params)
+		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params, tc.configPath)
 		l := logger.CreateLogger()
 		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
@@ -823,7 +823,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params)
+		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params, tc.configPath)
 		l := logger.CreateLogger()
 		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
@@ -1328,22 +1328,29 @@ func getKeys(valueMap map[string]cty.Value) map[string]bool {
 	return keys
 }
 
-func getTrackIncludeFromTestData(includeMap map[string]config.IncludeConfig, params []string) *config.TrackInclude {
+// getTrackIncludeFromTestData mirrors getTrackInclude: include paths are resolved to absolute against the directory of
+// configPath so production callers can rely on IncludeConfig.Path being absolute.
+func getTrackIncludeFromTestData(includeMap map[string]config.IncludeConfig, params []string, configPath string) *config.TrackInclude {
 	if len(includeMap) == 0 {
 		return nil
 	}
 
-	currentList := make([]config.IncludeConfig, len(includeMap))
+	configDir := filepath.Dir(configPath)
+	normalizedMap := make(map[string]config.IncludeConfig, len(includeMap))
+	currentList := make([]config.IncludeConfig, 0, len(includeMap))
 
-	i := 0
-	for _, val := range includeMap {
-		currentList[i] = val
-		i++
+	for name, val := range includeMap {
+		if val.Path != "" && !filepath.IsAbs(val.Path) {
+			val.Path = filepath.Clean(filepath.Join(configDir, val.Path))
+		}
+
+		normalizedMap[name] = val
+		currentList = append(currentList, val)
 	}
 
 	trackInclude := &config.TrackInclude{
 		CurrentList: currentList,
-		CurrentMap:  includeMap,
+		CurrentMap:  normalizedMap,
 	}
 	if len(params) == 0 {
 		trackInclude.Original = &currentList[0]

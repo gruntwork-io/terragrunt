@@ -514,7 +514,7 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 func GetPathRelativeTo(t *testing.T, path string, basePath string) string {
 	t.Helper()
 
-	relPath, err := util.GetPathRelativeTo(path, basePath)
+	relPath, err := filepath.Rel(basePath, path)
 	require.NoError(t, err)
 
 	return relPath
@@ -526,7 +526,7 @@ func GetPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 	relPaths := make([]string, len(paths))
 
 	for i, path := range paths {
-		relPath, err := util.GetPathRelativeTo(path, basePath)
+		relPath, err := filepath.Rel(basePath, path)
 		require.NoError(t, err)
 
 		relPaths[i] = relPath

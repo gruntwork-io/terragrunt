@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -104,7 +105,12 @@ func DownloadTerraformSource(
 			copyOpts = append(copyOpts, util.WithFastCopy())
 		}
 
-		err = util.CopyFolderContents(l, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "copy_folder_contents", map[string]any{
+			"src":  opts.WorkingDir,
+			"dest": terraformSource.WorkingDir,
+		}, func(_ context.Context) error {
+			return util.CopyFolderContents(l, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
+		})
 		if err != nil {
 			return nil, err
 		}

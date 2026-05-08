@@ -41,6 +41,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -876,16 +877,49 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 		return nil, err
 	}
 
-	// When AWS Client Side Monitoring (CSM) is enabled the aws-sdk-go displays log as a plaintext "Enabling CSM" to stdout, even if the `output -json` flag is specified. The final output looks like this: "2023/05/04 20:22:43 Enabling CSM{...omitted json string...}", and and prevents proper json parsing. Since there is no way to disable this log, the only way out is to filter.
-	// Related AWS code: https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
-	// Related issues: https://github.com/gruntwork-io/terragrunt/issues/2233 https://github.com/hashicorp/terraform-provider-aws/issues/23620
-	if index := bytes.IndexByte(newJSONBytes, byte('{')); index > 0 {
-		newJSONBytes = newJSONBytes[index:]
+	// `tofu/terraform output -json` stdout can be polluted with non-JSON text on either side of the JSON object:
+	//   - Leading: AWS Client Side Monitoring (CSM) logs (e.g., "2023/05/04 20:22:43 Enabling CSM"),
+	//     ANSI color escape sequences from warning blocks.
+	//     Refs: https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
+	//           https://github.com/gruntwork-io/terragrunt/issues/2233
+	//   - Trailing: Terraform 1.15+ emits backend deprecation warnings (e.g., for the S3
+	//     `dynamodb_table` parameter) on stdout after the JSON has already been printed.
+	//     Refs: https://github.com/gruntwork-io/terragrunt/issues/6001
+	//
+	// To make parsing robust to either, isolate the first JSON object in the buffer.
+	trimmedJSONBytes, trimErr := extractFirstJSONObject(newJSONBytes)
+	if trimErr != nil {
+		return nil, errors.New(TerragruntOutputParsingError{Path: targetConfig, Err: trimErr})
 	}
+
+	newJSONBytes = trimmedJSONBytes
 
 	jsonCache.Put(ctx, targetConfig, newJSONBytes)
 
 	return newJSONBytes, nil
+}
+
+// extractFirstJSONObject returns the first complete JSON object found in data, ignoring any
+// non-JSON content that precedes or follows it. This is needed because `tofu/terraform output -json`
+// can intermix log lines, ANSI escape codes, or deprecation warnings with the JSON output, depending
+// on the version and backend in use.
+//
+// If data contains no `{`, the original bytes are returned so downstream JSON parsing surfaces the
+// usual "unexpected end of JSON input" error rather than a cryptic message from this helper.
+func extractFirstJSONObject(data []byte) ([]byte, error) {
+	start := bytes.IndexByte(data, '{')
+	if start < 0 {
+		return data, nil
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(data[start:]))
+
+	var raw json.RawMessage
+	if err := dec.Decode(&raw); err != nil {
+		return nil, err
+	}
+
+	return raw, nil
 }
 
 // Retrieve the outputs from the terraform state in the target configuration. This attempts to optimize the output
@@ -1017,12 +1051,13 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	}
 
 	if isInit {
-		credsGetter := creds.NewGetter()
-		if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
+		mergedIAM := iam.MergeRoleOptions(remoteStateTGConfig.GetIAMRoleOptions(), pctx.OriginalIAMRoleOptions)
+		if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
 			ctx,
 			l,
 			pctx.Env,
 			externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
+			amazonsts.NewProvider(l, mergedIAM, pctx.Env),
 		); err != nil {
 			return nil, err
 		}
@@ -1032,8 +1067,6 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 			pctx,
 			l,
 			workingDir,
-			remoteStateTGConfig.GetIAMRoleOptions(),
-			credsGetter,
 		)
 	}
 
@@ -1086,28 +1119,17 @@ func terragruntAlreadyInit(ctx context.Context, l log.Logger, pctx *ParsingConte
 }
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without
-// running init.
+// running init. Callers must populate pctx.Env with auth-provider-cmd credentials and any
+// TG_IAM_ROLE assumption beforehand.
 func getTerragruntOutputJSONFromInitFolder(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
 	terraformWorkingDir string,
-	iamRoleOpts iam.RoleOptions,
-	credsGetter *creds.Getter,
 ) ([]byte, error) {
 	targetConfigPath := pctx.TerragruntConfigPath
 
-	tfRunOpts, err := setupTFRunOptsForBareTerraform(
-		ctx,
-		pctx,
-		l,
-		terraformWorkingDir,
-		iamRoleOpts,
-		credsGetter,
-	)
-	if err != nil {
-		return nil, err
-	}
+	tfRunOpts := setupTFRunOptsForBareTerraform(pctx, terraformWorkingDir)
 
 	l.Debugf(
 		"Unit '%s' is already init-ed. "+
@@ -1121,7 +1143,7 @@ func getTerragruntOutputJSONFromInitFolder(
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	out, err := tf.RunCommandWithOutput(bareCtx, l, tfRunOpts, tf.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(bareCtx, l, vexec.NewOSExec(), tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1182,27 +1204,18 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	l.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
-	credsGetter := creds.NewGetter()
-	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
+	mergedIAM := iam.MergeRoleOptions(iamRoleOpts, pctx.OriginalIAMRoleOptions)
+	if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
 		pctx.Env,
 		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
+		amazonsts.NewProvider(l, mergedIAM, pctx.Env),
 	); err != nil {
 		return nil, err
 	}
 
-	tfRunOpts, err := setupTFRunOptsForBareTerraform(
-		ctx,
-		pctx,
-		l,
-		tempWorkDir,
-		iamRoleOpts,
-		credsGetter,
-	)
-	if err != nil {
-		return nil, err
-	}
+	tfRunOpts := setupTFRunOptsForBareTerraform(pctx, tempWorkDir)
 
 	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
 	if pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) && !pctx.NoDependencyFetchOutputFromState {
@@ -1259,7 +1272,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Now that the backend is initialized, run terraform output to get the data and return it.
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	out, err := tf.RunCommandWithOutput(bareCtx, l, tfRunOpts, tf.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(bareCtx, l, vexec.NewOSExec(), tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1327,38 +1340,20 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 	return jsonOutputs, nil
 }
 
-// setupTFRunOptsForBareTerraform builds a *tf.RunOptions that can be used to run terraform
-// without going through the full RunTerragrunt operation. It merges IAM roles and obtains
-// credentials inline.
-func setupTFRunOptsForBareTerraform(
-	ctx context.Context,
-	pctx *ParsingContext,
-	l log.Logger,
-	workingDir string,
-	iamRoleOpts iam.RoleOptions,
-	credsGetter *creds.Getter,
-) (*tf.TFOptions, error) {
-	// Merge IAM options
-	mergedIAM := iam.MergeRoleOptions(iamRoleOpts, pctx.OriginalIAMRoleOptions)
-
-	// Build shell.RunOptions for this specific working dir with io.Discard as writer
+// setupTFRunOptsForBareTerraform builds a *tf.TFOptions for running terraform without
+// going through the full RunTerragrunt operation. Callers must obtain credentials
+// (auth-provider-cmd and any TG_IAM_ROLE assumption) before invoking, so those steps
+// run from the unit's directory rather than the bare-terraform working directory.
+func setupTFRunOptsForBareTerraform(pctx *ParsingContext, workingDir string) *tf.TFOptions {
 	shellOpts := shellRunOptsFromPctx(pctx)
 	shellOpts.WorkingDir = workingDir
 	shellOpts.Writers.Writer = io.Discard
-
-	// Make sure to assume any roles set by TG_IAM_ROLE
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, pctx.Env,
-		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellOpts),
-		amazonsts.NewProvider(l, mergedIAM, pctx.Env),
-	); err != nil {
-		return nil, err
-	}
 
 	return &tf.TFOptions{
 		JSONLogFormat:                pctx.JSONLogFormat,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
 		ShellOptions:                 shellOpts,
-	}, nil
+	}
 }
 
 // runTerragruntOutputJSON uses terragrunt running functions to extract the json output from the target config.
@@ -1523,7 +1518,7 @@ func runTerraformInitForDependencyOutput(ctx context.Context, pctx *ParsingConte
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	if err := tf.RunCommand(bareCtx, l, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
+	if err := tf.RunCommand(bareCtx, l, vexec.NewOSExec(), initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf("%s", stderr.String())

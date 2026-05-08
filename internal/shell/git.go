@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
@@ -72,7 +73,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, env map[string]string, pa
 		WithEnv(env).
 		WithWriters(writer.Writers{Writer: &stdout, ErrWriter: &stderr})
 
-	cmd, err := RunCommandWithOutput(ctx, l, gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
+	cmd, err := RunCommandWithOutput(ctx, l, vexec.NewOSExec(), gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
@@ -184,7 +185,7 @@ func GitRepoTags(ctx context.Context, l log.Logger, env map[string]string, worki
 		WithEnv(env).
 		WithWriters(writer.Writers{Writer: &stdout, ErrWriter: &stderr})
 
-	output, err := RunCommandWithOutput(ctx, l, gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	output, err := RunCommandWithOutput(ctx, l, vexec.NewOSExec(), gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
