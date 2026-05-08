@@ -121,11 +121,6 @@ func ReadFile(fs FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fs, filename)
 }
 
-// Lstat returns file info for path without following the final symlink when the filesystem supports it.
-func Lstat(fs FS, path string) (os.FileInfo, error) {
-	return lstatIfPossible(fs, path)
-}
-
 // EvalSymlinks returns path after evaluating symlinks using the supplied filesystem.
 func EvalSymlinks(fsys FS, path string) (string, error) {
 	if evaluator, ok := fsys.(symlinkEvaluator); ok {
@@ -420,6 +415,30 @@ func (fs *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	info, err := fs.Fs.Stat(name)
 
 	return info, false, err
+}
+
+// Remove deletes the file or symlink at name. Symlinks live in a side table
+// that the embedded afero.MemMapFs does not see, so they are handled here
+// before delegating to the underlying filesystem.
+func (fs *memMapFS) Remove(name string) error {
+	if _, ok := fs.symlinks[name]; ok {
+		delete(fs.symlinks, name)
+		return nil
+	}
+
+	return fs.Fs.Remove(name)
+}
+
+// RemoveAll deletes path and any children it contains. Symlinks live in a
+// side table that the embedded afero.MemMapFs does not see, so they are
+// handled here before delegating to the underlying filesystem.
+func (fs *memMapFS) RemoveAll(path string) error {
+	if _, ok := fs.symlinks[path]; ok {
+		delete(fs.symlinks, path)
+		return nil
+	}
+
+	return fs.Fs.RemoveAll(path)
 }
 
 // symlinkFileInfo reports symlink metadata for links stored in memMapFS's side table.

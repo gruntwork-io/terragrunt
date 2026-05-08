@@ -129,7 +129,9 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 // falling back to computing them from the cached package and shasums document.
 func collectNewHashes(ctx context.Context, provider Provider) ([]Hash, error) {
 	if registryHashes := provider.RegistryHashes(); len(registryHashes) > 0 {
-		return uniqueRegistryHashes(registryHashes), nil
+		if unique := uniqueRegistryHashes(registryHashes); len(unique) > 0 {
+			return unique, nil
+		}
 	}
 
 	return computedFallbackHashes(ctx, provider)

@@ -13,15 +13,15 @@ import (
 type Providers []*Provider
 
 func ParseProviders(strs ...string) Providers {
-	var prvoiders Providers
+	var providers Providers
 
 	for _, str := range strs {
 		if provider := ParseProvider(str); provider != nil {
-			prvoiders = append(prvoiders, provider)
+			providers = append(providers, provider)
 		}
 	}
 
-	return prvoiders
+	return providers
 }
 
 func (providers Providers) Find(target *Provider) *Provider {

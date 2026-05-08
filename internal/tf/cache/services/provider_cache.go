@@ -142,7 +142,7 @@ func (cache *ProviderCache) RegistryHashes() map[string][]getproviders.Hash {
 	out := make(map[string][]getproviders.Hash, len(cache.Packages))
 
 	for platform, pkg := range cache.Packages {
-		if pkg == nil {
+		if pkg == nil || len(pkg.Hashes) == 0 {
 			continue
 		}
 
@@ -152,6 +152,10 @@ func (cache *ProviderCache) RegistryHashes() map[string][]getproviders.Hash {
 		}
 
 		out[platform] = hashes
+	}
+
+	if len(out) == 0 {
+		return nil
 	}
 
 	return out
@@ -326,7 +330,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	// before that directory was moved or deleted) reports as non-existent here
 	// but still trips MkdirAll downstream with "file exists". Remove only the
 	// symlink itself before the download or user-plugin symlink path runs.
-	if err := cache.removeStaleSymlink(fs); err != nil {
+	if err := RemoveStaleSymlink(fs, cache.packageDir); err != nil {
 		return err
 	}
 
@@ -420,29 +424,25 @@ func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.R
 	return req, nil
 }
 
-// removeStaleSymlink removes a dangling symlink at cache.packageDir, if one is
-// present. The caller has already confirmed via vfs.FileExists (Stat-based)
-// that no real cached package is here. The only artifact this method deletes
-// is a symlink whose target has gone missing, typically because the user
-// moved or removed ~/.terraform.d/plugins after a prior run. A regular file
-// or directory at this path is unexpected and surfaces as an error rather
-// than a deletion.
-func (cache *ProviderCache) removeStaleSymlink(fs vfs.FS) error {
-	info, err := vfs.Lstat(fs, cache.packageDir)
+// RemoveStaleSymlink removes a dangling symlink at path. A regular file or
+// directory there returns UnexpectedProviderCachePathError without deletion;
+// a missing path returns nil.
+func RemoveStaleSymlink(fs vfs.FS, path string) error {
+	info, err := vfs.Lstat(fs, path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
 
-		return errors.Errorf("failed to inspect provider package path %q: %w", cache.packageDir, err)
+		return errors.Errorf("failed to inspect provider package path %q: %w", path, err)
 	}
 
 	if info.Mode()&os.ModeSymlink == 0 {
-		return &UnexpectedProviderCachePathError{Path: cache.packageDir, Mode: info.Mode()}
+		return &UnexpectedProviderCachePathError{Path: path, Mode: info.Mode()}
 	}
 
-	if err := fs.Remove(cache.packageDir); err != nil {
-		return errors.Errorf("failed to clear stale provider package symlink %q: %w", cache.packageDir, err)
+	if err := fs.Remove(path); err != nil {
+		return errors.Errorf("failed to clear stale provider package symlink %q: %w", path, err)
 	}
 
 	return nil
@@ -742,8 +742,13 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 	if cache.err = cache.warmUp(ctx); cache.err != nil {
 		service.logger.Errorf("Failed to warm up provider %s: %v", cache.Provider, cache.err)
 
-		if err := service.FS().RemoveAll(cache.packageDir); err != nil {
-			service.logger.Warnf("Failed to clean up package dir %q: %v", cache.packageDir, err)
+		// UnexpectedProviderCachePathError signals that the path holds user
+		// content; RemoveAll here would silently override that contract.
+		var unexpectedPath *UnexpectedProviderCachePathError
+		if !errors.As(cache.err, &unexpectedPath) {
+			if err := service.FS().RemoveAll(cache.packageDir); err != nil {
+				service.logger.Warnf("Failed to clean up package dir %q: %v", cache.packageDir, err)
+			}
 		}
 
 		if cache.archiveCached {
