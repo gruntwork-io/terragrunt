@@ -1,0 +1,10 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### Suppress spurious `Unknown variable: dependency` errors during dependency resolution
+
+`terragrunt plan` and `apply` no longer print `ERROR Error: Unknown variable "dependency"` lines when a unit pulls in a shared include (e.g. via `find_in_parent_folders`) that references `dependency.*` outputs. The plans completed correctly, but the error lines cluttered CI logs.
+
+Resolves [#6036](https://github.com/gruntwork-io/terragrunt/issues/6036).
