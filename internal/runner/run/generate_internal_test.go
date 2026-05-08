@@ -79,7 +79,7 @@ func TestGenerateConfigWritesAndCleansStaleEntries(t *testing.T) {
 	require.NoError(t, GenerateConfig(logger.CreateLogger(), opts, &firstRun))
 	assert.FileExists(t, filepath.Join(workingDir, "tgen_providers.tf"))
 	assert.FileExists(t, filepath.Join(workingDir, "tgen_backend.tf"))
-	assert.FileExists(t, filepath.Join(workingDir, GenerateManifestName))
+	assert.FileExists(t, filepath.Join(workingDir, generateManifestName))
 
 	// Second run drops the providers block; the manifest must clean up the stale file.
 	secondRun := runcfg.RunConfig{
@@ -282,7 +282,7 @@ func TestGenerateConfigMalformedManifestIsIgnored(t *testing.T) {
 	workingDir := t.TempDir()
 	opts := newGenerateTestOptions(workingDir)
 
-	require.NoError(t, os.WriteFile(filepath.Join(workingDir, GenerateManifestName), []byte(`not-json`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(workingDir, generateManifestName), []byte(`not-json`), 0o644))
 
 	cfg := runcfg.RunConfig{
 		GenerateConfigs: map[string]codegen.GenerateConfig{
@@ -435,7 +435,7 @@ func assertUnsafeManifestEntryIsIgnored(t *testing.T, workingDir string, manifes
 
 	manifestContents, err := json.Marshal([]string{manifestPath})
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(workingDir, GenerateManifestName), manifestContents, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(workingDir, generateManifestName), manifestContents, 0o644))
 
 	require.NoError(t, GenerateConfig(logger.CreateLogger(), newGenerateTestOptions(workingDir), &runcfg.RunConfig{}))
 	assert.FileExists(t, protectedPath, "manifest entries outside the working dir must never be removed")

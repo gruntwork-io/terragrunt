@@ -49,25 +49,6 @@ In this example configuration, whenever Terragrunt runs `tofu apply` or `tofu pl
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
 block](/reference/hcl/blocks#terraform).
 
-## Execution order around code generation
-
-Each invocation of Terragrunt runs through these phases:
-
-1. Configuration parse and `locals` evaluation.
-2. Source download. Hooks with `commands = ["init-from-module"]` run here, in the terragrunt
-   configuration directory. Skipped when the cache already has the latest source.
-3. Code generation. Terragrunt evaluates every `generate` block (and the `remote_state.generate`
-   attribute) on every run and reconciles the resulting files against
-   `.terragrunt-generate-manifest`, removing files emitted by a previous configuration that are
-   no longer requested. There are no user-facing hooks at this phase: generation is automatic
-   and unconditional.
-4. OpenTofu/Terraform invocation. Hooks keyed on the OpenTofu/Terraform command (`init`, `plan`,
-   `apply`, ...) run here, in the OpenTofu/Terraform working directory. When Terragrunt downloads
-   a source, that working directory is inside `.terragrunt-cache`.
-
-A `before_hook` with `commands = ["init"]` will therefore see every file written by the
-`generate` blocks and the `remote_state.generate` attribute already in place.
-
 ## Hook Context
 
 All hooks add extra environment variables when executing the hook's run command:

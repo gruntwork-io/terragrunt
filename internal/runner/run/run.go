@@ -40,6 +40,7 @@ import (
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
+	generateManifestName            = ".terragrunt-generate-manifest"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -854,7 +855,7 @@ func generateRemoteStateAndTrack(
 // previous run. A missing manifest is not an error; it simply means there are no paths to
 // reconcile (first run after upgrade or fresh cache).
 func readGenerateManifest(l log.Logger, workingDir string) (map[string]struct{}, error) {
-	manifestPath := filepath.Join(workingDir, GenerateManifestName)
+	manifestPath := filepath.Join(workingDir, generateManifestName)
 
 	contents, err := os.ReadFile(manifestPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -907,9 +908,9 @@ func writeGenerateManifest(l log.Logger, workingDir string, currentPaths map[str
 
 	const ownerWriteGlobalReadPerms = 0o644
 
-	manifestPath := filepath.Join(workingDir, GenerateManifestName)
+	manifestPath := filepath.Join(workingDir, generateManifestName)
 
-	tmpFile, err := os.CreateTemp(workingDir, GenerateManifestName+".tmp-*")
+	tmpFile, err := os.CreateTemp(workingDir, generateManifestName+".tmp-*")
 	if err != nil {
 		return errors.New(err)
 	}
