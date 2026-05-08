@@ -4,6 +4,7 @@
 package run
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -230,10 +231,6 @@ func GenerateConfig(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
 
 		if shouldTrackGenerateConfig(target, &genCfg, fileExistedBefore, wasTracked) {
 			if err := addGenerateManifestPath(l, opts.WorkingDir, currentPaths, target); err != nil {
-				return err
-			}
-
-			if err := writeGenerateManifest(l, opts.WorkingDir, currentPaths); err != nil {
 				return err
 			}
 		}
@@ -993,11 +990,12 @@ func requestedGeneratePaths(l log.Logger, workingDir string, cfg *runcfg.RunConf
 
 func shouldTrackGenerateConfig(target string, genCfg *codegen.GenerateConfig, fileExistedBefore bool, wasTracked bool) bool {
 	if genCfg.Disable {
-		return genCfg.IfDisabled == codegen.DisabledSkip && fileExistedBefore && wasTracked && util.FileExists(target)
+		return genCfg.IfDisabled == codegen.DisabledSkip && fileExistedBefore && util.FileExists(target) &&
+			(wasTracked || generateOutputHasTerragruntSignature(target))
 	}
 
 	if fileExistedBefore && genCfg.IfExists == codegen.ExistsSkip {
-		return wasTracked && util.FileExists(target)
+		return util.FileExists(target) && (wasTracked || generateOutputHasTerragruntSignature(target))
 	}
 
 	return util.FileExists(target)
@@ -1069,5 +1067,44 @@ func removeGenerateManifestPath(l log.Logger, workingDir string, path string) er
 		return err
 	}
 
-	return os.Remove(filepath.Join(filepath.Clean(workingDir), rel))
+	target := filepath.Join(filepath.Clean(workingDir), rel)
+
+	generated, err := generateOutputHasTerragruntSignatureErr(target)
+	if errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if !generated {
+		l.Warnf("Skipping stale generate output %s: current file does not have Terragrunt's generated-file signature", target)
+
+		return nil
+	}
+
+	return os.Remove(target)
+}
+
+func generateOutputHasTerragruntSignature(path string) bool {
+	generated, err := generateOutputHasTerragruntSignatureErr(path)
+
+	return err == nil && generated
+}
+
+func generateOutputHasTerragruntSignatureErr(path string) (bool, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return false, errors.New(err)
+	}
+
+	defer file.Close() //nolint:errcheck
+
+	firstLine, err := bufio.NewReader(file).ReadString('\n')
+	if err != nil && (!errors.Is(err, io.EOF) || firstLine == "") {
+		return false, errors.New(err)
+	}
+
+	return strings.HasSuffix(strings.TrimSpace(firstLine), codegen.TerragruntGeneratedSignature), nil
 }

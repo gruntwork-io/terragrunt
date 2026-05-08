@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -2892,15 +2893,16 @@ EOF
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
 			unitPath := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "stale-cleanup", "unit")
+			initCommand := "terragrunt init --non-interactive --working-dir " + strconv.Quote(unitPath)
 
-			helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
+			helpers.RunTerragrunt(t, initCommand)
 			require.True(t, helpers.FileExistsInCache(t, unitPath, tc.expectedStaleFile), "first run must create %s in the cache", tc.expectedStaleFile)
 
 			staleGeneratedFile := helpers.FindCachedFile(t, unitPath, tc.expectedStaleFile)
-			require.NoError(t, os.WriteFile(staleGeneratedFile, []byte("this is not valid terraform\n"), 0o644))
+			require.NoError(t, os.WriteFile(staleGeneratedFile, []byte("# "+codegen.TerragruntGeneratedSignature+"\nthis is not valid terraform\n"), 0o644))
 			require.NoError(t, os.WriteFile(filepath.Join(unitPath, "terragrunt.hcl"), []byte(tc.updatedConfig), 0o644))
 
-			helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+unitPath)
+			helpers.RunTerragrunt(t, initCommand)
 			assert.False(t, helpers.FileExistsInCache(t, unitPath, tc.expectedStaleFile), "stale generated file must be removed before OpenTofu parses the cache")
 
 			if tc.expectedNewFile != "" {

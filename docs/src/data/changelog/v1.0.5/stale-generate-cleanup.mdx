@@ -3,16 +3,17 @@ version: "v1.0.5"
 category: "bug-fixes"
 ---
 
-#### Stale generated files are removed when a `generate` block is removed or its path changes
+#### Stale generated files are removed when generated paths change or disappear
 
 Files emitted by `generate` blocks (and the `remote_state.generate` attribute) are now tracked in
 `.terragrunt-generate-manifest` inside the cache working directory. On every run, files recorded
 by the previous manifest that are not requested by the current configuration are removed before
 OpenTofu/Terraform parses the working directory.
 
-This fixes a class of confusing failures where a `generate` block was removed from `root.hcl`
+This fixes a class of confusing failures where a `generate` block was removed from a Terragrunt configuration
 (or its `path` changed) but the previously generated `.tf` file lingered in the cache and was
 picked up by the next `tofu init`/`plan`/`apply`.
 
 Files left in place by `disable = true` with `if_disabled = "skip"` are still preserved across
-runs, so opting out of generation without removing the block keeps the existing file untouched.
+runs when the block keeps the same path, so opting out of generation without removing the block
+keeps the existing file untouched.
