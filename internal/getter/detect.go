@@ -69,32 +69,45 @@ func DetectWith(source, pwd string, detectors []Detector) (string, error) {
 		detectForce, result := splitForcedGetter(result)
 		result, detectSubdir := SourceDirSubdir(result)
 
-		if detectSubdir != "" {
-			subDir = path.Join(detectSubdir, subDir)
+		final, err := rewriteDetectedResult(result, detectForce, detectSubdir, subDir, getForce)
+		if err != nil {
+			return source, err
 		}
 
-		if subDir != "" {
-			u, err := URLParse(result)
-			if err != nil {
-				return source, err
-			}
-
-			u.Path += "//" + subDir
-			result = u.String()
-		}
-
-		if getForce == "" {
-			getForce = detectForce
-		}
-
-		if getForce != "" {
-			result = getForce + "::" + result
-		}
-
-		return result, nil
+		return final, nil
 	}
 
 	return source, nil
+}
+
+// rewriteDetectedResult re-attaches the subdir selector and forced-getter
+// prefix onto a detector's result. The detector's own subdir composes ahead
+// of the caller's so chained "//" segments retain their order, and a
+// caller-supplied getForce wins over the detector's.
+func rewriteDetectedResult(result, detectForce, detectSubdir, subDir, getForce string) (string, error) {
+	if detectSubdir != "" {
+		subDir = path.Join(detectSubdir, subDir)
+	}
+
+	if subDir != "" {
+		u, err := URLParse(result)
+		if err != nil {
+			return "", err
+		}
+
+		u.Path += "//" + subDir
+		result = u.String()
+	}
+
+	if getForce == "" {
+		getForce = detectForce
+	}
+
+	if getForce != "" {
+		result = getForce + "::" + result
+	}
+
+	return result, nil
 }
 
 // prefixedDetector decorates a Detector so its successful matches are

@@ -401,6 +401,14 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 		Pwd: opts.WorkingDir,
 	}); err != nil {
 		l.Warnf("CAS download failed: %v. Falling back to standard getter.", err)
+
+		// Clear any partial CAS output before the fallback runs; mixing
+		// leftover CAS files with the standard getter's output leaves the
+		// module dir in an inconsistent state.
+		if removeErr := os.RemoveAll(src.DownloadDir); removeErr != nil {
+			l.Warnf("Failed to clean partial CAS output at %s: %v", src.DownloadDir, removeErr)
+		}
+
 		return false, nil
 	}
 
