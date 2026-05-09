@@ -829,14 +829,6 @@ func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, 
 	case hasInclude && includeFromChild == nil:
 		// Current parsing ctx where there is no included config already loaded.
 	case !hasInclude:
-		// Parsing ctx where there is an included config already loaded. Normalize the inherited include's Path so
-		// downstream consumers see the same absolute-path invariant as entries in CurrentList/CurrentMap.
-		if includeFromChild != nil && includeFromChild.Path != "" && !filepath.IsAbs(includeFromChild.Path) {
-			normalized := *includeFromChild
-			normalized.Path = filepath.Clean(filepath.Join(configDir, includeFromChild.Path))
-			includeFromChild = &normalized
-		}
-
 		trackInc.Original = includeFromChild
 	}
 
