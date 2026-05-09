@@ -940,64 +940,335 @@ type fileManifestEntry struct {
 	IsDir bool
 }
 
-// Clean will recursively remove all files specified in the manifest
+const (
+	maxFileManifestEntries = 1_000_000
+	maxFileManifests       = 100_000
+	maxPendingManifests    = 2 * maxFileManifests
+
+	manifestPendingCapExceededFormat = "manifest cleanup under %q exceeded pending manifest cap of %d while processing %q"
+	manifestCountExceededFormat      = "manifest cleanup under %q exceeded %d manifests while processing %q"
+)
+
+// Clean walks the manifest and any nested manifests it references, removing recorded entries.
+// All operations stay bounded to ManifestFolder.
 func (manifest *fileManifest) Clean(l log.Logger) error {
-	return manifest.clean(l, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
-}
+	rootDir := filepath.Clean(manifest.ManifestFolder)
 
-// clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
-func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
-	// if manifest file doesn't exist, just exit
-	if !FileExists(manifestPath) {
-		return nil
-	}
-
-	file, err := os.Open(manifestPath)
+	rootExists, err := manifestRootExistsWithoutSymlinks(vfs.NewOSFS(), rootDir)
 	if err != nil {
 		return err
 	}
 
-	// cleaning manifest file
-	defer func(name string) {
-		if err := file.Close(); err != nil {
-			l.Warnf("Error closing file %s: %v", name, err)
+	if !rootExists {
+		return nil
+	}
+
+	manifestRelPath, ok := cleanRootRelPath(manifest.ManifestFile)
+	if !ok {
+		return errors.Errorf("manifest path %q must stay inside %q", manifest.ManifestFile, rootDir)
+	}
+
+	return manifest.clean(l, vfs.NewOSFS(), rootDir, manifestRelPath)
+}
+
+// clean reads manifests and removes their entries using root-confined vfs operations.
+func (manifest *fileManifest) clean(l log.Logger, fsys vfs.FS, rootDir, manifestRelPath string) error {
+	pending := []string{manifestRelPath}
+	ctx := &fileManifestCleanContext{
+		l:       l,
+		fsys:    fsys,
+		rootDir: rootDir,
+		seen:    make(map[string]struct{}),
+	}
+	attemptedManifests := 0
+
+	for len(pending) > 0 {
+		if attemptedManifests >= maxFileManifests {
+			return fileManifestLimitError{
+				message: fmt.Sprintf("manifest cleanup under %q exceeded %d manifests", rootDir, maxFileManifests),
+			}
 		}
 
-		if err := os.Remove(name); err != nil {
-			l.Warnf("Error removing manifest file %s: %v", name, err)
+		last := len(pending) - 1
+		currentRelPath := pending[last]
+		pending = pending[:last]
+		attemptedManifests++
+
+		maxPendingNextRelPaths := maxPendingManifests - len(pending)
+		if maxPendingNextRelPaths < 0 {
+			return fileManifestLimitError{
+				message: fmt.Sprintf(
+					manifestPendingCapExceededFormat,
+					rootDir,
+					maxPendingManifests,
+					currentRelPath,
+				),
+			}
 		}
-	}(manifestPath)
 
-	decoder := gob.NewDecoder(file)
-	// decode paths one by one
-	for {
-		var manifestEntry fileManifestEntry
+		maxManifestNextRelPaths := maxFileManifests - attemptedManifests - len(pending)
+		if maxManifestNextRelPaths < 0 {
+			return fileManifestLimitError{
+				message: fmt.Sprintf(
+					manifestCountExceededFormat,
+					rootDir,
+					maxFileManifests,
+					currentRelPath,
+				),
+			}
+		}
 
-		err = decoder.Decode(&manifestEntry)
+		nextRelPaths, err := manifest.cleanOneManifest(
+			ctx,
+			currentRelPath,
+			fileManifestCleanLimits{
+				maxPendingNextRelPaths:  maxPendingNextRelPaths,
+				maxManifestNextRelPaths: maxManifestNextRelPaths,
+			},
+		)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			} else {
-				return err
+			return err
+		}
+
+		if len(pending)+len(nextRelPaths) > maxPendingManifests {
+			return fileManifestLimitError{
+				message: fmt.Sprintf(
+					manifestPendingCapExceededFormat,
+					rootDir,
+					maxPendingManifests,
+					currentRelPath,
+				),
 			}
 		}
 
-		if manifestEntry.IsDir {
-			// join the directory entry path with the manifest file name and call clean()
-			if err := manifest.clean(l, filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
-				return errors.New(err)
-			}
-		} else {
-			if err := os.Remove(manifestEntry.Path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				return errors.New(err)
+		if attemptedManifests+len(pending)+len(nextRelPaths) > maxFileManifests {
+			return fileManifestLimitError{
+				message: fmt.Sprintf(
+					manifestCountExceededFormat,
+					rootDir,
+					maxFileManifests,
+					currentRelPath,
+				),
 			}
 		}
+
+		pending = append(pending, nextRelPaths...)
 	}
 
 	return nil
 }
 
-// Create will create the manifest file
+// fileManifestCleanContext carries shared state for one manifest cleanup walk.
+type fileManifestCleanContext struct {
+	l              log.Logger
+	fsys           vfs.FS
+	seen           map[string]struct{}
+	rootDir        string
+	decodedEntries int
+}
+
+// fileManifestCleanLimits bounds child manifests queued from one decoded manifest.
+type fileManifestCleanLimits struct {
+	maxPendingNextRelPaths  int
+	maxManifestNextRelPaths int
+}
+
+func (manifest *fileManifest) cleanOneManifest(
+	ctx *fileManifestCleanContext,
+	manifestRelPath string,
+	limits fileManifestCleanLimits,
+) ([]string, error) {
+	manifestPath := filepath.Join(ctx.rootDir, manifestRelPath)
+	if _, visited := ctx.seen[manifestPath]; visited {
+		ctx.l.Debugf("Skipping manifest %s: already processed", manifestPath)
+
+		return nil, nil
+	}
+
+	ctx.seen[manifestPath] = struct{}{}
+
+	file, ok, err := openManifestFileForClean(ctx.l, ctx.fsys, ctx.rootDir, manifestRelPath)
+	if err != nil || !ok {
+		return nil, err
+	}
+
+	defer closeAndRemoveManifest(ctx, file, manifestRelPath)
+
+	nextRelPaths, err := manifest.cleanManifestEntries(
+		ctx,
+		manifestPath,
+		gob.NewDecoder(file),
+		limits,
+	)
+	if err != nil {
+		if isFileManifestLimitError(err) {
+			return nil, err
+		}
+
+		if isFileManifestDecodeError(err) {
+			ctx.l.Warnf("Ignoring invalid manifest %s: %v", manifestPath, err)
+
+			return nextRelPaths, nil
+		}
+
+		return nil, err
+	}
+
+	return nextRelPaths, nil
+}
+
+func openManifestFileForClean(l log.Logger, fsys vfs.FS, rootDir, manifestRelPath string) (vfs.File, bool, error) {
+	parentHasSymlink, err := vfs.ParentPathHasSymlink(fsys, rootDir, manifestRelPath)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if parentHasSymlink {
+		l.Warnf("Skipping manifest %s: parent path contains a symlink", filepath.Join(rootDir, manifestRelPath))
+
+		return nil, false, nil
+	}
+
+	manifestPath := filepath.Join(rootDir, manifestRelPath)
+
+	info, err := vfs.Lstat(fsys, manifestPath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, false, nil
+	}
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	if info.IsDir() || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil, false, removeManifestPath(fsys, rootDir, manifestRelPath)
+	}
+
+	file, err := fsys.Open(manifestPath)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return file, true, nil
+}
+
+func closeAndRemoveManifest(ctx *fileManifestCleanContext, file vfs.File, manifestRelPath string) {
+	manifestPath := filepath.Join(ctx.rootDir, manifestRelPath)
+	if err := file.Close(); err != nil {
+		ctx.l.Warnf("Error closing file %s: %v", manifestPath, err)
+	}
+
+	if err := removeManifestFile(ctx.fsys, ctx.rootDir, manifestRelPath); err != nil {
+		ctx.l.Warnf("Error removing manifest file %s: %v", manifestPath, err)
+	}
+}
+
+func (manifest *fileManifest) cleanManifestEntries(
+	ctx *fileManifestCleanContext,
+	manifestPath string,
+	decoder *gob.Decoder,
+	limits fileManifestCleanLimits,
+) ([]string, error) {
+	var manifestRelPaths []string
+
+	for entryCount := 0; entryCount < maxFileManifestEntries; entryCount++ {
+		entry, ok, err := ctx.decodeManifestEntry(decoder)
+		if err != nil || !ok {
+			return manifestRelPaths, err
+		}
+
+		manifestRelPath, err := manifest.cleanManifestEntry(ctx.l, ctx.fsys, ctx.rootDir, entry)
+		if err != nil {
+			ctx.l.Warnf("Error cleaning manifest entry %q from %s: %v", entry.Path, manifestPath, err)
+
+			continue
+		}
+
+		manifestRelPaths, err = ctx.appendManifestRelPath(manifestPath, manifestRelPaths, manifestRelPath, limits)
+		if err != nil {
+			return manifestRelPaths, err
+		}
+	}
+
+	return manifestRelPaths, decodeExtraManifestEntry(decoder, manifestPath)
+}
+
+func (ctx *fileManifestCleanContext) decodeManifestEntry(decoder *gob.Decoder) (fileManifestEntry, bool, error) {
+	var entry fileManifestEntry
+	if err := decoder.Decode(&entry); err != nil {
+		if isFileManifestDecodeDone(err) {
+			return entry, false, nil
+		}
+
+		return entry, false, fileManifestDecodeError{err: err}
+	}
+
+	if ctx.decodedEntries >= maxFileManifestEntries {
+		return entry, false, fileManifestLimitError{
+			message: fmt.Sprintf("manifest cleanup under %q exceeded entry cap of %d", ctx.rootDir, maxFileManifestEntries),
+		}
+	}
+
+	ctx.decodedEntries++
+
+	return entry, true, nil
+}
+
+func (ctx *fileManifestCleanContext) appendManifestRelPath(
+	manifestPath string,
+	manifestRelPaths []string,
+	manifestRelPath string,
+	limits fileManifestCleanLimits,
+) ([]string, error) {
+	if manifestRelPath == "" {
+		return manifestRelPaths, nil
+	}
+
+	if len(manifestRelPaths) >= limits.maxPendingNextRelPaths {
+		return manifestRelPaths, fileManifestLimitError{
+			message: fmt.Sprintf(
+				manifestPendingCapExceededFormat,
+				ctx.rootDir,
+				maxPendingManifests,
+				manifestPath,
+			),
+		}
+	}
+
+	if len(manifestRelPaths) >= limits.maxManifestNextRelPaths {
+		return manifestRelPaths, fileManifestLimitError{
+			message: fmt.Sprintf(
+				manifestCountExceededFormat,
+				ctx.rootDir,
+				maxFileManifests,
+				manifestPath,
+			),
+		}
+	}
+
+	return append(manifestRelPaths, manifestRelPath), nil
+}
+
+func decodeExtraManifestEntry(decoder *gob.Decoder, manifestPath string) error {
+	var extraEntry fileManifestEntry
+	if err := decoder.Decode(&extraEntry); err != nil {
+		if isFileManifestDecodeDone(err) {
+			return nil
+		}
+
+		return fileManifestDecodeError{err: err}
+	}
+
+	return fileManifestLimitError{
+		message: fmt.Sprintf("manifest %q exceeds entry cap; processing first %d entries only", manifestPath, maxFileManifestEntries),
+	}
+}
+
+func isFileManifestDecodeDone(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
+}
+
+// Create will create the manifest file.
 func (manifest *fileManifest) Create() error {
 	const ownerWriteGlobalReadPerms = 0o644
 
@@ -1488,4 +1759,183 @@ func SkipDirIfIgnorable(dir string) error {
 	}
 
 	return nil
+}
+
+func (manifest *fileManifest) cleanManifestEntry(l log.Logger, fsys vfs.FS, rootDir string, entry fileManifestEntry) (string, error) {
+	rel, ok := relPathInsideRoot(rootDir, entry.Path)
+	if !ok {
+		l.Warnf("Skipping manifest entry %q: resolves outside manifest root %q", entry.Path, rootDir)
+
+		return "", nil
+	}
+
+	if entry.IsDir {
+		return filepath.Join(rel, manifest.ManifestFile), nil
+	}
+
+	if err := removeManifestEntry(l, fsys, rootDir, rel); err != nil {
+		return "", errors.New(err)
+	}
+
+	return "", nil
+}
+
+func removeManifestEntry(l log.Logger, fsys vfs.FS, rootDir, rel string) error {
+	rel, ok := cleanRootRelPath(rel)
+	if !ok {
+		return nil
+	}
+
+	hasSymlink, err := vfs.ParentPathHasSymlink(fsys, rootDir, rel)
+	if err != nil {
+		return err
+	}
+
+	if hasSymlink {
+		l.Warnf("Skipping manifest entry %s: parent path contains a symlink", filepath.Join(rootDir, rel))
+
+		return nil
+	}
+
+	if err := fsys.Remove(filepath.Join(rootDir, rel)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	return nil
+}
+
+func removeManifestFile(fsys vfs.FS, rootDir, rel string) error {
+	rel, ok := cleanRootRelPath(rel)
+	if !ok {
+		return nil
+	}
+
+	hasSymlink, err := vfs.ParentPathHasSymlink(fsys, rootDir, rel)
+	if err != nil {
+		return err
+	}
+
+	if hasSymlink {
+		return nil
+	}
+
+	if err := fsys.Remove(filepath.Join(rootDir, rel)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	return nil
+}
+
+func removeManifestPath(fsys vfs.FS, rootDir, rel string) error {
+	rel, ok := cleanRootRelPath(rel)
+	if !ok {
+		return nil
+	}
+
+	hasSymlink, err := vfs.ParentPathHasSymlink(fsys, rootDir, rel)
+	if err != nil {
+		return err
+	}
+
+	if hasSymlink {
+		return nil
+	}
+
+	if err := fsys.RemoveAll(filepath.Join(rootDir, rel)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	return nil
+}
+
+func cleanRootRelPath(rel string) (string, bool) {
+	rel = filepath.Clean(rel)
+	if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+
+	return rel, true
+}
+
+// fileManifestLimitError marks cleanup errors caused by configured safety caps.
+type fileManifestLimitError struct {
+	message string
+}
+
+func (err fileManifestLimitError) Error() string {
+	return err.message
+}
+
+func isFileManifestLimitError(err error) bool {
+	var limitErr fileManifestLimitError
+
+	return errors.As(err, &limitErr)
+}
+
+// fileManifestDecodeError wraps gob decode failures so cleanup can fail soft.
+type fileManifestDecodeError struct {
+	err error
+}
+
+func (err fileManifestDecodeError) Error() string {
+	return err.err.Error()
+}
+
+func (err fileManifestDecodeError) Unwrap() error {
+	return err.err
+}
+
+func isFileManifestDecodeError(err error) bool {
+	var decodeErr fileManifestDecodeError
+
+	return errors.As(err, &decodeErr)
+}
+
+func manifestRootExistsWithoutSymlinks(fsys vfs.FS, rootDir string) (bool, error) {
+	info, err := vfs.Lstat(fsys, rootDir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, errors.New(err)
+	}
+
+	if info.Mode()&os.ModeSymlink != 0 {
+		return false, errors.Errorf("manifest folder %q must not contain symlinks", rootDir)
+	}
+
+	if !info.IsDir() {
+		return false, errors.Errorf("manifest folder %q must be a directory", rootDir)
+	}
+
+	return true, nil
+}
+
+// relPathInsideRoot returns target as a clean path relative to rootDir.
+// ok=false means target equals or escapes rootDir, or filepath.Rel cannot compare them.
+// Non-absolute targets are resolved against rootDir, not process CWD.
+func relPathInsideRoot(rootDir, target string) (string, bool) {
+	rootDir = filepath.Clean(rootDir)
+	if rootDir == "" {
+		return "", false
+	}
+
+	cleanTarget := filepath.Clean(target)
+	if !filepath.IsAbs(cleanTarget) {
+		cleanTarget = filepath.Join(rootDir, cleanTarget)
+	} else if !filepath.IsAbs(rootDir) {
+		return "", false
+	}
+
+	rel, err := filepath.Rel(rootDir, cleanTarget)
+	if err != nil {
+		return "", false
+	}
+
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+
+	return cleanRootRelPath(rel)
 }

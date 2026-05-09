@@ -3,7 +3,9 @@
 set -euo pipefail
 
 # Script to resolve the release version and target ref from a
-# workflow_dispatch input by looking up the existing draft release.
+# workflow_dispatch input by looking up the existing release.
+# Works for both draft and published releases so an existing release
+# can be rebuilt and clobbered with new assets.
 #
 # Usage: resolve-version-ref.sh
 # Environment variables:
@@ -20,15 +22,8 @@ function main {
 
 	# Look up the release to get target_commitish
 	local release_json
-	if ! release_json=$(gh release view "$version" --json 'isDraft,targetCommitish' 2>/dev/null); then
+	if ! release_json=$(gh release view "$version" --json 'targetCommitish' 2>/dev/null); then
 		echo "ERROR: No release found for version $version" >&2
-		exit 1
-	fi
-
-	local is_draft
-	is_draft=$(jq -r '.isDraft' <<<"$release_json")
-	if [[ "$is_draft" != "true" ]]; then
-		echo "ERROR: Release $version is already published. Cannot rebuild a published release." >&2
 		exit 1
 	fi
 

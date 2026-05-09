@@ -1044,12 +1044,13 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	}
 
 	if isInit {
-		credsGetter := creds.NewGetter()
-		if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
+		mergedIAM := iam.MergeRoleOptions(remoteStateTGConfig.GetIAMRoleOptions(), pctx.OriginalIAMRoleOptions)
+		if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
 			ctx,
 			l,
 			pctx.Env,
 			externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
+			amazonsts.NewProvider(l, mergedIAM, pctx.Env),
 		); err != nil {
 			return nil, err
 		}
@@ -1059,8 +1060,6 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 			pctx,
 			l,
 			workingDir,
-			remoteStateTGConfig.GetIAMRoleOptions(),
-			credsGetter,
 		)
 	}
 
@@ -1113,28 +1112,17 @@ func terragruntAlreadyInit(ctx context.Context, l log.Logger, pctx *ParsingConte
 }
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without
-// running init.
+// running init. Callers must populate pctx.Env with auth-provider-cmd credentials and any
+// TG_IAM_ROLE assumption beforehand.
 func getTerragruntOutputJSONFromInitFolder(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
 	terraformWorkingDir string,
-	iamRoleOpts iam.RoleOptions,
-	credsGetter *creds.Getter,
 ) ([]byte, error) {
 	targetConfigPath := pctx.TerragruntConfigPath
 
-	tfRunOpts, err := setupTFRunOptsForBareTerraform(
-		ctx,
-		pctx,
-		l,
-		terraformWorkingDir,
-		iamRoleOpts,
-		credsGetter,
-	)
-	if err != nil {
-		return nil, err
-	}
+	tfRunOpts := setupTFRunOptsForBareTerraform(pctx, terraformWorkingDir)
 
 	l.Debugf(
 		"Unit '%s' is already init-ed. "+
@@ -1209,27 +1197,18 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	l.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
-	credsGetter := creds.NewGetter()
-	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
+	mergedIAM := iam.MergeRoleOptions(iamRoleOpts, pctx.OriginalIAMRoleOptions)
+	if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
 		pctx.Env,
 		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
+		amazonsts.NewProvider(l, mergedIAM, pctx.Env),
 	); err != nil {
 		return nil, err
 	}
 
-	tfRunOpts, err := setupTFRunOptsForBareTerraform(
-		ctx,
-		pctx,
-		l,
-		tempWorkDir,
-		iamRoleOpts,
-		credsGetter,
-	)
-	if err != nil {
-		return nil, err
-	}
+	tfRunOpts := setupTFRunOptsForBareTerraform(pctx, tempWorkDir)
 
 	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
 	if pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) && !pctx.NoDependencyFetchOutputFromState {
@@ -1354,38 +1333,20 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 	return jsonOutputs, nil
 }
 
-// setupTFRunOptsForBareTerraform builds a *tf.RunOptions that can be used to run terraform
-// without going through the full RunTerragrunt operation. It merges IAM roles and obtains
-// credentials inline.
-func setupTFRunOptsForBareTerraform(
-	ctx context.Context,
-	pctx *ParsingContext,
-	l log.Logger,
-	workingDir string,
-	iamRoleOpts iam.RoleOptions,
-	credsGetter *creds.Getter,
-) (*tf.TFOptions, error) {
-	// Merge IAM options
-	mergedIAM := iam.MergeRoleOptions(iamRoleOpts, pctx.OriginalIAMRoleOptions)
-
-	// Build shell.RunOptions for this specific working dir with io.Discard as writer
+// setupTFRunOptsForBareTerraform builds a *tf.TFOptions for running terraform without
+// going through the full RunTerragrunt operation. Callers must obtain credentials
+// (auth-provider-cmd and any TG_IAM_ROLE assumption) before invoking, so those steps
+// run from the unit's directory rather than the bare-terraform working directory.
+func setupTFRunOptsForBareTerraform(pctx *ParsingContext, workingDir string) *tf.TFOptions {
 	shellOpts := shellRunOptsFromPctx(pctx)
 	shellOpts.WorkingDir = workingDir
 	shellOpts.Writers.Writer = io.Discard
-
-	// Make sure to assume any roles set by TG_IAM_ROLE
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, pctx.Env,
-		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellOpts),
-		amazonsts.NewProvider(l, mergedIAM, pctx.Env),
-	); err != nil {
-		return nil, err
-	}
 
 	return &tf.TFOptions{
 		JSONLogFormat:                pctx.JSONLogFormat,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
 		ShellOptions:                 shellOpts,
-	}, nil
+	}
 }
 
 // runTerragruntOutputJSON uses terragrunt running functions to extract the json output from the target config.
