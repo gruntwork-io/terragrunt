@@ -1,4 +1,348 @@
+# robots.txt for docs.terragrunt.com
+# Allow all crawlers — traditional search, AI search/citation, and AI training.
+# Last updated: May 2026
+
+# ==============================================================
+# DEFAULT: Allow all bots not explicitly listed below
+# ==============================================================
 User-agent: *
 Allow: /
 
-Sitemap: https://docs.terragrunt.com/sitemap-index.xml
+# ==============================================================
+# TRADITIONAL SEARCH ENGINES
+# ==============================================================
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+User-agent: YandexBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+# ==============================================================
+# ANTHROPIC (Claude)
+# ClaudeBot       — training crawler
+# Claude-User     — user-triggered retrieval
+# Claude-SearchBot — citation/search retrieval
+# anthropic-ai    — general Anthropic crawler
+# ==============================================================
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+# ==============================================================
+# OPENAI (ChatGPT)
+# GPTBot         — training crawler
+# OAI-SearchBot  — live search/citation retrieval
+# ChatGPT-User   — user-triggered retrieval
+# ChatGPT Agent  — agentic tasks
+# ==============================================================
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ChatGPT-Agent
+Allow: /
+
+# ==============================================================
+# GOOGLE AI
+# Google-Extended        — Gemini/AI training (separate from Googlebot)
+# GoogleAgent-Mariner    — agentic browser
+# Gemini-Deep-Research   — Gemini deep research tasks
+# Google-NotebookLM      — NotebookLM user-triggered fetcher
+# Google-Agent           — umbrella Google AI agent
+# GoogleAgent-URLContext — URL context fetcher
+# Google-Firebase        — Firebase AI features
+# CloudVertexBot         — Google Cloud Vertex AI
+# ==============================================================
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: GoogleAgent-Mariner
+Allow: /
+
+User-agent: Gemini-Deep-Research
+Allow: /
+
+User-agent: Google-NotebookLM
+Allow: /
+
+User-agent: Google-Agent
+Allow: /
+
+User-agent: GoogleAgent-URLContext
+Allow: /
+
+User-agent: Google-Firebase
+Allow: /
+
+User-agent: CloudVertexBot
+Allow: /
+
+# ==============================================================
+# META (Facebook / Instagram / Llama)
+# meta-externalagent   — Meta AI retrieval
+# meta-externalfetcher — Meta content fetcher
+# meta-webindexer      — Meta web indexer
+# ==============================================================
+
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: meta-externalfetcher
+Allow: /
+
+User-agent: meta-webindexer
+Allow: /
+
+# ==============================================================
+# PERPLEXITY
+# PerplexityBot  — training/indexing crawler
+# Perplexity-User — user-triggered retrieval
+# ==============================================================
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+# ==============================================================
+# APPLE
+# Applebot-Extended — Apple AI/foundation model training
+# ==============================================================
+
+User-agent: Applebot-Extended
+Allow: /
+
+# ==============================================================
+# MICROSOFT / AMAZON / OTHER MAJOR PLATFORMS
+# ==============================================================
+
+# Microsoft Azure AI
+User-agent: AzureAI-SearchBot
+Allow: /
+
+# Amazon (Alexa, Bedrock, shopping)
+User-agent: Amazonbot
+Allow: /
+
+User-agent: Amzn-SearchBot
+Allow: /
+
+User-agent: bedrockbot
+Allow: /
+
+# DuckDuckGo AI
+User-agent: DuckAssistBot
+Allow: /
+
+# Brave AI
+User-agent: Bravebot
+Allow: /
+
+# Cohere
+User-agent: cohere-ai
+Allow: /
+
+User-agent: cohere-training-data-crawler
+Allow: /
+
+# Mistral AI
+User-agent: MistralAI-User
+Allow: /
+
+# DeepSeek
+User-agent: DeepSeekBot
+Allow: /
+
+# xAI (Grok)
+User-agent: xAI-SearchBot
+Allow: /
+
+# ==============================================================
+# COMMON CRAWL
+# Used as training data by many open/research AI models
+# ==============================================================
+
+User-agent: CCBot
+Allow: /
+
+# ==============================================================
+# RESEARCH & DATA PLATFORMS
+# ==============================================================
+
+User-agent: AI2Bot
+Allow: /
+
+User-agent: AI2Bot-Dolma
+Allow: /
+
+User-agent: Diffbot
+Allow: /
+
+User-agent: DataForSeoBot
+Allow: /
+
+User-agent: Seekr
+Allow: /
+
+User-agent: peer39_crawler
+Allow: /
+
+User-agent: img2dataset
+Allow: /
+
+# ==============================================================
+# CONTENT & MARKETING INTELLIGENCE
+# ==============================================================
+
+User-agent: AddSearchBot
+Allow: /
+
+User-agent: AwarioBot
+Allow: /
+
+User-agent: AwarioSmartBot
+Allow: /
+
+User-agent: AwarioRssBot
+Allow: /
+
+User-agent: EchoboxBot
+Allow: /
+
+User-agent: Meltwater
+Allow: /
+
+User-agent: SemrushBot-OCOB
+Allow: /
+
+User-agent: SemrushBot-FT
+Allow: /
+
+User-agent: SemrushBot-ESI
+Allow: /
+
+User-agent: Omgili
+Allow: /
+
+User-agent: Omgilibot
+Allow: /
+
+User-agent: webzio-extended
+Allow: /
+
+# ==============================================================
+# ADDITIONAL / EMERGING AI CRAWLERS
+# ==============================================================
+
+User-agent: bigsur.ai
+Allow: /
+
+User-agent: Brightbot
+Allow: /
+
+User-agent: Crawlspace
+Allow: /
+
+User-agent: FriendlyCrawler
+Allow: /
+
+User-agent: LinerBot
+Allow: /
+
+User-agent: LinkupBot
+Allow: /
+
+User-agent: Manus-User
+Allow: /
+
+User-agent: NovaAct
+Allow: /
+
+User-agent: Panscient
+Allow: /
+
+User-agent: SBIntuitionsBot
+Allow: /
+
+User-agent: Thinkbot
+Allow: /
+
+User-agent: Timpibot
+Allow: /
+
+User-agent: YandexAdditional
+Allow: /
+
+User-agent: YandexAdditionalBot
+Allow: /
+
+User-agent: KlaviyoAIBot
+Allow: /
+
+User-agent: Devin
+Allow: /
+
+User-agent: FirecrawlAgent
+Allow: /
+
+User-agent: Crawl4AI
+Allow: /
+
+# ==============================================================
+# SOCIAL & MESSAGING LINK PREVIEWS
+# Bots that fetch pages to generate unfurl/preview cards.
+# ==============================================================
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Slackbot-LinkExpanding
+Allow: /
+
+User-agent: Discordbot
+Allow: /
+
+# ==============================================================
+# SITEMAP
+# ==============================================================
+
+Sitemap: https://docs.terragrunt.com/sitemap.xml

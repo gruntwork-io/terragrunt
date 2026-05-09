@@ -103,10 +103,13 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 		<-ctx.Done()
 		server.logger.Infof("Shutting down Terragrunt Cache server...")
 
-		ctx, cancel := context.WithTimeout(ctx, server.shutdownTimeout)
+		// The parent ctx is by definition already cancelled here; detach from
+		// its cancellation (preserving any values) so http.Server.Shutdown gets
+		// the full shutdownTimeout to drain in-flight requests.
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), server.shutdownTimeout)
 		defer cancel()
 
-		if err := server.Shutdown(ctx); err != nil {
+		if err := server.Shutdown(shutdownCtx); err != nil {
 			return errors.New(err)
 		}
 
@@ -119,5 +122,9 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 
 	defer server.logger.Infof("Terragrunt Cache server stopped")
 
-	return errGroup.Wait()
+	if err := errGroup.Wait(); err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+
+	return nil
 }
