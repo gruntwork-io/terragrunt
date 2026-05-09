@@ -265,15 +265,13 @@ func (p *GraphPhase) discoverDependencies(
 		return nil
 	}
 
-	cfg := unit.Config()
-	if cfg == nil {
-		err := parseComponent(ctx, l, c, state.opts, state.discovery)
-		if err != nil {
-			return err
-		}
+	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependencies)
 
-		cfg = unit.Config()
+	if err := ensureParsed(ctx, l, c, state.opts, state.discovery); err != nil {
+		return err
 	}
+
+	cfg := unit.Config()
 
 	depPaths, err := extractDependencyPaths(cfg, c)
 	if err != nil {
@@ -326,7 +324,7 @@ func (p *GraphPhase) discoverDependencies(
 					Phase:     PhaseGraph,
 				})
 
-				err = p.discoverDependencies(ctx, l, state, depComponent, depthRemaining-1)
+				err = p.discoverDependencies(contextWithIncrementedParseDepth(ctx), l, state, depComponent, depthRemaining-1)
 				if err != nil {
 					errMu.Lock()
 
@@ -579,7 +577,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		l.Debugf("Recursively discovering dependents of %s from %s", dependent.Path(), filepath.Dir(dependent.Path()))
 
 		err := p.discoverDependentsUpstream(
-			ctx, l, state, dependent, freshVisitedDirs,
+			contextWithIncrementedParseDepth(ctx), l, state, dependent, freshVisitedDirs,
 			filepath.Dir(dependent.Path()), boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
@@ -590,7 +588,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	parentDir := filepath.Dir(currentDir)
 	if parentDir != currentDir && depthRemaining > 0 {
 		err := p.discoverDependentsUpstream(
-			ctx, l, state, target, visitedDirs,
+			contextWithIncrementedParseDepth(ctx), l, state, target, visitedDirs,
 			parentDir, boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
@@ -635,23 +633,22 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	cfg := unit.Config()
-	if cfg == nil {
-		err := parseComponent(ctx, l, candidate, state.graphTraversalState.opts, state.graphTraversalState.discovery)
-		if err != nil {
-			if !state.graphTraversalState.discovery.suppressParseErrors {
-				state.errMu.Lock()
+	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
+	graphState := state.graphTraversalState
 
-				*state.errs = append(*state.errs, err)
+	if err := ensureParsed(ctx, l, candidate, graphState.opts, graphState.discovery); err != nil {
+		if !state.graphTraversalState.discovery.suppressParseErrors {
+			state.errMu.Lock()
 
-				state.errMu.Unlock()
-			}
+			*state.errs = append(*state.errs, err)
 
-			return nil
+			state.errMu.Unlock()
 		}
 
-		cfg = unit.Config()
+		return nil
 	}
+
+	cfg := unit.Config()
 
 	deps, err := extractDependencyPaths(cfg, candidate)
 	if err != nil {
