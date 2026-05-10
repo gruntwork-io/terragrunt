@@ -440,10 +440,10 @@ func (pc *ProviderCache) configureRegistryHosts(
 		}
 
 		if hasModules {
-			// Route module requests through the cache server so it can swap the
-			// cache server's API key (which TF_TOKEN_<host> is forced to) back out
-			// for the user's real upstream credentials before forwarding upstream.
-			hostServices[serviceModulesV1] = fmt.Sprintf("%s/%s/%s/", pc.ModuleController.URL(), cacheRequestID, registryName)
+			// Route modules through the cache server so it can swap the cache
+			// server's API key (which TF_TOKEN_<host> is forced to) back out for
+			// the user's real upstream credentials before forwarding upstream.
+			hostServices[serviceModulesV1] = fmt.Sprintf("%s/%s/", pc.ModuleController.URL(), registryName)
 		}
 
 		cfg.AddHost(registryName, hostServices)

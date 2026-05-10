@@ -130,9 +130,9 @@ func TestNestedModuleCredentials(t *testing.T) {
 	g.Go(func() error { return server.Run(gctx, ln) })
 
 	// Build the same URL OpenTofu/Terraform would hit via the host block:
-	// <cache server>/v1/modules/<cache_request_id>/<registry>/<module path>
+	// <cache server>/v1/modules/<registry>/<module path>
 	moduleURL := server.ModuleController.URL()
-	moduleURL.Path += "/" + uuid.New().String() + "/" + registryName + "/private/lambda/aws/versions"
+	moduleURL.Path += "/" + registryName + "/private/lambda/aws/versions"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, moduleURL.String(), nil)
 	require.NoError(t, err)

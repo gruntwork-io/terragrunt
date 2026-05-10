@@ -19,9 +19,8 @@ type RegistryURLDiscoverer interface {
 }
 
 // ProxyModuleHandler proxies module-registry API requests to the upstream registry,
-// stripping the inbound Terragrunt cache-server bearer token and re-injecting the
-// user's real credentials for the upstream host so private registries see the right
-// auth on nested module lookups.
+// stripping the inbound cache-server bearer token and re-injecting the user's
+// configured credentials for the upstream host.
 type ProxyModuleHandler struct {
 	*helpers.ReverseProxy
 
@@ -54,9 +53,9 @@ func (h *ProxyModuleHandler) Proxy(ctx echo.Context, registryName, restPath stri
 		upstream.RawQuery = q
 	}
 
-	// The inbound request carries the Terragrunt cache server's API key.
-	// The ReverseProxy will inject the user's upstream credentials based on
-	// the target host; clear the inbound header so it is not forwarded.
+	// Drop the inbound cache-server bearer so it can't leak upstream when the
+	// user has no credentials configured for the target host. The ReverseProxy
+	// then injects the user's upstream credentials based on the target host.
 	ctx.Request().Header.Del(echo.HeaderAuthorization)
 
 	return h.ReverseProxy.NewRequest(ctx, upstream)
