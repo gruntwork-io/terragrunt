@@ -44,8 +44,19 @@ func GiveStackTargetTip(l log.Logger, fs vfs.FS, workingDir string, filters filt
 		return
 	}
 
-	tip.Message = buildStackTargetMessage(offenders)
-	tip.Evaluate(l)
+	tip.EvaluateWith(l, buildStackTargetMessage(offenders))
+}
+
+// SuggestStackTargetRewrite returns the suggested replacement for a filter
+// query that targets a stack directory but is missing `| type=stack`. It is
+// exported so the contract test can pin its behavior from a `tips_test`
+// black-box test.
+//
+// The contract holds because `|` is the only infix operator in the filter
+// grammar and `!` binds tighter, so appending `| type=stack` always produces
+// an InfixExpression whose right side is the stack-type attribute filter.
+func SuggestStackTargetRewrite(originalQuery string) string {
+	return originalQuery + " | type=stack"
 }
 
 func filterTargetsStackDir(f *filter.Filter, fs vfs.FS, workingDir string) bool {
@@ -94,21 +105,9 @@ func buildStackTargetMessage(offenders []string) string {
 	return b.String()
 }
 
-// SuggestStackTargetRewrite returns the suggested replacement for a filter
-// query that targets a stack directory but is missing `| type=stack`.
-//
-// Tests pin the contract that the returned string parses to a filter whose
-// Expression.IsRestrictedToStacks() is true. The contract holds because `|`
-// is the only infix operator in the filter grammar and `!` binds tighter, so
-// appending `| type=stack` always produces an InfixExpression whose right
-// side is the stack-type attribute filter.
-func SuggestStackTargetRewrite(originalQuery string) string {
-	return originalQuery + " | type=stack"
-}
-
 // containsGlobMeta reports whether s contains any glob metacharacter that can
-// appear in a parsed PathExpression.Value. The filter lexer rejects '[', '{',
-// and '}' as special characters, so the only reachable meta chars here are
+// appear in a parsed PathExpression.Value. The filter lexer emits '[', '{',
+// '}', and ']' as their own tokens, so the only reachable meta chars here are
 // '*', '?', and '\\'.
 func containsGlobMeta(s string) bool {
 	return strings.ContainsAny(s, "*?\\")

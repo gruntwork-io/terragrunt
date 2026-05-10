@@ -3,6 +3,7 @@ package tips_test
 import (
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -149,4 +150,44 @@ func TestGiveStackTargetTipFiresOnceAcrossCalls(t *testing.T) {
 	tips.GiveStackTargetTip(l, fs, workingDir, filter.Filters{parsed}, allTips)
 
 	assert.Equal(t, 1, strings.Count(output.String(), tips.StackTargetMissingTypeStack))
+}
+
+// TestGiveStackTargetTipConcurrentWithRacing verifies that concurrent
+// invocations (as occur under `run --all`) don't race on the shared
+// Tip pointer. The previous implementation mutated tip.Message in place,
+// which the race detector would flag.
+func TestGiveStackTargetTipConcurrentWithRacing(t *testing.T) {
+	t.Parallel()
+
+	workingDir := "/work"
+	fs := vfs.NewMemMapFS()
+
+	abs := filepath.Join(workingDir, "envs/prod")
+	require.NoError(t, fs.MkdirAll(abs, 0o755)) //nolint:mnd
+	f, err := fs.Create(filepath.Join(abs, config.DefaultStackFile))
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	parsed, err := filter.Parse("./envs/prod")
+	require.NoError(t, err)
+
+	allTips := tips.NewTips()
+
+	l, _ := newTestLogger()
+
+	const goroutines = 32
+
+	var wg sync.WaitGroup
+
+	wg.Add(goroutines)
+
+	for range goroutines {
+		go func() {
+			defer wg.Done()
+
+			tips.GiveStackTargetTip(l, fs, workingDir, filter.Filters{parsed}, allTips)
+		}()
+	}
+
+	wg.Wait()
 }
