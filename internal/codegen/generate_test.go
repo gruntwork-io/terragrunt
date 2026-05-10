@@ -428,9 +428,41 @@ quoted="hello,world"`,
 			input:    `key=value`,
 			expected: `key=value`,
 		},
+		{
+			name:  "comma-inside-list-expression",
+			input: `transitive_tag_keys=["Project","Projects"],role_arn="test-role"`,
+			expected: `transitive_tag_keys=["Project","Projects"]
+role_arn="test-role"`,
+		},
+		{
+			name:  "comma-inside-object-expression",
+			input: `config={env="prod",team="platform"},enabled=true`,
+			expected: `config={env="prod",team="platform"}
+enabled=true`,
+		},
+		{
+			name:  "comma-inside-nested-list-and-object",
+			input: `config={tags=["a","b"],env="prod"},enabled=true`,
+			expected: `config={tags=["a","b"],env="prod"}
+enabled=true`,
+		},
+		{
+			name:  "mixed-quotes-lists-and-top-level-commas",
+			input: `message="hello,world",tags=["a","b"],enabled=true`,
+			expected: `message="hello,world"
+tags=["a","b"]
+enabled=true`,
+		},
+		{
+			name:  "nested-object-containing-list",
+			input: `assume_role={policy_arns=["arn:1","arn:2"],session_name="test"},region="us-east-1"`,
+			expected: `assume_role={policy_arns=["arn:1","arn:2"],session_name="test"}
+region="us-east-1"`,
+		},
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
