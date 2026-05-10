@@ -1,0 +1,10 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### Resolving outputs from an already-applied dependency no longer re-runs `init` in its working directory
+
+When a unit's backend was declared with a `generate "backend"` block instead of a `remote_state` block, fetching its outputs from a dependent ran the full apply pipeline against the dependency: re-downloading source, regenerating files, and re-running `init` in the dependency's `.terragrunt-cache` working directory. The redundant `init` would also contend on the local state-file lock with any concurrent runner-pool task for the same unit during `run --all`, producing `Error acquiring the state lock` failures and, on dependents, unretryable `Unknown variable: dependency` parse errors.
+
+Terragrunt now reads outputs directly with `tofu output -json` when the dependency's working directory is already initialized, regardless of how the backend was declared. The previous behavior is preserved when the dependency has not yet been initialized.

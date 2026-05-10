@@ -922,13 +922,14 @@ func extractFirstJSONObject(data []byte) ([]byte, error) {
 	return raw, nil
 }
 
-// Retrieve the outputs from the terraform state in the target configuration. This attempts to optimize the output
-// retrieval if the following conditions are true:
-// - State backends are managed with a `remote_state` block.
-// - The `remote_state` block does not depend on any `dependency` outputs.
-// If these conditions are met, terragrunt can optimize the retrieval to avoid recursively retrieving dependency outputs
-// by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
-// target module.
+// getTerragruntOutputJSON returns the JSON-encoded outputs of the target unit. It picks one of
+// four retrieval paths, in priority order:
+//  1. S3-direct fetch, when `dependency-fetch-output-from-state` is enabled with an S3 backend.
+//  2. `tofu output -json` against an already-init-ed cache dir. Reading from a populated cache
+//     dir avoids re-running `tofu init` there, which would otherwise contend on the local state
+//     file's lock with any concurrent `apply`/`plan` for the same unit.
+//  3. Init in a throwaway temp dir using the target's `remote_state` block, then read outputs.
+//  4. Full `runTerragruntOutputJSON` (downloads source, regenerates files, runs `init`+`output`).
 func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
 	l, pctx, err := pctx.WithDependencyConfigPath(l, targetConfig)
 	if err != nil {
@@ -1013,33 +1014,24 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	)
 	canGet := canGetRemoteState(remoteStateTGConfig.RemoteState)
 
-	if err != nil || !canGet {
-		l.Debugf("Could not parse remote_state block from target config %s", pctx.TerragruntConfigPath)
-		l.Debugf("Falling back to terragrunt output.")
+	// `disable_dependency_optimization = true` is an explicit opt-out: the user may rely on init
+	// hooks, extra_arguments, or other side effects of the full `run.Run()` pipeline, so neither
+	// optimized path applies.
+	optimizationDisabled := remoteStateTGConfig.RemoteState != nil && remoteStateTGConfig.RemoteState.DisableDependencyOptimization
 
-		return runTerragruntOutputJSON(ctx, pctx, l, targetConfig)
-	}
-
-	// In optimization mode, see if there is already an init-ed folder that terragrunt can use, and if so, run
-	// `terraform output` in the working directory.
-	isInit, workingDir, err := terragruntAlreadyInit(ctx, l, pctx, targetConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	// Fetch engine options so they can be passed to the dependency functions
-	engineOpts, err := remoteStateTGConfig.EngineOptions()
-	if err != nil {
-		return nil, err
-	}
-
-	pctx.EngineConfig = engineOpts
-
-	shouldFetchFromState := pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) &&
+	shouldFetchFromState := err == nil && canGet &&
+		pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) &&
 		!pctx.NoDependencyFetchOutputFromState &&
 		remoteStateTGConfig.RemoteState.BackendName == s3backend.BackendName
 
 	if shouldFetchFromState {
+		engineOpts, engineErr := remoteStateTGConfig.EngineOptions()
+		if engineErr != nil {
+			return nil, engineErr
+		}
+
+		pctx.EngineConfig = engineOpts
+
 		return getTerragruntOutputJSONFromRemoteState(
 			ctx,
 			pctx,
@@ -1050,25 +1042,34 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		)
 	}
 
-	if isInit {
-		mergedIAM := iam.MergeRoleOptions(remoteStateTGConfig.GetIAMRoleOptions(), pctx.OriginalIAMRoleOptions)
-		if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
-			ctx,
-			l,
-			pctx.Env,
-			externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
-			amazonsts.NewProvider(l, mergedIAM, pctx.Env),
-		); err != nil {
-			return nil, err
+	// When the cache dir is already init-ed, read outputs directly from it. Re-running `init`
+	// here would contend with any concurrent runner-pool task for the same unit on the local
+	// state file's lock; reading bypasses that. The check is independent of how the backend is
+	// declared (`remote_state` block, generated `.tf` file, anything else).
+	if err == nil && !optimizationDisabled {
+		isInit, workingDir, alreadyInitErr := terragruntAlreadyInit(ctx, l, pctx, targetConfig)
+		if alreadyInitErr != nil {
+			return nil, alreadyInitErr
 		}
 
-		return getTerragruntOutputJSONFromInitFolder(
-			ctx,
-			pctx,
-			l,
-			workingDir,
-		)
+		if isInit {
+			return outputJSONFromInitFolderWithCreds(ctx, pctx, l, workingDir, remoteStateTGConfig.GetIAMRoleOptions())
+		}
 	}
+
+	if err != nil || !canGet {
+		l.Debugf("Could not parse remote_state block from target config %s", pctx.TerragruntConfigPath)
+		l.Debugf("Falling back to terragrunt output.")
+
+		return runTerragruntOutputJSON(ctx, pctx, l, targetConfig)
+	}
+
+	engineOpts, err := remoteStateTGConfig.EngineOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	pctx.EngineConfig = engineOpts
 
 	return getTerragruntOutputJSONFromRemoteState(
 		ctx,
@@ -1078,6 +1079,29 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		remoteStateTGConfig.RemoteState,
 		remoteStateTGConfig.GetIAMRoleOptions(),
 	)
+}
+
+// outputJSONFromInitFolderWithCreds populates pctx.Env with auth-provider-cmd and STS-assumed
+// credentials and then reads the target's outputs from its already-init-ed working directory.
+func outputJSONFromInitFolderWithCreds(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	workingDir string,
+	iamFromConfig iam.RoleOptions,
+) ([]byte, error) {
+	mergedIAM := iam.MergeRoleOptions(iamFromConfig, pctx.OriginalIAMRoleOptions)
+	if err := creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
+		ctx,
+		l,
+		pctx.Env,
+		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
+		amazonsts.NewProvider(l, mergedIAM, pctx.Env),
+	); err != nil {
+		return nil, err
+	}
+
+	return getTerragruntOutputJSONFromInitFolder(ctx, pctx, l, workingDir)
 }
 
 // canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled

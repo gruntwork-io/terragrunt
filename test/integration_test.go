@@ -46,6 +46,7 @@ const (
 	testFixtureConfigSingleJSONPath           = "fixtures/config-files/single-json-config"
 	testFixtureConfigWithNonDefaultNames      = "fixtures/config-files/with-non-default-names"
 	testFixtureDependenciesOptimisation       = "fixtures/dependency-optimisation"
+	testFixtureDependencyNoRemoteState        = "fixtures/dependency-output-without-remote-state"
 	testFixtureDependencyOutput               = "fixtures/dependency-output"
 	testFixtureDetailedExitCode               = "fixtures/detailed-exitcode"
 	testFixtureDirsPath                       = "fixtures/dirs"
@@ -3496,6 +3497,44 @@ func TestDependenciesOptimisation(t *testing.T) {
 
 	// checking that dependencies optimisation is working and outputs from module-a are not retrieved
 	assert.NotContains(t, stderr, "Retrieved output from ../module-a/terragrunt.hcl")
+}
+
+// TestDependencyOutputDispatcherWithGenerateBackend asserts that resolving outputs from a
+// previously-applied target whose backend is declared via `generate "backend"` does not re-run
+// `init` in the target's cache dir. Re-running it there contends on the local state-file lock
+// with any concurrent runner-pool task for the same unit.
+//
+// The signal is a filesystem side effect: the heavy run.Run() path regenerates
+// `backend.generated.tf` in the target's cache dir; the init-folder path does not touch it.
+func TestDependencyOutputDispatcherWithGenerateBackend(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyNoRemoteState)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyNoRemoteState)
+	sharedPath := filepath.Join(rootPath, "shared")
+	dependentPath := filepath.Join(rootPath, "dependent-1")
+
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+sharedPath)
+
+	sharedCacheDir := helpers.FindCacheWorkingDir(t, sharedPath)
+	require.NotEmpty(t, sharedCacheDir, "shared cache dir should exist after apply")
+
+	sharedBackendFile := filepath.Join(sharedCacheDir, "backend.generated.tf")
+	require.FileExists(t, sharedBackendFile)
+
+	// Pin the mtime to a known past value so a rewrite is observable regardless of filesystem
+	// timestamp granularity.
+	pastMTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, os.Chtimes(sharedBackendFile, pastMTime, pastMTime))
+
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+dependentPath)
+
+	afterInfo, err := os.Stat(sharedBackendFile)
+	require.NoError(t, err)
+
+	require.True(t, pastMTime.Equal(afterInfo.ModTime()),
+		"shared/backend.generated.tf was rewritten while resolving its outputs from a dependent: "+
+			"the dispatcher took the heavy run.Run() path instead of reading from the already-init-ed cache dir")
 }
 
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
