@@ -1,0 +1,22 @@
+---
+version: "v1.0.4"
+category: "experiments-updated"
+---
+
+#### `catalog-redesign`: component tags
+
+The `catalog-redesign` experiment now reads a `tags` field from the component's `README.md` front-matter. Tags appear as colored pills next to the component in the list view and in the detail view above the rendered README.
+
+```markdown
+<!-- Frontmatter
+name: VPC App
+description: A VPC for application workloads.
+tags: [networking, aws, module]
+-->
+```
+
+Either inline-array or dash-list YAML form is accepted. Tags render in gray by default. When a tag matches a known component-type name (`module`, `template`, `unit`, or `stack`, case-insensitive), the pill takes on that type's color.
+
+A tag matching a component-type name also promotes the component into that type's tab. A `template` whose tags include `module` appears under both `Templates` (by its native kind) and `Modules` (by tag), without changing how it scaffolds.
+
+To learn more, see [Component tags](/features/catalog/tui#component-tags).

@@ -32,6 +32,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Runner implements the Stack interface for runner pool execution.
@@ -426,12 +429,19 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 			}
 		}
 
+		unitPath := u.Path()
+		unitName := filepath.Base(unitPath)
+
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
+			"unit_path":              unitPath,
+			"unit_name":              unitName,
 			"terraform_command":      unitOpts.TerraformCommand,
 			"terraform_cli_args":     unitOpts.TerraformCliArgs,
 			"working_dir":            unitOpts.WorkingDir,
 			"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
+			l.Debugf("Runner Pool Task: starting unit=%s command=%s", unitPath, unitOpts.TerraformCommand)
+
 			// Wrap the writer to buffer unit-scoped output
 			unitWriter := NewUnitWriter(unitOpts.Writers.Writer)
 			unitOpts.Writers.Writer = unitWriter
@@ -441,38 +451,65 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 			// get_aws_account_id() in locals need auth-provider credentials
 			// available in opts.Env during HCL evaluation.
 			// See https://github.com/gruntwork-io/terragrunt/issues/5515
+			//
+			// The obtain_creds span is emitted by externalcmd.Provider.GetCredentials
+			// only when an auth provider is configured, so no conditional is needed here.
 			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
 			if err != nil {
+				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
+
 				return err
 			}
 
-			parseCtx, pctx := configbridge.NewParsingContext(childCtx, unitLogger, unitOpts)
+			var cfg *config.TerragruntConfig
 
-			cfg, err := config.ReadTerragruntConfig(
-				parseCtx,
-				unitLogger,
-				pctx,
-				pctx.ParserOptions,
-			)
+			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, "unit_read_config", map[string]any{
+				"unit_path":              unitPath,
+				"unit_name":              unitName,
+				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
+			}, func(readCtx context.Context) error {
+				parseCtx, pctx := configbridge.NewParsingContext(readCtx, unitLogger, unitOpts)
+
+				var readErr error
+
+				cfg, readErr = config.ReadTerragruntConfig(
+					parseCtx,
+					unitLogger,
+					pctx,
+					pctx.ParserOptions,
+				)
+
+				return readErr
+			})
 			if err != nil {
+				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
+
 				return err
 			}
 
 			runCfg := cfg.ToRunConfig(unitLogger)
 
-			err = unitRunner.Run(
-				childCtx,
-				unitLogger,
-				unitOpts,
-				r,
-				runCfg,
-				credsGetter,
-			)
+			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, "unit_run", map[string]any{
+				"unit_path":         unitPath,
+				"unit_name":         unitName,
+				"terraform_command": unitOpts.TerraformCommand,
+			}, func(runCtx context.Context) error {
+				return unitRunner.Run(
+					runCtx,
+					unitLogger,
+					unitOpts,
+					r,
+					runCfg,
+					credsGetter,
+				)
+			})
 
 			// Flush any remaining buffered output
 			if flushErr := unitWriter.Flush(); flushErr != nil && err == nil {
 				err = flushErr
 			}
+
+			logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
 
 			return err
 		})
@@ -992,4 +1029,25 @@ func collectDependenciesBounded(unit *component.Unit, paths map[string]bool, dep
 			collectDependenciesBounded(depUnit, paths, depth+1)
 		}
 	}
+}
+
+// logTaskOutcome stamps the task outcome on the active span and emits a debug log,
+// so the runner_pool_task span carries succeeded/failed status without callers
+// needing to call SpanFromContext directly.
+func logTaskOutcome(ctx context.Context, l log.Logger, unitPath, command string, err error) {
+	outcome := "succeeded"
+	if err != nil {
+		outcome = "failed"
+	}
+
+	if span := trace.SpanFromContext(ctx); span.IsRecording() {
+		span.SetAttributes(attribute.String("outcome", outcome))
+	}
+
+	if err != nil {
+		l.Debugf("Runner Pool Task: finished unit=%s command=%s outcome=%s err=%v", unitPath, command, outcome, err)
+		return
+	}
+
+	l.Debugf("Runner Pool Task: finished unit=%s command=%s outcome=%s", unitPath, command, outcome)
 }

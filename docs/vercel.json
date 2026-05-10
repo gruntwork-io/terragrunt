@@ -2,6 +2,7 @@
   "buildCommand": "bun run build",
   "installCommand": "bun install",
   "framework": "astro",
+  "trailingSlash": true,
   "rewrites": [
     {
       "source": "/api/v1/compatibility",
@@ -16,6 +17,10 @@
     {
       "source": "/api/v1/compatibility",
       "destination": "/api/v1/compatibility/index"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap-index.xml"
     }
   ],
   "redirects": [
@@ -55,6 +60,15 @@
         {
           "key": "Access-Control-Allow-Headers",
           "value": "Content-Type"
+        }
+      ]
+    },
+    {
+      "source": "/(llms\\.txt|llms-small\\.txt|llms-full\\.txt)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
         }
       ]
     }

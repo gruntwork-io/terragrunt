@@ -110,6 +110,16 @@ func (c *Component) Description() string {
 // FilterValue is what the list fuzzy-matches against when the user filters.
 func (c *Component) FilterValue() string { return c.Title() }
 
+// Tags returns the component's README front-matter tags, in authoring order.
+// Returns nil when the component has no Doc or declares no tags.
+func (c *Component) Tags() []string {
+	if c.Doc == nil {
+		return nil
+	}
+
+	return c.Doc.Tags()
+}
+
 // URL returns the browser-friendly source URL for the component, or an empty
 // string if one could not be derived.
 func (c *Component) URL() string { return c.url }

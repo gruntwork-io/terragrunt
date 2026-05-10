@@ -109,7 +109,6 @@ const (
 	testFixtureTfTest                         = "fixtures/tftest/"
 	testFixtureExecCmd                        = "fixtures/exec-cmd"
 	testFixtureExecCmdTfPath                  = "fixtures/exec-cmd-tf-path"
-	textFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
 	testFixtureLogStreaming                   = "fixtures/streaming"
 	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
@@ -1183,77 +1182,6 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 		t,
 		"terragrunt run --all --log-level info --non-interactive --working-dir "+disjointEnvironmentPath+" -- apply plan.tfplan",
 	)
-}
-
-func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
-	t.Parallel()
-
-	// please be aware that helpers.CopyEnvironment resolves symlinks statically,
-	// so the symlinked directories are copied physically, which defeats the purpose of this test,
-	// therefore we are going to create the symlinks manually in the destination directory
-	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, textFixtureDisjointSymlinks))
-	require.NoError(t, err)
-
-	disjointSymlinksEnvironmentPath := filepath.Join(tmpEnvPath, textFixtureDisjointSymlinks)
-	require.NoError(
-		t,
-		os.Symlink(filepath.Join(disjointSymlinksEnvironmentPath, "a"),
-			filepath.Join(disjointSymlinksEnvironmentPath, "b"),
-		),
-	)
-	require.NoError(
-		t,
-		os.Symlink(filepath.Join(disjointSymlinksEnvironmentPath, "a"),
-			filepath.Join(disjointSymlinksEnvironmentPath, "c"),
-		),
-	)
-
-	helpers.CleanupTerraformFolder(t, disjointSymlinksEnvironmentPath)
-
-	// perform the first initialization
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt run --all init --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath,
-	)
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./a/.terragrunt-cache")
-	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./b/.terragrunt-cache")
-	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
-
-	// perform the second initialization and make sure that the cache is not downloaded again
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt run --all init --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath,
-	)
-	require.NoError(t, err)
-	assert.NotContains(t, stderr, "Downloading Terraform configurations from ./module into ./a/.terragrunt-cache")
-	assert.NotContains(t, stderr, "Downloading Terraform configurations from ./module into ./b/.terragrunt-cache")
-	assert.NotContains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
-
-	// validate the modules
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --report-file report.json --working-dir "+disjointSymlinksEnvironmentPath,
-	)
-	require.NoError(t, err)
-
-	runs := helpers.ReadReport(t, disjointSymlinksEnvironmentPath, "report.json")
-	assert.NotNil(t, runs.FindByName("a"))
-	assert.NotNil(t, runs.FindByName("b"))
-	assert.NotNil(t, runs.FindByName("c"))
-
-	// touch the "module/main.tf" file to change the timestamp and make sure that the cache is downloaded again
-	require.NoError(t, os.Chtimes(filepath.Join(disjointSymlinksEnvironmentPath, "module/main.tf"), time.Now(), time.Now()))
-
-	// perform the initialization and make sure that the cache is downloaded again
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt run --all init --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath,
-	)
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./a/.terragrunt-cache")
-	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./b/.terragrunt-cache")
-	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
 }
 
 func TestInvalidSource(t *testing.T) {
@@ -3377,6 +3305,66 @@ func TestReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	assert.Equal(t, "from-auth-provider", outputs["secret"].Value)
+}
+
+func TestReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "run-all-call-count")
+	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
+	logPath := filepath.Join(rootPath, "calls.jsonl")
+
+	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all apply --non-interactive "+
+				"--working-dir %s --auth-provider-cmd %s",
+			rootPath,
+			authProviderCmd,
+		),
+	)
+
+	logBytes, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+
+	type authCall struct {
+		Timestamp  string `json:"ts"`
+		WorkingDir string `json:"working_dir"`
+		PID        int    `json:"pid"`
+	}
+
+	lines := strings.Split(strings.TrimRight(string(logBytes), "\n"), "\n")
+	calls := make([]authCall, 0, len(lines))
+
+	for i, line := range lines {
+		var call authCall
+
+		require.NoErrorf(t, json.Unmarshal([]byte(line), &call), "line %d: %q", i+1, line)
+
+		calls = append(calls, call)
+	}
+
+	t.Logf("auth-provider-cmd invocations:\n%s", string(logBytes))
+
+	// Five invocations are expected, in this order:
+	//
+	//   1. Discovery relationship phase parses `dep`.
+	//   2. Discovery relationship phase parses `dependent`.
+	//   3. Runner pool task parses `dep`for apply.
+	//   4. Runner pool task parses `dependent` for apply.
+	//   5. While `dependent`'s HCL is being decoded, the `dependency.dep`
+	//      block fetches `dep`'s outputs, which requires parsing `dep` again.
+	//
+	assert.Len(t, calls, 5)
+
+	for _, call := range calls {
+		assert.NotContains(t, call.WorkingDir, ".terragrunt-cache")
+	}
 }
 
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {

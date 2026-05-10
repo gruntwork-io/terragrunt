@@ -30,6 +30,7 @@ type JSONRun struct {
 	// Ended is the time when the run ended.
 	Ended time.Time `json:"Ended" jsonschema:"required"`
 	// Reason is the reason for the run result, if any.
+	//nolint:lll
 	Reason *string `json:"Reason,omitempty" jsonschema:"enum=retry succeeded,enum=error ignored,enum=run error,enum=exclude block,enum=ancestor error"`
 	// Cause is the cause of the run result, if any.
 	Cause *string `json:"Cause,omitempty"`
@@ -134,7 +135,9 @@ func ParseCSVRuns(data []byte) (CSVRuns, error) {
 
 	for i, record := range records[1:] {
 		if len(record) < csvFieldCount {
-			return nil, fmt.Errorf("invalid CSV record at row %d: expected %d fields, got %d", i+csvRowOffset, csvFieldCount, len(record))
+			return nil, fmt.Errorf(
+				"invalid CSV record at row %d: expected %d fields, got %d",
+				i+csvRowOffset, csvFieldCount, len(record))
 		}
 
 		runs = append(runs, CSVRun{

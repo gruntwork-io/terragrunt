@@ -51,6 +51,7 @@ const (
 	DefaultStackFile                = "terragrunt.stack.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
 	DefaultAutoIncludeFile          = inthclparse.AutoIncludeFile
+	DefaultAutoIncludeStackFile     = inthclparse.AutoIncludeStackFile
 	RecommendedParentConfigName     = "root.hcl"
 
 	FoundInFile = "found_in_file"
@@ -1309,6 +1310,10 @@ func ParseConfig(
 		return nil, err
 	}
 
+	if includeFromChild != nil && includeFromChild.Path != "" && !filepath.IsAbs(includeFromChild.Path) {
+		includeFromChild.Path = filepath.Clean(filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includeFromChild.Path))
+	}
+
 	pctx = pctx.WithTrackInclude(nil)
 
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
@@ -1326,12 +1331,12 @@ func ParseConfig(
 	pctx = pctx.WithValues(unitValues)
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	var baseBlocks *DecodedBaseBlocks
-
-	baseBlocks, err = TraceParseBaseBlocks(ctx, l, file.ConfigPath, func(childCtx context.Context) (*DecodedBaseBlocks, error) {
-		return DecodeBaseBlocks(childCtx, pctx, l, file, includeFromChild)
-	})
+	baseBlocks, err := DecodeBaseBlocks(ctx, pctx, l, file, includeFromChild)
 	if err != nil {
+		// Surface the error here so it reaches stderr; the multi-error returned at
+		// the function end is not always rendered to the user by the CLI's final
+		// error formatter.
+		l.Warnf("Errors decoding base blocks in %s: %v", file.ConfigPath, err)
 		errs = errs.Append(err)
 	}
 
@@ -1339,11 +1344,6 @@ func ParseConfig(
 		pctx = pctx.WithTrackInclude(baseBlocks.TrackInclude)
 		pctx = pctx.WithFeatures(baseBlocks.FeatureFlags)
 		pctx = pctx.WithLocals(baseBlocks.Locals)
-	}
-
-	// Emit additional trace with comprehensive base blocks details
-	if baseBlocks != nil {
-		TraceParseBaseBlocksResult(ctx, file.ConfigPath, baseBlocks)
 	}
 
 	if pctx.DecodedDependencies == nil {
@@ -1374,15 +1374,7 @@ func ParseConfig(
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
-	var terragruntConfigFile *terragruntConfigFile
-
-	err = TraceParseConfigDecode(ctx, file.ConfigPath, func(childCtx context.Context) error {
-		var decodeErr error
-
-		terragruntConfigFile, decodeErr = decodeAsTerragruntConfigFile(pctx, l, file, evalContext)
-
-		return decodeErr
-	})
+	terragruntConfigFile, err := decodeAsTerragruntConfigFile(pctx, l, file, evalContext)
 	if err != nil {
 		errs = errs.Append(err)
 	}
@@ -1396,9 +1388,10 @@ func ParseConfig(
 		errs = errs.Append(err)
 	}
 
-	// Auto-merge terragrunt.autoinclude.hcl if present in the same directory.
-	// Gated by the stack-dependencies experiment and skipped for autoinclude files themselves.
-	if filepath.Base(file.ConfigPath) != DefaultAutoIncludeFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
+	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
+	// Gated by the stack-dependencies experiment and skipped for either autoinclude file itself.
+	configBase := filepath.Base(file.ConfigPath)
+	if configBase != DefaultAutoIncludeFile && configBase != DefaultAutoIncludeStackFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
 		autoMerged, mergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config, file.ConfigPath)
 		if mergeErr != nil {
 			errs = errs.Append(mergeErr)
@@ -1410,26 +1403,7 @@ func ParseConfig(
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
 	// If there have been errors during this parse, don't attempt to parse the included config.
 	if pctx.TrackInclude != nil {
-		// Extract include paths for telemetry
-		includeCount := len(pctx.TrackInclude.CurrentList)
-		includePaths := make([]string, 0, includeCount)
-
-		for _, inc := range pctx.TrackInclude.CurrentList {
-			if inc.Path != "" {
-				includePaths = append(includePaths, inc.Path)
-			}
-		}
-
-		var mergedConfig *TerragruntConfig
-
-		err = TraceParseIncludeMerge(ctx, file.ConfigPath, includeCount, includePaths, func(childCtx context.Context) error {
-			var mergeErr error
-
-			// Use the child context for trace propagation so include parsing is a child span
-			mergedConfig, mergeErr = handleInclude(childCtx, pctx, l, config, false)
-
-			return mergeErr
-		})
+		mergedConfig, err := handleInclude(ctx, pctx, l, config, false)
 		if err != nil {
 			errs = errs.Append(err)
 			return config, errs.ErrorOrNil()
@@ -1448,8 +1422,13 @@ func ParseConfig(
 		// - Locals are deliberately not merged in so that they remain local in scope. Here, we directly set it to the
 		//   original locals for the current config being handled, as that is the locals list that is in scope for this
 		//   config.
+		// - Exclude, in contrast, is inherited from included configs. Only override the merged value when the current
+		//   config defines its own exclude block, otherwise the parent's exclude would be clobbered with nil.
 		mergedConfig.Locals = config.Locals
-		mergedConfig.Exclude = config.Exclude
+
+		if config.Exclude != nil {
+			mergedConfig.Exclude = config.Exclude
+		}
 
 		return mergedConfig, errs.ErrorOrNil()
 	}
@@ -1457,8 +1436,7 @@ func ParseConfig(
 	return config, errs.ErrorOrNil()
 }
 
-// mergeAutoIncludeIfPresent checks for terragrunt.autoinclude.hcl in the same directory
-// as the config file and merges it into the config. The autoinclude takes precedence.
+// mergeAutoIncludeIfPresent checks for the unit-level terragrunt.autoinclude.hcl in the same directory as the config file and merges it into the config. The autoinclude takes precedence.
 func mergeAutoIncludeIfPresent(
 	ctx context.Context,
 	pctx *ParsingContext,
@@ -1987,6 +1965,10 @@ func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource str
 	moduleDir := filepath.Clean(sourceURL.Path)
 	if subdir != "" {
 		moduleDir = filepath.Clean(filepath.Join(moduleDir, subdir))
+	}
+
+	if !filepath.IsAbs(moduleDir) {
+		moduleDir = filepath.Clean(filepath.Join(pctx.WorkingDir, moduleDir))
 	}
 
 	walkFunc := filepath.WalkDir
