@@ -24,8 +24,12 @@ type ModuleController struct {
 }
 
 // Endpoints implements controllers.Endpointer.
+//
+// The returned modules.v1 path is suffixed with `/` so clients performing
+// service discovery against `.well-known/terraform.json` build well-formed
+// module URLs. See https://developer.hashicorp.com/terraform/internals/module-registry-protocol.
 func (c *ModuleController) Endpoints() map[string]any {
-	return map[string]any{moduleName: c.URL().Path}
+	return map[string]any{moduleName: c.URL().Path + "/"}
 }
 
 // Register implements router.Controller.

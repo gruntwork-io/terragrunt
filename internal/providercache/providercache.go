@@ -167,7 +167,7 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	// This avoids .well-known/terraform.json lookups for registries that don't support it.
 	populateCustomHostDiscoveryCache(cliCfg.Hosts, providerHandlers)
 
-	proxyModuleHandler := handlers.NewProxyModuleHandler(l, cliCfg.CredentialsSource(), providerHandlers)
+	proxyModuleHandler := handlers.NewProxyModuleHandler(l, cliCfg.CredentialsSource(), providerHandlers, registryNamesForHandlers)
 
 	cacheServer := cache.NewServer(
 		cache.WithHostname(pcOpts.Hostname),

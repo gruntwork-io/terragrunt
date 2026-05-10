@@ -103,7 +103,7 @@ func TestNestedModuleCredentials(t *testing.T) {
 	l := logger.CreateLogger()
 	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
 	proxyProviderHandler := handlers.NewProxyProviderHandler(l, credsSource)
-	proxyModuleHandler := handlers.NewProxyModuleHandler(l, credsSource, discoverer)
+	proxyModuleHandler := handlers.NewProxyModuleHandler(l, credsSource, discoverer, []string{registryName})
 
 	server := cache.NewServer(
 		cache.WithToken(cacheToken),
