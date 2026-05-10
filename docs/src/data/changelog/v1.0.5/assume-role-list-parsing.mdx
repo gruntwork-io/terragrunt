@@ -1,0 +1,23 @@
+---
+version: "v1.0.4"
+category: "bug-fixes"
+---
+
+#### `assume_role`: preserve commas inside list expressions
+
+Terragrunt previously failed to correctly parse `assume_role` attributes containing list values such as `transitive_tag_keys` or `policy_arns`. Commas inside nested list expressions were incorrectly treated as top-level separators, causing generated configurations to fail with parsing errors.
+
+```hcl
+assume_role = {
+  role_arn           = "arn:aws:iam::123456789012:role/test-role"
+  transitive_tag_keys = ["Project", "Projects"]
+}
+```
+
+This resulted in errors similar to:
+
+```text
+Missing item separator; Expected a comma to mark the beginning of the next item.
+```
+
+Terragrunt now preserves commas inside nested list and object expressions when parsing `assume_role` blocks, allowing configurations containing array attributes to be processed correctly.
