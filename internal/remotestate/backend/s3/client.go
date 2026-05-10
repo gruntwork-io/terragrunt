@@ -120,18 +120,6 @@ func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateCon
 	return client, nil
 }
 
-func convertToDynamoTags(tags map[string]string) []dynamodbtypes.Tag {
-	var Result []dynamodbtypes.Tag
-
-	for k, v := range tags {
-		Result = append(Result, dynamodbtypes.Tag{
-			Key:   aws.String(k),
-			Value: aws.String(v),
-		})
-	}
-	return Result
-}
-
 // CreateS3BucketIfNecessary prompts the user to create the given bucket if it doesn't already exist and if the user
 // confirms, creates the bucket and enables versioning for it.
 func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logger, bucketName string, opts *backend.Options) error {
@@ -654,6 +642,18 @@ func convertTags(tags map[string]string) []types.Tag {
 	}
 
 	return tagsConverted
+}
+
+func convertToDynamoTags(tags map[string]string) []dynamodbtypes.Tag {
+	var Result []dynamodbtypes.Tag
+
+	for k, v := range tags {
+		Result = append(Result, dynamodbtypes.Tag{
+			Key:   aws.String(k),
+			Value: aws.String(v),
+		})
+	}
+	return Result
 }
 
 // WaitUntilS3BucketExists waits until the S3 bucket with the given name exists.
