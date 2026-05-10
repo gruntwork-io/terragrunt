@@ -568,25 +568,6 @@ func convertValue(v any) (ctyjson.SimpleJSONValue, error) {
 	return ctyVal, nil
 }
 
-var (
-// Regex Explanation:
-// (          # Start group 1: Match quoted strings
-//
-//	"         # Match the opening quote
-//	[^"\\]* # Match zero or more characters that are NOT a quote or backslash
-//	(?:       # Start non-capturing group (for handling escaped quotes)
-//	  \\.     # Match a backslash followed by ANY character (escaped char)
-//	  [^"\\]* # Match zero or more non-quote/non-backslash chars
-//	)*        # End non-capturing group, repeat zero or more times
-//	"         # Match the closing quote
-//
-// )          # End group 1
-// |          # OR
-// (,)        # Start group 2: Match and capture a comma
-//
-// re = regexp.MustCompile(`("[^"\\]*(?:\\.[^"\\]*)*")|(,)`)
-)
-
 // ReplaceAllCommasOutsideQuotesWithNewLines replaces all commas outside quotes with new lines.
 // This is useful for instances where a single line of HCL content might contain a comma, and we don't
 // want to split the line into multiple lines.
