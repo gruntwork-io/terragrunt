@@ -7,6 +7,7 @@ jobs:
   license-check:
     name: License Check
     runs-on: ubuntu-slim
+    timeout-minutes: 15
     env:
       MISE_PROFILE: cicd
 
@@ -24,17 +25,8 @@ jobs:
 
       - id: go-cache-paths
         run: |
-          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
           echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
         shell: bash
-
-      - name: Go Build Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-linux-amd64
-          restore-keys: |
-            ${{ runner.os }}-go-build-
 
       - name: Go Mod Cache
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
@@ -43,6 +35,15 @@ jobs:
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-linux-amd64
           restore-keys: |
             ${{ runner.os }}-go-mod-
+
+      # `licensei cache` queries GitHub's API for every dep; cache the result.
+      - name: Licensei Cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: .licensei.cache
+          key: ${{ runner.os }}-licensei-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-licensei-
 
       - name: Run License Check
         id: run-license-check
