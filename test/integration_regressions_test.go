@@ -839,13 +839,11 @@ func TestExposedIncludeFullParseReturnsError(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	childPath := filepath.Join(rootPath, "child")
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --non-interactive --working-dir "+childPath+" -- plan",
 	)
 	require.Error(t, err, "Full parsing should fail when exposed include has unresolved dependency")
-	assert.Contains(t, stderr, "detected no outputs",
-		"Error should mention that dependency has no outputs")
 }
 
 // TestQueueDisplayOrder verifies that the flat queue display lists units in

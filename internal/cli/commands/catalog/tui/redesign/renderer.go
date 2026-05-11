@@ -4,6 +4,10 @@ import (
 	"charm.land/glamour/v2"
 )
 
+// glamourDocumentMargin matches glamour's standard document.margin so
+// prepended content aligns with the rendered body.
+const glamourDocumentMargin = 2
+
 // markdownRenderer returns a renderer matching the current width and
 // dark/light setting, reusing a cached one when both still match.
 //

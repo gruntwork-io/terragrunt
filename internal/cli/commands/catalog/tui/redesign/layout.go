@@ -12,7 +12,35 @@ const (
 	maxVerWidth    = 22
 	metaGap        = 2
 	minSourceWidth = 8
+
+	// sourceColumnWidth caps and right-pads the source URL when tags follow
+	// so tag pills land at the same column across rows.
+	sourceColumnWidth = 32
 )
+
+// kindColumnWidth is the widest type pill across all kinds, used to right-pad
+// the type pill so subsequent columns align across rows.
+var kindColumnWidth = computeKindColumnWidth()
+
+// computeKindColumnWidth returns the widest rendered type pill.
+func computeKindColumnWidth() int {
+	style := lipgloss.NewStyle().Padding(0, 1)
+
+	var maxW int
+
+	for _, k := range []ComponentKind{
+		ComponentKindModule,
+		ComponentKindTemplate,
+		ComponentKindUnit,
+		ComponentKindStack,
+	} {
+		if w := lipgloss.Width(style.Render(k.String())); w > maxW {
+			maxW = w
+		}
+	}
+
+	return maxW
+}
 
 // catalogMetaColors holds per-column lipgloss styles for the catalog metadata row.
 type catalogMetaColors struct {
@@ -98,12 +126,14 @@ func takeWidthSuffix(s string, maxW int) string {
 	return string(parts)
 }
 
-// buildMetaRow returns one lipgloss-rendered row: [type] [version] source.
-// All parts are left-aligned. innerWidth is the available width (excluding padding).
-func buildMetaRow(entry *ComponentEntry, innerWidth int, colors *catalogMetaColors) string {
+// BuildMetaRow renders the catalog list metadata row: type, version, source,
+// and optional tags within innerWidth.
+func BuildMetaRow(entry *ComponentEntry, innerWidth int, includeTags, selected, dimmed bool) string {
 	if entry == nil {
 		return ""
 	}
+
+	colors := metaPalette(entry.Kind(), selected, dimmed)
 
 	gap := strings.Repeat(" ", metaGap)
 
@@ -115,13 +145,24 @@ func buildMetaRow(entry *ComponentEntry, innerWidth int, colors *catalogMetaColo
 		return innerWidth - usedWidth - len(parts)*metaGap
 	}
 
+	// Pad the kind column when more content follows, so columns align.
+	hasMore := entry.Version != "" || entry.Source != "" || (includeTags && len(entry.Tags()) > 0)
+
 	// Type pill.
 	kindLabel := entry.Kind().String()
 	if kindLabel != "" {
-		part := colors.typePill.Render(kindLabel)
-		partW := lipgloss.Width(part)
+		pill := colors.typePill.Render(kindLabel)
+		pillW := lipgloss.Width(pill)
 
-		if partW <= remaining() {
+		if pillW <= remaining() {
+			part := pill
+			partW := pillW
+
+			if hasMore && pillW < kindColumnWidth {
+				part = pill + strings.Repeat(" ", kindColumnWidth-pillW)
+				partW = kindColumnWidth
+			}
+
 			parts = append(parts, part)
 			usedWidth += partW
 		}
@@ -147,10 +188,45 @@ func buildMetaRow(entry *ComponentEntry, innerWidth int, colors *catalogMetaColo
 	if entry.Source != "" {
 		srcMax := remaining()
 
+		tagsFollow := includeTags && len(entry.Tags()) > 0
+
+		// Reserve room for tags, then cap source to align tag pills.
+		if tagsFollow {
+			srcMax -= metaGap + minSourceWidth
+			if srcMax > sourceColumnWidth {
+				srcMax = sourceColumnWidth
+			}
+		}
+
 		if srcMax >= minSourceWidth {
 			srcDisplay := abbreviateMiddle(entry.Source, srcMax)
-			part := colors.source.Render(srcDisplay)
+			srcW := lipgloss.Width(srcDisplay)
+
+			var (
+				part  string
+				partW int
+			)
+
+			if tagsFollow && srcW < srcMax {
+				// Pad outside the colored span so trailing spaces stay blank.
+				part = colors.source.Render(srcDisplay) + strings.Repeat(" ", srcMax-srcW)
+				partW = srcMax
+			} else {
+				part = colors.source.Render(srcDisplay)
+				partW = srcW
+			}
+
 			parts = append(parts, part)
+			usedWidth += partW
+		}
+	}
+
+	if includeTags {
+		tagsBudget := remaining()
+		if tagsBudget > 0 {
+			if tagsLine := renderTagPills(entry.Tags(), tagsBudget, selected); tagsLine != "" {
+				parts = append(parts, tagsLine)
+			}
 		}
 	}
 

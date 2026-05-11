@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -198,12 +199,20 @@ func RunCommandWithOutput(
 		commandDir = runOpts.WorkingDir
 	}
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+command, map[string]any{
-		"command": command,
-		"args":    fmt.Sprintf("%v", args),
-		"dir":     commandDir,
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+filepath.Base(command), map[string]any{
+		"binary":      filepath.Base(command),
+		"binary_path": command,
+		"args":        fmt.Sprintf("%v", args),
+		"dir":         commandDir,
 	}, func(ctx context.Context) error {
-		runErr := runCommand(ctx, l, e, runOpts, commandDir, suppressStdout, needsPTY, command, args, &output)
+		runErr := runCommand(ctx, l, e, runOpts, RunCommandOptions{
+			CommandDir:     commandDir,
+			SuppressStdout: suppressStdout,
+			NeedsPTY:       needsPTY,
+			Command:        command,
+			Args:           args,
+			Output:         &output,
+		})
 
 		if span := trace.SpanFromContext(ctx); span.IsRecording() {
 			exitCode := 0
@@ -229,6 +238,17 @@ func RunCommandWithOutput(
 	return &output, err
 }
 
+// RunCommandOptions groups the per-invocation parameters for runCommand,
+// keeping the function signature short and call sites readable.
+type RunCommandOptions struct {
+	Output         *util.CmdOutput
+	CommandDir     string
+	Command        string
+	Args           []string
+	SuppressStdout bool
+	NeedsPTY       bool
+}
+
 // runCommand contains the actual subprocess execution logic, separated to keep
 // RunCommandWithOutput focused on telemetry framing.
 func runCommand(
@@ -236,35 +256,31 @@ func runCommand(
 	l log.Logger,
 	e vexec.Exec,
 	runOpts *ShellOptions,
-	commandDir string,
-	suppressStdout, needsPTY bool,
-	command string,
-	args []string,
-	output *util.CmdOutput,
+	cmdOpts RunCommandOptions,
 ) error {
-	l.Debugf("Running command: %s %s", command, strings.Join(args, " "))
+	l.Debugf("Running command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
 
 	var (
-		cmdStderr = io.MultiWriter(runOpts.Writers.ErrWriter, &output.Stderr)
-		cmdStdout = io.MultiWriter(runOpts.Writers.Writer, &output.Stdout)
+		cmdStderr = io.MultiWriter(runOpts.Writers.ErrWriter, &cmdOpts.Output.Stderr)
+		cmdStdout = io.MultiWriter(runOpts.Writers.Writer, &cmdOpts.Output.Stdout)
 	)
 
 	// Pass the traceparent to the child process if it is available in the context.
 	if traceParent := telemetry.TraceParentFromContext(ctx, runOpts.Telemetry); traceParent != "" {
-		l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
+		l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", cmdOpts.Command, cmdOpts.Args))
 		runOpts.Env[telemetry.TraceParentEnv] = traceParent
 	}
 
-	if suppressStdout {
+	if cmdOpts.SuppressStdout {
 		l.Debugf("Command output will be suppressed.")
 
-		cmdStdout = io.MultiWriter(&output.Stdout)
+		cmdStdout = io.MultiWriter(&cmdOpts.Output.Stdout)
 	}
 
-	if command == runOpts.TFPath {
+	if cmdOpts.Command == runOpts.TFPath {
 		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
 		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
-			l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
+			l.Debugf("Using engine to run command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
 
 			cmdOutput, err := engine.Run(ctx, l, e, &engine.ExecutionOptions{
 				Writers: writer.Writers{
@@ -276,31 +292,31 @@ func runCommand(
 				EngineOptions:     runOpts.EngineOptions,
 				EngineConfig:      runOpts.EngineConfig,
 				Env:               runOpts.Env,
-				WorkingDir:        commandDir,
+				WorkingDir:        cmdOpts.CommandDir,
 				RootWorkingDir:    runOpts.RootWorkingDir,
-				Command:           command,
-				Args:              args,
+				Command:           cmdOpts.Command,
+				Args:              cmdOpts.Args,
 				Headless:          runOpts.Headless,
 				ForwardTFStdout:   runOpts.ForwardTFStdout,
-				SuppressStdout:    suppressStdout,
-				AllocatePseudoTty: needsPTY,
+				SuppressStdout:    cmdOpts.SuppressStdout,
+				AllocatePseudoTty: cmdOpts.NeedsPTY,
 			})
 			if err != nil {
 				return errors.New(err)
 			}
 
-			*output = *cmdOutput
+			*cmdOpts.Output = *cmdOutput
 
 			return err
 		}
 	}
 
-	cmd := exec.Command(ctx, e, command, args...)
-	cmd.SetDir(commandDir)
+	cmd := exec.Command(ctx, e, cmdOpts.Command, cmdOpts.Args...)
+	cmd.SetDir(cmdOpts.CommandDir)
 	cmd.SetStdout(cmdStdout)
 	cmd.SetStderr(cmdStderr)
 	cmd.Configure(
-		exec.WithUsePTY(needsPTY),
+		exec.WithUsePTY(cmdOpts.NeedsPTY),
 		exec.WithEnv(runOpts.Env),
 		exec.WithForwardSignalDelay(SignalForwardingDelay),
 	)
@@ -312,8 +328,8 @@ func runCommand(
 	if err := cmd.Start(l); err != nil { //nolint:contextcheck // context already passed to exec.Command
 		err = util.ProcessExecutionError{
 			Err:             err,
-			Args:            args,
-			Command:         command,
+			Args:            cmdOpts.Args,
+			Command:         cmdOpts.Command,
 			WorkingDir:      cmd.Dir(),
 			RootWorkingDir:  runOpts.RootWorkingDir,
 			LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
@@ -329,9 +345,9 @@ func runCommand(
 	if err := cmd.Wait(); err != nil {
 		err = util.ProcessExecutionError{
 			Err:             err,
-			Args:            args,
-			Command:         command,
-			Output:          *output,
+			Args:            cmdOpts.Args,
+			Command:         cmdOpts.Command,
+			Output:          *cmdOpts.Output,
 			WorkingDir:      cmd.Dir(),
 			RootWorkingDir:  runOpts.RootWorkingDir,
 			LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,

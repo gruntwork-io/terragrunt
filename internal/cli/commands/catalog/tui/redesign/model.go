@@ -52,6 +52,7 @@ type Model struct {
 	delegateKeys        *tui.DelegateKeyMap
 	buttonBar           *buttonbar.ButtonBar
 	componentCh         chan *ComponentEntry
+	errCh               chan error
 	mdRenderer          *glamour.TermRenderer
 	pagerKeys           tui.PagerKeyMap
 	listKeys            list.KeyMap
@@ -72,11 +73,14 @@ type Model struct {
 }
 
 // NewModelStreaming creates a Model with a single initial entry and a channel
-// for receiving additional entries as they are discovered.
-func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *ComponentEntry, componentCh chan *ComponentEntry) Model {
+// for receiving additional entries as they are discovered. errCh carries the
+// loadFunc result; the streaming Model drains it after componentCh closes so
+// it can synthesize a DiscoveryCompleteMsg without racing the welcome model.
+func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *ComponentEntry, componentCh chan *ComponentEntry, errCh chan error) Model {
 	items := []list.Item{initial}
 
 	m := newModelWithItems(l, opts, items, componentCh)
+	m.errCh = errCh
 	m.loading = true
 
 	return m
@@ -131,9 +135,10 @@ func (b button) String() string {
 }
 
 // insertComponentSorted inserts a component into every tab whose filter
-// accepts its kind (always TabAll, plus either TabModules or TabTemplates).
-// Duplicates are skipped per-list by source path, and each list preserves
-// its own cursor.
+// accepts it (always TabAll, plus the tab matching its native Kind, plus any
+// tab whose name appears in the component's front-matter tags). Duplicates
+// are skipped per-list by source path, and each list preserves its own
+// cursor.
 func (m *Model) insertComponentSorted(entry *ComponentEntry) tea.Cmd {
 	if entry == nil {
 		return nil
@@ -143,7 +148,7 @@ func (m *Model) insertComponentSorted(entry *ComponentEntry) tea.Cmd {
 
 	for i := range int(numTabs) {
 		t := tabKind(i)
-		if !t.matches(entry.Kind()) {
+		if !t.matches(entry) {
 			continue
 		}
 
@@ -198,16 +203,28 @@ func (m *Model) insertIntoList(idx int, entry *ComponentEntry) tea.Cmd {
 	return cmd
 }
 
+// listenForComponent mirrors the welcome model's variant: the next component
+// flows through as componentMsg, and a closed componentCh produces a
+// DiscoveryCompleteMsg with the loadFunc error drained from errCh. See
+// WelcomeModel.listenForComponent for why completion shares this Cmd
+// rather than living in a sibling.
 func (m Model) listenForComponent() tea.Cmd {
 	ch := m.componentCh
 	if ch == nil {
 		return nil
 	}
 
+	errCh := m.errCh
+
 	return func() tea.Msg {
 		c, ok := <-ch
 		if !ok {
-			return nil
+			var err error
+			if errCh != nil {
+				err = <-errCh
+			}
+
+			return DiscoveryCompleteMsg{Err: err}
 		}
 
 		return componentMsg{entry: c}
@@ -229,7 +246,7 @@ func filterItemsByTab(items []list.Item, t tabKind) []list.Item {
 			continue
 		}
 
-		if t.matches(entry.Kind()) {
+		if t.matches(entry) {
 			out = append(out, entry)
 		}
 	}
