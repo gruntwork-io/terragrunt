@@ -258,7 +258,7 @@ func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.
 	// default rather than an inherited stale default from an ancestor. User-set custom
 	// dirs (which won't match any module's default) are preserved unchanged.
 	_, defaultDir := util.DefaultWorkingAndDownloadDirs(ctx.TerragruntConfigPath)
-	if c.DownloadDir == defaultDir {
+	if filepath.Clean(c.DownloadDir) == filepath.Clean(defaultDir) {
 		_, c.DownloadDir = util.DefaultWorkingAndDownloadDirs(configPath)
 	}
 
