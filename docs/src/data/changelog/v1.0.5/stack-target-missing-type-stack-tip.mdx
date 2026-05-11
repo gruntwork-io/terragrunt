@@ -5,6 +5,6 @@ category: "tips-added"
 
 #### Stack-target hint when `--filter` is missing `| type=stack`
 
-`run` and `stack generate` now emit a tip when a `--filter` path resolves to a directory containing `terragrunt.stack.hcl` but the filter is not restricted to stacks. Without `| type=stack`, `stack generate` ignores the filter and `run` will not generate just that stack, which can be surprising for users that expect stack generation to be filtered as a consequence.
+`run` and `stack generate` now emit a tip when a `--filter` path resolves to a directory containing `terragrunt.stack.hcl` but the filter is not restricted to stacks. Without `| type=stack`, `stack generate` ignores the filter and `run` does not generate that stack.
 
-The tip names the offending filter, shows the suggested rewrite, and points at the [filter docs](/features/filter/#stack-generate). Suppress it with `--no-tip stack-target-missing-type-stack` or `--no-tips`.
+The tip prints the offending filter, the suggested rewrite, and a link to the [filter docs](/features/filter/#stack-generate). Suppress it with `--no-tip stack-target-missing-type-stack` or `--no-tips`.

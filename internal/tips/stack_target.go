@@ -11,13 +11,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// GiveStackTargetTip emits the StackTargetMissingTypeStack tip when one of the
-// provided filters has a literal path expression pointing at a directory that
-// contains terragrunt.stack.hcl, and the filter as a whole is not restricted
-// to stacks via `| type=stack`.
+// GiveStackTargetTip emits the StackTargetMissingTypeStack tip when a filter
+// has a literal path expression pointing at a directory that contains
+// terragrunt.stack.hcl.
 //
-// Glob path expressions are skipped so the suggested rewrite can be pasted
-// verbatim.
+// Filters that already mention a `type=` attribute are skipped, since the
+// user has chosen explicitly. Glob path expressions are skipped so the
+// suggested rewrite can be pasted verbatim.
 func GiveStackTargetTip(l log.Logger, fs vfs.FS, workingDir string, filters filter.Filters, allTips Tips) {
 	if len(filters) == 0 || allTips == nil {
 		return
@@ -31,11 +31,11 @@ func GiveStackTargetTip(l log.Logger, fs vfs.FS, workingDir string, filters filt
 	var offenders []string
 
 	for _, f := range filters {
-		if f.Expression().IsRestrictedToStacks() {
+		if filterMentionsTypeAttribute(f) {
 			continue
 		}
 
-		if filterTargetsStackDir(f, fs, workingDir) {
+		if filterTargetsStackDir(l, f, fs, workingDir) {
 			offenders = append(offenders, f.String())
 		}
 	}
@@ -59,7 +59,29 @@ func SuggestStackTargetRewrite(originalQuery string) string {
 	return originalQuery + " | type=stack"
 }
 
-func filterTargetsStackDir(f *filter.Filter, fs vfs.FS, workingDir string) bool {
+// filterMentionsTypeAttribute reports whether the filter contains a
+// `type=` attribute (e.g. `type=stack`, `!type=stack`, `type=unit`).
+func filterMentionsTypeAttribute(f *filter.Filter) bool {
+	var found bool
+
+	filter.WalkExpressions(f.Expression(), func(e filter.Expression) bool {
+		attr, ok := e.(*filter.AttributeExpression)
+		if !ok {
+			return true
+		}
+
+		if attr.Key == filter.AttributeType {
+			found = true
+			return false
+		}
+
+		return true
+	})
+
+	return found
+}
+
+func filterTargetsStackDir(l log.Logger, f *filter.Filter, fs vfs.FS, workingDir string) bool {
 	var hit bool
 
 	filter.WalkExpressions(f.Expression(), func(e filter.Expression) bool {
@@ -80,7 +102,12 @@ func filterTargetsStackDir(f *filter.Filter, fs vfs.FS, workingDir string) bool 
 		stackFile := filepath.Join(candidate, config.DefaultStackFile)
 
 		exists, err := vfs.FileExists(fs, stackFile)
-		if err != nil || !exists {
+		if err != nil {
+			l.Debugf("stack-target tip: skipping %q: %v", stackFile, err)
+			return true
+		}
+
+		if !exists {
 			return true
 		}
 

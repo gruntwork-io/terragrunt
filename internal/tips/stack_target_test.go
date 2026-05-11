@@ -44,6 +44,18 @@ func TestGiveStackTargetTip(t *testing.T) {
 			expectShown: false,
 		},
 		{
+			name:        "filter explicitly excludes stacks",
+			filters:     []string{"./envs/prod | !type=stack"},
+			stackDirs:   []string{"envs/prod"},
+			expectShown: false,
+		},
+		{
+			name:        "filter restricts to a different type",
+			filters:     []string{"./envs/prod | type=unit"},
+			stackDirs:   []string{"envs/prod"},
+			expectShown: false,
+		},
+		{
 			name:        "negated path matches stack",
 			filters:     []string{"!./envs/prod"},
 			stackDirs:   []string{"envs/prod"},
@@ -154,8 +166,7 @@ func TestGiveStackTargetTipFiresOnceAcrossCalls(t *testing.T) {
 
 // TestGiveStackTargetTipConcurrentWithRacing verifies that concurrent
 // invocations (as occur under `run --all`) don't race on the shared
-// Tip pointer. The previous implementation mutated tip.Message in place,
-// which the race detector would flag.
+// Tip pointer.
 func TestGiveStackTargetTipConcurrentWithRacing(t *testing.T) {
 	t.Parallel()
 

@@ -38,9 +38,9 @@ func (tip *Tip) Evaluate(l log.Logger) {
 
 // EvaluateWith displays the tip with the given message if not disabled and
 // not already shown. Use this for tips whose message is computed at
-// evaluation time (e.g. listing offending filters), so the caller doesn't
-// need to mutate the shared Tip.Message field — which would be racy under
-// concurrent evaluation (e.g. `run --all`).
+// evaluation time, so the caller doesn't need to mutate the shared
+// Tip.Message field. Mutation would be racy under concurrent evaluation
+// (e.g. `run --all`).
 func (tip *Tip) EvaluateWith(l log.Logger, msg string) {
 	if tip == nil || tip.isDisabled() || l == nil {
 		return
