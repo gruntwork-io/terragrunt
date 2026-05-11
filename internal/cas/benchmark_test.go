@@ -21,6 +21,9 @@ func BenchmarkClone(b *testing.B) {
 
 	l := logger.CreateLogger()
 
+	v, err := cas.OSVenv()
+	require.NoError(b, err)
+
 	b.Run("fresh clone", func(b *testing.B) {
 		tempDir := b.TempDir()
 
@@ -37,7 +40,7 @@ func BenchmarkClone(b *testing.B) {
 
 			b.StartTimer()
 
-			require.NoError(b, c.Clone(b.Context(), l, &cas.CloneOptions{
+			require.NoError(b, c.Clone(b.Context(), l, v, &cas.CloneOptions{
 				Dir:   targetPath,
 				Depth: -1,
 			}, repoURL))
@@ -52,7 +55,7 @@ func BenchmarkClone(b *testing.B) {
 		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(b, err)
 
-		require.NoError(b, c.Clone(b.Context(), l, &cas.CloneOptions{
+		require.NoError(b, c.Clone(b.Context(), l, v, &cas.CloneOptions{
 			Dir:   filepath.Join(tempDir, "initial"),
 			Depth: -1,
 		}, repoURL))
@@ -69,7 +72,7 @@ func BenchmarkClone(b *testing.B) {
 
 			b.StartTimer()
 
-			require.NoError(b, c.Clone(b.Context(), l, &cas.CloneOptions{
+			require.NoError(b, c.Clone(b.Context(), l, v, &cas.CloneOptions{
 				Dir:   targetPath,
 				Depth: -1,
 			}, repoURL))
@@ -87,6 +90,9 @@ func BenchmarkContent(b *testing.B) {
 
 	l := logger.CreateLogger()
 
+	v, err := cas.OSVenv()
+	require.NoError(b, err)
+
 	b.Run("store", func(b *testing.B) {
 		for i := 0; b.Loop(); i++ {
 			b.StopTimer()
@@ -95,7 +101,7 @@ func BenchmarkContent(b *testing.B) {
 
 			b.StartTimer()
 
-			require.NoError(b, content.Store(l, hash, testData))
+			require.NoError(b, content.Store(l, v, hash, testData))
 		}
 	})
 
@@ -121,7 +127,7 @@ func BenchmarkContent(b *testing.B) {
 
 				mu.Unlock()
 
-				if err := content.Store(l, hash, testData); err != nil {
+				if err := content.Store(l, v, hash, testData); err != nil {
 					b.Fatal(err)
 				}
 

@@ -27,13 +27,16 @@ func TestCASGetterGetWithRacing(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	opts := &cas.CloneOptions{
 		Depth: -1,
 	}
 
 	l := logger.CreateLogger()
 
-	g := getter.NewCASGetter(l, c, opts)
+	g := getter.NewCASGetter(l, c, v, opts)
 	client := getter.Client{
 		Getters: []getter.Getter{g},
 	}
@@ -81,6 +84,9 @@ func TestProcessStackComponentLocalSourceConcurrentWithRacing(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	const workers = 4
 
 	results := make([]string, workers)
@@ -96,7 +102,7 @@ func TestProcessStackComponentLocalSourceConcurrentWithRacing(t *testing.T) {
 
 			source := root + "//stacks/my-stack"
 
-			result, runErr := c.ProcessStackComponent(t.Context(), l, source, "stack")
+			result, runErr := c.ProcessStackComponent(t.Context(), l, v, source, "stack")
 			if runErr != nil {
 				errs[idx] = runErr
 				return

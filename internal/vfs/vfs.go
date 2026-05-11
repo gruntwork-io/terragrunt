@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -330,7 +329,7 @@ func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirPar
 // but means that for very large directories WalkDir can be inefficient.
 // WalkDir does not follow symbolic links.
 //
-// Adapted from spf13/afero#571 — replace with afero.WalkDir once merged.
+// Adapted from spf13/afero#571; replace with afero.WalkDir once merged.
 func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
 	info, err := lstatIfPossible(fsys, root)
 	if err != nil {
@@ -777,7 +776,7 @@ func (z *ZipDecompressor) extractRegularFile(
 }
 
 // FileInfoDirEntry wraps os.FileInfo to implement fs.DirEntry.
-// Adapted from spf13/afero#571 — replace with afero equivalent once merged.
+// Adapted from spf13/afero#571; replace with afero equivalent once merged.
 type FileInfoDirEntry struct {
 	FileInfo os.FileInfo
 }
@@ -1072,7 +1071,7 @@ func ReadDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 			return nil, err
 		}
 
-		sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+		slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
 
 		return entries, nil
 	}
@@ -1088,7 +1087,7 @@ func ReadDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 		entries[i] = FileInfoDirEntry{FileInfo: info}
 	}
 
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
 
 	return entries, nil
 }
@@ -1122,10 +1121,10 @@ func sanitizeZipPath(dst, name string) (string, error) {
 }
 
 // ValidateSymlinkTarget reports whether a symbolic link whose path is linkPath
-// and whose stored target is target would resolve inside dst. Both absolute and
-// dot-dot targets that climb above dst are rejected so callers can safely
-// materialize symlinks from untrusted sources (zip archives, git trees) without
-// letting them escape the destination directory.
+// and whose stored target is target would resolve inside dst. Absolute targets
+// and dot-dot targets that climb above dst are rejected so callers can safely
+// materialize symlinks from untrusted sources (zip archives, fetched tarballs,
+// git trees) without letting them escape the destination directory.
 func ValidateSymlinkTarget(dst, linkPath, target string) error {
 	// Resolve the target relative to the link's directory
 	absTarget := target

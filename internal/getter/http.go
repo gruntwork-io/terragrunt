@@ -8,14 +8,11 @@ import (
 	getter "github.com/hashicorp/go-getter/v2"
 )
 
-// HTTPSchemeGetter wraps an [getter.HttpGetter] so its Detect only matches a
-// specific scheme. Two of these (one for "http", one for "https") are
-// registered by [buildGetters] so the per-scheme auth headers configured via
-// [WithHTTPAuth] and [WithHTTPSAuth] route to the correct slot.
-//
-// Without the wrapper the upstream HttpGetter.Detect matches both http and
-// https schemes, so the first registered instance wins for both and the
-// second slot's auth headers never reach the wire.
+// HTTPSchemeGetter wraps a [getter.HttpGetter] so its Detect only matches
+// one scheme. The upstream HttpGetter.Detect claims both http and https,
+// so registering two HttpGetters for per-scheme auth would have the first
+// shadow the second; the wrapper is what makes [WithHTTPAuth] and
+// [WithHTTPSAuth] route to their intended slots.
 type HTTPSchemeGetter struct {
 	Inner  *getter.HttpGetter
 	Scheme string
@@ -36,12 +33,9 @@ func (g *HTTPSchemeGetter) Mode(ctx context.Context, u *url.URL) (getter.Mode, e
 	return g.Inner.Mode(ctx, u)
 }
 
-// Detect returns true only when the request's scheme (or forced-getter
-// prefix) matches the configured scheme.
-//
-// The prefix check is case-sensitive. URLs reach this point through
-// Terragrunt's detector chain in canonical lowercase form, so the
-// case-sensitive check is intentional.
+// Detect claims only requests whose scheme (or forced-getter prefix)
+// equals [HTTPSchemeGetter.Scheme]. URLs are canonical lowercase by the
+// time they reach this getter, so the comparison is case-sensitive.
 func (g *HTTPSchemeGetter) Detect(req *getter.Request) (bool, error) {
 	if req.Forced != "" {
 		return req.Forced == g.Scheme, nil

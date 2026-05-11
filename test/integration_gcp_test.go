@@ -598,7 +598,8 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 func deleteGCSBucket(t *testing.T, bucketName string) {
 	t.Helper()
 
-	ctx := t.Context()
+	ctx, cancel := helpers.CleanupContext(t)
+	defer cancel()
 
 	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{}
 
@@ -623,20 +624,32 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 			break
 		}
 
+		// Tests that exercise the "no bootstrap" path never create the bucket,
+		// so cleanup hitting a missing bucket is expected and not a test failure.
+		if errors.Is(err, storage.ErrBucketNotExist) {
+			t.Logf("GCS bucket %s does not exist; skipping cleanup", bucketName)
+			return
+		}
+
 		if err != nil {
-			t.Logf("Failed to list objects and versions in GCS bucket %s: %v", bucketName, err)
+			t.Errorf("Failed to list objects and versions in GCS bucket %s: %v", bucketName, err)
 			return
 		}
 
 		// purge the object version
 		if err := bucket.Object(objectAttrs.Name).Generation(objectAttrs.Generation).Delete(ctx); err != nil {
-			t.Logf("Failed to delete GCS bucket object %s: %v", objectAttrs.Name, err)
+			t.Errorf("Failed to delete GCS bucket object %s: %v", objectAttrs.Name, err)
 			return
 		}
 	}
 
 	// remote empty bucket
 	if err := bucket.Delete(ctx); err != nil {
-		t.Fatalf("Failed to delete GCS bucket %s: %v", bucketName, err)
+		if errors.Is(err, storage.ErrBucketNotExist) {
+			t.Logf("GCS bucket %s does not exist; skipping cleanup", bucketName)
+			return
+		}
+
+		t.Errorf("Failed to delete GCS bucket %s: %v", bucketName, err)
 	}
 }
