@@ -123,44 +123,45 @@ func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
 // NewRunOptions creates a run.Options from TerragruntOptions.
 // This replaces the former run.NewOptions(opts) function.
 func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
-	return &run.Options{
-		Writers:                      opts.Writers,
-		TerragruntConfigPath:         opts.TerragruntConfigPath,
-		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		WorkingDir:                   opts.WorkingDir,
-		RootWorkingDir:               opts.RootWorkingDir,
-		DownloadDir:                  opts.DownloadDir,
-		TerraformCommand:             opts.TerraformCommand,
-		OriginalTerraformCommand:     opts.OriginalTerraformCommand,
-		TerraformCliArgs:             opts.TerraformCliArgs,
-		Source:                       opts.Source,
-		SourceMap:                    opts.SourceMap,
-		Env:                          opts.Env,
-		IAMRoleOptions:               opts.IAMRoleOptions,
-		OriginalIAMRoleOptions:       opts.OriginalIAMRoleOptions,
-		EngineConfig:                 opts.EngineConfig,
-		EngineOptions:                opts.EngineOptions,
-		Errors:                       opts.Errors,
-		Experiments:                  opts.Experiments,
-		StrictControls:               opts.StrictControls,
-		FeatureFlags:                 opts.FeatureFlags,
-		TFPath:                       opts.TFPath,
-		TofuImplementation:           opts.TofuImplementation,
-		ForwardTFStdout:              opts.ForwardTFStdout,
-		JSONLogFormat:                opts.JSONLogFormat,
-		Headless:                     opts.Headless,
-		NonInteractive:               opts.NonInteractive,
-		Debug:                        opts.Debug,
-		AutoInit:                     opts.AutoInit,
-		AutoRetry:                    opts.AutoRetry,
-		BackendBootstrap:             opts.BackendBootstrap,
-		Telemetry:                    opts.Telemetry,
-		AuthProviderCmd:              opts.AuthProviderCmd,
-		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
-		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
-		DisableBucketUpdate:          opts.DisableBucketUpdate,
-		SourceUpdate:                 opts.SourceUpdate,
-		CASCloneDepth:                opts.CASCloneDepth,
-		NoCAS:                        opts.NoCAS,
-	}
+	runOpts := run.NewOptions()
+	runOpts.Writers = opts.Writers
+	runOpts.TerragruntConfigPath = opts.TerragruntConfigPath
+	runOpts.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
+	runOpts.WorkingDir = opts.WorkingDir
+	runOpts.RootWorkingDir = opts.RootWorkingDir
+	runOpts.DownloadDir = opts.DownloadDir
+	runOpts.TerraformCommand = opts.TerraformCommand
+	runOpts.OriginalTerraformCommand = opts.OriginalTerraformCommand
+	runOpts.TerraformCliArgs = opts.TerraformCliArgs
+	runOpts.Source = opts.Source
+	runOpts.SourceMap = opts.SourceMap
+	runOpts.Env = opts.Env
+	runOpts.IAMRoleOptions = opts.IAMRoleOptions
+	runOpts.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
+	runOpts.EngineConfig = opts.EngineConfig
+	runOpts.EngineOptions = opts.EngineOptions
+	runOpts.Errors = opts.Errors
+	runOpts.Experiments = opts.Experiments
+	runOpts.StrictControls = opts.StrictControls
+	runOpts.FeatureFlags = opts.FeatureFlags
+	runOpts.TFPath = opts.TFPath
+	runOpts.TofuImplementation = opts.TofuImplementation
+	runOpts.ForwardTFStdout = opts.ForwardTFStdout
+	runOpts.JSONLogFormat = opts.JSONLogFormat
+	runOpts.Headless = opts.Headless
+	runOpts.NonInteractive = opts.NonInteractive
+	runOpts.Debug = opts.Debug
+	runOpts.AutoInit = opts.AutoInit
+	runOpts.AutoRetry = opts.AutoRetry
+	runOpts.BackendBootstrap = opts.BackendBootstrap
+	runOpts.Telemetry = opts.Telemetry
+	runOpts.AuthProviderCmd = opts.AuthProviderCmd
+	runOpts.MaxFoldersToCheck = opts.MaxFoldersToCheck
+	runOpts.FailIfBucketCreationRequired = opts.FailIfBucketCreationRequired
+	runOpts.DisableBucketUpdate = opts.DisableBucketUpdate
+	runOpts.SourceUpdate = opts.SourceUpdate
+	runOpts.CASCloneDepth = opts.CASCloneDepth
+	runOpts.NoCAS = opts.NoCAS
+
+	return runOpts
 }
