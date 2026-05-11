@@ -796,7 +796,7 @@ func tryGetStackOutput(
 
 	switch filepath.Base(stackFilePath) {
 	case DefaultStackFile:
-	case DefaultTerragruntConfigPath:
+	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
 		stackFilePath = filepath.Join(filepath.Dir(stackFilePath), DefaultStackFile)
 	default:
 		stackFilePath = filepath.Join(stackFilePath, DefaultStackFile)

@@ -31,23 +31,23 @@ type StackIncludeHCL struct {
 	Name string         `hcl:",label"`
 }
 
-// UnitBlockHCL represents the first-phase parse of a unit block. Source, Path, and Values are captured as lazy expressions so non-literal expressions in unrelated unit attributes do not block decoding; callers evaluate them via EvalString / EvalCtyValue when needed.
+// UnitBlockHCL represents the first-phase parse of a unit block. Source and Path are captured as lazy expressions so non-literal expressions in unrelated unit attributes do not block decoding; callers evaluate them via EvalString when needed. Remain absorbs every other attribute (notably `values = {...}`, which the production parser handles via pkg/config.Unit.Values) so gohcl decoding does not reject them.
 type UnitBlockHCL struct {
+	Remain       hcl.Body        `hcl:",remain"`
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
 	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,optional"`
 	NoValidation *bool           `hcl:"no_validation,optional"`
-	Values       hcl.Expression  `hcl:"values,optional"`
 	Source       hcl.Expression  `hcl:"source,optional"`
 	Path         hcl.Expression  `hcl:"path,optional"`
 	Name         string          `hcl:",label"`
 }
 
-// StackBlockHCL represents the first-phase parse of a stack block. Source, Path, and Values are captured as lazy expressions; see UnitBlockHCL.
+// StackBlockHCL represents the first-phase parse of a stack block. Source and Path are captured as lazy expressions; see UnitBlockHCL. Remain absorbs every other attribute (notably `values = {...}`, which the production parser handles via pkg/config.Stack.Values).
 type StackBlockHCL struct {
+	Remain       hcl.Body        `hcl:",remain"`
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
 	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,optional"`
 	NoValidation *bool           `hcl:"no_validation,optional"`
-	Values       hcl.Expression  `hcl:"values,optional"`
 	Source       hcl.Expression  `hcl:"source,optional"`
 	Path         hcl.Expression  `hcl:"path,optional"`
 	Name         string          `hcl:",label"`

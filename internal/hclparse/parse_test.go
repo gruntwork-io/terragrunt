@@ -1180,27 +1180,6 @@ func TestEvalString_FunctionCall(t *testing.T) {
 	require.Error(t, err, "no upper function bound; eval must fail")
 }
 
-// TestEvalCtyValue_LiteralObject decodes a literal cty object via EvalCtyValue.
-func TestEvalCtyValue_LiteralObject(t *testing.T) {
-	t.Parallel()
-
-	expr := hcl.StaticExpr(cty.ObjectVal(map[string]cty.Value{"a": cty.StringVal("v")}), hcl.Range{Filename: "test"})
-
-	val, err := hclparse.EvalCtyValue(expr, nil)
-	require.NoError(t, err)
-	require.NotNil(t, val)
-	assert.Equal(t, "v", val.AsValueMap()["a"].AsString())
-}
-
-// TestEvalCtyValue_NilExpr returns (nil, nil) for absent attributes.
-func TestEvalCtyValue_NilExpr(t *testing.T) {
-	t.Parallel()
-
-	val, err := hclparse.EvalCtyValue(nil, nil)
-	require.NoError(t, err)
-	assert.Nil(t, val)
-}
-
 // TestAutoIncludeResolve_ValuesAttribute pins that the autoinclude `values = {...}` attribute is captured into AutoIncludeResolved.Values when the body declares it, with dependency mock_outputs bound so `dependency.X.outputs.Y` references resolve at parse time.
 func TestAutoIncludeResolve_ValuesAttribute(t *testing.T) {
 	t.Parallel()
@@ -1275,4 +1254,55 @@ stack "consumer" {
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("stack", "consumer")]
 	require.True(t, ok)
 	assert.Nil(t, resolved.Values, "absent values attribute must leave AutoIncludeResolved.Values nil")
+}
+
+// TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude pins the bootstrap-path
+// (no UnitRefs/StackRefs supplied) behavior: a unit declared in an included stack file must
+// be reachable as unit.<name>.path in the eval context used to resolve another autoinclude
+// in the same included file. Regression for the include-after-refs ordering bug.
+func TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	mainSrc := `
+include "shared" {
+  path = "shared.hcl"
+}
+`
+
+	includeSrc := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+    }
+  }
+}
+`
+
+	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644))
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      []byte(mainSrc),
+		Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"),
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok, "autoinclude for unit 'app' (from included file) must be resolved")
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
+	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "vpc"), resolved.Dependencies[0].ConfigPath,
+		"unit.vpc.path must resolve to vpc's generated path after include merge, not be undefined")
 }

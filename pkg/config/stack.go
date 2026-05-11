@@ -111,7 +111,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	var stackSrcBytes []byte
 
 	if pctx.Experiments.Evaluate(experiment.StackDependencies) {
-		// Note: stackSrcBytes is read separately for the autoinclude parser which slices expression byte ranges from the original file. ReadStackConfigFile already parsed the file with the complete Terragrunt eval context (functions, locals, values) and resolved each unit/stack's path; the autoinclude parser reuses those resolved paths via UnitTargetPaths/StackTargetPaths so it does not need to re-evaluate non-literal source/path/values expressions in unrelated unit attributes.
+		// Note: stackSrcBytes is read separately for the autoinclude parser which slices expression byte ranges from the original file. ReadStackConfigFile already parsed the file with the complete Terragrunt eval context (functions, locals, values) and resolved each unit/stack's path; the autoinclude parser reuses those resolved refs via UnitRefs/StackRefs so it does not need to re-evaluate non-literal source/path/values expressions in unrelated unit attributes.
 		stackSrcBytes, err = os.ReadFile(stackFilePath)
 		if err != nil {
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
@@ -1132,41 +1132,4 @@ func buildStackRefs(stackFile *StackConfig, stackSourceDir, stackTargetDir strin
 	}
 
 	return refs
-}
-
-// stackConfigHasAutoInclude reports whether any unit or stack in the include-merged stack config declares an autoinclude block.
-func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
-	if stackFile == nil {
-		return false
-	}
-
-	for _, u := range stackFile.Units {
-		if u != nil && hasAutoIncludeInBody(u.Remain) {
-			return true
-		}
-	}
-
-	for _, s := range stackFile.Stacks {
-		if s != nil && hasAutoIncludeInBody(s.Remain) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// hasAutoIncludeInBody reports whether the given remain body contains a top-level autoinclude block. Only native HCL syntax bodies (*hclsyntax.Body) are inspected; JSON-format stack files return false because autoinclude blocks are only supported in native HCL.
-func hasAutoIncludeInBody(body hcl.Body) bool {
-	syntaxBody, ok := body.(*hclsyntax.Body)
-	if !ok {
-		return false
-	}
-
-	for _, block := range syntaxBody.Blocks {
-		if block.Type == "autoinclude" {
-			return true
-		}
-	}
-
-	return false
 }
