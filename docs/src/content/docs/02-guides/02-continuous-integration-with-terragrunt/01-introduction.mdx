@@ -22,7 +22,7 @@ This matters when you're working with Infrastructure as Code, because some of th
 - Dependencies between resources and units need to be respected. If unit B depends on an output from unit A, you can't apply them in arbitrary order without risking failures.
 - Credentials need to be handled carefully. In an automation context, long-lived AWS access keys stored as CI secrets are a security liability. Short-lived, least-privilege credentials are the standard practice. This is especially important for IaC because credentials used for CI in IaC are typically far more powerful than credentials used for application CI.
 
-These kinds of issues are present when deploying applications as well. They're just more pronounced when managing infrastructure, because the risk involved in updates can be more widespread, and resources are frequently stateful (there's no rollback if you delete your database and its backups).
+These kinds of issues can be present when deploying applications as well. They're just more pronounced when managing infrastructure, because the risk involved in updates can be more widespread, and resources are frequently stateful (there's no rollback if you delete your database and its backups).
 
 ## What good IaC CI looks like
 

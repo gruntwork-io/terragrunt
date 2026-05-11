@@ -6,6 +6,7 @@ sidebar:
   order: 3
 ---
 
+import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import signupPage from '../../../../assets/img/guides/continuous-integration-with-terragrunt/signup-page.png';
 import onboardingWizard from '../../../../assets/img/guides/continuous-integration-with-terragrunt/onboarding-wizard.png';
@@ -16,6 +17,12 @@ import bootstrapCompletion from '../../../../assets/img/guides/continuous-integr
 Terragrunt Scale is Gruntwork's solution for running Terragrunt at scale. You can learn more about it [here](/terragrunt-scale/overview/).
 
 By the end of this section, you'll have a GitHub repository with Terragrunt infrastructure code, GitHub Actions workflows for plan-on-PR and apply-on-merge automation, OIDC authentication to your AWS account, and sample infrastructure ready to deploy.
+
+## Create a new GitHub repository
+
+Before signing up, [create a new empty GitHub repository](https://github.com/new) that Terragrunt Scale will bootstrap. The onboarding wizard will install the Gruntwork GitHub App on this repository, open a pull request that scaffolds the Terragrunt configuration, and configure the GitHub Actions workflows that drive your pipeline.
+
+A fresh, empty repository works best. If you point the wizard at an existing repository, the bootstrap pull request can conflict with files already in place.
 
 ## Sign up for Terragrunt Scale Free Tier
 
@@ -46,7 +53,11 @@ Right now, the only supported cloud provider for the Terragrunt Scale Free Tier 
 
 <img src={bootstrapScript.src} alt="AWS bootstrap script step in the onboarding wizard" />
 
-The wizard generates a script that you run against your AWS account. This script provisions an [OpenID Connect (OIDC) provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) and IAM roles that GitHub Actions will assume when running plans and applies. We'd recommend reading the full source to learn what it does. You can even use the convenient "Analyze script with AI?" to help you understand the different parts.
+The wizard generates a script that you run against your AWS account. This script provisions an [OpenID Connect (OIDC) provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) and IAM roles that GitHub Actions will assume when running plans and applies. If you're unsure about running it, you can read the full source to learn what it does. You can even use the convenient "Analyze script with AI?" to help you understand the different parts.
+
+<Aside type="tip">
+The Free Tier is self-serve. If you're on a paid Terragrunt Scale plan, Gruntwork support can help walk you through this bootstrap step and tailor it to your account setup.
+</Aside>
 
 We'll look at what OIDC does and why it matters in the next section.
 
