@@ -25,3 +25,39 @@ jobs:
           ROLE_ID: ${{ secrets.RELEASE_ANNOUNCEMENT_ROLE_ID }}
           USERNAME: ${{ secrets.RELEASE_ANNOUNCEMENT_USERNAME }}
           AVATAR_URL: ${{ secrets.RELEASE_ANNOUNCEMENT_AVATAR_URL }}
+
+  notify_issues:
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Resolve previous release tag
+        id: prev
+        run: ./.github/scripts/resolve-previous-release-tag.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
+
+      - name: Notify issues about release
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
+          PREVIOUS_TAG_NAME: ${{ steps.prev.outputs.tag }}
+        with:
+          script: |
+            const notify = require('./.github/scripts/release-notify-issues.js');
+            await notify({
+              github,
+              context,
+              core,
+              tagName: process.env.TAG_NAME,
+              previousTagName: process.env.PREVIOUS_TAG_NAME,
+            });

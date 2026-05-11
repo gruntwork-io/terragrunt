@@ -28,8 +28,8 @@ import (
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/hashicorp/go-getter/v2"
 )
 
 const (
@@ -164,6 +164,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	if moduleURL == "" {
 		return errors.New(NoModuleURLPassed{})
 	}
+
+	moduleURL = tf.RewriteLegacyGCSPublicSource(ctx, l, moduleURL, opts.StrictControls)
+	templateURL = tf.RewriteLegacyGCSPublicSource(ctx, l, templateURL, opts.StrictControls)
 
 	// create temporary directory where to download module
 	tempDir, err := os.MkdirTemp("", "scaffold")

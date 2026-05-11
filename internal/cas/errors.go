@@ -38,6 +38,8 @@ const (
 	ErrAbsoluteSource Error = "update_source_with_cas does not support absolute sources"
 	// ErrSourceEscapesRepo is returned when an update_source_with_cas source resolves outside the cloned repository
 	ErrSourceEscapesRepo Error = "update_source_with_cas source escapes repository root"
+	// ErrNotADirectory is returned when a path expected to be a directory is not.
+	ErrNotADirectory Error = "not a directory"
 )
 
 // WrappedError provides additional context for errors
