@@ -645,15 +645,15 @@ func convertTags(tags map[string]string) []types.Tag {
 }
 
 func convertToDynamoTags(tags map[string]string) []dynamodbtypes.Tag {
-	var Result []dynamodbtypes.Tag
+	result := make([]dynamodbtypes.Tag, 0, len(tags))
 
 	for k, v := range tags {
-		Result = append(Result, dynamodbtypes.Tag{
+		result = append(result, dynamodbtypes.Tag{
 			Key:   aws.String(k),
 			Value: aws.String(v),
 		})
 	}
-	return Result
+	return result
 }
 
 // WaitUntilS3BucketExists waits until the S3 bucket with the given name exists.
