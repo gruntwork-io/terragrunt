@@ -31,7 +31,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 
-	"github.com/hashicorp/go-getter"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -168,7 +168,7 @@ type TerragruntConfig struct {
 	IsPartial                   bool
 }
 
-func (cfg *TerragruntConfig) GetRemoteState(l log.Logger, pctx *ParsingContext) (*remotestate.RemoteState, error) {
+func (cfg *TerragruntConfig) GetRemoteState(ctx context.Context, l log.Logger, pctx *ParsingContext) (*remotestate.RemoteState, error) {
 	if cfg.RemoteState == nil {
 		l.Debug("Did not find remote `remote_state` block in the config")
 
@@ -182,8 +182,13 @@ func (cfg *TerragruntConfig) GetRemoteState(l log.Logger, pctx *ParsingContext) 
 
 	if sourceURL != "" {
 		walkWithSymlinks := pctx.Experiments.Evaluate(experiment.Symlinks)
+		// Apply the rewrite so this working-dir computation agrees with the
+		// downloader's; a plain https://www.googleapis.com/storage/... source
+		// would otherwise resolve remote-state to a path the downloader never
+		// writes to.
+		canonicalSourceURL := tf.RewriteLegacyGCSPublicSource(ctx, l, sourceURL, pctx.StrictControls)
 
-		tfSource, err := tf.NewSource(l, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
+		tfSource, err := tf.NewSource(l, canonicalSourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
 		if err != nil {
 			return nil, err
 		}
@@ -996,7 +1001,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 		return source, nil
 	}
 
-	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
+	// Split the module source string into a valid URL and subdirectory (if // is present).
 	moduleURL, moduleSubdir := getter.SourceDirSubdir(source)
 
 	// if both URL and subdir are missing, something went terribly wrong
@@ -2306,5 +2311,5 @@ func ParseRemoteState(ctx context.Context, l log.Logger, pctx *ParsingContext) (
 		return nil, err
 	}
 
-	return cfg.GetRemoteState(l, pctx)
+	return cfg.GetRemoteState(ctx, l, pctx)
 }

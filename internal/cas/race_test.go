@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func TestCASGetterGetWithRacing(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	g := cas.NewCASGetter(l, c, opts)
+	g := getter.NewCASGetter(l, c, opts)
 	client := getter.Client{
 		Getters: []getter.Getter{g},
 	}

@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -74,8 +76,11 @@ func TestToSourceUrl(t *testing.T) {
 		{"https://bitbucket.org/atlassian/aws-ecr-push-image", "git::https://bitbucket.org/atlassian/aws-ecr-push-image.git"},
 		{"http://bitbucket.org/atlassian/aws-ecr-push-image", "git::https://bitbucket.org/atlassian/aws-ecr-push-image.git"},
 		{"https://s3-eu-west-1.amazonaws.com/modules/vpc.zip", "https://s3-eu-west-1.amazonaws.com/modules/vpc.zip"},
-		{"https://www.googleapis.com/storage/v1/modules/foomodule.zip", "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip"},
-		{"https://www.googleapis.com/storage/v1/modules/foomodule.zip", "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip"},
+		// Public GCS URLs route through the http(s) getter (no GCP creds), matching
+		// how public S3 URLs are handled. To force the credentialed gcs getter
+		// callers must use the explicit `gcs::` forced-getter prefix.
+		{"https://www.googleapis.com/storage/v1/modules/foomodule.zip", "https://www.googleapis.com/storage/v1/modules/foomodule.zip"},
+		{"gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip", "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip"},
 		{"git::https://name@dev.azure.com/name/project-name/_git/repo-name", "git::https://name@dev.azure.com/name/project-name/_git/repo-name"},
 		{"https://repository.rnd.net/artifactory/generic-production-iac/tf-auto-azr-iam.2.6.0.zip", "https://repository.rnd.net/artifactory/generic-production-iac/tf-auto-azr-iam.2.6.0.zip"},
 	}
@@ -89,6 +94,85 @@ func TestToSourceUrl(t *testing.T) {
 			assert.Equal(t, tc.expectedSourceURL, actualSourceURL.String())
 		})
 	}
+}
+
+// TestRewriteLegacyGCSPublicSource pins the rewrite, the strict-control
+// disable, and the no-op cases. Each row constructs its own control instance
+// so the per-control sync.Once dedup starts fresh and warnings don't bleed
+// between sub-tests.
+func TestRewriteLegacyGCSPublicSource(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		source         string
+		want           string
+		controlEnabled bool
+	}{
+		{
+			name:   "public storage URL is rewritten",
+			source: "https://www.googleapis.com/storage/v1/modules/foo.zip",
+			want:   "gcs::https://www.googleapis.com/storage/v1/modules/foo.zip",
+		},
+		{
+			name:   "http storage URL is rewritten",
+			source: "http://www.googleapis.com/storage/v1/modules/foo.zip",
+			want:   "gcs::http://www.googleapis.com/storage/v1/modules/foo.zip",
+		},
+		{
+			name:   "explicit gcs:: prefix passes through",
+			source: "gcs::https://www.googleapis.com/storage/v1/modules/foo.zip",
+			want:   "gcs::https://www.googleapis.com/storage/v1/modules/foo.zip",
+		},
+		{
+			name:   "non-storage googleapis path passes through",
+			source: "https://www.googleapis.com/auth/v1/token",
+			want:   "https://www.googleapis.com/auth/v1/token",
+		},
+		{
+			name:   "unrelated host passes through",
+			source: "https://example.com/foo.zip",
+			want:   "https://example.com/foo.zip",
+		},
+		{
+			name:           "control enabled disables the rewrite",
+			source:         "https://www.googleapis.com/storage/v1/modules/foo.zip",
+			controlEnabled: true,
+			want:           "https://www.googleapis.com/storage/v1/modules/foo.zip",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+			ctrls := strict.Controls{
+				&controls.Control{
+					Name:    controls.LegacyGCSPublicPrefix,
+					Warning: controls.LegacyGCSDeprecationWarning,
+					Enabled: tc.controlEnabled,
+				},
+			}
+
+			got := tf.RewriteLegacyGCSPublicSource(t.Context(), l, tc.source, ctrls)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestRewriteLegacyGCSPublicSourceMissingControl pins the fallback when ctrls
+// has no LegacyGCSPublicPrefix entry: rewrite applied, no warning.
+func TestRewriteLegacyGCSPublicSourceMissingControl(t *testing.T) {
+	t.Parallel()
+
+	got := tf.RewriteLegacyGCSPublicSource(
+		t.Context(),
+		logger.CreateLogger(),
+		"https://www.googleapis.com/storage/v1/modules/foo.zip",
+		nil,
+	)
+	assert.Equal(t, "gcs::https://www.googleapis.com/storage/v1/modules/foo.zip", got)
 }
 
 func TestRegressionSupportForGitRemoteCodecommit(t *testing.T) {
