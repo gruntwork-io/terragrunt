@@ -1468,38 +1468,35 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	runWriters := pctx.Writers
 	runWriters.Writer = stdoutBufferWriter
 
-	runOpts := &run.Options{
-		Writers:                      runWriters,
-		TerragruntConfigPath:         pctx.TerragruntConfigPath,
-		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
-		WorkingDir:                   pctx.WorkingDir,
-		RootWorkingDir:               pctx.RootWorkingDir,
-		DownloadDir:                  pctx.DownloadDir,
-		Source:                       pctx.Source,
-		SourceMap:                    pctx.SourceMap,
-		TerraformCommand:             pctx.TerraformCommand,
-		OriginalTerraformCommand:     pctx.OriginalTerraformCommand,
-		TerraformCliArgs:             pctx.TerraformCliArgs,
-		Env:                          pctx.Env,
-		IAMRoleOptions:               pctx.IAMRoleOptions,
-		OriginalIAMRoleOptions:       pctx.OriginalIAMRoleOptions,
-		Experiments:                  pctx.Experiments,
-		StrictControls:               pctx.StrictControls,
-		FeatureFlags:                 pctx.FeatureFlags,
-		EngineConfig:                 pctx.EngineConfig,
-		EngineOptions:                pctx.EngineOptions,
-		TFPath:                       pctx.TFPath,
-		TofuImplementation:           pctx.TofuImplementation,
-		ForwardTFStdout:              false,
-		JSONLogFormat:                false,
-		Headless:                     pctx.Headless,
-		Debug:                        pctx.Debug,
-		AutoInit:                     pctx.AutoInit,
-		BackendBootstrap:             pctx.BackendBootstrap,
-		Telemetry:                    pctx.Telemetry,
-		AuthProviderCmd:              pctx.AuthProviderCmd,
-		CASCloneDepth:                pctx.CASCloneDepth,
-	}
+	runOpts := run.NewOptions()
+	runOpts.Writers = runWriters
+	runOpts.TerragruntConfigPath = pctx.TerragruntConfigPath
+	runOpts.OriginalTerragruntConfigPath = pctx.OriginalTerragruntConfigPath
+	runOpts.WorkingDir = pctx.WorkingDir
+	runOpts.RootWorkingDir = pctx.RootWorkingDir
+	runOpts.DownloadDir = pctx.DownloadDir
+	runOpts.Source = pctx.Source
+	runOpts.SourceMap = pctx.SourceMap
+	runOpts.TerraformCommand = pctx.TerraformCommand
+	runOpts.OriginalTerraformCommand = pctx.OriginalTerraformCommand
+	runOpts.TerraformCliArgs = pctx.TerraformCliArgs
+	runOpts.Env = pctx.Env
+	runOpts.IAMRoleOptions = pctx.IAMRoleOptions
+	runOpts.OriginalIAMRoleOptions = pctx.OriginalIAMRoleOptions
+	runOpts.Experiments = pctx.Experiments
+	runOpts.StrictControls = pctx.StrictControls
+	runOpts.FeatureFlags = pctx.FeatureFlags
+	runOpts.EngineConfig = pctx.EngineConfig
+	runOpts.EngineOptions = pctx.EngineOptions
+	runOpts.TFPath = pctx.TFPath
+	runOpts.TofuImplementation = pctx.TofuImplementation
+	runOpts.Headless = pctx.Headless
+	runOpts.Debug = pctx.Debug
+	runOpts.AutoInit = pctx.AutoInit
+	runOpts.BackendBootstrap = pctx.BackendBootstrap
+	runOpts.Telemetry = pctx.Telemetry
+	runOpts.AuthProviderCmd = pctx.AuthProviderCmd
+	runOpts.CASCloneDepth = pctx.CASCloneDepth
 
 	err = run.Run(ctx, l, runOpts, report.NewReport(), runCfg, credsGetter)
 	if err != nil {

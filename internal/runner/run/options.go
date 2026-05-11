@@ -26,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -36,6 +37,14 @@ const (
 	defaultSignalsFile = "error-signals.json"
 )
 
+// NewOptions returns an Options with FS defaulted to the OS-backed
+// filesystem. Callers must construct Options through this function (or copy
+// from another Options) so paths like DownloadTerraformSource, which require
+// an OS-backed FS, work without each caller having to remember to set it.
+func NewOptions() *Options {
+	return &Options{FS: vfs.NewOSFS()}
+}
+
 // Options contains the configuration needed by run.Run and its helpers.
 // This is a focused subset of options.TerragruntOptions.
 type Options struct {
@@ -45,6 +54,7 @@ type Options struct {
 	Errors                       *errorconfig.Config
 	FeatureFlags                 *xsync.MapOf[string, string]
 	Telemetry                    *telemetry.Options
+	FS                           vfs.FS
 	SourceMap                    map[string]string
 	Env                          map[string]string
 	Writers                      writer.Writers

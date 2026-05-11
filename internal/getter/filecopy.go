@@ -102,6 +102,20 @@ func (g *FileCopyGetter) WithLogger(l log.Logger) *FileCopyGetter {
 	return g
 }
 
+// WithFS sets the filesystem used to stat source paths before copying.
+// Panics if fs is not OS-backed: Get delegates to util.CopyFolderContents
+// and GetFile to go-getter's FileGetter, both of which bypass the
+// abstraction.
+func (g *FileCopyGetter) WithFS(fs vfs.FS) *FileCopyGetter {
+	if !vfs.IsOSFS(fs) {
+		panic("getter.FileCopyGetter.WithFS: requires an OS-backed filesystem")
+	}
+
+	g.FS = fs
+
+	return g
+}
+
 // WithIncludeInCopy sets the glob patterns that should be included in the
 // copy even when [util.CopyFolderContents] would skip them by default
 // (e.g. hidden folders).

@@ -32,6 +32,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -624,7 +625,8 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 			require.NoError(t, err)
 
-			client := run.BuildDownloadClient(logger.CreateLogger(), configbridge.NewRunOptions(terragruntOptions), tc.cfg)
+			client, err := run.BuildDownloadClient(logger.CreateLogger(), configbridge.NewRunOptions(terragruntOptions), tc.cfg)
+			require.NoError(t, err)
 
 			fileGetter, ok := findGetter[*getter.FileCopyGetter](client.Getters)
 			require.True(t, ok, "client should register a FileCopyGetter")
@@ -647,11 +649,12 @@ func TestBuildDownloadClientHTTPNetrc(t *testing.T) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
 
-	client := run.BuildDownloadClient(
+	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
+	require.NoError(t, err)
 
 	wrapped, ok := findGetter[*getter.HTTPSchemeGetter](client.Getters)
 	require.True(t, ok, "client should register an HttpGetter")
@@ -669,11 +672,12 @@ func TestBuildDownloadClientCoversDefaultSchemes(t *testing.T) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
 
-	client := run.BuildDownloadClient(
+	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
+	require.NoError(t, err)
 
 	_, ok := findGetter[*getter.FileCopyGetter](client.Getters)
 	assert.True(t, ok, "FileCopyGetter (file scheme)")
@@ -1082,7 +1086,8 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 
 	dst := filepath.Join(t.TempDir(), "module.tf")
 
-	client := run.BuildDownloadClient(logger.CreateLogger(), configbridge.NewRunOptions(opts), cfg)
+	client, err := run.BuildDownloadClient(logger.CreateLogger(), configbridge.NewRunOptions(opts), cfg)
+	require.NoError(t, err)
 
 	_, err = client.Get(t.Context(), &getter.Request{
 		Src:     server.URL + "/module.tf",
@@ -1094,4 +1099,76 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 	downloaded, err := os.ReadFile(dst)
 	require.NoError(t, err)
 	assert.Equal(t, fileContent, string(downloaded))
+}
+
+// TestDownloadTerraformSourceRejectsNonOSFilesystem pins that the entry
+// guard returns ErrNonOSFilesystem before any download work runs when
+// Options.FS is not OS-backed.
+func TestDownloadTerraformSourceRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	runOpts := configbridge.NewRunOptions(opts)
+	runOpts.FS = vfs.NewMemMapFS()
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	_, err = run.DownloadTerraformSource(
+		t.Context(),
+		l,
+		".",
+		runOpts,
+		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+		report.NewReport(),
+	)
+	require.ErrorIs(t, err, run.ErrNonOSFilesystem)
+}
+
+// TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem pins the guard
+// on the exported helper so external callers cannot bypass the OS-FS invariant.
+func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	runOpts := configbridge.NewRunOptions(opts)
+	runOpts.FS = vfs.NewMemMapFS()
+
+	src, err := tf.NewSource(logger.CreateLogger(), ".", t.TempDir(), opts.WorkingDir, false)
+	require.NoError(t, err)
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		logger.CreateLogger(),
+		src,
+		runOpts,
+		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+		report.NewReport(),
+	)
+	require.ErrorIs(t, err, run.ErrNonOSFilesystem)
+}
+
+// TestBuildDownloadClientRejectsNonOSFilesystem pins the guard on the
+// exported client constructor so callers cannot construct a client that would
+// later hand a non-OS FS to FileCopyGetter or RegistryGetter.
+func TestBuildDownloadClientRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	runOpts := configbridge.NewRunOptions(opts)
+	runOpts.FS = vfs.NewMemMapFS()
+
+	client, err := run.BuildDownloadClient(
+		logger.CreateLogger(),
+		runOpts,
+		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+	)
+	require.ErrorIs(t, err, run.ErrNonOSFilesystem)
+	assert.Nil(t, client)
 }
