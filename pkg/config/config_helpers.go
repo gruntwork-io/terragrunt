@@ -20,7 +20,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/getsops/sops/v3/cmd/sops/formats"
-	"github.com/getsops/sops/v3/decrypt"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
@@ -988,7 +987,7 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 
 	trackFileRead(pctx.FilesRead, path)
 
-	return sopsDecryptFileImpl(ctx, pctx, l, path, format, decrypt.File)
+	return sopsDecryptFileImpl(ctx, pctx, l, path, format, sopsDecryptFileWithINICompat)
 }
 
 // sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
