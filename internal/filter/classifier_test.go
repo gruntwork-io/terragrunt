@@ -439,6 +439,22 @@ func TestClassifier_Classify(t *testing.T) {
 			expectedReason: filter.CandidacyReasonNone,
 			expectedIdx:    -1,
 		},
+		{
+			name:           "positive_filter_with_unrelated_negation_excludes_non_matching",
+			filterStrs:     []string{"./apps/app1", "!./libs/db"},
+			componentPath:  "./apps/app2",
+			expectedStatus: filter.StatusExcluded,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
+		{
+			name:           "compound_negation_filter_does_not_force_exclude_by_default",
+			filterStrs:     []string{"!./_stacks | type=stack"},
+			componentPath:  "./unit1",
+			expectedStatus: filter.StatusReadyForFilter,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
 	}
 
 	for _, tt := range tests {

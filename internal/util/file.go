@@ -412,6 +412,7 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := filepath.Rel(source, absolutePath)
 		if err != nil {
+			l.Warnf("Failed to compute relative path from %s to %s: %v", source, absolutePath, err)
 			return false
 		}
 

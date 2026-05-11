@@ -138,7 +138,7 @@ func TestComponentListView_LoadingTitle(t *testing.T) {
 	require.NotEmpty(t, components)
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh)
+	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -170,7 +170,7 @@ func TestComponentListView_MetadataRowRendered(t *testing.T) {
 	entry := components[0].WithVersion("v1.10.2").WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh)
+	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -197,7 +197,7 @@ func TestComponentListView_TemplateKindRendered(t *testing.T) {
 	)).WithSource("github.com/gruntwork-io/templates-repo")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, template, componentCh)
+	m := redesign.NewModelStreaming(l, opts, template, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -219,7 +219,7 @@ func TestComponentListView_NoVersionOmitsVersionPill(t *testing.T) {
 	entry := components[0].WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh)
+	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -253,7 +253,7 @@ func TestComponentListView_LongSourceAbbreviatesWithEllipsis(t *testing.T) {
 	)).WithSource(longSource)
 
 	componentCh := make(chan *redesign.ComponentEntry, 1)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh)
+	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
 
 	// Narrow terminal forces the source column to shrink below the raw width,
 	// which forces abbreviateMiddle to truncate.
@@ -379,6 +379,108 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 					"components should be in alphabetical order: %q should come before %q", prev, curr)
 			}
 		}
+	})
+}
+
+// TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscovery_Synctest
+// drives the full welcome → streaming-list transition end-to-end through the
+// bubbletea command cycle and asserts that the rendered list view stops
+// showing the `(loading...)` tab-bar suffix once discovery completes. It
+// guards against a regression where the swap from WelcomeModel to the
+// streaming Model dropped the in-flight DiscoveryCompleteMsg, leaving the
+// loading indicator stuck on screen.
+func TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscovery_Synctest(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		l := logger.CreateLogger()
+		components := makeComponents(t)
+		require.NotEmpty(t, components)
+
+		streamingLoad := func(
+			_ context.Context,
+			_ redesign.StatusFunc,
+			componentCh chan<- *redesign.ComponentEntry,
+		) error {
+			for _, c := range components {
+				time.Sleep(50 * time.Millisecond)
+
+				componentCh <- c
+			}
+
+			return nil
+		}
+
+		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, opts, streamingLoad)
+
+		m = updateModel(m, windowSize)
+
+		cmd := m.Init()
+
+		msgCh := make(chan tea.Msg, 32)
+
+		spawn := func(c tea.Cmd) {
+			if c == nil {
+				return
+			}
+
+			go func() {
+				if msg := c(); msg != nil {
+					msgCh <- msg
+				}
+			}()
+		}
+
+		spawn(cmd)
+
+		drainOnce := func() {
+			for {
+				select {
+				case msg := <-msgCh:
+					// tea.Batch emits BatchMsg; the bubbletea runtime
+					// would normally fan it out into separate cmd
+					// goroutines. Replicate that here so listeners and
+					// the discovery goroutine all run.
+					if batch, ok := msg.(tea.BatchMsg); ok {
+						for _, c := range batch {
+							spawn(c)
+						}
+
+						continue
+					}
+
+					var next tea.Cmd
+
+					m, next = m.Update(msg)
+
+					spawn(next)
+				default:
+					return
+				}
+			}
+		}
+
+		// Repeatedly nudge time forward and drain. Each cycle gives any
+		// goroutines we've spawned a chance to finish and push onto msgCh.
+		for range 20 {
+			time.Sleep(100 * time.Millisecond)
+			drainOnce()
+		}
+
+		listModel, ok := m.(redesign.Model)
+		require.True(t, ok, "should have transitioned to streaming Model after discovery")
+
+		assert.False(t, redesign.LoadingForTest(listModel),
+			"streaming Model.loading should be cleared by DiscoveryCompleteMsg")
+
+		content := stripANSI(listModel.View().Content)
+		assert.NotContains(t, content, "(loading...)",
+			"loading indicator should disappear after DiscoveryCompleteMsg flows through "+
+				"the welcome → streaming-list swap; got tab bar:\n%s",
+			content)
 	})
 }
 

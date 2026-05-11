@@ -132,6 +132,10 @@ func NewClassifier(filters Filters) *Classifier {
 			continue
 		}
 
+		if !IsNegated(expr) {
+			c.hasPositiveFilters = true
+		}
+
 		c.analyzeExpression(expr, i)
 	}
 
@@ -151,9 +155,8 @@ func NewClassifier(filters Filters) *Classifier {
 //  4. Check if component matches any git expression -> DISCOVERED
 //  5. Check if component matches any graph expression target -> CANDIDATE (GraphTarget, returns index)
 //  6. Check if dependent filters exist and parse data unavailable -> CANDIDATE (PotentialDependent)
-//  7. If negated expressions exist and component doesn't match any -> DISCOVERED (negation acts as inclusion)
-//  8. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
-//  9. If no positive filters exist -> DISCOVERED (include-by-default)
+//  7. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
+//  8. If no positive filters exist -> DISCOVERED (include-by-default)
 func (c *Classifier) Classify(comp component.Component, classCtx ClassificationContext) (ClassificationStatus, CandidacyReason, int) {
 	hasNegativeMatch := c.matchesAnyNegated(comp)
 	hasPositiveMatch := c.matchesAnyPositive(comp)
@@ -189,10 +192,6 @@ func (c *Classifier) Classify(comp component.Component, classCtx ClassificationC
 		return StatusCandidate, CandidacyReasonPotentialDependent, -1
 	}
 
-	if len(c.negatedExprs) > 0 && !hasNegativeMatch {
-		return StatusReadyForFilter, CandidacyReasonNone, -1
-	}
-
 	if c.hasPositiveFilters {
 		return StatusExcluded, CandidacyReasonNone, -1
 	}
@@ -205,7 +204,6 @@ func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
 	switch node := expr.(type) {
 	case *PathExpression:
 		c.pathExprs = append(c.pathExprs, node)
-		c.hasPositiveFilters = true
 
 	case *AttributeExpression:
 		if _, requiresParse := node.RequiresParse(); requiresParse {
@@ -213,8 +211,6 @@ func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
 		} else {
 			c.attributeExprs = append(c.attributeExprs, node)
 		}
-
-		c.hasPositiveFilters = true
 
 	case *GraphExpression:
 		info := &GraphExpressionInfo{
@@ -228,11 +224,9 @@ func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
 			DependentDepth:      node.DependentDepth,
 		}
 		c.graphExprs = append(c.graphExprs, info)
-		c.hasPositiveFilters = true
 
 	case *GitExpression:
 		c.gitExprs = append(c.gitExprs, node)
-		c.hasPositiveFilters = true
 
 	case *PrefixExpression:
 		// Right now, the only prefix operator is "!".

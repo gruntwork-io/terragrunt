@@ -60,6 +60,7 @@ type Repo struct {
 	walkWithSymlinks bool
 	allowCAS         bool
 	slowReporting    bool
+	isLocal          bool
 }
 
 // RepoOpts contains parameters for NewRepo.
@@ -234,8 +235,14 @@ func (repo *Repo) CloneURL() string {
 
 // ResolveLatestTag looks up the latest semver release tag from the remote.
 // The result is stored in LatestTag. If the lookup fails or the repo has no
-// semver tags, LatestTag is left empty.
+// semver tags, LatestTag is left empty. Local catalog sources skip the
+// lookup entirely so a stale or unreachable origin URL in a local working
+// copy can't stall discovery.
 func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger) {
+	if repo.isLocal {
+		return
+	}
+
 	remote := repo.remoteForTagLookup()
 	if remote == "" {
 		return
@@ -301,6 +308,8 @@ func (repo *Repo) resolveCloneURL() string {
 }
 
 func (repo *Repo) handleLocalDir(l log.Logger, repoPath string) error {
+	repo.isLocal = true
+
 	if !filepath.IsAbs(repoPath) {
 		absRepoPath := filepath.Join(repo.rootWorkingDir, repoPath)
 		l.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)

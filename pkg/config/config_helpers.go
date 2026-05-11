@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -51,6 +52,10 @@ import (
 const (
 	noMatchedPats = 1
 	matchedPats   = 2
+
+	// stringCompParams is the exact number of arguments expected by the
+	// startswith, endswith, and strcontains helpers (haystack + needle).
+	stringCompParams = 2
 )
 
 // RunCmdCacheEntry stores run_cmd results including output for replay.
@@ -1131,8 +1136,8 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 //
 //nolint:dupl
 func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
-	if len(args) == 0 {
-		return false, errors.New(EmptyStringNotAllowedError("parameter to the startswith function"))
+	if len(args) != stringCompParams {
+		return false, errors.New(WrongNumberOfParamsError{Func: "startswith", Expected: strconv.Itoa(stringCompParams), Actual: len(args)})
 	}
 
 	return strings.HasPrefix(args[0], args[1]), nil
@@ -1142,8 +1147,8 @@ func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool,
 //
 //nolint:dupl
 func EndsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
-	if len(args) == 0 {
-		return false, errors.New(EmptyStringNotAllowedError("parameter to the endswith function"))
+	if len(args) != stringCompParams {
+		return false, errors.New(WrongNumberOfParamsError{Func: "endswith", Expected: strconv.Itoa(stringCompParams), Actual: len(args)})
 	}
 
 	return strings.HasSuffix(args[0], args[1]), nil
@@ -1180,8 +1185,8 @@ func TimeCmp(ctx context.Context, pctx *ParsingContext, l log.Logger, args []str
 //
 //nolint:dupl
 func StrContains(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
-	if len(args) == 0 {
-		return false, errors.New(EmptyStringNotAllowedError("parameter to the strcontains function"))
+	if len(args) != stringCompParams {
+		return false, errors.New(WrongNumberOfParamsError{Func: "strcontains", Expected: strconv.Itoa(stringCompParams), Actual: len(args)})
 	}
 
 	return strings.Contains(args[0], args[1]), nil
