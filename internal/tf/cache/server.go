@@ -20,6 +20,7 @@ type Server struct {
 	*router.Router
 	*Config
 	ProviderController *controllers.ProviderController
+	ModuleController   *controllers.ModuleController
 	services           []services.Service
 }
 
@@ -44,8 +45,19 @@ func NewServer(opts ...Option) *Server {
 		Logger:                      cfg.logger,
 	}
 
+	moduleController := &controllers.ModuleController{
+		AuthMiddleware:     authMiddleware,
+		ProxyModuleHandler: cfg.proxyModuleHandler,
+		Logger:             cfg.logger,
+	}
+
+	endpointers := []controllers.Endpointer{providerController}
+	if cfg.proxyModuleHandler != nil {
+		endpointers = append(endpointers, moduleController)
+	}
+
 	discoveryController := &controllers.DiscoveryController{
-		Endpointers: []controllers.Endpointer{providerController},
+		Endpointers: endpointers,
 	}
 
 	rootRouter := router.New()
@@ -56,11 +68,16 @@ func NewServer(opts ...Option) *Server {
 	v1Group := rootRouter.Group("v1")
 	v1Group.Register(providerController)
 
+	if cfg.proxyModuleHandler != nil {
+		v1Group.Register(moduleController)
+	}
+
 	return &Server{
 		Router:             rootRouter,
 		Config:             cfg,
 		services:           []services.Service{cfg.providerService},
 		ProviderController: providerController,
+		ModuleController:   moduleController,
 	}
 }
 
