@@ -95,6 +95,17 @@ func FileExists(vfs FS, path string) (bool, error) {
 	return false, err
 }
 
+// Lstat returns the FileInfo for the named path without following symlinks.
+// Filesystems that do not implement afero.Lstater fall back to Stat.
+func Lstat(fsys FS, path string) (os.FileInfo, error) {
+	if lstater, ok := fsys.(afero.Lstater); ok {
+		info, _, err := lstater.LstatIfPossible(path)
+		return info, err
+	}
+
+	return fsys.Stat(path)
+}
+
 // WriteFile writes data to a file on the given filesystem.
 func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(filename)
@@ -108,11 +119,6 @@ func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
 // ReadFile reads the contents of a file from the given filesystem.
 func ReadFile(fs FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fs, filename)
-}
-
-// Lstat returns file info for path without following the final symlink when the filesystem supports it.
-func Lstat(fs FS, path string) (os.FileInfo, error) {
-	return lstatIfPossible(fs, path)
 }
 
 // EvalSymlinks returns path after evaluating symlinks using the supplied filesystem.
@@ -409,6 +415,30 @@ func (fs *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	info, err := fs.Fs.Stat(name)
 
 	return info, false, err
+}
+
+// Remove deletes the file or symlink at name. Symlinks live in a side table
+// that the embedded afero.MemMapFs does not see, so they are handled here
+// before delegating to the underlying filesystem.
+func (fs *memMapFS) Remove(name string) error {
+	if _, ok := fs.symlinks[name]; ok {
+		delete(fs.symlinks, name)
+		return nil
+	}
+
+	return fs.Fs.Remove(name)
+}
+
+// RemoveAll deletes path and any children it contains. Symlinks live in a
+// side table that the embedded afero.MemMapFs does not see, so they are
+// handled here before delegating to the underlying filesystem.
+func (fs *memMapFS) RemoveAll(path string) error {
+	if _, ok := fs.symlinks[path]; ok {
+		delete(fs.symlinks, path)
+		return nil
+	}
+
+	return fs.Fs.RemoveAll(path)
 }
 
 // symlinkFileInfo reports symlink metadata for links stored in memMapFS's side table.
