@@ -379,13 +379,19 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 		return false, nil
 	}
 
+	venv, err := cas.OSVenv()
+	if err != nil {
+		l.Warnf("Failed to initialize CAS environment: %v. Falling back to standard getter.", err)
+		return false, nil
+	}
+
 	cloneOpts := cas.CloneOptions{
 		Dir:              src.DownloadDir,
 		IncludedGitFiles: []string{"HEAD", "config"},
 		Mutable:          mutable,
 	}
 
-	casProtocol := getter.NewCASProtocolGetter(l, c)
+	casProtocol := getter.NewCASProtocolGetter(l, c, venv)
 	casProtocol.Mutable = mutable
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
@@ -395,7 +401,7 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 	client := &getter.Client{
 		Getters: []getter.Getter{
 			casProtocol,
-			getter.NewCASGetter(l, c, &cloneOpts),
+			getter.NewCASGetter(l, c, venv, &cloneOpts, getter.WithDefaultGenericDispatch()),
 		},
 	}
 

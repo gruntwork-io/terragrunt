@@ -16,14 +16,16 @@ import (
 type CASProtocolGetter struct {
 	CAS     *cas.CAS
 	Logger  log.Logger
+	Venv    cas.Venv
 	Mutable bool
 }
 
 // NewCASProtocolGetter creates a new CASProtocolGetter.
-func NewCASProtocolGetter(l log.Logger, c *cas.CAS) *CASProtocolGetter {
+func NewCASProtocolGetter(l log.Logger, c *cas.CAS, v cas.Venv) *CASProtocolGetter {
 	return &CASProtocolGetter{
 		CAS:    c,
 		Logger: l,
+		Venv:   v,
 	}
 }
 
@@ -41,7 +43,7 @@ func (g *CASProtocolGetter) Get(ctx context.Context, req *getter.Request) error 
 		linkOpts = append(linkOpts, cas.WithForceCopy())
 	}
 
-	return g.CAS.MaterializeTree(ctx, g.Logger, hash, req.Dst, linkOpts...)
+	return g.CAS.MaterializeTree(ctx, g.Logger, g.Venv, hash, req.Dst, linkOpts...)
 }
 
 // GetFile is not supported for the CAS protocol getter.

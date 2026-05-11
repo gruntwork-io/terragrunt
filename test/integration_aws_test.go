@@ -2386,7 +2386,8 @@ func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 
 	t.Logf("Deleting test DynamoDB table %s", tableName)
 
-	ctx := t.Context()
+	ctx, cancel := helpers.CleanupContext(t)
+	defer cancel()
 
 	_, err := client.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	if err != nil {
