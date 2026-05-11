@@ -105,6 +105,54 @@ tags: ["", "aws", "  "]
 `,
 			want: []string{"aws"},
 		},
+		{
+			name: "boolean-shaped scalars preserve source text",
+			content: `<!-- Frontmatter
+tags: [no, yes, true, false]
+-->
+# VPC App
+`,
+			want: []string{"no", "yes", "true", "false"},
+		},
+		{
+			name: "numeric scalars preserve source text",
+			content: `<!-- Frontmatter
+tags: [123, 000123, 0x10, 1.0]
+-->
+# VPC App
+`,
+			want: []string{"123", "000123", "0x10", "1.0"},
+		},
+		{
+			name: "null entries are dropped",
+			content: `<!-- Frontmatter
+tags: [foo, ~, null, bar]
+-->
+# VPC App
+`,
+			want: []string{"foo", "bar"},
+		},
+		{
+			name: "single scalar tag",
+			content: `<!-- Frontmatter
+tags: networking
+-->
+# VPC App
+`,
+			want: []string{"networking"},
+		},
+		{
+			name: "non-scalar items are skipped",
+			content: `<!-- Frontmatter
+tags:
+  - foo
+  - {nested: value}
+  - bar
+-->
+# VPC App
+`,
+			want: []string{"foo", "bar"},
+		},
 	}
 
 	for _, tc := range tests {
