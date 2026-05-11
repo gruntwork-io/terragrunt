@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -205,7 +205,7 @@ func TestCASProtocolGetterGet(t *testing.T) {
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	g := cas.NewCASProtocolGetter(l, c)
+	g := getter.NewCASProtocolGetter(l, c)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
 
@@ -231,7 +231,7 @@ func TestCASProtocolGetterGet_InvalidRef(t *testing.T) {
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	g := cas.NewCASProtocolGetter(l, c)
+	g := getter.NewCASProtocolGetter(l, c)
 
 	req := &getter.Request{
 		Src: "badprefix:abc123",

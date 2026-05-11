@@ -16,6 +16,7 @@ linters:
     - bidichk
     - bodyclose
     - contextcheck
+    - depguard
     - dupl
     - durationcheck
     - errchkjson
@@ -57,6 +58,30 @@ linters:
     - wsl_v5
     - zerologlint
   settings:
+    depguard:
+      rules:
+        no-direct-go-getter:
+          # Direct hashicorp/go-getter imports are confined to the internal/getter
+          # package (which owns the integration) plus two carve-out files that
+          # would otherwise create import cycles. Everything else must go through
+          # internal/getter.
+          list-mode: lax
+          files:
+            - $all
+            - "!**/internal/getter/**"
+            - "!**/internal/util/file.go"
+            - "!**/internal/cas/stacks.go"
+          deny:
+            - pkg: github.com/hashicorp/go-getter
+              desc: use github.com/gruntwork-io/terragrunt/internal/getter instead
+            - pkg: github.com/hashicorp/go-getter/v2
+              desc: use github.com/gruntwork-io/terragrunt/internal/getter instead
+            - pkg: github.com/hashicorp/go-getter/v2/helper/url
+              desc: use github.com/gruntwork-io/terragrunt/internal/getter URLParse instead
+            - pkg: github.com/hashicorp/go-getter/s3/v2
+              desc: use github.com/gruntwork-io/terragrunt/internal/getter instead
+            - pkg: github.com/hashicorp/go-getter/gcs/v2
+              desc: use github.com/gruntwork-io/terragrunt/internal/getter instead
     dupl:
       threshold: 120
     errcheck:
@@ -121,7 +146,7 @@ linters:
       # trying to get this merged in.
       - linters:
           - lll
-        path-except: '^(internal/awshelper/|internal/cas/|internal/cli/commands/(backend/(delete|migrate)|catalog/tui/command|dag/graph|exec|find|help|list|scaffold|stack)/|internal/cloner/|internal/codegen/|internal/configbridge/|internal/engine/|internal/errorconfig/|internal/errors/|internal/experiment/|internal/gcphelper/|internal/git/|internal/os/exec/|internal/prepare/|internal/queue/|internal/report/|internal/retry/|internal/runner/(common|graph|run/creds|runall|runcfg)/|internal/stacks/(generate|output)/|internal/telemetry/|internal/tf/cache/(controllers|middleware)/|internal/tflint/|internal/tips/|internal/vfs/|internal/worktrees/|pkg/log/(format/(options|placeholders)|writer)/|pkg/options/)'
+        path-except: '^(internal/awshelper/|internal/cas/|internal/cli/commands/(backend/(delete|migrate)|catalog/tui/command|dag/graph|exec|find|help|list|scaffold|stack)/|internal/cloner/|internal/codegen/|internal/configbridge/|internal/discovery/|internal/engine/|internal/errorconfig/|internal/errors/|internal/experiment/|internal/gcphelper/|internal/git/|internal/os/exec/|internal/prepare/|internal/queue/|internal/report/|internal/retry/|internal/runner/(common|graph|run/creds|runall|runcfg)/|internal/stacks/(generate|output)/|internal/telemetry/|internal/tf/cache/(controllers|middleware)/|internal/tflint/|internal/tips/|internal/vfs/|internal/worktrees/|pkg/log/(format/(options|placeholders)|writer)/|pkg/options/)'
     paths:
       - docs
       - _ci

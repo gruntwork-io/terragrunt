@@ -29,6 +29,10 @@ const TFCommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Comman
 {{ if isTerraformPath }}Terraform{{ else }}OpenTofu{{ end }} ` + "`{{ tfCommand }}`" + ` help:{{ $tfHelp := runTFHelp }}{{ if $tfHelp }}
 
 {{ $tfHelp }}{{ end }}
+
+See also:
+  Terragrunt Scale: CI/CD and Drift Management for Terragrunt, from Gruntwork.
+  https://terragrunt.com/scale
 `
 
 // ShowTFHelp prints TF help for the given `cliCtx.Command` command.

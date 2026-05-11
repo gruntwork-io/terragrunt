@@ -10,15 +10,16 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
-
-	"github.com/hashicorp/go-getter/v2"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -169,6 +170,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		stackSrcBytes:   stackSrcBytes,
 		casEnabled:      casEnabled,
 		casInstance:     casInstance,
+		strictControls:  pctx.StrictControls,
 	}
 
 	if err := generateUnits(ctx, l, &genOpts, pool, stackFile.Units); err != nil {
@@ -219,6 +221,7 @@ type generateOpts struct {
 	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
 	casInstance     *cas.CAS
 	sourceMap       map[string]string
+	strictControls  strict.Controls
 	rootWorkingDir  string
 	stackConfigPath string
 	sourceFile      string
@@ -462,6 +465,8 @@ func fetchComponentSource(
 	cmp *componentToGenerate,
 	kindStr, source, dest string,
 ) error {
+	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.strictControls)
+
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
 			return errors.Errorf("cas:: source on %s %q requires the 'cas' experiment to be enabled", kindStr, cmp.name)
@@ -620,36 +625,21 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 
 // isLocal determines if a given source path is local or remote.
 //
-// It checks if the provided source file exists locally. If not, it checks if
-// the path is relative to the working directory. If that also fails, the function
-// attempts to detect the source's getter type and recognizes if it is a file URL.
-func isLocal(l log.Logger, workingDir, src string) bool {
-	// check initially if the source is a local file
+// It checks if the provided source file exists locally, or relative to the
+// working directory, or carries an explicit file:// scheme. A source that
+// looks like an absolute path but does not exist is treated as remote so the
+// caller can produce a meaningful fetch error rather than silently copying
+// from an empty directory.
+func isLocal(_ log.Logger, workingDir, src string) bool {
 	if util.FileExists(src) {
 		return true
 	}
 
-	src = filepath.Join(workingDir, src)
-	if util.FileExists(src) {
+	if util.FileExists(filepath.Join(workingDir, src)) {
 		return true
 	}
-	// check path through getters
-	req := &getter.Request{
-		Src: src,
-	}
-	for _, g := range getter.Getters {
-		recognized, err := getter.Detect(req, g)
-		if err != nil {
-			l.Debugf("Error detecting getter for %s: %v", src, err)
-			continue
-		}
 
-		if recognized {
-			break
-		}
-	}
-
-	return strings.HasPrefix(req.Src, "file://")
+	return strings.HasPrefix(src, "file://")
 }
 
 // ReadOutputs retrieves the OpenTofu/Terraform output JSON for this unit, converts it into a map of cty.Values,

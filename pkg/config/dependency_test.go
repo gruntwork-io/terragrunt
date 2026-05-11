@@ -267,3 +267,22 @@ dependency "enabled" {
 	// Only enabled dependency should be in the paths
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
 }
+
+// TestExposedIncludeFullParseSurfacesNoOutputsError pins that a full parse of a child
+// config whose exposed include cannot resolve its dependency outputs returns a
+// TerragruntOutputTargetNoOutputs error in the chain.
+func TestExposedIncludeFullParseSurfacesNoOutputsError(t *testing.T) {
+	t.Parallel()
+
+	childPath, err := filepath.Abs(filepath.Join("..", "..", "test", "fixtures", "regressions", "exposed-include-partial-parse-error", "child", "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	ctx, pctx := newTestParsingContext(t, childPath)
+	pctx.Env = env.Parse(os.Environ())
+
+	_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), childPath, nil)
+	require.Error(t, err)
+
+	var noOutputs config.TerragruntOutputTargetNoOutputs
+	require.ErrorAs(t, err, &noOutputs)
+}

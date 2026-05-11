@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -20,7 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/getsops/sops/v3/cmd/sops/formats"
 	"github.com/getsops/sops/v3/decrypt"
-	"github.com/hashicorp/go-getter"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
@@ -51,6 +52,10 @@ import (
 const (
 	noMatchedPats = 1
 	matchedPats   = 2
+
+	// stringCompParams is the exact number of arguments expected by the
+	// startswith, endswith, and strcontains helpers (haystack + needle).
+	stringCompParams = 2
 )
 
 // RunCmdCacheEntry stores run_cmd results including output for replay.
@@ -680,6 +685,10 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 
 	// sourceURL will always be at least "." (current directory) to ensure cache is always used
 	walkWithSymlinks := pctx.Experiments.Evaluate(experiment.Symlinks)
+	// Apply the rewrite so this working-dir computation agrees with the
+	// downloader's; otherwise a plain https://www.googleapis.com/storage/...
+	// source resolves to a different cache directory.
+	sourceURL = tf.RewriteLegacyGCSPublicSource(ctx, l, sourceURL, pctx.StrictControls)
 
 	source, err := tf.NewSource(l, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
 	if err != nil {
@@ -909,7 +918,7 @@ func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTe
 		return "", nil
 	}
 
-	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
+	// Split the module source string into a valid URL and subdirectory (if // is present).
 	moduleURL, moduleSubdir := getter.SourceDirSubdir(*moduleTerragruntConfig.Terraform.Source)
 
 	// if both URL and subdir are missing, something went terribly wrong
@@ -1131,8 +1140,8 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 //
 //nolint:dupl
 func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
-	if len(args) == 0 {
-		return false, errors.New(EmptyStringNotAllowedError("parameter to the startswith function"))
+	if len(args) != stringCompParams {
+		return false, errors.New(WrongNumberOfParamsError{Func: "startswith", Expected: strconv.Itoa(stringCompParams), Actual: len(args)})
 	}
 
 	return strings.HasPrefix(args[0], args[1]), nil
@@ -1142,8 +1151,8 @@ func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool,
 //
 //nolint:dupl
 func EndsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
-	if len(args) == 0 {
-		return false, errors.New(EmptyStringNotAllowedError("parameter to the endswith function"))
+	if len(args) != stringCompParams {
+		return false, errors.New(WrongNumberOfParamsError{Func: "endswith", Expected: strconv.Itoa(stringCompParams), Actual: len(args)})
 	}
 
 	return strings.HasSuffix(args[0], args[1]), nil
@@ -1180,8 +1189,8 @@ func TimeCmp(ctx context.Context, pctx *ParsingContext, l log.Logger, args []str
 //
 //nolint:dupl
 func StrContains(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
-	if len(args) == 0 {
-		return false, errors.New(EmptyStringNotAllowedError("parameter to the strcontains function"))
+	if len(args) != stringCompParams {
+		return false, errors.New(WrongNumberOfParamsError{Func: "strcontains", Expected: strconv.Itoa(stringCompParams), Actual: len(args)})
 	}
 
 	return strings.Contains(args[0], args[1]), nil

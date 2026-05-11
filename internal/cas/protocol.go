@@ -7,16 +7,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash"
-	"net/url"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-getter/v2"
 )
-
-// Assert that CASProtocolGetter implements the Getter interface
-var _ getter.Getter = &CASProtocolGetter{}
 
 // CASProtocolPrefix is the go-getter prefix for CAS protocol references.
 const CASProtocolPrefix = "cas::"
@@ -60,63 +55,6 @@ func (a HashAlgorithm) Sum(data []byte) string {
 	h.Write(data)
 
 	return hex.EncodeToString(h.Sum(nil))
-}
-
-// CASProtocolGetter is a go-getter Getter implementation that resolves cas::sha1:<hash> references
-// by materializing the referenced tree from the CAS store.
-type CASProtocolGetter struct {
-	CAS    *CAS
-	Logger log.Logger
-}
-
-// NewCASProtocolGetter creates a new CASProtocolGetter.
-func NewCASProtocolGetter(l log.Logger, cas *CAS) *CASProtocolGetter {
-	return &CASProtocolGetter{
-		CAS:    cas,
-		Logger: l,
-	}
-}
-
-func (g *CASProtocolGetter) Get(ctx context.Context, req *getter.Request) error {
-	src := strings.TrimPrefix(req.Src, CASProtocolPrefix)
-
-	hash, err := ParseCASRef(src)
-	if err != nil {
-		return fmt.Errorf("failed to parse CAS reference %q: %w", req.Src, err)
-	}
-
-	err = g.CAS.MaterializeTree(ctx, g.Logger, hash, req.Dst)
-
-	return err
-}
-
-func (g *CASProtocolGetter) GetFile(_ context.Context, _ *getter.Request) error {
-	return ErrGetFileNotSupported
-}
-
-func (g *CASProtocolGetter) Mode(_ context.Context, _ *url.URL) (getter.Mode, error) {
-	return getter.ModeDir, nil
-}
-
-func (g *CASProtocolGetter) Detect(req *getter.Request) (bool, error) {
-	src := req.Src
-
-	if req.Forced == "cas" {
-		if _, err := ParseCASRef(src); err == nil {
-			return true, nil
-		}
-
-		return false, nil
-	}
-
-	if strings.HasPrefix(src, CASProtocolPrefix) {
-		// Direct calls to Detect (tests) or sources that did not go through the wrapper.
-		req.Forced = "cas"
-
-		return true, nil
-	}
-
-	return false, nil
 }
 
 // ParseCASRef extracts the hash and algorithm from a CAS reference string.

@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -27,8 +28,8 @@ import (
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/hashicorp/go-getter/v2"
 )
 
 const (
@@ -164,6 +165,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		return errors.New(NoModuleURLPassed{})
 	}
 
+	moduleURL = tf.RewriteLegacyGCSPublicSource(ctx, l, moduleURL, opts.StrictControls)
+	templateURL = tf.RewriteLegacyGCSPublicSource(ctx, l, templateURL, opts.StrictControls)
+
 	// create temporary directory where to download module
 	tempDir, err := os.MkdirTemp("", "scaffold")
 	if err != nil {
@@ -190,7 +194,15 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 
 	l.Debugf("Scaffolding a new Terragrunt module %s to %s", moduleURL, outputDir)
 
-	if _, err := getter.GetAny(ctx, tempDir, moduleURL); err != nil {
+	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_module", map[string]any{
+		"module_url": moduleURL,
+	}, func(ctx context.Context) error {
+		if _, getErr := getter.GetAny(ctx, tempDir, moduleURL); getErr != nil {
+			return fmt.Errorf("downloading scaffold module from %s: %w", moduleURL, getErr)
+		}
+
+		return nil
+	}); err != nil {
 		return errors.New(err)
 	}
 
@@ -421,7 +433,15 @@ func downloadTemplate(
 	l.Debugf("Downloading template from %s into %s", baseURL.String(), templateDir)
 	// Downloading baseURL to support boilerplate dependencies and partials.
 	// Go-getter discards all but specified folder if one is provided.
-	if _, err := getter.GetAny(ctx, templateDir, baseURL.String()); err != nil {
+	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_template", map[string]any{
+		"template_url": baseURL.String(),
+	}, func(ctx context.Context) error {
+		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
+			return fmt.Errorf("downloading scaffold template from %s: %w", baseURL.String(), getErr)
+		}
+
+		return nil
+	}); err != nil {
 		return "", errors.New(err)
 	}
 
