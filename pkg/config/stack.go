@@ -110,27 +110,35 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	var stackSrcBytes []byte
 
 	if pctx.Experiments.Evaluate(experiment.StackDependencies) {
-		// Note: stackSrcBytes is read separately for the two-pass autoinclude parser
-		// which uses a simplified eval context. ReadStackConfigFile does the full parse
-		// with the complete Terragrunt eval context including functions.
+		// Note: stackSrcBytes is read separately for the autoinclude parser which slices expression byte ranges from the original file. ReadStackConfigFile already parsed the file with the complete Terragrunt eval context (functions, locals, values) and resolved each unit/stack's path; the autoinclude parser reuses those resolved paths via UnitTargetPaths/StackTargetPaths so it does not need to re-evaluate non-literal source/path/values expressions in unrelated unit attributes.
 		stackSrcBytes, err = os.ReadFile(stackFilePath)
 		if err != nil {
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 		}
 
-		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
+		unitRefs := buildUnitRefs(stackFile, stackSourceDir, stackTargetDir)
+		stackRefs := buildStackRefs(stackFile, stackSourceDir, stackTargetDir)
+
+		// Reuse the production parser's full eval context so the autoinclude parser sees the same function set (terraform stdlib + every terragrunt function: get_repo_root, find_in_parent_folders, run_cmd, ...) without duplicating or hardcoding any function list.
+		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, pctx, l, stackFilePath)
+		if evalCtxErr != nil {
+			return errors.Errorf("failed to build eval context for autoinclude parser %s: %w", stackFilePath, evalCtxErr)
+		}
+
+		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
+			Src:       stackSrcBytes,
+			Filename:  stackFilePath,
+			StackDir:  stackSourceDir,
+			Values:    values,
+			UnitRefs:  unitRefs,
+			StackRefs: stackRefs,
+			Functions: prodEvalCtx.Functions,
+		})
 		if parseErr != nil {
-			// Detect autoinclude on the include-merged stackFile so the check works for include paths that use HCL functions/locals/values, where a raw-HCL nil-eval re-scan would fail.
-			if stackConfigHasAutoInclude(stackFile) {
-				return errors.Errorf("failed to parse autoinclude block(s) in %s: %w", stackFilePath, parseErr)
-			}
-
-			l.Tracef("Autoinclude parse skipped for %s: %v", stackFilePath, parseErr)
+			return errors.Errorf("failed to parse autoinclude block(s) in %s: %w", stackFilePath, parseErr)
 		}
 
-		if parseErr == nil {
-			autoIncludes = parseResult.AutoIncludes
-		}
+		autoIncludes = parseResult.AutoIncludes
 	}
 
 	casEnabled := pctx.Experiments.Evaluate(experiment.CAS) && !pctx.NoCAS
@@ -167,6 +175,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		targetDir:       stackTargetDir,
 		autoIncludes:    autoIncludes,
 		stackSrcBytes:   stackSrcBytes,
+		stackValues:     values,
 		casEnabled:      casEnabled,
 		casInstance:     casInstance,
 	}
@@ -216,9 +225,11 @@ func validateUpdateSourceWithCAS(stackFile *StackConfig, stackFilePath string, c
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
-	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
-	casInstance     *cas.CAS
-	sourceMap       map[string]string
+	autoIncludes map[string]*inthclparse.AutoIncludeResolved
+	casInstance  *cas.CAS
+	sourceMap    map[string]string
+	// stackValues is the stack-level values (read from this stack's terragrunt.values.hcl) propagated into each generated unit's terragrunt.values.hcl. This carries inherited values down from a parent stack autoinclude `values = {...}` block: the parent writes the autoinclude values to the nested stack's values file, the nested GenerateStackFile reads them here, and we merge them into each nested unit's values so unit terragrunt.hcl `inputs = { x = values.x }` resolves.
+	stackValues     *cty.Value
 	rootWorkingDir  string
 	stackConfigPath string
 	sourceFile      string
@@ -402,7 +413,45 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 		return errors.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
 	}
 
+	// For stack-kind autoincludes, propagate the resolved `values = {...}` attribute into the nested stack's terragrunt.values.hcl so the nested units see those values as `values.<key>`. Mock_outputs of declared dependencies are bound at resolve time, so `dependency.X.outputs.Y` references in the autoinclude values resolve to their mock values at generation time.
+	if kind == inthclparse.KindStack && resolved.Values != nil {
+		if err := mergeStackAutoIncludeValues(l, cmp.values, resolved.Values, dest); err != nil {
+			return errors.Errorf("failed to merge stack autoinclude values for %s: %w", cmp.name, err)
+		}
+	}
+
 	return nil
+}
+
+// mergeStackAutoIncludeValues merges the autoinclude `values` block content with the component's existing `values` attribute (if any) and writes the combined result to dest/terragrunt.values.hcl. The autoinclude values take precedence on key conflicts so that user-declared overrides at the autoinclude layer win over the stack block's static values.
+func mergeStackAutoIncludeValues(l log.Logger, baseValues, autoIncludeValues *cty.Value, dest string) error {
+	if autoIncludeValues == nil {
+		return nil
+	}
+
+	if !autoIncludeValues.Type().IsObjectType() && !autoIncludeValues.Type().IsMapType() {
+		return errors.Errorf("stack autoinclude values must evaluate to an object, got %s", autoIncludeValues.Type().FriendlyName())
+	}
+
+	merged := make(map[string]cty.Value)
+
+	if baseValues != nil && (baseValues.Type().IsObjectType() || baseValues.Type().IsMapType()) {
+		for k, v := range baseValues.AsValueMap() {
+			merged[k] = v
+		}
+	}
+
+	for k, v := range autoIncludeValues.AsValueMap() {
+		merged[k] = v
+	}
+
+	if len(merged) == 0 {
+		return nil
+	}
+
+	mergedVal := cty.ObjectVal(merged)
+
+	return writeValues(l, &mergedVal, dest)
 }
 
 // generateComponent copies files from the source directory to the target destination and generates a corresponding values file.
@@ -434,12 +483,43 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		return err
 	}
 
-	// generate values file
-	if err := writeValues(l, cmp.values, dest); err != nil {
+	// Generate values file. For unit components, merge in any stack-level values inherited from a parent stack autoinclude `values = {...}` block so the unit's terragrunt.hcl can resolve `values.<key>` to the propagated value. Unit-declared values take precedence on key conflict so a unit can override a propagated value.
+	effectiveValues := mergeUnitValuesWithStackValues(cmp.values, opts.stackValues, cmp.kind)
+	if err := writeValues(l, effectiveValues, dest); err != nil {
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
 	return generateAutoInclude(l, opts, cmp, dest)
+}
+
+// mergeUnitValuesWithStackValues combines unit-declared values with stack-level values inherited from a parent stack autoinclude. Returns the unit values unchanged for stack components (only unit values benefit from the merge: nested stack values are propagated via the recursive GenerateStackFile's own values-file read). Unit-declared values win on key conflict.
+func mergeUnitValuesWithStackValues(unitValues, stackValues *cty.Value, kind componentKind) *cty.Value {
+	if kind == stackKind || stackValues == nil {
+		return unitValues
+	}
+
+	if !stackValues.Type().IsObjectType() && !stackValues.Type().IsMapType() {
+		return unitValues
+	}
+
+	merged := make(map[string]cty.Value)
+	for k, v := range stackValues.AsValueMap() {
+		merged[k] = v
+	}
+
+	if unitValues != nil && (unitValues.Type().IsObjectType() || unitValues.Type().IsMapType()) {
+		for k, v := range unitValues.AsValueMap() {
+			merged[k] = v
+		}
+	}
+
+	if len(merged) == 0 {
+		return unitValues
+	}
+
+	out := cty.ObjectVal(merged)
+
+	return &out
 }
 
 // fetchComponentSource handles the paths for fetching a component's source:
@@ -999,6 +1079,69 @@ func GetUnitDir(dir string, unit *Unit) string {
 	}
 
 	return filepath.Join(dir, StackDir, unit.Path)
+}
+
+// buildUnitRefs returns a slice of unit ComponentRefs (name + absolute target path) using the production-parsed StackConfig. Feeds unit.<name>.path into the autoinclude eval context without re-evaluating source/path/values expressions in unrelated units.
+func buildUnitRefs(stackFile *StackConfig, stackSourceDir, stackTargetDir string) []inthclparse.ComponentRef {
+	if stackFile == nil {
+		return nil
+	}
+
+	refs := make([]inthclparse.ComponentRef, 0, len(stackFile.Units))
+
+	for _, u := range stackFile.Units {
+		if u == nil || u.Name == "" {
+			continue
+		}
+
+		dir := stackTargetDir
+		if u.NoStack != nil && *u.NoStack {
+			dir = stackSourceDir
+		}
+
+		refs = append(refs, inthclparse.ComponentRef{
+			Name: u.Name,
+			Path: filepath.Join(dir, u.Path),
+		})
+	}
+
+	return refs
+}
+
+// buildStackRefs returns ComponentRefs for stack blocks with ChildRefs populated via DiscoverStackChildUnits so stack.<name>.<unit>.path references resolve at autoinclude eval time.
+func buildStackRefs(stackFile *StackConfig, stackSourceDir, stackTargetDir string) []inthclparse.ComponentRef {
+	if stackFile == nil {
+		return nil
+	}
+
+	osfs := vfs.NewOSFS()
+	refs := make([]inthclparse.ComponentRef, 0, len(stackFile.Stacks))
+
+	for _, s := range stackFile.Stacks {
+		if s == nil || s.Name == "" {
+			continue
+		}
+
+		dir := stackTargetDir
+		if s.NoStack != nil && *s.NoStack {
+			dir = stackSourceDir
+		}
+
+		stackGenPath := filepath.Join(dir, s.Path)
+
+		sourceDir := s.Source
+		if !filepath.IsAbs(sourceDir) {
+			sourceDir = filepath.Join(stackSourceDir, sourceDir)
+		}
+
+		refs = append(refs, inthclparse.ComponentRef{
+			Name:      s.Name,
+			Path:      stackGenPath,
+			ChildRefs: inthclparse.DiscoverStackChildUnits(osfs, sourceDir, stackGenPath),
+		})
+	}
+
+	return refs
 }
 
 // stackConfigHasAutoInclude reports whether any unit or stack in the include-merged stack config declares an autoinclude block.

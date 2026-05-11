@@ -788,11 +788,15 @@ func tryGetStackOutput(
 	targetConfigPath string,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
-	// Check if the path is a directory containing a stack file
+	// Resolve the stack file path. getCleanedTargetConfigPath replaces a bare directory dep with <dir>/terragrunt.hcl, so peel the synthetic suffix back to <dir> when discovering whether the dep actually points at a stack directory.
 	stackFilePath := targetConfigPath
 
-	if filepath.Base(stackFilePath) != DefaultStackFile {
-		stackFilePath = filepath.Join(targetConfigPath, DefaultStackFile)
+	switch filepath.Base(stackFilePath) {
+	case DefaultStackFile:
+	case DefaultTerragruntConfigPath:
+		stackFilePath = filepath.Join(filepath.Dir(stackFilePath), DefaultStackFile)
+	default:
+		stackFilePath = filepath.Join(stackFilePath, DefaultStackFile)
 	}
 
 	if !util.FileExists(stackFilePath) {

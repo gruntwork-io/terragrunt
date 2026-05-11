@@ -7,8 +7,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 const (
@@ -35,9 +38,15 @@ unit "db" {
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 	assert.Equal(t, "vpc", result.Units[0].Name)
-	assert.Equal(t, "vpc", result.Units[0].Path)
+
+	vpcPath, evalErr := hclparse.EvalString(result.Units[0].Path, nil, "path")
+	require.NoError(t, evalErr)
+	assert.Equal(t, "vpc", vpcPath)
 	assert.Equal(t, "db", result.Units[1].Name)
-	assert.Equal(t, "db", result.Units[1].Path)
+
+	dbPath, evalErr := hclparse.EvalString(result.Units[1].Path, nil, "path")
+	require.NoError(t, evalErr)
+	assert.Equal(t, "db", dbPath)
 	assert.Empty(t, result.AutoIncludes)
 }
 
@@ -1125,4 +1134,145 @@ unit "app" {
 			require.NoError(b, err)
 		}
 	}
+}
+
+// TestEvalString_LiteralExpr covers EvalString's literal-expression path: a constant template can be evaluated with a nil eval context.
+func TestEvalString_LiteralExpr(t *testing.T) {
+	t.Parallel()
+
+	expr := hcl.StaticExpr(cty.StringVal("hello"), hcl.Range{Filename: "test"})
+
+	got, err := hclparse.EvalString(expr, nil, "attr")
+	require.NoError(t, err)
+	assert.Equal(t, "hello", got)
+}
+
+// TestEvalString_NilExpr returns the empty string for absent attributes (expr nil).
+func TestEvalString_NilExpr(t *testing.T) {
+	t.Parallel()
+
+	got, err := hclparse.EvalString(nil, nil, "missing")
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+// TestEvalString_NeedsCtx fails when the expression references a variable but no eval context is supplied.
+func TestEvalString_NeedsCtx(t *testing.T) {
+	t.Parallel()
+
+	parsed, diags := hclsyntax.ParseExpression([]byte(`local.x`), "test.hcl", hcl.Pos{Line: 1, Column: 1})
+	require.False(t, diags.HasErrors())
+
+	_, err := hclparse.EvalString(parsed, nil, "path")
+	require.Error(t, err)
+}
+
+// TestEvalString_FunctionCall verifies a function call evaluates when the eval context provides the function.
+func TestEvalString_FunctionCall(t *testing.T) {
+	t.Parallel()
+
+	parsed, diags := hclsyntax.ParseExpression([]byte(`upper("vpc")`), "test.hcl", hcl.Pos{Line: 1, Column: 1})
+	require.False(t, diags.HasErrors())
+
+	ctx := &hcl.EvalContext{}
+
+	_, err := hclparse.EvalString(parsed, ctx, "path")
+	require.Error(t, err, "no upper function bound; eval must fail")
+}
+
+// TestEvalCtyValue_LiteralObject decodes a literal cty object via EvalCtyValue.
+func TestEvalCtyValue_LiteralObject(t *testing.T) {
+	t.Parallel()
+
+	expr := hcl.StaticExpr(cty.ObjectVal(map[string]cty.Value{"a": cty.StringVal("v")}), hcl.Range{Filename: "test"})
+
+	val, err := hclparse.EvalCtyValue(expr, nil)
+	require.NoError(t, err)
+	require.NotNil(t, val)
+	assert.Equal(t, "v", val.AsValueMap()["a"].AsString())
+}
+
+// TestEvalCtyValue_NilExpr returns (nil, nil) for absent attributes.
+func TestEvalCtyValue_NilExpr(t *testing.T) {
+	t.Parallel()
+
+	val, err := hclparse.EvalCtyValue(nil, nil)
+	require.NoError(t, err)
+	assert.Nil(t, val)
+}
+
+// TestAutoIncludeResolve_ValuesAttribute pins that the autoinclude `values = {...}` attribute is captured into AutoIncludeResolved.Values when the body declares it, with dependency mock_outputs bound so `dependency.X.outputs.Y` references resolve at parse time.
+func TestAutoIncludeResolve_ValuesAttribute(t *testing.T) {
+	t.Parallel()
+
+	src := `
+stack "src" {
+  source = "../catalog/stacks/src"
+  path   = "src"
+}
+
+stack "consumer" {
+  source = "../catalog/stacks/consumer"
+  path   = "consumer"
+
+  autoinclude {
+    dependency "upstream" {
+      config_path = stack.src.path
+
+      mock_outputs_allowed_terraform_commands = ["validate", "plan"]
+      mock_outputs = {
+        val = "mock-from-dep"
+      }
+    }
+
+    values = {
+      val = dependency.upstream.outputs.val
+    }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("stack", "consumer")]
+	require.True(t, ok, "expected resolved autoinclude for stack 'consumer'")
+	require.NotNil(t, resolved.Values, "autoinclude `values = {...}` must be captured into AutoIncludeResolved.Values")
+
+	got := resolved.Values.AsValueMap()
+	assert.Equal(t, "mock-from-dep", got["val"].AsString(), "dependency.upstream.outputs.val must resolve to the dep's mock_outputs at parse time")
+}
+
+// TestAutoIncludeResolve_NoValuesAttribute returns nil Values when the autoinclude body has no values attribute.
+func TestAutoIncludeResolve_NoValuesAttribute(t *testing.T) {
+	t.Parallel()
+
+	src := `
+stack "src" {
+  source = "../catalog/stacks/src"
+  path   = "src"
+}
+
+stack "consumer" {
+  source = "../catalog/stacks/consumer"
+  path   = "consumer"
+
+  autoinclude {
+    dependency "upstream" {
+      config_path = stack.src.path
+    }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("stack", "consumer")]
+	require.True(t, ok)
+	assert.Nil(t, resolved.Values, "absent values attribute must leave AutoIncludeResolved.Values nil")
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 const (
@@ -22,6 +23,9 @@ const (
 	// HCL block type and attribute names.
 	blockDependency = "dependency"
 	attrConfigPath  = "config_path"
+	attrPath        = "path"
+	attrSource      = "source"
+	attrValues      = "values"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"
@@ -33,10 +37,16 @@ const (
 
 // ParseStackFileInput holds the input for ParseStackFile.
 type ParseStackFileInput struct {
-	Values   *cty.Value
-	Filename string
-	StackDir string
-	Src      []byte
+	Values *cty.Value
+	// UnitRefs lets the caller supply already-resolved unit ComponentRefs (with paths, names, and any ChildRefs). When non-nil, the parser uses these for the autoinclude eval context instead of evaluating each unit's Path attribute itself, so non-literal source/path/values expressions in unrelated unit blocks do not block parsing.
+	UnitRefs []ComponentRef
+	// StackRefs is the analogous slice for stack blocks. Each ref's ChildRefs must already be populated when callers want stack.<name>.<unit>.path references to resolve.
+	StackRefs []ComponentRef
+	// Functions is the HCL function set the parser registers on the autoinclude eval context. Callers should pass the function map built by the production parser (pkg/config.createTerragruntEvalContext) so include paths and dependency.config_path expressions evaluate the same way they would in a unit's terragrunt.hcl. May be nil for callers (e.g. tests) that only use literal expressions.
+	Functions map[string]function.Function
+	Filename  string
+	StackDir  string
+	Src       []byte
 }
 
 // ParseResult holds the output of a two-pass parse of a terragrunt.stack.hcl file.
@@ -52,15 +62,11 @@ type ParseResult struct {
 
 // ParseStackFile performs a two-pass parse of a terragrunt.stack.hcl file.
 //
-// Pass 1: Parse unit/stack blocks to extract names, sources, and paths.
-// The autoinclude body is captured as hcl.Body via remain (not evaluated).
+// Pass 1: Decode unit/stack blocks. Source/Path/Values fields are captured as lazy expressions, so non-literal expressions (terragrunt function calls, locals, values references) do not block decoding. The autoinclude body is captured as hcl.Body via remain.
 //
-// Between passes: Build eval context with unit.<name>.path and stack.<name>.path
-// variables. Paths are resolved to absolute paths under .terragrunt-stack/.
+// Between passes: Build eval context with unit.<name>.path and stack.<name>.path variables. When the caller supplies pre-resolved UnitTargetPaths / StackTargetPaths, those drive the refs (no Path eval needed). Otherwise the parser evaluates each unit/stack's Path attribute itself.
 //
-// Pass 2: For each unit/stack with an autoinclude block, resolve the autoinclude
-// body using the eval context. dependency.config_path is evaluated (references
-// unit.*.path), while inputs are left unevaluated (contain dependency.*.outputs.*).
+// Pass 2: For each unit/stack with an autoinclude block, resolve the autoinclude body using the eval context. dependency.config_path is evaluated; inputs are left unevaluated.
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
 	if fs == nil {
 		filename := ""
@@ -84,44 +90,51 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		return nil, FileParseError{FilePath: input.Filename, Detail: diags.Error()}
 	}
 
-	// Pass 1: decode unit/stack blocks. Autoinclude body captured as remain.
 	stackFile := &StackFileHCL{}
-
-	diags = gohcl.DecodeBody(file.Body, nil, stackFile)
-	if diags.HasErrors() {
-		return nil, FileDecodeError{Name: input.Filename, Detail: diags.Error()}
+	if decodeDiags := gohcl.DecodeBody(file.Body, nil, stackFile); decodeDiags.HasErrors() {
+		return nil, FileDecodeError{Name: input.Filename, Detail: decodeDiags.Error()}
 	}
 
 	// Track per-autoinclude source bytes so the generator can slice expression bytes from the correct file even after include merging.
 	srcByAutoInclude := map[*AutoIncludeHCL][]byte{}
 	recordAutoIncludeSources(srcByAutoInclude, stackFile, input.Src)
 
-	// Process includes: merge included units/stacks.
-	if err := processStackIncludes(fs, stackFile, input.StackDir, srcByAutoInclude); err != nil {
-		return nil, err
-	}
-
-	// Build component refs with absolute paths for the eval context.
-	// Default target is StackDir/.terragrunt-stack/{unit.path}, but units
-	// with no_dot_terragrunt_stack go to StackDir/{unit.path} instead.
+	// Build the eval context up front so include paths and locals can use values/unit/stack refs before include merging runs.
 	stackTargetDir := filepath.Join(input.StackDir, StackDir)
 
-	unitRefs := buildRefsWithAbsPath(stackTargetDir, stackFile.Units)
-	stackRefs := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0)
+	var (
+		unitRefs  []ComponentRef
+		stackRefs []ComponentRef
+	)
 
-	// Pass 2: resolve autoinclude blocks using the eval context.
+	switch {
+	case input.UnitRefs != nil || input.StackRefs != nil:
+		unitRefs = input.UnitRefs
+		stackRefs = input.StackRefs
+	default:
+		// Evaluate each unit/stack Path against a stdlib-only eval context (no values/locals yet). For literal paths this works; for non-literal paths the user must supply UnitRefs / StackRefs.
+		bootstrapCtx := stdlibEvalContext(input.StackDir)
+		unitRefs = buildRefsWithAbsPath(stackTargetDir, stackFile.Units, bootstrapCtx)
+		stackRefs = buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0, bootstrapCtx)
+	}
+
 	evalCtx := BuildAutoIncludeEvalContext(unitRefs, stackRefs)
+	if input.Functions != nil {
+		evalCtx.Functions = input.Functions
+	}
 
-	// Add values to context if provided.
 	if input.Values != nil {
 		evalCtx.Variables[varValues] = *input.Values
 	}
 
-	// Evaluate locals block iteratively.
 	if stackFile.Locals != nil {
 		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := processStackIncludes(fs, stackFile, input.StackDir, evalCtx, srcByAutoInclude); err != nil {
+		return nil, err
 	}
 
 	autoIncludes, err := resolveAutoIncludes(stackFile, evalCtx, srcByAutoInclude)
@@ -134,6 +147,50 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		Stacks:       stackFile.Stacks,
 		AutoIncludes: autoIncludes,
 	}, nil
+}
+
+// EvalString evaluates expr against ctx and returns the resulting string. Returns ("", nil) when expr is nil (attribute absent). When ctx is nil the expression must be a constant; if expr references variables, returns an error. attrName is used in error messages.
+func EvalString(expr hcl.Expression, ctx *hcl.EvalContext, attrName string) (string, error) {
+	if expr == nil {
+		return "", nil
+	}
+
+	if ctx == nil && len(expr.Variables()) > 0 {
+		return "", EmptyArgError{Func: "EvalString", Arg: attrName + " requires eval context"}
+	}
+
+	val, diags := expr.Value(ctx)
+	if diags.HasErrors() {
+		return "", FileDecodeError{Name: attrName, Detail: diags.Error()}
+	}
+
+	if val.IsNull() || !val.IsKnown() {
+		return "", nil
+	}
+
+	if val.Type() != cty.String {
+		return "", FileDecodeError{Name: attrName, Detail: "expected string, got " + val.Type().FriendlyName()}
+	}
+
+	return val.AsString(), nil
+}
+
+// EvalCtyValue evaluates expr against ctx and returns the resulting *cty.Value. Returns (nil, nil) when expr is nil (attribute absent). When ctx is nil the expression must be a constant; if expr references variables, returns an error.
+func EvalCtyValue(expr hcl.Expression, ctx *hcl.EvalContext) (*cty.Value, error) {
+	if expr == nil {
+		return nil, nil
+	}
+
+	if ctx == nil && len(expr.Variables()) > 0 {
+		return nil, EmptyArgError{Func: "EvalCtyValue", Arg: "values requires eval context"}
+	}
+
+	val, diags := expr.Value(ctx)
+	if diags.HasErrors() {
+		return nil, FileDecodeError{Name: attrValues, Detail: diags.Error()}
+	}
+
+	return &val, nil
 }
 
 // evaluateLocals iteratively evaluates attributes from a locals block body.
@@ -297,10 +354,10 @@ func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, k
 	return resolved, nil
 }
 
-// processStackIncludes resolves include blocks by parsing the included files and merging their unit/stack blocks into the main stack file. srcByAutoInclude is populated with per-block source bytes from each included file.
-func processStackIncludes(fs vfs.FS, stackFile *StackFileHCL, stackDir string, srcByAutoInclude map[*AutoIncludeHCL][]byte) error {
+// processStackIncludes resolves include blocks by parsing the included files and merging their unit/stack blocks into the main stack file. Each include block's path is evaluated lazily against evalCtx so non-literal include paths (e.g. format(...)) work. srcByAutoInclude is populated with per-block source bytes from each included file.
+func processStackIncludes(fs vfs.FS, stackFile *StackFileHCL, stackDir string, evalCtx *hcl.EvalContext, srcByAutoInclude map[*AutoIncludeHCL][]byte) error {
 	for _, inc := range stackFile.Includes {
-		if err := mergeOneInclude(fs, stackFile, inc, stackDir, srcByAutoInclude); err != nil {
+		if err := mergeOneInclude(fs, stackFile, inc, stackDir, evalCtx, srcByAutoInclude); err != nil {
 			return err
 		}
 	}
@@ -312,21 +369,29 @@ func processStackIncludes(fs vfs.FS, stackFile *StackFileHCL, stackDir string, s
 	return validateNoDuplicateStacks(stackFile.Stacks)
 }
 
-// mergeOneInclude reads and merges a single included stack file.
-func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, stackDir string, srcByAutoInclude map[*AutoIncludeHCL][]byte) error {
-	includePath := inc.Path
+// mergeOneInclude reads and merges a single included stack file. Evaluates the include's path expression using the supplied eval context (so values/locals/functions are available).
+func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, stackDir string, evalCtx *hcl.EvalContext, srcByAutoInclude map[*AutoIncludeHCL][]byte) error {
+	includePath, err := EvalString(inc.Path, evalCtx, attrPath)
+	if err != nil {
+		return IncludeValidationError{IncludeName: inc.Name, Reason: "could not evaluate include path: " + err.Error()}
+	}
+
+	if includePath == "" {
+		return IncludeValidationError{IncludeName: inc.Name, Reason: "include path must evaluate to a non-empty string"}
+	}
+
 	if !filepath.IsAbs(includePath) {
 		includePath = filepath.Join(stackDir, includePath)
 	}
 
 	data, err := vfs.ReadFile(fs, includePath)
 	if err != nil {
-		return FileReadError{FilePath: inc.Path, Err: err}
+		return FileReadError{FilePath: includePath, Err: err}
 	}
 
 	incFile, diags := hclsyntax.ParseConfig(data, includePath, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return FileParseError{FilePath: inc.Path, Detail: diags.Error()}
+		return FileParseError{FilePath: includePath, Detail: diags.Error()}
 	}
 
 	included := &StackFileHCL{}
@@ -406,16 +471,20 @@ func validateNoDuplicateStacks(stacks []*StackBlockHCL) error {
 	return errors.Join(errs...)
 }
 
-// buildRefsWithAbsPath creates ComponentRef values with paths resolved
-// to the absolute location under .terragrunt-stack/.
-func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL) []ComponentRef {
+// buildRefsWithAbsPath creates ComponentRef values with paths resolved to the absolute location under .terragrunt-stack/. Units whose Path expression cannot be evaluated against evalCtx are silently skipped, matching the permissive contract where non-literal expressions in unrelated units must not block autoinclude resolution.
+func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL, evalCtx *hcl.EvalContext) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(units))
 
 	for _, u := range units {
-		unitPath := filepath.Join(stackTargetDir, u.Path)
+		path, err := EvalString(u.Path, evalCtx, attrPath)
+		if err != nil {
+			continue
+		}
+
+		unitPath := filepath.Join(stackTargetDir, path)
 
 		if u.NoStack != nil && *u.NoStack {
-			unitPath = filepath.Join(filepath.Dir(stackTargetDir), u.Path)
+			unitPath = filepath.Join(filepath.Dir(stackTargetDir), path)
 		}
 
 		refs = append(refs, ComponentRef{
@@ -427,18 +496,27 @@ func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL) []Compon
 	return refs
 }
 
-// buildStackRefsWithAbsPath builds ComponentRef values for stack blocks and discovers their child units.
-func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string, stacks []*StackBlockHCL, depth int) []ComponentRef {
+// buildStackRefsWithAbsPath builds ComponentRef values for stack blocks and discovers their child units. Stacks whose Path or Source cannot be evaluated against evalCtx are silently skipped.
+func buildStackRefsWithAbsPath(fs vfs.FS, stackDir, stackTargetDir string, stacks []*StackBlockHCL, depth int, evalCtx *hcl.EvalContext) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
 	for _, s := range stacks {
-		stackGenPath := filepath.Join(stackTargetDir, s.Path)
-
-		if s.NoStack != nil && *s.NoStack {
-			stackGenPath = filepath.Join(filepath.Dir(stackTargetDir), s.Path)
+		path, err := EvalString(s.Path, evalCtx, attrPath)
+		if err != nil {
+			continue
 		}
 
-		sourceDir := s.Source
+		stackGenPath := filepath.Join(stackTargetDir, path)
+
+		if s.NoStack != nil && *s.NoStack {
+			stackGenPath = filepath.Join(filepath.Dir(stackTargetDir), path)
+		}
+
+		sourceDir, sourceErr := EvalString(s.Source, evalCtx, attrSource)
+		if sourceErr != nil {
+			continue
+		}
+
 		if !filepath.IsAbs(sourceDir) {
 			sourceDir = filepath.Join(stackDir, sourceDir)
 		}

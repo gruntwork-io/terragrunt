@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
+	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -24,35 +25,32 @@ type StackFileHCL struct {
 }
 
 // StackIncludeHCL represents an include block in a terragrunt.stack.hcl file.
-// The path is evaluated immediately during the first parse pass.
+// Path is captured as a lazy expression so non-literal expressions (e.g. format(...)) are evaluated only when the include is processed.
 type StackIncludeHCL struct {
-	Name string `hcl:",label"`
-	Path string `hcl:"path,attr"`
+	Path hcl.Expression `hcl:"path,attr"`
+	Name string         `hcl:",label"`
 }
 
-// UnitBlockHCL represents the first-phase parse of a unit block.
-// Known attributes are decoded directly. The autoinclude block body
-// is captured in Remain for second-phase evaluation.
+// UnitBlockHCL represents the first-phase parse of a unit block. Source, Path, and Values are captured as lazy expressions so non-literal expressions in unrelated unit attributes do not block decoding; callers evaluate them via EvalString / EvalCtyValue when needed.
 type UnitBlockHCL struct {
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
-	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,attr"`
-	NoValidation *bool           `hcl:"no_validation,attr"`
-	Values       *cty.Value      `hcl:"values,attr"`
+	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,optional"`
+	NoValidation *bool           `hcl:"no_validation,optional"`
+	Values       hcl.Expression  `hcl:"values,optional"`
+	Source       hcl.Expression  `hcl:"source,optional"`
+	Path         hcl.Expression  `hcl:"path,optional"`
 	Name         string          `hcl:",label"`
-	Source       string          `hcl:"source,attr"`
-	Path         string          `hcl:"path,attr"`
 }
 
-// StackBlockHCL represents the first-phase parse of a stack block.
-// Same remain pattern as UnitBlockHCL.
+// StackBlockHCL represents the first-phase parse of a stack block. Source, Path, and Values are captured as lazy expressions; see UnitBlockHCL.
 type StackBlockHCL struct {
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
-	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,attr"`
-	NoValidation *bool           `hcl:"no_validation,attr"`
-	Values       *cty.Value      `hcl:"values,attr"`
+	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,optional"`
+	NoValidation *bool           `hcl:"no_validation,optional"`
+	Values       hcl.Expression  `hcl:"values,optional"`
+	Source       hcl.Expression  `hcl:"source,optional"`
+	Path         hcl.Expression  `hcl:"path,optional"`
 	Name         string          `hcl:",label"`
-	Source       string          `hcl:"source,attr"`
-	Path         string          `hcl:"path,attr"`
 }
 
 // LocalsHCL captures the locals block body for iterative evaluation.
@@ -125,28 +123,38 @@ func buildRefAttrs(ref ComponentRef) cty.Value {
 	return cty.ObjectVal(attrs)
 }
 
-// ExtractUnitRefs extracts ComponentRef values from parsed UnitBlockHCL slices.
-func ExtractUnitRefs(units []*UnitBlockHCL) []ComponentRef {
+// ExtractUnitRefs extracts ComponentRef values from parsed UnitBlockHCL slices. evalCtx is used to evaluate each unit's lazy Path expression; pass nil for literal-only paths.
+func ExtractUnitRefs(units []*UnitBlockHCL, evalCtx *hcl.EvalContext) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(units))
 
 	for _, u := range units {
+		path, err := EvalString(u.Path, evalCtx, attrPath)
+		if err != nil {
+			continue
+		}
+
 		refs = append(refs, ComponentRef{
 			Name: u.Name,
-			Path: u.Path,
+			Path: path,
 		})
 	}
 
 	return refs
 }
 
-// ExtractStackRefs extracts ComponentRef values from parsed StackBlockHCL slices.
-func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
+// ExtractStackRefs extracts ComponentRef values from parsed StackBlockHCL slices. evalCtx is used to evaluate each stack's lazy Path expression; pass nil for literal-only paths.
+func ExtractStackRefs(stacks []*StackBlockHCL, evalCtx *hcl.EvalContext) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
 	for _, s := range stacks {
+		path, err := EvalString(s.Path, evalCtx, attrPath)
+		if err != nil {
+			continue
+		}
+
 		refs = append(refs, ComponentRef{
 			Name: s.Name,
-			Path: s.Path,
+			Path: path,
 		})
 	}
 
@@ -182,7 +190,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	})
 }
 
-// UnitPathsFromStackDir parses the stack file in stackDir and returns paths to each unit's generated directory. Returns (nil, err) on parse errors so callers can distinguish "not a stack dir" from "malformed stack file".
+// UnitPathsFromStackDir parses the stack file in stackDir and returns paths to each unit's generated directory. Returns (nil, err) on parse errors so callers can distinguish "not a stack dir" from "malformed stack file". Evaluates each unit's lazy Path expression against the terraform stdlib so generated stack files containing terragrunt function calls still resolve (units whose Path cannot be evaluated are skipped, best-effort).
 func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
@@ -203,12 +211,20 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 		return nil, nil
 	}
 
+	evalCtx := stdlibEvalContext(stackDir)
+
 	paths := make([]string, 0, len(result.Units))
+
 	for _, unit := range result.Units {
-		unitPath := filepath.Join(stackDir, StackDir, unit.Path)
+		unitRelPath, evalErr := EvalString(unit.Path, evalCtx, attrPath)
+		if evalErr != nil {
+			continue
+		}
+
+		unitPath := filepath.Join(stackDir, StackDir, unitRelPath)
 
 		if unit.NoStack != nil && *unit.NoStack {
-			unitPath = filepath.Join(stackDir, unit.Path)
+			unitPath = filepath.Join(stackDir, unitRelPath)
 		}
 
 		paths = append(paths, unitPath)
@@ -249,14 +265,21 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 		return nil
 	}
 
+	evalCtx := stdlibEvalContext(stackSourceDir)
+
 	childTargetDir := filepath.Join(stackGenDir, StackDir)
 	refs := make([]ComponentRef, 0, len(result.Units)+len(result.Stacks))
 
 	for _, u := range result.Units {
-		unitPath := filepath.Join(childTargetDir, u.Path)
+		unitRelPath, evalErr := EvalString(u.Path, evalCtx, attrPath)
+		if evalErr != nil {
+			continue
+		}
+
+		unitPath := filepath.Join(childTargetDir, unitRelPath)
 
 		if u.NoStack != nil && *u.NoStack {
-			unitPath = filepath.Join(stackGenDir, u.Path)
+			unitPath = filepath.Join(stackGenDir, unitRelPath)
 		}
 
 		refs = append(refs, ComponentRef{
@@ -266,13 +289,22 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 	}
 
 	for _, s := range result.Stacks {
-		nestedGenPath := filepath.Join(childTargetDir, s.Path)
-
-		if s.NoStack != nil && *s.NoStack {
-			nestedGenPath = filepath.Join(stackGenDir, s.Path)
+		stackRelPath, evalErr := EvalString(s.Path, evalCtx, attrPath)
+		if evalErr != nil {
+			continue
 		}
 
-		nestedSourceDir := s.Source
+		nestedGenPath := filepath.Join(childTargetDir, stackRelPath)
+
+		if s.NoStack != nil && *s.NoStack {
+			nestedGenPath = filepath.Join(stackGenDir, stackRelPath)
+		}
+
+		nestedSourceDir, sourceErr := EvalString(s.Source, evalCtx, attrSource)
+		if sourceErr != nil {
+			continue
+		}
+
 		if !filepath.IsAbs(nestedSourceDir) {
 			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
 		}
@@ -285,4 +317,14 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 	}
 
 	return refs
+}
+
+// stdlibEvalContext builds a minimal eval context wired with the terraform stdlib (matching the production parser's tflang.Scope setup in pkg/config/config_helpers.go). This lets stack files that reference terraform-stdlib functions (e.g. format, jsonencode) resolve in contexts where no pctx is available, such as discovery on generated stack files.
+func stdlibEvalContext(baseDir string) *hcl.EvalContext {
+	tfscope := tflang.Scope{BaseDir: baseDir}
+
+	return &hcl.EvalContext{
+		Functions: tfscope.Functions(),
+		Variables: map[string]cty.Value{},
+	}
 }

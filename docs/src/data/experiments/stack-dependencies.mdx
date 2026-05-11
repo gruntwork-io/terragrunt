@@ -5,7 +5,6 @@ since: "1.0.1"
 ---
 
 import Since from '@components/Since.astro';
-import Before from '@components/Before.astro';
 import { Aside } from '@astrojs/starlight/components';
 
 Support for the `autoinclude` block in `terragrunt.stack.hcl` files, enabling dependency relationships and configuration overrides during stack generation.
@@ -115,56 +114,40 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 
 ### `stack-dependencies` - Implementation roadmap
 
-<Before version="1.0.2">
-
-- [ ] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
-- [ ] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
-- [ ] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
-- [ ] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
-- [ ] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
-- [ ] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
-- [ ] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
-- [ ] Add integration tests and test fixtures for end-to-end validation
-- [ ] E2E validation with `stack run apply` and `stack run destroy`
-- [ ] Community feedback on `autoinclude` syntax and merge behavior
-- [ ] Integration with CAS for generated files
-- [ ] Performance validation at scale
-
-</Before>
-
 <Since version="1.0.2">
 
-- [x] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
-- [x] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
-- [x] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
-- [x] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
-- [x] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
-- [x] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
-- [x] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
-- [ ] Add integration tests and test fixtures for end-to-end validation
-- [ ] E2E validation with `stack run apply` and `stack run destroy`
-- [ ] Community feedback on `autoinclude` syntax and merge behavior
-- [ ] Integration with CAS for generated files
-- [ ] Performance validation at scale
+- Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
+- Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
+- Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
+- Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
+- Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
+- Add `tryGetStackOutput()` for dependency blocks targeting stack directories
+- Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
 
 </Since>
 
 <Since version="1.0.4">
 
-- [x] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
-- [x] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
-- [x] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
-- [x] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
-- [x] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
-- [x] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
-- [x] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
-- [x] Add integration tests and test fixtures for end-to-end validation
-- [x] E2E validation with `stack run apply` and `stack run destroy`
-- [x] Resolve `stack.<name>.<nested_stack>.path` at arbitrary nesting depth
-- [x] Surface autoinclude dependencies in `terragrunt find` and `terragrunt list` (JSON, tree, and long formats)
-- [x] Use distinct filenames for unit (`terragrunt.autoinclude.hcl`) and stack (`terragrunt.autoinclude.stack.hcl`) autoincludes
-- [ ] Community feedback on `autoinclude` syntax and merge behavior
-- [ ] Integration with CAS for generated files
-- [ ] Performance validation at scale
+- Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
+- Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
+- Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
+- Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
+- Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
+- Add `tryGetStackOutput()` for dependency blocks targeting stack directories
+- Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
+- Add integration tests and test fixtures for end-to-end validation
+- E2E validation with `stack run apply` and `stack run destroy`
+- Resolve `stack.<name>.<nested_stack>.path` at arbitrary nesting depth
+- Surface autoinclude dependencies in `terragrunt find` and `terragrunt list` (JSON, tree, and long formats)
+- Use distinct filenames for unit (`terragrunt.autoinclude.hcl`) and stack (`terragrunt.autoinclude.stack.hcl`) autoincludes
+
+</Since>
+
+<Since version="1.0.5">
+
+- Lazy-expression parsing: non-literal HCL expressions (`get_repo_root()`, `format()`, `local.*`, `values.*`) in unit/stack `source`, `path`, and `values` attributes no longer block autoinclude resolution
+- `terragrunt run --all` discovery walks generated nested stack files even when they contain terragrunt function calls in unit `source`/`path`
+- Stack-level autoinclude `values = {...}` propagates into nested-stack units' `terragrunt.values.hcl` so nested unit `inputs = { x = values.x }` resolves
+- Unified strict + permissive parser into a single code path
 
 </Since>
