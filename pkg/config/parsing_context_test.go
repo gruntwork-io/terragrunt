@@ -67,7 +67,7 @@ func TestWithDependencyConfigPath_DefaultDownloadDir_Updated(t *testing.T) {
 
 	_, depCtx, err := pctx.WithDependencyConfigPath(l, depConfigPath)
 	require.NoError(t, err)
-	
+
 	_, expectedDepDownloadDir := util.DefaultWorkingAndDownloadDirs(depConfigPath)
 	assert.Equal(t, expectedDepDownloadDir, depCtx.DownloadDir,
 		"DownloadDir should be updated to the dependency's default when no custom TG_DOWNLOAD_DIR is set")
@@ -99,7 +99,7 @@ func TestWithDependencyConfigPath_CustomDownloadDir_NotDefaultForAnyModule(t *te
 
 	_, depCtx, err := pctx.WithDependencyConfigPath(l, depConfigPath)
 	require.NoError(t, err)
-	
+
 	assert.Equal(t, customDownloadDir, depCtx.DownloadDir,
 		"custom TG_DOWNLOAD_DIR must be preserved even when it shares the root tmpDir")
 }
