@@ -556,7 +556,10 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 			// the higher order dependency map.
 			dependencyEncodingMapEncoded, err := gocty.ToCtyValue(dependencyEncodingMap, generateTypeFromValuesMap(dependencyEncodingMap))
 			if err != nil {
-				err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
+				lock.Lock()
+				err = TerragruntOutputListEncodingError{Paths: slices.Clone(paths), Err: err}
+				lock.Unlock()
+
 				return err
 			}
 
