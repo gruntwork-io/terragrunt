@@ -389,6 +389,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		return nil, err
 	}
 
+	if includeFromChild != nil && includeFromChild.Path != "" && !filepath.IsAbs(includeFromChild.Path) {
+		includeFromChild.Path = filepath.Clean(filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includeFromChild.Path))
+	}
+
 	pctx = pctx.WithTrackInclude(nil)
 
 	// read unit files and add to context
@@ -609,24 +613,7 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	// TrackInclude is nil when DecodeBaseBlocks returned (nil, err), e.g. an invalid feature
 	// default. Skip the merge in that case and let the error surface at the return below.
 	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 && !errsContainsIncludeErr {
-		includeCount := len(pctx.TrackInclude.CurrentList)
-		includePaths := make([]string, 0, includeCount)
-
-		for _, inc := range pctx.TrackInclude.CurrentList {
-			if inc.Path != "" {
-				includePaths = append(includePaths, inc.Path)
-			}
-		}
-
-		var config *TerragruntConfig
-
-		err := TraceParseIncludeMerge(ctx, file.ConfigPath, includeCount, includePaths, func(ctx context.Context) error {
-			var mergeErr error
-
-			config, mergeErr = handleInclude(ctx, pctx, l, output, true)
-
-			return mergeErr
-		})
+		config, err := handleInclude(ctx, pctx, l, output, true)
 		if err != nil {
 			errs = errs.Append(err)
 		}
@@ -681,10 +668,6 @@ func partialParseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log
 	}
 
 	includePath := includedConfig.Path
-
-	if !filepath.IsAbs(includePath) {
-		includePath = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includePath)
-	}
 
 	config, err := PartialParseConfigFile(
 		ctx,

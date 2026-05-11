@@ -25,11 +25,16 @@ on:
         required: false
         type: string
         default: 'macos-signed-files'
+      skip-build:
+        description: 'Skip the internal build job and sign artifacts uploaded earlier in this workflow run'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   build:
     name: Build (darwin/${{ matrix.arch }})
-    if: github.event_name == 'workflow_dispatch'
+    if: ${{ inputs['skip-build'] != true }}
     runs-on: ubuntu-latest
     strategy:
       matrix:

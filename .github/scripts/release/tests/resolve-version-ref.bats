@@ -27,7 +27,7 @@ teardown() {
 
   run "$SCRIPT"
   [ "$status" -eq 0 ]
-  grep -q "^version=v1.2.3$" "$GITHUB_OUTPUT"
+  grep -q "^version=${INPUT_VERSION}$" "$GITHUB_OUTPUT"
   grep -q "^ref=${sha}$" "$GITHUB_OUTPUT"
 }
 
@@ -40,12 +40,14 @@ teardown() {
   [[ "$output" == *"No release found"* ]]
 }
 
-@test "errors if release is already published" {
-  export GH_STUB_RESPONSE='{"isDraft":false,"targetCommitish":"a1b2c3d4e5f6789012345678901234567890abcd"}'
+@test "resolves published release to version + ref" {
+  local sha="a1b2c3d4e5f6789012345678901234567890abcd"
+  export GH_STUB_RESPONSE="{\"targetCommitish\":\"${sha}\"}"
 
   run "$SCRIPT"
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"already published"* ]]
+  [ "$status" -eq 0 ]
+  grep -q "^version=${INPUT_VERSION}$" "$GITHUB_OUTPUT"
+  grep -q "^ref=${sha}$" "$GITHUB_OUTPUT"
 }
 
 @test "fails when INPUT_VERSION missing" {

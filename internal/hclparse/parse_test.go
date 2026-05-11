@@ -758,6 +758,92 @@ stack "networking" {
 	require.True(t, ok, "stack networking should have autoinclude")
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
+	assert.Equal(t, hclparse.KindStack, resolved.Kind, "Kind must be KindStack so the generator picks terragrunt.autoinclude.stack.hcl")
+}
+
+// Pins the kind-to-filename mapping: unit autoincludes write terragrunt.autoinclude.hcl, stack autoincludes write terragrunt.autoinclude.stack.hcl.
+func TestGenerateAutoIncludeFile_FilenameByKind(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+stack "networking" {
+  source = "../stacks/networking"
+  path   = "networking"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+    }
+  }
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+
+	unitResolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.NotNil(t, unitResolved)
+
+	stackResolved := result.AutoIncludes[hclparse.AutoIncludeKey("stack", "networking")]
+	require.NotNil(t, stackResolved)
+
+	unitDir := filepath.Join(testStackDir, ".terragrunt-stack", "app")
+	require.NoError(t, hclparse.GenerateAutoIncludeFile(fs, unitResolved, unitDir, srcBytes, unitResolved.EvalCtx))
+
+	unitExists, err := vfs.FileExists(fs, filepath.Join(unitDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+	assert.True(t, unitExists, "unit autoinclude must be written as terragrunt.autoinclude.hcl")
+
+	stackExists, err := vfs.FileExists(fs, filepath.Join(unitDir, hclparse.AutoIncludeStackFile))
+	require.NoError(t, err)
+	assert.False(t, stackExists, "unit autoinclude must NOT be written as terragrunt.autoinclude.stack.hcl")
+
+	stackDir := filepath.Join(testStackDir, ".terragrunt-stack", "networking")
+	require.NoError(t, hclparse.GenerateAutoIncludeFile(fs, stackResolved, stackDir, srcBytes, stackResolved.EvalCtx))
+
+	stackFileExists, err := vfs.FileExists(fs, filepath.Join(stackDir, hclparse.AutoIncludeStackFile))
+	require.NoError(t, err)
+	assert.True(t, stackFileExists, "stack autoinclude must be written as terragrunt.autoinclude.stack.hcl")
+
+	stackUnitFileExists, err := vfs.FileExists(fs, filepath.Join(stackDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+	assert.False(t, stackUnitFileExists, "stack autoinclude must NOT be written as terragrunt.autoinclude.hcl")
+}
+
+func TestAutoIncludeFileNameForKind(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "terragrunt.autoinclude.hcl", hclparse.AutoIncludeFileNameForKind(hclparse.KindUnit))
+	assert.Equal(t, "terragrunt.autoinclude.stack.hcl", hclparse.AutoIncludeFileNameForKind(hclparse.KindStack))
+}
+
+func TestAutoIncludeFileNameForKind_PanicsOnUnknownKind(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, `hclparse.AutoIncludeFileNameForKind: unknown kind "" (expected "unit" or "stack")`, func() {
+		hclparse.AutoIncludeFileNameForKind("")
+	})
+	assert.PanicsWithValue(t, `hclparse.AutoIncludeFileNameForKind: unknown kind "unknown" (expected "unit" or "stack")`, func() {
+		hclparse.AutoIncludeFileNameForKind("unknown")
+	})
 }
 
 func TestParseStackFile_DuplicateUnits(t *testing.T) {
@@ -876,6 +962,46 @@ unit "vpc" {
 	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must not define nested includes")
+}
+
+// Locks the per-file SourceBytes invariant: when a unit's autoinclude block lives in an included stack file, GenerateAutoIncludeFile must use the included file's bytes (not the root's) to slice expression text.
+func TestParseStackFile_AutoIncludeInsideIncludedFile(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	rootSrc := `
+include "shared" {
+  path = "shared.hcl"
+}
+`
+	includedSrc := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+
+  autoinclude {
+    dependency "db" {
+      config_path = "../db"
+    }
+  }
+}
+`
+
+	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includedSrc), 0644))
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(rootSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
+	require.NoError(t, err)
+	require.Len(t, result.AutoIncludes, 1)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "vpc")]
+	require.True(t, ok, "expected resolved autoinclude for unit 'vpc'")
+	require.NotNil(t, resolved)
+
+	// SourceBytes must point at the included file's bytes, not the root's, so the generator can slice expression byte ranges correctly.
+	assert.Equal(t, []byte(includedSrc), resolved.SourceBytes, "SourceBytes must equal the included file's bytes")
+	assert.NotEqual(t, []byte(rootSrc), resolved.SourceBytes, "SourceBytes must not be the root file's bytes")
 }
 
 // Benchmarks

@@ -1,5 +1,12 @@
 package cli
 
+// HelpFooter is appended to all Terragrunt help output to promote Terragrunt Scale.
+const HelpFooter = `
+See also:
+  Terragrunt Scale: CI/CD and Drift Management for Terragrunt, from Gruntwork.
+  https://terragrunt.com/scale
+`
+
 // AppHelpTemplate is the main CLI help template.
 const AppHelpTemplate = `Usage: {{ if .App.UsageText }}{{ wrap .App.UsageText 3 }}{{ else }}{{ .App.HelpName }} [global options] <command> [options]{{ end }}{{ $description := .App.Usage }}{{ if .App.Description }}{{ $description = .App.Description }}{{ end }}{{ if $description }}
 
@@ -16,7 +23,7 @@ Global Options:
 Version: {{ .App.Version }}{{ end }}{{ if len .App.Authors }}
 
 Author: {{ range .App.Authors }}{{ . }}{{ end }} {{ end }}
-`
+` + HelpFooter
 
 // CommandHelpTemplate is the command CLI help template.
 const CommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Command.UsageText 3 }}{{ else }}{{ range $index, $parent := parentCommands . }}{{ $parent.HelpName }} {{ end }}{{ .Command.HelpName }}{{ if .Command.VisibleSubcommands }} <command>{{ end }}{{ if .Command.VisibleFlags }} [options]{{ end }}{{ end }}{{ $description := .Command.Usage }}{{ if .Command.Description }}{{ $description = .Command.Description }}{{ end }}{{ if $description }}
@@ -36,8 +43,7 @@ Options:
 Global Options:
    {{ range $index, $option := .App.VisibleFlags }}{{ if $index }}
    {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}
-
-`
+` + HelpFooter
 
 const AppVersionTemplate = `{{ .App.Name }} version {{ .App.Version }}
 `

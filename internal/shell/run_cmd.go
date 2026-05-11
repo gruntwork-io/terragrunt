@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,6 +18,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -195,112 +199,163 @@ func RunCommandWithOutput(
 		commandDir = runOpts.WorkingDir
 	}
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+command, map[string]any{
-		"command": command,
-		"args":    fmt.Sprintf("%v", args),
-		"dir":     commandDir,
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+filepath.Base(command), map[string]any{
+		"binary":      filepath.Base(command),
+		"binary_path": command,
+		"args":        fmt.Sprintf("%v", args),
+		"dir":         commandDir,
 	}, func(ctx context.Context) error {
-		l.Debugf("Running command: %s %s", command, strings.Join(args, " "))
+		runErr := runCommand(ctx, l, e, runOpts, RunCommandOptions{
+			CommandDir:     commandDir,
+			SuppressStdout: suppressStdout,
+			NeedsPTY:       needsPTY,
+			Command:        command,
+			Args:           args,
+			Output:         &output,
+		})
 
-		var (
-			cmdStderr = io.MultiWriter(runOpts.Writers.ErrWriter, &output.Stderr)
-			cmdStdout = io.MultiWriter(runOpts.Writers.Writer, &output.Stdout)
-		)
+		if span := trace.SpanFromContext(ctx); span.IsRecording() {
+			exitCode := 0
 
-		// Pass the traceparent to the child process if it is available in the context.
-		if traceParent := telemetry.TraceParentFromContext(ctx, runOpts.Telemetry); traceParent != "" {
-			l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
-			runOpts.Env[telemetry.TraceParentEnv] = traceParent
-		}
-
-		if suppressStdout {
-			l.Debugf("Command output will be suppressed.")
-
-			cmdStdout = io.MultiWriter(&output.Stdout)
-		}
-
-		if command == runOpts.TFPath {
-			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-			if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
-				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
-
-				cmdOutput, err := engine.Run(ctx, l, e, &engine.ExecutionOptions{
-					Writers: writer.Writers{
-						Writer:                 writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
-						ErrWriter:              writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
-						LogShowAbsPaths:        runOpts.Writers.LogShowAbsPaths,
-						LogDisableErrorSummary: runOpts.Writers.LogDisableErrorSummary,
-					},
-					EngineOptions:     runOpts.EngineOptions,
-					EngineConfig:      runOpts.EngineConfig,
-					Env:               runOpts.Env,
-					WorkingDir:        commandDir,
-					RootWorkingDir:    runOpts.RootWorkingDir,
-					Command:           command,
-					Args:              args,
-					Headless:          runOpts.Headless,
-					ForwardTFStdout:   runOpts.ForwardTFStdout,
-					SuppressStdout:    suppressStdout,
-					AllocatePseudoTty: needsPTY,
-				})
-				if err != nil {
-					return errors.New(err)
+			if runErr != nil {
+				if code, codeErr := util.GetExitCode(runErr); codeErr == nil {
+					exitCode = code
+				} else {
+					exitCode = -1
 				}
-
-				output = *cmdOutput
-
-				return err
-			}
-		}
-
-		cmd := exec.Command(ctx, e, command, args...)
-		cmd.SetDir(commandDir)
-		cmd.SetStdout(cmdStdout)
-		cmd.SetStderr(cmdStderr)
-		cmd.Configure(
-			exec.WithUsePTY(needsPTY),
-			exec.WithEnv(runOpts.Env),
-			exec.WithForwardSignalDelay(SignalForwardingDelay),
-		)
-
-		// Save/restore console mode around subprocess — Windows subprocesses can reset it.
-		savedConsole := exec.SaveConsoleState()
-		defer savedConsole.Restore()
-
-		if err := cmd.Start(l); err != nil { //nolint:contextcheck // context already passed to exec.Command
-			err = util.ProcessExecutionError{
-				Err:             err,
-				Args:            args,
-				Command:         command,
-				WorkingDir:      cmd.Dir(),
-				RootWorkingDir:  runOpts.RootWorkingDir,
-				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
-				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
 			}
 
-			return errors.New(err)
+			span.SetAttributes(
+				attribute.Int("exit_code", exitCode),
+				attribute.Int("stdout_bytes", output.Stdout.Len()),
+				attribute.Int("stderr_bytes", output.Stderr.Len()),
+			)
 		}
 
-		cancelShutdown := cmd.RegisterGracefullyShutdown(ctx, l)
-		defer cancelShutdown()
-
-		if err := cmd.Wait(); err != nil {
-			err = util.ProcessExecutionError{
-				Err:             err,
-				Args:            args,
-				Command:         command,
-				Output:          output,
-				WorkingDir:      cmd.Dir(),
-				RootWorkingDir:  runOpts.RootWorkingDir,
-				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
-				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
-			}
-
-			return errors.New(err)
-		}
-
-		return nil
+		return runErr
 	})
 
 	return &output, err
+}
+
+// RunCommandOptions groups the per-invocation parameters for runCommand,
+// keeping the function signature short and call sites readable.
+type RunCommandOptions struct {
+	Output         *util.CmdOutput
+	CommandDir     string
+	Command        string
+	Args           []string
+	SuppressStdout bool
+	NeedsPTY       bool
+}
+
+// runCommand contains the actual subprocess execution logic, separated to keep
+// RunCommandWithOutput focused on telemetry framing.
+func runCommand(
+	ctx context.Context,
+	l log.Logger,
+	e vexec.Exec,
+	runOpts *ShellOptions,
+	cmdOpts RunCommandOptions,
+) error {
+	l.Debugf("Running command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
+
+	var (
+		cmdStderr = io.MultiWriter(runOpts.Writers.ErrWriter, &cmdOpts.Output.Stderr)
+		cmdStdout = io.MultiWriter(runOpts.Writers.Writer, &cmdOpts.Output.Stdout)
+	)
+
+	// Pass the traceparent to the child process if it is available in the context.
+	if traceParent := telemetry.TraceParentFromContext(ctx, runOpts.Telemetry); traceParent != "" {
+		l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", cmdOpts.Command, cmdOpts.Args))
+		runOpts.Env[telemetry.TraceParentEnv] = traceParent
+	}
+
+	if cmdOpts.SuppressStdout {
+		l.Debugf("Command output will be suppressed.")
+
+		cmdStdout = io.MultiWriter(&cmdOpts.Output.Stdout)
+	}
+
+	if cmdOpts.Command == runOpts.TFPath {
+		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
+		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
+			l.Debugf("Using engine to run command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
+
+			cmdOutput, err := engine.Run(ctx, l, e, &engine.ExecutionOptions{
+				Writers: writer.Writers{
+					Writer:                 writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
+					ErrWriter:              writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
+					LogShowAbsPaths:        runOpts.Writers.LogShowAbsPaths,
+					LogDisableErrorSummary: runOpts.Writers.LogDisableErrorSummary,
+				},
+				EngineOptions:     runOpts.EngineOptions,
+				EngineConfig:      runOpts.EngineConfig,
+				Env:               runOpts.Env,
+				WorkingDir:        cmdOpts.CommandDir,
+				RootWorkingDir:    runOpts.RootWorkingDir,
+				Command:           cmdOpts.Command,
+				Args:              cmdOpts.Args,
+				Headless:          runOpts.Headless,
+				ForwardTFStdout:   runOpts.ForwardTFStdout,
+				SuppressStdout:    cmdOpts.SuppressStdout,
+				AllocatePseudoTty: cmdOpts.NeedsPTY,
+			})
+			if err != nil {
+				return errors.New(err)
+			}
+
+			*cmdOpts.Output = *cmdOutput
+
+			return err
+		}
+	}
+
+	cmd := exec.Command(ctx, e, cmdOpts.Command, cmdOpts.Args...)
+	cmd.SetDir(cmdOpts.CommandDir)
+	cmd.SetStdout(cmdStdout)
+	cmd.SetStderr(cmdStderr)
+	cmd.Configure(
+		exec.WithUsePTY(cmdOpts.NeedsPTY),
+		exec.WithEnv(runOpts.Env),
+		exec.WithForwardSignalDelay(SignalForwardingDelay),
+	)
+
+	// Save/restore console mode around subprocess — Windows subprocesses can reset it.
+	savedConsole := exec.SaveConsoleState()
+	defer savedConsole.Restore()
+
+	if err := cmd.Start(l); err != nil { //nolint:contextcheck // context already passed to exec.Command
+		err = util.ProcessExecutionError{
+			Err:             err,
+			Args:            cmdOpts.Args,
+			Command:         cmdOpts.Command,
+			WorkingDir:      cmd.Dir(),
+			RootWorkingDir:  runOpts.RootWorkingDir,
+			LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
+			DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
+		}
+
+		return errors.New(err)
+	}
+
+	cancelShutdown := cmd.RegisterGracefullyShutdown(ctx, l)
+	defer cancelShutdown()
+
+	if err := cmd.Wait(); err != nil {
+		err = util.ProcessExecutionError{
+			Err:             err,
+			Args:            cmdOpts.Args,
+			Command:         cmdOpts.Command,
+			Output:          *cmdOpts.Output,
+			WorkingDir:      cmd.Dir(),
+			RootWorkingDir:  runOpts.RootWorkingDir,
+			LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
+			DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
+		}
+
+		return errors.New(err)
+	}
+
+	return nil
 }

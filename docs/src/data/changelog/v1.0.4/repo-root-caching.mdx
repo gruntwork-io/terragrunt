@@ -1,0 +1,10 @@
+---
+version: "v1.0.4"
+category: "performance-improvements"
+---
+
+#### Fewer `git rev-parse` invocations on large estates
+
+The `get_repo_root()` HCL function, the runner, and the `find` and `list` discovery commands all ask Git for the enclosing repository root. Previously, two units in the same repository each triggered their own `git rev-parse --show-toplevel`, even when the answer was identical. On large estates this added up to one fork per unit (and sometimes more) for a value that never changed.
+
+A repository discovered for one working directory is now reused for any other working directory inside it, for the duration of the command. Nested repositories (a checkout vendored inside another) still resolve to their own root.

@@ -114,6 +114,9 @@ Global Options:
    --log-disable        Disable logging. [%sTG_LOG_DISABLE%s]
    --working-dir value  The path to the directory of Terragrunt configurations. Default is current directory. [%sTG_WORKING_DIR%s]
 
+See also:
+  Terragrunt Scale: CI/CD and Drift Management for Terragrunt, from Gruntwork.
+  https://terragrunt.com/scale
 `, envVarChar, closeEnvVarChar, envVarChar, closeEnvVarChar, envVarChar, closeEnvVarChar, envVarChar, closeEnvVarChar)
 
 	assert.Equal(t, expectedOutput, out.String())
