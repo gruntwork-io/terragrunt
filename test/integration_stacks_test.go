@@ -42,6 +42,7 @@ const (
 	testFixtureStackValidationUnitPath         = "fixtures/stacks/errors/validation-unit"
 	testFixtureStackValidationStackPath        = "fixtures/stacks/errors/validation-stack"
 	testFixtureStackIncorrectSource            = "fixtures/stacks/errors/incorrect-source"
+	testFixtureStackOverlappingPaths           = "fixtures/stacks/errors/overlapping-paths"
 	testFixtureStacksUnknownValueError         = "fixtures/stacks/errors/unknown-value"
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
@@ -1183,6 +1184,25 @@ func TestStacksGenerateAbsolutePathError(t *testing.T) {
 	)
 
 	require.Error(t, err)
+}
+
+func TestStacksGenerateOverlappingPathsError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackOverlappingPaths)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackOverlappingPaths)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackOverlappingPaths, "live")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --working-dir "+rootPath,
+	)
+
+	require.Error(t, err)
+	combined := stderr + err.Error()
+	assert.Contains(t, combined, `stack "parent" (path "shared")`)
+	assert.Contains(t, combined, `stack "nested" (path "shared/inner")`)
+	assert.Contains(t, combined, "overlaps with")
 }
 
 func TestStacksGenerateIncorrectSource(t *testing.T) {
