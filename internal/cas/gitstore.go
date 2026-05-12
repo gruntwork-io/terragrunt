@@ -170,9 +170,10 @@ func (s *GitStore) EnsureRef(
 //  1. If the commit is already cached in the bare repo, no network
 //     call is made.
 //  2. Otherwise the bare repo is updated with a full-history fetch of
-//     every branch (no `--depth`). Fetching by raw SHA is avoided
-//     because it requires `uploadpack.allowAnySHA1InWant`, which is
-//     not universally enabled on git servers.
+//     every ref (no `--depth`). Tags are included so commits reachable
+//     only via tags resolve without a second fetch. Fetching by raw SHA
+//     is avoided because it requires `uploadpack.allowAnySHA1InWant`,
+//     which is not universally enabled on git servers.
 //  3. If rev-parse still cannot resolve rawRef after the fetch, a
 //     [git.WrappedError] wrapping [git.ErrNoMatchingReference] is
 //     returned so callers can use [errors.Is] for the same condition
@@ -207,7 +208,7 @@ func (s *GitStore) EnsureCommit(
 		return nil, err
 	}
 
-	if err := session.runner.Fetch(ctx, url, "+refs/heads/*:refs/heads/*", 0); err != nil {
+	if err := session.runner.Fetch(ctx, url, "+refs/*:refs/*", 0); err != nil {
 		return nil, err
 	}
 
@@ -250,7 +251,7 @@ func (s *GitStore) ensureKnownCommit(
 		return session.keep(), nil
 	}
 
-	if err := session.runner.Fetch(ctx, url, "+refs/heads/*:refs/heads/*", 0); err != nil {
+	if err := session.runner.Fetch(ctx, url, "+refs/*:refs/*", 0); err != nil {
 		return nil, err
 	}
 
