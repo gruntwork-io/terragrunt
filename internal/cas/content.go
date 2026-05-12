@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -94,7 +95,7 @@ func (c *Content) Link(ctx context.Context, hash, targetPath string) error {
 func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 	lock, err := c.store.AcquireLock(hash)
 	if err != nil {
-		return wrapError("acquire_lock", hash, err)
+		return fmt.Errorf("acquire lock for %s: %w", hash, err)
 	}
 
 	defer func() {
@@ -104,13 +105,13 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 	}()
 
 	if err = c.fs.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
-		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
+		return fmt.Errorf("create store dir %s: %w", c.store.Path(), ErrCreateDir)
 	}
 
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
 	if err = c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+		return fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
 	}
 
 	return c.writeContentToFile(l, hash, data)
@@ -131,7 +132,7 @@ func (c *Content) Ensure(l log.Logger, hash string, data []byte) error {
 func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
 	needsWrite, lock, err := c.store.EnsureWithWait(hash)
 	if err != nil {
-		return wrapError("ensure_with_wait", hash, err)
+		return fmt.Errorf("ensure content for %s: %w", hash, err)
 	}
 
 	// If content already exists or was written by another process, we're done
@@ -147,13 +148,13 @@ func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
 	}()
 
 	if err = c.fs.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
-		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
+		return fmt.Errorf("create store dir %s: %w", c.store.Path(), ErrCreateDir)
 	}
 
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
 	if err = c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+		return fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
 	}
 
 	return c.writeContentToFile(l, hash, data)
@@ -168,7 +169,7 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) (err error) {
 
 	lock, err := c.store.AcquireLock(hash)
 	if err != nil {
-		return wrapError("acquire_lock", hash, err)
+		return fmt.Errorf("acquire lock for %s: %w", hash, err)
 	}
 
 	defer func() {
@@ -178,12 +179,12 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) (err error) {
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
 	if err = c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+		return fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
 	}
 
 	f, err := c.fs.Create(path)
 	if err != nil {
-		return wrapError("create_file", path, err)
+		return fmt.Errorf("create file %s: %w", path, err)
 	}
 
 	defer func() {
@@ -192,7 +193,7 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) (err error) {
 
 	r, err := c.fs.Open(src)
 	if err != nil {
-		return wrapError("open_source", src, err)
+		return fmt.Errorf("open source %s: %w", src, err)
 	}
 
 	defer func() {
@@ -200,7 +201,7 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) (err error) {
 	}()
 
 	if _, err := io.Copy(f, r); err != nil {
-		return wrapError("copy_file", src, err)
+		return fmt.Errorf("copy from %s: %w", src, err)
 	}
 
 	return nil
@@ -210,7 +211,7 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) (err error) {
 func (c *Content) GetTmpHandle(hash string) (vfs.File, error) {
 	partitionDir := c.getPartition(hash)
 	if err := c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return nil, wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+		return nil, fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
 	}
 
 	path := c.getPath(hash)
@@ -218,7 +219,7 @@ func (c *Content) GetTmpHandle(hash string) (vfs.File, error) {
 
 	f, err := c.fs.Create(tempPath)
 	if err != nil {
-		return nil, wrapError("create_temp_file", tempPath, err)
+		return nil, fmt.Errorf("create temp file %s: %w", tempPath, err)
 	}
 
 	return f, err
@@ -238,7 +239,7 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 
 	f, err := c.fs.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, RegularFilePerms)
 	if err != nil {
-		return wrapError("create_temp_file", tempPath, err)
+		return fmt.Errorf("create temp file %s: %w", tempPath, err)
 	}
 
 	buf := bufio.NewWriter(f)
@@ -252,7 +253,7 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
-		return wrapError("write_to_store", tempPath, err)
+		return fmt.Errorf("write to %s: %w", tempPath, err)
 	}
 
 	if err := buf.Flush(); err != nil {
@@ -264,7 +265,7 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
-		return wrapError("flush_buffer", tempPath, err)
+		return fmt.Errorf("flush %s: %w", tempPath, err)
 	}
 
 	if err := f.Close(); err != nil {
@@ -272,7 +273,7 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
-		return wrapError("close_file", tempPath, err)
+		return fmt.Errorf("close %s: %w", tempPath, err)
 	}
 
 	// Set read-only permissions on the temporary file
@@ -281,7 +282,7 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
-		return wrapError("chmod_temp_file", tempPath, err)
+		return fmt.Errorf("chmod temp %s: %w", tempPath, err)
 	}
 
 	// For Windows, handle readonly attributes specifically
@@ -301,14 +302,14 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
-		return wrapError("finalize_store", path, err)
+		return fmt.Errorf("finalize %s: %w", path, err)
 	}
 
 	// For Windows, we need to set the permissions again after rename
 	if runtime.GOOS == WindowsOS {
 		// Ensure the file has read-only permissions after rename
 		if err := c.fs.Chmod(path, StoredFilePerms); err != nil {
-			return wrapError("chmod_final_file", path, err)
+			return fmt.Errorf("chmod %s: %w", path, err)
 		}
 	}
 

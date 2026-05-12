@@ -20,6 +20,10 @@ const (
 	ErrParseDiff Error = "failed to parse git diff output"
 	// ErrGitClone is returned when the git clone operation fails
 	ErrGitClone Error = "failed to complete git clone"
+	// ErrGitInitBare is returned when initializing a bare repository fails
+	ErrGitInitBare Error = "failed to initialize bare git repository"
+	// ErrGitFetch is returned when a git fetch operation fails
+	ErrGitFetch Error = "failed to complete git fetch"
 	// ErrCreateTempDir is returned when failing to create a temporary directory
 	ErrCreateTempDir Error = "failed to create temporary directory"
 	// ErrCleanupTempDir is returned when failing to clean up a temporary directory

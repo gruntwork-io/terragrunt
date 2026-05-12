@@ -36,6 +36,11 @@ import (
 
 const (
 	minGitPartsLength = 2
+
+	// catFileMissingExitCode is the exit code `git cat-file -e` returns when
+	// the requested object is absent. Any other non-zero exit is an
+	// execution failure (e.g. 128 from a fatal error).
+	catFileMissingExitCode = 1
 )
 
 // GitRunner handles git command execution
@@ -301,6 +306,95 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 	}
 
 	return nil
+}
+
+// InitBare runs `git init --bare` in the configured working directory.
+// `git init --bare` is itself idempotent (it reinitializes an existing bare
+// repo as a no-op), so callers may invoke this freely.
+func (g *GitRunner) InitBare(ctx context.Context) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, "init", "--bare", g.WorkDir)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_init_bare",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrGitInitBare, err),
+		}
+	}
+
+	return nil
+}
+
+// Fetch runs `git fetch` for a single ref against the given remote URL. A
+// positive depth adds --depth and --no-tags. A zero or negative depth fetches
+// full history.
+func (g *GitRunner) Fetch(ctx context.Context, repo, ref string, depth int) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	args := []string{}
+
+	if depth > 0 {
+		args = append(args, "--depth", strconv.Itoa(depth), "--no-tags")
+	}
+
+	args = append(args, repo, ref)
+
+	cmd := g.prepareCommand(ctx, "fetch", args...)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_fetch",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrGitFetch, err),
+		}
+	}
+
+	return nil
+}
+
+// HasObject reports whether the given object exists in the configured
+// working-directory repository. Exit code 1 from `git cat-file -e` means
+// the object is absent. Other non-zero exits (e.g. 128 for a corrupted
+// repo or unreadable .git) are returned as errors so callers do not loop
+// into a refetch against a broken store.
+func (g *GitRunner) HasObject(ctx context.Context, hash string) (bool, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return false, err
+	}
+
+	cmd := g.prepareCommand(ctx, "cat-file", "-e", hash)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		if vexec.ExitCode(err) == catFileMissingExitCode {
+			return false, nil
+		}
+
+		return false, &WrappedError{
+			Op:      "git_cat_file_exists",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return true, nil
 }
 
 // CreateTempDir creates a new temporary directory for git operations
