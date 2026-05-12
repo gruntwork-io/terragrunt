@@ -324,3 +324,25 @@ type MarkGlobAsReadRequiresExperimentError struct {
 func (err MarkGlobAsReadRequiresExperimentError) Error() string {
 	return fmt.Sprintf("mark_glob_as_read(%q) in %s requires the 'mark-many-as-read' experiment to be enabled", err.Pattern, err.ConfigPath)
 }
+
+// OverlappingComponentPathsError is returned when two sibling components in the
+// same stack file declare path values that collide on disk - either identical
+// paths, or one path being a directory ancestor of another. Both cases race
+// during concurrent generation (go-getter performs os.RemoveAll(dst) for
+// subdir sources, which wipes a sibling's just-written content).
+type OverlappingComponentPathsError struct {
+	FirstKind  string
+	FirstName  string
+	FirstPath  string
+	SecondKind string
+	SecondName string
+	SecondPath string
+}
+
+func (e *OverlappingComponentPathsError) Error() string {
+	return fmt.Sprintf(
+		"%s %q (path %q) overlaps with %s %q (path %q): one path is a directory ancestor of the other, which races during concurrent generation",
+		e.FirstKind, e.FirstName, e.FirstPath,
+		e.SecondKind, e.SecondName, e.SecondPath,
+	)
+}
