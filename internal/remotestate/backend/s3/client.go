@@ -653,6 +653,7 @@ func convertToDynamoTags(tags map[string]string) []dynamodbtypes.Tag {
 			Value: aws.String(v),
 		})
 	}
+
 	return result
 }
 
