@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.7
 	github.com/creack/pty v1.1.24
 	github.com/fatih/structs v1.1.0
-	github.com/getsops/sops/v3 v3.13.0
+	github.com/getsops/sops/v3 v3.12.2
 	github.com/gitsight/go-vcsurl v1.0.1
 	github.com/go-errors/errors v1.5.1
 	github.com/gofrs/flock v0.13.0
