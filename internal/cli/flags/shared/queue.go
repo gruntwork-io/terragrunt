@@ -26,7 +26,6 @@ const (
 func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 
 	return clihelper.Flags{
 		flags.NewFlag(
@@ -36,7 +35,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 				Destination: &opts.IgnoreDependencyErrors,
 				Usage:       "Continue processing Units even if a dependency fails.",
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-dependency-errors"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-dependency-errors"), opts.StrictControls),
 		),
 
 		flags.NewFlag(
@@ -46,7 +45,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 				Destination: &opts.IgnoreDependencyOrder,
 				Usage:       "Ignore DAG order for --all commands.",
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-dependency-order"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-dependency-order"), opts.StrictControls),
 		),
 
 		flags.NewFlag(
@@ -63,7 +62,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-external-dependencies"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("ignore-external-dependencies"), opts.StrictControls),
 		),
 
 		flags.NewFlag(
@@ -88,7 +87,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-external-dependencies"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-external-dependencies"), opts.StrictControls),
 		),
 
 		flags.NewFlag(
@@ -99,7 +98,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 				Hidden:      true,
 				Usage:       "Path to a file with a list of directories that need to be excluded when running *-all commands.",
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("excludes-file"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("excludes-file"), opts.StrictControls),
 		),
 
 		flags.NewFlag(
@@ -126,7 +125,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("exclude-dir"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("exclude-dir"), opts.StrictControls),
 		),
 
 		flags.NewFlag(
@@ -152,7 +151,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-dir"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-dir"), opts.StrictControls),
 		),
 
 		flags.NewFlag(
@@ -169,7 +168,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("strict-include"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("strict-include"), opts.StrictControls),
 		),
 
 		flags.NewFlag(
@@ -195,7 +194,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					return nil
 				},
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("queue-include-units-reading"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("queue-include-units-reading"), opts.StrictControls),
 		),
 	}
 }

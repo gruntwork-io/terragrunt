@@ -2,7 +2,7 @@ package flags
 
 import (
 	"context"
-	"fmt"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
@@ -49,9 +49,12 @@ func (flag *DeprecatedFlag) Evaluate(ctx context.Context) error {
 	return flag.controls.Evaluate(ctx)
 }
 
-// SetStrictControls creates a strict control for the flag and registers it.
-func (flag *DeprecatedFlag) SetStrictControls(mainFlag *Flag, regControlsFn RegisterStrictControlsFunc) {
-	if regControlsFn == nil {
+// SetStrictControls builds the flag-name and env-var strict controls for this
+// deprecated flag and wires them into the global deprecated-flags /
+// deprecated-env-vars / terragrunt-prefix-* parent controls plus any extra
+// parents named in `extraParentNames`. A nil `strictControls` is a no-op.
+func (flag *DeprecatedFlag) SetStrictControls(mainFlag *Flag, strictControls strict.Controls, extraParentNames ...string) {
+	if strictControls == nil {
 		return
 	}
 
@@ -64,9 +67,19 @@ func (flag *DeprecatedFlag) SetStrictControls(mainFlag *Flag, regControlsFn Regi
 	flagNameControl := controls.NewDeprecatedFlagName(flag, mainFlag, newValue)
 	envVarControl := controls.NewDeprecatedEnvVar(flag, mainFlag, newValue)
 
-	if ok := regControlsFn(flagNameControl, envVarControl); ok {
-		flag.controls = strict.Controls{flagNameControl, envVarControl}
-	}
+	flagParents := slices.Concat(extraParentNames, []string{
+		controls.TerragruntPrefixFlags,
+		controls.DeprecatedFlags,
+	})
+	strictControls.FilterByNames(flagParents...).AddSubcontrols(flagNameControl)
+
+	envVarParents := slices.Concat(extraParentNames, []string{
+		controls.TerragruntPrefixEnvVars,
+		controls.DeprecatedEnvVars,
+	})
+	strictControls.FilterByNames(envVarParents...).AddSubcontrols(envVarControl)
+
+	flag.controls = strict.Controls{flagNameControl, envVarControl}
 }
 
 // NewValueFunc represents a function that returns a new value for the current flag if a deprecated flag is called.
@@ -83,53 +96,4 @@ func NewValue(val string) NewValueFunc {
 	return func(_ clihelper.FlagValue) string {
 		return val
 	}
-}
-
-// RegisterStrictControlsFunc represents a callback func that registers the given controls in the `opts.StrictControls` stict control tree .
-type RegisterStrictControlsFunc func(flagNameControl, envVarControl strict.Control) bool
-
-// StrictControlsByCommand returns a callback function that adds the taken controls as subcontrols for the given `controlNames`.
-// Using the given `commandName` as categories.
-func StrictControlsByCommand(strictControls strict.Controls, commandName string, controlNames ...string) RegisterStrictControlsFunc {
-	return func(flagNameControl, envVarControl strict.Control) bool {
-		flagNamesCategory := fmt.Sprintf(controls.CommandFlagsCategoryNameFmt, commandName)
-		envVarsCategory := fmt.Sprintf(controls.CommandEnvVarsCategoryNameFmt, commandName)
-
-		return registerStrictControls(strictControls, flagNameControl, envVarControl, flagNamesCategory, envVarsCategory, controlNames...)
-	}
-}
-
-// StrictControlsByGlobalFlags returns a callback function that adds the taken controls as subcontrols for the given `controlNames`.
-// And assigns the "Global Flag" category to these controls.
-func StrictControlsByGlobalFlags(strictControls strict.Controls, controlNames ...string) RegisterStrictControlsFunc {
-	return func(flagNameControl, envVarControl strict.Control) bool {
-		return registerStrictControls(strictControls, flagNameControl, envVarControl, controls.GlobalFlagsCategoryName, controls.GlobalEnvVarsCategoryName, controlNames...)
-	}
-}
-
-func registerStrictControls(strictControls strict.Controls,
-	flagNameControl, envVarControl strict.Control,
-	flagNamesCategory, envVarsCategory string,
-	controlNames ...string) bool {
-	if strictControls == nil {
-		return false
-	}
-
-	if flagNameControl != nil {
-		strictControls.FilterByNames(append(
-			controlNames,
-			controls.TerragruntPrefixFlags,
-			controls.DeprecatedFlags,
-		)...).AddSubcontrolsToCategory(flagNamesCategory, flagNameControl)
-	}
-
-	if envVarControl != nil {
-		strictControls.FilterByNames(append(
-			controlNames,
-			controls.TerragruntPrefixEnvVars,
-			controls.DeprecatedEnvVars,
-		)...).AddSubcontrolsToCategory(envVarsCategory, envVarControl)
-	}
-
-	return true
 }
