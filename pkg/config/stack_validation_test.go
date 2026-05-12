@@ -153,7 +153,7 @@ func TestValidateStackConfig(t *testing.T) {
 					},
 				},
 			},
-			wantErr: "duplicate unit path found: 'path1'",
+			wantErr: `unit "unit1" (path "path1") overlaps with unit "unit2" (path "path1")`,
 		},
 
 		{
@@ -286,7 +286,7 @@ func TestValidateStackConfig(t *testing.T) {
 					},
 				},
 			},
-			wantErr: "duplicate stack path found: 'path1'",
+			wantErr: `stack "stack1" (path "path1") overlaps with stack "stack2" (path "path1")`,
 		},
 		{
 			name: "unit and stack with identical path",
