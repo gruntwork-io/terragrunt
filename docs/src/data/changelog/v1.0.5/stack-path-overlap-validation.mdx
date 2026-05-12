@@ -1,0 +1,18 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### Stack files reject overlapping component paths
+
+When two sibling `unit` or `stack` blocks in the same stack file declared paths where one is a directory ancestor of another — for example `path = "prod"` alongside `path = "prod/mcp-gateway"` — concurrent generation could race. The ancestor's fetch ran `RemoveAll` on its destination directory after the descendant had already written its `terragrunt.stack.hcl`/`terragrunt.hcl` there, producing non-deterministic `expected stack/unit to generate with ... file at root of generated directory` failures under high `--parallelism` on CI runners with fast networks.
+
+`terragrunt stack generate` now rejects these configurations at parse time with a diagnostic that names both colliding blocks:
+
+```
+stack "prod" (path "prod") overlaps with stack "prod-mcp-gateway" (path "prod/mcp-gateway"): one path is a directory ancestor of the other, which races during concurrent generation
+```
+
+Components with `no_dot_terragrunt_stack = true` are validated as a separate namespace from regular components, since they emit outside the `.terragrunt-stack/` directory and cannot collide with each other across the boundary.
+
+If you hit this error, restructure the offending block so its `path` does not nest inside another component's destination — typically by flattening (`path = "prod-mcp-gateway"`) or by moving the nested component one level deeper into its own `terragrunt.stack.hcl`.
