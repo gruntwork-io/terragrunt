@@ -10,7 +10,7 @@ jobs:
   license-check:
     name: License Check
     runs-on: ubuntu-slim
-    timeout-minutes: 25
+    timeout-minutes: 15
     env:
       MISE_PROFILE: cicd
 
