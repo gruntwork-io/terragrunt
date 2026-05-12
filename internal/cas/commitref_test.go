@@ -119,14 +119,14 @@ func TestGitStoreEnsureCommit_CachedAfterFirstFetch(t *testing.T) {
 	ctx := t.Context()
 
 	// First call must fetch.
-	repo, err := store.EnsureCommit(ctx, l, fs, url, hash)
+	repo, err := store.EnsureCommit(ctx, l, fs, url, hash, "")
 	require.NoError(t, err)
 	assert.Equal(t, hash, repo.Hash)
 	assert.NotEmpty(t, repo.Path)
 	require.NoError(t, repo.Unlock())
 
 	// Second call hits the local-cache short-circuit.
-	repo2, err := store.EnsureCommit(ctx, l, fs, url, hash)
+	repo2, err := store.EnsureCommit(ctx, l, fs, url, hash, "")
 	require.NoError(t, err)
 	assert.Equal(t, hash, repo2.Hash)
 	require.NoError(t, repo2.Unlock())
@@ -141,7 +141,7 @@ func TestGitStoreEnsureCommit_AbbreviatedSHA(t *testing.T) {
 	store, fs, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureCommit(t.Context(), l, fs, url, hash[:8])
+	repo, err := store.EnsureCommit(t.Context(), l, fs, url, hash[:8], "")
 	require.NoError(t, err)
 	assert.Equal(t, hash, repo.Hash, "abbreviated SHA must canonicalize to the full hash")
 	require.NoError(t, repo.Unlock())
@@ -155,7 +155,7 @@ func TestGitStoreEnsureCommit_UnresolvableSurfacesNoMatchingReference(t *testing
 	store, fs, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	_, err := store.EnsureCommit(t.Context(), l, fs, url, "0000000000000000000000000000000000000000")
+	_, err := store.EnsureCommit(t.Context(), l, fs, url, "0000000000000000000000000000000000000000", "")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, git.ErrNoMatchingReference)
 }
@@ -204,6 +204,64 @@ func TestCASClone_NonTipCommit(t *testing.T) {
 
 	_, err = os.Stat(filepath.Join(targetPath, "second.txt"))
 	require.Error(t, err, "non-tip clone must not include later commits")
+}
+
+// TestCASClone_AbbreviatedHexBranchAdvancesAcrossClones pins that a
+// branch whose name happens to be a hex prefix of its own tip is not
+// frozen at the first-fetched tip on subsequent clones. The probe in
+// resolveReference shells out to git rev-parse against the per-URL
+// bare repo, which resolves ref names ahead of object hashes; before
+// the looksLikeFullSHA tightening, an abbreviated hex branch name
+// (e.g. the first 8 chars of its own tip) would pass the probe's
+// prefix check and short-circuit ls-remote, so the branch would
+// appear stuck at the cached commit even after the server-side tip
+// moved on.
+func TestCASClone_AbbreviatedHexBranchAdvancesAcrossClones(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile("v1.txt", []byte("v1"), "first"))
+
+	firstHash, err := srv.Head()
+	require.NoError(t, err)
+
+	// Branch name is the 8-char prefix of its own tip: the worst case
+	// for the probe's prefix check.
+	branch := firstHash[:8]
+	require.NoError(t, srv.Branch(branch))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	storePath := filepath.Join(tempDir, "store")
+
+	c, err := cas.New(cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	require.NoError(t, c.Clone(t.Context(), l, &cas.CloneOptions{
+		Dir:    filepath.Join(tempDir, "first"),
+		Branch: branch,
+		Depth:  -1,
+	}, repoURL))
+
+	// Advance the branch to a new commit. ls-remote must see the new
+	// tip on the second clone; the probe would otherwise serve the
+	// stale cached commit.
+	require.NoError(t, srv.CommitFile("v2.txt", []byte("v2"), "second"))
+	require.NoError(t, srv.Branch(branch))
+
+	secondDir := filepath.Join(tempDir, "second")
+	require.NoError(t, c.Clone(t.Context(), l, &cas.CloneOptions{
+		Dir:    secondDir,
+		Branch: branch,
+		Depth:  -1,
+	}, repoURL))
+
+	_, err = os.Stat(filepath.Join(secondDir, "v2.txt"))
+	require.NoError(t, err, "second clone must reflect the moved branch tip, not the cached prefix-matching commit")
 }
 
 // TestCASClone_HexBranchNameResolvesViaLsRemote verifies that a
@@ -291,14 +349,47 @@ func TestGitStoreEnsureCommit_OfflineWhenCached(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx := t.Context()
 
-	primed, err := store.EnsureCommit(ctx, l, fs, repoURL, hash)
+	primed, err := store.EnsureCommit(ctx, l, fs, repoURL, hash, "")
 	require.NoError(t, err)
 	require.NoError(t, primed.Unlock())
 
 	require.NoError(t, srv.Close())
 
-	cached, err := store.EnsureCommit(ctx, l, fs, repoURL, hash)
+	cached, err := store.EnsureCommit(ctx, l, fs, repoURL, hash, "")
 	require.NoError(t, err, "cached commit must resolve without contacting the server")
+	assert.Equal(t, hash, cached.Hash)
+	require.NoError(t, cached.Unlock())
+}
+
+// TestGitStoreEnsureCommit_KnownHashFastPath pins the knownHash
+// branch: when the caller has already canonicalized rawRef via
+// ProbeCachedCommit, EnsureCommit verifies presence with HasObject
+// and skips rev-parse. The server is dropped after priming so any
+// accidental fetch surfaces as a failure.
+func TestGitStoreEnsureCommit_KnownHashFastPath(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile("README.md", []byte("# fast path"), "initial"))
+
+	hash, err := srv.Head()
+	require.NoError(t, err)
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	store, fs, _ := newTestGitStore(t)
+	l := logger.CreateLogger()
+	ctx := t.Context()
+
+	primed, err := store.EnsureCommit(ctx, l, fs, repoURL, hash, "")
+	require.NoError(t, err)
+	require.NoError(t, primed.Unlock())
+
+	require.NoError(t, srv.Close())
+
+	cached, err := store.EnsureCommit(ctx, l, fs, repoURL, hash, hash)
+	require.NoError(t, err, "knownHash path must resolve without contacting the server")
 	assert.Equal(t, hash, cached.Hash)
 	require.NoError(t, cached.Unlock())
 }

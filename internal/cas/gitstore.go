@@ -159,6 +159,12 @@ func (s *GitStore) EnsureRef(
 // Resolution runs `git rev-parse <ref>^{commit}` against the per-URL
 // bare repository, so any form git accepts works.
 //
+// If knownHash is non-empty, it is taken as the canonical hash of
+// rawRef (typically from a prior [GitStore.ProbeCachedCommit] call).
+// Presence is verified via [git.GitRunner.HasObject] and rev-parse
+// is skipped on the cache-hit path. Pass "" to canonicalize via
+// rev-parse.
+//
 // Behavior:
 //
 //  1. If the commit is already cached in the bare repo, no network
@@ -178,7 +184,7 @@ func (s *GitStore) EnsureCommit(
 	ctx context.Context,
 	l log.Logger,
 	fs vfs.FS,
-	url, rawRef string,
+	url, rawRef, knownHash string,
 ) (*GitStoreRepo, error) {
 	session, err := s.acquire(ctx, fs, l, url)
 	if err != nil {
@@ -186,6 +192,10 @@ func (s *GitStore) EnsureCommit(
 	}
 
 	defer session.cleanup()
+
+	if knownHash != "" {
+		return s.ensureKnownCommit(ctx, session, url, rawRef, knownHash)
+	}
 
 	hash, err := session.runner.RevParseCommit(ctx, rawRef)
 	if err == nil {
@@ -215,6 +225,49 @@ func (s *GitStore) EnsureCommit(
 	}
 
 	session.repo.Hash = hash
+
+	return session.keep(), nil
+}
+
+// ensureKnownCommit handles the [GitStore.EnsureCommit] cache-hit path
+// when the caller has already canonicalized rawRef via
+// [GitStore.ProbeCachedCommit]. Presence of knownHash is verified
+// with [git.GitRunner.HasObject], skipping the rev-parse spawn. On
+// miss (e.g. a peer ran git-gc between the lock-free probe and the
+// locked verify) a full-history fetch runs and presence is rechecked.
+func (s *GitStore) ensureKnownCommit(
+	ctx context.Context,
+	session *repoSession,
+	url, rawRef, knownHash string,
+) (*GitStoreRepo, error) {
+	has, err := session.runner.HasObject(ctx, knownHash)
+	if err != nil {
+		return nil, err
+	}
+
+	if has {
+		session.repo.Hash = knownHash
+		return session.keep(), nil
+	}
+
+	if err := session.runner.Fetch(ctx, url, "+refs/heads/*:refs/heads/*", 0); err != nil {
+		return nil, err
+	}
+
+	has, err = session.runner.HasObject(ctx, knownHash)
+	if err != nil {
+		return nil, err
+	}
+
+	if !has {
+		return nil, &git.WrappedError{
+			Op:      "git_store_resolve",
+			Context: fmt.Sprintf("%q in %s", rawRef, url),
+			Err:     git.ErrNoMatchingReference,
+		}
+	}
+
+	session.repo.Hash = knownHash
 
 	return session.keep(), nil
 }

@@ -237,6 +237,10 @@ func (c *CAS) populateTreeFromRef(
 		return ref.Hash, nil
 
 	case *commitRef:
+		if ref.Hash != "" && !c.treeStore.NeedsWrite(ref.Hash) {
+			return ref.Hash, nil
+		}
+
 		return c.populateTreeFromCommitRef(ctx, l, opts, ref)
 
 	default:
@@ -293,7 +297,7 @@ func (c *CAS) populateTreeFromCommitRef(
 	opts *CloneOptions,
 	ref *commitRef,
 ) (string, error) {
-	repo, err := c.gitStore.EnsureCommit(ctx, l, c.fs, ref.URL, ref.RawRef)
+	repo, err := c.gitStore.EnsureCommit(ctx, l, c.fs, ref.URL, ref.RawRef, ref.Hash)
 	if err == nil {
 		defer repo.Release(l)
 
@@ -401,8 +405,9 @@ func (c *CAS) prepareTargetDirectory(dir, url string) string {
 // [commitRef] when it did not. Sealed by package visibility.
 type resolvedRef interface {
 	// CommitHash returns the canonical commit hash for [symbolicRef]
-	// and the user-supplied SHA for [commitRef]. Abbreviated SHAs
-	// passed in as commit refs remain abbreviated.
+	// and the raw user-supplied ref for [commitRef] (no
+	// canonicalization: an abbreviated SHA is returned as-is, not
+	// expanded to a full hash).
 	CommitHash() string
 }
 
@@ -416,33 +421,61 @@ type symbolicRef struct {
 // CommitHash returns the canonical commit hash ls-remote resolved.
 func (r *symbolicRef) CommitHash() string { return r.Hash }
 
-// commitRef carries a commit-form ref ls-remote did not recognize.
-// Resolution against the central git store happens later via
-// rev-parse, with a full-depth fetch on a cache miss.
+// commitRef carries a ref ls-remote did not canonicalize to a
+// commit on the remote. The typical case is a SHA the server does
+// not publish as a branch tip, but any user-supplied name
+// ls-remote returned no match for funnels here too. Resolution
+// against the central git store happens later via rev-parse, with
+// a full-history fetch on a cache miss.
 type commitRef struct {
-	URL    string
-	RawRef string // user-supplied SHA, full or abbreviated
+	// URL is the remote repository URL.
+	URL string
+
+	// RawRef is the user-supplied ref. SHAs (full SHA-1, full
+	// SHA-256, or abbreviated prefixes) are the common case because
+	// ls-remote does not surface commit hashes, but any name
+	// ls-remote did not match also lands here. The central git
+	// store canonicalizes via rev-parse, so any form git accepts
+	// works.
+	RawRef string
+
+	// Hash is the canonical full SHA pre-resolved by
+	// [GitStore.ProbeCachedCommit] before reaching ls-remote;
+	// empty when the commitRef arose from an ls-remote miss. When
+	// set, downstream code keys the tree-store short-circuit on it
+	// and forwards it to [GitStore.EnsureCommit] to skip a
+	// redundant rev-parse.
+	Hash string
 }
 
-// CommitHash returns the user-supplied SHA before central-store
-// canonicalization.
+// CommitHash returns the user-supplied ref. Hash is intentionally
+// not returned: stacks key the CAS on this value, and the key
+// must not depend on whether the central git store happened to
+// have the commit cached.
 func (r *commitRef) CommitHash() string { return r.RawRef }
 
 // resolveReference resolves branch into a [resolvedRef].
 //
-// SHA-form input is probed against the central git store first; a
-// cached hit returns a [*commitRef] without contacting the remote so
-// previously-cloned commits succeed offline. ls-remote spawn
-// failures would otherwise propagate as clone errors.
+// Full-length SHA input (40 or 64 hex chars) is probed against the
+// central git store first. A cached hit returns a [*commitRef]
+// carrying the canonical hash without contacting the remote, so
+// previously-cloned commits succeed offline even when ls-remote
+// would fail to spawn. The pre-resolved hash also lets
+// [CAS.populateTreeFromCommitRef] skip a redundant rev-parse
+// inside [GitStore.EnsureCommit]. Abbreviated SHAs skip the probe
+// because a hex-named branch could share the abbreviation as a
+// prefix of its tip, which would freeze that branch at the
+// first-fetched tip; see [looksLikeFullSHA].
 //
 // Otherwise ls-remote is authoritative: a result returns a
 // [*symbolicRef] with the canonical hash; an empty result or
-// [git.ErrNoMatchingReference] returns a [*commitRef] so the central
-// store resolves the input via rev-parse and a full-history fetch.
+// [git.ErrNoMatchingReference] returns a [*commitRef] with an
+// empty Hash so the central store resolves the input via rev-parse
+// and a full-history fetch.
 func (c *CAS) resolveReference(ctx context.Context, url, branch string) (resolvedRef, error) {
-	if looksLikeSHA(branch) {
-		if _, ok := c.gitStore.ProbeCachedCommit(ctx, c.fs, url, branch); ok {
-			return &commitRef{URL: url, RawRef: branch}, nil
+	if looksLikeFullSHA(branch) {
+		if hash, ok := c.gitStore.ProbeCachedCommit(ctx, c.fs, url, branch); ok {
+			return &commitRef{URL: url, RawRef: branch, Hash: hash}, nil
 		}
 	}
 
@@ -462,26 +495,24 @@ func (c *CAS) resolveReference(ctx context.Context, url, branch string) (resolve
 	return &symbolicRef{URL: url, Branch: branch, Hash: results[0].Hash}, nil
 }
 
-// looksLikeSHA reports whether s is 4-64 hex characters, the range
-// that covers abbreviated SHA-1 through full SHA-256.
-func looksLikeSHA(s string) bool {
-	const minSHALen, maxSHALen = 4, 64
-
-	if len(s) < minSHALen || len(s) > maxSHALen {
+// looksLikeFullSHA reports whether s is exactly 40 or 64 hex
+// characters, the canonical full lengths for SHA-1 and SHA-256
+// commit hashes.
+//
+// Abbreviations are rejected so the probe in [CAS.resolveReference]
+// cannot mistake a hex-named branch (e.g. branch "a1b2" whose tip
+// happens to start with "a1b2...") for a cached commit prefix and
+// freeze the branch at its first-fetched tip. Abbreviated SHAs
+// still resolve correctly via the [GitStore.EnsureCommit] fallback
+// once ls-remote returns no match.
+func looksLikeFullSHA(s string) bool {
+	if len(s) != 40 && len(s) != 64 {
 		return false
 	}
 
-	for _, c := range s {
-		switch {
-		case c >= '0' && c <= '9',
-			c >= 'a' && c <= 'f',
-			c >= 'A' && c <= 'F':
-		default:
-			return false
-		}
-	}
+	_, err := hex.DecodeString(s)
 
-	return true
+	return err == nil
 }
 
 // storeRootTreeFrom reads the recursive tree at hash from the supplied
