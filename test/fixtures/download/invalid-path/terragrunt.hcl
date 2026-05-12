@@ -1,3 +1,3 @@
 terraform {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/download/non-existent-path?ref=v0.83.2"
+  source = "git::__MIRROR_URL__//test/fixtures/download/non-existent-path?ref=v0.83.2"
 }
