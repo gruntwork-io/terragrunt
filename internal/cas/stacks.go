@@ -95,11 +95,18 @@ func (c *CAS) ProcessStackComponent(ctx context.Context, l log.Logger, source, k
 
 	cleanURL := strings.TrimPrefix(parsedURL.String(), "git::")
 
-	// Resolve ref to commit hash
-	refHash, err := c.resolveReference(ctx, cleanURL, ref)
+	// Stack processing derives deterministic CAS keys from refHash, so
+	// abbreviated SHAs would produce keys that depend on the input
+	// shape. Full SHAs are the supported form for commit refs in
+	// stacks; CommitHash returns the user input as-is for the
+	// commit-ref path, and the canonical hash for the symbolic-ref
+	// path.
+	resolved, err := c.resolveReference(ctx, cleanURL, ref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve reference %q: %w", ref, err)
 	}
+
+	refHash := resolved.CommitHash()
 
 	// Create temp dir for the clone
 	tempDir, err := os.MkdirTemp("", "terragrunt-cas-stack-*")

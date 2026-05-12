@@ -57,4 +57,5 @@ var (
 	ErrReadTree            = errors.New("failed to read tree")
 	ErrNoWorkDir           = errors.New("working directory not set")
 	ErrNoGoRepo            = errors.New("go repository not set")
+	ErrUnknownRevision     = errors.New("unknown revision")
 )

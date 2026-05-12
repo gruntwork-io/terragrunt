@@ -94,6 +94,52 @@ func (s *Server) CommitFile(path string, data []byte, msg string) error {
 	return nil
 }
 
+// Head returns the canonical hash of the current HEAD commit. Useful
+// in tests that need to capture a non-tip commit hash before adding
+// further commits.
+func (s *Server) Head() (string, error) {
+	ref, err := s.repo.Head()
+	if err != nil {
+		return "", fmt.Errorf("resolve HEAD: %w", err)
+	}
+
+	return ref.Hash().String(), nil
+}
+
+// Tag creates an annotated tag at the current HEAD with the given name.
+func (s *Server) Tag(name string) error {
+	ref, err := s.repo.Head()
+	if err != nil {
+		return fmt.Errorf("resolve HEAD: %w", err)
+	}
+
+	sig := &object.Signature{Name: "Test", Email: "test@test.com", When: time.Now()}
+
+	if _, err := s.repo.CreateTag(name, ref.Hash(), &gogit.CreateTagOptions{
+		Tagger:  sig,
+		Message: name,
+	}); err != nil {
+		return fmt.Errorf("create tag %s: %w", name, err)
+	}
+
+	return nil
+}
+
+// Branch creates a branch at the current HEAD with the given name.
+func (s *Server) Branch(name string) error {
+	ref, err := s.repo.Head()
+	if err != nil {
+		return fmt.Errorf("resolve HEAD: %w", err)
+	}
+
+	branchRef := plumbing.NewHashReference(plumbing.NewBranchReferenceName(name), ref.Hash())
+	if err := s.repo.Storer.SetReference(branchRef); err != nil {
+		return fmt.Errorf("set branch %s: %w", name, err)
+	}
+
+	return nil
+}
+
 // Start begins serving Git HTTP on a random local port.
 // Returns the base URL (e.g. "http://127.0.0.1:12345").
 func (s *Server) Start(ctx context.Context) (string, error) {

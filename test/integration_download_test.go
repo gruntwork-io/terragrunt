@@ -3,6 +3,7 @@ package test_test
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -954,4 +955,27 @@ func TestDownloadWithCASEnabled(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr.String(), "Downloading Terraform configurations")
+}
+
+func TestDownloadWithCASCommitRef(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := "fixtures/download/remote-commit-ref"
+
+	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
+	testPath := filepath.Join(tmpEnvPath, fixturePath)
+	helpers.CleanupTerraformFolder(t, testPath)
+
+	applyCmd := "terragrunt apply --auto-approve --non-interactive --experiment cas --working-dir " + testPath
+	require.NoError(t, helpers.RunTerragruntCommand(t, applyCmd, io.Discard, io.Discard))
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	outputCmd := "terragrunt output -raw test --non-interactive --experiment cas --working-dir " + testPath
+	require.NoError(t, helpers.RunTerragruntCommand(t, outputCmd, &stdout, &stderr))
+
+	assert.Equal(t, "Hello, World", stdout.String())
 }

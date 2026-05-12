@@ -366,6 +366,46 @@ func (g *GitRunner) Fetch(ctx context.Context, repo, ref string, depth int) erro
 	return nil
 }
 
+// RevParseCommit resolves ref to its canonical commit hash in the
+// configured working-directory repository. ref may be a full SHA
+// (SHA-1 or SHA-256) or an abbreviated SHA that disambiguates inside
+// the repo. The `^{commit}` peeling suffix is what enforces that the
+// object actually exists locally and is a commit; plain rev-parse
+// (even with --verify) only checks revision syntax and would let a
+// caller treat an empty bare repo as already containing the commit.
+// A non-zero exit returns [ErrUnknownRevision] so callers can branch
+// on the typed error without parsing stderr.
+func (g *GitRunner) RevParseCommit(ctx context.Context, ref string) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "--verify", ref+"^{commit}")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		if vexec.ExitCode(err) > 0 {
+			return "", &WrappedError{
+				Op:      "git_rev_parse",
+				Context: strings.TrimSpace(stderr.String()),
+				Err:     ErrUnknownRevision,
+			}
+		}
+
+		return "", &WrappedError{
+			Op:      "git_rev_parse",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
 // HasObject reports whether the given object exists in the configured
 // working-directory repository. Exit code 1 from `git cat-file -e` means
 // the object is absent. Other non-zero exits (e.g. 128 for a corrupted
