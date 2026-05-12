@@ -20,6 +20,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/getsops/sops/v3/cmd/sops/formats"
+	"github.com/getsops/sops/v3/decrypt"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
@@ -965,7 +966,7 @@ func getModulePathFromSourceURL(sourceURL string) (string, error) {
 	return matches[1], nil
 }
 
-// decrypts and returns sops encrypted utf-8 data as a string (yaml, json, ini, dotenv, binary).
+// decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
 	if len(params) != 1 {
 		return "", errors.New(WrongNumberOfParamsError{Func: "sops_decrypt_file", Expected: "1", Actual: len(params)})
@@ -987,8 +988,7 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 
 	trackFileRead(pctx.FilesRead, path)
 
-	// Wrapper restores DecodeNewLines for INI files dropped in sops v3.13; see sops_ini_compat.go.
-	return sopsDecryptFileImpl(ctx, pctx, l, path, format, sopsDecryptFileWithINICompat)
+	return sopsDecryptFileImpl(ctx, pctx, l, path, format, decrypt.File)
 }
 
 // sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
