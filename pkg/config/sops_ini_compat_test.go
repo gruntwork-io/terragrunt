@@ -38,5 +38,16 @@ func TestRewriteINISopsMetadataNewlinesNoEscapedNewlinesKeepsData(t *testing.T) 
 
 	output := rewriteINISopsMetadataNewlines([]byte(input))
 
-	assert.Equal(t, input, string(output))
+	assert.Equal(t, "[sops]\nkey = plain\n", string(output))
+}
+
+func TestRewriteINISopsMetadataNewlinesSectionNormalization(t *testing.T) {
+	t.Parallel()
+
+	input := "[ sOPs ] ; decryption metadata\r\n" +
+		"key = value\\nwith\\nlines\r\n"
+
+	output := rewriteINISopsMetadataNewlines([]byte(input))
+
+	assert.Equal(t, "[ sOPs ] ; decryption metadata\nkey = \"\"\"value\nwith\nlines\"\"\"\n", string(output))
 }
