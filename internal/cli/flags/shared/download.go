@@ -1,6 +1,8 @@
 package shared
 
 import (
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -11,16 +13,9 @@ const (
 )
 
 // NewDownloadDirFlag creates a flag for specifying the download directory path.
-func NewDownloadDirFlag(opts *options.TerragruntOptions, prefix flags.Prefix, commandName string) *flags.Flag {
+func NewDownloadDirFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-
-	var terragruntPrefixControl flags.RegisterStrictControlsFunc
-	if commandName != "" {
-		terragruntPrefixControl = flags.StrictControlsByCommand(opts.StrictControls, commandName)
-	} else {
-		terragruntPrefixControl = flags.StrictControlsByGlobalFlags(opts.StrictControls)
-	}
 
 	return flags.NewFlag(
 		&clihelper.GenericFlag[string]{
@@ -30,11 +25,11 @@ func NewDownloadDirFlag(opts *options.TerragruntOptions, prefix flags.Prefix, co
 			Usage:       "The path to download OpenTofu/Terraform modules into. Default is .terragrunt-cache in the working directory.",
 		},
 		flags.WithDeprecatedEnvVars(
-			append(
+			slices.Concat(
 				terragruntPrefix.EnvVars("download"),
-				terragruntPrefix.EnvVars("download-dir")...,
+				terragruntPrefix.EnvVars("download-dir"),
 			),
-			terragruntPrefixControl,
+			opts.StrictControls,
 		),
 	)
 }

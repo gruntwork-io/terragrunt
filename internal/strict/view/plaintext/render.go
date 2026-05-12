@@ -2,6 +2,7 @@ package plaintext
 
 import (
 	"bytes"
+	"io"
 	"text/tabwriter"
 	"text/template"
 
@@ -19,6 +20,30 @@ const (
 )
 
 var _ = view.Render(new(Render))
+
+// subTemplates holds the parsed shared sub-templates. They're constants, so
+// any parse failure is a programmer error and panics at init.
+var subTemplates = func() *template.Template {
+	t := template.New("subTemplates")
+	template.Must(t.New("subcontrolTemplate").Parse(subcontrolTemplate))
+	template.Must(t.New("controlTemplate").Parse(controlTemplate))
+	template.Must(t.New("rangeSubcontrolsTemplate").Parse(rangeSubcontrolsTemplate))
+	template.Must(t.New("rangeControlsTemplate").Parse(rangeControlsTemplate))
+
+	return t
+}()
+
+// tabFlusher is the minimal subset of *tabwriter.Writer that formatOutput uses.
+// It exists so tests can swap newTabFlusher for a stub whose Flush() returns
+// a controlled error.
+type tabFlusher interface {
+	io.Writer
+	Flush() error
+}
+
+var newTabFlusher = func(out io.Writer) tabFlusher {
+	return tabwriter.NewWriter(out, tabMinWidth, tabWidth, tabPadding, ' ', 0)
+}
 
 type Render struct{}
 
@@ -43,32 +68,21 @@ func (render *Render) DetailControl(control strict.Control) (string, error) {
 	return render.executeTemplate(detailControlTemplate, map[string]any{"control": control}, nil)
 }
 
-func (render *Render) buildTemplate(templ string, customFuncs map[string]any) (*template.Template, error) {
+func (render *Render) buildTemplate(templ string, customFuncs map[string]any) *template.Template {
 	funcMap := template.FuncMap{}
 	maps.Copy(funcMap, customFuncs)
 
-	t := template.Must(template.New("template").Funcs(funcMap).Parse(templ))
-	templates := map[string]string{
-		"subcontrolTemplate":       subcontrolTemplate,
-		"controlTemplate":          controlTemplate,
-		"rangeSubcontrolsTemplate": rangeSubcontrolsTemplate,
-		"rangeControlsTemplate":    rangeControlsTemplate,
-	}
+	t := template.Must(subTemplates.Clone())
+	template.Must(t.New("template").Funcs(funcMap).Parse(templ))
 
-	for name, value := range templates {
-		if _, err := t.New(name).Parse(value); err != nil {
-			return nil, errors.Errorf("failed to parse template %s: %w", name, err)
-		}
-	}
-
-	return t, nil
+	return t
 }
 
 func (render *Render) formatOutput(t *template.Template, data any) (string, error) {
 	out := new(bytes.Buffer)
-	tabOut := tabwriter.NewWriter(out, tabMinWidth, tabWidth, tabPadding, ' ', 0)
+	tabOut := newTabFlusher(out)
 
-	if err := t.Execute(tabOut, data); err != nil {
+	if err := t.ExecuteTemplate(tabOut, "template", data); err != nil {
 		return "", errors.Errorf("failed to execute template: %w", err)
 	}
 
@@ -80,10 +94,7 @@ func (render *Render) formatOutput(t *template.Template, data any) (string, erro
 }
 
 func (render *Render) executeTemplate(templ string, data any, customFuncs map[string]any) (string, error) {
-	t, err := render.buildTemplate(templ, customFuncs)
-	if err != nil {
-		return "", err
-	}
+	t := render.buildTemplate(templ, customFuncs)
 
 	return render.formatOutput(t, data)
 }

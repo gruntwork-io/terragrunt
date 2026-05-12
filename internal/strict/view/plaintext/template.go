@@ -11,18 +11,9 @@ const rangeSubcontrolsTemplate = `{{ range $index, $control := .Sort }}{{ if $in
    {{ end }}{{ template "subcontrolTemplate" $control }}{{ end }}`
 
 const listTemplate = `
-   {{ $controls := .controls }}{{ $categories := $controls.GetCategories.FilterNotHidden.Sort }}{{ range $index, $category := $categories }}{{ if $index }}
-   {{ end }}{{ $category.Name }}:
-   {{ $categoryControls := $controls.FilterByCategories $category }}{{ template "rangeControlsTemplate" $categoryControls }}
-   {{ end }}{{ $noCategoryControls := $controls.FilterByCategories }}{{ if $noCategoryControls }}
-   {{ template "rangeControlsTemplate" $noCategoryControls }}
-   {{ end }}
+   {{ template "rangeControlsTemplate" .controls }}
 `
+
 const detailControlTemplate = `
-   {{ $controls := .control.GetSubcontrols.RemoveDuplicates }}{{ $categories := $controls.GetCategories.FilterNotHidden.Sort }}{{ range $index, $category := $categories }}{{ if $index }}
-   {{ end }}{{ $category.Name }}:
-   {{ $categoryControls := $controls.FilterByCategories $category }}{{ template "rangeSubcontrolsTemplate" $categoryControls }}
-   {{ end }}{{ $noCategoryControls := $controls.FilterByCategories }}{{ if and $categories $noCategoryControls }}
-   {{ end }}{{ if $noCategoryControls }}{{ template "rangeSubcontrolsTemplate" $noCategoryControls }}
-   {{ end }}
+   {{ template "rangeSubcontrolsTemplate" .control.GetSubcontrols.RemoveDuplicates }}
 `

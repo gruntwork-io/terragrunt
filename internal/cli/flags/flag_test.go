@@ -76,9 +76,10 @@ func TestFlag_TakesValue(t *testing.T) {
 func TestFlag_Evaluate(t *testing.T) {
 	t.Parallel()
 
-	mockRegControls := func(flagNameControl, envVarControl strict.Control) bool {
-		return true
-	}
+	// A non-nil (even empty) Controls is enough to trigger registration in
+	// DeprecatedFlag.SetStrictControls; the umbrella parents simply aren't
+	// present to add subcontrols under.
+	mockStrictControls := strict.Controls{}
 
 	deprecatedFlagWarning := func() string {
 		return controls.NewDeprecatedFlagName(&clihelper.BoolFlag{}, &clihelper.BoolFlag{}, "").WarningFmt
@@ -104,7 +105,7 @@ func TestFlag_Evaluate(t *testing.T) {
 				{
 					flags.NewFlag(
 						&clihelper.BoolFlag{Name: "new-flag-name"},
-						flags.WithDeprecatedName("old-flag-name", mockRegControls),
+						flags.WithDeprecatedName("old-flag-name", mockStrictControls),
 					),
 					"old-flag-name",
 					"",
@@ -112,7 +113,7 @@ func TestFlag_Evaluate(t *testing.T) {
 				{
 					flags.NewFlag(
 						&clihelper.BoolFlag{Name: "new-env-var-name", EnvVars: []string{"NEW_ENV_VAR_NAME"}},
-						flags.WithDeprecatedName("old-env-var-name", mockRegControls),
+						flags.WithDeprecatedName("old-env-var-name", mockStrictControls),
 					),
 					"",
 					"OLD_ENV_VAR_NAME",

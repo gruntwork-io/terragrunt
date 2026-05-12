@@ -1,6 +1,8 @@
 package shared
 
 import (
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -14,16 +16,9 @@ const (
 )
 
 // NewIAMAssumeRoleFlags creates flags for IAM assume role configuration.
-func NewIAMAssumeRoleFlags(opts *options.TerragruntOptions, prefix flags.Prefix, commandName string) clihelper.Flags {
+func NewIAMAssumeRoleFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-
-	var terragruntPrefixControl flags.RegisterStrictControlsFunc
-	if commandName != "" {
-		terragruntPrefixControl = flags.StrictControlsByCommand(opts.StrictControls, commandName)
-	} else {
-		terragruntPrefixControl = flags.StrictControlsByGlobalFlags(opts.StrictControls)
-	}
 
 	return clihelper.Flags{
 		flags.NewFlag(
@@ -33,7 +28,7 @@ func NewIAMAssumeRoleFlags(opts *options.TerragruntOptions, prefix flags.Prefix,
 				Destination: &opts.IAMRoleOptions.RoleARN,
 				Usage:       "Assume the specified IAM role before executing OpenTofu/Terraform.",
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("iam-role"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("iam-role"), opts.StrictControls),
 		),
 
 		flags.NewFlag(
@@ -43,7 +38,7 @@ func NewIAMAssumeRoleFlags(opts *options.TerragruntOptions, prefix flags.Prefix,
 				Destination: &opts.IAMRoleOptions.AssumeRoleDuration,
 				Usage:       "Session duration for IAM Assume Role session.",
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("iam-assume-role-duration"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("iam-assume-role-duration"), opts.StrictControls),
 		),
 
 		flags.NewFlag(
@@ -53,7 +48,7 @@ func NewIAMAssumeRoleFlags(opts *options.TerragruntOptions, prefix flags.Prefix,
 				Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
 				Usage:       "Name for the IAM Assumed Role session.",
 			},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("iam-assume-role-session-name"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("iam-assume-role-session-name"), opts.StrictControls),
 		),
 
 		flags.NewFlag(
@@ -64,11 +59,11 @@ func NewIAMAssumeRoleFlags(opts *options.TerragruntOptions, prefix flags.Prefix,
 				Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token.",
 			},
 			flags.WithDeprecatedEnvVars(
-				append(
+				slices.Concat(
 					terragruntPrefix.EnvVars("iam-web-identity-token"),
-					terragruntPrefix.EnvVars("iam-assume-role-web-identity-token")...,
+					terragruntPrefix.EnvVars("iam-assume-role-web-identity-token"),
 				),
-				terragruntPrefixControl,
+				opts.StrictControls,
 			),
 		),
 	}

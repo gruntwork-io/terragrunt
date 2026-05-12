@@ -16,7 +16,6 @@ const (
 func NewBackendFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 
 	return clihelper.Flags{
 		flags.NewFlag(&clihelper.BoolFlag{
@@ -31,7 +30,7 @@ func NewBackendFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihe
 			Destination: &opts.FailIfBucketCreationRequired,
 			Usage:       "When this flag is set Terragrunt will fail if the remote state bucket needs to be created.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("fail-on-state-bucket-creation"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("fail-on-state-bucket-creation"), opts.StrictControls),
 		),
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        DisableBucketUpdateFlagName,
@@ -39,7 +38,7 @@ func NewBackendFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihe
 			Destination: &opts.DisableBucketUpdate,
 			Usage:       "When this flag is set Terragrunt will not update the remote state bucket.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("disable-bucket-update"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("disable-bucket-update"), opts.StrictControls),
 		),
 	}
 }

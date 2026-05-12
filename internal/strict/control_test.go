@@ -152,7 +152,7 @@ func TestEnableControl(t *testing.T) {
 				},
 			},
 			expectedEnabledControls: []string{testOngoingAName, testOngoingSubAName, testOngoingCName, testCompletedAName, testCompletedCName},
-			expectedCompletedMsg:    fmt.Sprintf(strict.CompletedControlsFmt, strict.ControlNames([]string{testCompletedAName, testCompletedCName})),
+			expectedCompletedMsg:    strict.NewCompletedControlsWarning([]string{testCompletedAName, testCompletedCName}).String(),
 		},
 		{
 			enableControls: []testEnableControl{
@@ -164,7 +164,7 @@ func TestEnableControl(t *testing.T) {
 				},
 			},
 			expectedEnabledControls: []string{testOngoingBName, testCompletedBName},
-			expectedCompletedMsg:    fmt.Sprintf(strict.CompletedControlsFmt, strict.ControlNames([]string{testCompletedBName})),
+			expectedCompletedMsg:    strict.NewCompletedControlsWarning([]string{testCompletedBName}).String(),
 		},
 		{
 			enableControls:          []testEnableControl{},
