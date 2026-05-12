@@ -177,7 +177,7 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 		return backend.BucketCreationNotAllowed(bucketName)
 	}
 
-	needsUpdate, bucketUpdatesRequired, err := client.checkIfS3BucketNeedsUpdate(ctx, l, bucketName)
+	needsUpdate, bucketUpdatesRequired, err := client.CheckIfS3BucketNeedsUpdate(ctx, l, bucketName)
 	if err != nil {
 		return err
 	}
@@ -333,7 +333,7 @@ type S3BucketUpdatesRequired struct {
 	PublicAccess  bool
 }
 
-func (client *Client) checkIfS3BucketNeedsUpdate(ctx context.Context, l log.Logger, bucketName string) (bool, S3BucketUpdatesRequired, error) {
+func (client *Client) CheckIfS3BucketNeedsUpdate(ctx context.Context, l log.Logger, bucketName string) (bool, S3BucketUpdatesRequired, error) {
 	var (
 		updates  []string
 		toUpdate S3BucketUpdatesRequired

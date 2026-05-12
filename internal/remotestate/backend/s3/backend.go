@@ -49,7 +49,11 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		tableName  = extS3Cfg.RemoteStateConfigS3.GetLockTableName()
 	)
 
-	if exists, err := client.DoesS3BucketExist(ctx, bucketName); err != nil || !exists {
+	if exists, err := client.DoesS3BucketExistWithLogging(ctx, l, bucketName); err != nil || !exists {
+		return true, err
+	}
+
+	if needsUpdate, _, err := client.CheckIfS3BucketNeedsUpdate(ctx, l, bucketName); err != nil || needsUpdate {
 		return true, err
 	}
 
