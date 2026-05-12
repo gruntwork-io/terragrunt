@@ -49,9 +49,7 @@ jobs:
             ${{ runner.os }}-licensei-
 
       - name: Run License Check
-        run: |
-          set -o pipefail
-          make license-check | tee license-check.log
+        run: make license-check | tee license-check.log
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

@@ -26,15 +26,18 @@ func sopsDecryptFileWithINICompat(path, format string) ([]byte, error) {
 	return decrypt.Data(rewriteINISopsMetadataNewlines(data), format)
 }
 
-// Rewrites [sops] section values containing literal `\n` as gopkg.in/ini.v1 triple-quoted
-// multi-line values (the syntax that section accepts for multi-line content).
-// Preserves the `[sops]` section header matching rules and normalizes CRLF to LF for
-// deterministic output.
+// Rewrites [sops] section values containing literal `\n` into the gopkg.in/ini.v1
+// triple-quoted multi-line literal form (the multi-line value syntax accepted by
+// gopkg.in/ini.v1). Section detection is case-insensitive and tolerates whitespace
+// inside the brackets, so `[Sops]` or `[ sops ]` match the same as `[sops]`.
+// CRLF input is normalized to LF for deterministic output.
 // Assumption: SOPS metadata values never contain the literal sequence `"""` after `\n` decode
 // (current SOPS metadata is base64 / PGP armor / timestamps, none can hold triple-quote).
 func rewriteINISopsMetadataNewlines(data []byte) []byte {
 	hasEscapedNewlines := bytes.Contains(data, []byte(literalEscapedNewline))
-	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+	if bytes.IndexByte(data, '\r') >= 0 {
+		data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+	}
 
 	if !hasEscapedNewlines {
 		return data
