@@ -120,8 +120,14 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		unitRefs := buildUnitRefs(stackFile, stackSourceDir, stackTargetDir)
 		stackRefs := buildStackRefs(stackFile, stackSourceDir, stackTargetDir)
 
+		// Rescope the parsing context to the stack file being parsed so terragrunt functions that resolve paths relative to TerragruntConfigPath (e.g. find_in_parent_folders, get_terragrunt_dir, path_relative_to_include) anchor on the nested stack file's location, not the root caller's terragrunt.hcl. Without this, find_in_parent_folders called from a deeply nested .terragrunt-stack/.../terragrunt.stack.hcl starts from the wrong directory.
+		_, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
+		if scopedErr != nil {
+			return errors.Errorf("failed to rescope parsing context for autoinclude parser %s: %w", stackFilePath, scopedErr)
+		}
+
 		// Reuse the production parser's full eval context so the autoinclude parser sees the same function set (terraform stdlib + every terragrunt function: get_repo_root, find_in_parent_folders, run_cmd, ...) without duplicating or hardcoding any function list.
-		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, pctx, l, stackFilePath)
+		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, l, stackFilePath)
 		if evalCtxErr != nil {
 			return errors.Errorf("failed to build eval context for autoinclude parser %s: %w", stackFilePath, evalCtxErr)
 		}

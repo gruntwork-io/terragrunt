@@ -67,6 +67,53 @@ type ParseResult struct {
 //
 // Pass 2: For each unit/stack with an autoinclude block, resolve the autoinclude body using the eval context. dependency.config_path is evaluated; inputs are left unevaluated.
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
+	validateParseStackFileInput(fs, input)
+
+	stackFile, err := decodeStackFile(input)
+	if err != nil {
+		return nil, err
+	}
+
+	// Track per-autoinclude source bytes so the generator can slice expression bytes from the correct file even after include merging.
+	srcByAutoInclude := map[*AutoIncludeHCL][]byte{}
+	recordAutoIncludeSources(srcByAutoInclude, stackFile, input.Src)
+
+	stackTargetDir := filepath.Join(input.StackDir, StackDir)
+	callerSuppliedRefs := input.UnitRefs != nil || input.StackRefs != nil
+
+	unitRefs, stackRefs := initialRefs(fs, input, stackFile, stackTargetDir, callerSuppliedRefs)
+
+	evalCtx := buildParseEvalContext(input, unitRefs, stackRefs)
+
+	if stackFile.Locals != nil {
+		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := processStackIncludes(fs, stackFile, input.StackDir, evalCtx, srcByAutoInclude); err != nil {
+		return nil, err
+	}
+
+	// Bootstrap path: refresh refs and the unit/stack eval variables now that included units/stacks have been merged into stackFile. Caller-supplied refs already reflect the post-include layout (the production parser does include merging upstream) and must not be overwritten.
+	if !callerSuppliedRefs {
+		refreshBootstrapRefs(fs, input, stackFile, stackTargetDir, evalCtx)
+	}
+
+	autoIncludes, err := resolveAutoIncludes(stackFile, evalCtx, srcByAutoInclude)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ParseResult{
+		Units:        stackFile.Units,
+		Stacks:       stackFile.Stacks,
+		AutoIncludes: autoIncludes,
+	}, nil
+}
+
+// validateParseStackFileInput panics on programmer errors so callers get a stack trace at the call site rather than a downstream nil-deref.
+func validateParseStackFileInput(fs vfs.FS, input *ParseStackFileInput) {
 	if fs == nil {
 		filename := ""
 		if input != nil {
@@ -83,7 +130,10 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	if input.StackDir == "" {
 		panic(fmt.Sprintf("hclparse.ParseStackFile: input.StackDir is empty (filename=%q)", input.Filename))
 	}
+}
 
+// decodeStackFile parses the stack file bytes and decodes the top-level structure into a StackFileHCL.
+func decodeStackFile(input *ParseStackFileInput) (*StackFileHCL, error) {
 	file, diags := hclsyntax.ParseConfig(input.Src, input.Filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return nil, FileParseError{FilePath: input.Filename, Detail: diags.Error()}
@@ -94,30 +144,24 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		return nil, FileDecodeError{Name: input.Filename, Detail: decodeDiags.Error()}
 	}
 
-	// Track per-autoinclude source bytes so the generator can slice expression bytes from the correct file even after include merging.
-	srcByAutoInclude := map[*AutoIncludeHCL][]byte{}
-	recordAutoIncludeSources(srcByAutoInclude, stackFile, input.Src)
+	return stackFile, nil
+}
 
-	// Build the eval context up front so include paths and locals can use values/unit/stack refs while includes are merged. The bootstrap path (no caller-supplied refs) rebuilds refs after include merging so units/stacks pulled in from included files become reachable as unit.<name>.path / stack.<name>.path during autoinclude resolution.
-	stackTargetDir := filepath.Join(input.StackDir, StackDir)
-
-	callerSuppliedRefs := input.UnitRefs != nil || input.StackRefs != nil
-
-	var (
-		unitRefs  []ComponentRef
-		stackRefs []ComponentRef
-	)
-
+// initialRefs returns the unit/stack ComponentRef slices used to seed the autoinclude eval context. When the caller supplied UnitRefs/StackRefs (post-include refs from the production parser), use them verbatim. Otherwise evaluate each unit/stack's lazy Path against a stdlib-only eval context so include path expressions can use unit.X.path / stack.X.path for what is already declared in the root file.
+func initialRefs(fs vfs.FS, input *ParseStackFileInput, stackFile *StackFileHCL, stackTargetDir string, callerSuppliedRefs bool) ([]ComponentRef, []ComponentRef) {
 	if callerSuppliedRefs {
-		unitRefs = input.UnitRefs
-		stackRefs = input.StackRefs
-	} else {
-		// Evaluate each unit/stack Path against a stdlib-only eval context (no values/locals yet) so include path expressions can use unit.X.path / stack.X.path for what is already declared in the root file. Refs are rebuilt after include merging to also cover units/stacks contributed by included files.
-		bootstrapCtx := stdlibEvalContext(input.StackDir)
-		unitRefs = buildRefsWithAbsPath(stackTargetDir, stackFile.Units, bootstrapCtx)
-		stackRefs = buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0, bootstrapCtx)
+		return input.UnitRefs, input.StackRefs
 	}
 
+	bootstrapCtx := stdlibEvalContext(input.StackDir)
+	unitRefs := buildRefsWithAbsPath(stackTargetDir, stackFile.Units, bootstrapCtx)
+	stackRefs := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0, bootstrapCtx)
+
+	return unitRefs, stackRefs
+}
+
+// buildParseEvalContext composes the autoinclude eval context: unit/stack ref objects, any caller-supplied function set, and the caller's `values` overlay.
+func buildParseEvalContext(input *ParseStackFileInput, unitRefs, stackRefs []ComponentRef) *hcl.EvalContext {
 	evalCtx := BuildAutoIncludeEvalContext(unitRefs, stackRefs)
 	if input.Functions != nil {
 		evalCtx.Functions = input.Functions
@@ -127,35 +171,16 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		evalCtx.Variables[varValues] = *input.Values
 	}
 
-	if stackFile.Locals != nil {
-		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx); err != nil {
-			return nil, err
-		}
-	}
+	return evalCtx
+}
 
-	if err := processStackIncludes(fs, stackFile, input.StackDir, evalCtx, srcByAutoInclude); err != nil {
-		return nil, err
-	}
-
-	// Bootstrap path: refresh refs and the unit/stack eval variables now that included units/stacks have been merged into stackFile. Caller-supplied refs already reflect the post-include layout (the production parser does include merging upstream) and must not be overwritten.
-	if !callerSuppliedRefs {
-		bootstrapCtx := stdlibEvalContext(input.StackDir)
-		unitRefs = buildRefsWithAbsPath(stackTargetDir, stackFile.Units, bootstrapCtx)
-		stackRefs = buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0, bootstrapCtx)
-		evalCtx.Variables[varUnit] = BuildComponentRefMap(unitRefs)
-		evalCtx.Variables[varStack] = BuildComponentRefMap(stackRefs)
-	}
-
-	autoIncludes, err := resolveAutoIncludes(stackFile, evalCtx, srcByAutoInclude)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ParseResult{
-		Units:        stackFile.Units,
-		Stacks:       stackFile.Stacks,
-		AutoIncludes: autoIncludes,
-	}, nil
+// refreshBootstrapRefs re-evaluates unit/stack Path expressions and updates evalCtx.Variables[varUnit/varStack] after include merging, so autoinclude expressions can reference units/stacks contributed by included files.
+func refreshBootstrapRefs(fs vfs.FS, input *ParseStackFileInput, stackFile *StackFileHCL, stackTargetDir string, evalCtx *hcl.EvalContext) {
+	bootstrapCtx := stdlibEvalContext(input.StackDir)
+	unitRefs := buildRefsWithAbsPath(stackTargetDir, stackFile.Units, bootstrapCtx)
+	stackRefs := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0, bootstrapCtx)
+	evalCtx.Variables[varUnit] = BuildComponentRefMap(unitRefs)
+	evalCtx.Variables[varStack] = BuildComponentRefMap(stackRefs)
 }
 
 // EvalString evaluates expr against ctx and returns the resulting string. Returns ("", nil) when expr is nil (attribute absent). When ctx is nil the expression must be a constant; if expr references variables, returns an error. attrName is used in error messages.
@@ -224,10 +249,12 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	return nil
 }
 
-// evaluateLocalsPass attempts to evaluate all ready locals in a single pass.
-// Returns true if at least one local was evaluated.
+// evaluateLocalsPass attempts to evaluate all ready locals in a single pass. Returns true if at least one local was evaluated. After each successful evaluation it refreshes evalCtx.Variables[varLocal] so locals iterated later in the same pass can resolve `local.X` references that were just populated; without this, Go's randomized map-iteration order races against the end-of-pass update and yields "Unknown variable: local" on locals iterated after their dependencies.
 func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map[string]cty.Value, evalCtx *hcl.EvalContext) (bool, error) {
 	progress := false
+
+	// Snapshot evaluated into evalCtx at pass start so the first in-pass eval also sees prior locals.
+	evalCtx.Variables[varLocal] = localObject(evaluated)
 
 	for name, attr := range remaining {
 		if !canEvalLocal(attr, evaluated) {
@@ -242,10 +269,21 @@ func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map
 		evaluated[name] = val
 		delete(remaining, name)
 
+		evalCtx.Variables[varLocal] = localObject(evaluated)
+
 		progress = true
 	}
 
 	return progress, nil
+}
+
+// localObject builds a cty.Value for the `local` namespace from the map of evaluated locals. cty.ObjectVal panics on an empty map, so an empty input returns cty.EmptyObjectVal.
+func localObject(evaluated map[string]cty.Value) cty.Value {
+	if len(evaluated) == 0 {
+		return cty.EmptyObjectVal
+	}
+
+	return cty.ObjectVal(evaluated)
 }
 
 // localsEvalCycleError builds an error listing the locals that could not be evaluated.

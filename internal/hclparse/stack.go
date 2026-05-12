@@ -266,57 +266,65 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 	}
 
 	evalCtx := stdlibEvalContext(stackSourceDir)
-
 	childTargetDir := filepath.Join(stackGenDir, StackDir)
 	refs := make([]ComponentRef, 0, len(result.Units)+len(result.Stacks))
 
 	for _, u := range result.Units {
-		unitRelPath, evalErr := EvalString(u.Path, evalCtx, attrPath)
-		if evalErr != nil {
-			continue
+		if ref, ok := discoverUnitRef(u, evalCtx, childTargetDir, stackGenDir); ok {
+			refs = append(refs, ref)
 		}
-
-		unitPath := filepath.Join(childTargetDir, unitRelPath)
-
-		if u.NoStack != nil && *u.NoStack {
-			unitPath = filepath.Join(stackGenDir, unitRelPath)
-		}
-
-		refs = append(refs, ComponentRef{
-			Name: u.Name,
-			Path: unitPath,
-		})
 	}
 
 	for _, s := range result.Stacks {
-		stackRelPath, evalErr := EvalString(s.Path, evalCtx, attrPath)
-		if evalErr != nil {
-			continue
+		if ref, ok := discoverStackRef(fs, s, evalCtx, stackSourceDir, stackGenDir, childTargetDir, depth); ok {
+			refs = append(refs, ref)
 		}
-
-		nestedGenPath := filepath.Join(childTargetDir, stackRelPath)
-
-		if s.NoStack != nil && *s.NoStack {
-			nestedGenPath = filepath.Join(stackGenDir, stackRelPath)
-		}
-
-		nestedSourceDir, sourceErr := EvalString(s.Source, evalCtx, attrSource)
-		if sourceErr != nil {
-			continue
-		}
-
-		if !filepath.IsAbs(nestedSourceDir) {
-			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
-		}
-
-		refs = append(refs, ComponentRef{
-			Name:      s.Name,
-			Path:      nestedGenPath,
-			ChildRefs: discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1),
-		})
 	}
 
 	return refs
+}
+
+// discoverUnitRef builds a ComponentRef for a unit block in a discovered nested stack. Returns ok=false when the unit's Path expression cannot be evaluated (best-effort discovery).
+func discoverUnitRef(u *UnitBlockHCL, evalCtx *hcl.EvalContext, childTargetDir, stackGenDir string) (ComponentRef, bool) {
+	unitRelPath, evalErr := EvalString(u.Path, evalCtx, attrPath)
+	if evalErr != nil {
+		return ComponentRef{}, false
+	}
+
+	unitPath := filepath.Join(childTargetDir, unitRelPath)
+	if u.NoStack != nil && *u.NoStack {
+		unitPath = filepath.Join(stackGenDir, unitRelPath)
+	}
+
+	return ComponentRef{Name: u.Name, Path: unitPath}, true
+}
+
+// discoverStackRef builds a ComponentRef (with ChildRefs) for a stack block in a discovered nested stack. Returns ok=false when Path or Source cannot be evaluated (best-effort discovery).
+func discoverStackRef(fs vfs.FS, s *StackBlockHCL, evalCtx *hcl.EvalContext, stackSourceDir, stackGenDir, childTargetDir string, depth int) (ComponentRef, bool) {
+	stackRelPath, evalErr := EvalString(s.Path, evalCtx, attrPath)
+	if evalErr != nil {
+		return ComponentRef{}, false
+	}
+
+	nestedGenPath := filepath.Join(childTargetDir, stackRelPath)
+	if s.NoStack != nil && *s.NoStack {
+		nestedGenPath = filepath.Join(stackGenDir, stackRelPath)
+	}
+
+	nestedSourceDir, sourceErr := EvalString(s.Source, evalCtx, attrSource)
+	if sourceErr != nil {
+		return ComponentRef{}, false
+	}
+
+	if !filepath.IsAbs(nestedSourceDir) {
+		nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
+	}
+
+	return ComponentRef{
+		Name:      s.Name,
+		Path:      nestedGenPath,
+		ChildRefs: discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1),
+	}, true
 }
 
 // stdlibEvalContext builds a minimal eval context wired with the terraform stdlib (matching the production parser's tflang.Scope setup in pkg/config/config_helpers.go). This lets stack files that reference terraform-stdlib functions (e.g. format, jsonencode) resolve in contexts where no pctx is available, such as discovery on generated stack files.
