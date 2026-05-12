@@ -333,7 +333,7 @@ func downloadSource(
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
-		done, err := tryCASDownload(ctx, l, src, opts)
+		done, err := tryCASDownload(ctx, l, src, opts, cfg.Terraform.Mutable)
 		if err != nil {
 			return err
 		}
@@ -364,7 +364,7 @@ func downloadSource(
 // should fall through to the standard getter.
 // Returns (false, err) for fatal misconfiguration the user must fix
 // (e.g. an invalid CASCloneDepth). Caller must propagate the error.
-func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Options) (bool, error) {
+func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Options, mutable bool) (bool, error) {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
 
 	l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
@@ -382,7 +382,11 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 	cloneOpts := cas.CloneOptions{
 		Dir:              src.DownloadDir,
 		IncludedGitFiles: []string{"HEAD", "config"},
+		Mutable:          mutable,
 	}
+
+	casProtocol := getter.NewCASProtocolGetter(l, c)
+	casProtocol.Mutable = mutable
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
 	// (from CAS-rewritten stacks); CASGetter handles git:: and other remote
@@ -390,7 +394,7 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 	// caller should retry through the standard client.
 	client := &getter.Client{
 		Getters: []getter.Getter{
-			getter.NewCASProtocolGetter(l, c),
+			casProtocol,
 			getter.NewCASGetter(l, c, &cloneOpts),
 		},
 	}

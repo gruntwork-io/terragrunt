@@ -103,7 +103,13 @@ func FormatCASRefWithSubdir(hash, subdir string) string {
 
 // MaterializeTree reads a tree from the CAS store and links its contents to the destination directory.
 // It tries the synth store first, then falls back to the git tree store.
-func (c *CAS) MaterializeTree(ctx context.Context, l log.Logger, hash string, dest string) error {
+func (c *CAS) MaterializeTree(
+	ctx context.Context,
+	l log.Logger,
+	hash string,
+	dest string,
+	opts ...LinkTreeOption,
+) error {
 	var treeData []byte
 
 	var treeStoreUsed *Store
@@ -139,5 +145,5 @@ func (c *CAS) MaterializeTree(ctx context.Context, l log.Logger, hash string, de
 		return fmt.Errorf("failed to parse CAS tree %s: %w", hash, err)
 	}
 
-	return LinkTree(ctx, c.blobStore, treeStoreUsed, tree, dest)
+	return LinkTree(ctx, c.blobStore, treeStoreUsed, tree, dest, opts...)
 }

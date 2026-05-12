@@ -3,18 +3,54 @@ package cas
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"golang.org/x/sync/errgroup"
 )
 
+// unixPermMask isolates the user/group/other rwx bits from a git tree mode.
+const unixPermMask = os.FileMode(0o777)
+
+// LinkTreeOption configures a LinkTree call.
+type LinkTreeOption func(*linkTreeOpts)
+
+type linkTreeOpts struct {
+	forceCopy bool
+}
+
+// WithForceCopy makes LinkTree copy blobs from the CAS store into the target
+// directory instead of hardlinking them. The destination tree becomes safe to
+// mutate without affecting the shared store, at the cost of extra I/O.
+func WithForceCopy() LinkTreeOption {
+	return func(o *linkTreeOpts) { o.forceCopy = true }
+}
+
 // LinkTree writes the tree to a target directory.
 // blobStore is used to resolve blob entries, treeStore is used to resolve subtree entries.
-func LinkTree(ctx context.Context, blobStore *Store, treeStore *Store, t *git.Tree, targetDir string) error {
+func LinkTree(
+	ctx context.Context,
+	blobStore *Store,
+	treeStore *Store,
+	t *git.Tree,
+	targetDir string,
+	opts ...LinkTreeOption,
+) error {
+	var o linkTreeOpts
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	blobContent := NewContent(blobStore)
 	treeContent := NewContent(treeStore)
+
+	var linkOpts []LinkOption
+	if o.forceCopy {
+		linkOpts = append(linkOpts, WithLinkForceCopy())
+	}
 
 	dirsToCreate := make(map[string]struct{}, len(t.Entries()))
 
@@ -79,7 +115,7 @@ func LinkTree(ctx context.Context, blobStore *Store, treeStore *Store, t *git.Tr
 		g.Go(func() error {
 			switch work.itemType {
 			case "link":
-				err := blobContent.Link(ctx, work.entry.Hash, work.path)
+				err := blobContent.Link(ctx, work.entry.Hash, work.path, gitFilePerm(work.entry.Mode), linkOpts...)
 				if err != nil {
 					return fmt.Errorf("link blob %s: %w", work.path, err)
 				}
@@ -94,7 +130,7 @@ func LinkTree(ctx context.Context, blobStore *Store, treeStore *Store, t *git.Tr
 					return fmt.Errorf("parse tree %s: %w", work.entry.Hash, err)
 				}
 
-				err = LinkTree(ctx, blobStore, treeStore, subTree, work.path)
+				err = LinkTree(ctx, blobStore, treeStore, subTree, work.path, opts...)
 				if err != nil {
 					return fmt.Errorf("link subtree %s: %w", work.path, err)
 				}
@@ -106,4 +142,21 @@ func LinkTree(ctx context.Context, blobStore *Store, treeStore *Store, t *git.Tr
 
 	// Wait for all goroutines to complete and return first error if any
 	return g.Wait()
+}
+
+// gitFilePerm extracts the unix permission bits from a git tree entry mode
+// string. Git tree modes are six-digit octal: "100644" or "100755" for blobs.
+// Returns RegularFilePerms when the mode is missing or unparsable so callers
+// always have a sane default.
+func gitFilePerm(mode string) os.FileMode {
+	if mode == "" {
+		return RegularFilePerms
+	}
+
+	n, err := strconv.ParseUint(mode, 8, 32)
+	if err != nil {
+		return RegularFilePerms
+	}
+
+	return os.FileMode(n) & unixPermMask
 }
