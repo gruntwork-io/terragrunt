@@ -573,6 +573,7 @@ func convertValue(v any) (ctyjson.SimpleJSONValue, error) {
 // want to split the line into multiple lines.
 func ReplaceAllCommasOutsideQuotesWithNewLines(s string) string {
 	var result strings.Builder
+
 	inQuotes := false
 	bracketDepth := 0
 
@@ -582,18 +583,22 @@ func ReplaceAllCommasOutsideQuotesWithNewLines(s string) string {
 		switch {
 		case ch == '\\' && inQuotes:
 			result.WriteByte(ch)
+
 			i++
 			if i < len(s) {
 				result.WriteByte(s[i])
 			}
 		case ch == '"':
 			inQuotes = !inQuotes
+
 			result.WriteByte(ch)
 		case ch == '[' && !inQuotes:
 			bracketDepth++
+
 			result.WriteByte(ch)
 		case ch == ']' && !inQuotes:
 			bracketDepth--
+
 			result.WriteByte(ch)
 		case ch == ',' && !inQuotes && bracketDepth == 0:
 			result.WriteByte('\n')
@@ -602,8 +607,8 @@ func ReplaceAllCommasOutsideQuotesWithNewLines(s string) string {
 			result.WriteByte(ch)
 		}
 	}
-	return result.String()
 
+	return result.String()
 }
 
 // GenerateConfigExistsFromString converts a string representation of if_exists into the enum, returning an error if it
