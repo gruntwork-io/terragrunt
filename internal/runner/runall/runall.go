@@ -10,6 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -42,6 +44,11 @@ var runAllDisabledCommands = map[string]string{
 }
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	// --filter sets RunAll, so the CLI layer dispatches here without going
+	// through the single-unit run path. Emit the tip here as well; the
+	// underlying sync.Once dedupes if both paths fire.
+	tips.GiveStackTargetTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
+
 	if opts.TerraformCommand == "" {
 		return errors.New(MissingCommand{})
 	}

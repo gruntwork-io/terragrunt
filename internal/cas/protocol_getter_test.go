@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/hashicorp/go-getter/v2"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -96,7 +96,7 @@ func TestDetectHashAlgorithm(t *testing.T) {
 func TestCASProtocolGetterDetect(t *testing.T) {
 	t.Parallel()
 
-	g := &cas.CASProtocolGetter{}
+	g := &getter.CASProtocolGetter{}
 
 	tests := []struct {
 		name     string

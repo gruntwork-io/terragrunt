@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
@@ -179,7 +178,7 @@ func parseProvidersFromRequiredProvidersBlock(impl tfimpl.Type, block *hclsyntax
 			constraints[providerAddr] = normalizeVersionConstraint(version)
 		} else if source == "" && version != "" {
 			// If only version is specified, assume it's a hashicorp provider
-			registryDomain := tf.GetDefaultRegistryDomain(impl)
+			registryDomain := tfimpl.DefaultRegistryDomain(impl)
 			providerAddr := fmt.Sprintf("%s/hashicorp/%s", registryDomain, name)
 			constraints[providerAddr] = normalizeVersionConstraint(version)
 		}
@@ -191,7 +190,7 @@ func parseProvidersFromRequiredProvidersBlock(impl tfimpl.Type, block *hclsyntax
 // normalizeProviderAddress converts provider source to full registry format
 func normalizeProviderAddress(impl tfimpl.Type, source string) string {
 	parts := strings.Split(source, "/")
-	registryDomain := tf.GetDefaultRegistryDomain(impl)
+	registryDomain := tfimpl.DefaultRegistryDomain(impl)
 
 	const (
 		singlePart    = 1

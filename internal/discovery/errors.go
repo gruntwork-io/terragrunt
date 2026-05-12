@@ -136,7 +136,9 @@ func NewCoexistenceError(a, b component.Component) error {
 	})
 }
 
-// StackDependencyExpansionError indicates that a stack dependency path could not be expanded into its constituent unit paths. Wraps the underlying parse error so callers can extract typed details via errors.As.
+// StackDependencyExpansionError indicates that a stack dependency path could not be expanded into
+// its constituent unit paths. Wraps the underlying parse error so callers can extract typed details
+// via errors.As.
 type StackDependencyExpansionError struct {
 	Wrapped error
 	DepPath string
