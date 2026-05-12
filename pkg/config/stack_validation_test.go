@@ -288,6 +288,92 @@ func TestValidateStackConfig(t *testing.T) {
 			},
 			wantErr: "duplicate stack path found: 'path1'",
 		},
+		{
+			name: "unit and stack with identical path",
+			config: &config.StackConfigFile{
+				Units: []*config.Unit{
+					{Name: "u1", Source: "src", Path: "shared"},
+				},
+				Stacks: []*config.Stack{
+					{Name: "s1", Source: "src", Path: "shared"},
+				},
+			},
+			wantErr: `unit "u1" (path "shared") overlaps with stack "s1" (path "shared")`,
+		},
+		{
+			name: "stack path is ancestor of sibling stack path",
+			config: &config.StackConfigFile{
+				Stacks: []*config.Stack{
+					{Name: "prod", Source: "src", Path: "prod"},
+					{Name: "prod-mcp-gateway", Source: "src", Path: "prod/mcp-gateway"},
+				},
+			},
+			wantErr: `stack "prod" (path "prod") overlaps with stack "prod-mcp-gateway" (path "prod/mcp-gateway")`,
+		},
+		{
+			name: "unit path is ancestor of stack path",
+			config: &config.StackConfigFile{
+				Units: []*config.Unit{
+					{Name: "outer", Source: "src", Path: "a"},
+				},
+				Stacks: []*config.Stack{
+					{Name: "inner", Source: "src", Path: "a/b/c"},
+				},
+			},
+			wantErr: `unit "outer" (path "a") overlaps with stack "inner" (path "a/b/c")`,
+		},
+		{
+			name: "sibling paths sharing parent are not an overlap",
+			config: &config.StackConfigFile{
+				Units: []*config.Unit{
+					{Name: "u1", Source: "src", Path: "shared/a"},
+					{Name: "u2", Source: "src", Path: "shared/b"},
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "non-overlapping path with substring prefix is not an overlap",
+			config: &config.StackConfigFile{
+				Units: []*config.Unit{
+					{Name: "u1", Source: "src", Path: "app"},
+					{Name: "u2", Source: "src", Path: "app-other"},
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "paths are normalized before comparison",
+			config: &config.StackConfigFile{
+				Units: []*config.Unit{
+					{Name: "u1", Source: "src", Path: "a/./b"},
+					{Name: "u2", Source: "src", Path: "a/b/c"},
+				},
+			},
+			wantErr: `unit "u1" (path "a/./b") overlaps with unit "u2" (path "a/b/c")`,
+		},
+		{
+			name: "no_dot_terragrunt_stack components are validated separately",
+			config: &config.StackConfigFile{
+				Units: []*config.Unit{
+					// Regular component (writes to .terragrunt-stack/foo).
+					{Name: "u1", Source: "src", Path: "foo"},
+					// no_dot_terragrunt_stack component (writes to <parent>/foo, different namespace).
+					{Name: "u2", Source: "src", Path: "foo", NoStack: boolPtr(true)},
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "no_dot_terragrunt_stack components overlap each other",
+			config: &config.StackConfigFile{
+				Units: []*config.Unit{
+					{Name: "u1", Source: "src", Path: "foo", NoStack: boolPtr(true)},
+					{Name: "u2", Source: "src", Path: "foo/bar", NoStack: boolPtr(true)},
+				},
+			},
+			wantErr: `unit "u1" (path "foo") overlaps with unit "u2" (path "foo/bar")`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -303,3 +389,5 @@ func TestValidateStackConfig(t *testing.T) {
 		})
 	}
 }
+
+func boolPtr(b bool) *bool { return &b }
