@@ -3,10 +3,14 @@ name: License Check
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   license-check:
     name: License Check
     runs-on: ubuntu-slim
+    timeout-minutes: 15
     env:
       MISE_PROFILE: cicd
 
@@ -20,41 +24,40 @@ jobs:
           version: 2026.1.9
           experimental: true
         env:
+          # Required for GitHub-hosted tool downloads defined in mise.cicd.toml and mise.toml.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - id: go-cache-paths
         run: |
-          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
           echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-        shell: bash
-
-      - name: Go Build Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-linux-amd64
-          restore-keys: |
-            ${{ runner.os }}-go-build-
 
       - name: Go Mod Cache
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
-          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-linux-amd64
+          key: ${{ runner.os }}-license-check-go-mod-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go-mod-
+            ${{ runner.os }}-license-check-go-mod-
+
+      # `licensei cache` queries GitHub's API for every dep; cache the result.
+      - name: Licensei Cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: .licensei.cache
+          key: ${{ runner.os }}-licensei-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-licensei-
 
       - name: Run License Check
-        id: run-license-check
         run: |
           set -o pipefail
           make license-check | tee license-check.log
-        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload License Check Report
+        if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: license-check-report-ubuntu
+          name: license-check-report
           path: license-check.log
