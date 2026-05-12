@@ -9,11 +9,21 @@ import (
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"golang.org/x/sync/errgroup"
 )
 
 // unixPermMask isolates the user/group/other rwx bits from a git tree mode.
 const unixPermMask = os.FileMode(0o777)
+
+// Git tree entry mode constants. Git stores the entry type in the high bits of
+// a six-digit octal mode; gitTypeMask isolates them so a symlink blob (120000)
+// can be distinguished from a regular blob (100644 / 100755) at materialization
+// time.
+const (
+	gitTypeMask    = uint64(0o170000)
+	gitTypeSymlink = uint64(0o120000)
+)
 
 // LinkTreeOption configures a LinkTree call.
 type LinkTreeOption func(*linkTreeOpts)
@@ -44,6 +54,23 @@ func LinkTree(
 		opt(&o)
 	}
 
+	return linkTree(ctx, blobStore, treeStore, t, targetDir, targetDir, &o)
+}
+
+// linkTree is the recursive implementation behind LinkTree. rootDir is the
+// top-level target the caller asked to materialize and stays constant across
+// subtree recursion; targetDir is the directory the current tree is being
+// written into. Splitting them lets symlink validation reject targets that
+// resolve outside the original tree even when the link sits in a subdirectory.
+func linkTree(
+	ctx context.Context,
+	blobStore *Store,
+	treeStore *Store,
+	t *git.Tree,
+	rootDir string,
+	targetDir string,
+	o *linkTreeOpts,
+) error {
 	blobContent := NewContent(blobStore)
 	treeContent := NewContent(treeStore)
 
@@ -75,11 +102,19 @@ func LinkTree(
 		parentDirPath := filepath.Dir(dirPath)
 		delete(dirsToCreate, parentDirPath)
 
-		// Create work items based on entry type
+		// Create work items based on entry type. Git stores symlinks as blobs
+		// whose content is the link target; the entry mode (120000) is the
+		// only signal that distinguishes them from regular files, so dispatch
+		// on the mode here instead of treating every blob as a file to copy.
 		switch entry.Type {
 		case "blob":
+			itemType := "link"
+			if gitEntryIsSymlink(entry.Mode) {
+				itemType = "symlink"
+			}
+
 			workItems = append(workItems, workItem{
-				itemType: "link",
+				itemType: itemType,
 				entry:    entry,
 				path:     entryPath,
 				dirPath:  dirPath,
@@ -119,6 +154,19 @@ func LinkTree(
 				if err != nil {
 					return fmt.Errorf("link blob %s: %w", work.path, err)
 				}
+			case "symlink":
+				target, err := blobContent.Read(work.entry.Hash)
+				if err != nil {
+					return fmt.Errorf("read symlink blob %s: %w", work.entry.Hash, err)
+				}
+
+				if err := vfs.ValidateSymlinkTarget(rootDir, work.path, string(target)); err != nil {
+					return err
+				}
+
+				if err := vfs.Symlink(fs, string(target), work.path); err != nil {
+					return fmt.Errorf("symlink %s -> %s: %w", work.path, string(target), err)
+				}
 			case "subtree":
 				treeData, err := treeContent.Read(work.entry.Hash)
 				if err != nil {
@@ -130,7 +178,7 @@ func LinkTree(
 					return fmt.Errorf("parse tree %s: %w", work.entry.Hash, err)
 				}
 
-				err = LinkTree(ctx, blobStore, treeStore, subTree, work.path, opts...)
+				err = linkTree(ctx, blobStore, treeStore, subTree, rootDir, work.path, o)
 				if err != nil {
 					return fmt.Errorf("link subtree %s: %w", work.path, err)
 				}
@@ -159,4 +207,21 @@ func gitFilePerm(mode string) os.FileMode {
 	}
 
 	return os.FileMode(n) & unixPermMask
+}
+
+// gitEntryIsSymlink reports whether the given git tree entry mode is the
+// symlink type (120000). Git tree modes encode the entry type in their high
+// bits, so the permission-only view used by gitFilePerm cannot distinguish a
+// symlink blob from a regular blob.
+func gitEntryIsSymlink(mode string) bool {
+	if mode == "" {
+		return false
+	}
+
+	n, err := strconv.ParseUint(mode, 8, 32)
+	if err != nil {
+		return false
+	}
+
+	return n&gitTypeMask == gitTypeSymlink
 }
