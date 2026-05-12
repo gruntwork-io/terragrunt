@@ -3,10 +3,14 @@ name: License Check
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   license-check:
     name: License Check
     runs-on: ubuntu-slim
+    timeout-minutes: 15
     env:
       MISE_PROFILE: cicd
 
@@ -31,9 +35,9 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
-          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-linux-amd64
+          key: ${{ runner.os }}-license-check-go-mod-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go-mod-
+            ${{ runner.os }}-license-check-go-mod-
 
       # `licensei cache` queries GitHub's API for every dep; cache the result.
       - name: Licensei Cache
@@ -45,7 +49,6 @@ jobs:
             ${{ runner.os }}-licensei-
 
       - name: Run License Check
-        id: run-license-check
         run: |
           set -o pipefail
           make license-check | tee license-check.log
@@ -59,4 +62,3 @@ jobs:
         with:
           name: license-check-report-ubuntu
           path: license-check.log
-          if-no-files-found: ignore
