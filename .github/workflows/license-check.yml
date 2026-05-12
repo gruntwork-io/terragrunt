@@ -7,7 +7,6 @@ jobs:
   license-check:
     name: License Check
     runs-on: ubuntu-slim
-    timeout-minutes: 15
     env:
       MISE_PROFILE: cicd
 
@@ -55,7 +54,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload License Check Report
+        if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: license-check-report-ubuntu
           path: license-check.log
+          if-no-files-found: ignore

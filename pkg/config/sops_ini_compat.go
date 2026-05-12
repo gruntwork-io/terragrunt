@@ -32,6 +32,8 @@ func rewriteINISopsMetadataNewlines(data []byte) []byte {
 	inSops := false
 
 	for i, line := range lines {
+		line = strings.TrimSuffix(line, "\r")
+		lines[i] = line
 		trim := strings.TrimSpace(line)
 
 		switch {
