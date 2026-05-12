@@ -1,7 +1,6 @@
 package config
 
 import (
-	"bufio"
 	"bytes"
 	"os"
 	"strings"
@@ -14,47 +13,41 @@ func sopsDecryptFileWithINICompat(path, format string) ([]byte, error) {
 	if format != "ini" {
 		return decrypt.File(path, format)
 	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+
 	return decrypt.Data(rewriteINISopsMetadataNewlines(data), format)
 }
 
 // Rewrites [sops] section values containing literal `\n` as triple-quoted multi-line.
 func rewriteINISopsMetadataNewlines(data []byte) []byte {
-	var out bytes.Buffer
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-	inSops := false
-	for scanner.Scan() {
-		line := scanner.Text()
-		trim := strings.TrimSpace(line)
-		if strings.HasPrefix(trim, "[") && strings.HasSuffix(trim, "]") {
-			inSops = trim == "[sops]"
-			out.WriteString(line)
-			out.WriteByte('\n')
-			continue
-		}
-		if !inSops || !strings.Contains(line, `\n`) {
-			out.WriteString(line)
-			out.WriteByte('\n')
-			continue
-		}
-		eq := strings.IndexByte(line, '=')
-		if eq < 0 {
-			out.WriteString(line)
-			out.WriteByte('\n')
-			continue
-		}
-		key := strings.TrimRight(line[:eq], " \t")
-		val := strings.TrimLeft(line[eq+1:], " \t")
-		val = strings.ReplaceAll(val, `\n`, "\n")
-		out.WriteString(key)
-		out.WriteString(` = """`)
-		out.WriteString(val)
-		out.WriteString(`"""`)
-		out.WriteByte('\n')
+	if !bytes.Contains(data, []byte(`\n`)) {
+		return data
 	}
-	return out.Bytes()
+
+	lines := strings.Split(string(data), "\n")
+	inSops := false
+
+	for i, line := range lines {
+		trim := strings.TrimSpace(line)
+
+		switch {
+		case strings.HasPrefix(trim, "[") && strings.HasSuffix(trim, "]"):
+			inSops = trim == "[sops]"
+		case inSops && strings.Contains(line, `\n`):
+			k, v, ok := strings.Cut(line, "=")
+			if !ok {
+				continue
+			}
+
+			key := strings.TrimRight(k, " \t")
+			val := strings.ReplaceAll(strings.TrimLeft(v, " \t"), `\n`, "\n")
+			lines[i] = key + ` = """` + val + `"""`
+		}
+	}
+
+	return []byte(strings.Join(lines, "\n"))
 }
