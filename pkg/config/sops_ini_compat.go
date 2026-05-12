@@ -27,7 +27,7 @@ func sopsDecryptFileWithINICompat(path, format string) ([]byte, error) {
 // Rewrites [sops] section values containing literal `\n` as gopkg.in/ini.v1 triple-quoted
 // multi-line values (the syntax that section accepts for multi-line content).
 // Assumption: SOPS metadata values never contain the literal sequence `"""` after `\n` decode
-// (current SOPS metadata is base64 / PGP armor / timestamps — none can hold triple-quote).
+// (current SOPS metadata is base64 / PGP armor / timestamps, none can hold triple-quote).
 func rewriteINISopsMetadataNewlines(data []byte) []byte {
 	if !bytes.Contains(data, []byte(`\n`)) {
 		return data
