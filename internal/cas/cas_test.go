@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,4 +87,52 @@ func TestCAS_Clone(t *testing.T) {
 		_, err = os.Stat(filepath.Join(targetPath, ".git", "config"))
 		require.NoError(t, err)
 	})
+}
+
+func TestCAS_FallbackWhenGitStoreFails(t *testing.T) {
+	t.Parallel()
+
+	repoURL := startTestServer(t)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	storePath := filepath.Join(tempDir, "store")
+	targetPath := filepath.Join(tempDir, "repo")
+
+	// Occupy the per-URL bare-repo path with a regular file so the central
+	// store cannot create its directory. CAS must still complete the clone via
+	// the temporary fallback path.
+	gitStoreRoot := filepath.Join(storePath, "git")
+	require.NoError(t, os.MkdirAll(gitStoreRoot, 0o755))
+
+	entry := cas.EntryPathForURL(gitStoreRoot, repoURL)
+	require.NoError(t, os.WriteFile(entry, []byte("not a directory"), 0o644))
+
+	c, err := cas.New(cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	err = c.Clone(t.Context(), logger.CreateLogger(), &cas.CloneOptions{
+		Dir:   targetPath,
+		Depth: -1,
+	}, repoURL)
+	require.NoError(t, err)
+
+	_, err = os.Stat(filepath.Join(targetPath, "README.md"))
+	require.NoError(t, err)
+
+	// The blocking file must still be in place. The fallback path is allowed
+	// to bypass the central store, not to repair it.
+	info, err := os.Stat(entry)
+	require.NoError(t, err)
+	assert.False(t, info.IsDir(), "fallback should not have replaced the blocking file")
+}
+
+// TestCASRejectsNonOSFilesystem pins the early OS-filesystem gate
+// in [cas.New]: a non-OS backing must fail at construction.
+func TestCASRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+
+	_, err := cas.New(cas.WithFS(vfs.NewMemMapFS()), cas.WithStorePath(storePath))
+	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
 }

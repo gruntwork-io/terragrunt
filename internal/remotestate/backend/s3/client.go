@@ -644,6 +644,19 @@ func convertTags(tags map[string]string) []types.Tag {
 	return tagsConverted
 }
 
+func convertToDynamoTags(tags map[string]string) []dynamodbtypes.Tag {
+	result := make([]dynamodbtypes.Tag, 0, len(tags))
+
+	for k, v := range tags {
+		result = append(result, dynamodbtypes.Tag{
+			Key:   aws.String(k),
+			Value: aws.String(v),
+		})
+	}
+
+	return result
+}
+
 // WaitUntilS3BucketExists waits until the S3 bucket with the given name exists.
 //
 // AWS is eventually consistent, so after creating an S3 bucket, this method can be used to wait until the information
@@ -1439,6 +1452,10 @@ func (client *Client) CreateLockTable(ctx context.Context, l log.Logger, tableNa
 		BillingMode:          dynamodbtypes.BillingMode(DynamodbPayPerRequestBillingMode),
 		AttributeDefinitions: attributeDefinitions,
 		KeySchema:            keySchema,
+	}
+
+	if len(tags) > 0 {
+		input.Tags = convertToDynamoTags(tags)
 	}
 
 	createTableOutput, err := client.dynamoClient.CreateTable(ctx, input)
