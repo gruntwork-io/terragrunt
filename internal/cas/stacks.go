@@ -76,14 +76,14 @@ func (c *CAS) ProcessStackComponent(ctx context.Context, l log.Logger, source, k
 		return c.processLocalStackComponent(ctx, l, repoURL, subdir)
 	}
 
-	repoURL, err := DetectRemoteSource(repoURL)
+	detectedURL, err := DetectRemoteSource(repoURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect source URL %q: %w", repoURL, err)
 	}
 
-	parsedURL, err := url.Parse(repoURL)
+	parsedURL, err := url.Parse(detectedURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse source URL %q: %w", repoURL, err)
+		return nil, fmt.Errorf("failed to parse source URL %q: %w", detectedURL, err)
 	}
 
 	ref := parsedURL.Query().Get("ref")
