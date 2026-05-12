@@ -1,6 +1,6 @@
 # Mock dependency configuration
 terraform {
-  source = "git::git@github.com:gruntwork-io/terragrunt.git//test/fixtures/download/hello-world"
+  source = "git::__MIRROR_SSH_URL__//test/fixtures/download/hello-world"
 }
 
 inputs = {

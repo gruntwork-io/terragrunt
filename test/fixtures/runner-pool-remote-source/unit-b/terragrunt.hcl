@@ -1,5 +1,5 @@
 terraform {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/fail-fast/unit-a?ref=v0.84.1"
+  source = "git::__MIRROR_URL__//test/fixtures/fail-fast/unit-a?ref=v0.84.1"
 }
 
 dependency "unit-a" {

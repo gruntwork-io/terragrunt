@@ -3,8 +3,7 @@ inputs = {
 }
 
 terraform {
-  # Pinned to the commit v0.93.2 resolves to so this fixture exercises
-  # the commit-SHA path in the CAS getter without depending on whatever
-  # the tag points to in the future.
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/download/hello-world-no-remote?ref=dd7913e04f0e812b51ccf2c4f35a0fda16a356a1"
+  # Exercises the commit-SHA path in the CAS getter. __MIRROR_SHA__ is
+  # substituted to the local git mirror's HEAD commit hash at render time.
+  source = "git::__MIRROR_URL__//test/fixtures/download/hello-world-no-remote?ref=__MIRROR_SHA__"
 }

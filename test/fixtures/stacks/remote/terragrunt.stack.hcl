@@ -3,12 +3,12 @@ locals {
 }
 
 unit "app1" {
-	source = "git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=${local.version}&depth=1"
+	source = "git::__MIRROR_URL__//test/fixtures/stacks/basic/units/chick?ref=${local.version}"
 	path   = "app1"
 }
 
 unit "app2" {
-	source = "git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=${local.version}&depth=1"
+	source = "git::__MIRROR_URL__//test/fixtures/stacks/basic/units/chick?ref=${local.version}"
 	path   = "app2"
 }
 

@@ -99,7 +99,8 @@ func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 }
 
 func TestTflintInitSameModule(t *testing.T) {
-	rootPath := CopyEnvironmentWithTflint(t, testFixtureParallelRun)
+	mirror := helpers.StartTerragruntMirror(t)
+	rootPath := mirror.RenderFixture(t, testFixtureParallelRun, ".tflint.hcl")
 	t.Cleanup(func() {
 		helpers.RemoveFolder(t, rootPath)
 	})

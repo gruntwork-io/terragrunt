@@ -1,12 +1,4 @@
-//go:build ssh
-
-// We don't want contributors to have to install SSH keys to run these tests, so we skip
-// them by default. Contributors need to opt in to run these tests by setting the
-// build flag `ssh` when running the tests. This is done by adding the `-tags ssh` flag
-// to the `go test` command. For example:
-//
-// go test -tags ssh ./...
-
+//nolint:paralleltest,tparallel // Every test in this file calls RequireSSH, which uses t.Setenv and therefore can't run in parallel.
 package test_test
 
 import (
@@ -20,7 +12,8 @@ import (
 )
 
 func TestSSHSourceMapWithSlashInRef(t *testing.T) {
-	t.Parallel()
+	mirror := helpers.StartTerragruntMirror(t)
+	mirror.RequireSSH(t)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -29,35 +22,41 @@ func TestSSHSourceMapWithSlashInRef(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=fixture/test-fixtures --working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
+	// Source-map redirects the fake SSH URL in the fixture to the
+	// local mirror. The `?ref=fixture/test-fixtures` is a slash-in-ref
+	// regression check; the mirror exposes that branch so the
+	// URL parser sees a real slash-bearing ref value.
+	cmd := "terragrunt plan --non-interactive " +
+		"--source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::" + mirror.SSHURL + "?ref=fixture/test-fixtures " +
+		"--working-dir " + testPath
+	require.NoError(t, helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr))
 }
 
 func TestSSHTerragruntNoWarningRemotePath(t *testing.T) {
-	t.Parallel()
+	mirror := helpers.StartTerragruntMirror(t)
+	mirror.RequireSSH(t)
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoSubmodules)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureNoSubmodules)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNoSubmodules)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt init --non-interactive --working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
+	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt init --non-interactive --working-dir "+testPath, &stdout, &stderr))
 	assert.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
 }
 
 func TestSSHDownloadSourceWithRef(t *testing.T) {
-	t.Parallel()
+	mirror := helpers.StartTerragruntMirror(t)
+	mirror.RequireSSH(t)
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRefSource)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureRefSource)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureRefSource)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
+	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --working-dir "+testPath, &stdout, &stderr))
 }

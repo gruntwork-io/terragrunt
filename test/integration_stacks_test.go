@@ -257,8 +257,9 @@ func TestStacksRunParseErrorNotSilentlySkipped(t *testing.T) {
 func TestStacksGenerateRemote(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.StartTerragruntMirror(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
@@ -369,15 +370,16 @@ func TestStacksApply(t *testing.T) {
 func TestStacksApplyRemote(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.StartTerragruntMirror(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
-	assert.Contains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+	assert.Contains(t, stderr, "app1 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
+	assert.Contains(t, stderr, "app2 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
 	assert.Contains(t, stdout, "local_file.file: Creation complete")
 
@@ -1097,6 +1099,8 @@ func TestStackApplyStrictIncludeWithFilter(t *testing.T) {
 func TestStacksSourceMap(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.StartTerragruntMirror(t)
+
 	// prepare local path to do override of source url
 	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	localTmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
@@ -1114,11 +1118,11 @@ func TestStacksSourceMap(t *testing.T) {
 
 	// prepare local environment with remote to use source map to replace
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	// generate path with replacement of local source with local path
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --source-map git::"+mirror.URL+"="+localTmpEnvPath+" --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Generating unit app1")
@@ -1127,12 +1131,12 @@ func TestStacksSourceMap(t *testing.T) {
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --non-interactive --working-dir "+rootPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::"+mirror.URL+"="+localTmpEnvPath+" --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	// validate that the source map was used to replace the source
-	assert.NotContains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
-	assert.NotContains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+	assert.NotContains(t, stderr, "app1 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
+	assert.NotContains(t, stderr, "app2 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
 
 	assert.Contains(t, stderr, "Running ./.terragrunt-stack/app1")
 	assert.Contains(t, stderr, "Running ./.terragrunt-stack/app2")
@@ -1576,8 +1580,9 @@ func validateNoStackDirs(t *testing.T, rootPath string) {
 func TestStacksSelfInclude(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.StartTerragruntMirror(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStackSelfInclude)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackSelfInclude)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureStackSelfInclude)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackSelfInclude, "live")
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
