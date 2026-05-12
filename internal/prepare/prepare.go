@@ -97,7 +97,10 @@ func PrepareSource(
 	optsClone.TerraformCommand = run.CommandNameTerragruntReadConfig
 
 	if err = optsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return run.ProcessHooks(ctx, l, runCfg.Terraform.AfterHooks, configbridge.NewRunOptions(optsClone), runCfg, nil, r)
+		return run.ProcessHooks(
+			ctx, l, run.OSVenv(), runCfg.Terraform.AfterHooks,
+			configbridge.NewRunOptions(optsClone), runCfg, nil, r,
+		)
 	}); err != nil {
 		return nil, err
 	}
