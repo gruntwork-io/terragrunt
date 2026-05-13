@@ -140,6 +140,18 @@ func (s *Server) Branch(name string) error {
 	return nil
 }
 
+// SetBranch points the named branch at the given commit hash, creating
+// it if missing. Tests use this to rewind a branch past a tagged
+// commit so the commit is reachable only via the tag.
+func (s *Server) SetBranch(name, hash string) error {
+	ref := plumbing.NewHashReference(plumbing.NewBranchReferenceName(name), plumbing.NewHash(hash))
+	if err := s.repo.Storer.SetReference(ref); err != nil {
+		return fmt.Errorf("set branch %s to %s: %w", name, hash, err)
+	}
+
+	return nil
+}
+
 // Start begins serving Git HTTP on a random local port.
 // Returns the base URL (e.g. "http://127.0.0.1:12345").
 func (s *Server) Start(ctx context.Context) (string, error) {

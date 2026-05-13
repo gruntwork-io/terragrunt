@@ -328,6 +328,59 @@ func TestCASClone_TagRef(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestGitStoreEnsureCommit_TagOnlyCommit pins the regression where the
+// fallback fetch only pulled refs/heads/*, so a commit reachable only
+// via an annotated tag stayed missing and surfaced as
+// ErrNoMatchingReference. The fix broadens the refspec so tag-only
+// commits arrive on the first fetch.
+func TestGitStoreEnsureCommit_TagOnlyCommit(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+
+	require.NoError(t, srv.CommitFile("first.txt", []byte("first"), "first commit"))
+
+	firstHash, err := srv.Head()
+	require.NoError(t, err)
+
+	require.NoError(t, srv.CommitFile("tagged.txt", []byte("tagged"), "tagged commit"))
+
+	taggedHash, err := srv.Head()
+	require.NoError(t, err)
+	require.NotEqual(t, firstHash, taggedHash, "tagged commit must differ from first commit")
+
+	require.NoError(t, srv.Tag("v1"))
+
+	// Rewind main past the tagged commit so it is reachable only via the tag.
+	require.NoError(t, srv.SetBranch("main", firstHash))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	store, fs, _ := newTestGitStore(t)
+	l := logger.CreateLogger()
+	ctx := t.Context()
+
+	t.Run("rev-parse fallback", func(t *testing.T) {
+		t.Parallel()
+
+		repo, err := store.EnsureCommit(ctx, l, fs, repoURL, taggedHash, "")
+		require.NoError(t, err)
+		assert.Equal(t, taggedHash, repo.Hash)
+		require.NoError(t, repo.Unlock())
+	})
+
+	t.Run("known-hash fallback", func(t *testing.T) {
+		t.Parallel()
+
+		store2, fs2, _ := newTestGitStore(t)
+		repo, err := store2.EnsureCommit(ctx, l, fs2, repoURL, taggedHash, taggedHash)
+		require.NoError(t, err)
+		assert.Equal(t, taggedHash, repo.Hash)
+		require.NoError(t, repo.Unlock())
+	})
+}
+
 // TestGitStoreEnsureCommit_OfflineWhenCached proves that once a
 // commit is cached in the central git store, EnsureCommit resolves it
 // without touching the network. We tear the server down between the
