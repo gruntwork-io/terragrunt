@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -66,7 +67,7 @@ func TestCatalogCommandInitialization(t *testing.T) {
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
 	// Test that the catalog service loads correctly
-	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
+	svc := catalog.NewCatalogService(opts, venv.OSVenv()).WithNewRepoFunc(mockNewRepo)
 
 	ctx := t.Context()
 	l := logger.CreateLogger()

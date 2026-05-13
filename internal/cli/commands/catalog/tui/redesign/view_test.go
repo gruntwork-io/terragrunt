@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ func TestWelcomeLoadingView_RendersSpinnerAndStatus(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	m := redesign.NewWelcomeModel(t.Context(), l, opts, blockingLoad)
+	m := redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, blockingLoad)
 	m = updateModel(m, windowSize).(redesign.WelcomeModel)
 
 	view := m.View()
@@ -46,7 +47,7 @@ func TestWelcomeLoadingView_StatusTextUpdates(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	m := redesign.NewWelcomeModel(t.Context(), l, opts, blockingLoad)
+	m := redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, blockingLoad)
 	m = updateModel(m, windowSize).(redesign.WelcomeModel)
 
 	content := stripANSI(m.View().Content)
@@ -75,7 +76,7 @@ func TestWelcomeNoSourcesView_RendersHelpText(t *testing.T) {
 		return nil
 	}
 
-	m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
+	m := redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, noSourcesLoad)
 	m = updateModel(m, windowSize).(redesign.WelcomeModel)
 
 	m = updateModel(m, redesign.DiscoveryCompleteMsg{Err: nil}).(redesign.WelcomeModel)
@@ -110,7 +111,7 @@ func TestWelcomeDiscoveryErrorView_RendersErrorAndHint(t *testing.T) {
 		return errors.New("network unreachable")
 	}
 
-	m := redesign.NewWelcomeModel(t.Context(), l, opts, erroringLoad)
+	m := redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, erroringLoad)
 	m = updateModel(m, windowSize).(redesign.WelcomeModel)
 
 	m = updateModel(m, redesign.DiscoveryCompleteMsg{Err: errors.New("network unreachable")}).(redesign.WelcomeModel)
@@ -138,7 +139,7 @@ func TestComponentListView_LoadingTitle(t *testing.T) {
 	require.NotEmpty(t, components)
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -170,7 +171,7 @@ func TestComponentListView_MetadataRowRendered(t *testing.T) {
 	entry := components[0].WithVersion("v1.10.2").WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -197,7 +198,7 @@ func TestComponentListView_TemplateKindRendered(t *testing.T) {
 	)).WithSource("github.com/gruntwork-io/templates-repo")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, template, componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, template, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -219,7 +220,7 @@ func TestComponentListView_NoVersionOmitsVersionPill(t *testing.T) {
 	entry := components[0].WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -253,7 +254,7 @@ func TestComponentListView_LongSourceAbbreviatesWithEllipsis(t *testing.T) {
 	)).WithSource(longSource)
 
 	componentCh := make(chan *redesign.ComponentEntry, 1)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, entry, componentCh, nil)
 
 	// Narrow terminal forces the source column to shrink below the raw width,
 	// which forces abbreviateMiddle to truncate.
@@ -296,7 +297,7 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 			return nil
 		}
 
-		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, opts, streamingLoad)
+		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, streamingLoad)
 
 		m = updateModel(m, windowSize)
 
@@ -414,7 +415,7 @@ func TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscovery_Synctest(t *t
 			return nil
 		}
 
-		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, opts, streamingLoad)
+		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, streamingLoad)
 
 		m = updateModel(m, windowSize)
 
@@ -504,7 +505,7 @@ func TestWelcomeLoadingSpinner_Synctest(t *testing.T) {
 			return nil
 		}
 
-		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, opts, slowLoad)
+		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, slowLoad)
 
 		m = updateModel(m, windowSize)
 

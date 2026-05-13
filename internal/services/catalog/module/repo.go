@@ -237,7 +237,7 @@ func (repo *Repo) CloneURL() string {
 // semver tags, LatestTag is left empty. Local catalog sources skip the
 // lookup entirely so a stale or unreachable origin URL in a local working
 // copy can't stall discovery.
-func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger) {
+func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger, exec vexec.Exec) {
 	if repo.isLocal {
 		return
 	}
@@ -247,7 +247,7 @@ func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger) {
 		return
 	}
 
-	runner, err := gitpkg.NewGitRunner(vexec.NewOSExec())
+	runner, err := gitpkg.NewGitRunner(exec)
 	if err != nil {
 		l.Debugf("catalog: skip tag lookup: %v", err)
 

@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -84,7 +85,7 @@ func TestWelcomeLoadingScreen_NoSources(t *testing.T) {
 			return nil
 		}
 
-		m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
+		m := redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, noSourcesLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
@@ -120,7 +121,7 @@ func TestWelcomeLoadingScreen_TransitionsToComponentList(t *testing.T) {
 			return nil
 		}
 
-		m := redesign.NewWelcomeModel(t.Context(), l, opts, withComponentsLoad)
+		m := redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, withComponentsLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
@@ -157,7 +158,7 @@ func TestWelcomeLoadingScreen_ComponentListNavigation(t *testing.T) {
 			return nil
 		}
 
-		m := redesign.NewWelcomeModel(t.Context(), l, opts, withComponentsLoad)
+		m := redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, withComponentsLoad)
 
 		msgs := []tea.Msg{
 			tea.KeyPressMsg{Code: tea.KeyEnter},
@@ -193,7 +194,7 @@ func TestWelcomeLoadingScreen_QuitDuringLoading(t *testing.T) {
 			return nil
 		}
 
-		m := redesign.NewWelcomeModel(t.Context(), l, opts, slowLoad)
+		m := redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, slowLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
@@ -221,7 +222,7 @@ func TestWelcomeNoSourcesScreen_HelpKeyOpensDocs(t *testing.T) {
 
 		var openedURL string
 
-		m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad).
+		m := redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, noSourcesLoad).
 			WithOpenURL(func(url string) error {
 				openedURL = url
 				return nil
@@ -255,7 +256,7 @@ func TestWelcomeNoSourcesScreen_UnhandledKey(t *testing.T) {
 			return nil
 		}
 
-		m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
+		m := redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, noSourcesLoad)
 
 		msgs := []tea.Msg{
 			tea.KeyPressMsg{Code: 'x', Text: "x"},
@@ -290,7 +291,7 @@ func TestWelcomeStreamingComponents(t *testing.T) {
 			return nil
 		}
 
-		m := redesign.NewWelcomeModel(t.Context(), l, opts, streamingLoad)
+		m := redesign.NewWelcomeModel(t.Context(), l, venv.OSVenv(), opts, streamingLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -25,14 +26,20 @@ const urlChannelBufferSize = 10
 // It launches the TUI immediately with a loading screen, then runs source
 // discovery and component loading in the background. When loading completes,
 // the TUI transitions to the component list or shows a welcome screen.
-func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, repoURL string) error {
+func runRedesign(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	repoURL string,
+) error {
 	// If an explicit URL was passed via CLI, use the default path
 	if repoURL != "" {
-		return runDefault(ctx, l, opts, repoURL)
+		return runDefault(ctx, l, v, opts, repoURL)
 	}
 
 	return redesign.RunRedesign(
-		ctx, l, opts, opts.Writers.ErrWriter,
+		ctx, l, v, opts, opts.Writers.ErrWriter,
 		func(
 			ctx context.Context, status redesign.StatusFunc, componentCh chan<- *redesign.ComponentEntry,
 		) error {
@@ -73,7 +80,7 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				seen[repoURL] = struct{}{}
 
 				loaders.Go(func() error {
-					if err := redesign.LoadURL(loadCtx, l, opts, repoURL, componentCh); err != nil {
+					if err := redesign.LoadURL(loadCtx, l, v, opts, repoURL, componentCh); err != nil {
 						// Suppress errors from context cancellation (user quit the TUI).
 						if loadCtx.Err() == nil {
 							l.Warnf("Error loading %s: %v", repoURL, err)

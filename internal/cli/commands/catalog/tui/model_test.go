@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -152,7 +153,7 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 	opts.TerragruntConfigPath = filepath.Join(unitDir, "terragrunt.hcl")
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
-	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
+	svc := catalog.NewCatalogService(opts, venv.OSVenv()).WithNewRepoFunc(mockNewRepo)
 
 	// Load the modules
 	ctx := t.Context()
@@ -283,7 +284,7 @@ func TestTUIScaffoldWithRealRepository(t *testing.T) {
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
 
 	// Use real terraform-fake-modules repository
-	svc := catalog.NewCatalogService(opts).WithRepoURL("https://github.com/gruntwork-io/terraform-fake-modules.git")
+	svc := catalog.NewCatalogService(opts, venv.OSVenv()).WithRepoURL("https://github.com/gruntwork-io/terraform-fake-modules.git")
 
 	// Load modules from the real repository
 	ctx := t.Context()

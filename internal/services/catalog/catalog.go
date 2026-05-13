@@ -80,16 +80,19 @@ type catalogServiceImpl struct {
 	repoURL  string
 	repoURLs []string
 	modules  module.Modules
+	venv     venv.Venv
 	mu       sync.Mutex
 }
 
 // NewCatalogService creates a new instance of catalogServiceImpl with default settings.
-// It requires TerragruntOptions and an optional initial repository URL.
-// Configuration methods like WithNewRepoFunc can be chained to customize the service.
-func NewCatalogService(opts *options.TerragruntOptions) *catalogServiceImpl {
+// It requires TerragruntOptions, the root virtualized environment, and an
+// optional initial repository URL. Configuration methods like WithNewRepoFunc
+// can be chained to customize the service.
+func NewCatalogService(opts *options.TerragruntOptions, v venv.Venv) *catalogServiceImpl {
 	return &catalogServiceImpl{
 		opts:    opts,
 		newRepo: module.NewRepo,
+		venv:    v,
 	}
 }
 
@@ -280,7 +283,5 @@ func (s *catalogServiceImpl) Modules() module.Modules {
 func (s *catalogServiceImpl) Scaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, module *module.Module) error {
 	l.Debugf("Scaffolding module: %q", module.TerraformSourcePath())
 
-	// TODO: thread venv from the CLI entrypoint through catalog service
-	// so this leaf participates in the root virtualized environment.
-	return scaffold.Run(ctx, l, venv.OSVenv(), opts, module.TerraformSourcePath(), "")
+	return scaffold.Run(ctx, l, s.venv, opts, module.TerraformSourcePath(), "")
 }

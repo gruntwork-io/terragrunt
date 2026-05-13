@@ -18,18 +18,17 @@ type scaffoldCmd struct {
 	component *Component
 	opts      *options.TerragruntOptions
 	logger    log.Logger
+	venv      venv.Venv
 }
 
-func newScaffoldCmd(logger log.Logger, opts *options.TerragruntOptions, c *Component) *scaffoldCmd {
-	return &scaffoldCmd{component: c, opts: opts, logger: logger}
+func newScaffoldCmd(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, c *Component) *scaffoldCmd {
+	return &scaffoldCmd{component: c, opts: opts, logger: l, venv: v}
 }
 
 func (c *scaffoldCmd) Run() error {
 	c.logger.Debugf("Scaffolding component: %q", c.component.TerraformSourcePath())
 
-	// TODO: thread venv from the CLI entrypoint through the catalog TUI
-	// so this leaf participates in the root virtualized environment.
-	return scaffold.Run(context.Background(), c.logger, venv.OSVenv(), c.opts, c.component.TerraformSourcePath(), "")
+	return scaffold.Run(context.Background(), c.logger, c.venv, c.opts, c.component.TerraformSourcePath(), "")
 }
 
 func (c *scaffoldCmd) SetStdin(io.Reader)  {}
