@@ -486,7 +486,7 @@ func FuzzEvalString(f *testing.F) {
 		f.Add(seed)
 	}
 
-	ctxWithUpper := &hcl.EvalContext{
+	ctxWithVars := &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"unit": cty.ObjectVal(map[string]cty.Value{
 				"vpc": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("/abs/vpc")}),
@@ -502,8 +502,8 @@ func FuzzEvalString(f *testing.F) {
 		}
 
 		_, _ = hclparse.EvalString(parsed, nil, "fuzz")
-		_, _ = hclparse.EvalString(parsed, ctxWithUpper, "fuzz")
-		_, _ = hclparse.EvalString(nil, ctxWithUpper, "fuzz")
+		_, _ = hclparse.EvalString(parsed, ctxWithVars, "fuzz")
+		_, _ = hclparse.EvalString(nil, ctxWithVars, "fuzz")
 	})
 }
 

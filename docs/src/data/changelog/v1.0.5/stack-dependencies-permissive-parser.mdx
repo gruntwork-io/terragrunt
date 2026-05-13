@@ -7,7 +7,7 @@ category: "experiments-updated"
 
 The `stack-dependencies` experiment ships the following fixes.
 
-The simplified two-pass parser now captures `source`, `path`, and `values` (and include block `path`) as lazy `hcl.Expression` values and evaluates them only when needed against the full Terragrunt eval context built by the production parser. It no longer re-decodes a stack file with a `nil` eval context when any block declares an `autoinclude`. Non-literal expressions in unrelated unit attributes (`${get_repo_root()}/...`, `format(...)`, `local.region`, `values.idps`) no longer block autoinclude resolution.
+The simplified two-pass parser now captures `source`, `path`, and include block `path` as lazy `hcl.Expression` values and evaluates them only when needed against the full Terragrunt eval context built by the production parser; `values` attributes are deferred via the body remainder and evaluated by the production parser itself. It no longer re-decodes a stack file with a `nil` eval context when any block declares an `autoinclude`. Non-literal expressions in unrelated unit attributes (`${get_repo_root()}/...`, `format(...)`, `local.region`, `values.idps`) no longer block autoinclude resolution.
 
 ```hcl
 unit "account" {
