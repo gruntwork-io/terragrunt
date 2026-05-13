@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -17,7 +19,7 @@ import (
 func TestRegistryGetterMode(t *testing.T) {
 	t.Parallel()
 
-	r := getter.NewRegistryGetter(logger.CreateLogger())
+	r := getter.NewRegistryGetter(logger.CreateLogger(), vfs.NewOSFS())
 
 	mode, err := r.Mode(t.Context(), &url.URL{Scheme: "tfr"})
 	require.NoError(t, err)
@@ -29,7 +31,7 @@ func TestRegistryGetterMode(t *testing.T) {
 func TestRegistryGetterGetFile(t *testing.T) {
 	t.Parallel()
 
-	r := getter.NewRegistryGetter(logger.CreateLogger())
+	r := getter.NewRegistryGetter(logger.CreateLogger(), vfs.NewOSFS())
 
 	err := r.GetFile(t.Context(), &getter.Request{})
 	require.Error(t, err)
@@ -40,7 +42,7 @@ func TestRegistryGetterGetFile(t *testing.T) {
 func TestRegistryGetterDetect(t *testing.T) {
 	t.Parallel()
 
-	r := getter.NewRegistryGetter(logger.CreateLogger())
+	r := getter.NewRegistryGetter(logger.CreateLogger(), vfs.NewOSFS())
 
 	tests := []struct {
 		req  *getter.Request

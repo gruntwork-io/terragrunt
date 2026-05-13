@@ -8,10 +8,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -43,11 +43,12 @@ var runAllDisabledCommands = map[string]string{
 		" and thus should not be run with run --all.",
 }
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+// Run executes the configured terraform command across every unit in the stack.
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	// --filter sets RunAll, so the CLI layer dispatches here without going
 	// through the single-unit run path. Emit the tip here as well; the
 	// underlying sync.Once dedupes if both paths fire.
-	tips.GiveStackTargetTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
+	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	if opts.TerraformCommand == "" {
 		return errors.New(MissingCommand{})
@@ -161,17 +162,19 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		runnerOpts = append(runnerOpts, common.WithWorktrees(wts))
 	}
 
-	rnr, err := runner.NewStackRunner(ctx, l, opts, runnerOpts...)
+	rnr, err := runner.NewStackRunner(ctx, l, v, opts, runnerOpts...)
 	if err != nil {
 		return err
 	}
 
-	return RunAllOnStack(ctx, l, opts, rnr, r)
+	return RunAllOnStack(ctx, l, v, opts, rnr, r)
 }
 
+// RunAllOnStack drives the supplied [common.StackRunner] to completion.
 func RunAllOnStack(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	rnr common.StackRunner,
 	r *report.Report,
@@ -215,7 +218,7 @@ func RunAllOnStack(
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		err := rnr.Run(ctx, l, opts, r)
+		err := rnr.Run(ctx, l, v, opts, r)
 		if err != nil {
 			// At this stage, we can't handle the error any further, so we just log it and return nil.
 			// After this point, we'll need to report on what happened, and we want that to happen

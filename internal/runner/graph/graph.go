@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 
@@ -23,7 +24,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+// Run executes the configured terraform command against the dependency
+// graph of the unit in the working directory.
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	// Get credentials BEFORE config parsing — sops_decrypt_file() and
 	// get_aws_account_id() in locals need auth-provider credentials
 	// available in opts.Env during HCL evaluation.
@@ -31,11 +34,12 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
 	// different opts after clone).
 	shellOpts := configbridge.ShellRunOptsFromOpts(opts)
-	if _, err := creds.ObtainCredsForParsing(ctx, l, opts.AuthProviderCmd, opts.Env, shellOpts); err != nil {
+	if _, err := creds.ObtainCredsForParsing(ctx, l, v.Exec, opts.AuthProviderCmd, opts.Env, shellOpts); err != nil {
 		return err
 	}
 
 	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	pctx.Venv = v.ToRoot()
 
 	cfg, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
 	if err != nil {
@@ -55,7 +59,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, opts.Env, opts.WorkingDir)
+		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, v.Exec, opts.Env, opts.WorkingDir)
 		if gitRootErr != nil {
 			return gitRootErr
 		}
@@ -118,10 +122,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}()
 	}
 
-	rnr, err := runner.NewStackRunner(ctx, l, graphOpts, runnerOpts...)
+	rnr, err := runner.NewStackRunner(ctx, l, v, graphOpts, runnerOpts...)
 	if err != nil {
 		return err
 	}
 
-	return runall.RunAllOnStack(ctx, l, graphOpts, rnr, r)
+	return runall.RunAllOnStack(ctx, l, v, graphOpts, rnr, r)
 }

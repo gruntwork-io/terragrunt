@@ -49,16 +49,17 @@ type RegistryGetter struct {
 
 // NewRegistryGetter returns a [RegistryGetter] configured with sensible
 // defaults: a [github.com/hashicorp/go-cleanhttp.DefaultClient] for
-// registry-protocol requests, the supplied logger for diagnostic output, and
-// [tfimpl.OpenTofu] as the default implementation. A logger is required
-// because this package does not consistently guard against a nil logger, so
-// requiring one at construction time prevents nil-pointer panics at call time.
-// Use the With* methods to customize other behavior.
-func NewRegistryGetter(l log.Logger) *RegistryGetter {
+// registry-protocol requests, the supplied logger for diagnostic output,
+// the supplied filesystem for archive expansion, and [tfimpl.OpenTofu]
+// as the default implementation. A logger is required because this package
+// does not consistently guard against a nil logger, so requiring one at
+// construction time prevents nil-pointer panics at call time. Use the
+// With* methods to customize other behavior.
+func NewRegistryGetter(l log.Logger, fs vfs.FS) *RegistryGetter {
 	return &RegistryGetter{
 		HTTPClient:         cleanhttp.DefaultClient(),
 		Logger:             l,
-		FS:                 vfs.NewOSFS(),
+		FS:                 fs,
 		TofuImplementation: tfimpl.OpenTofu,
 	}
 }

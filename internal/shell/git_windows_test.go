@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,7 @@ func TestGitTopLevelDirReturnsOSNativePathOnWindows(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	repoRoot, err := shell.GitTopLevelDir(ctx, l, terragruntOptions.Env, ".")
+	repoRoot, err := shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), terragruntOptions.Env, ".")
 	require.NoError(t, err)
 	require.NotEmpty(t, repoRoot)
 

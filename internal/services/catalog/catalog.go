@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -279,5 +280,7 @@ func (s *catalogServiceImpl) Modules() module.Modules {
 func (s *catalogServiceImpl) Scaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, module *module.Module) error {
 	l.Debugf("Scaffolding module: %q", module.TerraformSourcePath())
 
-	return scaffold.Run(ctx, l, opts, module.TerraformSourcePath(), "")
+	// TODO: thread venv from the CLI entrypoint through catalog service
+	// so this leaf participates in the root virtualized environment.
+	return scaffold.Run(ctx, l, venv.OSVenv(), opts, module.TerraformSourcePath(), "")
 }

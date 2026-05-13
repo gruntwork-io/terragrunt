@@ -28,7 +28,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -82,6 +81,7 @@ var sourceChangeLocks = sync.Map{}
 func Run(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	opts *Options,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -113,7 +113,7 @@ func Run(
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
 	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return ProcessHooks(ctx, l, OSVenv(), cfg.Terraform.AfterHooks, terragruntOptionsClone, cfg, nil, r)
+		return ProcessHooks(ctx, l, v, cfg.Terraform.AfterHooks, terragruntOptionsClone, cfg, nil, r)
 	}); err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func Run(
 	)
 
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env))
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.Exec, opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env))
 	}); err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func Run(
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
 		"sourceUrl": sourceURL,
 	}, func(ctx context.Context) error {
-		updatedOpts, err = DownloadTerraformSource(ctx, l, sourceURL, opts, cfg, r)
+		updatedOpts, err = DownloadTerraformSource(ctx, l, v, sourceURL, opts, cfg, r)
 		return err
 	})
 	if err != nil {
@@ -161,7 +161,7 @@ func Run(
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	if err = GenerateConfig(l, updatedOpts, cfg); err != nil {
+	if err = GenerateConfig(l, v.FS, updatedOpts, cfg); err != nil {
 		return err
 	}
 
@@ -178,7 +178,7 @@ func Run(
 	}
 
 	if err := opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return runTerragruntWithConfig(ctx, l, opts, updatedOpts, cfg, r)
+		return runTerragruntWithConfig(ctx, l, v, opts, updatedOpts, cfg, r)
 	}); err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func Run(
 }
 
 // GenerateConfig handles code generation using config types (for backwards compatibility).
-func GenerateConfig(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
+func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfig) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
 
 	actualLock := rawActualLock.(*sync.Mutex)
@@ -207,7 +207,7 @@ func GenerateConfig(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
 	} else if cfg.RemoteState.Config != nil {
 		// We use else if here because we don't need to check the backend configuration is defined when the remote state
 		// block has a `generate` attribute configured.
-		if err := checkTerraformCodeDefinesBackend(opts, cfg.RemoteState.BackendName); err != nil {
+		if err := checkTerraformCodeDefinesBackend(fs, opts, cfg.RemoteState.BackendName); err != nil {
 			return err
 		}
 	}
@@ -223,6 +223,7 @@ func GenerateConfig(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
 func runTerragruntWithConfig(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -251,7 +252,7 @@ func runTerragruntWithConfig(
 			return err
 		}
 	} else {
-		if err := PrepareNonInitCommand(ctx, l, originalOpts, opts, cfg, r); err != nil {
+		if err := PrepareNonInitCommand(ctx, l, v, originalOpts, opts, cfg, r); err != nil {
 			return err
 		}
 	}
@@ -275,9 +276,9 @@ func runTerragruntWithConfig(
 		return err
 	}
 
-	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(childCtx context.Context) error {
+	return RunActionWithHooks(ctx, l, v, "terraform", opts, cfg, r, func(childCtx context.Context) error {
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, vexec.NewOSExec(), opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...)
+		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, v.Exec, opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, &cfg.Terraform) {
@@ -341,6 +342,7 @@ func ShouldCopyLockFile(args *iacargs.IacArgs, terraformConfig *runcfg.Terraform
 func RunActionWithHooks(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	description string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -348,8 +350,6 @@ func RunActionWithHooks(
 	action func(ctx context.Context) error,
 ) error {
 	var allErrors *errors.MultiError
-
-	v := OSVenv()
 
 	beforeHookErrors := ProcessHooks(ctx, l, v, cfg.Terraform.BeforeHooks, opts, cfg, allErrors, r)
 	allErrors = allErrors.Append(beforeHookErrors)
@@ -405,8 +405,8 @@ func CheckFolderContainsTerraformCode(opts *Options) error {
 	return nil
 }
 
-// Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't
-func checkTerraformCodeDefinesBackend(opts *Options, backendType string) error {
+// Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't.
+func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType string) error {
 	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType))
 	if err != nil {
 		return errors.New(err)
@@ -427,7 +427,7 @@ func checkTerraformCodeDefinesBackend(opts *Options, backendType string) error {
 		return errors.New(err)
 	}
 
-	definesJSONBackend, err := util.GrepFilesWithSuffix(vfs.NewOSFS(), terraformJSONBackendRegexp, opts.WorkingDir, ".tf.json")
+	definesJSONBackend, err := util.GrepFilesWithSuffix(fs, terraformJSONBackendRegexp, opts.WorkingDir, ".tf.json")
 	if err != nil {
 		return err
 	}
@@ -638,6 +638,7 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *Options, 
 func PrepareNonInitCommand(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -649,7 +650,7 @@ func PrepareNonInitCommand(
 	}
 
 	if needsInit {
-		if err := runTerraformInitRunCfg(ctx, l, originalOpts, opts, cfg, r); err != nil {
+		if err := runTerraformInitRunCfg(ctx, l, v, originalOpts, opts, cfg, r); err != nil {
 			return err
 		}
 	}
@@ -687,6 +688,7 @@ func needsInitRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runc
 func runTerraformInitRunCfg(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -702,7 +704,7 @@ func runTerraformInitRunCfg(
 		return err
 	}
 
-	if err := runTerragruntWithConfig(ctx, l, originalOpts, initOptions, cfg, r); err != nil {
+	if err := runTerragruntWithConfig(ctx, l, v, originalOpts, initOptions, cfg, r); err != nil {
 		return err
 	}
 

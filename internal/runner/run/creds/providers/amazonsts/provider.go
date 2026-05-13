@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -34,8 +35,14 @@ func (provider *Provider) Name() string {
 	return "API calls to Amazon STS"
 }
 
-// GetCredentials implements providers.GetCredentials
-func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*providers.Credentials, error) {
+// GetCredentials implements providers.GetCredentials. exec is unused for
+// amazonsts because it talks to AWS via the SDK, not a subprocess; it is
+// accepted to satisfy the providers.Provider interface contract.
+func (provider *Provider) GetCredentials(
+	ctx context.Context,
+	l log.Logger,
+	_ vexec.Exec,
+) (*providers.Credentials, error) {
 	iamRoleOpts := provider.iamRoleOpts
 	if iamRoleOpts.RoleARN == "" {
 		return nil, nil

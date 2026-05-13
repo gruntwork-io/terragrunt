@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -161,7 +163,7 @@ func newRegistryTestClient(t *testing.T, httpClient *http.Client, impl tfimpl.Ty
 
 	l := logger.CreateLogger()
 
-	tfr := getter.NewRegistryGetter(l).
+	tfr := getter.NewRegistryGetter(l, vfs.NewOSFS()).
 		WithHTTPClient(httpClient).
 		WithTofuImplementation(impl)
 

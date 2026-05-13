@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -179,6 +180,7 @@ func createRunner(
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
+	exec vexec.Exec,
 	opts *options.TerragruntOptions,
 	units []*component.Unit,
 ) error {
@@ -198,6 +200,7 @@ func checkVersionConstraints(
 			return checkUnitVersionConstraints(
 				checkCtx,
 				l,
+				exec,
 				unitOpts,
 				unitLogger,
 				unit,
@@ -213,6 +216,7 @@ func checkVersionConstraints(
 func checkUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
+	exec vexec.Exec,
 	unitOpts *options.TerragruntOptions,
 	unitLogger log.Logger,
 	unit *component.Unit,
@@ -249,7 +253,7 @@ func checkUnitVersionConstraints(
 		l = unitLogger
 	}
 
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, unitOpts.WorkingDir, unitOpts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(unitOpts))
+	_, ver, impl, err := run.PopulateTFVersion(ctx, l, exec, unitOpts.WorkingDir, unitOpts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(unitOpts))
 	if err != nil {
 		return errors.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
 	}

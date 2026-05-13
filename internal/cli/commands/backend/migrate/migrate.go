@@ -6,6 +6,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -15,7 +17,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *options.TerragruntOptions) error {
+// Run migrates Terraform/OpenTofu state from srcPath to dstPath. v is the
+// virtualized environment used for the underlying stack runner build and
+// the state pull/push terraform invocations.
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	srcPath, dstPath string,
+	opts *options.TerragruntOptions,
+) error {
 	var err error
 
 	srcPath, err = util.CanonicalPath(srcPath, opts.WorkingDir)
@@ -32,7 +43,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	rnr, err := runner.NewStackRunner(ctx, l, opts)
+	rnr, err := runner.NewStackRunner(ctx, l, run.FromRoot(v), opts)
 	if err != nil {
 		return err
 	}
@@ -58,6 +69,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 	}
 
 	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
+	srcPctx.Venv = v
 
 	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
 	if err != nil {
@@ -74,6 +86,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 	srcOpts.WorkingDir = srcPctx.WorkingDir
 
 	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstOpts)
+	dstPctx.Venv = v
 
 	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
 	if err != nil {
@@ -104,6 +117,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 
 	return srcRemoteState.Migrate(
 		ctx, l,
+		v.Exec,
 		configbridge.RemoteStateOptsFromOpts(srcOpts),
 		configbridge.RemoteStateOptsFromOpts(dstOpts),
 		dstRemoteState,

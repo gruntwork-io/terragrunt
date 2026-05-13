@@ -90,10 +90,10 @@ func (g *FileCopyGetter) Detect(req *getter.Request) (bool, error) {
 	return (&getter.FileGetter{}).Detect(req)
 }
 
-// NewFileCopyGetter returns a FileCopyGetter with FS populated to the OS
+// NewFileCopyGetter returns a FileCopyGetter backed by the supplied
 // filesystem. Use the With* methods to customize other behavior.
-func NewFileCopyGetter() *FileCopyGetter {
-	return &FileCopyGetter{FS: vfs.NewOSFS()}
+func NewFileCopyGetter(fs vfs.FS) *FileCopyGetter {
+	return &FileCopyGetter{FS: fs}
 }
 
 // WithLogger sets the logger used by [util.CopyFolderContents] during a copy.

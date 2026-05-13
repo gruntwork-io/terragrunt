@@ -20,6 +20,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -67,12 +69,12 @@ const (
 
 // New returns the set of Terragrunt commands, grouped into categories.
 // Categories are ordered in increments of 10 for easy insertion of new categories.
-func New(l log.Logger, opts *options.TerragruntOptions) clihelper.Commands {
+func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.Commands {
 	mainCommands := clihelper.Commands{
-		runcmd.NewCommand(l, opts),  // run
-		stack.NewCommand(l, opts),   // stack
-		execcmd.NewCommand(l, opts), // exec
-		backend.NewCommand(l, opts), // backend
+		runcmd.NewCommand(l, opts, v),  // run
+		stack.NewCommand(l, opts, v),   // stack
+		execcmd.NewCommand(l, opts, v), // exec
+		backend.NewCommand(l, opts, v), // backend
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  MainCommandsCategoryName,
@@ -81,8 +83,8 @@ func New(l log.Logger, opts *options.TerragruntOptions) clihelper.Commands {
 	)
 
 	catalogCommands := clihelper.Commands{
-		catalog.NewCommand(l, opts),  // catalog
-		scaffold.NewCommand(l, opts), // scaffold
+		catalog.NewCommand(l, opts),     // catalog
+		scaffold.NewCommand(l, opts, v), // scaffold
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,
@@ -101,13 +103,13 @@ func New(l log.Logger, opts *options.TerragruntOptions) clihelper.Commands {
 	)
 
 	configurationCommands := clihelper.Commands{
-		hcl.NewCommand(l, opts),              // hcl
-		info.NewCommand(l, opts),             // info
-		dag.NewCommand(l, opts),              // dag
-		render.NewCommand(l, opts),           // render
-		helpcmd.NewCommand(l, opts),          // help (hidden)
-		versioncmd.NewCommand(),              // version (hidden)
-		awsproviderpatch.NewCommand(l, opts), // aws-provider-patch (hidden)
+		hcl.NewCommand(l, opts, v),              // hcl
+		info.NewCommand(l, opts, v),             // info
+		dag.NewCommand(l, opts),                 // dag
+		render.NewCommand(l, opts, v),           // render
+		helpcmd.NewCommand(l, opts),             // help (hidden)
+		versioncmd.NewCommand(),                 // version (hidden)
+		awsproviderpatch.NewCommand(l, opts, v), // aws-provider-patch (hidden)
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  ConfigurationCommandsCategoryName,
@@ -115,7 +117,7 @@ func New(l log.Logger, opts *options.TerragruntOptions) clihelper.Commands {
 		},
 	)
 
-	shortcutsCommands := NewShortcutsCommands(l, opts).SetCategory(
+	shortcutsCommands := NewShortcutsCommands(l, opts, v).SetCategory(
 		&clihelper.Category{
 			Name:  ShortcutsCommandsCategoryName,
 			Order: 50, //nolint: mnd
@@ -136,6 +138,7 @@ func New(l log.Logger, opts *options.TerragruntOptions) clihelper.Commands {
 func WrapWithTelemetry(
 	l log.Logger,
 	opts *options.TerragruntOptions,
+	v venv.Venv,
 ) func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
 	return func(
 		ctx context.Context,
@@ -155,7 +158,7 @@ func WrapWithTelemetry(
 				return err
 			}
 
-			if err := RunAction(childCtx, cliCtx, l, opts, action); err != nil {
+			if err := RunAction(childCtx, cliCtx, l, opts, v, action); err != nil {
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
 				return err
 			}
@@ -246,6 +249,7 @@ func RunAction(
 	cliCtx *clihelper.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
+	v venv.Venv,
 	action clihelper.ActionFunc,
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -255,14 +259,14 @@ func RunAction(
 
 	// Set up automatic provider caching if enabled
 	if !opts.NoAutoProviderCacheDir {
-		if err := setupAutoProviderCacheDir(ctx, l, opts); err != nil {
+		if err := setupAutoProviderCacheDir(ctx, l, opts, v.Exec); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}
 	}
 
 	GiveWindowsSymlinksTip(
 		l,
-		vfs.NewOSFS(),
+		v.FS,
 		runtime.GOOS,
 		opts.Tips,
 		opts.Env,
@@ -321,7 +325,7 @@ const minTofuVersionForAutoProviderCacheDir = "1.10.0"
 // setupAutoProviderCacheDir configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
 //
 // Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
-func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, exec vexec.Exec) error {
 	// Set TF_PLUGIN_CACHE_DIR environment variable
 	if opts.Env[tf.EnvNameTFPluginCacheDir] != "" {
 		l.Debugf(
@@ -334,7 +338,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	if opts.TerraformVersion == nil {
 		_, ver, impl, err := run.PopulateTFVersion(
-			ctx, l, opts.WorkingDir,
+			ctx, l, exec, opts.WorkingDir,
 			opts.VersionManagerFileName,
 			configbridge.TFRunOptsFromOpts(opts),
 		)

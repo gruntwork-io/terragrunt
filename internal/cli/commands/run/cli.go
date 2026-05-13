@@ -7,8 +7,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
+	innerrun "github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -17,7 +19,7 @@ const (
 	CommandName = "run"
 )
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
 	cmdFlags := NewFlags(l, opts, nil)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewGraphFlag(opts, nil))
 
@@ -31,30 +33,31 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 			"# Run output with -json flag\nterragrunt run -- output -json\n# Shortcut:\n# terragrunt output -json",
 		},
 		Flags:       cmdFlags,
-		Subcommands: NewSubcommands(l, opts),
+		Subcommands: NewSubcommands(l, opts, v),
 		Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
+			rv := innerrun.FromRoot(v)
 
 			if tgOpts.RunAll {
-				return runall.Run(ctx, l, tgOpts)
+				return runall.Run(ctx, l, rv, tgOpts)
 			}
 
 			if tgOpts.Graph {
-				return graph.Run(ctx, l, tgOpts)
+				return graph.Run(ctx, l, rv, tgOpts)
 			}
 
 			if len(cliCtx.Args()) == 0 {
 				return clihelper.ShowCommandHelp(ctx, cliCtx)
 			}
 
-			return Action(l, opts)(ctx, cliCtx)
+			return Action(l, opts, v)(ctx, cliCtx)
 		},
 	}
 
 	return cmd
 }
 
-func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) clihelper.Commands {
+func NewSubcommands(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.Commands {
 	var subcommands = make(clihelper.Commands, len(tf.CommandNames))
 
 	for i, name := range tf.CommandNames {
@@ -66,7 +69,7 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) clihelper.Com
 			Hidden:     !visible,
 			CustomHelp: ShowTFHelp(l, opts),
 			Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
-				return Action(l, opts)(ctx, cliCtx)
+				return Action(l, opts, v)(ctx, cliCtx)
 			},
 		}
 		subcommands[i] = subcommand
@@ -75,8 +78,8 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) clihelper.Com
 	return subcommands
 }
 
-func Action(l log.Logger, opts *options.TerragruntOptions) clihelper.ActionFunc {
+func Action(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.ActionFunc {
 	return func(ctx context.Context, _ *clihelper.Context) error {
-		return Run(ctx, l, opts)
+		return Run(ctx, l, opts, v)
 	}
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -38,6 +39,12 @@ const (
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
 	Writers writer.Writers
+
+	// Venv is the virtualized environment used by HCL helper functions
+	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
+	// Defaults to the OS-backed environment when [NewParsingContext] is
+	// called; callers with a threaded root Venv override via [WithVenv].
+	Venv venv.Venv
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
@@ -109,6 +116,7 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (conte
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
 		FilesRead:        &filesRead,
+		Venv:             venv.OSVenv(),
 	}
 
 	for _, opt := range opts {
@@ -183,6 +191,16 @@ func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *Parsing
 func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
 	c := ctx.Clone()
 	c.ParserOptions = parserOptions
+
+	return c
+}
+
+// WithVenv returns a new ParsingContext that uses the supplied virtualized
+// environment for HCL helpers that shell out (e.g. get_repo_root) and for
+// dependency-output evaluation.
+func (ctx *ParsingContext) WithVenv(v venv.Venv) *ParsingContext {
+	c := ctx.Clone()
+	c.Venv = v
 
 	return c
 }

@@ -92,14 +92,14 @@ func (remote *RemoteState) Bootstrap(ctx context.Context, l log.Logger, opts *Op
 }
 
 // Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
-func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, opts, dstOpts *Options, dstRemote *RemoteState) error {
+func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, exec vexec.Exec, opts, dstOpts *Options, dstRemote *RemoteState) error {
 	l.Debugf("Migrate remote state for the %s backend", remote.BackendName)
 
 	if remote.BackendName == dstRemote.BackendName {
 		return remote.backend.Migrate(ctx, l, remote.BackendConfig, dstRemote.BackendConfig, &opts.Options)
 	}
 
-	stateFile, err := remote.pullState(ctx, l, opts.TFRunOpts)
+	stateFile, err := remote.pullState(ctx, l, exec, opts.TFRunOpts)
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, opts, dstO
 		}
 	}()
 
-	return dstRemote.pushState(ctx, l, dstOpts.TFRunOpts, stateFile)
+	return dstRemote.pushState(ctx, l, exec, dstOpts.TFRunOpts, stateFile)
 }
 
 // NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:
@@ -174,12 +174,12 @@ func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, workingDir string)
 	return remote.Config.GenerateOpenTofuCode(l, workingDir, backendConfig)
 }
 
-func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions) (string, error) {
+func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, exec vexec.Exec, tfOpts *tf.TFOptions) (string, error) {
 	l.Debugf("Pulling state from %s backend", remote.BackendName)
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), tfOpts, args...)
+	output, err := tf.RunCommandWithOutput(ctx, l, exec, tfOpts, args...)
 	if err != nil {
 		return "", err
 	}
@@ -202,10 +202,10 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, tfOpts *
 	return file.Name(), nil
 }
 
-func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions, stateFile string) error {
+func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, exec vexec.Exec, tfOpts *tf.TFOptions, stateFile string) error {
 	l.Debugf("Pushing state to %s backend", remote.BackendName)
 
 	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
 
-	return tf.RunCommand(ctx, l, vexec.NewOSExec(), tfOpts, args...)
+	return tf.RunCommand(ctx, l, exec, tfOpts, args...)
 }

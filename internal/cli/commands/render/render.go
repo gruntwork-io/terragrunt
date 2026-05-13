@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -21,16 +22,16 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-func Run(ctx context.Context, l log.Logger, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
 
 	if opts.RunAll {
-		return runAll(ctx, l, opts)
+		return runAll(ctx, l, v, opts)
 	}
 
-	prepared, err := prepare.PrepareConfig(ctx, l, opts.TerragruntOptions)
+	prepared, err := prepare.PrepareConfig(ctx, l, v, opts.TerragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -38,8 +39,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	return runRender(l, opts, prepared.Cfg)
 }
 
-func runAll(ctx context.Context, l log.Logger, opts *Options) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
+	d := discovery.NewDiscovery(opts.WorkingDir).WithExec(v.Exec)
 
 	components, err := d.Discover(ctx, l, opts.TerragruntOptions)
 	if err != nil {
@@ -61,7 +62,7 @@ func runAll(ctx context.Context, l log.Logger, opts *Options) error {
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 
-		prepared, err := prepare.PrepareConfig(ctx, l, unitOpts.TerragruntOptions)
+		prepared, err := prepare.PrepareConfig(ctx, l, v, unitOpts.TerragruntOptions)
 		if err != nil {
 			errs = append(errs, err)
 			continue

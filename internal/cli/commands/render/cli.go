@@ -9,7 +9,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -121,7 +123,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 	}
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
 	prefix := flags.Prefix{CommandName}
 	renderOpts := NewOptions(opts)
 
@@ -139,7 +141,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 			clonedOpts := renderOpts.Clone()
 			clonedOpts.TerragruntOptions = tgOpts
 
-			return Run(ctx, l, clonedOpts)
+			return Run(ctx, l, run.FromRoot(v), clonedOpts)
 		},
 	}
 
