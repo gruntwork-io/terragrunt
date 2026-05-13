@@ -1,0 +1,10 @@
+---
+version: "v1.0.5"
+category: "experiments-updated"
+---
+
+#### `cas` — symlinks in the source repository
+
+Source repositories fetched through CAS used to materialize committed symlinks as regular files whose contents were the link target path. The destination tree no longer matched the upstream layout, and any tooling that followed the link saw plain text instead.
+
+CAS now writes a real symbolic link at the destination. Symlink targets that resolve outside the destination tree are rejected so a hostile or stale source cannot escape the working directory.

@@ -1121,8 +1121,12 @@ func sanitizeZipPath(dst, name string) (string, error) {
 	return destPath, nil
 }
 
-// validateSymlinkTarget validates that a symlink target doesn't escape the destination directory.
-func validateSymlinkTarget(dst, linkPath, target string) error {
+// ValidateSymlinkTarget reports whether a symbolic link whose path is linkPath
+// and whose stored target is target would resolve inside dst. Both absolute and
+// dot-dot targets that climb above dst are rejected so callers can safely
+// materialize symlinks from untrusted sources (zip archives, git trees) without
+// letting them escape the destination directory.
+func ValidateSymlinkTarget(dst, linkPath, target string) error {
 	// Resolve the target relative to the link's directory
 	absTarget := target
 	if !filepath.IsAbs(target) {
@@ -1161,7 +1165,7 @@ func extractSymlink(l log.Logger, fs FS, dst, destPath string, zipFile *zip.File
 	target := string(targetBytes)
 
 	// Validate symlink target doesn't escape destination
-	if err := validateSymlinkTarget(dst, destPath, target); err != nil {
+	if err := ValidateSymlinkTarget(dst, destPath, target); err != nil {
 		return err
 	}
 

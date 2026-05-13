@@ -1,12 +1,14 @@
 package cas_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -132,6 +134,106 @@ invalid format`),
 			require.NoError(t, err)
 			assert.Len(t, got.Entries(), tt.wantLen)
 			assert.Equal(t, tt.wantPath, got.Path())
+		})
+	}
+}
+
+func TestLinkTreeSymlinks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		wantLinks    map[string]string // path -> expected target
+		wantBlobs    map[string][]byte // path -> expected file content for non-symlink entries
+		storeTargets map[string]string // hash -> target string for entries the test should not realize as symlinks
+		name         string
+		treeData     []byte
+		wantErr      bool
+	}{
+		{
+			name: "symlink blob materializes as a real symlink",
+			treeData: []byte(`120000 blob 1111111111 link.txt
+100644 blob 2222222222 real.txt`),
+			wantLinks: map[string]string{"link.txt": "real.txt"},
+			wantBlobs: map[string][]byte{"real.txt": []byte("hello")},
+		},
+		{
+			name:      "symlink to sibling within tree via dot-dot",
+			treeData:  []byte(`120000 blob 3333333333 nested/up.txt`),
+			wantLinks: map[string]string{"nested/up.txt": "../sibling.txt"},
+		},
+		{
+			name:         "absolute symlink target is rejected",
+			treeData:     []byte(`120000 blob 4444444444 escape.txt`),
+			storeTargets: map[string]string{"4444444444": "/etc/passwd"},
+			wantErr:      true,
+		},
+		{
+			name:         "relative symlink that escapes root is rejected",
+			treeData:     []byte(`120000 blob 5555555555 escape.txt`),
+			storeTargets: map[string]string{"5555555555": "../../../etc/passwd"},
+			wantErr:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+
+			memFs := vfs.NewMemMapFS()
+			require.NoError(t, memFs.MkdirAll("/store", 0755))
+			store := cas.NewStore("/store").WithFS(memFs)
+			content := cas.NewContent(store)
+
+			tree, err := git.ParseTree(tt.treeData, "test-repo")
+			require.NoError(t, err)
+
+			for _, entry := range tree.Entries() {
+				switch entry.Mode {
+				case "120000":
+					target, ok := tt.storeTargets[entry.Hash]
+					if !ok {
+						target = tt.wantLinks[entry.Path]
+					}
+
+					require.NoError(t, content.Store(l, entry.Hash, []byte(target)))
+				default:
+					if data, ok := tt.wantBlobs[entry.Path]; ok {
+						require.NoError(t, content.Store(l, entry.Hash, data))
+					}
+				}
+			}
+
+			targetDir := "/target"
+			require.NoError(t, memFs.MkdirAll(targetDir, 0755))
+
+			err = cas.LinkTree(t.Context(), store, store, tree, targetDir)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			for path, wantTarget := range tt.wantLinks {
+				full := filepath.Join(targetDir, path)
+
+				info, err := vfs.Lstat(memFs, full)
+				require.NoError(t, err)
+				assert.NotZero(t, info.Mode()&os.ModeSymlink, "%s is not a symlink (mode=%s)", full, info.Mode())
+
+				got, err := vfs.Readlink(memFs, full)
+				require.NoError(t, err)
+				assert.Equal(t, wantTarget, got)
+			}
+
+			for path, wantContent := range tt.wantBlobs {
+				full := filepath.Join(targetDir, path)
+				got, err := vfs.ReadFile(memFs, full)
+				require.NoError(t, err)
+				assert.Equal(t, wantContent, got)
+			}
 		})
 	}
 }

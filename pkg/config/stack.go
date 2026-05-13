@@ -66,6 +66,7 @@ type StackConfig struct {
 type Unit struct {
 	Remain              hcl.Body   `hcl:",remain"`
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
+	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
 	NoValidation        *bool      `hcl:"no_validation,attr"`
 	Values              *cty.Value `hcl:"values,attr"`
@@ -78,6 +79,7 @@ type Unit struct {
 type Stack struct {
 	Remain              hcl.Body   `hcl:",remain"`
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
+	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
 	NoValidation        *bool      `hcl:"no_validation,attr"`
 	Values              *cty.Value `hcl:"values,attr"`
@@ -265,6 +267,7 @@ func generateUnits(ctx context.Context, l log.Logger, opts *generateOpts, pool *
 				values:       unit.Values,
 				noStack:      unit.NoStack != nil && *unit.NoStack,
 				noValidation: unit.NoValidation != nil && *unit.NoValidation,
+				mutable:      unit.Mutable != nil && *unit.Mutable,
 				kind:         unitKind,
 			}
 
@@ -297,6 +300,7 @@ func generateStacks(ctx context.Context, l log.Logger, opts *generateOpts, pool 
 				source:       stack.Source,
 				noStack:      stack.NoStack != nil && *stack.NoStack,
 				noValidation: stack.NoValidation != nil && *stack.NoValidation,
+				mutable:      stack.Mutable != nil && *stack.Mutable,
 				values:       stack.Values,
 				kind:         stackKind,
 			}
@@ -336,6 +340,7 @@ type componentToGenerate struct {
 	source       string
 	noStack      bool
 	noValidation bool
+	mutable      bool
 	kind         componentKind
 }
 
@@ -570,7 +575,12 @@ func fetchComponentSource(
 			return errors.Errorf("Failed to parse CAS reference for %s %s: %w", kindStr, cmp.name, err)
 		}
 
-		if err := opts.casInstance.MaterializeTree(ctx, l, hash, dest); err != nil {
+		var matOpts []cas.LinkTreeOption
+		if cmp.mutable {
+			matOpts = append(matOpts, cas.WithForceCopy())
+		}
+
+		if err := opts.casInstance.MaterializeTree(ctx, l, hash, dest, matOpts...); err != nil {
 			return errors.Errorf("Failed to materialize CAS tree for %s %s: %w", kindStr, cmp.name, err)
 		}
 

@@ -256,6 +256,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			terraformBody.SetAttributeValue("update_source_with_cas", terraformAsCty.GetAttr("update_source_with_cas"))
 		}
 
+		if cfg.Terraform.Mutable != nil {
+			terraformBody.SetAttributeValue("mutable", terraformAsCty.GetAttr("mutable"))
+		}
+
 		// Handle extra_arguments blocks
 		if len(cfg.Terraform.ExtraArgs) > 0 {
 			extraArgsAsCty := terraformAsCty.GetAttr("extra_arguments").AsValueMap()
@@ -860,6 +864,7 @@ func (conf *ErrorHook) String() string {
 type TerraformConfig struct {
 	Source              *string `hcl:"source,attr"`
 	UpdateSourceWithCAS *bool   `hcl:"update_source_with_cas,attr"`
+	Mutable             *bool   `hcl:"mutable,attr"`
 
 	// Ideally we can avoid the pointer to list slice, but if it is not a pointer, Terraform requires the attribute to
 	// be defined and we want to make this optional.

@@ -979,3 +979,54 @@ func TestDownloadWithCASCommitRef(t *testing.T) {
 
 	assert.Equal(t, "Hello, World", stdout.String())
 }
+
+// TestDownloadWithCASMutable exercises the end-to-end path for `mutable = true`
+// on a `terraform` block: CAS materializes the source as a writable copy
+// rather than a read-only hardlink, so every `.tf` file must land with the
+// user-write bit set. The non-mutable path would strip write bits, producing
+// 0o444 / 0o555 instead.
+func TestDownloadWithCASMutable(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := "fixtures/download/remote-mutable"
+
+	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
+	testPath := filepath.Join(tmpEnvPath, fixturePath)
+	helpers.CleanupTerraformFolder(t, testPath)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	cmd := "terragrunt apply --auto-approve --non-interactive --experiment cas --log-level debug --working-dir " + testPath
+	require.NoError(t, helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr))
+
+	cacheDir := filepath.Join(testPath, ".terragrunt-cache")
+
+	var checked int
+
+	require.NoError(t, filepath.WalkDir(cacheDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() || filepath.Ext(path) != ".tf" {
+			return nil
+		}
+
+		info, statErr := d.Info()
+		if statErr != nil {
+			return statErr
+		}
+
+		assert.NotZero(t, info.Mode().Perm()&0o200,
+			"mutable=true must materialize %s as writable (got perms %#o)", path, info.Mode().Perm())
+
+		checked++
+
+		return nil
+	}))
+
+	require.Positive(t, checked, "expected at least one .tf file under %s", cacheDir)
+}
