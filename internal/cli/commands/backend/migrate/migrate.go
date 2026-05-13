@@ -69,6 +69,7 @@ func Run(
 	}
 
 	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
+	srcPctx.Venv = v
 
 	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
 	if err != nil {
@@ -85,6 +86,7 @@ func Run(
 	srcOpts.WorkingDir = srcPctx.WorkingDir
 
 	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstOpts)
+	dstPctx.Venv = v
 
 	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
 	if err != nil {

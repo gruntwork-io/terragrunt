@@ -103,13 +103,13 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 	)
 
 	configurationCommands := clihelper.Commands{
-		hcl.NewCommand(l, opts),              // hcl
-		info.NewCommand(l, opts),             // info
-		dag.NewCommand(l, opts),              // dag
-		render.NewCommand(l, opts),           // render
-		helpcmd.NewCommand(l, opts),          // help (hidden)
-		versioncmd.NewCommand(),              // version (hidden)
-		awsproviderpatch.NewCommand(l, opts), // aws-provider-patch (hidden)
+		hcl.NewCommand(l, opts, v),              // hcl
+		info.NewCommand(l, opts, v),             // info
+		dag.NewCommand(l, opts),                 // dag
+		render.NewCommand(l, opts, v),           // render
+		helpcmd.NewCommand(l, opts),             // help (hidden)
+		versioncmd.NewCommand(),                 // version (hidden)
+		awsproviderpatch.NewCommand(l, opts, v), // aws-provider-patch (hidden)
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  ConfigurationCommandsCategoryName,

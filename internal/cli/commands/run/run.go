@@ -95,6 +95,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	}
 
 	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	pctx.Venv = rv.ToRoot()
 
 	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
 	if err != nil {
@@ -157,7 +158,7 @@ func isTerraformPath(opts *options.TerragruntOptions) bool {
 // we can resolve `version` a lot more cheaply.
 func runVersionCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
 	if !opts.TFPathExplicitlySet {
-		if tfPath, err := getTFPathFromConfig(ctx, l, opts); err != nil {
+		if tfPath, err := getTFPathFromConfig(ctx, l, v, opts); err != nil {
 			return err
 		} else if tfPath != "" {
 			opts.TFPath = tfPath
@@ -167,14 +168,14 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 	return tf.RunCommand(ctx, l, v.Exec, configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 }
 
-func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {
+func getTFPathFromConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (string, error) {
 	if !util.FileExists(opts.TerragruntConfigPath) {
 		l.Debugf("Did not find the config file %s", opts.TerragruntConfigPath)
 
 		return "", nil
 	}
 
-	cfg, err := getTerragruntConfig(ctx, l, opts)
+	cfg, err := getTerragruntConfig(ctx, l, v, opts)
 	if err != nil {
 		return "", err
 	}
@@ -189,7 +190,7 @@ func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.Terrag
 // - FeatureFlags
 // TODO: Look into a way to refactor this function to avoid the side effect.
 func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) (log.Logger, error) {
-	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, opts)
+	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, v, opts)
 	if err != nil {
 		return l, err
 	}
@@ -241,8 +242,9 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 	return l, nil
 }
 
-func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
+func getTerragruntConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
 	ctx, configCtx := configbridge.NewParsingContext(ctx, l, opts)
+	configCtx.Venv = v
 	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints,
 		config.FeatureFlagsBlock,

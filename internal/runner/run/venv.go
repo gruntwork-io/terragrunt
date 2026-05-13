@@ -33,6 +33,13 @@ func FromRoot(v venv.Venv) Venv {
 	return Venv{Exec: v.Exec, FS: v.FS}
 }
 
+// ToRoot is the inverse of [FromRoot]: it projects a run.Venv back into
+// the root [venv.Venv] for callers (notably config.ParsingContext) that
+// hold the root type.
+func (v Venv) ToRoot() venv.Venv {
+	return venv.Venv{FS: v.FS, Exec: v.Exec}
+}
+
 // tflintVenv translates a run.Venv into the tflint package's Venv. The
 // two carry the same handles but are distinct types so each package owns
 // its own contract.

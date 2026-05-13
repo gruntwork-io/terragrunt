@@ -24,7 +24,9 @@ func Run(
 	cmdOpts *Options,
 	args clihelper.Args,
 ) error {
-	prepared, err := prepare.PrepareConfig(ctx, l, opts)
+	rv := run.FromRoot(v)
+
+	prepared, err := prepare.PrepareConfig(ctx, l, rv, opts)
 	if err != nil {
 		return err
 	}
@@ -32,7 +34,7 @@ func Run(
 	r := report.NewReport()
 
 	// Download source
-	updatedOpts, err := prepare.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
+	updatedOpts, err := prepare.PrepareSource(ctx, l, rv, prepared.Opts, prepared.Cfg, r)
 	if err != nil {
 		return err
 	}
@@ -40,13 +42,13 @@ func Run(
 	runCfg := prepared.Cfg.ToRunConfig(l)
 
 	// Generate config
-	if err := prepare.PrepareGenerate(l, updatedOpts, runCfg); err != nil {
+	if err := prepare.PrepareGenerate(l, rv, updatedOpts, runCfg); err != nil {
 		return err
 	}
 
 	if cmdOpts.InDownloadDir {
 		// Run terraform init
-		if err := prepare.PrepareInit(ctx, l, opts, updatedOpts, runCfg, r); err != nil {
+		if err := prepare.PrepareInit(ctx, l, rv, opts, updatedOpts, runCfg, r); err != nil {
 			return err
 		}
 	} else {

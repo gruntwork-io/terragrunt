@@ -43,7 +43,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -278,16 +277,12 @@ func getPlatform(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 
 // Return the repository root as an absolute path
 func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	// TODO: thread venv through ParsingContext so this HCL helper
-	// participates in the root virtualized environment.
-	return shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), pctx.Env, pctx.WorkingDir)
+	return shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
 }
 
 // Return the path from the repository root
 func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	// TODO: thread venv through ParsingContext so this HCL helper
-	// participates in the root virtualized environment.
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), pctx.Env, pctx.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -302,9 +297,7 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 // Return the path to the repository root
 func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	// TODO: thread venv through ParsingContext so this HCL helper
-	// participates in the root virtualized environment.
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), pctx.Env, pctx.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -452,7 +445,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	cmdOutput, err := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		vexec.NewOSExec(),
+		pctx.Venv.Exec,
 		shellRunOptsFromPctx(pctx),
 		currentPath,
 		true,

@@ -39,6 +39,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 	}
 
 	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	pctx.Venv = v.ToRoot()
 
 	cfg, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
 	if err != nil {
