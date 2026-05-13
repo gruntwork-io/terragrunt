@@ -466,7 +466,7 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, tc.configPath)
 
 			if tc.env != nil {
-				pctx.Env = tc.env
+				pctx.Venv.Env = tc.env
 			}
 
 			actualOut, actualErr := config.ParseConfigString(ctx, pctx, l, "mock-path-for-test.hcl", tc.str, tc.include)
@@ -636,11 +636,10 @@ func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *
 	pctx.DownloadDir = downloadDir
 	pctx.TFPath = "tofu"
 	pctx.AutoInit = true
-	pctx.Env = map[string]string{}
+	pctx.Venv.Env = map[string]string{}
 	pctx.SourceMap = map[string]string{}
 	pctx.TerraformCliArgs = iacargs.New()
-	pctx.Writers.Writer = os.Stdout
-	pctx.Writers.ErrWriter = os.Stderr
+	pctx.Venv = pctx.Venv.WithWriter(os.Stdout).WithErrWriter(os.Stderr)
 	pctx.MaxFoldersToCheck = 100
 	pctx.TofuImplementation = tfimpl.Unknown
 	pctx.Experiments = experiment.NewExperiments()

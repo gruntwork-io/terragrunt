@@ -40,7 +40,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 				Name:  generateCommandName,
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
 				Action: func(ctx context.Context, _ *clihelper.Context) error {
-					return RunGenerate(ctx, l, opts.OptionsFromContext(ctx))
+					return RunGenerate(ctx, l, v, opts.OptionsFromContext(ctx))
 				},
 				Flags: defaultFlags(l, opts, nil),
 			},
@@ -61,7 +61,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 						index = val
 					}
 
-					return RunOutput(ctx, l, opts.OptionsFromContext(ctx), index)
+					return RunOutput(ctx, l, run.FromRoot(v), opts.OptionsFromContext(ctx), index)
 				},
 				Flags: outputFlags(l, opts, nil),
 			},

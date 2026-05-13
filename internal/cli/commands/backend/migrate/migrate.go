@@ -71,7 +71,7 @@ func Run(
 	}
 
 	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
-	srcPctx.Venv = v
+	srcPctx = srcPctx.WithVenv(v)
 
 	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
 	if err != nil {
@@ -88,7 +88,7 @@ func Run(
 	srcOpts.WorkingDir = srcPctx.WorkingDir
 
 	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstOpts)
-	dstPctx.Venv = v
+	dstPctx = dstPctx.WithVenv(v)
 
 	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
 	if err != nil {
@@ -103,7 +103,7 @@ func Run(
 	dstOpts.WorkingDir = dstPctx.WorkingDir
 
 	if !opts.ForceBackendMigrate {
-		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, configbridge.RemoteStateOptsFromOpts(srcOpts))
+		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, configbridge.RemoteStateOptsFromOpts(v, srcOpts))
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -118,9 +118,9 @@ func Run(
 
 	return srcRemoteState.Migrate(
 		ctx, l,
-		v.Exec,
-		configbridge.RemoteStateOptsFromOpts(srcOpts),
-		configbridge.RemoteStateOptsFromOpts(dstOpts),
+		v,
+		configbridge.RemoteStateOptsFromOpts(v, srcOpts),
+		configbridge.RemoteStateOptsFromOpts(v, dstOpts),
 		dstRemoteState,
 	)
 }

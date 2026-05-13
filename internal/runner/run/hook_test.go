@@ -188,9 +188,10 @@ func TestProcessHooks_InjectsHookContextEnv(t *testing.T) {
 	assert.Equal(t, "plan", env[run.HookCtxCommandEnvName])
 	assert.Equal(t, "ctx-hook", env[run.HookCtxHookNameEnvName])
 
-	// The opts.Env we passed in must not have been mutated.
-	_, mutated := opts.Env[run.HookCtxTFPathEnvName]
-	assert.False(t, mutated, "ProcessHooks must not mutate the caller's opts.Env")
+	// The v.Env we passed in must not have been mutated by ProcessHooks;
+	// the hook context vars only flow into the per-hook env clone.
+	_, mutated := v.Env[run.HookCtxTFPathEnvName]
+	assert.False(t, mutated, "ProcessHooks must not mutate the caller's v.Env")
 }
 
 func TestProcessHooks_PropagatesFailures(t *testing.T) {
@@ -276,7 +277,7 @@ func TestProcessErrorHooks_NoopWhenNoPriorErrors(t *testing.T) {
 		{Name: "on-anything", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "x"}},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), nil))
+	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, hookVenv(exec), hooks, &runcfg.RunConfig{}, newHookOpts(), nil))
 	assert.Empty(t, rec.snapshot())
 }
 
@@ -293,7 +294,7 @@ func TestProcessErrorHooks_SkipsHooksWhenNoHooksSet(t *testing.T) {
 		{Name: "disabled", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "skip-me"}},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, opts, []error{errors.New("boom")}))
+	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, hookVenv(exec), hooks, &runcfg.RunConfig{}, opts, []error{errors.New("boom")}))
 	assert.Empty(t, rec.snapshot(), "--no-hooks should suppress error hook dispatch")
 }
 
@@ -327,7 +328,7 @@ func TestProcessErrorHooks_MatchesOnErrorsRegex(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs))
+	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, hookVenv(exec), hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs))
 
 	calls := rec.snapshot()
 	require.Len(t, calls, 1)
@@ -368,18 +369,32 @@ func (r *recorder) snapshot() []vexec.Invocation {
 
 func newHookOpts() *run.Options {
 	return &run.Options{
-		Env:               map[string]string{},
 		WorkingDir:        "/work",
 		RootWorkingDir:    "/work",
 		TerraformCommand:  "plan",
 		TFPath:            "/fake/tofu",
 		MaxFoldersToCheck: 5,
-		Writers:           writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }
 
 func newHookVenv(h vexec.Handler) run.Venv {
-	return run.Venv{Exec: vexec.NewMemExec(h), FS: vfs.NewMemMapFS()}
+	return run.Venv{
+		Exec:    vexec.NewMemExec(h),
+		FS:      vfs.NewMemMapFS(),
+		Env:     map[string]string{},
+		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+	}
+}
+
+// hookVenv wraps an existing exec into a run.Venv for ProcessErrorHooks
+// callers that have constructed the exec independently of the venv helper.
+func hookVenv(exec vexec.Exec) run.Venv {
+	return run.Venv{
+		Exec:    exec,
+		FS:      vfs.NewMemMapFS(),
+		Env:     map[string]string{},
+		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+	}
 }
 
 func envToMap(env []string) map[string]string {

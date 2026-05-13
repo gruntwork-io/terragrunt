@@ -1139,13 +1139,10 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 
 	if isInit {
 		mergedIAM := iam.MergeRoleOptions(remoteStateTGConfig.GetIAMRoleOptions(), pctx.OriginalIAMRoleOptions)
-		if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
-			ctx,
-			l,
-			pctx.Venv.Exec,
-			pctx.Env,
+		if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, l, pctx.Venv,
+			pctx.Venv.Env,
 			externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
-			amazonsts.NewProvider(l, mergedIAM, pctx.Env),
+			amazonsts.NewProvider(l, mergedIAM, pctx.Venv.Env),
 		); err != nil {
 			return nil, "", err
 		}
@@ -1177,7 +1174,7 @@ func canGetRemoteState(remoteState *remotestate.RemoteState) bool {
 	return remoteState != nil && !remoteState.DisableDependencyOptimization
 }
 
-// applyExtraArgsEnvVarsForOutput merges extra_arguments env_vars whose commands include output into pctx.Env
+// applyExtraArgsEnvVarsForOutput merges extra_arguments env_vars whose commands include output into pctx.Venv.Env
 func applyExtraArgsEnvVarsForOutput(pctx *ParsingContext, terraformConfig *TerraformConfig) {
 	if terraformConfig == nil {
 		return
@@ -1189,11 +1186,11 @@ func applyExtraArgsEnvVarsForOutput(pctx *ParsingContext, terraformConfig *Terra
 			continue
 		}
 
-		if pctx.Env == nil {
-			pctx.Env = make(map[string]string, len(*arg.EnvVars))
+		if pctx.Venv.Env == nil {
+			pctx.Venv.Env = make(map[string]string, len(*arg.EnvVars))
 		}
 
-		maps.Copy(pctx.Env, *arg.EnvVars)
+		maps.Copy(pctx.Venv.Env, *arg.EnvVars)
 	}
 }
 
@@ -1236,7 +1233,7 @@ func terragruntAlreadyInit(ctx context.Context, l log.Logger, pctx *ParsingConte
 }
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without
-// running init. Callers must populate pctx.Env with auth-provider-cmd credentials and any
+// running init. Callers must populate pctx.Venv.Env with auth-provider-cmd credentials and any
 // TG_IAM_ROLE assumption beforehand.
 func getTerragruntOutputJSONFromInitFolder(
 	ctx context.Context,
@@ -1260,7 +1257,9 @@ func getTerragruntOutputJSONFromInitFolder(
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	out, err := tf.RunCommandWithOutput(bareCtx, l, pctx.Venv.Exec, tfRunOpts, tf.CommandNameOutput, "-json")
+	discardV := pctx.Venv.WithWriter(io.Discard)
+
+	out, err := tf.RunCommandWithOutput(bareCtx, l, discardV, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1322,13 +1321,10 @@ func getTerragruntOutputJSONFromRemoteState(
 	l.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
 	mergedIAM := iam.MergeRoleOptions(iamRoleOpts, pctx.OriginalIAMRoleOptions)
-	if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
-		ctx,
-		l,
-		pctx.Venv.Exec,
-		pctx.Env,
+	if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, l, pctx.Venv,
+		pctx.Venv.Env,
 		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
-		amazonsts.NewProvider(l, mergedIAM, pctx.Env),
+		amazonsts.NewProvider(l, mergedIAM, pctx.Venv.Env),
 	); err != nil {
 		return nil, err
 	}
@@ -1382,7 +1378,7 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Clone pctx and discard init stdout so it doesn't leak into the caller's output buffer.
 	initPctx := pctx.Clone()
-	initPctx.Writers.Writer = io.Discard
+	initPctx.Venv = initPctx.Venv.WithWriter(io.Discard)
 
 	// First run init to setup the backend configuration so that we can run output.
 	runTerraformInitForDependencyOutput(ctx, initPctx, l, tempWorkDir)
@@ -1390,7 +1386,9 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Now that the backend is initialized, run terraform output to get the data and return it.
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	out, err := tf.RunCommandWithOutput(bareCtx, l, pctx.Venv.Exec, tfRunOpts, tf.CommandNameOutput, "-json")
+	discardV := pctx.Venv.WithWriter(io.Discard)
+
+	out, err := tf.RunCommandWithOutput(bareCtx, l, discardV, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1424,7 +1422,7 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 
 		s3Client, err := awshelper.NewAWSConfigBuilder().
 			WithSessionConfig(sessionConfig).
-			WithEnv(pctx.Env).
+			WithEnv(pctx.Venv.Env).
 			WithIAMRoleOptions(pctx.IAMRoleOptions).
 			BuildS3Client(ctx, l)
 		if err != nil {
@@ -1470,14 +1468,15 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 	return jsonOutputs, nil
 }
 
-// setupTFRunOptsForBareTerraform builds a *tf.TFOptions for running terraform without
-// going through the full RunTerragrunt operation. Callers must obtain credentials
-// (auth-provider-cmd and any TG_IAM_ROLE assumption) before invoking, so those steps
-// run from the unit's directory rather than the bare-terraform working directory.
+// setupTFRunOptsForBareTerraform builds a *tf.TFOptions for running terraform
+// without going through the full RunTerragrunt operation. Callers must obtain
+// credentials (auth-provider-cmd and any TG_IAM_ROLE assumption) before
+// invoking, so those steps run from the unit's directory rather than the
+// bare-terraform working directory. Stdout suppression is the caller's
+// responsibility via the venv they pass to tf.RunCommandWithOutput.
 func setupTFRunOptsForBareTerraform(pctx *ParsingContext, workingDir string) *tf.TFOptions {
 	shellOpts := shellRunOptsFromPctx(pctx)
 	shellOpts.WorkingDir = workingDir
-	shellOpts.Writers.Writer = io.Discard
 
 	return &tf.TFOptions{
 		JSONLogFormat:                pctx.JSONLogFormat,
@@ -1497,7 +1496,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	pctx = pctx.Clone()
 	pctx.ForwardTFStdout = false
 	pctx.JSONLogFormat = false
-	pctx.Writers.Writer = stdoutBufferWriter
+	pctx.Venv = pctx.Venv.WithWriter(stdoutBufferWriter)
 
 	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
@@ -1507,54 +1506,51 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	runCfg := cfg.ToRunConfig(l)
 
 	credsGetter := creds.NewGetter()
-	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
-		ctx,
-		l,
-		pctx.Venv.Exec,
-		pctx.Env,
+	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, pctx.Venv,
+		pctx.Venv.Env,
 		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
 	); err != nil {
 		return nil, err
 	}
 
-	// Build run.Options directly from ParsingContext fields.
-	// Override Writers.Writer to capture stdout, and force ForwardTFStdout/JSONLogFormat off.
-	runWriters := pctx.Writers
-	runWriters.Writer = stdoutBufferWriter
+	// Build run.Options directly from ParsingContext fields. Stdout capture
+	// and ForwardTFStdout/JSONLogFormat overrides flow through the venv we
+	// hand to run.Run below.
+	runOpts := &run.Options{
+		FS:                           pctx.Venv.FS,
+		TerragruntConfigPath:         pctx.TerragruntConfigPath,
+		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
+		WorkingDir:                   pctx.WorkingDir,
+		RootWorkingDir:               pctx.RootWorkingDir,
+		DownloadDir:                  pctx.DownloadDir,
+		Source:                       pctx.Source,
+		SourceMap:                    pctx.SourceMap,
+		TerraformCommand:             pctx.TerraformCommand,
+		OriginalTerraformCommand:     pctx.OriginalTerraformCommand,
+		TerraformCliArgs:             pctx.TerraformCliArgs,
+		IAMRoleOptions:               pctx.IAMRoleOptions,
+		OriginalIAMRoleOptions:       pctx.OriginalIAMRoleOptions,
+		Experiments:                  pctx.Experiments,
+		StrictControls:               pctx.StrictControls,
+		FeatureFlags:                 pctx.FeatureFlags,
+		EngineConfig:                 pctx.EngineConfig,
+		EngineOptions:                pctx.EngineOptions,
+		TFPath:                       pctx.TFPath,
+		TofuImplementation:           pctx.TofuImplementation,
+		ForwardTFStdout:              false,
+		JSONLogFormat:                false,
+		Headless:                     pctx.Headless,
+		Debug:                        pctx.Debug,
+		AutoInit:                     pctx.AutoInit,
+		BackendBootstrap:             pctx.BackendBootstrap,
+		Telemetry:                    pctx.Telemetry,
+		AuthProviderCmd:              pctx.AuthProviderCmd,
+		CASCloneDepth:                pctx.CASCloneDepth,
+	}
 
-	runOpts := run.NewOptions()
-	runOpts.Writers = runWriters
-	runOpts.LogShowAbsPaths = pctx.LogShowAbsPaths
-	runOpts.LogDisableErrorSummary = pctx.LogDisableErrorSummary
-	runOpts.TerragruntConfigPath = pctx.TerragruntConfigPath
-	runOpts.OriginalTerragruntConfigPath = pctx.OriginalTerragruntConfigPath
-	runOpts.WorkingDir = pctx.WorkingDir
-	runOpts.RootWorkingDir = pctx.RootWorkingDir
-	runOpts.DownloadDir = pctx.DownloadDir
-	runOpts.Source = pctx.Source
-	runOpts.SourceMap = pctx.SourceMap
-	runOpts.TerraformCommand = pctx.TerraformCommand
-	runOpts.OriginalTerraformCommand = pctx.OriginalTerraformCommand
-	runOpts.TerraformCliArgs = pctx.TerraformCliArgs
-	runOpts.Env = pctx.Env
-	runOpts.IAMRoleOptions = pctx.IAMRoleOptions
-	runOpts.OriginalIAMRoleOptions = pctx.OriginalIAMRoleOptions
-	runOpts.Experiments = pctx.Experiments
-	runOpts.StrictControls = pctx.StrictControls
-	runOpts.FeatureFlags = pctx.FeatureFlags
-	runOpts.EngineConfig = pctx.EngineConfig
-	runOpts.EngineOptions = pctx.EngineOptions
-	runOpts.TFPath = pctx.TFPath
-	runOpts.TofuImplementation = pctx.TofuImplementation
-	runOpts.Headless = pctx.Headless
-	runOpts.Debug = pctx.Debug
-	runOpts.AutoInit = pctx.AutoInit
-	runOpts.BackendBootstrap = pctx.BackendBootstrap
-	runOpts.Telemetry = pctx.Telemetry
-	runOpts.AuthProviderCmd = pctx.AuthProviderCmd
-	runOpts.CASCloneDepth = pctx.CASCloneDepth
+	runV := pctx.Venv.WithWriter(stdoutBufferWriter)
 
-	err = run.Run(ctx, l, run.FromRoot(pctx.Venv), runOpts, report.NewReport(), runCfg, credsGetter)
+	err = run.Run(ctx, l, run.FromRoot(runV), runOpts, report.NewReport(), runCfg, credsGetter)
 	if err != nil {
 		return nil, err
 	}
@@ -1573,11 +1569,11 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 }
 
 // shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
+// Shell environment and writers travel separately via pctx.Venv at the
+// invocation site.
 func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
 	s := shell.NewShellOptions().
 		WithWorkingDir(pctx.WorkingDir).
-		WithEnv(pctx.Env).
-		WithWriters(pctx.Writers).
 		WithTelemetry(pctx.Telemetry).
 		WithEngine(pctx.EngineConfig, pctx.EngineOptions).
 		WithTFPath(pctx.TFPath).
@@ -1648,11 +1644,12 @@ func runTerraformInitForDependencyOutput(ctx context.Context, pctx *ParsingConte
 
 	initRunOpts := tfRunOptsFromPctx(pctx)
 	initRunOpts.ShellOptions.WorkingDir = workingDir
-	initRunOpts.ShellOptions.Writers.ErrWriter = &stderr
+
+	initV := pctx.Venv.WithErrWriter(&stderr)
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	if err := tf.RunCommand(bareCtx, l, pctx.Venv.Exec, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
+	if err := tf.RunCommand(bareCtx, l, initV, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf("%s", stderr.String())

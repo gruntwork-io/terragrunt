@@ -126,9 +126,9 @@ func FuzzHCLRunCommand(f *testing.F) {
 		})
 
 		ctx, pctx := newTestParsingContext(t, "")
-		pctx.Writers.Writer = io.Discard
-		pctx.Writers.ErrWriter = io.Discard
-		pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: memExec}
+		pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: memExec}.
+			WithWriter(io.Discard).
+			WithErrWriter(io.Discard)
 
 		l := logger.CreateLogger()
 		out, err := config.RunCommand(ctx, pctx, l, argsForCall)

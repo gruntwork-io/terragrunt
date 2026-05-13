@@ -12,13 +12,17 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/zclconf/go-cty/cty/function"
 )
 
-// NewParsingContext creates a config.ParsingContext populated from TerragruntOptions.
+// NewParsingContext creates a config.ParsingContext populated from
+// TerragruntOptions. Shell environment and writers travel separately via
+// the venv threaded to leaf consumers; they are no longer mirrored here.
 func NewParsingContext(
 	ctx context.Context,
 	l log.Logger,
@@ -41,7 +45,113 @@ func StackFuncFactory(ctx context.Context, l log.Logger, opts *options.Terragrun
 	}
 }
 
-// populateFromOpts copies fields from TerragruntOptions into ParsingContext flat fields.
+// ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
+// The shell-options struct no longer carries env or writers; callers pass
+// those via the venv at invocation time.
+func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
+	s := shell.NewShellOptions().
+		WithWorkingDir(opts.WorkingDir).
+		WithTelemetry(opts.Telemetry).
+		WithEngine(opts.EngineConfig, opts.EngineOptions).
+		WithTFPath(opts.TFPath).
+		WithRootWorkingDir(opts.RootWorkingDir).
+		WithExperiments(opts.Experiments).
+		WithHeadless(opts.Headless).
+		WithForwardTFStdout(opts.ForwardTFStdout)
+	s.LogShowAbsPaths = opts.LogShowAbsPaths
+	s.LogDisableErrorSummary = opts.LogDisableErrorSummary
+
+	return s
+}
+
+// BackendOptsFromOpts constructs backend.Options from TerragruntOptions and v.
+// Env and Writers are populated from v so the Backend interface receives the
+// venv data it needs at each invocation.
+func BackendOptsFromOpts(v venv.Venv, opts *options.TerragruntOptions) *backend.Options {
+	return &backend.Options{
+		Writers:                      v.Writers,
+		Env:                          v.Env,
+		IAMRoleOptions:               opts.IAMRoleOptions,
+		NonInteractive:               opts.NonInteractive,
+		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
+		LogShowAbsPaths:              opts.LogShowAbsPaths,
+		LogDisableErrorSummary:       opts.LogDisableErrorSummary,
+	}
+}
+
+// RemoteStateOptsFromOpts constructs remotestate.Options from TerragruntOptions.
+func RemoteStateOptsFromOpts(v venv.Venv, opts *options.TerragruntOptions) *remotestate.Options {
+	return &remotestate.Options{
+		Options:             *BackendOptsFromOpts(v, opts),
+		DisableBucketUpdate: opts.DisableBucketUpdate,
+		TFRunOpts:           TFRunOptsFromOpts(opts),
+	}
+}
+
+// TFRunOptsFromOpts constructs tf.TFOptions from TerragruntOptions.
+func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
+	return &tf.TFOptions{
+		JSONLogFormat:                opts.JSONLogFormat,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		TerragruntConfigPath:         opts.TerragruntConfigPath,
+		TofuImplementation:           opts.TofuImplementation,
+		TerraformCliArgs:             opts.TerraformCliArgs,
+		ShellOptions:                 ShellRunOptsFromOpts(opts),
+	}
+}
+
+// NewRunOptions creates a run.Options from TerragruntOptions. Env and
+// writers are not stored on run.Options; callers pass them via the venv
+// threaded into [run.Run]. FS is the OS-backed filesystem, which
+// [run.DownloadTerraformSource] requires; see [run.Options.FS].
+func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
+	return &run.Options{
+		FS:                           vfs.NewOSFS(),
+		TerragruntConfigPath:         opts.TerragruntConfigPath,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		WorkingDir:                   opts.WorkingDir,
+		RootWorkingDir:               opts.RootWorkingDir,
+		DownloadDir:                  opts.DownloadDir,
+		TerraformCommand:             opts.TerraformCommand,
+		OriginalTerraformCommand:     opts.OriginalTerraformCommand,
+		TerraformCliArgs:             opts.TerraformCliArgs,
+		Source:                       opts.Source,
+		SourceMap:                    opts.SourceMap,
+		IAMRoleOptions:               opts.IAMRoleOptions,
+		OriginalIAMRoleOptions:       opts.OriginalIAMRoleOptions,
+		EngineConfig:                 opts.EngineConfig,
+		EngineOptions:                opts.EngineOptions,
+		Errors:                       opts.Errors,
+		Experiments:                  opts.Experiments,
+		StrictControls:               opts.StrictControls,
+		FeatureFlags:                 opts.FeatureFlags,
+		TFPath:                       opts.TFPath,
+		TofuImplementation:           opts.TofuImplementation,
+		ForwardTFStdout:              opts.ForwardTFStdout,
+		JSONLogFormat:                opts.JSONLogFormat,
+		Headless:                     opts.Headless,
+		NonInteractive:               opts.NonInteractive,
+		Debug:                        opts.Debug,
+		AutoInit:                     opts.AutoInit,
+		AutoRetry:                    opts.AutoRetry,
+		BackendBootstrap:             opts.BackendBootstrap,
+		Telemetry:                    opts.Telemetry,
+		AuthProviderCmd:              opts.AuthProviderCmd,
+		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
+		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
+		DisableBucketUpdate:          opts.DisableBucketUpdate,
+		SourceUpdate:                 opts.SourceUpdate,
+		CASCloneDepth:                opts.CASCloneDepth,
+		NoCAS:                        opts.NoCAS,
+		NoHooks:                      opts.NoRunHooks,
+		LogShowAbsPaths:              opts.LogShowAbsPaths,
+		LogDisableErrorSummary:       opts.LogDisableErrorSummary,
+	}
+}
+
+// populateFromOpts copies fields from TerragruntOptions into ParsingContext
+// flat fields. It is colocated with [NewParsingContext] but kept private so
+// callers go through the exported constructor.
 func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptions) {
 	pctx.TerragruntConfigPath = opts.TerragruntConfigPath
 	pctx.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
@@ -56,10 +166,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.Experiments = opts.Experiments
 	pctx.StrictControls = opts.StrictControls
 	pctx.FeatureFlags = opts.FeatureFlags
-	pctx.Writers = opts.Writers
-	pctx.LogShowAbsPaths = opts.LogShowAbsPaths
-	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
-	pctx.Env = opts.Env
 	pctx.IAMRoleOptions = opts.IAMRoleOptions
 	pctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
 	pctx.UsePartialParseConfigCache = opts.UsePartialParseConfigCache
@@ -86,104 +192,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
 	pctx.ProviderCacheOptions = opts.ProviderCacheOptions
-}
-
-// ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
-func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
-	s := shell.NewShellOptions().
-		WithWorkingDir(opts.WorkingDir).
-		WithEnv(opts.Env).
-		WithWriters(opts.Writers).
-		WithTelemetry(opts.Telemetry).
-		WithEngine(opts.EngineConfig, opts.EngineOptions).
-		WithTFPath(opts.TFPath).
-		WithRootWorkingDir(opts.RootWorkingDir).
-		WithExperiments(opts.Experiments).
-		WithHeadless(opts.Headless).
-		WithForwardTFStdout(opts.ForwardTFStdout)
-	s.LogShowAbsPaths = opts.LogShowAbsPaths
-	s.LogDisableErrorSummary = opts.LogDisableErrorSummary
-
-	return s
-}
-
-// BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
-func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
-	return &backend.Options{
-		Writers:                      opts.Writers,
-		Env:                          opts.Env,
-		IAMRoleOptions:               opts.IAMRoleOptions,
-		NonInteractive:               opts.NonInteractive,
-		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
-	}
-}
-
-// RemoteStateOptsFromOpts constructs remotestate.Options from TerragruntOptions.
-func RemoteStateOptsFromOpts(opts *options.TerragruntOptions) *remotestate.Options {
-	return &remotestate.Options{
-		Options:             *BackendOptsFromOpts(opts),
-		DisableBucketUpdate: opts.DisableBucketUpdate,
-		TFRunOpts:           TFRunOptsFromOpts(opts),
-	}
-}
-
-// TFRunOptsFromOpts constructs tf.TFOptions from TerragruntOptions.
-func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
-	return &tf.TFOptions{
-		JSONLogFormat:                opts.JSONLogFormat,
-		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		TerragruntConfigPath:         opts.TerragruntConfigPath,
-		TofuImplementation:           opts.TofuImplementation,
-		TerraformCliArgs:             opts.TerraformCliArgs,
-		ShellOptions:                 ShellRunOptsFromOpts(opts),
-	}
-}
-
-// NewRunOptions creates a run.Options from TerragruntOptions.
-// This replaces the former run.NewOptions(opts) function.
-func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
-	runOpts := run.NewOptions()
-	runOpts.Writers = opts.Writers
-	runOpts.LogShowAbsPaths = opts.LogShowAbsPaths
-	runOpts.LogDisableErrorSummary = opts.LogDisableErrorSummary
-	runOpts.TerragruntConfigPath = opts.TerragruntConfigPath
-	runOpts.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
-	runOpts.WorkingDir = opts.WorkingDir
-	runOpts.RootWorkingDir = opts.RootWorkingDir
-	runOpts.DownloadDir = opts.DownloadDir
-	runOpts.TerraformCommand = opts.TerraformCommand
-	runOpts.OriginalTerraformCommand = opts.OriginalTerraformCommand
-	runOpts.TerraformCliArgs = opts.TerraformCliArgs
-	runOpts.Source = opts.Source
-	runOpts.SourceMap = opts.SourceMap
-	runOpts.Env = opts.Env
-	runOpts.IAMRoleOptions = opts.IAMRoleOptions
-	runOpts.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
-	runOpts.EngineConfig = opts.EngineConfig
-	runOpts.EngineOptions = opts.EngineOptions
-	runOpts.Errors = opts.Errors
-	runOpts.Experiments = opts.Experiments
-	runOpts.StrictControls = opts.StrictControls
-	runOpts.FeatureFlags = opts.FeatureFlags
-	runOpts.TFPath = opts.TFPath
-	runOpts.TofuImplementation = opts.TofuImplementation
-	runOpts.ForwardTFStdout = opts.ForwardTFStdout
-	runOpts.JSONLogFormat = opts.JSONLogFormat
-	runOpts.Headless = opts.Headless
-	runOpts.NonInteractive = opts.NonInteractive
-	runOpts.Debug = opts.Debug
-	runOpts.AutoInit = opts.AutoInit
-	runOpts.AutoRetry = opts.AutoRetry
-	runOpts.BackendBootstrap = opts.BackendBootstrap
-	runOpts.Telemetry = opts.Telemetry
-	runOpts.AuthProviderCmd = opts.AuthProviderCmd
-	runOpts.MaxFoldersToCheck = opts.MaxFoldersToCheck
-	runOpts.FailIfBucketCreationRequired = opts.FailIfBucketCreationRequired
-	runOpts.DisableBucketUpdate = opts.DisableBucketUpdate
-	runOpts.SourceUpdate = opts.SourceUpdate
-	runOpts.CASCloneDepth = opts.CASCloneDepth
-	runOpts.NoCAS = opts.NoCAS
-	runOpts.NoHooks = opts.NoRunHooks
-
-	return runOpts
+	pctx.LogShowAbsPaths = opts.LogShowAbsPaths
+	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
 }

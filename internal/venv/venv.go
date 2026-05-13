@@ -14,7 +14,6 @@
 package venv
 
 import (
-	"errors"
 	"io"
 	"os"
 	"strings"
@@ -24,76 +23,39 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 )
 
-// ErrVenvEnvUnset is the panic value [Venv.RequireEnv] raises when Env is
-// nil. Production callers build the Venv through [OSVenv], so it points at a
-// test that forgot to set Env rather than a runtime condition.
-var ErrVenvEnvUnset = errors.New("venv.Venv.Env is required but unset")
-
 // Venv is the root virtualized environment. It carries the filesystem,
 // process-execution, environment-variable, and writer handles that every
-// Terragrunt operation needs. Env is shared by reference across the run and
-// mutated in place as provider-cache, hook, and inputs contributions resolve.
+// Terragrunt operation needs.
 type Venv struct {
-	FS      vfs.FS
-	Exec    vexec.Exec
-	Env     map[string]string
+	// FS backs every filesystem read and write.
+	FS vfs.FS
+	// Exec spawns every subprocess: tofu, terraform, git, hooks,
+	// external auth providers, tflint.
+	Exec vexec.Exec
+	// Env holds the shell environment variables read at startup and is
+	// mutated as Terragrunt resolves provider-cache, hook, and inputs
+	// env contributions. The map is shared by reference across the run.
+	Env map[string]string
+	// Writers groups the stdout and stderr handles plus the log-formatting
+	// flags that travel together through ParsingContext, shell options,
+	// backend options, and the engine.
 	Writers writer.Writers
 }
 
-// WithWriter returns a copy of v whose primary writer is w.
+// WithWriter returns a copy of v whose primary writer is w. The Env map and
+// other handles are shared by reference with the receiver.
 func (v Venv) WithWriter(w io.Writer) Venv {
 	v.Writers.Writer = w
 
 	return v
 }
 
-// WithErrWriter returns a copy of v whose error writer is w.
+// WithErrWriter returns a copy of v whose error writer is w. The Env map and
+// other handles are shared by reference with the receiver.
 func (v Venv) WithErrWriter(w io.Writer) Venv {
 	v.Writers.ErrWriter = w
 
 	return v
-}
-
-// WithExec returns a copy of v whose process executor is exec.
-func (v Venv) WithExec(exec vexec.Exec) Venv {
-	v.Exec = exec
-
-	return v
-}
-
-// WithHandler returns a copy of v whose executor is an in-memory exec driven
-// by h, for the in-memory test bundles this package serves.
-func (v Venv) WithHandler(h vexec.Handler) Venv {
-	v.Exec = vexec.NewMemExec(h)
-
-	return v
-}
-
-// WithFS returns a copy of v backed by fs.
-func (v Venv) WithFS(fs vfs.FS) Venv {
-	v.FS = fs
-
-	return v
-}
-
-// WithEnv returns a copy of v whose shell environment is env. A nil env
-// becomes an empty map so the result still satisfies [Venv.RequireEnv].
-func (v Venv) WithEnv(env map[string]string) Venv {
-	if env == nil {
-		env = map[string]string{}
-	}
-
-	v.Env = env
-
-	return v
-}
-
-// RequireEnv panics with [ErrVenvEnvUnset] when Env is nil, guarding
-// functions that write into the shared environment.
-func (v Venv) RequireEnv() {
-	if v.Env == nil {
-		panic(ErrVenvEnvUnset)
-	}
 }
 
 // OSVenv builds the production [Venv]: the real OS filesystem, the real

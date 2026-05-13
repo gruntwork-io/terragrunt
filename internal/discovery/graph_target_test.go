@@ -2,6 +2,7 @@ package discovery_test
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,7 +13,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -53,11 +56,10 @@ dependency "db" {
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
-		WithExec(memGitTopLevelExec(t, tmpDir)).
 		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir)
 
-	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+	configs, err := d.Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
 	require.NoError(t, err)
 
 	paths := configs.Filter(component.UnitKind).Paths()
@@ -103,18 +105,16 @@ dependency "db" {
 	require.NoError(t, err)
 
 	configsA, err := discovery.NewDiscovery(tmpDir).
-		WithExec(memGitTopLevelExec(t, tmpDir)).
 		WithFilters(depsFilters).
 		WithFilters(filters).
-		Discover(t.Context(), logger.CreateLogger(), opts)
+		Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
 	require.NoError(t, err)
 
 	// Path B: graph target marker
 	configsB, err := discovery.NewDiscovery(tmpDir).
-		WithExec(memGitTopLevelExec(t, tmpDir)).
 		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir).
-		Discover(t.Context(), logger.CreateLogger(), opts)
+		Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, configsA.Filter(component.UnitKind).Paths(), configsB.Filter(component.UnitKind).Paths())
@@ -144,11 +144,10 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 	opts.RootWorkingDir = tmpDir
 
 	d := discovery.NewDiscovery(tmpDir).
-		WithExec(memGitTopLevelExec(t, tmpDir)).
 		WithRelationships().
 		WithGraphTarget(vpcDir)
 
-	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+	configs, err := d.Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
 	require.NoError(t, err)
 
 	paths := configs.Filter(component.UnitKind).Paths()
@@ -184,24 +183,24 @@ dependency "vpc" {
 	graphTargetOpt := &mockGraphTargetOption{target: vpcDir}
 
 	d := discovery.NewDiscovery(tmpDir).
-		WithExec(memGitTopLevelExec(t, tmpDir)).
 		WithRelationships().
 		WithOptions(graphTargetOpt)
 
-	configs, err := d.Discover(t.Context(), logger.CreateLogger(), opts)
+	configs, err := d.Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
 	require.NoError(t, err)
 
 	paths := configs.Filter(component.UnitKind).Paths()
 	assert.ElementsMatch(t, []string{vpcDir, dbDir}, paths)
 }
 
-// memGitTopLevelExec returns a vexec.Exec whose `git rev-parse --show-toplevel`
-// response is the supplied repoRoot. Any other invocation fails the test so
-// a regression that fires unexpected git subcommands is caught here.
-func memGitTopLevelExec(t *testing.T, repoRoot string) vexec.Exec {
+// memGitTopLevelVenv returns a venv.Venv whose Exec answers
+// `git rev-parse --show-toplevel` with the supplied repoRoot. Any other
+// invocation fails the test so a regression that fires unexpected git
+// subcommands is caught here.
+func memGitTopLevelVenv(t *testing.T, repoRoot string) venv.Venv {
 	t.Helper()
 
-	return vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		if inv.Name == "git" && len(inv.Args) == 2 && inv.Args[0] == "rev-parse" && inv.Args[1] == "--show-toplevel" {
 			return vexec.Result{Stdout: []byte(repoRoot + "\n")}
 		}
@@ -210,6 +209,12 @@ func memGitTopLevelExec(t *testing.T, repoRoot string) vexec.Exec {
 
 		return vexec.Result{ExitCode: 1}
 	})
+
+	return venv.Venv{
+		Exec:    exec,
+		Env:     map[string]string{},
+		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+	}
 }
 
 // mockGraphTargetOption implements the GraphTarget() interface for testing.

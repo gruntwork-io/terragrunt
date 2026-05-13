@@ -70,19 +70,18 @@ type (
 )
 
 type ExecutionOptions struct {
-	Writers           writer.Writers
-	EngineOptions     *EngineOptions
-	EngineConfig      *EngineConfig
-	Env               map[string]string
-	WorkingDir        string
-	RootWorkingDir    string
-	Command           string
-	Args              []string
-	Headless          bool
-	ForwardTFStdout   bool
-	SuppressStdout    bool
-	AllocatePseudoTty bool
-
+	Writers                writer.Writers
+	EngineOptions          *EngineOptions
+	EngineConfig           *EngineConfig
+	Env                    map[string]string
+	WorkingDir             string
+	RootWorkingDir         string
+	Command                string
+	Args                   []string
+	Headless               bool
+	ForwardTFStdout        bool
+	SuppressStdout         bool
+	AllocatePseudoTty      bool
 	LogShowAbsPaths        bool
 	LogDisableErrorSummary bool
 }

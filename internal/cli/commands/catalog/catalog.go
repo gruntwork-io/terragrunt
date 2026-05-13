@@ -38,7 +38,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	}
 
 	return tui.Run(
-		ctx, l, v, opts, opts.Writers.ErrWriter,
+		ctx, l, v, opts, v.Writers.ErrWriter,
 		func(
 			ctx context.Context, status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 		) error {
@@ -63,11 +63,11 @@ func discoverAndLoad(
 	g, gctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return discoverCatalogConfigURLs(gctx, l, opts, urlCh)
+		return discoverCatalogConfigURLs(gctx, l, v, opts, urlCh)
 	})
 
 	g.Go(func() error {
-		return discoverSourceFileURLs(gctx, l, opts, urlCh)
+		return discoverSourceFileURLs(gctx, l, v, opts, urlCh)
 	})
 
 	go func() {
@@ -144,8 +144,9 @@ func discoverAndLoad(
 
 // discoverCatalogConfigURLs reads catalog URLs from the root config and
 // sends each to urlCh.
-func discoverCatalogConfigURLs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, urlCh chan<- string) error {
+func discoverCatalogConfigURLs(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, urlCh chan<- string) error {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	pctx = pctx.WithVenv(v)
 
 	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 	if err != nil {
@@ -166,8 +167,9 @@ func discoverCatalogConfigURLs(ctx context.Context, l log.Logger, opts *options.
 
 // discoverSourceFileURLs walks terragrunt.hcl files, extracts
 // terraform.source URLs, and sends each repo URL to urlCh.
-func discoverSourceFileURLs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, urlCh chan<- string) error {
+func discoverSourceFileURLs(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, urlCh chan<- string) error {
 	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	pctx = pctx.WithVenv(v)
 
 	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)
 	if err != nil {

@@ -3,11 +3,9 @@ package writer
 
 import "io"
 
-// Writers groups the stdout/stderr handles that travel together across
-// TerragruntOptions, ParsingContext, shell.ShellOptions and
-// engine.ExecutionOptions. The log-formatting flags that once rode along
-// here (LogShowAbsPaths, LogDisableErrorSummary) now live directly on those
-// structs.
+// Writers groups the stdout/stderr handles that travel together with the
+// venv. Display-config flags (e.g. LogShowAbsPaths) live on
+// options.TerragruntOptions, not here.
 type Writers struct {
 	// Writer is the primary output writer (defaults to os.Stdout).
 	Writer io.Writer

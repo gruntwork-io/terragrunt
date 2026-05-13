@@ -2,18 +2,32 @@ package shell_test
 
 import (
 	"context"
+	"io"
 	"net/url"
 	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// memVenv builds a venv.Venv around an in-memory exec for git tests. The
+// writers are wired to io.Discard because the git helpers intentionally
+// override v.Writers with local buffers so they can capture command output.
+func memVenv(exec vexec.Exec) venv.Venv {
+	return venv.Venv{
+		Exec:    exec,
+		Env:     map[string]string{},
+		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+	}
+}
 
 // TestGitTopLevelDirDispatchesGitRevParse pins the exact subprocess
 // invocation GitTopLevelDir uses to resolve a repository root. The mem
@@ -34,7 +48,7 @@ func TestGitTopLevelDirDispatchesGitRevParse(t *testing.T) {
 		return vexec.Result{Stdout: []byte("/tmp/repo\n")}
 	})
 
-	root, err := shell.GitTopLevelDir(gitMemCtx(t), logger.CreateLogger(), exec, nil, "/tmp/repo")
+	root, err := shell.GitTopLevelDir(gitMemCtx(t), logger.CreateLogger(), memVenv(exec), "/tmp/repo")
 	require.NoError(t, err)
 	assert.Equal(t, "/tmp/repo", root)
 	assert.Equal(t, 1, calls)
@@ -52,7 +66,7 @@ func TestGitTopLevelDirNormalizesWindowsSlashes(t *testing.T) {
 		return vexec.Result{Stdout: []byte("/c/Users/dev/repo\n")}
 	})
 
-	root, err := shell.GitTopLevelDir(gitMemCtx(t), logger.CreateLogger(), exec, nil, "/c/Users/dev/repo")
+	root, err := shell.GitTopLevelDir(gitMemCtx(t), logger.CreateLogger(), memVenv(exec), "/c/Users/dev/repo")
 	require.NoError(t, err)
 	// On unix this is a no-op; the assertion verifies trim-and-normalize ran.
 	assert.NotContains(t, root, "\n")
@@ -75,7 +89,7 @@ func TestGitTopLevelDirCacheHits(t *testing.T) {
 	l := logger.CreateLogger()
 
 	for range 5 {
-		_, err := shell.GitTopLevelDir(ctx, l, exec, nil, "/repo")
+		_, err := shell.GitTopLevelDir(ctx, l, memVenv(exec), "/repo")
 		require.NoError(t, err)
 	}
 
@@ -101,7 +115,7 @@ func TestGitRepoTagsParsesLsRemote(t *testing.T) {
 	u, err := url.Parse("https://github.com/example/repo.git")
 	require.NoError(t, err)
 
-	tags, err := shell.GitRepoTags(t.Context(), logger.CreateLogger(), exec, nil, "/work", u)
+	tags, err := shell.GitRepoTags(t.Context(), logger.CreateLogger(), memVenv(exec), "/work", u)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"refs/tags/v1.0.0", "refs/tags/v1.1.0", "refs/tags/v2.0.0"}, tags)
 }
@@ -125,7 +139,7 @@ func TestGitLastReleaseTagSelectsHighestSemver(t *testing.T) {
 	u, err := url.Parse("https://github.com/example/repo.git")
 	require.NoError(t, err)
 
-	tag, err := shell.GitLastReleaseTag(t.Context(), logger.CreateLogger(), exec, nil, "/work", u)
+	tag, err := shell.GitLastReleaseTag(t.Context(), logger.CreateLogger(), memVenv(exec), "/work", u)
 	require.NoError(t, err)
 	assert.Equal(t, "v1.10.0", tag)
 }
@@ -142,7 +156,7 @@ func TestGitLastReleaseTagEmptyOnNoSemver(t *testing.T) {
 	u, err := url.Parse("https://github.com/example/repo.git")
 	require.NoError(t, err)
 
-	tag, err := shell.GitLastReleaseTag(t.Context(), logger.CreateLogger(), exec, nil, "/work", u)
+	tag, err := shell.GitLastReleaseTag(t.Context(), logger.CreateLogger(), memVenv(exec), "/work", u)
 	require.NoError(t, err)
 	assert.Empty(t, tag)
 }

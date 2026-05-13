@@ -15,12 +15,18 @@ import (
 // shell environment, and the stdout/stderr writers so callers supply them
 // per call rather than the run package holding them as package-level
 // state. The name avoids "Env" so it is not confused with shell
-// environment variables. Env is shared by reference across the run and
-// mutated in place as hook, inputs, and extra-args contributions resolve.
+// environment variables.
 type Venv struct {
-	Exec    vexec.Exec
-	FS      vfs.FS
-	Env     map[string]string
+	// Exec runs hook commands and the embedded tflint binary.
+	Exec vexec.Exec
+	// FS backs filesystem reads performed inside hooks, including
+	// tflint's .tflint.hcl discovery.
+	FS vfs.FS
+	// Env is the shell environment shared across hook, inputs, and
+	// extra-args contributions during a run.
+	Env map[string]string
+	// Writers carries the stdout/stderr handles and the log-formatting
+	// flags used while rendering hook and run output.
 	Writers writer.Writers
 }
 
@@ -31,38 +37,36 @@ func OSVenv() Venv {
 }
 
 // FromRoot projects the root [venv.Venv] threaded from the CLI entrypoint
-// into the run package's local Venv.
+// into the run package's local Venv. The two carry the same handles but
+// are distinct types so the run package owns its own contract.
 func FromRoot(v venv.Venv) Venv {
 	return Venv{Exec: v.Exec, FS: v.FS, Env: v.Env, Writers: v.Writers}
 }
 
-// ToRoot is the inverse of [FromRoot], for callers (notably
-// config.ParsingContext) that hold the root type.
+// ToRoot is the inverse of [FromRoot]: it projects a run.Venv back into
+// the root [venv.Venv] for callers (notably config.ParsingContext) that
+// hold the root type.
 func (v Venv) ToRoot() venv.Venv {
 	return venv.Venv{FS: v.FS, Exec: v.Exec, Env: v.Env, Writers: v.Writers}
 }
 
-// tflintVenv translates a run.Venv into the tflint package's Venv.
+// tflintVenv translates a run.Venv into the tflint package's Venv. The
+// two carry the same handles but are distinct types so each package owns
+// its own contract.
 func (v Venv) tflintVenv() tflint.Venv {
 	return tflint.Venv{Exec: v.Exec, FS: v.FS, Env: v.Env, Writers: v.Writers}
 }
 
-// RequireEnv panics with [venv.ErrVenvEnvUnset] when Env is nil, guarding
-// functions that write into the shared environment.
-func (v Venv) RequireEnv() {
-	if v.Env == nil {
-		panic(venv.ErrVenvEnvUnset)
-	}
-}
-
-// WithWriter returns a copy of v whose primary writer is w.
+// WithWriter returns a copy of v whose primary writer is w. The Env map and
+// other handles are shared by reference with the receiver.
 func (v Venv) WithWriter(w io.Writer) Venv {
 	v.Writers.Writer = w
 
 	return v
 }
 
-// WithErrWriter returns a copy of v whose error writer is w.
+// WithErrWriter returns a copy of v whose error writer is w. The Env map and
+// other handles are shared by reference with the receiver.
 func (v Venv) WithErrWriter(w io.Writer) Venv {
 	v.Writers.ErrWriter = w
 

@@ -9,13 +9,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Options contains the subset of configuration needed by backend operations.
+// Options bundles the configuration the Backend interface needs at each
+// call site. Env and Writers are bundled here as the interface is invoked
+// across packages that hold their own per-call data; the configbridge
+// adapter populates them from the venv carried by the caller.
 type Options struct {
 	Writers                      writer.Writers
 	Env                          map[string]string
 	IAMRoleOptions               iam.RoleOptions
 	NonInteractive               bool
 	FailIfBucketCreationRequired bool
+	LogShowAbsPaths              bool
+	LogDisableErrorSummary       bool
 }
 
 type Backends []Backend

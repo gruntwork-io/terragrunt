@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/hashicorp/go-version"
@@ -215,7 +216,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	// First call mirrors what setupAutoProviderCacheDir does before
 	// terraform_binary is read from HCL: TFPath is still the auto-detected
 	// "tofu", and the OpenTofu version gets resolved and cached.
-	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(ctx, l, e, run.PopulateTFVersionInput{
+	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(ctx, l, venv.Venv{Exec: e}, run.PopulateTFVersionInput{
 		TFOpts: tfOpts("tofu"),
 	})
 	require.NoError(t, err)
@@ -226,7 +227,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	// "terraform"` has been applied. Before the fix, this hit the poisoned
 	// cache entry and returned OpenTofu v1.9.0, which then failed any
 	// terraform-version-constraint check pinned to a real Terraform release.
-	_, terraformVer, terraformImpl, err := run.PopulateTFVersion(ctx, l, e, run.PopulateTFVersionInput{
+	_, terraformVer, terraformImpl, err := run.PopulateTFVersion(ctx, l, venv.Venv{Exec: e}, run.PopulateTFVersionInput{
 		TFOpts: tfOpts("terraform"),
 	})
 	require.NoError(t, err)

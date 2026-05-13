@@ -160,7 +160,7 @@ func TestProcessErrorHooks_FiresAllMatchingHooks(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs))
+	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, hookVenv(exec), hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs))
 
 	calls := rec.snapshot()
 	require.Len(t, calls, 2, "both matching error_hooks must fire")
@@ -193,6 +193,6 @@ func TestProcessErrorHooks_AccumulatesFailures(t *testing.T) {
 		{Name: "fail-2", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"failing-hook"}},
 	}
 
-	err := run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs)
+	err := run.ProcessErrorHooks(t.Context(), l, hookVenv(exec), hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs)
 	require.Error(t, err, "any failing error_hook must surface as a returned error")
 }
