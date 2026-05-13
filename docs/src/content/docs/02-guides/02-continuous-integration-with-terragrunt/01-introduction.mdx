@@ -1,0 +1,53 @@
+---
+title: Introduction
+description: Introduction to the Continuous Integration with Terragrunt guide
+slug: guides/ci-with-terragrunt
+sidebar:
+  order: 1
+prev: false
+---
+
+[Continuous Integration (CI)](https://en.wikipedia.org/wiki/Continuous_integration) is the practice of merging code changes frequently and running checks against the integrated result. That gives you a single source of truth for what the codebase looks like, and surfaces conflicts between changes early.
+
+This guide will help you learn more about Continuous Integration and Continuous Deployment (also referred to as Continuous Delivery) in the context of Terragrunt. You'll set up a free CI/CD pipeline that automatically evaluates every proposed code change in your Terragrunt project through plan comments and automatic deployments of your code changes through applies. You'll do this in a GitHub Actions repository deploying AWS resources. If you don't have a GitHub account or an AWS account, they are free to create, and you won't be deploying anything expensive as part of this guide.
+
+If you've heard about CI, or heard the term CI/CD before, you might not have learned about it in this context. You might have learned about automation tools like [GitHub Actions](https://github.com/features/actions) or [GitLab CI/CD Pipelines](https://docs.gitlab.com/ci/pipelines/), and understood that to be what CI/CD was. Colloquially, that is what folks usually mean when they talk about CI/CD, but the general practice of Continuous Integration and Continuous Deployment (CD) are broader than any particular automation tool.
+
+## Why infrastructure CI is different
+
+This matters when you're working with Infrastructure as Code, because some of the complexities in CI are amplified when managing infrastructure as opposed to CI for application code. When working with OpenTofu or Terraform:
+
+- `plan` tells you what will change before you change it. Every plan should be reviewed, and you should understand what's going to change in your infrastructure before you `apply` it.
+- `apply` changes real infrastructure. Unlike a bad application deploy that you can roll back, a bad `apply` can delete databases, tear down networks, or take down production services. Rolling back isn't always straightforward when working with stateful infrastructure.
+- Dependencies between resources and units need to be respected. If unit B depends on an output from unit A, you can't apply them in arbitrary order without risking failures.
+- Credentials need to be handled carefully. In an automation context, long-lived AWS access keys stored as CI secrets are a security liability. Short-lived, least-privilege credentials are the standard practice. This is especially important for IaC because credentials used for CI in IaC are typically far more powerful than credentials used for application CI.
+
+These kinds of issues can be present when deploying applications as well. They're just more pronounced when managing infrastructure, because the risk involved in updates can be more widespread, and resources are frequently stateful (there's no rollback if you delete your database and its backups).
+
+## What good IaC CI looks like
+
+When you put all of this together, a good CI setup for IaC has a few specific properties:
+
+1. **Plan on every pull request**, so that reviewers can review both the code change *and* the computed dry-run of the code change before it gets merged.
+2. **Apply on merge to main**, so that the main branch is always the source of truth for what's actually deployed.
+3. **DAG-aware orchestration**, so that dependencies between infrastructure units are respected during both plan and apply.
+4. **OIDC-based authentication**, so that CI jobs get temporary, scoped credentials instead of long-lived secrets.
+
+Setting all of this up from scratch is a significant amount of engineering work. Change detection, dependency graph traversal, concurrent execution, credential management, and surfacing plan results back to pull requests all need to work together reliably. Many teams have started building this and either abandoned it halfway or ended up maintaining a fragile collection of scripts.
+
+[Terragrunt Scale](https://terragrunt.com/terragrunt-scale) provides these properties out of the box. This guide will walk through setting up Terragrunt Scale Free Tier, understanding what it configures for you, and using it to provision real AWS infrastructure through pull requests.
+
+## What you'll learn
+
+- How CI works in the context of IaC, and what makes it different from CI for application code.
+- How Terragrunt Scale sets up GitHub Actions workflows for plan-on-PR and apply-on-merge.
+- How OIDC authentication works and why it replaces long-lived AWS credentials.
+- How DAG-aware orchestration handles changes across multiple infrastructure units.
+
+## What you'll do
+
+1. Sign up for Terragrunt Scale Free Tier and walk through onboarding.
+2. Explore the repository structure, workflows, and authentication that onboarding configures.
+3. Make an infrastructure change, open a PR, and see the plan.
+4. Merge the PR and watch the apply.
+5. Make a multi-unit change and see how Terragrunt orchestrates it across the dependency graph.

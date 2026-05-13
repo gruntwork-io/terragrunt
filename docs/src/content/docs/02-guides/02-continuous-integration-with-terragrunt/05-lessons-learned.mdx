@@ -1,0 +1,29 @@
+---
+title: Lessons Learned
+description: Lessons learned from setting up continuous integration with Terragrunt
+slug: guides/ci-with-terragrunt/lessons-learned
+sidebar:
+  order: 5
+---
+
+That went by pretty fast! Hopefully, this experience has given you some confidence in your ability to manage infrastructure using Terragrunt and Terragrunt Scale. Let's go over some of the main lessons learned from this guide.
+
+## Single source of truth
+
+At every stage in this process the deploy branch (`main` here) was always the source of truth for what infrastructure is *supposed* to be like. This is the core of what it means for code to be *continuously integrated*. You never have to guess which branch represents reality. It's always `main`.
+
+All proposed changes are pull requests targeting the `main` branch, and that helps to keep the scope of changes small and easy to work with. Plans are always generated off the diff between `main` and the source branch targeting `main`.
+
+## Automated deployments
+
+The changes you made to deploy your application and tear it down were to introduce a stack in your source code, and then removing that stack. At no point in this process did you need to explicitly work out what to run, where or in what order for the infrastructure to be deployed correctly. This is the core of what it means for code to be *continuously deployed.*
+
+## Seamless integration with Terragrunt
+
+Pipelines ran Terragrunt in the correct order both times: when you added the stack, and when you reverted it.
+
+During PR creation, Pipelines generated the relevant stacks (and only the relevant stacks) in the source branch (`feat/adding-my-special-app`), then ran a plan on the units in that stack, ensuring that `db` was planned before `role`, which was planned before `service`. It also deployed them in that order on merge to the deploy branch (`main`). `service` reads outputs from `role` and `db`, and `role` reads outputs from `db`. Each unit needs its dependencies applied first. This is why it's important that Pipelines respects the [Directed Acyclic Graph (DAG)](/getting-started/terminology/#directed-acyclic-graph-dag).
+
+On the revert PR, destroys ran in the opposite order. `service` had to be destroyed first, because it depends on `role` and `db`. The destroys also had to run on the source branch, where the stack still existed, not on `main`, where it had just been removed. Pipelines handled both.
+
+When CI/CD works well, this is the kind of experience you want to have. You and your team focus on writing code. The pipeline figures out what to do and in what order.
