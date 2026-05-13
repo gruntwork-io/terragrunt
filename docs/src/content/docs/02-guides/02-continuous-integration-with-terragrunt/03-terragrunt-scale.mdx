@@ -1,0 +1,245 @@
+---
+title: Terragrunt Scale
+description: Signing up for Terragrunt Scale Free Tier and walking through the onboarding wizard
+slug: guides/ci-with-terragrunt/terragrunt-scale
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import signupPage from '../../../../assets/img/guides/continuous-integration-with-terragrunt/signup-page.png';
+import onboardingWizard from '../../../../assets/img/guides/continuous-integration-with-terragrunt/onboarding-wizard.png';
+import installGithubApp from '../../../../assets/img/guides/continuous-integration-with-terragrunt/install-github-app.png';
+import bootstrapScript from '../../../../assets/img/guides/continuous-integration-with-terragrunt/bootstrap-script.png';
+import bootstrapCompletion from '../../../../assets/img/guides/continuous-integration-with-terragrunt/bootstrap-completion.png';
+
+Terragrunt Scale is Gruntwork's solution for running Terragrunt at scale. You can learn more about it [here](/terragrunt-scale/overview/).
+
+By the end of this section, you'll have a GitHub repository with Terragrunt infrastructure code, GitHub Actions workflows for plan-on-PR and apply-on-merge automation, OIDC authentication to your AWS account, and sample infrastructure ready to deploy.
+
+## Create a new GitHub repository
+
+Before signing up, [create a new empty GitHub repository](https://github.com/new) that Terragrunt Scale will bootstrap. The onboarding wizard will install the Gruntwork GitHub App on this repository, open a pull request that scaffolds the Terragrunt configuration, and configure the GitHub Actions workflows that drive your pipeline.
+
+A fresh, empty repository works best. If you point the wizard at an existing repository, the bootstrap pull request can conflict with files already in place.
+
+## Sign up for Terragrunt Scale Free Tier
+
+Head to the [Terragrunt Scale Free Tier signup](https://app.gruntwork.io/signup/terragrunt-scale-free-tier) to create an account. The free tier supports up to 25 [units](/getting-started/terminology/#unit) with a convenient onboarding wizard for GitHub and AWS. No credit card is required for signup.
+
+<img src={signupPage.src} alt="Terragrunt Scale Free Tier signup page" />
+
+## Walk through the onboarding
+
+The onboarding wizard will walk you through a few steps to get your environment set up. The walkthrough below captures every screen so you can see exactly what the experience looks like before you commit to running it yourself; expand it when you're ready to follow along.
+
+<details>
+<summary>Walkthrough screenshots</summary>
+
+<img src={onboardingWizard.src} alt="Onboarding wizard landing screen" />
+
+### Installing the GitHub App
+
+Right now, the only Source Control Manager (SCM) the Terragrunt Scale Free Tier onboarding wizard supports is GitHub. Pipelines also works with GitLab, but the onboarding wizard doesn't support GitLab yet.
+
+The wizard will prompt you to install the [Gruntwork.io](https://gruntwork.io/) GitHub App on your GitHub account or organization. This app is what allows Terragrunt Scale to post plan results as comments on your pull requests and checkout Git repositories you give it access to. It acquires this access from within your GitHub Actions workflows, and it does not access your cloud infrastructure or your OpenTofu state.
+
+<img src={installGithubApp.src} alt="Install the Gruntwork GitHub App" />
+
+### Bootstrapping AWS resources
+
+Right now, the only supported cloud provider for the Terragrunt Scale Free Tier onboarding wizard is AWS. Pipelines has support for Azure and GCP (and custom self-configured authentication for anything else), but the onboarding wizard only supports AWS at the time of writing.
+
+<img src={bootstrapScript.src} alt="AWS bootstrap script step in the onboarding wizard" />
+
+The wizard generates a script that you run against your AWS account. This script provisions an [OpenID Connect (OIDC) provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) and IAM roles that GitHub Actions will assume when running plans and applies. If you're unsure about running it, you can read the full source to learn what it does. You can even use the convenient "Analyze script with AI?" to help you understand the different parts.
+
+<Aside type="tip">
+The Free Tier is self-serve. If you're on a paid Terragrunt Scale plan, Gruntwork support can help walk you through this bootstrap step and tailor it to your account setup.
+</Aside>
+
+We'll look at what OIDC does and why it matters in the next section.
+
+<img src={bootstrapCompletion.src} alt="Bootstrap completion and bootstrap pull request prompt" />
+
+In the next step, you'll get prompted to create a pull request to bootstrap your repository. This sets up your repository for the basic configurations required to get up and running with Terragrunt Scale.
+
+Once the bootstrap is complete, the wizard will prompt you to create your first unit in your repository as part of a basic tutorial. Go through that tutorial, and read along to learn more about how Terragrunt Scale works, and how it drives infrastructure updates in a GitOps workflow.
+
+</details>
+
+## Understanding what the onboarding wizard set up
+
+The onboarding did a lot of work automatically. Before we start using the pipeline, it's worth slowing down a second and exploring what's been provisioned.
+
+### Repository structure
+
+[Clone the repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) that onboarding created and take a look at the directory tree.
+
+<FileTree>
+- .github
+  - workflows
+    - pipelines-unlock.yml
+    - pipelines.yml
+- .gitignore
+- .gruntwork
+  - environment-account-name.hcl
+  - repository.hcl
+- .mise.toml
+- account-name
+  - _global
+    - bootstrap
+      - terragrunt.stack.hcl
+    - region.hcl
+  - account.hcl
+- README.md
+- root.hcl
+</FileTree>
+
+If you've worked with Terragrunt before, this structure should look familiar. If you want to see the canonical version of this pattern, take a look at the [terragrunt-infrastructure-live-stacks-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example) repository.
+
+The key files:
+
+- `.github/workflows` contains the GitHub Actions workflows that Terragrunt Scale configured.
+- `.gruntwork` contains the configurations for Gruntwork products to understand how to properly interact with your environments (more on that later).
+- `.mise.toml` defines the versions pinned for Terragrunt and OpenTofu using [mise](https://mise.jdx.dev/).
+- Account directories (`account-name`) organize infrastructure by AWS account.
+- `terragrunt.stack.hcl` files define stacks, which are collections of related units.
+- `root.hcl` contains common configuration inherited by all units, including backend and provider settings.
+
+### The GitHub Actions workflows
+
+Open the `.github/workflows/` directory. The main file you want to focus on is `pipelines.yml`.
+
+The [Pipelines](https://www.gruntwork.io/platform/pipelines) workflow is triggered both when a PR is opened/updated and when it is merged. When the PR is opened/updated, Pipelines will run a Terragrunt plan on the source branch (e.g. `tutorial/add-unit-1776108877709`), and when it is merged, Pipelines will run a Terragrunt apply/destroy (for added/changed or removed units/stacks respectively) on the deploy branch (e.g. `main`). Pipelines will minimize the blast radius of these applies/destroys by ensuring that runs will only be performed in the units/stacks that are impacted by changes in the pull request. Pipelines also runs Terragrunt intelligently such that the [Directed Acyclic Graph (DAG)](/getting-started/terminology/#directed-acyclic-graph-dag) is respected.
+
+This is the plan-on-PR, apply-on-merge pattern described in the introduction. **The main branch is always the source of truth for what's deployed.**
+
+### Gruntwork HCL configuration
+
+Pipelines uses [HCL](https://docs.gruntwork.io/2.0/reference/pipelines/configurations-as-code/) to configure how it operates.
+
+The onboarding wizard installed two files in `.gruntwork` to configure Pipelines for you: `repository.hcl` and `environment-account-name.hcl`.
+
+#### `repository.hcl`
+
+```hcl
+// repository.hcl
+
+// Gruntwork Pipelines repository-wide configuration.
+// Docs: https://docs.gruntwork.io/2.0/docs/pipelines/configuration/settings
+
+repository {
+  // Commits on this branch trigger `terragrunt apply`.
+  // PRs against it trigger `terragrunt plan`.
+  // If you change this, also update the branch trigger in your CI workflow file.
+  deploy_branch_name = "main"
+  env {
+    PIPELINES_FEATURE_EXPERIMENT_IGNORE_UNITS_WITHOUT_ENVIRONMENT = "true"
+  }
+}
+```
+
+The `repository` block defines configurations that are global to the repository. These are configurations that should apply in all scenarios. The default configurations include:
+
+1. The `deploy_branch_name`, which configures the branch that drives infrastructure deployment. Code updated in this branch results in apply/destroy runs.
+2. The `env`, which configures environment variables that are always set for Pipelines and Terragrunt. In the default bootstrap generated by Pipelines, the opt-in `PIPELINES_FEATURE_EXPERIMENT_IGNORE_UNITS_WITHOUT_ENVIRONMENT` feature flag is set to ensure that any units without environments configured (more on that later) don't result in runs.
+
+#### `environment-account-name.hcl`
+
+```hcl
+// environment-account-name.hcl
+
+// Pipelines environment config for the account-name AWS account.
+// Pipelines reads all .hcl files in .gruntwork/.
+// Add a new file here to register a new environment.
+// Docs: https://docs.gruntwork.io/2.0/docs/pipelines/configuration/settings
+
+environment "account-name" {
+  // Defines the environment as matching all units under account-name/.
+  filter {
+    paths = ["account-name/*"]
+  }
+
+  authentication {
+    // Pipelines assumes these IAM roles via OIDC. No static credentials needed.
+    // plan role: read-only, used on PRs. apply role: write, used on merge to deploy branch.
+    // Both roles are created by the bootstrap stack in _global/bootstrap/.
+    aws_oidc {
+      account_id         = "123456789012"
+      plan_iam_role_arn  = "arn:aws:iam::123456789012:role/pipelines-plan"
+      apply_iam_role_arn = "arn:aws:iam::123456789012:role/pipelines-apply"
+    }
+  }
+}
+```
+
+The `environment` block defines configurations for a particular set of units in your repository. You use the `filter` block to select those units by glob, and an `authentication` block to define how those units should be authenticated.
+
+There are a couple [different ways to authenticate](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/) in Pipelines. The one that's been pre-configured here is the AWS OIDC authentication method. In this method, authentication takes place in an AWS account with the account ID `account_id`, and the `plan_iam_role_arn` IAM role is assumed on PR creation/update, whereas the `apply_iam_role_arn` IAM role is assumed on pushes to the deploy branch (e.g. `main`).
+
+### OIDC authentication
+
+When the bootstrap step ran, it created an [OIDC provider](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/#overview) and [IAM roles](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/aws?config-type=hcl#how-pipelines-knows-what-aws-principals-to-authenticate-as) in your AWS account. Here's [what's happening when a CI job runs](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/aws?config-type=hcl#publicly-available-cicd-platforms):
+
+1. GitHub Actions requests a short-lived token from GitHub's OIDC provider.
+2. That token is exchanged with AWS STS for temporary credentials by assuming the IAM role that the bootstrap step created.
+3. The CI job uses those temporary credentials to run `terragrunt plan` or `terragrunt apply/destroy`.
+4. The credentials expire after the job finishes.
+
+At no point are long-lived AWS access keys stored in GitHub. There are no `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` values sitting in your repository secrets. Each CI run gets temporary credentials scoped to the permissions it needs (read-only on plan, and read-write on apply/destroy). If you want to learn more about how Terragrunt handles authentication in different contexts, read the [Authentication documentation](/features/units/authentication/).
+
+Note that the roles provisioned in your AWS account had trust policies that only allowed role assumption when particular claims were made on the JWT token sent from GitHub Actions to AWS.
+
+#### The plan role trust policy
+
+This is what the trust policy will look like for the plan role:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringLike": {
+                    "token.actions.githubusercontent.com:sub": "repo:<your-org>/<your-repo>:*"
+                }
+            }
+        }
+    ]
+}
+```
+
+Note that it will allow any branch on the `<your-org>/<your-repo>` repository to assume it. This is necessary, given that this role is going to be assumed when generating a plan during pull request open/update. It's for this reason that the plan role is only given read-only permissions by default in the onboarding wizard. You want to ensure that IaC changes undergo review before they make any changes to live infrastructure.
+
+#### The apply role trust policy
+
+Note how this differs from the trust policy that is used in the apply role:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringEquals": {
+                    "token.actions.githubusercontent.com:sub": "repo:<your-org>/<your-repo>:ref:refs/heads/main"
+                }
+            }
+        }
+    ]
+}
+```
+
+The trust policy in this role *only* trusts the `main` branch of the `<your-org>/<your-repo>` repository. Branch protection on `main` becomes infrastructure protection: if a user can't push to `main` or bypass required checks, they can't apply changes to live infrastructure either.
