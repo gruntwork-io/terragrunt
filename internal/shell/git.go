@@ -46,7 +46,6 @@ func (e *NestedGitScanDepthExceededError) Error() string {
 // ancestor keeps the answer correct when a nested repository sits below an
 // already-cached outer root. Concurrent misses for the same repo collapse to
 // a single fork via the cache's resolve lock and a re-check after acquiring it.
-// exec is the process-execution handle used to spawn the git subprocess.
 func GitTopLevelDir(ctx context.Context, l log.Logger, exec vexec.Exec, env map[string]string, path string) (string, error) {
 	repoRoots := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
 	normalized := normalizeRepoPath(path)
@@ -173,7 +172,6 @@ func normalizeRepoPath(path string) string {
 }
 
 // GitRepoTags fetches git repository tags from passed url.
-// exec is the process-execution handle used to spawn the git subprocess.
 func GitRepoTags(ctx context.Context, l log.Logger, exec vexec.Exec, env map[string]string, workingDir string, gitRepo *url.URL) ([]string, error) {
 	repoPath := gitRepo.String()
 	// remove git:: part if present
@@ -207,7 +205,6 @@ func GitRepoTags(ctx context.Context, l log.Logger, exec vexec.Exec, env map[str
 }
 
 // GitLastReleaseTag fetches git repository last release tag.
-// exec is the process-execution handle used to spawn the git subprocess.
 func GitLastReleaseTag(ctx context.Context, l log.Logger, exec vexec.Exec, env map[string]string, workingDir string, gitRepo *url.URL) (string, error) {
 	tags, err := GitRepoTags(ctx, l, exec, env, workingDir, gitRepo)
 	if err != nil {

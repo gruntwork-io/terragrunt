@@ -129,8 +129,7 @@ func (runner *UnitRunner) runTerragrunt(
 	return runErr
 }
 
-// Run executes a component.Unit right now. v is the virtualized environment
-// used by the underlying run.Run pipeline.
+// Run executes a component.Unit right now.
 func (runner *UnitRunner) Run(
 	ctx context.Context,
 	l log.Logger,

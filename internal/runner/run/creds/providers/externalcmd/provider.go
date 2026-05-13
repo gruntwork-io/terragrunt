@@ -42,7 +42,11 @@ func (provider *Provider) Name() string {
 // GetCredentials implements providers.GetCredentials. When no auth provider command is
 // configured the call is a no-op short-circuit; we skip emitting the obtain_creds span
 // in that case so the trace isn't polluted with zero-duration spans.
-func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*providers.Credentials, error) {
+func (provider *Provider) GetCredentials(
+	ctx context.Context,
+	l log.Logger,
+	exec vexec.Exec,
+) (*providers.Credentials, error) {
 	if provider.authProviderCmd == "" {
 		return nil, nil
 	}
@@ -55,7 +59,7 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 	}, func(credsCtx context.Context) error {
 		var fetchErr error
 
-		creds, fetchErr = provider.fetchCredentials(credsCtx, l)
+		creds, fetchErr = provider.fetchCredentials(credsCtx, l, exec)
 
 		return fetchErr
 	})
@@ -66,7 +70,11 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 // fetchCredentials runs the configured auth-provider command and decodes its JSON
 // response into providers.Credentials. Callers go through GetCredentials, which adds
 // the obtain_creds telemetry span around this work.
-func (provider *Provider) fetchCredentials(ctx context.Context, l log.Logger) (*providers.Credentials, error) {
+func (provider *Provider) fetchCredentials(
+	ctx context.Context,
+	l log.Logger,
+	exec vexec.Exec,
+) (*providers.Credentials, error) {
 	parser := shellwords.NewParser()
 
 	// Normalize Windows paths before parsing - shellwords treats backslashes as escape characters
@@ -83,7 +91,7 @@ func (provider *Provider) fetchCredentials(ctx context.Context, l log.Logger) (*
 	}
 
 	output, err := shell.RunCommandWithOutput(
-		ctx, l, vexec.NewOSExec(), provider.runOpts,
+		ctx, l, exec, provider.runOpts,
 		"", true, false, command, args...,
 	)
 	if err != nil {
@@ -118,7 +126,7 @@ func (provider *Provider) fetchCredentials(ctx context.Context, l log.Logger) (*
 	}
 
 	if resp.AWSRole != nil {
-		if envs := resp.AWSRole.Envs(ctx, l, provider.authProviderCmd); envs != nil {
+		if envs := resp.AWSRole.Envs(ctx, l, exec, provider.authProviderCmd); envs != nil {
 			l.Debugf("Assuming AWS role %s using the %s.", resp.AWSRole.RoleARN, provider.Name())
 			maps.Copy(creds.Envs, envs)
 		}
@@ -161,7 +169,12 @@ type AWSRole struct {
 	Duration int64 `json:"duration,omitempty" jsonschema:"minimum=0"`
 }
 
-func (role *AWSRole) Envs(ctx context.Context, l log.Logger, authProviderCmd string) map[string]string {
+func (role *AWSRole) Envs(
+	ctx context.Context,
+	l log.Logger,
+	exec vexec.Exec,
+	authProviderCmd string,
+) map[string]string {
 	if role.RoleARN == "" {
 		l.Warnf("The command %s completed successfully, but AWS role assumption"+
 			" contains empty required value: roleARN, nothing is being done.", authProviderCmd)
@@ -191,7 +204,7 @@ func (role *AWSRole) Envs(ctx context.Context, l log.Logger, authProviderCmd str
 
 	provider := amazonsts.NewProvider(l, iamRoleOpts, nil)
 
-	creds, err := provider.GetCredentials(ctx, l)
+	creds, err := provider.GetCredentials(ctx, l, exec)
 	if err != nil {
 		l.Warnf("Failed to assume role %s: %v", role.RoleARN, err)
 		return nil

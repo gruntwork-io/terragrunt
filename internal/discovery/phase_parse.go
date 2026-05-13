@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -348,7 +349,12 @@ func parseComponent(
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
 		shellOpts := configbridge.ShellRunOptsFromOpts(parseOpts)
-		if _, err := creds.ObtainCredsForParsing(ctx, l, parseOpts.AuthProviderCmd, parseOpts.Env, shellOpts); err != nil {
+		// TODO: thread venv through discovery so this leaf
+		// participates in the root virtualized environment.
+		exec := vexec.NewOSExec()
+
+		_, err := creds.ObtainCredsForParsing(ctx, l, exec, parseOpts.AuthProviderCmd, parseOpts.Env, shellOpts)
+		if err != nil {
 			return errors.Errorf("obtaining auth provider credentials for %s: %w", parseOpts.TerragruntConfigPath, err)
 		}
 

@@ -1108,9 +1108,12 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 
 	if isInit {
 		mergedIAM := iam.MergeRoleOptions(remoteStateTGConfig.GetIAMRoleOptions(), pctx.OriginalIAMRoleOptions)
+		// TODO: thread venv through ParsingContext so this HCL helper
+		// participates in the root virtualized environment.
 		if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
 			ctx,
 			l,
+			vexec.NewOSExec(),
 			pctx.Env,
 			externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
 			amazonsts.NewProvider(l, mergedIAM, pctx.Env),
@@ -1270,9 +1273,12 @@ func getTerragruntOutputJSONFromRemoteState(
 	l.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
 	mergedIAM := iam.MergeRoleOptions(iamRoleOpts, pctx.OriginalIAMRoleOptions)
+	// TODO: thread venv through ParsingContext so this HCL helper
+	// participates in the root virtualized environment.
 	if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
+		vexec.NewOSExec(),
 		pctx.Env,
 		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
 		amazonsts.NewProvider(l, mergedIAM, pctx.Env),
@@ -1454,9 +1460,12 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	runCfg := cfg.ToRunConfig(l)
 
 	credsGetter := creds.NewGetter()
+	// TODO: thread venv through ParsingContext so this HCL helper
+	// participates in the root virtualized environment.
 	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
+		vexec.NewOSExec(),
 		pctx.Env,
 		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
 	); err != nil {

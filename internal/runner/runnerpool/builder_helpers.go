@@ -177,7 +177,6 @@ func createRunner(
 
 // checkVersionConstraints performs version constraint checks on all discovered units concurrently.
 // It uses errgroup to coordinate concurrent checks and returns the first error encountered.
-// exec is the process-execution handle used by the per-unit version probe.
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
@@ -214,7 +213,6 @@ func checkVersionConstraints(
 
 // checkUnitVersionConstraints checks version constraints for a single unit.
 // It handles config parsing if needed and performs version constraint validation.
-// exec is the process-execution handle used by the version probe.
 func checkUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,

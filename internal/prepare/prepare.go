@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -43,7 +44,9 @@ func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	credsGetter := creds.NewGetter()
 	provider := externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts))
 
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts.Env, provider); err != nil {
+	// TODO: thread venv from the CLI entrypoint through PrepareConfig
+	// so this leaf participates in the root virtualized environment.
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, vexec.NewOSExec(), opts.Env, provider); err != nil {
 		return nil, err
 	}
 
@@ -115,8 +118,10 @@ func PrepareSource(
 	credsGetter := creds.NewGetter()
 
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
+		// TODO: thread venv from the CLI entrypoint through prepare so
+		// this leaf participates in the root virtualized environment.
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(
-			ctx, l, opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env),
+			ctx, l, vexec.NewOSExec(), opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env),
 		)
 	}); err != nil {
 		return nil, err

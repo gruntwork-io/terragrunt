@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -63,7 +64,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Fl
 	return scaffoldFlags
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
 	flags := NewFlags(opts, nil)
 	// Accept backend and feature flags for scaffold as well
 	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
@@ -88,7 +89,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 				opts.ScaffoldRootFileName = GetDefaultRootFileName(ctx, opts)
 			}
 
-			return Run(ctx, l, opts.OptionsFromContext(ctx), moduleURL, templateURL)
+			return Run(ctx, l, v, opts.OptionsFromContext(ctx), moduleURL, templateURL)
 		},
 	}
 }

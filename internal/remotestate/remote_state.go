@@ -92,7 +92,6 @@ func (remote *RemoteState) Bootstrap(ctx context.Context, l log.Logger, opts *Op
 }
 
 // Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
-// exec is the process-execution handle used to invoke the underlying terraform pull/push commands.
 func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, exec vexec.Exec, opts, dstOpts *Options, dstRemote *RemoteState) error {
 	l.Debugf("Migrate remote state for the %s backend", remote.BackendName)
 

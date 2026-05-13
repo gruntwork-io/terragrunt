@@ -78,8 +78,6 @@ var sourceChangeLocks = sync.Map{}
 
 // Run downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
-// v is the virtualized environment used for hook execution, subprocess
-// spawning, and filesystem reads through the run pipeline.
 func Run(
 	ctx context.Context,
 	l log.Logger,
@@ -128,7 +126,7 @@ func Run(
 	)
 
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env))
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.Exec, opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env))
 	}); err != nil {
 		return err
 	}
@@ -189,7 +187,6 @@ func Run(
 }
 
 // GenerateConfig handles code generation using config types (for backwards compatibility).
-// fs is the filesystem used by the backend-definition check when remote_state lacks a generate block.
 func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfig) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
 
@@ -342,7 +339,6 @@ func ShouldCopyLockFile(args *iacargs.IacArgs, terraformConfig *runcfg.Terraform
 
 // RunActionWithHooks runs the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
-// v is the virtualized environment used to execute hook commands.
 func RunActionWithHooks(
 	ctx context.Context,
 	l log.Logger,
@@ -410,7 +406,6 @@ func CheckFolderContainsTerraformCode(opts *Options) error {
 }
 
 // Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't.
-// fs is the filesystem used to scan .tf.json files for JSON backend definitions.
 func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType string) error {
 	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType))
 	if err != nil {
@@ -640,7 +635,6 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *Options, 
 }
 
 // PrepareNonInitCommand prepares for non-init commands using runcfg types.
-// v is the virtualized environment forwarded to any nested init run.
 func PrepareNonInitCommand(
 	ctx context.Context,
 	l log.Logger,
@@ -690,9 +684,7 @@ func needsInitRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runc
 	return remoteStateNeedsInit(ctx, l, &cfg.RemoteState, opts)
 }
 
-// runTerraformInitRunCfg runs terraform init using runcfg types. v is the
-// virtualized environment threaded through the nested runTerragruntWithConfig
-// invocation.
+// runTerraformInitRunCfg runs terraform init using runcfg types.
 func runTerraformInitRunCfg(
 	ctx context.Context,
 	l log.Logger,

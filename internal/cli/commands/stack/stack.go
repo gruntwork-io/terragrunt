@@ -87,8 +87,8 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	})
 }
 
-// Run execute stack command.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+// Run executes the stack command.
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	opts.StackAction = "run"
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_run", map[string]any{
@@ -101,9 +101,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	// TODO: thread venv from the CLI entrypoint through the stack command
-	// so this leaf participates in the root virtualized environment.
-	return runall.Run(ctx, l, run.OSVenv(), opts)
+	return runall.Run(ctx, l, v, opts)
 }
 
 // RunOutput stack output.

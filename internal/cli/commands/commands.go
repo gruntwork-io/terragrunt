@@ -69,16 +69,12 @@ const (
 
 // New returns the set of Terragrunt commands, grouped into categories.
 // Categories are ordered in increments of 10 for easy insertion of new categories.
-//
-// The supplied [venv.Venv] is the root virtualized environment threaded
-// from the CLI entrypoint. Only commands that need filesystem or process
-// side effects receive it; the others keep their existing signatures.
 func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.Commands {
 	mainCommands := clihelper.Commands{
-		runcmd.NewCommand(l, opts, v), // run
-		stack.NewCommand(l, opts),     // stack
-		execcmd.NewCommand(l, opts),   // exec
-		backend.NewCommand(l, opts),   // backend
+		runcmd.NewCommand(l, opts, v),  // run
+		stack.NewCommand(l, opts, v),   // stack
+		execcmd.NewCommand(l, opts, v), // exec
+		backend.NewCommand(l, opts, v), // backend
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  MainCommandsCategoryName,
@@ -87,8 +83,8 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 	)
 
 	catalogCommands := clihelper.Commands{
-		catalog.NewCommand(l, opts),  // catalog
-		scaffold.NewCommand(l, opts), // scaffold
+		catalog.NewCommand(l, opts),     // catalog
+		scaffold.NewCommand(l, opts, v), // scaffold
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,
@@ -139,8 +135,6 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 
 // WrapWithTelemetry wraps CLI command execution with setting of telemetry
 // context and labels. If telemetry is disabled, just runs the command.
-// v is the root virtualized environment captured for use by per-action
-// setup (auto provider cache, Windows symlink check).
 func WrapWithTelemetry(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -250,8 +244,6 @@ func GiveWindowsSymlinksTip(
 
 // RunAction wires up cancellation, run-scoped caches, and (when enabled)
 // the provider cache server, then invokes action with the resulting context.
-// v is the root virtualized environment used for the provider-cache version
-// probe and the Windows symlink check.
 func RunAction(
 	ctx context.Context,
 	cliCtx *clihelper.Context,

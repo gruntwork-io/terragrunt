@@ -44,11 +44,12 @@ func BuildUnitOpts(l log.Logger, stackOpts *options.TerragruntOptions, unit *com
 func FindDependentUnits(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []*component.Unit {
 	matchedUnitsMap := make(map[string]*component.Unit)
-	pathsToCheck := discoverPathsToCheck(ctx, l, opts, cfg)
+	pathsToCheck := discoverPathsToCheck(ctx, l, v.Exec, opts, cfg)
 
 	for _, dir := range pathsToCheck {
 		maps.Copy(
@@ -56,6 +57,7 @@ func FindDependentUnits(
 			findMatchingUnitsInPath(
 				ctx,
 				l,
+				v,
 				dir,
 				opts,
 			),
@@ -71,12 +73,10 @@ func FindDependentUnits(
 }
 
 // discoverPathsToCheck finds root git top level directory and builds list of units, or iterates over includes if git detection fails.
-func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
+func discoverPathsToCheck(ctx context.Context, l log.Logger, exec vexec.Exec, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
 	var pathsToCheck []string
 
-	// TODO: thread venv through FindDependentUnits so this leaf
-	// participates in the root virtualized environment.
-	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), opts.Env, opts.WorkingDir); err == nil {
+	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, exec, opts.Env, opts.WorkingDir); err == nil {
 		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
 	} else {
 		uniquePaths := make(map[string]bool)
@@ -93,7 +93,7 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.Terra
 }
 
 // findMatchingUnitsInPath builds the stack from the config directory and filters units by working dir dependencies.
-func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions) map[string]*component.Unit {
+func findMatchingUnitsInPath(ctx context.Context, l log.Logger, v run.Venv, dir string, opts *options.TerragruntOptions) map[string]*component.Unit {
 	matchedUnitsMap := make(map[string]*component.Unit)
 
 	// Construct the full path to terragrunt.hcl in the directory
@@ -114,9 +114,7 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 
 	l.Infof("Discovering dependent units for %s", opts.TerragruntConfigPath)
 
-	// TODO: thread venv from the CLI entrypoint through FindDependentUnits
-	// so this leaf participates in the root virtualized environment.
-	rnr, err := NewStackRunner(ctx, l, run.OSVenv(), cfgOpts)
+	rnr, err := NewStackRunner(ctx, l, v, cfgOpts)
 	if err != nil {
 		l.Debugf("Failed to build unit stack %v", err)
 		return matchedUnitsMap

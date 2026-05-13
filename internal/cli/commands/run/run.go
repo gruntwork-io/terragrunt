@@ -25,9 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// Run runs the run command. v is the root virtualized environment
-// threaded from the CLI entrypoint; filesystem and subprocess calls use
-// it rather than constructing fresh OS handles at the call site.
+// Run runs the run command.
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
 	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
@@ -84,6 +82,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
+		rv.Exec,
 		opts.Env,
 		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts)),
 	); err != nil {
@@ -103,7 +102,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	}
 
 	if opts.CheckDependentUnits {
-		allowDestroy := confirmActionWithDependentUnits(ctx, l, opts, cfg)
+		allowDestroy := confirmActionWithDependentUnits(ctx, l, rv, opts, cfg)
 		if !allowDestroy {
 			return nil
 		}
@@ -262,10 +261,11 @@ func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.Terrag
 func confirmActionWithDependentUnits(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) bool {
-	units := findDependentUnits(ctx, l, opts, cfg)
+	units := findDependentUnits(ctx, l, v, opts, cfg)
 	if len(units) != 0 {
 		if _, err := opts.Writers.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
 			l.Error(err)
@@ -297,10 +297,11 @@ func confirmActionWithDependentUnits(
 func findDependentUnits(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []string {
-	units := runner.FindDependentUnits(ctx, l, opts, cfg)
+	units := runner.FindDependentUnits(ctx, l, v, opts, cfg)
 
 	paths := make([]string, len(units))
 	for i, unit := range units {

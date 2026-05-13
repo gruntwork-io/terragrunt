@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -18,6 +19,7 @@ import (
 func Run(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	cmdOpts *Options,
 	args clihelper.Args,
@@ -56,12 +58,13 @@ func Run(
 		}
 	}
 
-	return runTargetCommand(ctx, l, updatedOpts, runCfg, r, cmdOpts, args)
+	return runTargetCommand(ctx, l, v, updatedOpts, runCfg, r, cmdOpts, args)
 }
 
 func runTargetCommand(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
@@ -79,12 +82,9 @@ func runTargetCommand(
 	}
 
 	runOpts := configbridge.NewRunOptions(opts)
+	rv := run.FromRoot(v)
 
-	// TODO: thread venv from the CLI entrypoint through the exec command so
-	// this leaf participates in the root virtualized environment.
-	v := run.OSVenv()
-
-	return run.RunActionWithHooks(ctx, l, v, command, runOpts, cfg, r, func(ctx context.Context) error {
+	return run.RunActionWithHooks(ctx, l, rv, command, runOpts, cfg, r, func(ctx context.Context) error {
 		_, err := shell.RunCommandWithOutput(
 			ctx, l, v.Exec, configbridge.ShellRunOptsFromOpts(opts), dir, false, false, command, cmdArgs...,
 		)

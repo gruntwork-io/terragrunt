@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -16,7 +17,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *options.TerragruntOptions) error {
+// Run migrates Terraform/OpenTofu state from srcPath to dstPath. v is the
+// virtualized environment used for the underlying stack runner build and
+// the state pull/push terraform invocations.
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	srcPath, dstPath string,
+	opts *options.TerragruntOptions,
+) error {
 	var err error
 
 	srcPath, err = util.CanonicalPath(srcPath, opts.WorkingDir)
@@ -33,9 +43,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	// TODO: thread venv from the CLI entrypoint through the backend migrate
-	// command so this leaf participates in the root virtualized environment.
-	rnr, err := runner.NewStackRunner(ctx, l, run.OSVenv(), opts)
+	rnr, err := runner.NewStackRunner(ctx, l, run.FromRoot(v), opts)
 	if err != nil {
 		return err
 	}
@@ -105,11 +113,9 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		}
 	}
 
-	// TODO: thread venv from the CLI entrypoint through the backend migrate
-	// command so this leaf participates in the root virtualized environment.
 	return srcRemoteState.Migrate(
 		ctx, l,
-		run.OSVenv().Exec,
+		v.Exec,
 		configbridge.RemoteStateOptsFromOpts(srcOpts),
 		configbridge.RemoteStateOptsFromOpts(dstOpts),
 		dstRemoteState,

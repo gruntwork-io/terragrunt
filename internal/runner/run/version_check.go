@@ -35,8 +35,7 @@ const versionParts = 3
 // PopulateTFVersion discovers the currently installed version of OpenTofu/Terraform.
 // It uses a cache keyed by workingDir and versionFiles to avoid repeated invocations.
 // Returns the discovered version and implementation type; the caller is responsible
-// for storing them on *options.TerragruntOptions. exec is the process-execution
-// handle used to spawn the version subprocess.
+// for storing them on *options.TerragruntOptions.
 func PopulateTFVersion(ctx context.Context, l log.Logger, exec vexec.Exec, workingDir string, versionFiles []string, tfOpts *tf.TFOptions) (log.Logger, *version.Version, tfimpl.Type, error) {
 	versionCache := GetRunVersionCache(ctx)
 	cacheKey := computeVersionFilesCacheKey(workingDir, versionFiles)
