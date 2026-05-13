@@ -217,11 +217,11 @@ func DownloadTerraformSourceIfNecessary(
 					Spinner: "Downloading source from " + sourceURL + "...",
 					Done:    "Downloaded source from " + sourceURL,
 				}, func() error {
-					return downloadSource(childCtx, l, terraformSource, opts, cfg, r)
+					return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
 				})
 			}
 
-			return downloadSource(childCtx, l, terraformSource, opts, cfg, r)
+			return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
 		},
 	)
 	if downloadErr != nil {
@@ -311,6 +311,7 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 func downloadSource(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	src *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -349,7 +350,7 @@ func downloadSource(
 	}
 
 	return opts.RunWithErrorHandling(ctx, l, r, func() error {
-		client := BuildDownloadClient(l, opts, cfg)
+		client := BuildDownloadClient(l, v, opts, cfg)
 
 		_, err := client.Get(ctx, &getter.Request{
 			Src:     src.CanonicalSourceURL.String(),
@@ -432,15 +433,17 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 // symlinking) and RegistryGetter (resolves tfr:// sources).
 //
 // Exported so tests can assert the protocol set directly.
-func BuildDownloadClient(l log.Logger, opts *Options, cfg *runcfg.RunConfig) *getter.Client {
+// v supplies the filesystem used by the file-copy getter and the
+// registry getter's archive expansion.
+func BuildDownloadClient(l log.Logger, v Venv, opts *Options, cfg *runcfg.RunConfig) *getter.Client {
 	return getter.NewClient(
 		getter.WithLogger(l),
-		getter.WithFileCopy(getter.NewFileCopyGetter().
+		getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).
 			WithLogger(l).
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
-		getter.WithTFRegistry(getter.NewRegistryGetter(l).
+		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
 			WithTofuImplementation(opts.TofuImplementation)),
 	)
 }

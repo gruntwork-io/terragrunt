@@ -278,12 +278,16 @@ func getPlatform(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 
 // Return the repository root as an absolute path
 func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	return shell.GitTopLevelDir(ctx, l, pctx.Env, pctx.WorkingDir)
+	// TODO: thread venv through ParsingContext so this HCL helper
+	// participates in the root virtualized environment.
+	return shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), pctx.Env, pctx.WorkingDir)
 }
 
 // Return the path from the repository root
 func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Env, pctx.WorkingDir)
+	// TODO: thread venv through ParsingContext so this HCL helper
+	// participates in the root virtualized environment.
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), pctx.Env, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -298,7 +302,9 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 // Return the path to the repository root
 func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Env, pctx.WorkingDir)
+	// TODO: thread venv through ParsingContext so this HCL helper
+	// participates in the root virtualized environment.
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), pctx.Env, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}

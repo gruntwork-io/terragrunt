@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -32,7 +33,9 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	rnr, err := runner.NewStackRunner(ctx, l, opts)
+	// TODO: thread venv from the CLI entrypoint through the backend migrate
+	// command so this leaf participates in the root virtualized environment.
+	rnr, err := runner.NewStackRunner(ctx, l, run.OSVenv(), opts)
 	if err != nil {
 		return err
 	}
@@ -102,8 +105,11 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		}
 	}
 
+	// TODO: thread venv from the CLI entrypoint through the backend migrate
+	// command so this leaf participates in the root virtualized environment.
 	return srcRemoteState.Migrate(
 		ctx, l,
+		run.OSVenv().Exec,
 		configbridge.RemoteStateOptsFromOpts(srcOpts),
 		configbridge.RemoteStateOptsFromOpts(dstOpts),
 		dstRemoteState,

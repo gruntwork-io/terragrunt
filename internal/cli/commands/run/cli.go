@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
+	innerrun "github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -35,13 +36,14 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 		Subcommands: NewSubcommands(l, opts, v),
 		Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
+			rv := innerrun.FromRoot(v)
 
 			if tgOpts.RunAll {
-				return runall.Run(ctx, l, tgOpts)
+				return runall.Run(ctx, l, rv, tgOpts)
 			}
 
 			if tgOpts.Graph {
-				return graph.Run(ctx, l, tgOpts)
+				return graph.Run(ctx, l, rv, tgOpts)
 			}
 
 			if len(cliCtx.Args()) == 0 {

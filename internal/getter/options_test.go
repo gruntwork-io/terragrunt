@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -184,7 +186,7 @@ func TestFileCopyGetIncludeExcludeFiltersHonor(t *testing.T) {
 	require.NoError(t, writeFile(filepath.Join(src, "secret.txt"), "shh\n"))
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "out")
-	fcg := getter.NewFileCopyGetter().
+	fcg := getter.NewFileCopyGetter(vfs.NewOSFS()).
 		WithLogger(logger.CreateLogger()).
 		WithExcludeFromCopy("*.txt")
 
@@ -208,7 +210,7 @@ func TestFileCopyGetMissingPath(t *testing.T) {
 
 	missing := filepath.Join(helpers.TmpDirWOSymlinks(t), "does-not-exist")
 
-	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter()))
+	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
 	_, err := client.Get(t.Context(), &getter.Request{
 		Src:     "file://" + missing,
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
@@ -226,7 +228,7 @@ func TestFileCopyGetSourceIsFile(t *testing.T) {
 	srcFile := filepath.Join(helpers.TmpDirWOSymlinks(t), "main.tf")
 	require.NoError(t, writeFile(srcFile, "# main\n"))
 
-	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter()))
+	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
 	_, err := client.Get(t.Context(), &getter.Request{
 		Src:     "file://" + srcFile,
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
@@ -247,7 +249,7 @@ func TestFileCopyGetFileDelegates(t *testing.T) {
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "out.tf")
 
-	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter()))
+	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
 	_, err := client.Get(t.Context(), &getter.Request{
 		Src:     "file://" + srcFile,
 		Dst:     dst,

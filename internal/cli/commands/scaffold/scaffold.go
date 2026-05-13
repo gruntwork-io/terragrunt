@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -654,7 +655,7 @@ func rewriteTemplateURL(
 			return updatedTemplateURL, nil
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, vexec.NewOSExec(), opts.Env, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for URL %s, so will not add a ref param to the URL", rootSourceURL)
 		} else {
@@ -694,7 +695,7 @@ func addRefToModuleURL(
 			return nil, errors.New(err)
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, vexec.NewOSExec(), opts.Env, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for %s", rootSourceURL)
 		} else {

@@ -100,9 +100,9 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 
 	l := logger.CreateLogger()
 	path := "."
-	path1, err := shell.GitTopLevelDir(ctx, l, terragruntOptions.Env, path)
+	path1, err := shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), terragruntOptions.Env, path)
 	require.NoError(t, err)
-	path2, err := shell.GitTopLevelDir(ctx, l, terragruntOptions.Env, path)
+	path2, err := shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), terragruntOptions.Env, path)
 	require.NoError(t, err)
 	assert.Equal(t, path1, path2)
 	assert.Equal(t, 1, c.Len())
@@ -125,7 +125,7 @@ func TestGitTopLevelDirPrefixHit(t *testing.T) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), terragruntOptions.Env, subdir)
+	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), vexec.NewOSExec(), terragruntOptions.Env, subdir)
 	require.NoError(t, err)
 	assert.Equal(t, root, got)
 }
@@ -151,7 +151,7 @@ func TestGitTopLevelDirNestedRepoBypass(t *testing.T) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), terragruntOptions.Env, deep)
+	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), vexec.NewOSExec(), terragruntOptions.Env, deep)
 	if err == nil {
 		assert.NotEqual(t, root, got, "guard should not return the outer root when a nested .git exists")
 	}

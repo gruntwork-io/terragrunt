@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -98,7 +99,9 @@ func (d *Discovery) Discover(
 
 	if d.classifier.HasGraphFilters() {
 		if d.classifier.HasDependentFilters() && d.gitRoot == "" {
-			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, opts.Env, d.workingDir); gitErr == nil {
+			// TODO: thread venv through discovery so this leaf
+			// participates in the root virtualized environment.
+			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), opts.Env, d.workingDir); gitErr == nil {
 				d.gitRoot = gitRootPath
 				l.Debugf("Set gitRoot for dependent discovery: %s", d.gitRoot)
 			}

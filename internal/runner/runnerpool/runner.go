@@ -25,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
@@ -312,8 +313,9 @@ func filterUnitsToComponents(units []*component.Unit) component.Components {
 }
 
 // Run executes the stack according to TerragruntOptions and returns the first
-// error (or a joined error) once execution is finished.
-func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.TerragruntOptions, r *report.Report) error {
+// error (or a joined error) once execution is finished. v is the virtualized
+// environment threaded into each unit's run pipeline.
+func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
@@ -497,6 +499,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 				return unitRunner.Run(
 					runCtx,
 					unitLogger,
+					v,
 					unitOpts,
 					r,
 					runCfg,

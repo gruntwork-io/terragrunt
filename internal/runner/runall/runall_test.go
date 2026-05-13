@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -20,7 +21,7 @@ func TestMissingRunAllArguments(t *testing.T) {
 
 	tgOptions.TerraformCommand = ""
 
-	err = runall.Run(t.Context(), logger.CreateLogger(), tgOptions)
+	err = runall.Run(t.Context(), logger.CreateLogger(), run.OSVenv(), tgOptions)
 	require.Error(t, err)
 
 	var missingCommand runall.MissingCommand

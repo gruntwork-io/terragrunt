@@ -177,9 +177,11 @@ func createRunner(
 
 // checkVersionConstraints performs version constraint checks on all discovered units concurrently.
 // It uses errgroup to coordinate concurrent checks and returns the first error encountered.
+// exec is the process-execution handle used by the per-unit version probe.
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
+	exec vexec.Exec,
 	opts *options.TerragruntOptions,
 	units []*component.Unit,
 ) error {
@@ -199,6 +201,7 @@ func checkVersionConstraints(
 			return checkUnitVersionConstraints(
 				checkCtx,
 				l,
+				exec,
 				unitOpts,
 				unitLogger,
 				unit,
@@ -211,9 +214,11 @@ func checkVersionConstraints(
 
 // checkUnitVersionConstraints checks version constraints for a single unit.
 // It handles config parsing if needed and performs version constraint validation.
+// exec is the process-execution handle used by the version probe.
 func checkUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
+	exec vexec.Exec,
 	unitOpts *options.TerragruntOptions,
 	unitLogger log.Logger,
 	unit *component.Unit,
@@ -250,9 +255,7 @@ func checkUnitVersionConstraints(
 		l = unitLogger
 	}
 
-	// TODO: thread venv from the CLI entrypoint through the runner-pool
-	// builder so this leaf stops constructing a fresh OS exec.
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, vexec.NewOSExec(), unitOpts.WorkingDir, unitOpts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(unitOpts))
+	_, ver, impl, err := run.PopulateTFVersion(ctx, l, exec, unitOpts.WorkingDir, unitOpts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(unitOpts))
 	if err != nil {
 		return errors.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
 	}

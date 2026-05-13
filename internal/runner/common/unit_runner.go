@@ -46,6 +46,7 @@ func NewUnitRunner(unit *component.Unit) *UnitRunner {
 func (runner *UnitRunner) runTerragrunt(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -90,9 +91,7 @@ func (runner *UnitRunner) runTerragrunt(
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, unitExitCode)
 
-	// TODO: thread venv from the CLI entrypoint through the unit runner
-	// so this leaf participates in the root virtualized environment.
-	runErr := run.Run(ctx, l, run.OSVenv(), configbridge.NewRunOptions(opts), r, cfg, credsGetter)
+	runErr := run.Run(ctx, l, v, configbridge.NewRunOptions(opts), r, cfg, credsGetter)
 
 	// Store the unit exit code in the global map using the unit path as key.
 	if globalExitCode != nil {
@@ -130,10 +129,12 @@ func (runner *UnitRunner) runTerragrunt(
 	return runErr
 }
 
-// Run executes a component.Unit right now.
+// Run executes a component.Unit right now. v is the virtualized environment
+// used by the underlying run.Run pipeline.
 func (runner *UnitRunner) Run(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -145,7 +146,7 @@ func (runner *UnitRunner) Run(
 		return nil
 	}
 
-	if err := runner.runTerragrunt(ctx, l, opts, r, cfg, credsGetter); err != nil {
+	if err := runner.runTerragrunt(ctx, l, v, opts, r, cfg, credsGetter); err != nil {
 		return err
 	}
 
@@ -173,9 +174,7 @@ func (runner *UnitRunner) Run(
 		adhocReport := report.NewReport()
 
 		runOpts := configbridge.NewRunOptions(jsonOptions)
-		// TODO: thread venv from the CLI entrypoint through the unit runner
-		// so this leaf participates in the root virtualized environment.
-		if err := run.Run(ctx, jsonLogger, run.OSVenv(), runOpts, adhocReport, cfg, credsGetter); err != nil {
+		if err := run.Run(ctx, jsonLogger, v, runOpts, adhocReport, cfg, credsGetter); err != nil {
 			return err
 		}
 

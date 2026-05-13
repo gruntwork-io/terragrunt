@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -100,7 +101,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	return runall.Run(ctx, l, opts)
+	// TODO: thread venv from the CLI entrypoint through the stack command
+	// so this leaf participates in the root virtualized environment.
+	return runall.Run(ctx, l, run.OSVenv(), opts)
 }
 
 // RunOutput stack output.

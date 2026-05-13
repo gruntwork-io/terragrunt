@@ -51,13 +51,14 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	}
 
 	tgOpts := opts.OptionsFromContext(ctx)
+	rv := run.FromRoot(v)
 
 	if tgOpts.RunAll {
-		return runall.Run(ctx, l, tgOpts)
+		return runall.Run(ctx, l, rv, tgOpts)
 	}
 
 	if tgOpts.Graph {
-		return graph.Run(ctx, l, tgOpts)
+		return graph.Run(ctx, l, rv, tgOpts)
 	}
 
 	if opts.ReportSchemaFile != "" {
@@ -142,7 +143,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 		}
 	}()
 
-	runErr = run.Run(ctx, l, run.FromRoot(v), configbridge.NewRunOptions(tgOpts), r, runCfg, credsGetter)
+	runErr = run.Run(ctx, l, rv, configbridge.NewRunOptions(tgOpts), r, runCfg, credsGetter)
 
 	return runErr
 }
