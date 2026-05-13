@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -81,9 +80,13 @@ func runTargetCommand(
 
 	runOpts := configbridge.NewRunOptions(opts)
 
-	return run.RunActionWithHooks(ctx, l, command, runOpts, cfg, r, func(ctx context.Context) error {
+	// TODO: thread venv from the CLI entrypoint through the exec command so
+	// this leaf participates in the root virtualized environment.
+	v := run.OSVenv()
+
+	return run.RunActionWithHooks(ctx, l, v, command, runOpts, cfg, r, func(ctx context.Context) error {
 		_, err := shell.RunCommandWithOutput(
-			ctx, l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(opts), dir, false, false, command, cmdArgs...,
+			ctx, l, v.Exec, configbridge.ShellRunOptsFromOpts(opts), dir, false, false, command, cmdArgs...,
 		)
 		if err != nil {
 			return errors.Errorf("failed to run command in directory %s: %w", dir, err)

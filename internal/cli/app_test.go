@@ -862,7 +862,7 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app.ErrWriter = &bytes.Buffer{}
 
 	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, nil)...)
-	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
+	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, venv.OSVenv()))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx context.Context, cliCtx *clihelper.Context) error {
 		for _, arg := range cliCtx.Args() {

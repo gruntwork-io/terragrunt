@@ -89,7 +89,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 		return err
 	}
 
-	l, err := checkVersionConstraints(ctx, l, opts)
+	l, err := checkVersionConstraints(ctx, l, opts, v)
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 		}
 	}()
 
-	runErr = run.Run(ctx, l, configbridge.NewRunOptions(tgOpts), r, runCfg, credsGetter)
+	runErr = run.Run(ctx, l, run.FromRoot(v), configbridge.NewRunOptions(tgOpts), r, runCfg, credsGetter)
 
 	return runErr
 }
@@ -188,7 +188,7 @@ func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.Terrag
 // - TerraformVersion
 // - FeatureFlags
 // TODO: Look into a way to refactor this function to avoid the side effect.
-func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (log.Logger, error) {
+func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) (log.Logger, error) {
 	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, opts)
 	if err != nil {
 		return l, err
@@ -199,7 +199,7 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		opts.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	l, ver, impl, err := run.PopulateTFVersion(ctx, l, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
+	l, ver, impl, err := run.PopulateTFVersion(ctx, l, v.Exec, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
 	if err != nil {
 		return l, err
 	}

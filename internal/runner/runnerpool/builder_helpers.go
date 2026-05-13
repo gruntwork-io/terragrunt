@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -249,7 +250,9 @@ func checkUnitVersionConstraints(
 		l = unitLogger
 	}
 
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, unitOpts.WorkingDir, unitOpts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(unitOpts))
+	// TODO: thread venv from the CLI entrypoint through the runner-pool
+	// builder so this leaf stops constructing a fresh OS exec.
+	_, ver, impl, err := run.PopulateTFVersion(ctx, l, vexec.NewOSExec(), unitOpts.WorkingDir, unitOpts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(unitOpts))
 	if err != nil {
 		return errors.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
 	}

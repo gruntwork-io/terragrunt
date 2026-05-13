@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -138,9 +139,12 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 
 // WrapWithTelemetry wraps CLI command execution with setting of telemetry
 // context and labels. If telemetry is disabled, just runs the command.
+// v is the root virtualized environment captured for use by per-action
+// setup (auto provider cache, Windows symlink check).
 func WrapWithTelemetry(
 	l log.Logger,
 	opts *options.TerragruntOptions,
+	v venv.Venv,
 ) func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
 	return func(
 		ctx context.Context,
@@ -160,7 +164,7 @@ func WrapWithTelemetry(
 				return err
 			}
 
-			if err := RunAction(childCtx, cliCtx, l, opts, action); err != nil {
+			if err := RunAction(childCtx, cliCtx, l, opts, v, action); err != nil {
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
 				return err
 			}
@@ -246,11 +250,14 @@ func GiveWindowsSymlinksTip(
 
 // RunAction wires up cancellation, run-scoped caches, and (when enabled)
 // the provider cache server, then invokes action with the resulting context.
+// v is the root virtualized environment used for the provider-cache version
+// probe and the Windows symlink check.
 func RunAction(
 	ctx context.Context,
 	cliCtx *clihelper.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
+	v venv.Venv,
 	action clihelper.ActionFunc,
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -260,14 +267,14 @@ func RunAction(
 
 	// Set up automatic provider caching if enabled
 	if !opts.NoAutoProviderCacheDir {
-		if err := setupAutoProviderCacheDir(ctx, l, opts); err != nil {
+		if err := setupAutoProviderCacheDir(ctx, l, opts, v.Exec); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}
 	}
 
 	GiveWindowsSymlinksTip(
 		l,
-		vfs.NewOSFS(),
+		v.FS,
 		runtime.GOOS,
 		opts.Tips,
 		opts.Env,
@@ -326,7 +333,7 @@ const minTofuVersionForAutoProviderCacheDir = "1.10.0"
 // setupAutoProviderCacheDir configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
 //
 // Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
-func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, exec vexec.Exec) error {
 	// Set TF_PLUGIN_CACHE_DIR environment variable
 	if opts.Env[tf.EnvNameTFPluginCacheDir] != "" {
 		l.Debugf(
@@ -339,7 +346,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	if opts.TerraformVersion == nil {
 		_, ver, impl, err := run.PopulateTFVersion(
-			ctx, l, opts.WorkingDir,
+			ctx, l, exec, opts.WorkingDir,
 			opts.VersionManagerFileName,
 			configbridge.TFRunOptsFromOpts(opts),
 		)

@@ -90,7 +90,9 @@ func (runner *UnitRunner) runTerragrunt(
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, unitExitCode)
 
-	runErr := run.Run(ctx, l, configbridge.NewRunOptions(opts), r, cfg, credsGetter)
+	// TODO: thread venv from the CLI entrypoint through the unit runner
+	// so this leaf participates in the root virtualized environment.
+	runErr := run.Run(ctx, l, run.OSVenv(), configbridge.NewRunOptions(opts), r, cfg, credsGetter)
 
 	// Store the unit exit code in the global map using the unit path as key.
 	if globalExitCode != nil {
@@ -171,7 +173,9 @@ func (runner *UnitRunner) Run(
 		adhocReport := report.NewReport()
 
 		runOpts := configbridge.NewRunOptions(jsonOptions)
-		if err := run.Run(ctx, jsonLogger, runOpts, adhocReport, cfg, credsGetter); err != nil {
+		// TODO: thread venv from the CLI entrypoint through the unit runner
+		// so this leaf participates in the root virtualized environment.
+		if err := run.Run(ctx, jsonLogger, run.OSVenv(), runOpts, adhocReport, cfg, credsGetter); err != nil {
 			return err
 		}
 

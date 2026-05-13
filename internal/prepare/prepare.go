@@ -144,7 +144,9 @@ func PrepareSource(
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
 		"sourceUrl": sourceURL,
 	}, func(ctx context.Context) error {
-		updatedRunOpts, err = run.DownloadTerraformSource(ctx, l, sourceURL, runOpts, runCfg, r)
+		// TODO: thread venv from the CLI entrypoint through PrepareSource so
+		// this leaf participates in the root virtualized environment.
+		updatedRunOpts, err = run.DownloadTerraformSource(ctx, l, run.OSVenv(), sourceURL, runOpts, runCfg, r)
 		return err
 	})
 	if err != nil {
@@ -166,7 +168,9 @@ func PrepareSource(
 // PrepareGenerate handles code generation configs, both generate blocks and generate attribute of remote_state.
 // It requires PrepareSource to have been called first.
 func PrepareGenerate(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
-	return run.GenerateConfig(l, configbridge.NewRunOptions(opts), cfg)
+	// TODO: thread venv from the CLI entrypoint through PrepareGenerate so
+	// this leaf participates in the root virtualized environment.
+	return run.GenerateConfig(l, run.OSVenv().FS, configbridge.NewRunOptions(opts), cfg)
 }
 
 // PrepareInputsAsEnvVars sets terragrunt inputs as environment variables.
@@ -202,6 +206,8 @@ func PrepareInit(
 		return err
 	}
 
-	// Run terraform init via the non-init command preparation path
-	return run.PrepareNonInitCommand(ctx, l, configbridge.NewRunOptions(originalOpts), runOpts, cfg, r)
+	// Run terraform init via the non-init command preparation path.
+	// TODO: thread venv from the CLI entrypoint through PrepareInit so
+	// this leaf participates in the root virtualized environment.
+	return run.PrepareNonInitCommand(ctx, l, run.OSVenv(), configbridge.NewRunOptions(originalOpts), runOpts, cfg, r)
 }

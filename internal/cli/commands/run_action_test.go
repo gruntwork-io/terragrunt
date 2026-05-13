@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +38,7 @@ func TestRunActionInstallsRunScopedCache(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, action))
+	require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, venv.OSVenv(), action))
 	assert.True(t, hasRunCmd, "RunCmdCacheContextKey missing from action context")
 	assert.True(t, hasRepoRoots, "RepoRootCacheContextKey missing from action context")
 }
