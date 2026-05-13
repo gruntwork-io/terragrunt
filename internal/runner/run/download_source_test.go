@@ -297,6 +297,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
+		run.OSVenv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -459,6 +460,7 @@ func testDownloadTerraformSourceIfNecessary(
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
+		run.OSVenv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -631,7 +633,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 			require.NoError(t, err)
 
-			client, err := run.BuildDownloadClient(logger.CreateLogger(), configbridge.NewRunOptions(terragruntOptions), tc.cfg)
+			client, err := run.BuildDownloadClient(logger.CreateLogger(), run.OSVenv(), configbridge.NewRunOptions(terragruntOptions), tc.cfg)
 			require.NoError(t, err)
 
 			fileGetter, ok := findGetter[*getter.FileCopyGetter](client.Getters)
@@ -657,6 +659,7 @@ func TestBuildDownloadClientHTTPNetrc(t *testing.T) {
 
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
+		run.OSVenv(),
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
@@ -680,6 +683,7 @@ func TestBuildDownloadClientCoversDefaultSchemes(t *testing.T) {
 
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
+		run.OSVenv(),
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
@@ -742,7 +746,7 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	r := report.NewReport()
 
 	// sourceURL "." represents the current directory (no terraform.source specified)
-	updatedOpts, err := run.DownloadTerraformSource(t.Context(), l, ".", configbridge.NewRunOptions(opts), cfg, r)
+	updatedOpts, err := run.DownloadTerraformSource(t.Context(), l, run.OSVenv(), ".", configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	// Verify that the working directory was changed to the cache directory (inside downloadDir)
@@ -791,7 +795,7 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	// Mock the download source function call
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
 
 	require.NoError(t, err)
 
@@ -834,7 +838,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -876,7 +880,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	// Verify the file was downloaded
@@ -917,7 +921,7 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -974,7 +978,7 @@ func TestDownloadSourceUpdateSourceWithCASRequiresCAS(t *testing.T) {
 			l.SetOptions(log.WithOutput(io.Discard))
 
 			_, err = run.DownloadTerraformSourceIfNecessary(
-				t.Context(), l, src,
+				t.Context(), l, run.OSVenv(), src,
 				configbridge.NewRunOptions(opts),
 				cfg, report.NewReport(),
 			)
@@ -1043,7 +1047,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
 			}
 
-			_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+			_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
 
 			if tc.name == "Local file source" {
 				require.NoError(t, err)
@@ -1096,7 +1100,7 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 
 	dst := filepath.Join(t.TempDir(), "module.tf")
 
-	client, err := run.BuildDownloadClient(logger.CreateLogger(), configbridge.NewRunOptions(opts), cfg)
+	client, err := run.BuildDownloadClient(logger.CreateLogger(), run.OSVenv(), configbridge.NewRunOptions(opts), cfg)
 	require.NoError(t, err)
 
 	_, err = client.Get(t.Context(), &getter.Request{
@@ -1129,6 +1133,7 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystem(t *testing.T) {
 	_, err = run.DownloadTerraformSource(
 		t.Context(),
 		l,
+		run.OSVenv(),
 		".",
 		runOpts,
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
@@ -1154,6 +1159,7 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
+		run.OSVenv(),
 		src,
 		runOpts,
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
@@ -1172,10 +1178,13 @@ func TestBuildDownloadClientRejectsNonOSFilesystem(t *testing.T) {
 	require.NoError(t, err)
 
 	runOpts := configbridge.NewRunOptions(opts)
-	runOpts.FS = vfs.NewMemMapFS()
+
+	v := run.OSVenv()
+	v.FS = vfs.NewMemMapFS()
 
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
+		v,
 		runOpts,
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
