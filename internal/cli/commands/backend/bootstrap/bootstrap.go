@@ -11,20 +11,21 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
-		return runAll(ctx, l, opts)
+		return runAll(ctx, l, v, opts)
 	}
 
-	return runBootstrap(ctx, l, opts)
+	return runBootstrap(ctx, l, v, opts)
 }
 
-func runBootstrap(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func runBootstrap(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "backend_bootstrap", map[string]any{
 		"working_dir":            opts.WorkingDir,
 		"terragrunt_config_path": opts.TerragruntConfigPath,
@@ -36,14 +37,14 @@ func runBootstrap(ctx context.Context, l log.Logger, opts *options.TerragruntOpt
 			return err
 		}
 
-		return remoteState.Bootstrap(ctx, l, configbridge.RemoteStateOptsFromOpts(opts))
+		return remoteState.Bootstrap(ctx, l, configbridge.RemoteStateOptsFromOpts(v, opts))
 	})
 }
 
-func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
 		return err
 	}
@@ -69,7 +70,7 @@ func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) 
 			unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 			unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
 
-			if err := runBootstrap(ctx, l, unitOpts); err != nil {
+			if err := runBootstrap(ctx, l, v, unitOpts); err != nil {
 				if opts.FailFast {
 					return err
 				}

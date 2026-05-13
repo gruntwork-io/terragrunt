@@ -91,7 +91,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 	// - When running 'output' command (typically for programmatic consumption)
 	if !opts.SummaryDisable && !shouldSkipSummary(opts) {
 		defer func() {
-			if err := r.WriteSummary(opts.Writers.Writer); err != nil {
+			if err := r.WriteSummary(v.Writers.Writer); err != nil {
 				l.Warnf("Failed to write summary: %v", err)
 			}
 		}()
@@ -146,7 +146,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
-			return gen.GenerateStacks(ctx, l, opts, wts)
+			return gen.GenerateStacks(ctx, l, v.ToRoot(), opts, wts)
 		})
 
 		// Handle any errors during stack generation
@@ -182,7 +182,7 @@ func RunAllOnStack(
 	l.Debugf("%s", rnr.GetStack().String())
 
 	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
-	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.Writers.LogShowAbsPaths, opts.Experiments); err != nil {
+	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.LogShowAbsPaths, opts.Experiments); err != nil {
 		return err
 	}
 
@@ -201,7 +201,7 @@ func RunAllOnStack(
 	}
 
 	if prompt != "" {
-		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
+		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, v.Writers.ErrWriter)
 		if err != nil {
 			return err
 		}

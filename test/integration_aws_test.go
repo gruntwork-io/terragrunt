@@ -30,6 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -1836,7 +1837,7 @@ func TestAwsAssumeRole(t *testing.T) {
 	l := logger.CreateLogger()
 
 	cfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(opts.Env).
+		WithEnv(venv.OSVenv().Env).
 		WithIAMRoleOptions(opts.IAMRoleOptions).
 		Build(t.Context(), l)
 	require.NoError(t, err)
@@ -1879,7 +1880,7 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 	l := logger.CreateLogger()
 
 	cfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(opts.Env).
+		WithEnv(venv.OSVenv().Env).
 		WithIAMRoleOptions(opts.IAMRoleOptions).
 		Build(t.Context(), l)
 	require.NoError(t, err)

@@ -37,7 +37,7 @@ func runPrint(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terra
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
-		if printErr := printTerragruntContext(l, opts); printErr != nil {
+		if printErr := printTerragruntContext(l, v, opts); printErr != nil {
 			l.Errorf("Error printing info: %v", printErr)
 		}
 
@@ -50,20 +50,20 @@ func runPrint(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terra
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
-		if printErr := printTerragruntContext(l, opts); printErr != nil {
+		if printErr := printTerragruntContext(l, v, opts); printErr != nil {
 			l.Errorf("Error printing info: %v", printErr)
 		}
 
 		return nil
 	}
 
-	return printTerragruntContext(l, updatedOpts)
+	return printTerragruntContext(l, v, updatedOpts)
 }
 
 func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
-	d := discovery.NewDiscovery(opts.WorkingDir).WithExec(v.Exec)
+	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, v.ToRoot(), opts)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ type InfoOutput struct {
 	WorkingDir       string `json:"working_dir"`
 }
 
-func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error {
+func printTerragruntContext(l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	group := InfoOutput{
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
@@ -127,7 +127,7 @@ func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error
 		return errors.New(err)
 	}
 
-	if _, err := fmt.Fprintf(opts.Writers.Writer, "%s\n", b); err != nil {
+	if _, err := fmt.Fprintf(v.Writers.Writer, "%s\n", b); err != nil {
 		return errors.New(err)
 	}
 

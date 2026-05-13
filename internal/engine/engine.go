@@ -71,18 +71,20 @@ type (
 )
 
 type ExecutionOptions struct {
-	Writers           writer.Writers
-	EngineOptions     *EngineOptions
-	EngineConfig      *EngineConfig
-	Env               map[string]string
-	WorkingDir        string
-	RootWorkingDir    string
-	Command           string
-	Args              []string
-	Headless          bool
-	ForwardTFStdout   bool
-	SuppressStdout    bool
-	AllocatePseudoTty bool
+	Writers                writer.Writers
+	EngineOptions          *EngineOptions
+	EngineConfig           *EngineConfig
+	Env                    map[string]string
+	WorkingDir             string
+	RootWorkingDir         string
+	Command                string
+	Args                   []string
+	Headless               bool
+	ForwardTFStdout        bool
+	SuppressStdout         bool
+	AllocatePseudoTty      bool
+	LogShowAbsPaths        bool
+	LogDisableErrorSummary bool
 }
 
 type engineInstance struct {
@@ -833,10 +835,10 @@ func invoke(
 				Output:          output,
 				WorkingDir:      runOptions.WorkingDir,
 				RootWorkingDir:  runOptions.RootWorkingDir,
-				LogShowAbsPaths: runOptions.Writers.LogShowAbsPaths,
+				LogShowAbsPaths: runOptions.LogShowAbsPaths,
 				Command:         runOptions.Command,
 				Args:            runOptions.Args,
-				DisableSummary:  runOptions.Writers.LogDisableErrorSummary,
+				DisableSummary:  runOptions.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)

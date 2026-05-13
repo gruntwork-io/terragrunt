@@ -47,6 +47,7 @@ var (
 
 type Model struct {
 	lists               [numTabs]list.Model
+	venv                venv.Venv
 	logger              log.Logger
 	terragruntOptions   *options.TerragruntOptions
 	selectedComponent   *Component
@@ -55,15 +56,14 @@ type Model struct {
 	componentCh         chan *ComponentEntry
 	errCh               chan error
 	mdRenderer          *glamour.TermRenderer
+	exitMessage         string
 	pagerKeys           tui.PagerKeyMap
 	listKeys            list.KeyMap
 	currentPagerButtons []button
-	exitMessage         string
 	viewport            viewport.Model
-	venv                venv.Venv
-	activeButton        button
-	State               sessionState
 	activeTab           tabKind
+	State               sessionState
+	activeButton        button
 	height              int
 	width               int
 	mdRendererWidth     int

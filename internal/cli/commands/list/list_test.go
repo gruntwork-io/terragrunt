@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -66,14 +67,13 @@ func TestBasicDiscovery(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	// Set the writer in options
-	opts.Writers.Writer = w
+	writer := w
 
 	l := logger.CreateLogger()
 
 	l.Formatter().SetDisabledColors(true)
 
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), writer, opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -151,9 +151,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writers.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), w, opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -229,9 +227,7 @@ dependency "unit2" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writers.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), w, opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -307,9 +303,7 @@ dependency "unit3" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writers.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), w, opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -419,9 +413,7 @@ dependency "C" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writers.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), w, opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -561,9 +553,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), w, opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -623,9 +613,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), w, opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -698,9 +686,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), w, opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -778,9 +764,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), w, opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -851,9 +835,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), w, opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -920,9 +902,7 @@ exclude {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), w, opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -1004,9 +984,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
-
-	err = list.Run(t.Context(), l, opts)
+	err = list.Run(t.Context(), l, venv.OSVenv(), w, opts)
 	require.NoError(t, err)
 
 	w.Close()

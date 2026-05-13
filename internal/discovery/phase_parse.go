@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -100,6 +101,7 @@ func parseDepthFromContext(ctx context.Context) int {
 func ensureParsed(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -122,7 +124,7 @@ func ensureParsed(
 		return nil
 	}
 
-	return parseComponent(ctx, l, c, opts, discovery)
+	return parseComponent(ctx, l, v, c, opts, discovery)
 }
 
 // ParsePhase parses HCL configurations for filter evaluation.
@@ -151,7 +153,7 @@ func (p *ParsePhase) Kind() PhaseKind {
 }
 
 // Run executes the parse phase.
-func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
+func (p *ParsePhase) Run(ctx context.Context, l log.Logger, v venv.Venv, input *PhaseInput) (*PhaseResults, error) {
 	results := NewPhaseResults()
 	discovery := input.Discovery
 
@@ -193,7 +195,7 @@ func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 
 	for _, candidate := range componentsToParse {
 		g.Go(func() error {
-			result, err := p.parseAndReclassify(ctx, l, input.Opts, discovery, candidate)
+			result, err := p.parseAndReclassify(ctx, l, v, input.Opts, discovery, candidate)
 			if err != nil {
 				errMu.Lock()
 
@@ -236,6 +238,7 @@ func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 func (p *ParsePhase) parseAndReclassify(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
 	candidate DiscoveryResult,
@@ -243,7 +246,7 @@ func (p *ParsePhase) parseAndReclassify(
 	c := candidate.Component
 	ctx = contextWithParsePhase(ctx, parsePhaseTagParse)
 
-	if err := parseComponent(ctx, l, c, opts, discovery); err != nil {
+	if err := parseComponent(ctx, l, v, c, opts, discovery); err != nil {
 		if discovery.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
 
@@ -300,6 +303,7 @@ func (p *ParsePhase) parseAndReclassify(
 func parseComponent(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -341,15 +345,17 @@ func parseComponent(
 		}
 
 		parseOpts.WorkingDir = workingDir
-		parseOpts.Writers.Writer = io.Discard
-		parseOpts.Writers.ErrWriter = io.Discard
 		parseOpts.SkipOutput = true
 		parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
+		parseV := v
+		parseV.Writers.Writer = io.Discard
+		parseV.Writers.ErrWriter = io.Discard
+
 		shellOpts := configbridge.ShellRunOptsFromOpts(parseOpts)
 
-		_, err := creds.ObtainCredsForParsing(ctx, l, discovery.exec, parseOpts.AuthProviderCmd, parseOpts.Env, shellOpts)
+		_, err := creds.ObtainCredsForParsing(ctx, l, parseV, parseOpts.AuthProviderCmd, parseV.Env, shellOpts)
 		if err != nil {
 			return errors.Errorf("obtaining auth provider credentials for %s: %w", parseOpts.TerragruntConfigPath, err)
 		}

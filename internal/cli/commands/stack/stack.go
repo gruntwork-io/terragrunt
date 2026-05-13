@@ -18,13 +18,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // RunGenerate runs the stack command.
-func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func RunGenerate(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
 
 	if opts.NoStackGenerate {
@@ -83,7 +84,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return gen.GenerateStacks(ctx, l, opts, wts)
+		return gen.GenerateStacks(ctx, l, v, opts, wts)
 	})
 }
 
@@ -95,7 +96,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return RunGenerate(ctx, l, opts)
+		return RunGenerate(ctx, l, v.ToRoot(), opts)
 	})
 	if err != nil {
 		return err
@@ -105,7 +106,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 }
 
 // RunOutput stack output.
-func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, index string) error {
+func RunOutput(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions, index string) error {
 	opts.StackAction = "output"
 	opts.TerraformCommand = "output" // required for discovery exclude action matching in StackOutput
 
@@ -116,7 +117,7 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		stackOutputs, err := output.StackOutput(ctx, l, opts)
+		stackOutputs, err := output.StackOutput(ctx, l, v.ToRoot(), opts)
 		outputs = stackOutputs
 
 		return err
@@ -132,17 +133,17 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 
 	switch opts.StackOutputFormat {
 	default:
-		if err := PrintOutputs(opts.Writers.Writer, filteredOutputs); err != nil {
+		if err := PrintOutputs(v.Writers.Writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 
 	case rawOutputFormat:
-		if err := PrintRawOutputs(opts, opts.Writers.Writer, filteredOutputs); err != nil {
+		if err := PrintRawOutputs(opts, v.Writers.Writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 
 	case jsonOutputFormat:
-		if err := PrintJSONOutput(opts.Writers.Writer, filteredOutputs); err != nil {
+		if err := PrintJSONOutput(v.Writers.Writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 	}

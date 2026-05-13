@@ -34,7 +34,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
 	// different opts after clone).
 	shellOpts := configbridge.ShellRunOptsFromOpts(opts)
-	if _, err := creds.ObtainCredsForParsing(ctx, l, v.Exec, opts.AuthProviderCmd, opts.Env, shellOpts); err != nil {
+	if _, err := creds.ObtainCredsForParsing(ctx, l, v.ToRoot(), opts.AuthProviderCmd, v.Env, shellOpts); err != nil {
 		return err
 	}
 
@@ -59,7 +59,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, v.Exec, opts.Env, opts.WorkingDir)
+		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, v.ToRoot(), opts.WorkingDir)
 		if gitRootErr != nil {
 			return gitRootErr
 		}
@@ -116,7 +116,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 
 	if !opts.SummaryDisable {
 		defer func() {
-			if err := r.WriteSummary(opts.Writers.Writer); err != nil {
+			if err := r.WriteSummary(v.Writers.Writer); err != nil {
 				l.Warnf("Failed to write summary: %v", err)
 			}
 		}()

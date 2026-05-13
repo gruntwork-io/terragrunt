@@ -26,7 +26,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
@@ -37,7 +36,9 @@ const (
 )
 
 // Options contains the configuration needed by run.Run and its helpers.
-// This is a focused subset of options.TerragruntOptions.
+// This is a focused subset of options.TerragruntOptions. Shell environment
+// variables and stdout/stderr writers are not stored here; callers pass
+// them via the venv threaded into [Run].
 type Options struct {
 	TerraformCliArgs             *iacargs.IacArgs
 	EngineConfig                 *engine.EngineConfig
@@ -46,8 +47,6 @@ type Options struct {
 	FeatureFlags                 *xsync.MapOf[string, string]
 	Telemetry                    *telemetry.Options
 	SourceMap                    map[string]string
-	Env                          map[string]string
-	Writers                      writer.Writers
 	TFPath                       string
 	TerraformCommand             string
 	TofuImplementation           tfimpl.Type
@@ -77,6 +76,8 @@ type Options struct {
 	DisableBucketUpdate          bool
 	SourceUpdate                 bool
 	ForwardTFStdout              bool
+	LogShowAbsPaths              bool
+	LogDisableErrorSummary       bool
 }
 
 // Clone performs a deep copy of Options.
@@ -160,18 +161,20 @@ func (o *Options) AppendTerraformCliArgs(argsToAppend ...string) {
 	}
 }
 
-// TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
-func (o *Options) TerraformDataDir() string {
-	if tfDataDir, ok := o.Env["TF_DATA_DIR"]; ok {
+// TerraformDataDir returns Terraform data directory (.terraform by default,
+// overridden by the TF_DATA_DIR entry in env).
+func (o *Options) TerraformDataDir(env map[string]string) string {
+	if tfDataDir, ok := env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
 
 	return defaultTFDataDir
 }
 
-// DataDir returns the Terraform data directory prepended with the working directory path.
-func (o *Options) DataDir() string {
-	tfDataDir := o.TerraformDataDir()
+// DataDir returns the Terraform data directory prepended with the working
+// directory path.
+func (o *Options) DataDir(env map[string]string) string {
+	tfDataDir := o.TerraformDataDir(env)
 	if filepath.IsAbs(tfDataDir) {
 		return tfDataDir
 	}
@@ -179,12 +182,12 @@ func (o *Options) DataDir() string {
 	return filepath.Join(o.WorkingDir, tfDataDir)
 }
 
-// shellRunOptions builds a *shell.ShellOptions from this Options.
+// shellRunOptions builds a *shell.ShellOptions from this Options. The shell
+// environment and writers travel separately via the venv passed at the
+// invocation site.
 func (o *Options) shellRunOptions() *shell.ShellOptions {
-	return shell.NewShellOptions().
+	s := shell.NewShellOptions().
 		WithWorkingDir(o.WorkingDir).
-		WithEnv(o.Env).
-		WithWriters(o.Writers).
 		WithTelemetry(o.Telemetry).
 		WithEngine(o.EngineConfig, o.EngineOptions).
 		WithTFPath(o.TFPath).
@@ -192,6 +195,10 @@ func (o *Options) shellRunOptions() *shell.ShellOptions {
 		WithExperiments(o.Experiments).
 		WithHeadless(o.Headless).
 		WithForwardTFStdout(o.ForwardTFStdout)
+	s.LogShowAbsPaths = o.LogShowAbsPaths
+	s.LogDisableErrorSummary = o.LogDisableErrorSummary
+
+	return s
 }
 
 // tfRunOptions builds a *tf.TFOptions from this Options.
@@ -206,12 +213,12 @@ func (o *Options) tfRunOptions() *tf.TFOptions {
 	}
 }
 
-// remoteStateOpts builds a *remotestate.Options from this Options.
+// remoteStateOpts builds a *remotestate.Options from this Options. Shell
+// environment and writers travel separately via the venv at the invocation
+// site.
 func (o *Options) remoteStateOpts() *remotestate.Options {
 	return &remotestate.Options{
 		Options: backend.Options{
-			Writers:                      o.Writers,
-			Env:                          o.Env,
 			IAMRoleOptions:               o.IAMRoleOptions,
 			NonInteractive:               o.NonInteractive,
 			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
@@ -221,11 +228,12 @@ func (o *Options) remoteStateOpts() *remotestate.Options {
 	}
 }
 
-// tflintRunOptions builds a *tflint.TFLintOptions from this Options.
+// tflintRunOptions builds a *tflint.TFLintOptions from this Options. Shell
+// environment and writers travel separately via the venv at the invocation
+// site.
 func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
 	return &tflint.TFLintOptions{
 		ShellOptions:         o.shellRunOptions(),
-		Writers:              o.Writers,
 		WorkingDir:           o.WorkingDir,
 		RootWorkingDir:       o.RootWorkingDir,
 		TerragruntConfigPath: o.TerragruntConfigPath,

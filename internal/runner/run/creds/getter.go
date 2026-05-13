@@ -1,4 +1,4 @@
-// Package creds provides a way to obtain credentials through different providers and set them to `opts.Env`.
+// Package creds provides a way to obtain credentials through different providers and set them to `v.Env`.
 package creds
 
 import (
@@ -8,7 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -26,12 +26,12 @@ func NewGetter() *Getter {
 func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	exec vexec.Exec,
+	v venv.Venv,
 	env map[string]string,
 	authProviders ...providers.Provider,
 ) error {
 	for _, provider := range authProviders {
-		creds, err := provider.GetCredentials(ctx, l, exec)
+		creds, err := provider.GetCredentials(ctx, l, v)
 		if err != nil {
 			return err
 		}
@@ -62,7 +62,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 func ObtainCredsForParsing(
 	ctx context.Context,
 	l log.Logger,
-	exec vexec.Exec,
+	v venv.Venv,
 	authProviderCmd string,
 	env map[string]string,
 	shellOpts *shell.ShellOptions,
@@ -70,7 +70,7 @@ func ObtainCredsForParsing(
 	g := NewGetter()
 
 	provider := externalcmd.NewProvider(l, authProviderCmd, shellOpts)
-	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, exec, env, provider); err != nil {
+	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, v, env, provider); err != nil {
 		return nil, err
 	}
 

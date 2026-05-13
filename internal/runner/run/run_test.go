@@ -1,6 +1,7 @@
 package run_test
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,19 +71,19 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
-			require.NoError(t, err)
-
-			opts.Env = tc.envVarsInOpts
-
-			runOpts := configbridge.NewRunOptions(opts)
-
 			cfg := &runcfg.RunConfig{Inputs: tc.inputsInConfig}
 
-			l := logger.CreateLogger()
-			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, runOpts, cfg))
+			// Clone envVarsInOpts so the assertion observes the merge result
+			// rather than the test-table fixture, which is shared across cases.
+			env := maps.Clone(tc.envVarsInOpts)
+			if env == nil {
+				env = map[string]string{}
+			}
 
-			assert.Equal(t, tc.expected, runOpts.Env)
+			l := logger.CreateLogger()
+			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, env, cfg))
+
+			assert.Equal(t, tc.expected, env)
 		})
 	}
 }

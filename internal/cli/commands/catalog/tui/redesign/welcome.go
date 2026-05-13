@@ -77,18 +77,18 @@ var (
 // discovery runs in the background, then either transitions to the component
 // list TUI or settles into a "no sources found" help screen.
 type WelcomeModel struct {
+	venv             venv.Venv
 	ctx              context.Context
 	logger           log.Logger
 	lastDiscoveryErr error
-	opts             *options.TerragruntOptions
-	loadFunc         LoadFunc
-	openURL          OpenURLFunc
 	statusCh         chan string
+	openURL          OpenURLFunc
+	loadFunc         LoadFunc
 	componentCh      chan *ComponentEntry
 	errCh            chan error
+	opts             *options.TerragruntOptions
 	statusText       string
 	spinner          spinner.Model
-	venv             venv.Venv
 	state            welcomeState
 	width            int
 	height           int

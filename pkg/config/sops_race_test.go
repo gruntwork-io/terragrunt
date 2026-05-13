@@ -71,7 +71,7 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 			l := logger.CreateLogger()
 			_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
 			pctx.WorkingDir = filepath.Dir(filePath)
-			pctx.Env = map[string]string{authKey: fmt.Sprintf("token-%d", idx)}
+			pctx.Venv.Env = map[string]string{authKey: fmt.Sprintf("token-%d", idx)}
 
 			result, err := sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", mockDecryptFn)
 			assert.NoError(t, err)

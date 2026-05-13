@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -39,18 +40,23 @@ func TestRunCommandMemBackendWithRacing(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	opts := shell.NewShellOptions().
-		WithWriters(writer.Writers{Writer: stdout, ErrWriter: stderr})
+	opts := shell.NewShellOptions()
+
+	v := venv.Venv{
+		Exec:    e,
+		Env:     map[string]string{},
+		Writers: writer.Writers{Writer: stdout, ErrWriter: stderr},
+	}
 
 	l := logger.CreateLogger()
 
-	require.NoError(t, shell.RunCommand(t.Context(), l, e, opts, "tofu", "plan"))
+	require.NoError(t, shell.RunCommand(t.Context(), l, v, opts, "tofu", "plan"))
 	assert.Contains(t, stdout.String(), "Plan: 0 to add")
 
 	stdout.Reset()
 	stderr.Reset()
 
-	err := shell.RunCommand(t.Context(), l, e, opts, "terraform", "apply")
+	err := shell.RunCommand(t.Context(), l, v, opts, "terraform", "apply")
 	require.Error(t, err)
 	assert.Contains(t, stderr.String(), "boom")
 
@@ -76,10 +82,15 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	opts := shell.NewShellOptions().
-		WithWriters(writer.Writers{Writer: stdout, ErrWriter: stderr})
+	opts := shell.NewShellOptions()
 
-	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), e, opts, "tool"))
+	v := venv.Venv{
+		Exec:    e,
+		Env:     map[string]string{},
+		Writers: writer.Writers{Writer: stdout, ErrWriter: stderr},
+	}
+
+	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), v, opts, "tool"))
 	assert.Contains(t, stdout.String(), "out-line", "subprocess stdout must reach Writer")
 	assert.Contains(t, stderr.String(), "err-line", "subprocess stderr must reach ErrWriter")
 	assert.NotContains(t, stdout.String(), "err-line", "stderr must not leak into Writer when ErrWriter is separate")
@@ -87,10 +98,13 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 
 	// Same buffer for both writers: each line still appears, both in the shared buffer.
 	merged := &bytes.Buffer{}
-	mergedOpts := shell.NewShellOptions().
-		WithWriters(writer.Writers{Writer: merged, ErrWriter: merged})
+	mergedV := venv.Venv{
+		Exec:    e,
+		Env:     map[string]string{},
+		Writers: writer.Writers{Writer: merged, ErrWriter: merged},
+	}
 
-	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), e, mergedOpts, "tool"))
+	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), mergedV, opts, "tool"))
 	assert.Contains(t, merged.String(), "out-line")
 	assert.Contains(t, merged.String(), "err-line")
 }

@@ -124,7 +124,7 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	err = pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 	require.NoError(t, err)
 
-	pctx.Env = env.Parse(os.Environ())
+	pctx.Venv.Env = env.Parse(os.Environ())
 	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
@@ -278,7 +278,7 @@ func TestExposedIncludeFullParseSurfacesNoOutputsError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, pctx := newTestParsingContext(t, childPath)
-	pctx.Env = env.Parse(os.Environ())
+	pctx.Venv.Env = env.Parse(os.Environ())
 
 	_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), childPath, nil)
 	require.Error(t, err)

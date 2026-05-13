@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -49,7 +49,7 @@ func FindDependentUnits(
 	cfg *config.TerragruntConfig,
 ) []*component.Unit {
 	matchedUnitsMap := make(map[string]*component.Unit)
-	pathsToCheck := discoverPathsToCheck(ctx, l, v.Exec, opts, cfg)
+	pathsToCheck := discoverPathsToCheck(ctx, l, v.ToRoot(), opts, cfg)
 
 	for _, dir := range pathsToCheck {
 		maps.Copy(
@@ -73,10 +73,10 @@ func FindDependentUnits(
 }
 
 // discoverPathsToCheck finds root git top level directory and builds list of units, or iterates over includes if git detection fails.
-func discoverPathsToCheck(ctx context.Context, l log.Logger, exec vexec.Exec, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
+func discoverPathsToCheck(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
 	var pathsToCheck []string
 
-	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, exec, opts.Env, opts.WorkingDir); err == nil {
+	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, v, opts.WorkingDir); err == nil {
 		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
 	} else {
 		uniquePaths := make(map[string]bool)
@@ -105,7 +105,6 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, v run.Venv, dir 
 		return matchedUnitsMap
 	}
 
-	cfgOpts.Env = opts.Env
 	cfgOpts.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
 	cfgOpts.TerraformCommand = opts.TerraformCommand
 	cfgOpts.TerraformCliArgs = opts.TerraformCliArgs

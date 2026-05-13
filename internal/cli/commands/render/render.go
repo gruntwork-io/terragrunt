@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -22,13 +23,13 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-func Run(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v run.Venv, out io.Writer, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
 
 	if opts.RunAll {
-		return runAll(ctx, l, v, opts)
+		return runAll(ctx, l, v, out, opts)
 	}
 
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts.TerragruntOptions)
@@ -36,13 +37,13 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
 		return err
 	}
 
-	return runRender(l, opts, prepared.Cfg)
+	return runRender(l, out, opts, prepared.Cfg)
 }
 
-func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
-	d := discovery.NewDiscovery(opts.WorkingDir).WithExec(v.Exec)
+func runAll(ctx context.Context, l log.Logger, v run.Venv, out io.Writer, opts *Options) error {
+	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, opts.TerragruntOptions)
+	components, err := d.Discover(ctx, l, v.ToRoot(), opts.TerragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -68,7 +69,7 @@ func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error 
 			continue
 		}
 
-		if err := runRender(l, unitOpts, prepared.Cfg); err != nil {
+		if err := runRender(l, out, unitOpts, prepared.Cfg); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -91,22 +92,22 @@ func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error 
 	return nil
 }
 
-func runRender(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
+func runRender(l log.Logger, out io.Writer, opts *Options, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
 		return errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
 	}
 
 	switch opts.Format {
 	case FormatJSON:
-		return renderJSON(l, opts, cfg)
+		return renderJSON(l, out, opts, cfg)
 	case FormatHCL:
-		return renderHCL(l, opts, cfg)
+		return renderHCL(l, out, opts, cfg)
 	default:
 		return fmt.Errorf("unsupported render format: %s", opts.Format)
 	}
 }
 
-func renderHCL(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
+func renderHCL(l log.Logger, out io.Writer, opts *Options, cfg *config.TerragruntConfig) error {
 	if opts.Write {
 		buf := new(bytes.Buffer)
 
@@ -120,7 +121,7 @@ func renderHCL(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error 
 
 	l.Infof("Rendering config %s", opts.TerragruntConfigPath)
 
-	_, err := cfg.WriteTo(opts.Writers.Writer)
+	_, err := cfg.WriteTo(out)
 	if err != nil {
 		return err
 	}
@@ -128,7 +129,7 @@ func renderHCL(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error 
 	return nil
 }
 
-func renderJSON(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
+func renderJSON(l log.Logger, out io.Writer, opts *Options, cfg *config.TerragruntConfig) error {
 	var terragruntConfigCty cty.Value
 
 	if opts.RenderMetadata {
@@ -158,7 +159,7 @@ func renderJSON(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error
 
 	l.Infof("Rendering config %s", opts.TerragruntConfigPath)
 
-	_, err = opts.Writers.Writer.Write(jsonBytes)
+	_, err = out.Write(jsonBytes)
 	if err != nil {
 		return errors.New(err)
 	}

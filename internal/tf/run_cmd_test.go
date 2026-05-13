@@ -14,7 +14,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -66,9 +68,6 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// order
 	var allOutputBuffer BufferWithLocking
 
-	terragruntOptions.Writers.Writer = &allOutputBuffer
-	terragruntOptions.Writers.ErrWriter = &allOutputBuffer
-
 	terragruntOptions.TerraformCliArgs.AppendArgument("same")
 	terragruntOptions.TFPath = "testdata/test_outputs.sh"
 
@@ -77,7 +76,13 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	l := logger.CreateLogger()
 	l = withLogger(l)
 
-	out, err := tf.RunCommandWithOutput(t.Context(), l, vexec.NewOSExec(), configbridge.TFRunOptsFromOpts(terragruntOptions), "same")
+	v := venv.Venv{
+		Exec:    vexec.NewOSExec(),
+		Env:     map[string]string{},
+		Writers: writer.Writers{Writer: &allOutputBuffer, ErrWriter: &allOutputBuffer},
+	}
+
+	out, err := tf.RunCommandWithOutput(t.Context(), l, v, configbridge.TFRunOptsFromOpts(terragruntOptions), "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -70,6 +71,7 @@ func (e UnitOutputError) Unwrap() error {
 func StackOutput(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 ) (cty.Value, error) {
 	l.Debugf("Generating output from %s", opts.WorkingDir)
@@ -89,7 +91,7 @@ func StackOutput(
 	}
 
 	// Single discovery walk returns both stack files and excluded unit paths.
-	foundFiles, excludedPaths, err := generate.ListStackFilesWithExcludes(ctx, l, opts, wts)
+	foundFiles, excludedPaths, err := generate.ListStackFilesWithExcludes(ctx, l, v, opts, wts)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}

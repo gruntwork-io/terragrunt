@@ -15,7 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -53,23 +53,29 @@ type TFOptions struct {
 	JSONLogFormat                bool
 }
 
-// RunCommand runs the given Terraform command using the provided vexec.Exec.
-// Pass vexec.NewMemExec from tests and fuzzers to intercept invocations so
-// tofu/terraform are never forked.
-func RunCommand(ctx context.Context, l log.Logger, e vexec.Exec, runOpts *TFOptions, args ...string) error {
-	_, err := RunCommandWithOutput(ctx, l, e, runOpts, args...)
+// RunCommand runs the given Terraform command using the supplied venv.
+// Pass a venv whose Exec is a [vexec.NewMemExec] from tests and fuzzers to
+// intercept invocations so tofu/terraform are never forked.
+func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *TFOptions, args ...string) error {
+	_, err := RunCommandWithOutput(ctx, l, v, runOpts, args...)
 
 	return err
 }
 
-// RunCommandWithOutput runs the given Terraform command using the provided
-// vexec.Exec, writing its stdout/stderr to the terminal AND returning
+// RunCommandWithOutput runs the given Terraform command using the supplied
+// venv, writing its stdout/stderr to the terminal AND returning
 // stdout/stderr to this method's caller.
-func RunCommandWithOutput(ctx context.Context, l log.Logger, e vexec.Exec, runOpts *TFOptions, args ...string) (*util.CmdOutput, error) {
+func RunCommandWithOutput(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	runOpts *TFOptions,
+	args ...string,
+) (*util.CmdOutput, error) {
 	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
-		return fn(ctx, l, runOpts, args)
+		return fn(ctx, l, v, runOpts, args)
 	}
 
 	needsPTY, err := isCommandThatNeedsPty(args)
@@ -77,18 +83,16 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, e vexec.Exec, runOp
 		return nil, err
 	}
 
-	shellOpts := runOpts.ShellOptions
 	if !runOpts.ShellOptions.ForwardTFStdout {
-		// Copy the shell opts to avoid mutating the caller's struct.
-		shellOptsCopy := *shellOpts
-		shellOpts = &shellOptsCopy
-
-		outWriter, errWriter := logTFOutput(l, runOpts, args)
-		shellOpts.Writers.Writer = outWriter
-		shellOpts.Writers.ErrWriter = errWriter
+		outWriter, errWriter := logTFOutput(l, v.Writers, runOpts, args)
+		v.Writers.Writer = outWriter
+		v.Writers.ErrWriter = errWriter
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, e, shellOpts, "", false, needsPTY, runOpts.ShellOptions.TFPath, args...)
+	output, err := shell.RunCommandWithOutput(
+		ctx, l, v, runOpts.ShellOptions,
+		"", false, needsPTY, runOpts.ShellOptions.TFPath, args...,
+	)
 
 	hasDetailedExitCode := slices.Contains(args, FlagNameDetailedExitCode)
 	if hasDetailedExitCode {
@@ -110,10 +114,10 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, e vexec.Exec, runOp
 	return output, err
 }
 
-func logTFOutput(l log.Logger, runOpts *TFOptions, args clihelper.Args) (io.Writer, io.Writer) {
+func logTFOutput(l log.Logger, writers writer.Writers, runOpts *TFOptions, args clihelper.Args) (io.Writer, io.Writer) {
 	var (
-		originalOutWriter           = writer.NewOriginalWriter(runOpts.ShellOptions.Writers.Writer)
-		originalErrWriter           = writer.NewOriginalWriter(runOpts.ShellOptions.Writers.ErrWriter)
+		originalOutWriter           = writer.NewOriginalWriter(writers.Writer)
+		originalErrWriter           = writer.NewOriginalWriter(writers.ErrWriter)
 		outWriter         io.Writer = originalOutWriter
 		errWriter         io.Writer = originalErrWriter
 	)

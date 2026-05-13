@@ -7,13 +7,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 func TestLastReleaseTag(t *testing.T) {
@@ -48,10 +46,7 @@ func TestGitTopLevelDirPrefixHit(t *testing.T) {
 	c := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
 	c.Add(ctx, root)
 
-	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), vexec.NewOSExec(), terragruntOptions.Env, subdir)
+	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), venv.OSVenv(), subdir)
 	require.NoError(t, err)
 	assert.Equal(t, root, got)
 }
@@ -74,10 +69,7 @@ func TestGitTopLevelDirNestedRepoBypass(t *testing.T) {
 	c := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
 	c.Add(ctx, root)
 
-	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), vexec.NewOSExec(), terragruntOptions.Env, deep)
+	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), venv.OSVenv(), deep)
 	if err == nil {
 		assert.NotEqual(t, root, got, "guard should not return the outer root when a nested .git exists")
 	}

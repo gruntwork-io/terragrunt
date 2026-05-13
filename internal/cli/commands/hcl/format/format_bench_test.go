@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	logformat "github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -41,8 +43,7 @@ func BenchmarkFormat(b *testing.B) {
 
 			tgOptions.WorkingDir = tmpBase
 			tgOptions.HclExclude = excludeList
-			tgOptions.Writers.Writer = io.Discard
-			tgOptions.Writers.ErrWriter = io.Discard
+			v := venv.Venv{Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard}}
 
 			formatter := logformat.NewFormatter(logformat.NewKeyValueFormatPlaceholders())
 			formatter.SetDisabledColors(true)
@@ -60,7 +61,7 @@ func BenchmarkFormat(b *testing.B) {
 
 				b.StartTimer()
 
-				if err := format.Run(ctx, l, tgOptions); err != nil {
+				if err := format.Run(ctx, l, v, tgOptions); err != nil {
 					b.Fatalf("format.Run failed: %v", err)
 				}
 			}

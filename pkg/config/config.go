@@ -1165,7 +1165,7 @@ func ReadTerragruntConfig(ctx context.Context,
 	pctx *ParsingContext,
 	parserOptions []hclparse.Option,
 ) (*TerragruntConfig, error) {
-	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.Writers.LogShowAbsPaths))
+	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.LogShowAbsPaths))
 
 	pctx = pctx.WithParseOption(parserOptions)
 

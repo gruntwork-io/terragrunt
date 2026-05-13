@@ -12,7 +12,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -21,7 +20,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -93,8 +91,8 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 	)
 
 	discoveryCommands := clihelper.Commands{
-		find.NewCommand(l, opts), // find
-		list.NewCommand(l, opts), // list
+		find.NewCommand(l, opts, v), // find
+		list.NewCommand(l, opts, v), // list
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  DiscoveryCommandsCategoryName,
@@ -105,7 +103,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 	configurationCommands := clihelper.Commands{
 		hcl.NewCommand(l, opts, v),              // hcl
 		info.NewCommand(l, opts, v),             // info
-		dag.NewCommand(l, opts),                 // dag
+		dag.NewCommand(l, opts, v),              // dag
 		render.NewCommand(l, opts, v),           // render
 		helpcmd.NewCommand(l, opts),             // help (hidden)
 		versioncmd.NewCommand(),                 // version (hidden)
@@ -259,7 +257,7 @@ func RunAction(
 
 	// Set up automatic provider caching if enabled
 	if !opts.NoAutoProviderCacheDir {
-		if err := setupAutoProviderCacheDir(ctx, l, opts, v.Exec); err != nil {
+		if err := setupAutoProviderCacheDir(ctx, l, opts, v); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}
 	}
@@ -269,7 +267,7 @@ func RunAction(
 		v.FS,
 		runtime.GOOS,
 		opts.Tips,
-		opts.Env,
+		v.Env,
 		opts.ProviderCacheOptions.Enabled,
 		opts.TofuImplementation,
 		opts.TerraformVersion,
@@ -325,12 +323,12 @@ const minTofuVersionForAutoProviderCacheDir = "1.10.0"
 // setupAutoProviderCacheDir configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
 //
 // Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
-func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, exec vexec.Exec) error {
+func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
 	// Set TF_PLUGIN_CACHE_DIR environment variable
-	if opts.Env[tf.EnvNameTFPluginCacheDir] != "" {
+	if v.Env[tf.EnvNameTFPluginCacheDir] != "" {
 		l.Debugf(
 			"TF_PLUGIN_CACHE_DIR already set to %s, skipping auto provider cache dir",
-			opts.Env[tf.EnvNameTFPluginCacheDir],
+			v.Env[tf.EnvNameTFPluginCacheDir],
 		)
 
 		return nil
@@ -338,7 +336,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	if opts.TerraformVersion == nil {
 		_, ver, impl, err := run.PopulateTFVersion(
-			ctx, l, exec, opts.WorkingDir,
+			ctx, l, v, opts.WorkingDir,
 			opts.VersionManagerFileName,
 			configbridge.TFRunOptsFromOpts(opts),
 		)
@@ -398,11 +396,11 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	// Initialize environment variables map if it's nil
-	if opts.Env == nil {
-		opts.Env = make(map[string]string)
+	if v.Env == nil {
+		v.Env = make(map[string]string)
 	}
 
-	opts.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
+	v.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
 
 	l.Debugf("Auto provider cache dir enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
 
@@ -440,8 +438,6 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	opts.TerraformCommand = cmdName
 	opts.TerraformCliArgs = iacargs.New(args...)
 
-	opts.Env = env.Parse(os.Environ())
-
 	// --- Working Dir
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
@@ -469,7 +465,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 		return err
 	}
 
-	if opts.Writers.LogShowAbsPaths {
+	if opts.LogShowAbsPaths {
 		l.Formatter().DisableRelativePaths()
 	}
 

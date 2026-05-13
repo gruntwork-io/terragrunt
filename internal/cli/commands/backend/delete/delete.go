@@ -11,20 +11,21 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
-		return runAll(ctx, l, opts)
+		return runAll(ctx, l, v, opts)
 	}
 
-	return runDelete(ctx, l, opts)
+	return runDelete(ctx, l, v, opts)
 }
 
-func runDelete(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func runDelete(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 
 	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
@@ -33,7 +34,7 @@ func runDelete(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 	}
 
 	if !opts.ForceBackendDelete {
-		enabled, err := remoteState.IsVersionControlEnabled(ctx, l, configbridge.RemoteStateOptsFromOpts(opts))
+		enabled, err := remoteState.IsVersionControlEnabled(ctx, l, configbridge.RemoteStateOptsFromOpts(v, opts))
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -52,13 +53,13 @@ func runDelete(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		return errors.Errorf("flag -%s is not supported yet", BucketFlagName)
 	}
 
-	return remoteState.Delete(ctx, l, configbridge.RemoteStateOptsFromOpts(opts))
+	return remoteState.Delete(ctx, l, configbridge.RemoteStateOptsFromOpts(v, opts))
 }
 
-func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
 		return err
 	}
@@ -78,7 +79,7 @@ func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) 
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 
-		if err := runDelete(ctx, l, unitOpts); err != nil {
+		if err := runDelete(ctx, l, v, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}

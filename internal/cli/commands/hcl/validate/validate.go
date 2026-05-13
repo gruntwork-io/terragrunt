@@ -95,12 +95,8 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 		Filters:     opts.Filters,
 		Experiments: opts.Experiments,
 	})
-	if d != nil {
-		d = d.WithExec(v.Exec)
-	}
-
 	if err != nil {
-		return processDiagnostics(l, opts, diags, errors.New(err))
+		return processDiagnostics(l, v, opts, diags, errors.New(err))
 	}
 
 	// We do worktree generation here instead of in the discovery constructor
@@ -121,9 +117,9 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 
 	d = d.WithWorktrees(worktrees)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, v.ToRoot(), opts)
 	if err != nil {
-		return processDiagnostics(l, opts, diags, errors.New(err))
+		return processDiagnostics(l, v, opts, diags, errors.New(err))
 	}
 
 	parseOptions := []hclparse.Option{diagnosticsHandler}
@@ -185,10 +181,10 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 		combinedErr = errors.Join(parseErrs...)
 	}
 
-	return processDiagnostics(l, opts, diags, combinedErr)
+	return processDiagnostics(l, v, opts, diags, combinedErr)
 }
 
-func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
+func processDiagnostics(l log.Logger, v run.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
 	if len(diags) == 0 {
 		return callErr
 	}
@@ -207,7 +203,7 @@ func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags dia
 		return a < b
 	})
 
-	if err := writeDiagnostics(l, opts, diags); err != nil {
+	if err := writeDiagnostics(l, v, opts, diags); err != nil {
 		return err
 	}
 
@@ -223,13 +219,13 @@ func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags dia
 	return errors.Join(callErr, diagError)
 }
 
-func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
+func writeDiagnostics(l log.Logger, v run.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
 	render := view.NewHumanRender(l.Formatter().DisabledColors())
 	if opts.HCLValidateJSONOutput {
 		render = view.NewJSONRender()
 	}
 
-	writer := view.NewWriter(opts.Writers.Writer, render)
+	writer := view.NewWriter(v.Writers.Writer, render)
 
 	if opts.HCLValidateShowConfigPath {
 		return writer.ShowConfigPath(diags)
@@ -249,10 +245,6 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 		Filters:     opts.Filters,
 		Experiments: opts.Experiments,
 	})
-	if d != nil {
-		d = d.WithExec(v.Exec)
-	}
-
 	if err != nil {
 		return err
 	}
@@ -275,7 +267,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 		d = d.WithWorktrees(worktrees)
 	}
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, v.ToRoot(), opts)
 	if err != nil {
 		return err
 	}
@@ -319,7 +311,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 			continue
 		}
 
-		if err := runValidateInputs(l, updatedOpts, prepared.Cfg); err != nil {
+		if err := runValidateInputs(l, v.Env, updatedOpts, prepared.Cfg); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -331,7 +323,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 	return nil
 }
 
-func runValidateInputs(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runValidateInputs(l log.Logger, env map[string]string, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err
@@ -339,7 +331,7 @@ func runValidateInputs(l log.Logger, opts *options.TerragruntOptions, cfg *confi
 
 	allVars := slices.Concat(required, optional)
 
-	allInputs, err := getDefinedTerragruntInputs(l, opts, cfg)
+	allInputs, err := getDefinedTerragruntInputs(l, env, opts, cfg)
 	if err != nil {
 		return err
 	}
@@ -409,8 +401,8 @@ func runValidateInputs(l log.Logger, opts *options.TerragruntOptions, cfg *confi
 // - env vars from the external runtime calling terragrunt.
 // - inputs blocks.
 // - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
-func getDefinedTerragruntInputs(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) ([]string, error) {
-	envVarTFVars := getTerraformInputNamesFromEnvVar(opts, cfg)
+func getDefinedTerragruntInputs(l log.Logger, env map[string]string, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) ([]string, error) {
+	envVarTFVars := getTerraformInputNamesFromEnvVar(env, cfg)
 	inputsTFVars := getTerraformInputNamesFromConfig(cfg)
 
 	varFileTFVars, err := getTerraformInputNamesFromVarFiles(l, cfg)
@@ -462,8 +454,8 @@ func getDefinedTerragruntInputs(l log.Logger, opts *options.TerragruntOptions, c
 // variables from extra_arguments blocks to see if there are any TF_VAR environment variables that set terraform
 // variables. This will return the list of names of variables that are set in this way by the given terragrunt
 // configuration.
-func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
-	envVars := opts.Env
+func getTerraformInputNamesFromEnvVar(env map[string]string, terragruntConfig *config.TerragruntConfig) []string {
+	envVars := env
 
 	// Make sure to check if there are configured env vars in the parsed terragrunt config.
 	if terragruntConfig.Terraform != nil {

@@ -50,6 +50,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	writerpkg "github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -219,7 +220,6 @@ func CreateS3ClientForTest(t *testing.T, awsRegion string, opts ...options.Terra
 
 	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(awsConfig).
-		WithEnv(mockOptions.Env).
 		WithIAMRoleOptions(mockOptions.IAMRoleOptions).
 		Build(t.Context(), logger.CreateLogger())
 	require.NoError(t, err, "Error creating S3 client")
@@ -242,7 +242,6 @@ func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn
 
 	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(sessionConfig).
-		WithEnv(mockOptions.Env).
 		WithIAMRoleOptions(mockOptions.IAMRoleOptions).
 		Build(t.Context(), logger.CreateLogger())
 	require.NoError(t, err, "Error creating DynamoDB client")
@@ -1094,7 +1093,10 @@ func RunTerragruntCommandWithContext(
 	syncWriter := util.NewSyncWriter(writer)
 	syncErrWriter := util.NewSyncWriter(errwriter)
 
-	opts := options.NewTerragruntOptionsWithWriters(syncWriter, syncErrWriter)
+	opts := options.NewTerragruntOptions()
+
+	v := venv.OSVenv()
+	v.Writers = writerpkg.Writers{Writer: syncWriter, ErrWriter: syncErrWriter}
 
 	l := log.New(
 		log.WithOutput(syncErrWriter),
@@ -1102,7 +1104,7 @@ func RunTerragruntCommandWithContext(
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
 
-	app := cli.NewApp(l, opts, venv.OSVenv())
+	app := cli.NewApp(l, opts, v)
 
 	ctx = log.ContextWithLogger(ctx, l)
 

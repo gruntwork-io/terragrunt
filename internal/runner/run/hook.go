@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-multierror"
 )
@@ -74,7 +73,7 @@ func ProcessHooks(
 func ProcessErrorHooks(
 	ctx context.Context,
 	l log.Logger,
-	exec vexec.Exec,
+	v Venv,
 	hooks []runcfg.ErrorHook,
 	opts *Options,
 	previousExecErrors *errors.MultiError,
@@ -122,13 +121,15 @@ func ProcessErrorHooks(
 
 				actionToExecute := curHook.Execute[0]
 				actionParams := curHook.Execute[1:]
-				hookOpts := optsWithHookEnvs(opts, curHook.Name)
+
+				hookV := v.ToRoot()
+				hookV.Env = hookEnv(v.Env, opts, curHook.Name)
 
 				_, possibleError := shell.RunCommandWithOutput(
 					ctx,
 					l,
-					exec,
-					hookOpts.shellRunOptions(),
+					hookV,
+					opts.shellRunOptions(),
 					curHook.WorkingDir,
 					curHook.SuppressStdout,
 					false,
@@ -209,17 +210,19 @@ func runHook(
 
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
-	hookOpts := optsWithHookEnvs(opts, curHook.Name)
 
 	if actionToExecute == "tflint" {
 		return executeTFLint(ctx, l, v, opts, cfg, curHook, workingDir)
 	}
 
+	hookV := v.ToRoot()
+	hookV.Env = hookEnv(v.Env, opts, curHook.Name)
+
 	_, possibleError := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		v.Exec,
-		hookOpts.shellRunOptions(),
+		hookV,
+		opts.shellRunOptions(),
 		workingDir,
 		suppressStdout,
 		false,
@@ -257,12 +260,15 @@ func executeTFLint(
 	return nil
 }
 
-func optsWithHookEnvs(opts *Options, hookName string) *Options {
-	newOpts := *opts
-	newOpts.Env = cloner.Clone(opts.Env)
-	newOpts.Env[HookCtxTFPathEnvName] = opts.TFPath
-	newOpts.Env[HookCtxCommandEnvName] = opts.TerraformCommand
-	newOpts.Env[HookCtxHookNameEnvName] = hookName
+// hookEnv clones env and adds the hook context variables (TFPath,
+// TerraformCommand, hookName). The returned map is independent of env so
+// mutations during hook execution don't leak back to the run-wide
+// environment.
+func hookEnv(env map[string]string, opts *Options, hookName string) map[string]string {
+	cloned := cloner.Clone(env)
+	cloned[HookCtxTFPathEnvName] = opts.TFPath
+	cloned[HookCtxCommandEnvName] = opts.TerraformCommand
+	cloned[HookCtxHookNameEnvName] = hookName
 
-	return &newOpts
+	return cloned
 }

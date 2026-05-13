@@ -75,12 +75,12 @@ type CatalogService interface {
 // catalogServiceImpl is the concrete implementation of CatalogService.
 // It holds the necessary options and configuration to perform its tasks.
 type catalogServiceImpl struct {
+	venv     venv.Venv
 	opts     *options.TerragruntOptions
 	newRepo  NewRepoFunc
 	repoURL  string
 	repoURLs []string
 	modules  module.Modules
-	venv     venv.Venv
 	mu       sync.Mutex
 }
 

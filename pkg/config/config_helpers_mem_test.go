@@ -236,7 +236,7 @@ func TestRunCommandEmptyParamsErrors(t *testing.T) {
 	assertErrorType(t, config.EmptyStringNotAllowedError(""), err)
 }
 
-// TestRunCommandReceivesPctxEnv pins that pctx.Env propagates into the
+// TestRunCommandReceivesPctxEnv pins that pctx.Venv.Env propagates into the
 // subprocess environment via shellRunOptsFromPctx. The mem backend
 // exposes the Env slice directly, so a regression that drops env
 // propagation is observable here.
@@ -254,11 +254,11 @@ func TestRunCommandReceivesPctxEnv(t *testing.T) {
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
 	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
-	pctx.Env = map[string]string{"TG_TEST_TOKEN": "abc123"}
+	pctx.Venv.Env = map[string]string{"TG_TEST_TOKEN": "abc123"}
 
 	_, err := config.RunCommand(ctx, pctx, l, []string{"reader"})
 	require.NoError(t, err)
 
 	env, _ := got.Load().([]string)
-	assert.Contains(t, env, "TG_TEST_TOKEN=abc123", "pctx.Env must propagate to the spawned subprocess environment")
+	assert.Contains(t, env, "TG_TEST_TOKEN=abc123", "pctx.Venv.Env must propagate to the spawned subprocess environment")
 }

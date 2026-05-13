@@ -39,7 +39,7 @@ func runRedesign(
 	}
 
 	return redesign.RunRedesign(
-		ctx, l, v, opts, opts.Writers.ErrWriter,
+		ctx, l, v, opts, v.Writers.ErrWriter,
 		func(
 			ctx context.Context, status redesign.StatusFunc, componentCh chan<- *redesign.ComponentEntry,
 		) error {
