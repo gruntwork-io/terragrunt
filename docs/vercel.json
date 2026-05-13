@@ -25,27 +25,27 @@
   ],
   "redirects": [
     {
-      "source": "/docs/:path*",
-      "destination": "/:path*",
+      "source": "/docs/:path*/",
+      "destination": "/:path*/",
       "permanent": true
     },
     {
-      "source": "/lp/:slug*",
+      "source": "/lp/:slug*/",
       "destination": "https://terragrunt.com/lp/:slug*",
       "permanent": true
     },
     {
-      "source": "/terragrunt-ambassador/:slug*",
+      "source": "/terragrunt-ambassador/:slug*/",
       "destination": "https://terragrunt.com/terragrunt-ambassador/:slug*",
       "permanent": true
     },
     {
-      "source": "/contact-tgs/:slug*",
+      "source": "/contact-tgs/:slug*/",
       "destination": "https://terragrunt.com/contact-tgs/:slug*",
       "permanent": true
     },
     {
-      "source": "/tgs-discord",
+      "source": "/tgs-discord/",
       "destination": "https://discord.gg/SJgKFdcPns",
       "permanent": false
     }
