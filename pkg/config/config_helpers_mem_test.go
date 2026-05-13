@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"context"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -111,6 +112,128 @@ func TestRunCommandSurfacesSubprocessFailure(t *testing.T) {
 
 	_, err := config.RunCommand(ctx, pctx, l, []string{"failing-cmd"})
 	require.Error(t, err)
+}
+
+// TestRunCommandGlobalCacheSharesAcrossWorkingDirs pins that the
+// --terragrunt-global-cache flag makes the cache scope path-agnostic:
+// two RunCommand calls in different working dirs with the same args
+// collapse to a single subprocess fork.
+func TestRunCommandGlobalCacheSharesAcrossWorkingDirs(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+
+	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		calls.Add(1)
+		return vexec.Result{Stdout: []byte("shared\n")}
+	})
+
+	l := logger.CreateLogger()
+	ctx, pctxA := newTestParsingContext(t, t.TempDir())
+	ctx = config.WithConfigValues(ctx)
+	pctxA.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+
+	_, pctxB := newTestParsingContext(t, t.TempDir())
+	pctxB.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+
+	args := []string{"--terragrunt-global-cache", "cmd"}
+
+	_, err := config.RunCommand(ctx, pctxA, l, args)
+	require.NoError(t, err)
+
+	_, err = config.RunCommand(ctx, pctxB, l, args)
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(1), calls.Load(), "--terragrunt-global-cache must collapse calls across distinct working dirs")
+}
+
+// TestRunCommandConflictingCacheFlags pins the validation error returned
+// when --terragrunt-no-cache and --terragrunt-global-cache are combined.
+// The error is surfaced before any subprocess fork, so the test wires
+// a Handler that fails if it is ever called.
+func TestRunCommandConflictingCacheFlags(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "no-cache before global-cache",
+			args: []string{"--terragrunt-no-cache", "--terragrunt-global-cache", "cmd"},
+		},
+		{
+			name: "global-cache before no-cache",
+			args: []string{"--terragrunt-global-cache", "--terragrunt-no-cache", "cmd"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+				assert.Fail(t, "conflicting cache flags must error before any subprocess fork")
+				return vexec.Result{}
+			})
+
+			l := logger.CreateLogger()
+			ctx, pctx := newTestParsingContext(t, t.TempDir())
+			ctx = config.WithConfigValues(ctx)
+			pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+
+			_, err := config.RunCommand(ctx, pctx, l, tc.args)
+			require.Error(t, err)
+			assertErrorType(t, config.ConflictingRunCmdCacheOptionsError{}, err)
+		})
+	}
+}
+
+// TestRunCommandDoesNotMutateCallerArgs pins the contract that
+// runCommandImpl clones its args before stripping terragrunt-prefixed
+// flags. Without the clone, slices.Delete would shift the caller's
+// backing array and a subsequent call (or HCL evaluator re-entry) would
+// see post-strip residue.
+func TestRunCommandDoesNotMutateCallerArgs(t *testing.T) {
+	t.Parallel()
+
+	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		return vexec.Result{Stdout: []byte("ok\n")}
+	})
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, t.TempDir())
+	ctx = config.WithConfigValues(ctx)
+	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+
+	args := []string{"--terragrunt-quiet", "--terragrunt-global-cache", "cmd", "subarg"}
+	want := slices.Clone(args)
+
+	_, err := config.RunCommand(ctx, pctx, l, args)
+	require.NoError(t, err)
+
+	assert.Equal(t, want, args, "RunCommand must not mutate the caller's args slice")
+}
+
+// TestRunCommandEmptyParamsErrors pins the validation that run_cmd with
+// no arguments returns EmptyStringNotAllowedError, again before any
+// subprocess fork.
+func TestRunCommandEmptyParamsErrors(t *testing.T) {
+	t.Parallel()
+
+	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		assert.Fail(t, "empty run_cmd args must error before any subprocess fork")
+		return vexec.Result{}
+	})
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, t.TempDir())
+	ctx = config.WithConfigValues(ctx)
+	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+
+	_, err := config.RunCommand(ctx, pctx, l, nil)
+	require.Error(t, err)
+	assertErrorType(t, config.EmptyStringNotAllowedError(""), err)
 }
 
 // TestRunCommandReceivesPctxEnv pins that pctx.Env propagates into the

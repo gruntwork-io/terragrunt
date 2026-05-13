@@ -373,6 +373,12 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		return "", errors.New(EmptyStringNotAllowedError("parameter to the run_cmd function"))
 	}
 
+	// Clone the caller's slice before flag stripping. slices.Delete
+	// reuses the backing array, so without this the caller's args would
+	// be mutated in place and subsequent calls (or shared state in the
+	// HCL evaluator) would see post-strip residue.
+	args = slices.Clone(args)
+
 	suppressOutput := false
 	disableCache := false
 	useGlobalCache := false

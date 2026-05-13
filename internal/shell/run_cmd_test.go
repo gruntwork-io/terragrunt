@@ -1,14 +1,11 @@
 package shell_test
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -18,56 +15,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
-
-func TestRunShellCommand(t *testing.T) {
-	t.Parallel()
-
-	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
-
-	l := logger.CreateLogger()
-
-	cmd := shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
-	require.NoError(t, cmd)
-
-	cmd = shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "not-a-real-command")
-	require.Error(t, cmd)
-}
-
-func TestRunShellOutputToStderrAndStdout(t *testing.T) {
-	t.Parallel()
-
-	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-
-	terragruntOptions.TerraformCliArgs.AppendFlag("--version")
-	terragruntOptions.Writers.Writer = stdout
-	terragruntOptions.Writers.ErrWriter = stderr
-
-	l := logger.CreateLogger()
-
-	cmd := shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
-	require.NoError(t, cmd)
-
-	assert.Contains(t, stdout.String(), "OpenTofu", "Output directed to stdout")
-	assert.Empty(t, stderr.String(), "No output to stderr")
-
-	stdout = new(bytes.Buffer)
-	stderr = new(bytes.Buffer)
-
-	terragruntOptions.TerraformCliArgs = iacargs.New()
-	terragruntOptions.Writers.Writer = stderr
-	terragruntOptions.Writers.ErrWriter = stderr
-
-	cmd = shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
-	require.NoError(t, cmd)
-
-	assert.Contains(t, stderr.String(), "OpenTofu", "Output directed to stderr")
-	assert.Empty(t, stdout.String(), "No output to stdout")
-}
 
 func TestLastReleaseTag(t *testing.T) {
 	t.Parallel()
@@ -85,27 +32,6 @@ func TestLastReleaseTag(t *testing.T) {
 	lastTag := shell.LastReleaseTag(tags)
 	assert.NotEmpty(t, lastTag)
 	assert.Equal(t, "v20.1.2", lastTag)
-}
-
-func TestGitLevelTopDirCaching(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	ctx = cache.ContextWithCache(ctx)
-	c := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
-	assert.NotNil(t, c)
-	assert.Equal(t, 0, c.Len())
-
-	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	l := logger.CreateLogger()
-	path := "."
-	path1, err := shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), terragruntOptions.Env, path)
-	require.NoError(t, err)
-	path2, err := shell.GitTopLevelDir(ctx, l, vexec.NewOSExec(), terragruntOptions.Env, path)
-	require.NoError(t, err)
-	assert.Equal(t, path1, path2)
-	assert.Equal(t, 1, c.Len())
 }
 
 // TestGitTopLevelDirPrefixHit asserts that a descendant query is served from

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -171,106 +170,6 @@ func TestPathRelativeFromInclude(t *testing.T) {
 		actualPath, actualErr := config.PathRelativeFromInclude(ctx, pctx, l, tc.params)
 		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
 		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
-	}
-}
-
-func TestRunCommand(t *testing.T) {
-	t.Parallel()
-
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows because it doesn't support bash")
-	}
-
-	homeDir := os.Getenv("HOME")
-
-	testCases := []struct {
-		expectedErr    error
-		configPath     string
-		expectedOutput string
-		params         []string
-	}{
-		{
-			params:         []string{"/bin/bash", "-c", "echo -n foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "/bin/bash", "-c", "echo -n foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:      []string{"--terragrunt-no-cache", "--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:  homeDir,
-			expectedErr: config.ConflictingRunCmdCacheOptionsError{},
-		},
-		{
-			params:      []string{"--terragrunt-global-cache", "--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:  homeDir,
-			expectedErr: config.ConflictingRunCmdCacheOptionsError{},
-		},
-		{
-			configPath:  homeDir,
-			expectedErr: config.EmptyStringNotAllowedError("{run_cmd()}"),
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.configPath, func(t *testing.T) {
-			t.Parallel()
-
-			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, tc.configPath)
-
-			actualOutput, actualErr := config.RunCommand(ctx, pctx, l, tc.params)
-			if tc.expectedErr != nil {
-				if assert.Error(t, actualErr) {
-					assertErrorType(t, tc.expectedErr, actualErr)
-				}
-			} else {
-				require.NoError(t, actualErr)
-				assert.Equal(t, tc.expectedOutput, actualOutput)
-			}
-		})
 	}
 }
 
