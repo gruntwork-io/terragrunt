@@ -28,94 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// runE2EScaffold builds the minimal real-filesystem scaffolding required
-// for run.Run to traverse its pipeline without spawning real tofu. The
-// terraform-data-dir markers (.terraform/providers, .terraform/modules,
-// .terraform.lock.hcl) suppress the init path so run.Run goes straight
-// to the configured terraform command.
-//
-// DownloadTerraformSource, CheckFolderContainsTerraformCode, and
-// providersNeedInit still use the real filesystem; the mem-exec
-// virtualization only intercepts subprocess spawns. Once util/file.go
-// is threaded through vfs.FS this can become fs-pure.
-type runE2EScaffold struct {
-	dir        string
-	configPath string
-}
-
-func setupRunE2EScaffold(t *testing.T) runE2EScaffold {
-	t.Helper()
-
-	dir := t.TempDir()
-
-	// Minimal terragrunt.hcl. run.Run doesn't parse it; the path is
-	// only used by Options.CloneWithConfigPath and to derive WorkingDir.
-	configPath := filepath.Join(dir, "terragrunt.hcl")
-	require.NoError(t, os.WriteFile(configPath, []byte(""), 0o644))
-
-	// .tf file: satisfies CheckFolderContainsTerraformCode.
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(""), 0o644))
-
-	// Provider/module markers: keep needsInitRunCfg from forcing an init
-	// recursion before the terraform command actually runs.
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".terraform", "providers"), 0o755))
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".terraform", "modules"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, ".terraform.lock.hcl"), []byte(""), 0o644))
-
-	return runE2EScaffold{dir: dir, configPath: configPath}
-}
-
-func newRunE2EOpts(t *testing.T, s runE2EScaffold, command string, extraArgs ...string) *run.Options {
-	t.Helper()
-
-	args := iacargs.New(append([]string{command}, extraArgs...)...)
-
-	return &run.Options{
-		WorkingDir:                   s.dir,
-		RootWorkingDir:               s.dir,
-		DownloadDir:                  filepath.Join(s.dir, ".terragrunt-cache"),
-		TerragruntConfigPath:         s.configPath,
-		OriginalTerragruntConfigPath: s.configPath,
-		TerraformCommand:             command,
-		TerraformCliArgs:             args,
-		TFPath:                       "tofu",
-		Env:                          map[string]string{},
-		SourceMap:                    map[string]string{},
-		Experiments:                  experiment.NewExperiments(),
-		StrictControls:               controls.New(),
-		MaxFoldersToCheck:            5,
-		Writers:                      writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
-		Telemetry:                    &telemetry.Options{},
-		OriginalIAMRoleOptions:       iam.RoleOptions{},
-		IAMRoleOptions:               iam.RoleOptions{},
-	}
-}
-
-// invocationRecorder is a thread-safe accumulator for mem-exec
-// invocations. It records the name and args of each call.
-type invocationRecorder struct {
-	calls []vexec.Invocation
-	mu    sync.Mutex
-}
-
-func (r *invocationRecorder) record(inv *vexec.Invocation) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.calls = append(r.calls, vexec.Invocation{
-		Name: inv.Name,
-		Dir:  inv.Dir,
-		Args: slices.Clone(inv.Args),
-	})
-}
-
-func (r *invocationRecorder) snapshot() []vexec.Invocation {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return slices.Clone(r.calls)
-}
-
 // TestRunPipelineEndToEndPlan exercises run.Run from auth all the way
 // to the terraform plan invocation against a mem-backed exec. The mem
 // backend captures the terraform subprocess args so we can assert that
@@ -246,4 +158,92 @@ func TestRunPipelineEndToEndFiresHooks(t *testing.T) {
 
 	assert.Equal(t, []string{"step-before", "tofu", "step-after"}, dispatched,
 		"before hook must fire, then tofu plan, then after hook")
+}
+
+// runE2EScaffold builds the minimal real-filesystem scaffolding required
+// for run.Run to traverse its pipeline without spawning real tofu. The
+// terraform-data-dir markers (.terraform/providers, .terraform/modules,
+// .terraform.lock.hcl) suppress the init path so run.Run goes straight
+// to the configured terraform command.
+//
+// DownloadTerraformSource, CheckFolderContainsTerraformCode, and
+// providersNeedInit still use the real filesystem; the mem-exec
+// virtualization only intercepts subprocess spawns. Once util/file.go
+// is threaded through vfs.FS this can become fs-pure.
+type runE2EScaffold struct {
+	dir        string
+	configPath string
+}
+
+func setupRunE2EScaffold(t *testing.T) runE2EScaffold {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	// Minimal terragrunt.hcl. run.Run doesn't parse it; the path is
+	// only used by Options.CloneWithConfigPath and to derive WorkingDir.
+	configPath := filepath.Join(dir, "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(configPath, []byte(""), 0o644))
+
+	// .tf file: satisfies CheckFolderContainsTerraformCode.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(""), 0o644))
+
+	// Provider/module markers: keep needsInitRunCfg from forcing an init
+	// recursion before the terraform command actually runs.
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".terraform", "providers"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".terraform", "modules"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".terraform.lock.hcl"), []byte(""), 0o644))
+
+	return runE2EScaffold{dir: dir, configPath: configPath}
+}
+
+func newRunE2EOpts(t *testing.T, s runE2EScaffold, command string, extraArgs ...string) *run.Options {
+	t.Helper()
+
+	args := iacargs.New(append([]string{command}, extraArgs...)...)
+
+	return &run.Options{
+		WorkingDir:                   s.dir,
+		RootWorkingDir:               s.dir,
+		DownloadDir:                  filepath.Join(s.dir, ".terragrunt-cache"),
+		TerragruntConfigPath:         s.configPath,
+		OriginalTerragruntConfigPath: s.configPath,
+		TerraformCommand:             command,
+		TerraformCliArgs:             args,
+		TFPath:                       "tofu",
+		Env:                          map[string]string{},
+		SourceMap:                    map[string]string{},
+		Experiments:                  experiment.NewExperiments(),
+		StrictControls:               controls.New(),
+		MaxFoldersToCheck:            5,
+		Writers:                      writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Telemetry:                    &telemetry.Options{},
+		OriginalIAMRoleOptions:       iam.RoleOptions{},
+		IAMRoleOptions:               iam.RoleOptions{},
+	}
+}
+
+// invocationRecorder is a thread-safe accumulator for mem-exec
+// invocations. It records the name and args of each call.
+type invocationRecorder struct {
+	calls []vexec.Invocation
+	mu    sync.Mutex
+}
+
+func (r *invocationRecorder) record(inv *vexec.Invocation) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.calls = append(r.calls, vexec.Invocation{
+		Name: inv.Name,
+		Dir:  inv.Dir,
+		Args: slices.Clone(inv.Args),
+	})
+}
+
+func (r *invocationRecorder) snapshot() []vexec.Invocation {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.calls)
 }

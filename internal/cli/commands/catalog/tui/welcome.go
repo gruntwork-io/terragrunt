@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/pkg/browser"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -86,6 +87,7 @@ type WelcomeModel struct {
 	errCh            chan error
 	statusText       string
 	spinner          spinner.Model
+	venv             venv.Venv
 	state            welcomeState
 	width            int
 	height           int
@@ -97,7 +99,13 @@ func ComponentMsg(entry *ComponentEntry) tea.Msg {
 }
 
 // NewWelcomeModel creates a WelcomeModel that immediately begins discovery.
-func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, loadFunc LoadFunc) WelcomeModel {
+func NewWelcomeModel(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	loadFunc LoadFunc,
+) WelcomeModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B"))
@@ -112,6 +120,7 @@ func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		componentCh: make(chan *ComponentEntry, statusChannelSize),
 		errCh:       make(chan error, 1),
 		spinner:     s,
+		venv:        v,
 		statusText:  "Discovering components from your infrastructure...",
 		state:       welcomeLoading,
 	}
@@ -121,11 +130,11 @@ func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.Terragrunt
 // while discovery runs in the background, then transitions to the component
 // list if components are found. Post-exit messages are written to errWriter
 // after the tea program restores the main terminal.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, errWriter io.Writer, loadFunc LoadFunc) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, errWriter io.Writer, loadFunc LoadFunc) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	model := NewWelcomeModel(ctx, l, opts, loadFunc)
+	model := NewWelcomeModel(ctx, l, v, opts, loadFunc)
 
 	finalModel, err := tea.NewProgram(model, tea.WithContext(ctx)).Run()
 
@@ -315,7 +324,7 @@ func (m WelcomeModel) discoveryErrorDetail() []string {
 
 func (m WelcomeModel) handleComponentMsg(msg componentMsg) (tea.Model, tea.Cmd) {
 	// First component: transition to the catalog list immediately
-	newModel := NewModelStreaming(m.ctx, m.logger, m.opts, msg.entry, m.componentCh, m.errCh)
+	newModel := NewModelStreaming(m.ctx, m.logger, m.venv, m.opts, msg.entry, m.componentCh, m.errCh)
 	width, height := m.width, m.height
 
 	initCmds := []tea.Cmd{newModel.Init()}

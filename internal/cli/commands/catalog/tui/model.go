@@ -17,6 +17,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -94,6 +95,7 @@ type Model struct {
 	currentPagerButtons []button
 	exitMessage         string
 	viewport            viewport.Model
+	venv                venv.Venv
 	activeButton        button
 	State               sessionState
 	priorState          sessionState
@@ -119,10 +121,10 @@ type Model struct {
 // it can synthesize a DiscoveryCompleteMsg without racing the welcome model.
 // ctx is the cancellable context the welcome layer hands down so off-UI work
 // can observe Ctrl+C.
-func NewModelStreaming(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, initial *ComponentEntry, componentCh chan *ComponentEntry, errCh chan error) Model {
+func NewModelStreaming(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, initial *ComponentEntry, componentCh chan *ComponentEntry, errCh chan error) Model {
 	items := []list.Item{initial}
 
-	m := newModelWithItems(l, opts, items, componentCh)
+	m := newModelWithItems(l, v, opts, items, componentCh)
 	m.ctx = ctx
 	m.errCh = errCh
 	m.loading = true
@@ -331,7 +333,7 @@ func isDuplicate(items []list.Item, sourcePath string) bool {
 	return false
 }
 
-func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []list.Item, componentCh chan *ComponentEntry) Model {
+func newModelWithItems(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, items []list.Item, componentCh chan *ComponentEntry) Model {
 	listKeys := NewListKeyMap()
 	delegateKeys := NewDelegateKeyMap()
 	pagerKeys := NewPagerKeyMap()
@@ -380,6 +382,7 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []li
 		terragruntOptions: opts,
 		logger:            l,
 		componentCh:       componentCh,
+		venv:              v,
 		// Matches lipgloss.HasDarkBackground's fallback. Corrected on the
 		// first tea.BackgroundColorMsg.
 		hasDarkBG: true,

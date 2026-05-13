@@ -22,10 +22,11 @@ type scaffoldCmd struct {
 	logger    log.Logger
 	plan      *scaffold.Plan
 	values    map[string]string
+	venv      venv.Venv
 }
 
-func newScaffoldCmd(l log.Logger, opts *options.TerragruntOptions, c *Component) *scaffoldCmd {
-	return &scaffoldCmd{component: c, opts: opts, logger: l}
+func newScaffoldCmd(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, c *Component) *scaffoldCmd {
+	return &scaffoldCmd{component: c, opts: opts, logger: l, venv: v}
 }
 
 // WithPlan attaches a prepared scaffold.Plan and the user-supplied HCL
@@ -49,9 +50,7 @@ func (c *scaffoldCmd) Run() error {
 
 	c.logger.Debugf("Scaffolding component: %q", c.component.TerraformSourcePath())
 
-	// TODO: thread venv from the CLI entrypoint through the catalog TUI
-	// so this leaf participates in the root virtualized environment.
-	return scaffold.Run(context.Background(), c.logger, venv.OSVenv(), c.opts, c.component.TerraformSourcePath(), "")
+	return scaffold.Run(context.Background(), c.logger, c.venv, c.opts, c.component.TerraformSourcePath(), "")
 }
 
 func (c *scaffoldCmd) SetStdin(io.Reader)  {}
