@@ -1032,7 +1032,7 @@ unit "b" {
 	require.FileExists(t, filepath.Join(stackDir, inthclparse.StackDir, "b", inthclparse.AutoIncludeFile))
 }
 
-// TestStackDepsAutoIncludeWithFunctionInSource pins that terragrunt function calls (e.g. get_repo_root()) in the source attribute of an unrelated unit do not block autoinclude generation.
+// TestStackDepsAutoIncludeWithFunctionInSource pins that terragrunt function calls (e.g. get_terragrunt_dir()) in the source attribute of an unrelated unit do not block autoinclude generation.
 func TestStackDepsAutoIncludeWithFunctionInSource(t *testing.T) {
 	t.Parallel()
 
@@ -1042,7 +1042,7 @@ func TestStackDepsAutoIncludeWithFunctionInSource(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
-	require.NoError(t, err, "get_repo_root() in source plus local.* and values.* references in unrelated units must not block autoinclude generation")
+	require.NoError(t, err, "get_terragrunt_dir() in source plus local.* and values.* references in unrelated units must not block autoinclude generation")
 
 	// Autoinclude must be generated only on the unit that declared it.
 	require.FileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "roles", inthclparse.AutoIncludeFile))
@@ -1098,6 +1098,24 @@ func TestStackDepsRunAllWithFunctionsInNestedStack(t *testing.T) {
 	require.NoError(t, runErr, "run --all must succeed when the generated nested stack file contains terragrunt function calls; stderr=%s", stderr)
 	assert.NotContains(t, stderr, "Function calls not allowed",
 		"discovery must not surface 'Function calls not allowed' on generated nested stack files")
+
+	stdout, _, findErr := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --json --dag --dependencies --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, findErr)
+
+	var components []findComponent
+	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
+
+	foundNestedVPC := false
+
+	for _, c := range components {
+		if c.Type == "unit" && filepath.Base(c.Path) == "vpc" && strings.Contains(c.Path, filepath.Join("networking", inthclparse.StackDir, "vpc")) {
+			foundNestedVPC = true
+			break
+		}
+	}
+
+	require.True(t, foundNestedVPC, "generated nested stack unit vpc must be present in find output")
 }
 
 // Regression: a `stack { autoinclude { values = {...} } }` block propagates its values into each nested-stack unit's terragrunt.values.hcl so the nested unit's `values.<key>` resolves (dependency.X.outputs.Y references resolve to mock_outputs at generation time).

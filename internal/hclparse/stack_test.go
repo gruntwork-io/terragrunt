@@ -301,6 +301,23 @@ unit "vpc" {
 	assert.Contains(t, paths[0], "vpc-dyn")
 }
 
+func TestUnitPathsFromStackDir_PathWithUnsupportedFunctionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
+unit "vpc" {
+  source = "../units/vpc"
+  path   = get_repo_root()
+}
+`), 0644))
+
+	_, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get_repo_root")
+}
+
 func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
 	t.Parallel()
 

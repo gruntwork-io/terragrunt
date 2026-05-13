@@ -155,7 +155,10 @@ func resolveAutoIncludeValues(body *hclsyntax.Body, evalCtx *hcl.EvalContext, de
 		return nil, nil
 	}
 
-	augmented := augmentEvalCtxWithDeps(evalCtx, body, deps)
+	augmented, depDiags := augmentEvalCtxWithDeps(evalCtx, body, deps)
+	if depDiags.HasErrors() {
+		return nil, depDiags
+	}
 
 	val, diags := valuesAttr.Expr.Value(augmented)
 	if diags.HasErrors() {
@@ -166,12 +169,19 @@ func resolveAutoIncludeValues(body *hclsyntax.Body, evalCtx *hcl.EvalContext, de
 }
 
 // augmentEvalCtxWithDeps returns a copy of evalCtx with `dependency.<name>` bound to an object whose `outputs` attribute is the resolved mock_outputs of each declared dependency. Dependencies without mock_outputs are bound with an empty outputs object so references through them do not panic.
-func augmentEvalCtxWithDeps(evalCtx *hcl.EvalContext, body *hclsyntax.Body, deps []AutoIncludeDependency) *hcl.EvalContext {
+func augmentEvalCtxWithDeps(evalCtx *hcl.EvalContext, body *hclsyntax.Body, deps []AutoIncludeDependency) (*hcl.EvalContext, hcl.Diagnostics) {
 	depObj := make(map[string]cty.Value, len(deps))
 
+	var diags hcl.Diagnostics
+
 	for _, dep := range deps {
-		mockOutputs := mockOutputsFromBody(body, dep.Name, evalCtx)
+		mockOutputs, mockDiags := mockOutputsFromBody(body, dep.Name, evalCtx)
+		diags = append(diags, mockDiags...)
 		depObj[dep.Name] = cty.ObjectVal(map[string]cty.Value{"outputs": mockOutputs})
+	}
+
+	if diags.HasErrors() {
+		return nil, diags
 	}
 
 	augmented := &hcl.EvalContext{
@@ -185,11 +195,11 @@ func augmentEvalCtxWithDeps(evalCtx *hcl.EvalContext, body *hclsyntax.Body, deps
 
 	augmented.Variables[varDependency] = cty.ObjectVal(depObj)
 
-	return augmented
+	return augmented, nil
 }
 
 // mockOutputsFromBody finds the dependency block by name in body, extracts its `mock_outputs` attribute, and returns the evaluated value. Returns cty.EmptyObjectVal when the dependency has no mock_outputs.
-func mockOutputsFromBody(body *hclsyntax.Body, depName string, evalCtx *hcl.EvalContext) cty.Value {
+func mockOutputsFromBody(body *hclsyntax.Body, depName string, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
 	for _, block := range body.Blocks {
 		if block.Type != blockDependency || len(block.Labels) != 1 || block.Labels[0] != depName {
 			continue
@@ -197,18 +207,18 @@ func mockOutputsFromBody(body *hclsyntax.Body, depName string, evalCtx *hcl.Eval
 
 		attr, ok := block.Body.Attributes["mock_outputs"]
 		if !ok {
-			return cty.EmptyObjectVal
+			return cty.EmptyObjectVal, nil
 		}
 
 		val, diags := attr.Expr.Value(evalCtx)
 		if diags.HasErrors() {
-			return cty.EmptyObjectVal
+			return cty.EmptyObjectVal, diags
 		}
 
-		return val
+		return val, nil
 	}
 
-	return cty.EmptyObjectVal
+	return cty.EmptyObjectVal, nil
 }
 
 // resolveDependencyBlock extracts config_path from a dependency block

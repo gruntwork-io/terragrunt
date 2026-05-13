@@ -76,6 +76,10 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	evalCtx := buildParseEvalContext(input, unitRefs, stackRefs)
 
+	if stackFile.Locals != nil {
+		evaluateLocalsBestEffort(stackFile.Locals.Remain, evalCtx)
+	}
+
 	if err := processStackIncludes(fs, stackFile, input.StackDir, evalCtx, srcByAutoInclude); err != nil {
 		return nil, err
 	}
@@ -243,6 +247,50 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	}
 
 	return nil
+}
+
+// evaluateLocalsBestEffort evaluates any root locals that are ready with the current eval context, leaving
+// locals that depend on include-provided units/stacks for the later strict locals pass.
+func evaluateLocalsBestEffort(body hcl.Body, evalCtx *hcl.EvalContext) {
+	syntaxBody, ok := body.(*hclsyntax.Body)
+	if !ok {
+		return
+	}
+
+	remaining := make(map[string]*hclsyntax.Attribute, len(syntaxBody.Attributes))
+	for name, attr := range syntaxBody.Attributes {
+		remaining[name] = attr
+	}
+
+	evaluated := make(map[string]cty.Value, len(remaining))
+
+	const maxLocalsIterations = 10000
+
+	for i := 0; len(remaining) > 0 && i < maxLocalsIterations; i++ {
+		progress := false
+		evalCtx.Variables[varLocal] = localObject(evaluated)
+
+		for name, attr := range remaining {
+			if !canEvalLocal(attr, evaluated) {
+				continue
+			}
+
+			val, diags := attr.Expr.Value(evalCtx)
+			if diags.HasErrors() {
+				continue
+			}
+
+			evaluated[name] = val
+			delete(remaining, name)
+
+			evalCtx.Variables[varLocal] = localObject(evaluated)
+			progress = true
+		}
+
+		if !progress {
+			return
+		}
+	}
 }
 
 // evaluateLocalsPass attempts to evaluate all ready locals in a single pass. Returns true if at least one local was evaluated. After each successful evaluation it refreshes evalCtx.Variables[varLocal] so locals iterated later in the same pass can resolve `local.X` references that were just populated; without this, Go's randomized map-iteration order races against the end-of-pass update and yields "Unknown variable: local" on locals iterated after their dependencies.

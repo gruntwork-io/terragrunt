@@ -450,19 +450,29 @@ func mergeStackAutoIncludeValues(baseValues, autoIncludeValues *cty.Value) (*cty
 		return baseValues, nil
 	}
 
-	if !autoIncludeValues.Type().IsObjectType() && !autoIncludeValues.Type().IsMapType() {
-		return nil, errors.Errorf("stack autoinclude values must evaluate to an object, got %s", autoIncludeValues.Type().FriendlyName())
+	baseMap, baseOK, err := valuesMapForMerge("component", baseValues)
+	if err != nil {
+		return nil, err
+	}
+
+	autoMap, autoOK, err := valuesMapForMerge("stack autoinclude", autoIncludeValues)
+	if err != nil {
+		return nil, err
+	}
+
+	if !autoOK {
+		return baseValues, nil
 	}
 
 	merged := make(map[string]cty.Value)
 
-	if baseValues != nil && (baseValues.Type().IsObjectType() || baseValues.Type().IsMapType()) {
-		for k, v := range baseValues.AsValueMap() {
+	if baseOK {
+		for k, v := range baseMap {
 			merged[k] = v
 		}
 	}
 
-	for k, v := range autoIncludeValues.AsValueMap() {
+	for k, v := range autoMap {
 		merged[k] = v
 	}
 
@@ -505,7 +515,10 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 	}
 
 	// Compute final values once before writing. Unit components merge in parent-stack values so `values.<key>` resolves; stack components merge in their own autoinclude `values = {...}` so the nested stack's units inherit them via terragrunt.values.hcl.
-	effectiveValues := mergeUnitValuesWithStackValues(cmp.values, opts.stackValues, cmp.kind)
+	effectiveValues, err := mergeUnitValuesWithStackValues(cmp.values, opts.stackValues, cmp.kind)
+	if err != nil {
+		return errors.Errorf("failed to merge unit values for %s: %w", cmp.name, err)
+	}
 
 	effectiveValues, err = mergeStackAutoIncludeValues(effectiveValues, stackAutoIncludeValues(opts, cmp))
 	if err != nil {
@@ -520,33 +533,56 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 }
 
 // mergeUnitValuesWithStackValues combines unit-declared values with stack-level values inherited from a parent stack autoinclude. Returns the unit values unchanged for stack components (only unit values benefit from the merge: nested stack values are propagated via the recursive GenerateStackFile's own values-file read). Unit-declared values win on key conflict.
-func mergeUnitValuesWithStackValues(unitValues, stackValues *cty.Value, kind componentKind) *cty.Value {
+func mergeUnitValuesWithStackValues(unitValues, stackValues *cty.Value, kind componentKind) (*cty.Value, error) {
 	if kind == stackKind || stackValues == nil {
-		return unitValues
+		return unitValues, nil
 	}
 
-	if !stackValues.Type().IsObjectType() && !stackValues.Type().IsMapType() {
-		return unitValues
+	stackMap, stackOK, err := valuesMapForMerge("stack-level", stackValues)
+	if err != nil {
+		return nil, err
+	}
+
+	if !stackOK {
+		return unitValues, nil
+	}
+
+	unitMap, unitOK, err := valuesMapForMerge("unit", unitValues)
+	if err != nil {
+		return nil, err
 	}
 
 	merged := make(map[string]cty.Value)
-	for k, v := range stackValues.AsValueMap() {
+	for k, v := range stackMap {
 		merged[k] = v
 	}
 
-	if unitValues != nil && (unitValues.Type().IsObjectType() || unitValues.Type().IsMapType()) {
-		for k, v := range unitValues.AsValueMap() {
+	if unitOK {
+		for k, v := range unitMap {
 			merged[k] = v
 		}
 	}
 
 	if len(merged) == 0 {
-		return unitValues
+		return unitValues, nil
 	}
 
 	out := cty.ObjectVal(merged)
 
-	return &out
+	return &out, nil
+}
+
+func valuesMapForMerge(label string, values *cty.Value) (map[string]cty.Value, bool, error) {
+	if values == nil || values.IsNull() || !values.IsWhollyKnown() {
+		return nil, false, nil
+	}
+
+	valType := values.Type()
+	if !valType.IsObjectType() && !valType.IsMapType() {
+		return nil, false, errors.Errorf("%s values must be object or map, got %s", label, valType.FriendlyName())
+	}
+
+	return values.AsValueMap(), true, nil
 }
 
 // fetchComponentSource handles the paths for fetching a component's source:

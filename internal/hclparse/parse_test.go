@@ -1259,6 +1259,41 @@ stack "consumer" {
 	assert.Equal(t, "mock-from-dep", got["val"].AsString(), "dependency.upstream.outputs.val must resolve to the dep's mock_outputs at parse time")
 }
 
+func TestAutoIncludeResolve_InvalidMockOutputsReturnsDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	src := `
+stack "src" {
+  source = "../catalog/stacks/src"
+  path   = "src"
+}
+
+stack "consumer" {
+  source = "../catalog/stacks/consumer"
+  path   = "consumer"
+
+  autoinclude {
+    dependency "upstream" {
+      config_path = stack.src.path
+      mock_outputs = {
+        val = missing.value
+      }
+    }
+
+    values = {
+      val = "literal"
+    }
+  }
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing")
+}
+
 // TestAutoIncludeResolve_NoValuesAttribute returns nil Values when the autoinclude body has no values attribute.
 func TestAutoIncludeResolve_NoValuesAttribute(t *testing.T) {
 	t.Parallel()
@@ -1361,6 +1396,41 @@ unit "app" {
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
 	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "vpc"), resolved.Dependencies[0].ConfigPath,
 		"unit.vpc.path must resolve to vpc's generated path after include merge, not be undefined")
+}
+
+func TestParseStackFile_IncludePathReferencesRootLocal(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	mainSrc := `
+locals {
+  shared_file = "shared.hcl"
+}
+
+include "shared" {
+  path = local.shared_file
+}
+`
+
+	includeSrc := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644))
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      []byte(mainSrc),
+		Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"),
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "vpc", result.Units[0].Name)
 }
 
 // TestParseStackFile_RootLocalReferencesUnitFromInclude regresses the bootstrap-path locals-after-includes ordering: a root `local` referencing `unit.<X>.path` for a unit declared in an included file must resolve, because locals now run after include merge + ref refresh.

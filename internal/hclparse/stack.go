@@ -191,7 +191,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	})
 }
 
-// UnitPathsFromStackDir parses the stack file in stackDir and returns paths to each unit's generated directory. Returns (nil, err) on parse errors so callers can distinguish "not a stack dir" from "malformed stack file". Evaluates each unit's lazy Path expression against the terraform stdlib so generated stack files containing terragrunt function calls still resolve (units whose Path cannot be evaluated are skipped, best-effort).
+// UnitPathsFromStackDir parses the stack file in stackDir and returns paths to each unit's generated directory. Returns (nil, err) on parse errors so callers can distinguish "not a stack dir" from "malformed stack file". Evaluates each unit's lazy Path expression against the terraform stdlib plus supported Terragrunt path helpers.
 func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
@@ -219,7 +219,7 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 	for _, unit := range result.Units {
 		unitRelPath, evalErr := EvalString(unit.Path, evalCtx, attrPath)
 		if evalErr != nil {
-			continue
+			return nil, evalErr
 		}
 
 		unitPath := filepath.Join(stackDir, StackDir, unitRelPath)
