@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	goversion "github.com/hashicorp/go-version"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-cleanhttp"
@@ -159,6 +161,83 @@ func BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, version
 	}
 
 	return &url.URL{Scheme: "https", Host: registryDomain, Path: moduleFullPath}, nil
+}
+
+
+// moduleVersionsResponse is the registry API response for the list-versions endpoint.
+type moduleVersionsResponse struct {
+	Modules []moduleVersionsEntry `json:"modules"`
+}
+
+// moduleVersionsEntry holds the versions list for a single module.
+type moduleVersionsEntry struct {
+	Versions []moduleVersion `json:"versions"`
+}
+
+// moduleVersion is a single version record in the registry response.
+type moduleVersion struct {
+	Version string `json:"version"`
+}
+
+// GetLatestModuleVersion queries the Terraform module registry to list available
+// versions for the given module and returns the latest version based on semver
+// sorting. This implements the "List Available Versions for a Specific Module"
+// endpoint of the Terraform Module Registry Protocol.
+// See: https://developer.hashicorp.com/terraform/registry/api-docs#list-available-versions-for-a-specific-module
+func GetLatestModuleVersion(ctx context.Context, l log.Logger, httpClient *http.Client, registryDomain, moduleRegistryBasePath, modulePath string) (string, error) {
+	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
+	modulePath = strings.TrimSuffix(modulePath, "/")
+	modulePath = strings.TrimPrefix(modulePath, "/")
+
+	versionsPath := fmt.Sprintf("%s/%s/versions", moduleRegistryBasePath, modulePath)
+
+	versionsURL, err := url.Parse(versionsPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse versions URL for %s: %w", modulePath, err)
+	}
+
+	// If the base path is relative (no scheme), construct the full URL using the registry domain.
+	if versionsURL.Scheme == "" {
+		versionsURL = &url.URL{
+			Scheme: "https",
+			Host:   registryDomain,
+			Path:   versionsPath,
+		}
+	}
+
+	bodyData, _, err := httpGETAndGetResponse(ctx, l, httpClient, versionsURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to query module versions for %s: %w", modulePath, err)
+	}
+
+	var versionsResp moduleVersionsResponse
+	if err := json.Unmarshal(bodyData, &versionsResp); err != nil {
+		return "", fmt.Errorf("failed to parse module versions response for %s: %w", modulePath, err)
+	}
+
+	if len(versionsResp.Modules) == 0 || len(versionsResp.Modules[0].Versions) == 0 {
+		return "", fmt.Errorf("no versions found for module %s on registry %s", modulePath, registryDomain)
+	}
+
+	// The registry API does not guarantee version ordering, so parse and sort by semver.
+	parsed := make([]*goversion.Version, 0, len(versionsResp.Modules[0].Versions))
+
+	for _, v := range versionsResp.Modules[0].Versions {
+		pv, err := goversion.NewVersion(v.Version)
+		if err != nil {
+			continue // skip unparseable versions
+		}
+
+		parsed = append(parsed, pv)
+	}
+
+	if len(parsed) == 0 {
+		return "", fmt.Errorf("no valid semver versions found for module %s on registry %s", modulePath, registryDomain)
+	}
+
+	sort.Sort(goversion.Collection(parsed))
+
+	return parsed[len(parsed)-1].Original(), nil
 }
 
 // applyHostToken adds an Authorization header to req based on the user's

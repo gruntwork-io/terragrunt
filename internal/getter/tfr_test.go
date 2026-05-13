@@ -201,3 +201,46 @@ func buildModuleZip(t *testing.T) []byte {
 
 	return buf.Bytes()
 }
+
+// TestRegistryGetterWithoutVersion verifies that omitting ?version= causes the
+// getter to resolve and use the latest version from the registry.
+func TestRegistryGetterWithoutVersion(t *testing.T) {
+	t.Parallel()
+
+	server := newRegistryTestServer(t)
+
+	dstPath := helpers.TmpDirWOSymlinks(t)
+	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
+	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+
+	// No ?version= — getter resolves latest (3.3.0) via the versions endpoint.
+	src := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws"
+	client := newRegistryTestClient(t, server.Client(), tfimpl.Terraform)
+
+	_, err := client.Get(t.Context(), &getter.Request{
+		Src:     src,
+		Dst:     moduleDestPath,
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+}
+
+// TestRegistryGetterEmptyVersion pins the typed error returned when
+// ?version= is present but empty.
+func TestRegistryGetterEmptyVersion(t *testing.T) {
+	t.Parallel()
+
+	server := newRegistryTestServer(t)
+	client := newRegistryTestClient(t, server.Client(), tfimpl.Terraform)
+
+	_, err := client.Get(t.Context(), &getter.Request{
+		Src:     "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz?version=",
+		Dst:     helpers.TmpDirWOSymlinks(t),
+		GetMode: getter.ModeDir,
+	})
+	require.Error(t, err)
+
+	var typed getter.MalformedRegistryURLErr
+	require.ErrorAs(t, err, &typed)
+}

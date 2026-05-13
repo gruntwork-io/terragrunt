@@ -99,6 +99,36 @@ func (r *RegistryGetter) Detect(req *getter.Request) (bool, error) {
 	return false, nil
 }
 
+
+// resolveVersion determines the module version to download. If a version is
+// specified in the URL query it is validated and returned as-is. Otherwise the
+// latest version is resolved from the registry's List Available Versions endpoint.
+func (r *RegistryGetter) resolveVersion(ctx context.Context, queryValues url.Values, registryDomain, moduleRegistryBasePath, modulePath string) (string, error) {
+	versionList, hasVersion := queryValues[versionQueryKey]
+
+	if hasVersion && len(versionList) != 1 {
+		return "", errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
+	}
+
+	if hasVersion {
+		if versionList[0] == "" {
+			return "", errors.New(MalformedRegistryURLErr{reason: "version query is empty"})
+		}
+
+		return versionList[0], nil
+	}
+
+	// No version specified — query the registry for the latest.
+	latestVersion, err := GetLatestModuleVersion(ctx, r.Logger, r.HTTPClient, registryDomain, moduleRegistryBasePath, modulePath)
+	if err != nil {
+		return "", err
+	}
+
+	r.Logger.Infof("No version specified for module %s, using latest version %s", modulePath, latestVersion)
+
+	return latestVersion, nil
+}
+
 // Get fetches the module contents specified at req.Src and downloads them to
 // req.Dst. req.Src must be a tfr:// URL with the module path encoded as
 // `:namespace/:name/:system` and a `version` query parameter.
@@ -113,18 +143,12 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := SourceDirSubdir(srcURL.Path)
 
-	versionList, hasVersion := queryValues[versionQueryKey]
-	if !hasVersion {
-		return errors.New(MalformedRegistryURLErr{reason: "missing version query"})
-	}
-
-	if len(versionList) != 1 {
-		return errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
-	}
-
-	version := versionList[0]
-
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, r.Logger, r.HTTPClient, registryDomain)
+	if err != nil {
+		return err
+	}
+
+	version, err := r.resolveVersion(ctx, queryValues, registryDomain, moduleRegistryBasePath, modulePath)
 	if err != nil {
 		return err
 	}

@@ -157,6 +157,14 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 		assert.NoError(t, err)
 	})
 
+	// Serve the list-versions endpoint so TestRegistryGetterWithoutVersion can
+	// resolve the latest version without a ?version= query parameter.
+	mux.HandleFunc("/v1/modules/terraform-aws-modules/vpc/aws/versions", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"modules":[{"versions":[{"version":"3.3.0"},{"version":"2.0.0"},{"version":"1.0.0"}]}]}`))
+		assert.NoError(t, err)
+	})
+
 	mux.HandleFunc("/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download", func(w http.ResponseWriter, r *http.Request) {
 		// Resolve against the request host so the downloader hits the same
 		// test server we are about to shut down at end-of-test.
@@ -175,4 +183,17 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 	t.Cleanup(server.Close)
 
 	return server
+}
+
+func TestGetLatestModuleVersion(t *testing.T) {
+	t.Parallel()
+
+	server := newRegistryTestServer(t)
+
+	latestVersion, err := getter.GetLatestModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(),
+		server.Listener.Addr().String(), "/v1/modules/", "terraform-aws-modules/vpc/aws",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "3.3.0", latestVersion)
 }
