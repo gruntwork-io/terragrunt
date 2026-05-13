@@ -7,7 +7,7 @@ category: "experiments-updated"
 
 The `stack-dependencies` experiment ships the following fixes.
 
-Lazy-expression parsing for unit/stack attributes. The simplified two-pass parser no longer re-decodes a stack file with a `nil` eval context when any block declares an `autoinclude`. `source`, `path`, and `values` (and include block `path`) are now captured as lazy `hcl.Expression` values and evaluated only when needed against the full Terragrunt eval context built by the production parser. Non-literal expressions in unrelated unit attributes (`${get_repo_root()}/...`, `format(...)`, `local.region`, `values.idps`) no longer block autoinclude resolution. Reported in [#5663#issuecomment-4373686666](https://github.com/gruntwork-io/terragrunt/issues/5663#issuecomment-4373686666).
+The simplified two-pass parser now captures `source`, `path`, and `values` (and include block `path`) as lazy `hcl.Expression` values and evaluates them only when needed against the full Terragrunt eval context built by the production parser. It no longer re-decodes a stack file with a `nil` eval context when any block declares an `autoinclude`. Non-literal expressions in unrelated unit attributes (`${get_repo_root()}/...`, `format(...)`, `local.region`, `values.idps`) no longer block autoinclude resolution.
 
 ```hcl
 unit "account" {
@@ -37,9 +37,9 @@ unit "roles" {
 }
 ```
 
-`run --all` discovery on generated nested stack files. `terragrunt run --all` no longer fails with `Function calls not allowed; Functions may not be called here.` on a `.terragrunt-stack/<name>/terragrunt.stack.hcl` whose unit `source` or `path` contains terragrunt function calls. Discovery now walks generated nested stack files using the unified lazy parser. Reported in [#5663#issuecomment-4407441298](https://github.com/gruntwork-io/terragrunt/issues/5663#issuecomment-4407441298).
+`run --all` discovery on generated nested stack files. `terragrunt run --all` no longer fails with `Function calls not allowed; Functions may not be called here.` on a `.terragrunt-stack/<name>/terragrunt.stack.hcl` whose unit `source` or `path` contains terragrunt function calls. Discovery now walks generated nested stack files using the unified lazy parser.
 
-Stack-level autoinclude `values` propagation. A `stack { autoinclude { values = {...} } }` block now propagates its resolved values into each generated nested-stack unit's `terragrunt.values.hcl`, so the nested unit's `inputs = { val = values.val }` resolves at runtime instead of failing with `Unknown variable; There is no variable named "values"`. The autoinclude eval context binds each declared dependency's `mock_outputs` so `dependency.X.outputs.Y` references in the values resolve at generation time. Reported in [#5663#issuecomment-4406850040](https://github.com/gruntwork-io/terragrunt/issues/5663#issuecomment-4406850040).
+Stack-level autoinclude `values` propagation. A `stack { autoinclude { values = {...} } }` block now propagates its resolved values into each generated nested-stack unit's `terragrunt.values.hcl`, so the nested unit's `inputs = { val = values.val }` resolves at runtime instead of failing with `Unknown variable; There is no variable named "values"`. The autoinclude eval context binds each declared dependency's `mock_outputs` so `dependency.X.outputs.Y` references in the values resolve at generation time.
 
 ```hcl
 stack "stack_w_values" {
@@ -60,6 +60,6 @@ stack "stack_w_values" {
 }
 ```
 
-Internal refactor: unified strict and permissive parse paths. The duplicated `*Permissive` types and functions in `internal/hclparse/` were removed; the parser now has a single code path that uses lazy expressions and a caller-provided eval context.
+Internally, the previously duplicated strict and permissive parse paths were unified. The `*Permissive` types and functions in `internal/hclparse/` were removed; the parser now has a single code path that uses lazy expressions and a caller-provided eval context.
 
 To learn more, see the [experiment documentation](/reference/experiments/active#stack-dependencies).

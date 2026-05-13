@@ -53,7 +53,7 @@ type AutoIncludeResolved struct {
 	RawBody hcl.Body
 	// SourceBytes are the bytes of the file RawBody was parsed from. Generation slices expressions by HCL byte ranges and must use these bytes, not the root stack file's bytes, when the autoinclude originated in an included file.
 	SourceBytes []byte
-	// Values is the resolved value of the autoinclude's `values = {...}` attribute (if present). For stack-kind autoincludes, this is propagated into the generated nested stack's terragrunt.values.hcl so the nested units see those values as `values.<key>`. Nil when the autoinclude has no values attribute.
+	// Values is the resolved `values = {...}` attribute; only valid for stack-kind autoincludes (unit-kind rejected in resolveAutoInclude). Propagated into the nested stack's terragrunt.values.hcl. Nil when absent.
 	Values *cty.Value
 	// Kind is KindUnit or KindStack and drives the generated filename (terragrunt.autoinclude.hcl vs terragrunt.autoinclude.stack.hcl).
 	Kind         AutoIncludeKind
@@ -150,7 +150,7 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 
 // resolveAutoIncludeValues extracts and evaluates the optional `values = {...}` attribute from the autoinclude body. The eval context is augmented with `dependency.<name>.outputs = mock_outputs` for each declared dependency so values that reference dependency outputs resolve to the mock value at parse time. Returns (nil, nil) when no values attribute is present.
 func resolveAutoIncludeValues(body *hclsyntax.Body, evalCtx *hcl.EvalContext, deps []AutoIncludeDependency) (*cty.Value, hcl.Diagnostics) {
-	valuesAttr, ok := body.Attributes["values"]
+	valuesAttr, ok := body.Attributes[attrValues]
 	if !ok {
 		return nil, nil
 	}

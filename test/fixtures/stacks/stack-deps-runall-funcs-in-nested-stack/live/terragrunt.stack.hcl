@@ -1,7 +1,4 @@
-// Parent stack: depends on the entire `networking` stack via autoinclude.
-// The catalog stack file contains a terragrunt function call in unit.source which
-// is copied verbatim into the generated nested stack file. `run --all` discovery
-// must walk that generated file successfully (regression for #5663 comment 4407441298).
+// Fixture: parent stack depends on the entire `networking` stack via autoinclude; the catalog stack file contains a function call in unit.source that must not block run --all discovery.
 
 stack "networking" {
   source = "../catalog/stacks/networking"

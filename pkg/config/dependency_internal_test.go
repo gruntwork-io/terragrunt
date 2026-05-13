@@ -93,10 +93,7 @@ func TestExtractFirstJSONObject(t *testing.T) {
 	}
 }
 
-// TestTryGetStackOutput_JSONConfigSibling pins that when a dependency directory contains both
-// terragrunt.hcl.json and terragrunt.stack.hcl, tryGetStackOutput correctly identifies it as a
-// stack dependency. Regression for a switch that previously fell into the default branch on
-// JSON config paths and synthesized an invalid path like <dir>/terragrunt.hcl.json/terragrunt.stack.hcl.
+// TestTryGetStackOutput_JSONConfigSibling pins that a dep dir with both terragrunt.hcl.json and terragrunt.stack.hcl is identified as a stack dep (regression for a switch that previously fell through on JSON config paths).
 func TestTryGetStackOutput_JSONConfigSibling(t *testing.T) {
 	t.Parallel()
 
@@ -104,10 +101,7 @@ func TestTryGetStackOutput_JSONConfigSibling(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), []byte(`{}`), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, DefaultStackFile), []byte(`# empty stack`), 0644))
 
-	// Verify the path-rewrite step of tryGetStackOutput resolves to the existing stack file. We
-	// don't drive the full stack-output evaluation here (that would need a full ParsingContext).
-	// Instead, replicate the path-rewrite logic to confirm the JSON-config case produces a valid
-	// stack file path, which is what the production code does internally.
+	// Replicate the path-rewrite step of tryGetStackOutput to confirm the JSON-config case produces a valid stack file path.
 	cases := []struct {
 		name           string
 		inputBase      string

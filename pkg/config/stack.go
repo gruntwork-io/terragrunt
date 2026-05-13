@@ -427,24 +427,31 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 		return errors.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
 	}
 
-	// For stack-kind autoincludes, propagate the resolved `values = {...}` attribute into the nested stack's terragrunt.values.hcl so the nested units see those values as `values.<key>`. Mock_outputs of declared dependencies are bound at resolve time, so `dependency.X.outputs.Y` references in the autoinclude values resolve to their mock values at generation time.
-	if kind == inthclparse.KindStack && resolved.Values != nil {
-		if err := mergeStackAutoIncludeValues(l, cmp.values, resolved.Values, dest); err != nil {
-			return errors.Errorf("failed to merge stack autoinclude values for %s: %w", cmp.name, err)
-		}
-	}
-
 	return nil
 }
 
-// mergeStackAutoIncludeValues merges the autoinclude `values` block content with the component's existing `values` attribute (if any) and writes the combined result to dest/terragrunt.values.hcl. The autoinclude values take precedence on key conflicts so that user-declared overrides at the autoinclude layer win over the stack block's static values.
-func mergeStackAutoIncludeValues(l log.Logger, baseValues, autoIncludeValues *cty.Value, dest string) error {
-	if autoIncludeValues == nil {
+// stackAutoIncludeValues returns the resolved `values = {...}` for a stack-kind autoinclude, or nil when none applies.
+func stackAutoIncludeValues(opts *generateOpts, cmp *componentToGenerate) *cty.Value {
+	if cmp.kind != stackKind || opts.autoIncludes == nil {
 		return nil
 	}
 
+	resolved, ok := opts.autoIncludes[inthclparse.AutoIncludeKey(inthclparse.KindStack, cmp.name)]
+	if !ok {
+		return nil
+	}
+
+	return resolved.Values
+}
+
+// mergeStackAutoIncludeValues merges the autoinclude `values` (highest precedence) over the component's existing `values`. Returns baseValues unchanged when autoIncludeValues is nil. Returns an error when autoIncludeValues is not an object/map.
+func mergeStackAutoIncludeValues(baseValues, autoIncludeValues *cty.Value) (*cty.Value, error) {
+	if autoIncludeValues == nil {
+		return baseValues, nil
+	}
+
 	if !autoIncludeValues.Type().IsObjectType() && !autoIncludeValues.Type().IsMapType() {
-		return errors.Errorf("stack autoinclude values must evaluate to an object, got %s", autoIncludeValues.Type().FriendlyName())
+		return nil, errors.Errorf("stack autoinclude values must evaluate to an object, got %s", autoIncludeValues.Type().FriendlyName())
 	}
 
 	merged := make(map[string]cty.Value)
@@ -460,12 +467,12 @@ func mergeStackAutoIncludeValues(l log.Logger, baseValues, autoIncludeValues *ct
 	}
 
 	if len(merged) == 0 {
-		return nil
+		return baseValues, nil
 	}
 
-	mergedVal := cty.ObjectVal(merged)
+	out := cty.ObjectVal(merged)
 
-	return writeValues(l, &mergedVal, dest)
+	return &out, nil
 }
 
 // generateComponent copies files from the source directory to the target destination and generates a corresponding values file.
@@ -497,8 +504,14 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		return err
 	}
 
-	// Generate values file. For unit components, merge in any stack-level values inherited from a parent stack autoinclude `values = {...}` block so the unit's terragrunt.hcl can resolve `values.<key>` to the propagated value. Unit-declared values take precedence on key conflict so a unit can override a propagated value.
+	// Compute final values once before writing. Unit components merge in parent-stack values so `values.<key>` resolves; stack components merge in their own autoinclude `values = {...}` so the nested stack's units inherit them via terragrunt.values.hcl.
 	effectiveValues := mergeUnitValuesWithStackValues(cmp.values, opts.stackValues, cmp.kind)
+
+	effectiveValues, err = mergeStackAutoIncludeValues(effectiveValues, stackAutoIncludeValues(opts, cmp))
+	if err != nil {
+		return errors.Errorf("failed to merge stack autoinclude values for %s: %w", cmp.name, err)
+	}
+
 	if err := writeValues(l, effectiveValues, dest); err != nil {
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
 	}

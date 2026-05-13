@@ -25,6 +25,7 @@ const (
 	attrConfigPath  = "config_path"
 	attrPath        = "path"
 	attrSource      = "source"
+	attrValues      = "values"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"
@@ -37,7 +38,7 @@ const (
 // ParseStackFileInput holds the input for ParseStackFile.
 type ParseStackFileInput struct {
 	Values *cty.Value
-	// UnitRefs lets the caller supply already-resolved unit ComponentRefs (with paths, names, and any ChildRefs). When non-nil, the parser uses these for the autoinclude eval context instead of evaluating each unit's Path attribute itself, so non-literal source/path/values expressions in unrelated unit blocks do not block parsing.
+	// UnitRefs lets the caller supply already-resolved unit ComponentRefs (with paths, names, and any ChildRefs). When non-nil, the parser uses these for the autoinclude eval context instead of evaluating each unit's Path attribute itself, so non-literal source/path expressions in unrelated unit blocks do not block parsing.
 	UnitRefs []ComponentRef
 	// StackRefs is the analogous slice for stack blocks. Each ref's ChildRefs must already be populated when callers want stack.<name>.<unit>.path references to resolve.
 	StackRefs []ComponentRef
@@ -50,22 +51,12 @@ type ParseStackFileInput struct {
 
 // ParseResult holds the output of a two-pass parse of a terragrunt.stack.hcl file.
 type ParseResult struct {
-	// AutoIncludes maps component name -> resolved autoinclude (only for units/stacks
-	// that had an autoinclude block). Dependencies have config_path resolved.
 	AutoIncludes map[string]*AutoIncludeResolved
-	// Units from the first-pass parse (name, source, path, values decoded).
-	Units []*UnitBlockHCL
-	// Stacks from the first-pass parse.
-	Stacks []*StackBlockHCL
+	Units        []*UnitBlockHCL
+	Stacks       []*StackBlockHCL
 }
 
-// ParseStackFile performs a two-pass parse of a terragrunt.stack.hcl file.
-//
-// Pass 1: Decode unit/stack blocks. Source/Path/Values fields are captured as lazy expressions, so non-literal expressions (terragrunt function calls, locals, values references) do not block decoding. The autoinclude body is captured as hcl.Body via remain.
-//
-// Between passes: Build eval context with unit.<name>.path and stack.<name>.path variables. When the caller supplies pre-resolved UnitRefs / StackRefs, those drive the refs (no Path eval needed). Otherwise the parser evaluates each unit/stack's Path attribute itself and rebuilds refs after include merging.
-//
-// Pass 2: For each unit/stack with an autoinclude block, resolve the autoinclude body using the eval context. dependency.config_path is evaluated; inputs are left unevaluated.
+// ParseStackFile two-pass parses a terragrunt.stack.hcl: decodes unit/stack blocks with lazy source/path, builds the eval context (using caller-supplied refs when present), then resolves each autoinclude body.
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
 	validateParseStackFileInput(fs, input)
 
@@ -85,12 +76,6 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	evalCtx := buildParseEvalContext(input, unitRefs, stackRefs)
 
-	if stackFile.Locals != nil {
-		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx); err != nil {
-			return nil, err
-		}
-	}
-
 	if err := processStackIncludes(fs, stackFile, input.StackDir, evalCtx, srcByAutoInclude); err != nil {
 		return nil, err
 	}
@@ -98,6 +83,13 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	// Bootstrap path: refresh refs and the unit/stack eval variables now that included units/stacks have been merged into stackFile. Caller-supplied refs already reflect the post-include layout (the production parser does include merging upstream) and must not be overwritten.
 	if !callerSuppliedRefs {
 		refreshBootstrapRefs(fs, input, stackFile, stackTargetDir, evalCtx)
+	}
+
+	// Evaluate locals after includes so locals referencing unit.<X>.path see units contributed by included files; mergeOneInclude rejects locals in included files so root locals are the only locals here.
+	if stackFile.Locals != nil {
+		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx); err != nil {
+			return nil, err
+		}
 	}
 
 	autoIncludes, err := resolveAutoIncludes(stackFile, evalCtx, srcByAutoInclude)
@@ -198,7 +190,11 @@ func EvalString(expr hcl.Expression, ctx *hcl.EvalContext, attrName string) (str
 		return "", FileDecodeError{Name: attrName, Detail: diags.Error()}
 	}
 
-	if val.IsNull() || !val.IsKnown() {
+	if val.IsNull() {
+		return "", FileDecodeError{Name: attrName, Detail: "must not be null"}
+	}
+
+	if !val.IsKnown() {
 		return "", nil
 	}
 
@@ -378,6 +374,10 @@ func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, k
 		resolved.EvalCtx = evalCtx
 		resolved.Kind = kind
 		resolved.SourceBytes = sourceBytes
+	}
+
+	if resolved != nil && kind == KindUnit && resolved.Values != nil {
+		return nil, FileDecodeError{Name: attrValues, Detail: "`values` is only supported in stack-level autoinclude blocks"}
 	}
 
 	return resolved, nil

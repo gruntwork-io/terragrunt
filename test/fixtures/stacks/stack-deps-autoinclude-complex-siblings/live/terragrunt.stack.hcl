@@ -1,11 +1,4 @@
-// Mirrors the HCL pattern from https://github.com/gruntwork-io/terragrunt/issues/5663#issuecomment-4373686666
-// Combines every feature class that previously broke the simplified two-pass parser:
-//   - terragrunt function call (get_terragrunt_dir, equivalent at parse-time to get_repo_root) in source
-//   - local.* references in values
-//   - values.* references in values
-//   - autoinclude block on a single unit only
-//
-// All three failure modes must coexist with autoinclude generation succeeding.
+// Fixture: combines terragrunt function calls, local.* references, and values.* references in unrelated units alongside an autoinclude block on a single unit.
 
 locals {
   shared_region = "us-east-1"

@@ -1180,6 +1180,17 @@ func TestEvalString_FunctionCall(t *testing.T) {
 	require.Error(t, err, "no upper function bound; eval must fail")
 }
 
+// TestEvalString_NullValueIsError pins that a null-valued expression surfaces an error so downstream filepath.Join does not silently merge an empty path segment.
+func TestEvalString_NullValueIsError(t *testing.T) {
+	t.Parallel()
+
+	parsed, diags := hclsyntax.ParseExpression([]byte(`null`), "test.hcl", hcl.Pos{Line: 1, Column: 1})
+	require.False(t, diags.HasErrors())
+
+	_, err := hclparse.EvalString(parsed, &hcl.EvalContext{}, "path")
+	require.Error(t, err, "null value must produce an error, not an empty string")
+}
+
 // TestAutoIncludeResolve_ValuesAttribute pins that the autoinclude `values = {...}` attribute is captured into AutoIncludeResolved.Values when the body declares it, with dependency mock_outputs bound so `dependency.X.outputs.Y` references resolve at parse time.
 func TestAutoIncludeResolve_ValuesAttribute(t *testing.T) {
 	t.Parallel()
@@ -1256,10 +1267,31 @@ stack "consumer" {
 	assert.Nil(t, resolved.Values, "absent values attribute must leave AutoIncludeResolved.Values nil")
 }
 
-// TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude pins the bootstrap-path
-// (no UnitRefs/StackRefs supplied) behavior: a unit declared in an included stack file must
-// be reachable as unit.<name>.path in the eval context used to resolve another autoinclude
-// in the same included file. Regression for the include-after-refs ordering bug.
+// TestAutoIncludeResolve_ValuesRejectedOnUnitKind pins that a unit-level autoinclude `values = {...}` block surfaces a parse error so the user is told `values` is stack-only.
+func TestAutoIncludeResolve_ValuesRejectedOnUnitKind(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "consumer" {
+  source = "../catalog/units/consumer"
+  path   = "consumer"
+
+  autoinclude {
+    values = {
+      val = "literal"
+    }
+  }
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+	require.Error(t, err, "unit-level autoinclude `values` must be rejected")
+	assert.Contains(t, err.Error(), "stack-level autoinclude")
+}
+
+// TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude regresses the bootstrap-path include-after-refs ordering bug: a unit declared in an included file must be reachable as unit.<name>.path when another autoinclude in the same included file resolves.
 func TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude(t *testing.T) {
 	t.Parallel()
 
@@ -1305,4 +1337,55 @@ unit "app" {
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
 	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "vpc"), resolved.Dependencies[0].ConfigPath,
 		"unit.vpc.path must resolve to vpc's generated path after include merge, not be undefined")
+}
+
+// TestParseStackFile_RootLocalReferencesUnitFromInclude regresses the bootstrap-path locals-after-includes ordering: a root `local` referencing `unit.<X>.path` for a unit declared in an included file must resolve, because locals now run after include merge + ref refresh.
+func TestParseStackFile_RootLocalReferencesUnitFromInclude(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	mainSrc := `
+include "shared" {
+  path = "shared.hcl"
+}
+
+locals {
+  shared_unit_path = unit.shared_unit.path
+}
+
+unit "consumer" {
+  source = "../catalog/units/consumer"
+  path   = "consumer"
+
+  autoinclude {
+    dependency "shared_unit" {
+      config_path = local.shared_unit_path
+    }
+  }
+}
+`
+
+	includeSrc := `
+unit "shared_unit" {
+  source = "../catalog/units/shared"
+  path   = "shared"
+}
+`
+
+	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644))
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      []byte(mainSrc),
+		Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"),
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "consumer")]
+	require.True(t, ok)
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "shared"), resolved.Dependencies[0].ConfigPath,
+		"local.shared_unit_path must resolve via unit.shared_unit.path (from included file) to shared's generated path")
 }

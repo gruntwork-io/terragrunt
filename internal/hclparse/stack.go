@@ -31,7 +31,7 @@ type StackIncludeHCL struct {
 	Name string         `hcl:",label"`
 }
 
-// UnitBlockHCL represents the first-phase parse of a unit block. Source and Path are captured as lazy expressions so non-literal expressions in unrelated unit attributes do not block decoding; callers evaluate them via EvalString when needed. Remain absorbs every other attribute (notably `values = {...}`, which the production parser handles via pkg/config.Unit.Values) so gohcl decoding does not reject them.
+// UnitBlockHCL is the first-phase parse of a unit block. Source/Path are lazy expressions; Remain absorbs the rest (including `values = {...}`, handled by pkg/config.Unit.Values).
 type UnitBlockHCL struct {
 	Remain       hcl.Body        `hcl:",remain"`
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
@@ -42,7 +42,7 @@ type UnitBlockHCL struct {
 	Name         string          `hcl:",label"`
 }
 
-// StackBlockHCL represents the first-phase parse of a stack block. Source and Path are captured as lazy expressions; see UnitBlockHCL. Remain absorbs every other attribute (notably `values = {...}`, which the production parser handles via pkg/config.Stack.Values).
+// StackBlockHCL is the first-phase parse of a stack block. Source/Path are lazy expressions; Remain absorbs the rest (including `values = {...}`, handled by pkg/config.Stack.Values).
 type StackBlockHCL struct {
 	Remain       hcl.Body        `hcl:",remain"`
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
