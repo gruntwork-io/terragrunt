@@ -25,6 +25,11 @@
   ],
   "redirects": [
     {
+      "source": "/docs/:path*",
+      "destination": "/:path*",
+      "permanent": true
+    },
+    {
       "source": "/lp/:slug*",
       "destination": "https://terragrunt.com/lp/:slug*",
       "permanent": true
