@@ -22,6 +22,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -44,9 +45,12 @@ type App struct {
 	l    log.Logger
 }
 
-// NewApp creates the Terragrunt CLI App.
-func NewApp(l log.Logger, opts *options.TerragruntOptions) *App {
-	terragruntCommands := commands.New(l, opts)
+// NewApp creates the Terragrunt CLI App. The supplied [venv.Venv] is the
+// root virtualized environment; it is threaded through to the command
+// constructors and captured by their Action closures rather than held on
+// the App, so virtualized handlers stay function parameters.
+func NewApp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *App {
+	terragruntCommands := commands.New(l, opts, v)
 
 	app := clihelper.NewApp()
 	app.Name = AppName

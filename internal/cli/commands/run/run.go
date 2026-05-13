@@ -19,16 +19,17 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// Run runs the run command.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	tips.GiveStackTargetTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
+// Run runs the run command. v is the root virtualized environment
+// threaded from the CLI entrypoint; filesystem and subprocess calls use
+// it rather than constructing fresh OS handles at the call site.
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
+	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	if opts.TerraformCommand == tf.CommandNameDestroy {
 		opts.CheckDependentUnits = opts.DestroyDependenciesCheck
@@ -73,7 +74,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	// Early exit for version command to avoid expensive setup
 	if opts.TerraformCommand == tf.CommandNameVersion {
-		return runVersionCommand(ctx, l, opts)
+		return runVersionCommand(ctx, l, opts, v)
 	}
 
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
@@ -154,7 +155,7 @@ func isTerraformPath(opts *options.TerragruntOptions) bool {
 
 // runVersionCommand runs the version command. We do this instead of going through the normal run flow because
 // we can resolve `version` a lot more cheaply.
-func runVersionCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func runVersionCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
 	if !opts.TFPathExplicitlySet {
 		if tfPath, err := getTFPathFromConfig(ctx, l, opts); err != nil {
 			return err
@@ -163,7 +164,7 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 	}
 
-	return tf.RunCommand(ctx, l, vexec.NewOSExec(), configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
+	return tf.RunCommand(ctx, l, v.Exec, configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 }
 
 func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {

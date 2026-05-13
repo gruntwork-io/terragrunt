@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -67,12 +68,16 @@ const (
 
 // New returns the set of Terragrunt commands, grouped into categories.
 // Categories are ordered in increments of 10 for easy insertion of new categories.
-func New(l log.Logger, opts *options.TerragruntOptions) clihelper.Commands {
+//
+// The supplied [venv.Venv] is the root virtualized environment threaded
+// from the CLI entrypoint. Only commands that need filesystem or process
+// side effects receive it; the others keep their existing signatures.
+func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.Commands {
 	mainCommands := clihelper.Commands{
-		runcmd.NewCommand(l, opts),  // run
-		stack.NewCommand(l, opts),   // stack
-		execcmd.NewCommand(l, opts), // exec
-		backend.NewCommand(l, opts), // backend
+		runcmd.NewCommand(l, opts, v), // run
+		stack.NewCommand(l, opts),     // stack
+		execcmd.NewCommand(l, opts),   // exec
+		backend.NewCommand(l, opts),   // backend
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  MainCommandsCategoryName,
@@ -115,7 +120,7 @@ func New(l log.Logger, opts *options.TerragruntOptions) clihelper.Commands {
 		},
 	)
 
-	shortcutsCommands := NewShortcutsCommands(l, opts).SetCategory(
+	shortcutsCommands := NewShortcutsCommands(l, opts, v).SetCategory(
 		&clihelper.Category{
 			Name:  ShortcutsCommandsCategoryName,
 			Order: 50, //nolint: mnd

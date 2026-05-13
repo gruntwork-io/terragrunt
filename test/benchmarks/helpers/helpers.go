@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -36,7 +37,7 @@ func RunTerragruntCommand(b *testing.B, args ...string) {
 
 	l := logger.CreateLogger().WithOptions(log.WithOutput(io.Discard))
 
-	app := cli.NewApp(l, opts)
+	app := cli.NewApp(l, opts, venv.OSVenv())
 
 	ctx := log.ContextWithLogger(b.Context(), l)
 
