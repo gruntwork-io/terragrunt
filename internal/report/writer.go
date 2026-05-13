@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -286,45 +287,7 @@ func (r *Report) WriteCSV(w io.Writer) error {
 	}
 
 	for _, run := range r.Runs {
-		run.mu.RLock()
-		defer run.mu.RUnlock()
-
-		workingDir := effectiveWorkingDir(run, r.workingDir)
-		name := nameOfPath(run.Path, workingDir)
-
-		started := run.Started.Format(time.RFC3339)
-		ended := run.Ended.Format(time.RFC3339)
-		result := string(run.Result)
-		reason := ""
-
-		if run.Reason != nil {
-			reason = string(*run.Reason)
-		}
-
-		cause := ""
-		if run.Cause != nil {
-			cause = string(*run.Cause)
-
-			if reason == string(ReasonAncestorError) && workingDir != "" {
-				cause = strings.TrimPrefix(cause, workingDir+string(os.PathSeparator))
-			}
-		}
-
-		// Format Args as pipe-separated string for CSV to avoid conflicts with CSV column separator
-		args := strings.Join(run.Args, "|")
-
-		err := csvWriter.Write([]string{
-			name,
-			started,
-			ended,
-			result,
-			reason,
-			cause,
-			run.Ref,
-			run.Cmd,
-			args,
-		})
-		if err != nil {
+		if err := csvWriter.Write(run.csvRow(r.workingDir)); err != nil {
 			return err
 		}
 	}
@@ -340,37 +303,7 @@ func (r *Report) WriteJSON(w io.Writer) error {
 	runs := make([]JSONRun, 0, len(r.Runs))
 
 	for _, run := range r.Runs {
-		run.mu.RLock()
-		defer run.mu.RUnlock()
-
-		workingDir := effectiveWorkingDir(run, r.workingDir)
-		name := nameOfPath(run.Path, workingDir)
-
-		jsonRun := JSONRun{
-			Name:    name,
-			Started: run.Started,
-			Ended:   run.Ended,
-			Ref:     run.Ref,
-			Cmd:     run.Cmd,
-			Args:    run.Args,
-			Result:  string(run.Result),
-		}
-
-		if run.Reason != nil {
-			reason := string(*run.Reason)
-			jsonRun.Reason = &reason
-		}
-
-		if run.Cause != nil {
-			cause := string(*run.Cause)
-			if run.Reason != nil && *run.Reason == ReasonAncestorError && workingDir != "" {
-				cause = strings.TrimPrefix(cause, workingDir+string(os.PathSeparator))
-			}
-
-			jsonRun.Cause = &cause
-		}
-
-		runs = append(runs, jsonRun)
+		runs = append(runs, run.toJSONRun(r.workingDir))
 	}
 
 	jsonBytes, err := json.MarshalIndent(runs, "", "  ")
@@ -383,6 +316,79 @@ func (r *Report) WriteJSON(w io.Writer) error {
 	_, err = w.Write(jsonBytes)
 
 	return err
+}
+
+// csvRow returns the run as a CSV row, handling its own locking.
+func (r *Run) csvRow(reportWorkingDir string) []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	workingDir := effectiveWorkingDir(r, reportWorkingDir)
+
+	reason := ""
+	if r.Reason != nil {
+		reason = string(*r.Reason)
+	}
+
+	// Format Args as pipe-separated string for CSV to avoid conflicts with CSV column separator
+	args := strings.Join(r.Args, "|")
+
+	return []string{
+		nameOfPath(r.Path, workingDir),
+		r.Started.Format(time.RFC3339),
+		r.Ended.Format(time.RFC3339),
+		string(r.Result),
+		reason,
+		formatCause(r, workingDir),
+		r.Ref,
+		r.Cmd,
+		args,
+	}
+}
+
+// toJSONRun returns the run as a JSONRun, handling its own locking.
+func (r *Run) toJSONRun(reportWorkingDir string) JSONRun {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	workingDir := effectiveWorkingDir(r, reportWorkingDir)
+
+	jsonRun := JSONRun{
+		Name:    nameOfPath(r.Path, workingDir),
+		Started: r.Started,
+		Ended:   r.Ended,
+		Ref:     r.Ref,
+		Cmd:     r.Cmd,
+		Args:    slices.Clone(r.Args),
+		Result:  string(r.Result),
+	}
+
+	if r.Reason != nil {
+		reason := string(*r.Reason)
+		jsonRun.Reason = &reason
+	}
+
+	if r.Cause != nil {
+		cause := formatCause(r, workingDir)
+		jsonRun.Cause = &cause
+	}
+
+	return jsonRun
+}
+
+// formatCause returns the formatted cause string for a run.
+func formatCause(r *Run, workingDir string) string {
+	if r.Cause == nil {
+		return ""
+	}
+
+	cause := string(*r.Cause)
+
+	if r.Reason != nil && *r.Reason == ReasonAncestorError && workingDir != "" {
+		cause = strings.TrimPrefix(cause, workingDir+string(os.PathSeparator))
+	}
+
+	return cause
 }
 
 // WriteSchemaToFile writes a JSON schema for the report to a file.
