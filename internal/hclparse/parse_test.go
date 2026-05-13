@@ -1483,3 +1483,39 @@ unit "shared_unit" {
 	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "shared"), resolved.Dependencies[0].ConfigPath,
 		"local.shared_unit_path must resolve via unit.shared_unit.path (from included file) to shared's generated path")
 }
+
+// TestParseStackFile_BootstrapUnitPathEvalErrorSurfaces pins that the bootstrap path (no caller-supplied UnitRefs) returns an error when a unit's path expression cannot be evaluated against the stdlib eval context, instead of silently dropping the unit and confusing downstream autoinclude resolution with "Unknown variable: unit".
+func TestParseStackFile_BootstrapUnitPathEvalErrorSurfaces(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = get_repo_root()
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+	require.Error(t, err, "bootstrap parse must surface unsupported-function eval errors instead of silently skipping the unit")
+	assert.Contains(t, err.Error(), "vpc", "error must name the offending unit so users can locate it")
+}
+
+// TestParseStackFile_BootstrapStackSourceEvalErrorSurfaces pins the same hardening for stack-block source expressions.
+func TestParseStackFile_BootstrapStackSourceEvalErrorSurfaces(t *testing.T) {
+	t.Parallel()
+
+	src := `
+stack "networking" {
+  source = get_repo_root()
+  path   = "networking"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+	require.Error(t, err, "bootstrap parse must surface unsupported-function eval errors in stack source instead of silently skipping the stack")
+	assert.Contains(t, err.Error(), "networking", "error must name the offending stack so users can locate it")
+}

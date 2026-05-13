@@ -88,7 +88,7 @@ func TestMergeStackAutoIncludeValues_InvalidBaseValuesErrors(t *testing.T) {
 
 	_, err := mergeStackAutoIncludeValues(&base, autoInclude)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "component values must be object or map")
+	assert.Contains(t, err.Error(), "stack block values must be object or map")
 }
 
 func ctyObjPtr(m map[string]cty.Value) *cty.Value {

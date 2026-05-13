@@ -450,7 +450,7 @@ func mergeStackAutoIncludeValues(baseValues, autoIncludeValues *cty.Value) (*cty
 		return baseValues, nil
 	}
 
-	baseMap, baseOK, err := valuesMapForMerge("component", baseValues)
+	baseMap, baseOK, err := valuesMapForMerge("stack block", baseValues)
 	if err != nil {
 		return nil, err
 	}

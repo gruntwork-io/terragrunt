@@ -73,12 +73,15 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	stackTargetDir := filepath.Join(input.StackDir, StackDir)
 	callerSuppliedRefs := input.UnitRefs != nil || input.StackRefs != nil
 
-	unitRefs, stackRefs := initialRefs(fs, input, stackFile, stackTargetDir, callerSuppliedRefs)
+	unitRefs, stackRefs, err := initialRefs(fs, input, stackFile, stackTargetDir, callerSuppliedRefs)
+	if err != nil {
+		return nil, err
+	}
 
 	evalCtx := buildParseEvalContext(input, unitRefs, stackRefs)
 
 	if stackFile.Locals != nil {
-		_ = evaluateLocals(stackFile.Locals.Remain, evalCtx, false)
+		evaluateLocalsBestEffort(stackFile.Locals.Remain, evalCtx)
 	}
 
 	if err := processStackIncludes(fs, stackFile, input.StackDir, evalCtx, srcByAutoInclude); err != nil {
@@ -87,12 +90,14 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	// Bootstrap path: refresh refs and the unit/stack eval variables now that included units/stacks have been merged into stackFile. Caller-supplied refs already reflect the post-include layout (the production parser does include merging upstream) and must not be overwritten.
 	if !callerSuppliedRefs {
-		refreshBootstrapRefs(fs, input, stackFile, stackTargetDir, evalCtx)
+		if err := refreshBootstrapRefs(fs, input, stackFile, stackTargetDir, evalCtx); err != nil {
+			return nil, err
+		}
 	}
 
 	// Strict locals pass after includes so locals referencing unit.<X>.path see units contributed by included files; mergeOneInclude rejects locals in included files so root locals are the only locals here.
 	if stackFile.Locals != nil {
-		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx, true); err != nil {
+		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx); err != nil {
 			return nil, err
 		}
 	}
@@ -145,16 +150,24 @@ func decodeStackFile(input *ParseStackFileInput) (*StackFileHCL, error) {
 }
 
 // initialRefs returns the unit/stack ComponentRef slices used to seed the autoinclude eval context. When the caller supplied UnitRefs/StackRefs (post-include refs from the production parser), use them verbatim. Otherwise evaluate each unit/stack's lazy Path against a stdlib-only eval context so include path expressions can use unit.X.path / stack.X.path for what is already declared in the root file.
-func initialRefs(fs vfs.FS, input *ParseStackFileInput, stackFile *StackFileHCL, stackTargetDir string, callerSuppliedRefs bool) ([]ComponentRef, []ComponentRef) {
+func initialRefs(fs vfs.FS, input *ParseStackFileInput, stackFile *StackFileHCL, stackTargetDir string, callerSuppliedRefs bool) ([]ComponentRef, []ComponentRef, error) {
 	if callerSuppliedRefs {
-		return input.UnitRefs, input.StackRefs
+		return input.UnitRefs, input.StackRefs, nil
 	}
 
 	bootstrapCtx := stdlibEvalContext(input.StackDir)
-	unitRefs := buildRefsWithAbsPath(stackTargetDir, stackFile.Units, bootstrapCtx)
-	stackRefs := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0, bootstrapCtx)
 
-	return unitRefs, stackRefs
+	unitRefs, err := buildRefsWithAbsPath(stackTargetDir, stackFile.Units, bootstrapCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	stackRefs, err := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0, bootstrapCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return unitRefs, stackRefs, nil
 }
 
 // buildParseEvalContext composes the autoinclude eval context: unit/stack ref objects, any caller-supplied function set, and the caller's `values` overlay.
@@ -172,12 +185,23 @@ func buildParseEvalContext(input *ParseStackFileInput, unitRefs, stackRefs []Com
 }
 
 // refreshBootstrapRefs re-evaluates unit/stack Path expressions and updates evalCtx.Variables[varUnit/varStack] after include merging, so autoinclude expressions can reference units/stacks contributed by included files.
-func refreshBootstrapRefs(fs vfs.FS, input *ParseStackFileInput, stackFile *StackFileHCL, stackTargetDir string, evalCtx *hcl.EvalContext) {
+func refreshBootstrapRefs(fs vfs.FS, input *ParseStackFileInput, stackFile *StackFileHCL, stackTargetDir string, evalCtx *hcl.EvalContext) error {
 	bootstrapCtx := stdlibEvalContext(input.StackDir)
-	unitRefs := buildRefsWithAbsPath(stackTargetDir, stackFile.Units, bootstrapCtx)
-	stackRefs := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0, bootstrapCtx)
+
+	unitRefs, err := buildRefsWithAbsPath(stackTargetDir, stackFile.Units, bootstrapCtx)
+	if err != nil {
+		return err
+	}
+
+	stackRefs, err := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0, bootstrapCtx)
+	if err != nil {
+		return err
+	}
+
 	evalCtx.Variables[varUnit] = BuildComponentRefMap(unitRefs)
 	evalCtx.Variables[varStack] = BuildComponentRefMap(stackRefs)
+
+	return nil
 }
 
 // EvalString evaluates expr against ctx and returns the resulting string. Returns ("", nil) when expr is nil (attribute absent). When ctx is nil the expression must be a constant; if expr references variables, returns an error. attrName is used in error messages.
@@ -210,8 +234,18 @@ func EvalString(expr hcl.Expression, ctx *hcl.EvalContext, attrName string) (str
 	return val.AsString(), nil
 }
 
-// evaluateLocals iteratively evaluates locals attributes against evalCtx. Strict mode returns errors for eval failures, cycles, and iteration overflow; non-strict mode evaluates whatever is ready and silently leaves the rest (used in the pre-include best-effort pass so locals that depend on included-file units can be retried later).
-func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext, strict bool) error {
+// evaluateLocals strictly evaluates root locals against evalCtx. Returns an error on eval failure, dependency cycle, or iteration overflow. Used after include merging so locals referencing unit.<X>.path resolve against the fully populated context.
+func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
+	return evaluateLocalsRun(body, evalCtx, true)
+}
+
+// evaluateLocalsBestEffort evaluates root locals that are ready against evalCtx and silently leaves the rest for the later strict pass. Used before include merging so include paths referencing local.X resolve while locals referencing not-yet-merged units are deferred.
+func evaluateLocalsBestEffort(body hcl.Body, evalCtx *hcl.EvalContext) {
+	_ = evaluateLocalsRun(body, evalCtx, false)
+}
+
+// evaluateLocalsRun is the shared iterative evaluator used by both passes. Strict mode surfaces errors; best-effort mode skips failures silently so they can be retried after include merging.
+func evaluateLocalsRun(body hcl.Body, evalCtx *hcl.EvalContext, strict bool) error {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {
 		return nil
@@ -514,14 +548,14 @@ func validateNoDuplicateStacks(stacks []*StackBlockHCL) error {
 	return errors.Join(errs...)
 }
 
-// buildRefsWithAbsPath creates ComponentRef values with paths resolved to the absolute location under .terragrunt-stack/. Units whose Path expression cannot be evaluated against evalCtx are silently skipped, matching the permissive contract where non-literal expressions in unrelated units must not block autoinclude resolution.
-func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL, evalCtx *hcl.EvalContext) []ComponentRef {
+// buildRefsWithAbsPath creates ComponentRef values with paths resolved to the absolute location under .terragrunt-stack/. Returns an error when any unit's Path expression cannot be evaluated against evalCtx so callers on the bootstrap path see the root cause rather than a misleading downstream "Unknown variable: unit" diagnostic.
+func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL, evalCtx *hcl.EvalContext) ([]ComponentRef, error) {
 	refs := make([]ComponentRef, 0, len(units))
 
 	for _, u := range units {
 		path, err := EvalString(u.Path, evalCtx, attrPath)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("evaluate unit %q path: %w", u.Name, err)
 		}
 
 		unitPath := filepath.Join(stackTargetDir, path)
@@ -536,17 +570,17 @@ func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL, evalCtx 
 		})
 	}
 
-	return refs
+	return refs, nil
 }
 
-// buildStackRefsWithAbsPath builds ComponentRef values for stack blocks and discovers their child units. Stacks whose Path or Source cannot be evaluated against evalCtx are silently skipped.
-func buildStackRefsWithAbsPath(fs vfs.FS, stackDir, stackTargetDir string, stacks []*StackBlockHCL, depth int, evalCtx *hcl.EvalContext) []ComponentRef {
+// buildStackRefsWithAbsPath builds ComponentRef values for stack blocks and discovers their child units. Returns an error when any stack's Path or Source expression cannot be evaluated against evalCtx so callers on the bootstrap path see the root cause rather than a misleading downstream "Unknown variable: stack" diagnostic.
+func buildStackRefsWithAbsPath(fs vfs.FS, stackDir, stackTargetDir string, stacks []*StackBlockHCL, depth int, evalCtx *hcl.EvalContext) ([]ComponentRef, error) {
 	refs := make([]ComponentRef, 0, len(stacks))
 
 	for _, s := range stacks {
 		path, err := EvalString(s.Path, evalCtx, attrPath)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("evaluate stack %q path: %w", s.Name, err)
 		}
 
 		stackGenPath := filepath.Join(stackTargetDir, path)
@@ -557,7 +591,7 @@ func buildStackRefsWithAbsPath(fs vfs.FS, stackDir, stackTargetDir string, stack
 
 		sourceDir, sourceErr := EvalString(s.Source, evalCtx, attrSource)
 		if sourceErr != nil {
-			continue
+			return nil, fmt.Errorf("evaluate stack %q source: %w", s.Name, sourceErr)
 		}
 
 		if !filepath.IsAbs(sourceDir) {
@@ -571,5 +605,5 @@ func buildStackRefsWithAbsPath(fs vfs.FS, stackDir, stackTargetDir string, stack
 		})
 	}
 
-	return refs
+	return refs, nil
 }
