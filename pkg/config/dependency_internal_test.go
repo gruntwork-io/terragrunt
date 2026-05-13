@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -93,42 +92,28 @@ func TestExtractFirstJSONObject(t *testing.T) {
 	}
 }
 
-// TestTryGetStackOutput_JSONConfigSibling pins that a dep dir with both terragrunt.hcl.json and terragrunt.stack.hcl is identified as a stack dep (regression for a switch that previously fell through on JSON config paths).
-func TestTryGetStackOutput_JSONConfigSibling(t *testing.T) {
+// TestResolveStackFilePath pins the path-rewrite helper used by tryGetStackOutput across all dependency-target shapes: direct stack file, terragrunt.hcl sibling, terragrunt.hcl.json sibling (regression for JSON-config fall-through), and a bare directory.
+func TestResolveStackFilePath(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), []byte(`{}`), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, DefaultStackFile), []byte(`# empty stack`), 0644))
+	wantStack := filepath.Join(tmpDir, DefaultStackFile)
 
-	// Replicate the path-rewrite step of tryGetStackOutput to confirm the JSON-config case produces a valid stack file path.
 	cases := []struct {
-		name           string
-		inputBase      string
-		expectStackHCL bool
+		name  string
+		input string
+		want  string
 	}{
-		{"stackFileDirectly", DefaultStackFile, true},
-		{"terragruntHCL", DefaultTerragruntConfigPath, true},
-		{"terragruntJSON", DefaultTerragruntJSONConfigPath, true},
+		{"stackFileDirectly", filepath.Join(tmpDir, DefaultStackFile), wantStack},
+		{"terragruntHCL", filepath.Join(tmpDir, DefaultTerragruntConfigPath), wantStack},
+		{"terragruntJSON", filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), wantStack},
+		{"bareDirectory", tmpDir, wantStack},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			stackFilePath := filepath.Join(tmpDir, tc.inputBase)
-
-			switch filepath.Base(stackFilePath) {
-			case DefaultStackFile:
-			case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
-				stackFilePath = filepath.Join(filepath.Dir(stackFilePath), DefaultStackFile)
-			default:
-				stackFilePath = filepath.Join(stackFilePath, DefaultStackFile)
-			}
-
-			if tc.expectStackHCL {
-				assert.Equal(t, filepath.Join(tmpDir, DefaultStackFile), stackFilePath)
-			}
+			assert.Equal(t, tc.want, resolveStackFilePath(tc.input))
 		})
 	}
 }

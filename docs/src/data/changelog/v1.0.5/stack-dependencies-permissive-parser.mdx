@@ -37,9 +37,9 @@ unit "roles" {
 }
 ```
 
-`run --all` discovery on generated nested stack files. `terragrunt run --all` no longer fails with `Function calls not allowed; Functions may not be called here.` on a `.terragrunt-stack/<name>/terragrunt.stack.hcl` whose unit `source` or `path` contains terragrunt function calls. Discovery now walks generated nested stack files using the unified lazy parser.
+`terragrunt run --all` now walks generated nested stack files via the unified lazy parser. It no longer fails with `Function calls not allowed; Functions may not be called here.` on a `.terragrunt-stack/<name>/terragrunt.stack.hcl` whose unit `source` contains terragrunt function calls.
 
-Stack-level autoinclude `values` propagation. A `stack { autoinclude { values = {...} } }` block now propagates its resolved values into each generated nested-stack unit's `terragrunt.values.hcl`, so the nested unit's `inputs = { val = values.val }` resolves at runtime instead of failing with `Unknown variable; There is no variable named "values"`. The autoinclude eval context binds each declared dependency's `mock_outputs` so `dependency.X.outputs.Y` references in the values resolve at generation time.
+A `stack { autoinclude { values = {...} } }` block now propagates its resolved values into each generated nested-stack unit's `terragrunt.values.hcl`, so the nested unit's `inputs = { val = values.val }` resolves at runtime instead of failing with `Unknown variable; There is no variable named "values"`. The autoinclude eval context binds each declared dependency's `mock_outputs` so `dependency.X.outputs.Y` references in the values resolve at generation time.
 
 ```hcl
 stack "stack_w_values" {

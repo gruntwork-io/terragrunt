@@ -1,4 +1,4 @@
-// Fixture: stack autoinclude `values = {...}` computed from a dependency on a sibling stack's unit output must reach the nested stack's units as values.<key>.
+// Fixture: stack autoinclude `values = {...}` is resolved at stack-generation time and propagated into nested-stack units as `values.<key>`. References to `dependency.X.outputs.Y` resolve from the dependency's `mock_outputs` here; real apply-time output propagation is not covered.
 
 stack "stack_w_outputs" {
   source = "../catalog/stacks/stack-w-outputs"

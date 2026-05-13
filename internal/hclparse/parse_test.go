@@ -3,6 +3,7 @@ package hclparse_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 const (
@@ -1167,17 +1169,39 @@ func TestEvalString_NeedsCtx(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestEvalString_FunctionCall verifies a function call evaluates when the eval context provides the function.
-func TestEvalString_FunctionCall(t *testing.T) {
+// TestEvalString_FunctionCallMissingFunction errors when the call references a function the eval context does not bind.
+func TestEvalString_FunctionCallMissingFunction(t *testing.T) {
 	t.Parallel()
 
 	parsed, diags := hclsyntax.ParseExpression([]byte(`upper("vpc")`), "test.hcl", hcl.Pos{Line: 1, Column: 1})
 	require.False(t, diags.HasErrors())
 
-	ctx := &hcl.EvalContext{}
-
-	_, err := hclparse.EvalString(parsed, ctx, "path")
+	_, err := hclparse.EvalString(parsed, &hcl.EvalContext{}, "path")
 	require.Error(t, err, "no upper function bound; eval must fail")
+}
+
+// TestEvalString_FunctionCallProvided evaluates a function call when the eval context binds the function.
+func TestEvalString_FunctionCallProvided(t *testing.T) {
+	t.Parallel()
+
+	parsed, diags := hclsyntax.ParseExpression([]byte(`upper("vpc")`), "test.hcl", hcl.Pos{Line: 1, Column: 1})
+	require.False(t, diags.HasErrors())
+
+	ctx := &hcl.EvalContext{
+		Functions: map[string]function.Function{
+			"upper": function.New(&function.Spec{
+				Params: []function.Parameter{{Name: "s", Type: cty.String}},
+				Type:   function.StaticReturnType(cty.String),
+				Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+					return cty.StringVal(strings.ToUpper(args[0].AsString())), nil
+				},
+			}),
+		},
+	}
+
+	got, err := hclparse.EvalString(parsed, ctx, "path")
+	require.NoError(t, err)
+	assert.Equal(t, "VPC", got)
 }
 
 // TestEvalString_NullValueIsError pins that a null-valued expression surfaces an error so downstream filepath.Join does not silently merge an empty path segment.

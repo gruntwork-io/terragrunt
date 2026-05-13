@@ -791,16 +791,7 @@ func tryGetStackOutput(
 	targetConfigPath string,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
-	// Resolve the stack file path. getCleanedTargetConfigPath replaces a bare directory dep with <dir>/terragrunt.hcl, so peel the synthetic suffix back to <dir> when discovering whether the dep actually points at a stack directory.
-	stackFilePath := targetConfigPath
-
-	switch filepath.Base(stackFilePath) {
-	case DefaultStackFile:
-	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
-		stackFilePath = filepath.Join(filepath.Dir(stackFilePath), DefaultStackFile)
-	default:
-		stackFilePath = filepath.Join(stackFilePath, DefaultStackFile)
-	}
+	stackFilePath := resolveStackFilePath(targetConfigPath)
 
 	if !util.FileExists(stackFilePath) {
 		return nil, false, nil
@@ -832,6 +823,18 @@ func tryGetStackOutput(
 	result := cty.ObjectVal(unitOutputs)
 
 	return &result, true, nil
+}
+
+// resolveStackFilePath rewrites a dependency target path into a candidate terragrunt.stack.hcl path. getCleanedTargetConfigPath appends terragrunt.hcl to bare directory deps, so peel that back to <dir>/terragrunt.stack.hcl; the JSON config sibling is handled the same way.
+func resolveStackFilePath(targetConfigPath string) string {
+	switch filepath.Base(targetConfigPath) {
+	case DefaultStackFile:
+		return targetConfigPath
+	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
+		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile)
+	default:
+		return filepath.Join(targetConfigPath, DefaultStackFile)
+	}
 }
 
 func isAwsS3NoSuchKey(err error) bool {
