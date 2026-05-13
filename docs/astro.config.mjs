@@ -149,7 +149,10 @@ export default defineConfig({
     sitemap({
       changefreq: "weekly",
       priority: 0.7,
-      lastmod: new Date(),
+      // lastmod intentionally omitted: a global new Date() stamps every URL
+      // with build time, which Google heuristics discount as noise. Per-page
+      // accuracy would need git log (Vercel's default shallow clone makes this
+      // unreliable) or a populated `lastUpdated` frontmatter field.
     }),
   ],
   markdown: {
