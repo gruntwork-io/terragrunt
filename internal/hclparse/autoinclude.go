@@ -155,12 +155,12 @@ func resolveAutoIncludeValues(body *hclsyntax.Body, evalCtx *hcl.EvalContext, de
 		return nil, nil
 	}
 
-	augmented, depDiags := augmentEvalCtxWithDeps(evalCtx, body, deps)
+	depCtx, depDiags := ctxWithDeps(evalCtx, body, deps)
 	if depDiags.HasErrors() {
 		return nil, depDiags
 	}
 
-	val, diags := valuesAttr.Expr.Value(augmented)
+	val, diags := valuesAttr.Expr.Value(depCtx)
 	if diags.HasErrors() {
 		return nil, diags
 	}
@@ -168,8 +168,8 @@ func resolveAutoIncludeValues(body *hclsyntax.Body, evalCtx *hcl.EvalContext, de
 	return &val, nil
 }
 
-// augmentEvalCtxWithDeps returns a copy of evalCtx with `dependency.<name>` bound to an object whose `outputs` attribute is the resolved mock_outputs of each declared dependency. Dependencies without mock_outputs are bound with an empty outputs object so references through them do not panic.
-func augmentEvalCtxWithDeps(evalCtx *hcl.EvalContext, body *hclsyntax.Body, deps []AutoIncludeDependency) (*hcl.EvalContext, hcl.Diagnostics) {
+// ctxWithDeps returns a copy of evalCtx with `dependency.<name>` bound to an object whose `outputs` attribute is the resolved mock_outputs of each declared dependency. Dependencies without mock_outputs are bound with an empty outputs object so references through them do not panic.
+func ctxWithDeps(evalCtx *hcl.EvalContext, body *hclsyntax.Body, deps []AutoIncludeDependency) (*hcl.EvalContext, hcl.Diagnostics) {
 	depObj := make(map[string]cty.Value, len(deps))
 
 	var diags hcl.Diagnostics
@@ -184,18 +184,18 @@ func augmentEvalCtxWithDeps(evalCtx *hcl.EvalContext, body *hclsyntax.Body, deps
 		return nil, diags
 	}
 
-	augmented := &hcl.EvalContext{
+	depCtx := &hcl.EvalContext{
 		Variables: make(map[string]cty.Value, len(evalCtx.Variables)+1),
 		Functions: evalCtx.Functions,
 	}
 
 	for k, v := range evalCtx.Variables {
-		augmented.Variables[k] = v
+		depCtx.Variables[k] = v
 	}
 
-	augmented.Variables[varDependency] = cty.ObjectVal(depObj)
+	depCtx.Variables[varDependency] = cty.ObjectVal(depObj)
 
-	return augmented, nil
+	return depCtx, nil
 }
 
 // mockOutputsFromBody finds the dependency block by name in body, extracts its `mock_outputs` attribute, and returns the evaluated value. Returns cty.EmptyObjectVal when the dependency has no mock_outputs.

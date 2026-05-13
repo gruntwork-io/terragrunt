@@ -95,3 +95,98 @@ func ctyObjPtr(m map[string]cty.Value) *cty.Value {
 	v := cty.ObjectVal(m)
 	return &v
 }
+
+// FuzzMergeUnitValuesWithStackValues drives the merge helper with assorted cty value shapes and asserts no panic. Permitted outcomes: either a non-error merge whose result is object/map or nil, or an error.
+func FuzzMergeUnitValuesWithStackValues(f *testing.F) {
+	type seed struct {
+		unitKey     string
+		stackKey    string
+		hasUnit     bool
+		hasStack    bool
+		isStackKind bool
+	}
+
+	seeds := []seed{
+		{"a", "b", true, true, false},
+		{"k", "k", true, true, false},
+		{"a", "", true, false, false},
+		{"", "a", false, true, false},
+		{"", "", false, false, false},
+		{"a", "b", true, true, true},
+	}
+
+	for _, s := range seeds {
+		f.Add(s.hasUnit, s.hasStack, s.unitKey, s.stackKey, s.isStackKind)
+	}
+
+	f.Fuzz(func(t *testing.T, hasUnit, hasStack bool, unitKey, stackKey string, isStackKind bool) {
+		var unit, stack *cty.Value
+
+		if hasUnit && unitKey != "" {
+			unit = ctyObjPtr(map[string]cty.Value{unitKey: cty.StringVal("u")})
+		}
+
+		if hasStack && stackKey != "" {
+			stack = ctyObjPtr(map[string]cty.Value{stackKey: cty.StringVal("s")})
+		}
+
+		kind := unitKind
+		if isStackKind {
+			kind = stackKind
+		}
+
+		got, err := mergeUnitValuesWithStackValues(unit, stack, kind)
+		if err != nil {
+			return
+		}
+
+		if got == nil {
+			return
+		}
+
+		require.True(t, got.Type().IsObjectType() || got.Type().IsMapType(), "merge result must be object or map (got %s)", got.Type().FriendlyName())
+	})
+}
+
+// FuzzMergeStackAutoIncludeValues drives the autoinclude merge helper with assorted shapes; verifies no panic and that successful results are object/map (or nil).
+func FuzzMergeStackAutoIncludeValues(f *testing.F) {
+	seeds := []struct {
+		baseKey string
+		autoKey string
+		hasBase bool
+		hasAuto bool
+	}{
+		{"a", "b", true, true},
+		{"k", "k", true, true},
+		{"", "a", false, true},
+		{"a", "", true, false},
+		{"", "", false, false},
+	}
+
+	for _, s := range seeds {
+		f.Add(s.hasBase, s.hasAuto, s.baseKey, s.autoKey)
+	}
+
+	f.Fuzz(func(t *testing.T, hasBase, hasAuto bool, baseKey, autoKey string) {
+		var base, auto *cty.Value
+
+		if hasBase && baseKey != "" {
+			base = ctyObjPtr(map[string]cty.Value{baseKey: cty.StringVal("b")})
+		}
+
+		if hasAuto && autoKey != "" {
+			auto = ctyObjPtr(map[string]cty.Value{autoKey: cty.StringVal("a")})
+		}
+
+		got, err := mergeStackAutoIncludeValues(base, auto)
+		if err != nil {
+			return
+		}
+
+		if got == nil {
+			return
+		}
+
+		require.True(t, got.Type().IsObjectType() || got.Type().IsMapType(), "merge result must be object or map (got %s)", got.Type().FriendlyName())
+	})
+}

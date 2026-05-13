@@ -57,7 +57,13 @@ type ParseResult struct {
 	Stacks       []*StackBlockHCL
 }
 
-// ParseStackFile two-pass parses a terragrunt.stack.hcl: decodes unit/stack blocks with lazy source/path, builds the eval context (using caller-supplied refs when present), then resolves each autoinclude body.
+// ParseStackFile performs a two-pass parse of a terragrunt.stack.hcl file.
+//
+// Pass 1: Decode unit/stack blocks. Source/Path are captured as lazy hcl.Expression values (non-literal expressions in unrelated unit attributes do not block decoding). The autoinclude body is captured as hcl.Body via remain (not evaluated).
+//
+// Between passes: Build eval context with unit.<name>.path and stack.<name>.path variables. When the caller supplies pre-resolved UnitRefs/StackRefs, those drive the refs; otherwise paths are evaluated against a stdlib-only context and refs are refreshed after include merging.
+//
+// Pass 2: For each unit/stack with an autoinclude block, resolve the autoinclude body using the eval context. dependency.config_path is evaluated (references unit.*.path / stack.*.<unit>.path), while inputs are left unevaluated (contain dependency.*.outputs.* which is runtime-only).
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
 	validateParseStackFileInput(fs, input)
 
@@ -555,7 +561,7 @@ func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL, evalCtx 
 	for _, u := range units {
 		path, err := EvalString(u.Path, evalCtx, attrPath)
 		if err != nil {
-			return nil, fmt.Errorf("evaluate unit %q path: %w", u.Name, err)
+			return nil, RefEvalError{Kind: "unit", Name: u.Name, Attr: attrPath, Err: err}
 		}
 
 		unitPath := filepath.Join(stackTargetDir, path)
@@ -580,7 +586,7 @@ func buildStackRefsWithAbsPath(fs vfs.FS, stackDir, stackTargetDir string, stack
 	for _, s := range stacks {
 		path, err := EvalString(s.Path, evalCtx, attrPath)
 		if err != nil {
-			return nil, fmt.Errorf("evaluate stack %q path: %w", s.Name, err)
+			return nil, RefEvalError{Kind: "stack", Name: s.Name, Attr: attrPath, Err: err}
 		}
 
 		stackGenPath := filepath.Join(stackTargetDir, path)
@@ -591,7 +597,7 @@ func buildStackRefsWithAbsPath(fs vfs.FS, stackDir, stackTargetDir string, stack
 
 		sourceDir, sourceErr := EvalString(s.Source, evalCtx, attrSource)
 		if sourceErr != nil {
-			return nil, fmt.Errorf("evaluate stack %q source: %w", s.Name, sourceErr)
+			return nil, RefEvalError{Kind: "stack", Name: s.Name, Attr: attrSource, Err: sourceErr}
 		}
 
 		if !filepath.IsAbs(sourceDir) {

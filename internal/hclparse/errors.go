@@ -159,3 +159,19 @@ type EmptyArgError struct {
 func (e EmptyArgError) Error() string {
 	return fmt.Sprintf("hclparse.%s: %s is empty", e.Func, e.Arg)
 }
+
+// RefEvalError indicates that a unit's or stack's lazy attribute expression (path or source) could not be evaluated against the bootstrap eval context.
+type RefEvalError struct {
+	Err  error
+	Kind string
+	Name string
+	Attr string
+}
+
+func (e RefEvalError) Error() string {
+	return fmt.Sprintf("evaluate %s %q %s: %s", e.Kind, e.Name, e.Attr, e.Err)
+}
+
+func (e RefEvalError) Unwrap() error {
+	return e.Err
+}

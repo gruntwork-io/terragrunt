@@ -117,3 +117,28 @@ func TestResolveStackFilePath(t *testing.T) {
 		})
 	}
 }
+
+// FuzzResolveStackFilePath verifies the path-rewrite helper never panics and always returns a path ending in DefaultStackFile.
+func FuzzResolveStackFilePath(f *testing.F) {
+	seeds := []string{
+		"/abs/dir/" + DefaultStackFile,
+		"/abs/dir/" + DefaultTerragruntConfigPath,
+		"/abs/dir/" + DefaultTerragruntJSONConfigPath,
+		"/abs/dir",
+		"relative/dir",
+		"",
+		".",
+		"/",
+		"\x00",
+		"unicode/café",
+	}
+
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, input string) {
+		got := resolveStackFilePath(input)
+		require.Equal(t, DefaultStackFile, filepath.Base(got), "resolveStackFilePath must always return a path whose base is %s (input=%q got=%q)", DefaultStackFile, input, got)
+	})
+}
