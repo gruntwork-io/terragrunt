@@ -139,6 +139,68 @@ func TestBuildRequestURLRelativePath(t *testing.T) {
 	)
 }
 
+func TestGetLatestModuleVersion(t *testing.T) {
+	t.Parallel()
+
+	server := newRegistryTestServer(t)
+
+	latestVersion, err := getter.GetLatestModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(),
+		server.Listener.Addr().String(), "/v1/modules/", "terraform-aws-modules/vpc/aws",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "3.3.0", latestVersion)
+}
+
+// TestGetLatestModuleVersionSkipsPrereleases pins the behavior of the
+// resolver when a registry has prerelease versions that sort above the
+// latest stable: prereleases are excluded so the resolver matches the
+// default unconstrained-resolution semantics of OpenTofu and Terraform.
+func TestGetLatestModuleVersionSkipsPrereleases(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"3.3.0"},{"version":"4.0.0-rc1"},{"version":"2.0.0"}]}]}`)
+
+	latest, err := getter.GetLatestModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(),
+		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "3.3.0", latest)
+}
+
+// TestGetLatestModuleVersionAllPrereleases verifies that when only
+// prerelease versions are published, the resolver errors out instead of
+// silently returning a prerelease. Users are expected to pin a version
+// explicitly in that case.
+func TestGetLatestModuleVersionAllPrereleases(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"1.0.0-alpha"},{"version":"2.0.0-rc1"}]}]}`)
+
+	_, err := getter.GetLatestModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(),
+		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
+	)
+	require.Error(t, err)
+}
+
+// TestGetLatestModuleVersionSkipsUnparsable pins the behavior that
+// unparsable version entries are silently skipped (with a debug log) so
+// a single bad row in the registry response cannot block resolution.
+func TestGetLatestModuleVersionSkipsUnparsable(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"not-a-version"},{"version":"1.0.0"}]}]}`)
+
+	latest, err := getter.GetLatestModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(),
+		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.0", latest)
+}
+
 // newRegistryTestServer stands up an httptest TLS server that speaks enough of
 // the OpenTofu/Terraform module-registry protocol to satisfy the
 // RegistryGetter: the service-discovery document, a module download endpoint
@@ -185,15 +247,22 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 	return server
 }
 
-func TestGetLatestModuleVersion(t *testing.T) {
-	t.Parallel()
+// newVersionsTestServer stands up a TLS test server that responds to the
+// module list-versions endpoint with the supplied JSON body. Used by the
+// GetLatestModuleVersion tests that exercise prerelease filtering and the
+// unparsable-version skip path.
+func newVersionsTestServer(t *testing.T, body string) *httptest.Server {
+	t.Helper()
 
-	server := newRegistryTestServer(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/modules/foo/bar/baz/versions", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(body))
+		assert.NoError(t, err)
+	})
 
-	latestVersion, err := getter.GetLatestModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(),
-		server.Listener.Addr().String(), "/v1/modules/", "terraform-aws-modules/vpc/aws",
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "3.3.0", latestVersion)
+	server := httptest.NewTLSServer(mux)
+	t.Cleanup(server.Close)
+
+	return server
 }

@@ -25,11 +25,13 @@ const versionQueryKey = "version"
 //
 // Source URLs take the form:
 //
-//	tfr://REGISTRY_DOMAIN/MODULE_PATH?version=VERSION
+//	tfr://REGISTRY_DOMAIN/MODULE_PATH[?version=VERSION]
 //
 // where MODULE_PATH is the registry-style namespace/name/system path
-// (e.g. terraform-aws-modules/vpc/aws). The getter speaks the
-// Terraform Registry Module Registry Protocol
+// (e.g. terraform-aws-modules/vpc/aws). The `version` query parameter is
+// optional; when omitted, the latest stable version is resolved from the
+// registry's list-versions endpoint. The getter speaks the Terraform
+// Registry Module Registry Protocol
 // (https://www.terraform.io/docs/internals/module-registry-protocol.html)
 // to resolve the X-Terraform-Get redirect, then re-enters the parent
 // go-getter Client (looked up via [getter.ClientFromContext]) to fetch the
@@ -99,39 +101,10 @@ func (r *RegistryGetter) Detect(req *getter.Request) (bool, error) {
 	return false, nil
 }
 
-
-// resolveVersion determines the module version to download. If a version is
-// specified in the URL query it is validated and returned as-is. Otherwise the
-// latest version is resolved from the registry's List Available Versions endpoint.
-func (r *RegistryGetter) resolveVersion(ctx context.Context, queryValues url.Values, registryDomain, moduleRegistryBasePath, modulePath string) (string, error) {
-	versionList, hasVersion := queryValues[versionQueryKey]
-
-	if hasVersion && len(versionList) != 1 {
-		return "", errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
-	}
-
-	if hasVersion {
-		if versionList[0] == "" {
-			return "", errors.New(MalformedRegistryURLErr{reason: "version query is empty"})
-		}
-
-		return versionList[0], nil
-	}
-
-	// No version specified — query the registry for the latest.
-	latestVersion, err := GetLatestModuleVersion(ctx, r.Logger, r.HTTPClient, registryDomain, moduleRegistryBasePath, modulePath)
-	if err != nil {
-		return "", err
-	}
-
-	r.Logger.Infof("No version specified for module %s, using latest version %s", modulePath, latestVersion)
-
-	return latestVersion, nil
-}
-
 // Get fetches the module contents specified at req.Src and downloads them to
 // req.Dst. req.Src must be a tfr:// URL with the module path encoded as
-// `:namespace/:name/:system` and a `version` query parameter.
+// `:namespace/:name/:system`. The `version` query parameter is optional; when
+// absent, the latest stable version is resolved from the registry.
 func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 	srcURL := req.URL()
 
@@ -253,4 +226,32 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 	}(manifestPath)
 
 	return util.CopyFolderContentsWithFilter(l, sourcePath, dstPath, manifestFname, func(string) bool { return true })
+}
+
+// resolveVersion determines the module version to download. If a version is
+// specified in the URL query it is validated and returned as-is. Otherwise the
+// latest stable version is resolved from the registry's list-versions endpoint.
+func (r *RegistryGetter) resolveVersion(ctx context.Context, queryValues url.Values, registryDomain, moduleRegistryBasePath, modulePath string) (string, error) {
+	versionList, hasVersion := queryValues[versionQueryKey]
+
+	if hasVersion && len(versionList) != 1 {
+		return "", errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
+	}
+
+	if hasVersion {
+		if versionList[0] == "" {
+			return "", errors.New(MalformedRegistryURLErr{reason: "version query is empty"})
+		}
+
+		return versionList[0], nil
+	}
+
+	latestVersion, err := GetLatestModuleVersion(ctx, r.Logger, r.HTTPClient, registryDomain, moduleRegistryBasePath, modulePath)
+	if err != nil {
+		return "", err
+	}
+
+	r.Logger.Infof("No version specified for module %s, using latest version %s", modulePath, latestVersion)
+
+	return latestVersion, nil
 }
