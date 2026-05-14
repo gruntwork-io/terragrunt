@@ -108,19 +108,11 @@ func IsFastCopyEnabled(strictControls strict.Controls) bool {
 
 //nolint:lll
 func New() strict.Controls {
-	lifecycleCategory := &strict.Category{
-		Name: "Lifecycle controls",
-	}
-	stageCategory := &strict.Category{
-		Name: "Stage controls",
-	}
-
 	skipDependenciesInputsControl := &Control{
 		Name:        SkipDependenciesInputs,
 		Description: "Controls whether to allow the deprecated dependency inputs feature. Dependency inputs are now disabled by default for performance. Use dependency outputs instead.",
 		Error:       errors.Errorf("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs."),
 		Warning:     "Reading inputs from dependencies has been deprecated and is now disabled by default for performance. Use dependency outputs instead.",
-		Category:    stageCategory,
 		Status:      strict.CompletedStatus,
 	}
 
@@ -129,7 +121,6 @@ func New() strict.Controls {
 		Description: "Don't bootstrap backends by default. When enabled, users must supply `--backend-bootstrap` explicitly to automatically bootstrap backend resources.",
 		Error:       errors.Errorf("Bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead."),
 		Warning:     "Bootstrapping backend resources by default is deprecated functionality, and will not be the default behavior in a future version of Terragrunt. Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.",
-		Category:    stageCategory,
 		Status:      strict.CompletedStatus,
 	}
 
@@ -137,22 +128,18 @@ func New() strict.Controls {
 		&Control{
 			Name:        DeprecatedCommands,
 			Description: "Prevents deprecated commands from being used.",
-			Category:    lifecycleCategory,
 		},
 		&Control{
 			Name:        DeprecatedFlags,
 			Description: "Prevents deprecated flags from being used.",
-			Category:    lifecycleCategory,
 		},
 		&Control{
 			Name:        DeprecatedEnvVars,
 			Description: "Prevents deprecated env vars from being used.",
-			Category:    lifecycleCategory,
 		},
 		&Control{
 			Name:        DeprecatedConfigs,
 			Description: "Prevents deprecated config syntax from being used.",
-			Category:    lifecycleCategory,
 			Subcontrols: strict.Controls{
 				skipDependenciesInputsControl,
 				requireExplicitBootstrapControl,
@@ -163,90 +150,75 @@ func New() strict.Controls {
 		&Control{
 			Name:        CLIRedesign,
 			Description: "Prevents the use of commands deprecated as part of the CLI Redesign.",
-			Category:    stageCategory,
 		},
 		&Control{
 			Name:        LegacyAll,
 			Description: "Prevents old *-all commands such as plan-all from being used.",
-			Category:    stageCategory,
 			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        "spin-up",
 			Description: "Prevents the deprecated spin-up command from being used.",
-			Category:    stageCategory,
 			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        "tear-down",
 			Description: "Prevents the deprecated tear-down command from being used.",
-			Category:    stageCategory,
 			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        "plan-all",
 			Description: "Prevents the deprecated plan-all command from being used.",
-			Category:    stageCategory,
 			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        "apply-all",
 			Description: "Prevents the deprecated apply-all command from being used.",
-			Category:    stageCategory,
 			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        "destroy-all",
 			Description: "Prevents the deprecated destroy-all command from being used.",
-			Category:    stageCategory,
 			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        "output-all",
 			Description: "Prevents the deprecated output-all command from being used.",
-			Category:    stageCategory,
 			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        "validate-all",
 			Description: "Prevents the deprecated validate-all command from being used.",
-			Category:    stageCategory,
 			Status:      strict.CompletedStatus,
 		},
 
 		&Control{
 			Name:        TerragruntPrefixFlags,
 			Description: "Prevents deprecated flags with `terragrunt-` prefixes from being used.",
-			Category:    stageCategory,
 			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        TerragruntPrefixEnvVars,
 			Description: "Prevents deprecated env vars with `TERRAGRUNT_` prefixes from being used.",
-			Category:    stageCategory,
 		},
 		&Control{
 			Name:        DefaultCommands,
 			Description: "Prevents default commands from being used.",
-			Category:    stageCategory,
 		},
 		&Control{
 			Name:        LegacyLogs,
 			Description: "Prevents old log flags from being used.",
-			Category:    stageCategory,
 		},
 		&Control{
 			Name:        RootTerragruntHCL,
 			Description: "Throw an error when users try to reference a root terragrunt.hcl file using find_in_parent_folders.",
 			Error:       errors.New("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl"),
 			Warning:     "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl",
-			Category:    stageCategory,
 		},
 
 		&Control{
 			Name:        BareInclude,
 			Description: "Prevents the use of the `include` block without a label.",
-			Category:    stageCategory,
 			Error:       errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
 			Warning:     "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://docs.terragrunt.com/migrate/bare-include/",
 		},
@@ -254,7 +226,6 @@ func New() strict.Controls {
 		&Control{
 			Name:        DoubleStar,
 			Description: "Use the `**` glob pattern to select all files in a directory and its subdirectories.",
-			Category:    stageCategory,
 			Error:       errors.New("Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one."),
 			Warning:     "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
 			Status:      strict.CompletedStatus,
@@ -262,71 +233,61 @@ func New() strict.Controls {
 		&Control{
 			Name:        QueueExcludeExternal,
 			Description: "Prevents the use of the deprecated `--queue-exclude-external` flag.",
-			Category:    stageCategory,
 			Error:       errors.New("The `--queue-exclude-external` flag is no longer supported. External dependencies are now excluded by default. Use --queue-include-external to include them."),
 			Warning:     "The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.",
 		},
 		&Control{
 			Name:        QueueStrictInclude,
 			Description: "Prevents the use of the deprecated `--queue-strict-include` flag.",
-			Category:    stageCategory,
 			Error:       errors.New("The `--queue-strict-include` flag is no longer supported. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior."),
 			Warning:     "The `--queue-strict-include` flag is deprecated and will be removed in a future version of Terragrunt. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior.",
 		},
 		&Control{
 			Name:        UnitsThatInclude,
 			Description: "Prevents the use of the deprecated `--units-that-include` flag.",
-			Category:    stageCategory,
 			Error:       errors.New("The `--units-that-include` flag is no longer supported. Use `--filter='reading=<path>'` to include units that include or read the specified configuration."),
 			Warning:     "The `--units-that-include` flag is deprecated and will be removed in a future version of Terragrunt. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.",
 		},
 		&Control{
 			Name:        DisableCommandValidation,
 			Description: "Prevents the use of the deprecated `--disable-command-validation` flag. Command validation has been removed entirely.",
-			Category:    stageCategory,
 			Error:       errors.New("The `--disable-command-validation` flag is no longer supported. Command validation has been removed entirely, and you can pass any command to `terragrunt run`."),
 			Warning:     "The `--disable-command-validation` flag is deprecated and will be removed in a future version of Terragrunt. Command validation has been removed entirely, and you can pass any command to `terragrunt run`.",
 		},
 		&Control{
 			Name:        NoDestroyDependenciesCheck,
 			Description: "Prevents the use of the deprecated `--no-destroy-dependencies-check` flag. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
-			Category:    stageCategory,
 			Error:       errors.New("The `--no-destroy-dependencies-check` flag is no longer supported. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations."),
 			Warning:     "The `--no-destroy-dependencies-check` flag is deprecated and will be removed in a future version of Terragrunt. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
 		},
 		&Control{
 			Name:        InternalTFLint,
 			Description: "Prevents the use of the deprecated embedded version of tflint, instead treating `tflint` as a normal hook.",
-			Category:    stageCategory,
 			Error:       errors.New("The embedded version of tflint is no longer supported. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally."),
 			Warning:     "The embedded version of tflint is deprecated and will be removed in a future version of Terragrunt. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally and avoid this warning.",
 		},
 		&Control{
 			Name:        DeprecatedHiddenFlag,
 			Description: "Prevents the use of the deprecated `--hidden` flag.",
-			Category:    stageCategory,
 			Error:       errors.New("The `--hidden` flag is no longer supported. Hidden directories are now included by default. Use `--no-hidden` to exclude them."),
 			Warning:     "The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.",
 		},
 		&Control{
 			Name:        DisableDependentModules,
 			Description: "Prevents the use of the deprecated `--disable-dependent-modules` flag.",
-			Category:    stageCategory,
 			Error:       errors.New("The `--disable-dependent-modules` flag is no longer supported. Dependent modules discovery has been removed from `terragrunt render`."),
 			Warning:     "The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.",
 		},
 		&Control{
 			Name:        FastCopy,
 			Description: "Switches `include_in_copy` and `exclude_from_copy` pattern matching from zglob to gobwas. `**` no longer collapses when adjacent to a wildcard, so `a/**/*.tf` will not match `a/foo.tf`. Use brace alternation like `{*.tf,**/*.tf}` to cover both depths.",
-			Category:    stageCategory,
 		},
 		&Control{
 			Name:        LegacyGCSPublicPrefix,
 			Description: "Stops auto-prefixing plain `https://www.googleapis.com/storage/...` source URLs with `gcs::`. Pre-v1.0.5 Terragrunt routed those URLs through the credentialed gcs getter; v1.0.5+ routes them through the http getter for anonymous access. The legacy prefix-rewrite is restored by default with a deprecation warning. Enable this control to opt into the new behavior and silence the warning.",
 			Warning:     LegacyGCSDeprecationWarning,
-			Category:    stageCategory,
 		},
 	}
 
-	return controls.Sort()
+	return controls
 }

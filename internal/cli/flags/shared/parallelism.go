@@ -14,7 +14,6 @@ const (
 func NewParallelismFlag(opts *options.TerragruntOptions) *flags.Flag {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 
 	return flags.NewFlag(
 		&clihelper.GenericFlag[int]{
@@ -23,6 +22,6 @@ func NewParallelismFlag(opts *options.TerragruntOptions) *flags.Flag {
 			Destination: &opts.Parallelism,
 			Usage:       "Parallelism for --all commands.",
 		},
-		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("parallelism"), terragruntPrefixControl),
+		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("parallelism"), opts.StrictControls),
 	)
 }

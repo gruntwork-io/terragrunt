@@ -11,16 +11,9 @@ const (
 )
 
 // NewAuthProviderCmdFlag creates a flag for specifying the auth provider command.
-func NewAuthProviderCmdFlag(opts *options.TerragruntOptions, prefix flags.Prefix, commandName string) *flags.Flag {
+func NewAuthProviderCmdFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-
-	var terragruntPrefixControl flags.RegisterStrictControlsFunc
-	if commandName != "" {
-		terragruntPrefixControl = flags.StrictControlsByCommand(opts.StrictControls, commandName)
-	} else {
-		terragruntPrefixControl = flags.StrictControlsByGlobalFlags(opts.StrictControls)
-	}
 
 	return flags.NewFlag(
 		&clihelper.GenericFlag[string]{
@@ -29,6 +22,6 @@ func NewAuthProviderCmdFlag(opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.AuthProviderCmd,
 			Usage:       "Run the provided command and arguments to authenticate Terragrunt dynamically when necessary.",
 		},
-		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("auth-provider-cmd"), terragruntPrefixControl),
+		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("auth-provider-cmd"), opts.StrictControls),
 	)
 }
