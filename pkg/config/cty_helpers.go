@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 )
 
 // Create a cty Function that takes as input parameters a slice of strings (var args, so this slice could be of any
@@ -244,6 +245,47 @@ func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error)
 
 func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 	return deepMergeCtyMapsMapOnly(target, source, mergo.WithAppendSlice)
+}
+
+// Create a cty Function that deeply merges map/object values.
+// Later args override earlier args for overlapping keys.
+func deepMergeMapValuesAsFuncImpl(pctx *ParsingContext) function.Function {
+	return function.New(&function.Spec{
+		VarParam: &function.Parameter{
+			Type:             cty.DynamicPseudoType,
+			AllowNull:        true,
+			AllowDynamicType: true,
+		},
+		Type: function.StaticReturnType(cty.DynamicPseudoType),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			if !pctx.Experiments.Evaluate(experiment.DeepMerge) {
+				return cty.NilVal, errors.New(DeepMergeRequiresExperimentError{ConfigPath: pctx.TerragruntConfigPath})
+			}
+
+			outVal := cty.EmptyObjectVal
+
+			for _, arg := range args {
+				if arg.IsNull() {
+					continue
+				}
+
+				if !arg.Type().IsMapType() && !arg.Type().IsObjectType() {
+					return cty.NilVal, errors.New(
+						InvalidParameterTypeError{Expected: "map or object", Actual: arg.Type().FriendlyName()},
+					)
+				}
+
+				merged, err := deepMergeCtyMaps(outVal, arg)
+				if err != nil {
+					return cty.NilVal, err
+				}
+
+				outVal = *merged
+			}
+
+			return outVal, nil
+		},
+	})
 }
 
 // deepMergeCtyMapsMapOnly implements a deep merge of two cty value objects. We can't directly merge two cty.Value objects, so

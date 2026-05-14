@@ -898,6 +898,201 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 	}
 }
 
+func TestTerragruntDeepMergeFunction(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		expected map[string]any
+		input    string
+	}{
+		{
+			input:    `deep_merge()`,
+			expected: map[string]any{},
+		},
+		{
+			input: `deep_merge(
+				{ service = { retries = 1, mode = "safe" } },
+				{ service = { retries = 3 } }
+			)`,
+			expected: map[string]any{
+				"service": map[string]any{
+					"retries": json.Number("3"),
+					"mode":    "safe",
+				},
+			},
+		},
+		{
+			input: `deep_merge(
+				{ base = { enabled = true } },
+				null,
+				{ extra = { enabled = false } }
+			)`,
+			expected: map[string]any{
+				"base": map[string]any{
+					"enabled": true,
+				},
+				"extra": map[string]any{
+					"enabled": false,
+				},
+			},
+		},
+		{
+			input: `deep_merge(
+				jsondecode("{\"env\":{\"region\":\"us-east-1\",\"tags\":{\"owner\":\"platform\"}},\"allow\":[1]}"),
+				jsondecode("{\"env\":{\"tags\":{\"app\":\"api\"}},\"allow\":[2]}")
+			)`,
+			expected: map[string]any{
+				"env": map[string]any{
+					"region": "us-east-1",
+					"tags": map[string]any{
+						"owner": "platform",
+						"app":   "api",
+					},
+				},
+				"allow": []any{json.Number("1"), json.Number("2")},
+			},
+		},
+		{
+			input: `deep_merge(
+				{
+					config = {
+						retries = 1
+						flags   = { enabled = true }
+					}
+				},
+				jsondecode("{\"config\":{\"timeout\":30,\"flags\":{\"debug\":false}}}")
+			)`,
+			expected: map[string]any{
+				"config": map[string]any{
+					"retries": json.Number("1"),
+					"timeout": json.Number("30"),
+					"flags": map[string]any{
+						"enabled": true,
+						"debug":   false,
+					},
+				},
+			},
+		},
+		{
+			input: `deep_merge(
+				{
+					env = {
+						region = "us-east-1"
+						tags   = { owner = "platform" }
+					}
+					allow = [1]
+				},
+				{
+					env = {
+						tags = { app = "api" }
+					}
+					allow = [2]
+				},
+				{
+					env = {
+						region = "us-west-2"
+					}
+				}
+			)`,
+			expected: map[string]any{
+				"env": map[string]any{
+					"region": "us-west-2",
+					"tags": map[string]any{
+						"owner": "platform",
+						"app":   "api",
+					},
+				},
+				"allow": []any{json.Number("1"), json.Number("2")},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+
+			cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
+			configString := fmt.Sprintf("inputs = { test = %s }", tc.input)
+			l := logger.CreateLogger()
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
+			actual, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
+			require.NoError(t, err)
+			require.NotNil(t, actual)
+
+			test, containsTest := actual.Inputs["test"]
+			require.True(t, containsTest)
+
+			assert.Equal(t, tc.expected, test)
+		})
+	}
+}
+
+func TestTerragruntDeepMergeFunctionRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
+	configString := `inputs = { test = deep_merge({ a = 1 }, { b = 2 }) }`
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	_, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "deep-merge")
+}
+
+func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
+	configString := `inputs = { test = deep_merge({ a = 1 }, "invalid") }`
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
+	_, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
+
+	var multiErr *errors.MultiError
+	require.ErrorAs(t, err, &multiErr)
+	require.ErrorContains(t, err, `Call to function "deep_merge" failed: Expected param of type map or object but got string.`)
+}
+
+func TestTerragruntDeepMergeFunctionFilesetJSONEndToEnd(t *testing.T) {
+	t.Parallel()
+
+	cfgPath, err := filepath.Abs("../../test/fixtures/deep-merge-fileset/" + config.DefaultTerragruntConfigPath)
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
+
+	cfg, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.Inputs)
+
+	expected := map[string]any{
+		"app": map[string]any{
+			"name": "svc-prod",
+			"settings": map[string]any{
+				"retries": json.Number("2"),
+				"timeout": json.Number("30"),
+				"tags": map[string]any{
+					"owner": "platform",
+					"team":  "core",
+				},
+			},
+		},
+		"ports": []any{json.Number("80"), json.Number("443")},
+		"env":   "prod",
+		"extra": map[string]any{
+			"enabled": true,
+		},
+	}
+
+	assert.Equal(t, expected, cfg.Inputs)
+}
+
 func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 	t.Parallel()
 

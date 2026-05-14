@@ -324,3 +324,13 @@ type MarkGlobAsReadRequiresExperimentError struct {
 func (err MarkGlobAsReadRequiresExperimentError) Error() string {
 	return fmt.Sprintf("mark_glob_as_read(%q) in %s requires the 'mark-many-as-read' experiment to be enabled", err.Pattern, err.ConfigPath)
 }
+
+// DeepMergeRequiresExperimentError is returned when the deep_merge HCL function
+// is called without the deep-merge experiment enabled.
+type DeepMergeRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err DeepMergeRequiresExperimentError) Error() string {
+	return fmt.Sprintf("deep_merge in %s requires the 'deep-merge' experiment to be enabled", err.ConfigPath)
+}
