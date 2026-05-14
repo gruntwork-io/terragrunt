@@ -134,16 +134,6 @@ func (e LocalsCycleError) Error() string {
 	return fmt.Sprintf("could not evaluate locals (possible cycle): %v", e.Names)
 }
 
-// LocalsMaxIterError indicates that locals evaluation exceeded the maximum iterations.
-type LocalsMaxIterError struct {
-	MaxIterations int
-	Remaining     int
-}
-
-func (e LocalsMaxIterError) Error() string {
-	return fmt.Sprintf("locals evaluation exceeded %d iterations with %d unresolved locals", e.MaxIterations, e.Remaining)
-}
-
 // MalformedDependencyError indicates a dependency block in an autoinclude file is malformed. Err optionally carries the original HCL diagnostics so callers can extract position info via errors.As/Is.
 type MalformedDependencyError struct {
 	Err      error
@@ -168,20 +158,4 @@ type EmptyArgError struct {
 
 func (e EmptyArgError) Error() string {
 	return fmt.Sprintf("hclparse.%s: %s is empty", e.Func, e.Arg)
-}
-
-// RefEvalError indicates that a unit's or stack's lazy `path` or `source` expression could not be evaluated. Surfaced on the bootstrap parse path (i.e. when the caller did not supply pre-resolved UnitRefs/StackRefs from the production parser), where evaluation runs against a minimal stdlib-only eval context.
-type RefEvalError struct {
-	Err  error
-	Kind string
-	Name string
-	Attr string
-}
-
-func (e RefEvalError) Error() string {
-	return fmt.Sprintf("evaluate %s %q %s: %s", e.Kind, e.Name, e.Attr, e.Err)
-}
-
-func (e RefEvalError) Unwrap() error {
-	return e.Err
 }

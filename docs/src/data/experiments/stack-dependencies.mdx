@@ -171,8 +171,8 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 
 <Since version="1.0.5">
 
-- [x] Lazy-expression parsing for `source`/`path` so non-literal HCL expressions in unrelated unit attributes do not block autoinclude resolution
-- [x] `terragrunt run --all` discovery walks generated nested stack files when they contain terragrunt function calls in unit `source`
+- [x] Phased parser: locals evaluate before include merge before unit/stack decode before autoinclude resolution, so any attribute that the production eval context can resolve (including `local.*`, `values.*`, terragrunt functions) works on unit/stack blocks
+- [x] `terragrunt run --all` discovery walks generated nested stack files via a path-only decode shape that does not require the unit `source` to be evaluable
 - [x] Unify strict and permissive parser into a single code path
 
 </Since>

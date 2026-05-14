@@ -3,42 +3,6 @@ version: "v1.0.5"
 category: "experiments-updated"
 ---
 
-#### `stack-dependencies`: parser fixes for non-literal expressions in unrelated units and `run --all` discovery
+#### `stack-dependencies`: phased parser for `terragrunt.stack.hcl`
 
-The `stack-dependencies` experiment ships the following fixes.
-
-The simplified two-pass parser now captures `source`, `path`, and include block `path` as lazy `hcl.Expression` values and evaluates them only when needed against the full Terragrunt eval context built by the production parser; `values` attributes are deferred via the body remainder and evaluated by the production parser itself. It no longer re-decodes a stack file with a `nil` eval context when any block declares an `autoinclude`. Non-literal expressions in unrelated unit attributes (`${get_repo_root()}/...`, `format(...)`, `local.region`, `values.idps`) no longer block autoinclude resolution.
-
-```hcl
-unit "account" {
-  source = "${get_repo_root()}/units/account"
-  path   = "account"
-  values = {
-    account = values.account
-    region  = local.region
-  }
-}
-
-unit "idps" {
-  source = format("%s/units/idp", get_terragrunt_dir())
-  path   = "idps"
-  values = { identityProviders = values.idps }
-}
-
-unit "roles" {
-  source = "${get_repo_root()}/units/roles"
-  path   = "roles"
-
-  autoinclude {
-    dependency "account" {
-      config_path = unit.account.path
-    }
-  }
-}
-```
-
-`terragrunt run --all` now walks generated nested stack files via the unified lazy parser. It no longer fails with `Function calls not allowed; Functions may not be called here.` on a `.terragrunt-stack/<name>/terragrunt.stack.hcl` whose unit `source` contains terragrunt function calls.
-
-Internally, the previously duplicated strict and permissive parse paths were unified. The `*Permissive` types and functions in `internal/hclparse/` were removed; the parser now has a single code path that uses lazy expressions and a caller-provided eval context.
-
-To learn more, see the [experiment documentation](/reference/experiments/active#stack-dependencies).
+`terragrunt.stack.hcl` is now parsed in four phases (slurp → locals → includes → unit/stack decode), so any attribute that the production eval context can resolve (including `local.*`, `values.*`, terragrunt functions) works on unit/stack blocks; `terragrunt run --all` discovery walks generated nested stack files via a path-only decode shape; the duplicated strict/permissive parser paths were unified.

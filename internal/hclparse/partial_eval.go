@@ -25,7 +25,8 @@ type EvalArgs struct {
 }
 
 // PartialEval walks an hclsyntax.Expression tree and returns HCL source text.
-// Pure expressions (no deferred refs) are fully evaluated to literals.
+// Pure expressions (no deferred refs) are evaluated to literals when doing so
+// does not execute function calls.
 // Mixed expressions get per-child treatment: evaluable parts become literals,
 // deferred parts keep their original source text.
 func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
@@ -59,7 +60,9 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	case *hclsyntax.TemplateExpr:
 		return partialEvalTemplate(e, args)
 	case *hclsyntax.TemplateWrapExpr:
-		return RangeBytes(args.SrcBytes, e.Range())
+		return PartialEval(e.Wrapped, args)
+	case *hclsyntax.FunctionCallExpr:
+		return partialEvalFunctionCall(e, args)
 	case *hclsyntax.ObjectConsExpr:
 		return partialEvalObject(e, args)
 	case *hclsyntax.TupleConsExpr:
@@ -91,8 +94,14 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) []byt
 }
 
 func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte {
-	if !IsPure(e.Condition, args.Deferred) {
-		return RangeBytes(args.SrcBytes, e.Range())
+	if !IsPure(e.Condition, args.Deferred) || containsFunctionCall(e.Condition) {
+		return slices.Concat(
+			PartialEval(e.Condition, args),
+			[]byte(" ? "),
+			PartialEval(e.TrueResult, args),
+			[]byte(" : "),
+			PartialEval(e.FalseResult, args),
+		)
 	}
 
 	condVal, diags := e.Condition.Value(args.EvalCtx)
@@ -110,6 +119,21 @@ func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte
 	}
 
 	return PartialEval(e.FalseResult, args)
+}
+
+func partialEvalFunctionCall(e *hclsyntax.FunctionCallExpr, args *EvalArgs) []byte {
+	callArgs := make([][]byte, 0, len(e.Args))
+
+	for i, arg := range e.Args {
+		evaluated := PartialEval(arg, args)
+		if e.ExpandFinal && i == len(e.Args)-1 {
+			evaluated = slices.Concat(evaluated, []byte("..."))
+		}
+
+		callArgs = append(callArgs, evaluated)
+	}
+
+	return slices.Concat([]byte(e.Name+"("), bytes.Join(callArgs, []byte(", ")), []byte(")"))
 }
 
 func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) []byte {
@@ -207,9 +231,9 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 			}
 		}
 
-		// Deferred or eval failed: emit as interpolation.
+		// Deferred, function call, or eval failed: emit as interpolation.
 		buf.WriteString("${")
-		buf.Write(RangeBytes(args.SrcBytes, part.Range()))
+		buf.Write(PartialEval(part, args))
 		buf.WriteByte('}')
 	}
 

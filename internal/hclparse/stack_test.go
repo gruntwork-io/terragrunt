@@ -7,16 +7,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
-
-// staticStringExpr builds a literal-string hcl.Expression suitable for the lazy Path/Source fields on UnitBlockHCL / StackBlockHCL.
-func staticStringExpr(s string) hcl.Expression {
-	return hcl.StaticExpr(cty.StringVal(s), hcl.Range{Filename: "test"})
-}
 
 func TestBuildComponentRefMap_Empty(t *testing.T) {
 	t.Parallel()
@@ -113,37 +107,6 @@ func TestBuildComponentRefMap_MultiLevelChildRefs(t *testing.T) {
 	dbVal := deepVal.GetAttr("db")
 	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db", dbVal.GetAttr("path").AsString())
 	assert.Equal(t, "db", dbVal.GetAttr("name").AsString())
-}
-
-func TestExtractUnitRefs(t *testing.T) {
-	t.Parallel()
-
-	units := []*hclparse.UnitBlockHCL{
-		{Name: "vpc", Path: staticStringExpr("vpc"), Source: staticStringExpr("../modules/vpc")},
-		{Name: "app", Path: staticStringExpr("app-service"), Source: staticStringExpr("../modules/app")},
-	}
-
-	refs := hclparse.ExtractUnitRefs(units, nil)
-
-	require.Len(t, refs, 2)
-	assert.Equal(t, "vpc", refs[0].Name)
-	assert.Equal(t, "vpc", refs[0].Path)
-	assert.Equal(t, "app", refs[1].Name)
-	assert.Equal(t, "app-service", refs[1].Path)
-}
-
-func TestExtractStackRefs(t *testing.T) {
-	t.Parallel()
-
-	stacks := []*hclparse.StackBlockHCL{
-		{Name: "networking", Path: staticStringExpr("networking"), Source: staticStringExpr("../stacks/networking")},
-	}
-
-	refs := hclparse.ExtractStackRefs(stacks, nil)
-
-	require.Len(t, refs, 1)
-	assert.Equal(t, "networking", refs[0].Name)
-	assert.Equal(t, "networking", refs[0].Path)
 }
 
 func TestBuildAutoIncludeEvalContext(t *testing.T) {

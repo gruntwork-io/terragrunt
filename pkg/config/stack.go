@@ -113,25 +113,19 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	var stackSrcBytes []byte
 
 	if pctx.Experiments.Evaluate(experiment.StackDependencies) && stackConfigHasAutoInclude(stackFile) {
-		// Note: stackSrcBytes is read separately for the autoinclude parser which slices expression byte ranges from the original file. ReadStackConfigFile already parsed the file with the complete Terragrunt eval context (functions, locals, values) and resolved each unit/stack's path; the autoinclude parser reuses those resolved refs via UnitRefs/StackRefs so it does not need to re-evaluate non-literal source/path/values expressions in unrelated unit attributes.
+		// stackSrcBytes is read separately for the autoinclude parser, which slices expression byte ranges from the original file when generating terragrunt.autoinclude.hcl.
 		stackSrcBytes, err = os.ReadFile(stackFilePath)
 		if err != nil {
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 		}
 
-		unitRefs := buildUnitRefs(stackFile, stackSourceDir, stackTargetDir)
-		stackRefs := buildStackRefs(stackFile, stackSourceDir, stackTargetDir)
-
-		// Rescope the parsing context to the stack file being parsed so terragrunt functions that resolve paths relative to TerragruntConfigPath (e.g. find_in_parent_folders, get_terragrunt_dir, path_relative_to_include) anchor on the nested stack file's location, not the root caller's terragrunt.hcl. Without this, find_in_parent_folders called from a deeply nested .terragrunt-stack/.../terragrunt.stack.hcl starts from the wrong directory.
+		// Rescope the parsing context to the stack file being parsed so terragrunt functions that resolve paths relative to TerragruntConfigPath (e.g. find_in_parent_folders, get_terragrunt_dir, path_relative_to_include) anchor on the nested stack file's location, not the root caller's terragrunt.hcl.
 		_, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
 		if scopedErr != nil {
 			return errors.Errorf("failed to rescope parsing context for autoinclude parser %s: %w", stackFilePath, scopedErr)
 		}
 
-		// Reuse the production parser's eval context so the autoinclude parser sees the same function set
-		// (terraform stdlib + every terragrunt function: get_repo_root, find_in_parent_folders, run_cmd, ...)
-		// and caller variables such as feature/dependency/include. ParseStackFile overlays stack-local
-		// variables (`unit`, `stack`, `local`, and `values`) for the file it is parsing.
+		// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
 		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, l, stackFilePath)
 		if evalCtxErr != nil {
 			return errors.Errorf("failed to build eval context for autoinclude parser %s: %w", stackFilePath, evalCtxErr)
@@ -143,8 +137,6 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			StackDir:  stackSourceDir,
 			Values:    values,
 			Variables: prodEvalCtx.Variables,
-			UnitRefs:  unitRefs,
-			StackRefs: stackRefs,
 			Functions: prodEvalCtx.Functions,
 		})
 		if parseErr != nil {
@@ -1053,80 +1045,4 @@ func bodyHasBlock(body hcl.Body, blockType string) bool {
 	}
 
 	return len(content.Blocks) > 0
-}
-
-// buildUnitRefs returns a slice of unit ComponentRefs (name + absolute target path) using the production-parsed StackConfig. Feeds unit.<name>.path into the autoinclude eval context without re-evaluating source/path/values expressions in unrelated units.
-func buildUnitRefs(stackFile *StackConfig, stackSourceDir, stackTargetDir string) []inthclparse.ComponentRef {
-	if stackFile == nil {
-		return nil
-	}
-
-	refs := make([]inthclparse.ComponentRef, 0, len(stackFile.Units))
-
-	for _, u := range stackFile.Units {
-		if u == nil || u.Name == "" {
-			continue
-		}
-
-		dir := stackTargetDir
-		if u.NoStack != nil && *u.NoStack {
-			dir = stackSourceDir
-		}
-
-		refs = append(refs, inthclparse.ComponentRef{
-			Name: u.Name,
-			Path: filepath.Join(dir, u.Path),
-		})
-	}
-
-	return refs
-}
-
-// buildStackRefs returns ComponentRefs for stack blocks with ChildRefs populated via DiscoverStackChildUnits so stack.<name>.<unit>.path references resolve at autoinclude eval time.
-func buildStackRefs(stackFile *StackConfig, stackSourceDir, stackTargetDir string) []inthclparse.ComponentRef {
-	if stackFile == nil {
-		return nil
-	}
-
-	osfs := vfs.NewOSFS()
-	refs := make([]inthclparse.ComponentRef, 0, len(stackFile.Stacks))
-
-	for _, s := range stackFile.Stacks {
-		if s == nil || s.Name == "" {
-			continue
-		}
-
-		dir := stackTargetDir
-		if s.NoStack != nil && *s.NoStack {
-			dir = stackSourceDir
-		}
-
-		stackGenPath := filepath.Join(dir, s.Path)
-
-		ref := inthclparse.ComponentRef{Name: s.Name, Path: stackGenPath}
-		if sourceDir, isLocal := localStackSourceDir(s.Source, stackSourceDir); isLocal {
-			ref.ChildRefs = inthclparse.DiscoverStackChildUnits(osfs, sourceDir, stackGenPath)
-		}
-
-		refs = append(refs, ref)
-	}
-
-	return refs
-}
-
-// localStackSourceDir returns the absolute filesystem directory for a stack.Source when it is local (plain relative/absolute path or file://). Returns ("", false) for go-getter-style remote sources (git::, https://, s3://, etc.) so the caller skips child-unit discovery instead of mangling the source with filepath.Join.
-func localStackSourceDir(source, stackSourceDir string) (string, bool) {
-	if strings.HasPrefix(source, "file://") {
-		return strings.TrimPrefix(source, "file://"), true
-	}
-
-	if strings.Contains(source, "://") {
-		return "", false
-	}
-
-	if filepath.IsAbs(source) {
-		return source, true
-	}
-
-	return filepath.Join(stackSourceDir, source), true
 }

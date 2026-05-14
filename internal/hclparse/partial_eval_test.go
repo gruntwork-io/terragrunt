@@ -268,6 +268,90 @@ func TestPartialEval_PreservesFunctionCalls(t *testing.T) {
 	assert.NotContains(t, result, "executed")
 }
 
+func TestPartialEval_PreservesFunctionCallsInConditionalCondition(t *testing.T) {
+	t.Parallel()
+
+	var called bool
+
+	evalCtx := buildEvalCtx()
+	evalCtx.Functions = map[string]function.Function{
+		"danger": function.New(&function.Spec{
+			Type: function.StaticReturnType(cty.Bool),
+			Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
+				called = true
+				return cty.BoolVal(true), nil
+			},
+		}),
+	}
+
+	expr, srcBytes := parseFirstAttrExpr(t, `val = danger() ? "yes" : dependency.vpc.outputs.vpc_id`)
+	result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred}))
+
+	assert.False(t, called, "partial evaluation must not execute function calls in conditional conditions")
+	assert.Contains(t, result, `danger() ? "yes" : dependency.vpc.outputs.vpc_id`)
+}
+
+func TestPartialEval_FunctionCallArgumentsArePartiallyEvaluated(t *testing.T) {
+	t.Parallel()
+
+	evalCtx := buildEvalCtx()
+	evalCtx.Variables["unit"] = cty.ObjectVal(map[string]cty.Value{
+		"vpc": cty.ObjectVal(map[string]cty.Value{
+			"path": cty.StringVal("/abs/vpc"),
+		}),
+	})
+	evalCtx.Variables["stack"] = cty.ObjectVal(map[string]cty.Value{
+		"network": cty.ObjectVal(map[string]cty.Value{
+			"app": cty.ObjectVal(map[string]cty.Value{
+				"path": cty.StringVal("/abs/network/app"),
+			}),
+		}),
+	})
+
+	cases := []struct {
+		name     string
+		hcl      string
+		contains []string
+		excludes []string
+	}{
+		{
+			name:     "unit ref argument",
+			hcl:      `val = format("%s/foo", unit.vpc.path)`,
+			contains: []string{`format("%s/foo", "/abs/vpc")`},
+			excludes: []string{"unit.vpc.path"},
+		},
+		{
+			name:     "stack child ref argument",
+			hcl:      `val = format("%s/foo", stack.network.app.path)`,
+			contains: []string{`format("%s/foo", "/abs/network/app")`},
+			excludes: []string{"stack.network.app.path"},
+		},
+		{
+			name:     "template interpolation",
+			hcl:      `val = "prefix-${format("%s/foo", unit.vpc.path)}"`,
+			contains: []string{`${format("%s/foo", "/abs/vpc")}`},
+			excludes: []string{"unit.vpc.path"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
+			result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred}))
+
+			for _, want := range tc.contains {
+				assert.Contains(t, result, want)
+			}
+
+			for _, notWant := range tc.excludes {
+				assert.NotContains(t, result, notWant)
+			}
+		})
+	}
+}
+
 // buildEvalCtx creates an eval context with local.env = "production" and
 // local.region = "us-east-1" for testing.
 func buildEvalCtx() *hcl.EvalContext {

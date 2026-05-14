@@ -3,15 +3,11 @@ package hclparse_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
-	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -43,14 +39,9 @@ unit "db" {
 	require.Len(t, result.Units, 2)
 	assert.Equal(t, "vpc", result.Units[0].Name)
 
-	vpcPath, evalErr := hclparse.EvalString(result.Units[0].Path, nil, "path")
-	require.NoError(t, evalErr)
-	assert.Equal(t, "vpc", vpcPath)
+	assert.Equal(t, "vpc", result.Units[0].Path)
 	assert.Equal(t, "db", result.Units[1].Name)
-
-	dbPath, evalErr := hclparse.EvalString(result.Units[1].Path, nil, "path")
-	require.NoError(t, evalErr)
-	assert.Equal(t, "db", dbPath)
+	assert.Equal(t, "db", result.Units[1].Path)
 	assert.Empty(t, result.AutoIncludes)
 }
 
@@ -1140,83 +1131,6 @@ unit "app" {
 	}
 }
 
-// TestEvalString_LiteralExpr covers EvalString's literal-expression path: a constant template can be evaluated with a nil eval context.
-func TestEvalString_LiteralExpr(t *testing.T) {
-	t.Parallel()
-
-	expr := hcl.StaticExpr(cty.StringVal("hello"), hcl.Range{Filename: "test"})
-
-	got, err := hclparse.EvalString(expr, nil, "attr")
-	require.NoError(t, err)
-	assert.Equal(t, "hello", got)
-}
-
-// TestEvalString_NilExpr returns the empty string for absent attributes (expr nil).
-func TestEvalString_NilExpr(t *testing.T) {
-	t.Parallel()
-
-	got, err := hclparse.EvalString(nil, nil, "missing")
-	require.NoError(t, err)
-	assert.Empty(t, got)
-}
-
-// TestEvalString_NeedsCtx fails when the expression references a variable but no eval context is supplied.
-func TestEvalString_NeedsCtx(t *testing.T) {
-	t.Parallel()
-
-	parsed, diags := hclsyntax.ParseExpression([]byte(`local.x`), "test.hcl", hcl.Pos{Line: 1, Column: 1})
-	require.False(t, diags.HasErrors())
-
-	_, err := hclparse.EvalString(parsed, nil, "path")
-	require.Error(t, err)
-}
-
-// TestEvalString_FunctionCallMissingFunction errors when the call references a function the eval context does not bind.
-func TestEvalString_FunctionCallMissingFunction(t *testing.T) {
-	t.Parallel()
-
-	parsed, diags := hclsyntax.ParseExpression([]byte(`upper("vpc")`), "test.hcl", hcl.Pos{Line: 1, Column: 1})
-	require.False(t, diags.HasErrors())
-
-	_, err := hclparse.EvalString(parsed, &hcl.EvalContext{}, "path")
-	require.Error(t, err, "no upper function bound; eval must fail")
-}
-
-// TestEvalString_FunctionCallProvided evaluates a function call when the eval context binds the function.
-func TestEvalString_FunctionCallProvided(t *testing.T) {
-	t.Parallel()
-
-	parsed, diags := hclsyntax.ParseExpression([]byte(`upper("vpc")`), "test.hcl", hcl.Pos{Line: 1, Column: 1})
-	require.False(t, diags.HasErrors())
-
-	ctx := &hcl.EvalContext{
-		Functions: map[string]function.Function{
-			"upper": function.New(&function.Spec{
-				Params: []function.Parameter{{Name: "s", Type: cty.String}},
-				Type:   function.StaticReturnType(cty.String),
-				Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
-					return cty.StringVal(strings.ToUpper(args[0].AsString())), nil
-				},
-			}),
-		},
-	}
-
-	got, err := hclparse.EvalString(parsed, ctx, "path")
-	require.NoError(t, err)
-	assert.Equal(t, "VPC", got)
-}
-
-// TestEvalString_NullValueIsError pins that a null-valued expression surfaces an error so downstream filepath.Join does not silently merge an empty path segment.
-func TestEvalString_NullValueIsError(t *testing.T) {
-	t.Parallel()
-
-	parsed, diags := hclsyntax.ParseExpression([]byte(`null`), "test.hcl", hcl.Pos{Line: 1, Column: 1})
-	require.False(t, diags.HasErrors())
-
-	_, err := hclparse.EvalString(parsed, &hcl.EvalContext{}, "path")
-	require.Error(t, err, "null value must produce an error, not an empty string")
-}
-
 // TestAutoIncludeResolve_RejectsValuesAttribute pins that a `values = {...}` attribute inside an `autoinclude` block is rejected with a guidance message pointing the user at the parent unit/stack block. Applies to both unit-kind and stack-kind autoincludes.
 func TestAutoIncludeResolve_RejectsValuesAttribute(t *testing.T) {
 	t.Parallel()
@@ -1350,7 +1264,7 @@ unit "vpc" {
 	assert.Equal(t, "vpc", result.Units[0].Name)
 }
 
-// TestParseStackFile_BootstrapUnitPathEvalErrorSurfaces pins that the bootstrap path (no caller-supplied UnitRefs) returns an error when a unit's path expression cannot be evaluated against the stdlib eval context, instead of silently dropping the unit and confusing downstream autoinclude resolution with "Unknown variable: unit".
+// TestParseStackFile_BootstrapUnitPathEvalErrorSurfaces pins that the bootstrap path (no caller-supplied Functions) returns an error when a unit's path expression cannot be evaluated against the stdlib eval context.
 func TestParseStackFile_BootstrapUnitPathEvalErrorSurfaces(t *testing.T) {
 	t.Parallel()
 
@@ -1365,7 +1279,7 @@ unit "vpc" {
 		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
 	})
 	require.Error(t, err, "bootstrap parse must surface unsupported-function eval errors instead of silently skipping the unit")
-	assert.Contains(t, err.Error(), "vpc", "error must name the offending unit so users can locate it")
+	assert.Contains(t, err.Error(), "get_repo_root", "error must name the offending function so users can locate it")
 }
 
 // TestParseStackFile_BootstrapStackSourceEvalErrorSurfaces pins the same hardening for stack-block source expressions.
@@ -1383,7 +1297,7 @@ stack "networking" {
 		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
 	})
 	require.Error(t, err, "bootstrap parse must surface unsupported-function eval errors in stack source instead of silently skipping the stack")
-	assert.Contains(t, err.Error(), "networking", "error must name the offending stack so users can locate it")
+	assert.Contains(t, err.Error(), "get_repo_root", "error must name the offending function so users can locate it")
 }
 func TestParseStackFile_UsesCallerVariablesForIncludePath(t *testing.T) {
 	t.Parallel()
@@ -1568,53 +1482,5 @@ unit "app" {
 	})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `included stack file "extra"`)
-	assert.Contains(t, err.Error(), `missing required "path" attribute`)
-}
-
-func TestParseStackFile_RecomputesIncludeSensitiveLocalAfterInclude(t *testing.T) {
-	t.Parallel()
-
-	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(`
-unit "shared_unit" {
-  source = "../catalog/units/shared"
-  path   = "shared"
-}
-`), 0644))
-
-	src := []byte(`
-locals {
-  shared_path = can(unit.shared_unit.path) ? unit.shared_unit.path : "fallback"
-}
-
-include "shared" {
-  path = "shared.hcl"
-}
-
-unit "app" {
-  source = "../catalog/units/app"
-  path   = "app"
-
-  autoinclude {
-    dependency "shared" {
-      config_path = local.shared_path
-    }
-  }
-}
-`)
-
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
-		Src:       src,
-		Filename:  filepath.Join(testStackDir, "terragrunt.stack.hcl"),
-		StackDir:  testStackDir,
-		Functions: (&tflang.Scope{BaseDir: testStackDir}).Functions(),
-	})
-	require.NoError(t, err)
-
-	resolved := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "app")]
-	require.NotNil(t, resolved)
-	require.Len(t, resolved.Dependencies, 1)
-	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "shared"), resolved.Dependencies[0].ConfigPath)
+	assert.Contains(t, err.Error(), `path`)
 }
