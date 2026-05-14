@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terratest/modules/files"
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -1616,6 +1615,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	require.NoError(t, err)
 
 	var result map[string]any
+
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
@@ -1709,6 +1709,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	// Level 1: Verify root_stack_1 contains app_3 and app_4
 	rootStack1Attr, exists := topLevelAttrs["root_stack_1"]
 	require.True(t, exists, "root_stack_1 attribute should exist in HCL output")
+
 	rootStack1Value, rootStack1Diags := rootStack1Attr.Expr.Value(&hcl.EvalContext{})
 	require.False(t, rootStack1Diags.HasErrors(), "Failed to evaluate root_stack_1 in HCL output: %s", rootStack1Diags.Error())
 	require.True(t, rootStack1Value.Type().IsObjectType(), "root_stack_1 should be an object in HCL output")
@@ -1719,6 +1720,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	// Level 2: Verify root_stack_2.stack_v2 contains app_3 and app_4
 	rootStack2Attr, exists := topLevelAttrs["root_stack_2"]
 	require.True(t, exists, "root_stack_2 attribute should exist in HCL output")
+
 	rootStack2Value, rootStack2Diags := rootStack2Attr.Expr.Value(&hcl.EvalContext{})
 	require.False(t, rootStack2Diags.HasErrors(), "Failed to evaluate root_stack_2 in HCL output: %s", rootStack2Diags.Error())
 	require.True(t, rootStack2Value.Type().IsObjectType(), "root_stack_2 should be an object in HCL output")
@@ -1733,6 +1735,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	// Level 3: Verify root_stack_3.stack_v3.stack_v2 contains app_3 and app_4
 	rootStack3Attr, exists := topLevelAttrs["root_stack_3"]
 	require.True(t, exists, "root_stack_3 attribute should exist in HCL output")
+
 	rootStack3Value, rootStack3Diags := rootStack3Attr.Expr.Value(&hcl.EvalContext{})
 	require.False(t, rootStack3Diags.HasErrors(), "Failed to evaluate root_stack_3 in HCL output: %s", rootStack3Diags.Error())
 	require.True(t, rootStack3Value.Type().IsObjectType(), "root_stack_3 should be an object in HCL output")
