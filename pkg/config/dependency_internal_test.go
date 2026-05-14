@@ -92,8 +92,7 @@ func TestExtractFirstJSONObject(t *testing.T) {
 	}
 }
 
-// TestResolveStackFilePath pins the path-rewrite helper used by tryGetStackOutput across dependency-target shapes:
-// direct stack file, explicit terragrunt config files, and bare directories.
+// TestResolveStackFilePath pins resolveStackFilePath across dependency-target shapes (direct stack file, explicit terragrunt config, bare directory).
 func TestResolveStackFilePath(t *testing.T) {
 	t.Parallel()
 

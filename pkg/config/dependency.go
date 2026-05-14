@@ -828,10 +828,7 @@ func tryGetStackOutput(
 	return &result, true, nil
 }
 
-// resolveStackFilePath rewrites a dependency target path into a candidate terragrunt.stack.hcl path.
-// getCleanedTargetConfigPath appends terragrunt.hcl to bare directory deps, so peel that back to
-// <dir>/terragrunt.stack.hcl. Explicit terragrunt.hcl/terragrunt.hcl.json deps still target that unit
-// and must not be upgraded to a sibling stack.
+// resolveStackFilePath returns the candidate terragrunt.stack.hcl for a dependency target (bare dir → <dir>/terragrunt.stack.hcl; explicit terragrunt.hcl/.hcl.json → not a stack), with a bool that is false when the dep is an explicit unit config.
 func resolveStackFilePath(rawConfigPath string, targetConfigPath string) (string, bool) {
 	switch filepath.Base(filepath.Clean(rawConfigPath)) {
 	case DefaultStackFile:

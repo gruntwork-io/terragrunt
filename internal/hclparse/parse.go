@@ -1,20 +1,4 @@
-// Package hclparse provides phased HCL parsing for terragrunt.stack.hcl files.
-//
-// The parser runs four phases against a single eval context that is progressively
-// populated:
-//
-//  1. Slurp — gohcl decodes the top-level body into StackFileHCL (locals block,
-//     include blocks, and Remain). No attribute evaluation.
-//  2. Locals — DAG-based evaluation of the locals block. Adds local.* to the
-//     eval context.
-//  3. Includes — each include block's path expression is evaluated against the
-//     locals-populated context; the included file is slurped and its Remain is
-//     merged into the parent's Remain.
-//  4. Decode — gohcl decodes the merged Remain into eager UnitBlockHCL /
-//     StackBlockHCL with the full eval context (functions, variables, locals).
-//     Refs (unit.*/stack.*) are then built from the decoded blocks and added
-//     to the eval context. Autoinclude bodies are resolved against the final
-//     context.
+// Package hclparse provides phased HCL parsing for terragrunt.stack.hcl files: slurp → DAG locals → include merge → eager unit/stack decode → autoinclude resolution, sharing one progressively-populated eval context.
 package hclparse
 
 import (

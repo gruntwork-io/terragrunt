@@ -25,18 +25,13 @@ type EvalArgs struct {
 }
 
 // PartialEval walks an hclsyntax.Expression tree and returns HCL source text.
-// Pure expressions (no deferred refs) are evaluated to literals when doing so
-// does not execute function calls.
-// Mixed expressions get per-child treatment: evaluable parts become literals,
-// deferred parts keep their original source text.
+// Pure expressions (no deferred refs, no function calls) are evaluated to literals; mixed expressions get per-child treatment: evaluable parts become literals, deferred parts keep their original source text.
 func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	if args.EvalCtx == nil {
 		return RangeBytes(args.SrcBytes, expr.Range())
 	}
 
-	// Fast path: no deferred refs anywhere and no function calls: evaluate the
-	// whole thing. Function calls are intentionally preserved because the eval
-	// context can include Terragrunt functions with generation-time side effects.
+	// Fast path: pure expression with no function calls, evaluate the whole thing (function calls are preserved because Terragrunt functions can have generation-time side effects).
 	if IsPure(expr, args.Deferred) && !containsFunctionCall(expr) {
 		val, diags := expr.Value(args.EvalCtx)
 		if !diags.HasErrors() {
