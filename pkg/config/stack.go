@@ -112,7 +112,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	var stackSrcBytes []byte
 
-	if pctx.Experiments.Evaluate(experiment.StackDependencies) {
+	if pctx.Experiments.Evaluate(experiment.StackDependencies) && stackConfigHasAutoInclude(stackFile) {
 		// Note: stackSrcBytes is read separately for the autoinclude parser which slices expression byte ranges from the original file. ReadStackConfigFile already parsed the file with the complete Terragrunt eval context (functions, locals, values) and resolved each unit/stack's path; the autoinclude parser reuses those resolved refs via UnitRefs/StackRefs so it does not need to re-evaluate non-literal source/path/values expressions in unrelated unit attributes.
 		stackSrcBytes, err = os.ReadFile(stackFilePath)
 		if err != nil {
@@ -1016,6 +1016,41 @@ func GetUnitDir(dir string, unit *Unit) string {
 	}
 
 	return filepath.Join(dir, StackDir, unit.Path)
+}
+
+func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
+	if stackFile == nil {
+		return false
+	}
+
+	for _, unit := range stackFile.Units {
+		if unit != nil && bodyHasBlock(unit.Remain, "autoinclude") {
+			return true
+		}
+	}
+
+	for _, stack := range stackFile.Stacks {
+		if stack != nil && bodyHasBlock(stack.Remain, "autoinclude") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func bodyHasBlock(body hcl.Body, blockType string) bool {
+	if body == nil {
+		return false
+	}
+
+	content, _, diags := body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: blockType}},
+	})
+	if diags.HasErrors() {
+		return true
+	}
+
+	return len(content.Blocks) > 0
 }
 
 // buildUnitRefs returns a slice of unit ComponentRefs (name + absolute target path) using the production-parsed StackConfig. Feeds unit.<name>.path into the autoinclude eval context without re-evaluating source/path/values expressions in unrelated units.

@@ -1349,57 +1349,6 @@ unit "vpc" {
 	assert.Equal(t, "vpc", result.Units[0].Name)
 }
 
-// TestParseStackFile_RootLocalReferencesUnitFromInclude regresses the bootstrap-path locals-after-includes ordering: a root `local` referencing `unit.<X>.path` for a unit declared in an included file must resolve, because locals now run after include merge + ref refresh.
-func TestParseStackFile_RootLocalReferencesUnitFromInclude(t *testing.T) {
-	t.Parallel()
-
-	fs := vfs.NewMemMapFS()
-
-	mainSrc := `
-include "shared" {
-  path = "shared.hcl"
-}
-
-locals {
-  shared_unit_path = unit.shared_unit.path
-}
-
-unit "consumer" {
-  source = "../catalog/units/consumer"
-  path   = "consumer"
-
-  autoinclude {
-    dependency "shared_unit" {
-      config_path = local.shared_unit_path
-    }
-  }
-}
-`
-
-	includeSrc := `
-unit "shared_unit" {
-  source = "../catalog/units/shared"
-  path   = "shared"
-}
-`
-
-	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644))
-
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
-		Src:      []byte(mainSrc),
-		Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"),
-		StackDir: testStackDir,
-	})
-	require.NoError(t, err)
-
-	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "consumer")]
-	require.True(t, ok)
-	require.Len(t, resolved.Dependencies, 1)
-	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "shared"), resolved.Dependencies[0].ConfigPath,
-		"local.shared_unit_path must resolve via unit.shared_unit.path (from included file) to shared's generated path")
-}
-
 // TestParseStackFile_BootstrapUnitPathEvalErrorSurfaces pins that the bootstrap path (no caller-supplied UnitRefs) returns an error when a unit's path expression cannot be evaluated against the stdlib eval context, instead of silently dropping the unit and confusing downstream autoinclude resolution with "Unknown variable: unit".
 func TestParseStackFile_BootstrapUnitPathEvalErrorSurfaces(t *testing.T) {
 	t.Parallel()
@@ -1588,4 +1537,36 @@ stack "networking" {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestParseStackFile_IncludeMissingRequiredSourceOrPathReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/includes/extra.stack.hcl", []byte(`
+unit "extra" {
+  source = "../catalog/units/extra"
+}
+`), 0644))
+
+	src := []byte(`
+include "extra" {
+  path = "/includes/extra.stack.hcl"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+}
+`)
+
+	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      src,
+		Filename: "/test/terragrunt.stack.hcl",
+		StackDir: "/test",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `included stack file "extra"`)
+	assert.Contains(t, err.Error(), `missing required "path" attribute`)
 }

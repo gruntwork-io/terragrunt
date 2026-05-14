@@ -89,9 +89,11 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	evalCtx := buildParseEvalContext(input, unitRefs, stackRefs)
 
-	var evaluatedLocals map[string]cty.Value
+	// Evaluate root locals first so include paths can reference local.X. Locals cannot reference unit.X.path / stack.X.path (refs are not bound yet); enforcing one direction keeps the parser single-pass.
 	if stackFile.Locals != nil {
-		evaluatedLocals = evaluateLocalsBestEffort(stackFile.Locals.Remain, evalCtx)
+		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := processStackIncludes(fs, stackFile, input.StackDir, evalCtx, srcByAutoInclude); err != nil {
@@ -101,13 +103,6 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	// Bootstrap path: refresh refs and the unit/stack eval variables now that included units/stacks have been merged into stackFile. Caller-supplied refs already reflect the post-include layout (the production parser does include merging upstream) and must not be overwritten.
 	if !callerSuppliedRefs {
 		if err := refreshBootstrapRefs(fs, input, stackFile, stackTargetDir, evalCtx); err != nil {
-			return nil, err
-		}
-	}
-
-	// Strict locals pass after includes so locals referencing unit.<X>.path see units contributed by included files; mergeOneInclude rejects locals in included files so root locals are the only locals here.
-	if stackFile.Locals != nil {
-		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx, evaluatedLocals); err != nil {
 			return nil, err
 		}
 	}
@@ -287,77 +282,48 @@ func EvalString(expr hcl.Expression, ctx *hcl.EvalContext, attrName string) (str
 	return val.AsString(), nil
 }
 
-// evaluateLocals strictly evaluates root locals against evalCtx. Returns an error on eval failure, dependency cycle, or iteration overflow. Used after include merging so locals referencing unit.<X>.path resolve against the fully populated context.
-func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext, seed map[string]cty.Value) error {
-	_, err := evaluateLocalsRun(body, evalCtx, seed, true)
-	return err
-}
-
-// evaluateLocalsBestEffort evaluates root locals that are ready against evalCtx and silently leaves the rest for the later strict pass. Used before include merging so include paths referencing local.X resolve while locals referencing not-yet-merged units are deferred.
-func evaluateLocalsBestEffort(body hcl.Body, evalCtx *hcl.EvalContext) map[string]cty.Value {
-	evaluated, _ := evaluateLocalsRun(body, evalCtx, nil, false)
-	return evaluated
-}
-
-// evaluateLocalsRun is the shared iterative evaluator used by both passes. Strict mode surfaces errors; best-effort mode skips failures silently so they can be retried after include merging.
-func evaluateLocalsRun(body hcl.Body, evalCtx *hcl.EvalContext, seed map[string]cty.Value, strict bool) (map[string]cty.Value, error) {
+// evaluateLocals iteratively evaluates root locals against evalCtx in dependency order. Returns an error on eval failure, dependency cycle, or iteration overflow. Locals are evaluated before include processing so include paths and other attributes can reference local.X; locals therefore cannot reference unit.X.path / stack.X.path (refs are not bound yet).
+func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {
-		return seed, nil
+		return nil
 	}
 
-	evaluated := make(map[string]cty.Value, len(syntaxBody.Attributes)+len(seed))
-	for name, value := range seed {
-		evaluated[name] = value
-	}
-
+	evaluated := make(map[string]cty.Value, len(syntaxBody.Attributes))
 	remaining := make(map[string]*hclsyntax.Attribute, len(syntaxBody.Attributes))
-	for name, attr := range syntaxBody.Attributes {
-		if _, exists := evaluated[name]; exists {
-			continue
-		}
 
+	for name, attr := range syntaxBody.Attributes {
 		remaining[name] = attr
 	}
 
 	const maxLocalsIterations = 10000
 
 	for i := 0; len(remaining) > 0 && i < maxLocalsIterations; i++ {
-		progress, err := evaluateLocalsPass(remaining, evaluated, evalCtx, strict)
+		progress, err := evaluateLocalsPass(remaining, evaluated, evalCtx)
 		if err != nil {
-			return evaluated, err
+			return err
 		}
 
 		if !progress {
-			return evaluated, noProgressError(strict, remaining)
+			return localsEvalCycleError(remaining)
 		}
 
 		evalCtx.Variables[varLocal] = localObject(evaluated)
 	}
 
-	if strict && len(remaining) > 0 {
-		return evaluated, LocalsMaxIterError{MaxIterations: maxLocalsIterations, Remaining: len(remaining)}
+	if len(remaining) > 0 {
+		return LocalsMaxIterError{MaxIterations: maxLocalsIterations, Remaining: len(remaining)}
 	}
 
 	evalCtx.Variables[varLocal] = localObject(evaluated)
 
-	return evaluated, nil
+	return nil
 }
 
-// noProgressError returns the cycle error for the strict pass and nil for the best-effort pass so callers can ignore it.
-func noProgressError(strict bool, remaining map[string]*hclsyntax.Attribute) error {
-	if !strict {
-		return nil
-	}
-
-	return localsEvalCycleError(remaining)
-}
-
-// evaluateLocalsPass attempts to evaluate all ready locals in a single pass. Returns true if at least one local was evaluated. Refreshes evalCtx.Variables[varLocal] after each successful evaluation so locals iterated later in the same pass can resolve `local.X` references that were just populated; without this, Go's randomized map-iteration order races against the end-of-pass update and yields "Unknown variable: local" on locals iterated after their dependencies. In best-effort mode (strict=false) eval failures are skipped silently and retried in the strict pass after include merging.
-func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map[string]cty.Value, evalCtx *hcl.EvalContext, strict bool) (bool, error) {
+// evaluateLocalsPass evaluates every ready local once. Refreshes evalCtx.Variables[varLocal] after each successful evaluation so locals iterated later in the same pass see locals resolved earlier (defeats map-iteration randomness).
+func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map[string]cty.Value, evalCtx *hcl.EvalContext) (bool, error) {
 	progress := false
 
-	// Snapshot evaluated into evalCtx at pass start so the first in-pass eval also sees prior locals.
 	evalCtx.Variables[varLocal] = localObject(evaluated)
 
 	for name, attr := range remaining {
@@ -367,11 +333,7 @@ func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map
 
 		val, diags := attr.Expr.Value(evalCtx)
 		if diags.HasErrors() {
-			if strict {
-				return false, LocalEvalError{Name: name, Detail: diags.Error()}
-			}
-
-			continue
+			return false, LocalEvalError{Name: name, Detail: diags.Error()}
 		}
 
 		evaluated[name] = val
@@ -529,6 +491,10 @@ func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, s
 	incFile, diags := hclsyntax.ParseConfig(data, includePath, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return FileParseError{FilePath: includePath, Detail: diags.Error()}
+	}
+
+	if err := validateRequiredBlockAttrs(incFile.Body); err != nil {
+		return IncludeValidationError{IncludeName: inc.Name, Reason: err.Error()}
 	}
 
 	included := &StackFileHCL{}
