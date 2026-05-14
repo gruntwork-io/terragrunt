@@ -1,0 +1,10 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### Auto-init now re-runs after a source change when modules are already cached
+
+`terragrunt plan`/`apply` could fail with `Error: Required plugins are not installed` after a source-version change in any unit with a `module ""` block. The `.terragrunt-init-required` marker written on source change was being ignored because `modulesNeedInit` short-circuited as soon as `.terraform/modules/` existed.
+
+The marker check now lives at the top of `needsInitRunCfg` and is honored regardless of cached `.terraform/modules/` contents.
