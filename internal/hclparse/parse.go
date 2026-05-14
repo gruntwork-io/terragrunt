@@ -136,107 +136,226 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	}, nil
 }
 
-// evaluateLocals iteratively evaluates attributes from a locals block body.
-// Uses Variables() to pre-check whether each local's dependencies are satisfied
-// before attempting evaluation. Shrinks the work set each pass. Returns an error
-// if any locals cannot be evaluated (cycle or invalid reference).
+// evaluateLocals evaluates the attributes of a locals block in dependency order.
+//
+// The algorithm builds a DAG of local-to-local references from each attribute's
+// AST traversals, sorts it with Kahn's algorithm, and evaluates each attribute
+// once its dependencies have been resolved. evalCtx.Variables[varLocal] is
+// refreshed after every successful evaluation so later attributes resolve
+// against the cumulative result.
+//
+// References to other namespaces (unit, stack, values, feature, dependency, …)
+// are not edges in the graph: they are external to the locals block and must
+// already be populated in evalCtx by the caller. If they are missing or fail
+// to resolve, HCL's own diagnostics surface as LocalEvalError at evaluation time.
+//
+// Cycles among locals are reported as LocalsCycleError listing the participating
+// names and their remaining edges.
 func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {
-		// Non-syntax bodies (e.g. from JSON configs) cannot be iteratively evaluated.
+		// Non-syntax bodies (e.g. from JSON configs) don't expose the AST we need
+		// to build the dependency graph; fall through silently rather than error.
 		return nil
 	}
 
-	remaining := make(map[string]*hclsyntax.Attribute, len(syntaxBody.Attributes))
-	for name, attr := range syntaxBody.Attributes {
-		remaining[name] = attr
+	attrs := syntaxBody.Attributes
+	if len(attrs) == 0 {
+		return nil
 	}
 
-	evaluated := make(map[string]cty.Value, len(remaining))
+	deps := buildLocalsGraph(attrs)
 
-	const maxLocalsIterations = 10000
-
-	for i := 0; len(remaining) > 0 && i < maxLocalsIterations; i++ {
-		progress, err := evaluateLocalsPass(remaining, evaluated, evalCtx)
-		if err != nil {
-			return err
-		}
-
-		if !progress {
-			return localsEvalCycleError(remaining)
-		}
-
-		evalCtx.Variables[varLocal] = cty.ObjectVal(evaluated)
-	}
-
-	if len(remaining) > 0 {
-		return LocalsMaxIterError{MaxIterations: maxLocalsIterations, Remaining: len(remaining)}
-	}
-
-	return nil
+	return evaluateLocalsInOrder(attrs, deps, evalCtx)
 }
 
-// evaluateLocalsPass attempts to evaluate all ready locals in a single pass.
-// Returns true if at least one local was evaluated.
-func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map[string]cty.Value, evalCtx *hcl.EvalContext) (bool, error) {
-	progress := false
+// buildLocalsGraph returns each attribute's set of sibling-local dependencies,
+// derived from `local.<name>` traversals in its expression AST. References to
+// non-sibling names (e.g. `local.<undefined>`) are deliberately ignored so HCL
+// can surface a precise diagnostic at eval time; only sibling-to-sibling edges
+// drive evaluation order.
+//
+// A traversal rooted at `local` with no static attribute step — for example
+// the bare reference `local` or a dynamic subscript like `local[expr]` — is
+// promoted to "depends on every sibling," guaranteeing the attribute is
+// evaluated last and observes the fully-populated local map (or surfaces a
+// cycle if every attribute does this).
+//
+// Dependencies are deduped and sorted so the evaluation order is deterministic.
+func buildLocalsGraph(attrs map[string]*hclsyntax.Attribute) map[string][]string {
+	deps := make(map[string][]string, len(attrs))
+	broadDeps := map[string]struct{}{}
 
-	for name, attr := range remaining {
-		if !canEvalLocal(attr, evaluated) {
-			continue
+	for name, attr := range attrs {
+		seen := map[string]struct{}{}
+
+		for _, traversal := range attr.Expr.Variables() {
+			if traversal.RootName() != varLocal {
+				continue
+			}
+
+			depName := firstAttrStep(traversal)
+			if depName == "" {
+				broadDeps[name] = struct{}{}
+
+				continue
+			}
+
+			if _, sibling := attrs[depName]; !sibling {
+				continue
+			}
+
+			if _, dup := seen[depName]; dup {
+				continue
+			}
+
+			seen[depName] = struct{}{}
+			deps[name] = append(deps[name], depName)
+		}
+	}
+
+	for name := range broadDeps {
+		existing := map[string]struct{}{}
+		for _, d := range deps[name] {
+			existing[d] = struct{}{}
 		}
 
-		val, diags := attr.Expr.Value(evalCtx)
+		for sib := range attrs {
+			if sib == name {
+				continue
+			}
+
+			if _, dup := existing[sib]; dup {
+				continue
+			}
+
+			deps[name] = append(deps[name], sib)
+		}
+	}
+
+	for name := range deps {
+		slices.Sort(deps[name])
+	}
+
+	return deps
+}
+
+// evaluateLocalsInOrder runs Kahn's algorithm over deps, evaluating each
+// attribute once its dependencies are resolved. evalCtx.Variables[varLocal]
+// is refreshed after every successful evaluation. Returns LocalsCycleError if
+// any attribute remains unresolved after the queue drains.
+func evaluateLocalsInOrder(
+	attrs map[string]*hclsyntax.Attribute,
+	deps map[string][]string,
+	evalCtx *hcl.EvalContext,
+) error {
+	inDegree := make(map[string]int, len(attrs))
+	dependents := make(map[string][]string, len(attrs))
+
+	for name := range attrs {
+		inDegree[name] = len(deps[name])
+
+		for _, d := range deps[name] {
+			dependents[d] = append(dependents[d], name)
+		}
+	}
+
+	ready := make([]string, 0, len(attrs))
+
+	for name, d := range inDegree {
+		if d == 0 {
+			ready = append(ready, name)
+		}
+	}
+
+	slices.Sort(ready)
+
+	evaluated := make(map[string]cty.Value, len(attrs))
+
+	for len(ready) > 0 {
+		name := ready[0]
+		ready = ready[1:]
+
+		val, diags := attrs[name].Expr.Value(evalCtx)
 		if diags.HasErrors() {
-			return false, LocalEvalError{Name: name, Detail: diags.Error()}
+			return LocalEvalError{Name: name, Detail: diags.Error()}
 		}
 
 		evaluated[name] = val
-		delete(remaining, name)
+		evalCtx.Variables[varLocal] = cty.ObjectVal(evaluated)
 
-		progress = true
+		var nextReady []string
+
+		for _, dep := range dependents[name] {
+			inDegree[dep]--
+			if inDegree[dep] == 0 {
+				nextReady = append(nextReady, dep)
+			}
+		}
+
+		if len(nextReady) > 0 {
+			slices.Sort(nextReady)
+			ready = append(ready, nextReady...)
+		}
 	}
 
-	return progress, nil
+	if len(evaluated) == len(attrs) {
+		return nil
+	}
+
+	return cycleErrorFor(attrs, deps, evaluated)
 }
 
-// localsEvalCycleError builds an error listing the locals that could not be evaluated.
-func localsEvalCycleError(remaining map[string]*hclsyntax.Attribute) error {
-	names := make([]string, 0, len(remaining))
-	for name := range remaining {
-		names = append(names, name)
+// cycleErrorFor builds a LocalsCycleError naming every attribute that did not
+// evaluate and surfacing the local→local edges that survived among them. The
+// edges help users locate the cycle without having to re-read the source.
+func cycleErrorFor(
+	attrs map[string]*hclsyntax.Attribute,
+	deps map[string][]string,
+	evaluated map[string]cty.Value,
+) error {
+	remaining := make([]string, 0, len(attrs)-len(evaluated))
+
+	for name := range attrs {
+		if _, ok := evaluated[name]; !ok {
+			remaining = append(remaining, name)
+		}
 	}
 
-	slices.Sort(names)
+	slices.Sort(remaining)
 
-	return LocalsCycleError{Names: names}
+	cycleDeps := make(map[string][]string, len(remaining))
+
+	for _, name := range remaining {
+		for _, d := range deps[name] {
+			if _, ok := evaluated[d]; ok {
+				continue
+			}
+
+			cycleDeps[name] = append(cycleDeps[name], d)
+		}
+
+		slices.Sort(cycleDeps[name])
+	}
+
+	return LocalsCycleError{Names: remaining, Edges: cycleDeps}
 }
 
-// canEvalLocal checks whether all local.* dependencies of an attribute
-// are already evaluated. Non-local references (unit, stack, values, etc.)
-// are assumed available in the eval context.
-func canEvalLocal(attr *hclsyntax.Attribute, evaluated map[string]cty.Value) bool {
-	for _, traversal := range attr.Expr.Variables() {
-		if traversal.RootName() != varLocal {
-			continue
-		}
-
-		split := traversal.SimpleSplit()
-		if len(split.Rel) == 0 {
-			continue
-		}
-
-		step, ok := split.Rel[0].(hcl.TraverseAttr)
-		if !ok {
-			continue
-		}
-
-		if _, exists := evaluated[step.Name]; !exists {
-			return false
-		}
+// firstAttrStep returns the name of the first TraverseAttr after the traversal
+// root, or the empty string if the traversal has no relative steps or the
+// first step is not an attribute access (e.g. dynamic subscript, splat).
+func firstAttrStep(traversal hcl.Traversal) string {
+	split := traversal.SimpleSplit()
+	if len(split.Rel) == 0 {
+		return ""
 	}
 
-	return true
+	step, ok := split.Rel[0].(hcl.TraverseAttr)
+	if !ok {
+		return ""
+	}
+
+	return step.Name
 }
 
 // AutoIncludeKey returns the map key for an autoinclude entry, namespaced by component kind to prevent collisions between same-name units and stacks.

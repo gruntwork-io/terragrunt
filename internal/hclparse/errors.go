@@ -115,23 +115,17 @@ func (e LocalEvalError) Error() string {
 	return fmt.Sprintf("failed to evaluate local %q: %s", e.Name, e.Detail)
 }
 
-// LocalsCycleError indicates that locals have circular dependencies.
+// LocalsCycleError indicates that locals have circular dependencies. Names lists
+// every attribute that could not be evaluated, sorted. Edges maps each name to
+// its unresolved local-to-local dependencies so callers can reconstruct the
+// cycle without re-reading the source.
 type LocalsCycleError struct {
+	Edges map[string][]string
 	Names []string
 }
 
 func (e LocalsCycleError) Error() string {
 	return fmt.Sprintf("could not evaluate locals (possible cycle): %v", e.Names)
-}
-
-// LocalsMaxIterError indicates that locals evaluation exceeded the maximum iterations.
-type LocalsMaxIterError struct {
-	MaxIterations int
-	Remaining     int
-}
-
-func (e LocalsMaxIterError) Error() string {
-	return fmt.Sprintf("locals evaluation exceeded %d iterations with %d unresolved locals", e.MaxIterations, e.Remaining)
 }
 
 // MalformedDependencyError indicates a dependency block in an autoinclude file is malformed. Err optionally carries the original HCL diagnostics so callers can extract position info via errors.As/Is.
