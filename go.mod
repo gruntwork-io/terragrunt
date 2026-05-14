@@ -89,7 +89,7 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.2
 	github.com/charmbracelet/x/ansi v0.11.6
 	github.com/charmbracelet/x/term v0.2.2
-	github.com/go-git/go-billy/v6 v6.0.0-20260328065524-593ae452e14d
+	github.com/go-git/go-billy/v6 v6.0.0-alpha.1
 	github.com/go-git/go-git/v6 v6.0.0-alpha.1
 	github.com/gobwas/glob v0.2.3
 	github.com/hashicorp/go-getter/gcs/v2 v2.2.3
@@ -180,7 +180,6 @@ require (
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
-	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
