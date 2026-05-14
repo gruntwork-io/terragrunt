@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestExtract_ZipSlipPathTraversal verifies that extract rejects ZIP archives
+// containing entries that traverse outside the target directory (ZipSlip attack).
 func TestExtract_ZipSlipPathTraversal(t *testing.T) {
 	t.Parallel()
 
@@ -36,6 +38,8 @@ func TestExtract_ZipSlipPathTraversal(t *testing.T) {
 		"error should mention path traversal, got: %v", err)
 }
 
+// TestExtract_ValidZip verifies that extract correctly extracts a well-formed
+// ZIP archive and produces the expected files on disk.
 func TestExtract_ValidZip(t *testing.T) {
 	t.Parallel()
 
