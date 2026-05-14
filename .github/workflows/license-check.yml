@@ -32,7 +32,7 @@ jobs:
           echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
       - name: Go Mod Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-license-check-go-mod-${{ hashFiles('**/go.sum') }}
@@ -41,7 +41,7 @@ jobs:
 
       # `licensei cache` queries GitHub's API for every dep; cache the result.
       - name: Licensei Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: .licensei.cache
           key: ${{ runner.os }}-licensei-${{ hashFiles('**/go.sum') }}
