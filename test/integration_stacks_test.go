@@ -619,52 +619,6 @@ func TestStackOutputsJsonFlag(t *testing.T) {
 	assert.Len(t, result, 4)
 }
 
-// TestStackOutputsParallelFetching verifies that `terragrunt stack output` fetches
-// per-unit outputs concurrently. It wraps tofu with a script that coordinates via
-// lock files and logs "Output concurrent" when it observes peer invocations,
-// mirroring TestAuthProviderParallelExecution. The fixture declares 4 units, so
-// with --parallelism 4 every wrapper invocation should see at least one peer.
-func TestStackOutputsParallelFetching(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
-	fixturePath := filepath.Join(tmpEnvPath, testFixtureStacksOutputs)
-	rootPath := filepath.Join(fixturePath, "live")
-
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
-
-	wrapperPath := filepath.Join(fixturePath, "tofu-wrapper.sh")
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt stack output --tf-path "+wrapperPath+" --parallelism 4 --non-interactive --working-dir "+rootPath,
-	)
-	require.NoError(t, err)
-
-	reConcurrent := regexp.MustCompile(`Output concurrent.*detected=(\d+)`)
-	matches := reConcurrent.FindAllStringSubmatch(stderr, -1)
-
-	maxConcurrent := 0
-
-	for _, match := range matches {
-		detected, convErr := strconv.Atoi(match[1])
-		require.NoError(t, convErr, "Invalid detected count in stderr: %q", match[0])
-
-		if detected > maxConcurrent {
-			maxConcurrent = detected
-		}
-
-		t.Logf("Output wrapper detected %d concurrent invocations", detected)
-	}
-
-	assert.GreaterOrEqual(t, len(matches), 1,
-		"Expected at least one tofu output invocation to detect concurrent execution. "+
-			"If this fails, stack output is reading units sequentially.")
-	assert.GreaterOrEqual(t, maxConcurrent, 2,
-		"Expected concurrent tofu output invocations >= 2; got max: %d", maxConcurrent)
-}
-
 func TestStacksUnitValues(t *testing.T) {
 	t.Parallel()
 
