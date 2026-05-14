@@ -51,6 +51,9 @@ func (u *Unit) WithReading(files ...string) *Unit {
 
 // WithConfig adds configuration to a Unit component.
 func (u *Unit) WithConfig(cfg *config.TerragruntConfig) *Unit {
+	u.lock()
+	defer u.unlock()
+
 	u.cfg = cfg
 
 	return u
@@ -65,11 +68,17 @@ func (u *Unit) WithDiscoveryContext(ctx *DiscoveryContext) *Unit {
 
 // Config returns the parsed Terragrunt configuration for this unit.
 func (u *Unit) Config() *config.TerragruntConfig {
+	u.rLock()
+	defer u.rUnlock()
+
 	return u.cfg
 }
 
 // StoreConfig stores the parsed Terragrunt configuration for this unit.
 func (u *Unit) StoreConfig(cfg *config.TerragruntConfig) {
+	u.lock()
+	defer u.unlock()
+
 	u.cfg = cfg
 }
 
@@ -130,6 +139,9 @@ func (u *Unit) SetReading(files ...string) {
 
 // Sources returns the list of sources for this component.
 func (u *Unit) Sources() []string {
+	u.rLock()
+	defer u.rUnlock()
+
 	if u.cfg == nil || u.cfg.Terraform == nil || u.cfg.Terraform.Source == nil {
 		return []string{}
 	}
