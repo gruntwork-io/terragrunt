@@ -1123,7 +1123,7 @@ func extract(l log.Logger, zipFile, destDir string) error {
 
 		// Check for ZipSlip vulnerability
 		if !strings.HasPrefix(fPath, filepath.Clean(destDir)+string(os.PathSeparator)) {
-			return errors.New(err)
+			return errors.Errorf("zip archive contains path traversal: %q escapes target dir %q", file.Name, destDir)
 		}
 
 		if file.FileInfo().IsDir() {
