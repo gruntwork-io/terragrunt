@@ -1,0 +1,18 @@
+---
+version: "v1.0.5"
+category: "new-features"
+---
+
+#### `tfr://` source URLs accept an optional `version`
+
+The `version` query parameter on `tfr://` source URLs is now optional. When omitted, Terragrunt queries the registry's list-versions endpoint and downloads the latest stable version, matching how OpenTofu and Terraform resolve a module reference that has no version constraint.
+
+```hcl
+terraform {
+  source = "tfr:///terraform-aws-modules/vpc/aws"
+}
+```
+
+Prereleases are excluded from resolution, so a registry that only publishes `4.0.0-rc1` alongside `3.3.0` will pin to `3.3.0`. Pin a version explicitly with `?version=` when you need reproducible builds or want to opt into a prerelease.
+
+Thanks to [@raman1236](https://github.com/raman1236) for contributing this feature!
