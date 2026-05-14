@@ -859,27 +859,58 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	return TerragruntConfigAsCty(config)
 }
 
-// recordDependenciesFromRead appends `config`'s dependency paths to pctx.DependenciesFromReads, resolved against targetConfig's directory.
+// recordDependenciesFromRead appends `config`'s dependency paths to pctx.dependenciesFromReads.
 func recordDependenciesFromRead(pctx *ParsingContext, config *TerragruntConfig, targetConfig string) {
-	if pctx == nil || pctx.DependenciesFromReads == nil || config == nil {
+	if pctx == nil || pctx.dependenciesFromReads == nil || config == nil {
 		return
 	}
 
-	baseDir := filepath.Dir(targetConfig)
-
-	for _, dep := range config.TerragruntDependencies {
+	for i := range config.TerragruntDependencies {
+		dep := &config.TerragruntDependencies[i]
 		if dep.isDisabled() || !IsValidConfigPath(dep.ConfigPath) {
 			continue
 		}
 
-		appendUniqueResolvedPath(pctx.DependenciesFromReads, baseDir, dep.ConfigPath.AsString())
+		appendUniqueResolvedPath(
+			pctx.dependenciesFromReads,
+			dependencyBlockSourceDir(config, dep, targetConfig),
+			dep.ConfigPath.AsString(),
+		)
 	}
 
 	if config.Dependencies != nil {
 		for _, path := range config.Dependencies.Paths {
-			appendUniqueResolvedPath(pctx.DependenciesFromReads, baseDir, path)
+			appendUniqueResolvedPath(
+				pctx.dependenciesFromReads,
+				dependencySourceDir(config, MetadataDependencies, path, targetConfig),
+				path,
+			)
 		}
 	}
+}
+
+func dependencyBlockSourceDir(config *TerragruntConfig, dep *Dependency, fallbackConfig string) string {
+	depPath := dep.ConfigPath.AsString()
+
+	if config.Dependencies != nil {
+		for _, path := range config.Dependencies.Paths {
+			if path == depPath {
+				return dependencySourceDir(config, MetadataDependencies, path, fallbackConfig)
+			}
+		}
+	}
+
+	return dependencySourceDir(config, MetadataDependency, dep.Name, fallbackConfig)
+}
+
+func dependencySourceDir(config *TerragruntConfig, fieldType, fieldName, fallbackConfig string) string {
+	if metadata, found := config.GetMapFieldMetadata(fieldType, fieldName); found {
+		if foundInFile := metadata[FoundInFile]; foundInFile != "" {
+			return filepath.Dir(foundInFile)
+		}
+	}
+
+	return filepath.Dir(fallbackConfig)
 }
 
 // appendUniqueResolvedPath resolves rawPath against baseDir if relative and appends to *dst when not already present.
