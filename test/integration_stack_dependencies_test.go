@@ -34,7 +34,6 @@ const (
 	testFixtureStackDepsAutoIncViaIncludeSuccess = "fixtures/stacks/stack-deps-autoinclude-via-include-success"
 	testFixtureStackDepsAutoIncComplexSiblings   = "fixtures/stacks/stack-deps-autoinclude-complex-siblings"
 	testFixtureStackDepsRunAllFuncsInNestedStack = "fixtures/stacks/stack-deps-runall-funcs-in-nested-stack"
-	testFixtureStackDepsStackAutoIncValues       = "fixtures/stacks/stack-deps-stack-autoinclude-values"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -1116,43 +1115,4 @@ func TestStackDepsRunAllWithFunctionsInNestedStack(t *testing.T) {
 	}
 
 	require.True(t, foundNestedVPC, "generated nested stack unit vpc must be present in find output")
-}
-
-// Regression: a `stack { autoinclude { values = {...} } }` block propagates its values into each nested-stack unit's terragrunt.values.hcl so the nested unit's `values.<key>` resolves (dependency.X.outputs.Y references resolve to mock_outputs at generation time).
-func TestStackDepsStackAutoIncludeValuesPropagation(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackAutoIncValues)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncValues)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncValues, "live")
-	rootPath, err := filepath.EvalSymlinks(rootPath)
-	require.NoError(t, err)
-
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
-
-	// Generation must have produced the stack-level autoinclude file at the nested stack root.
-	stackAutoIncludePath := filepath.Join(rootPath, inthclparse.StackDir, "stack-w-values", inthclparse.AutoIncludeStackFile)
-	require.FileExists(t, stackAutoIncludePath, "stack-level autoinclude file must be generated for stack-w-values")
-
-	// Generation must propagate the stack autoinclude `values` to each nested unit's terragrunt.values.hcl.
-	nestedUnitValuesPath := filepath.Join(rootPath, inthclparse.StackDir, "stack-w-values", inthclparse.StackDir, "unit_w_inputs", "terragrunt.values.hcl")
-	require.FileExists(t, nestedUnitValuesPath, "nested unit must have terragrunt.values.hcl containing the propagated autoinclude values")
-
-	valuesContent, err := os.ReadFile(nestedUnitValuesPath)
-	require.NoError(t, err)
-	assert.Contains(t, string(valuesContent), "val", "nested unit values file must contain the `val` key propagated from the stack autoinclude")
-
-	// Run apply: nested unit's `inputs = { val = values.val }` must resolve `values.val` to the propagated mock_outputs value.
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
-
-	markerPath := helpers.FindCachedFile(t,
-		filepath.Join(rootPath, inthclparse.StackDir, "stack-w-values", inthclparse.StackDir, "unit_w_inputs"),
-		"marker.txt")
-
-	markerContent, err := os.ReadFile(markerPath)
-	require.NoError(t, err)
-	assert.Equal(t, "received: mock-val", string(markerContent),
-		"nested stack's unit must observe the autoinclude `values` value (mock_outputs at generation time)")
-
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
 }

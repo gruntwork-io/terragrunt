@@ -25,7 +25,6 @@ const (
 	attrConfigPath  = "config_path"
 	attrPath        = "path"
 	attrSource      = "source"
-	attrValues      = "values"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"
@@ -428,10 +427,6 @@ func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, k
 		resolved.EvalCtx = evalCtx
 		resolved.Kind = kind
 		resolved.SourceBytes = sourceBytes
-	}
-
-	if resolved != nil && kind == KindUnit && resolved.Values != nil {
-		return nil, FileDecodeError{Name: attrValues, Detail: "`values` is only supported in stack-level autoinclude blocks"}
 	}
 
 	return resolved, nil

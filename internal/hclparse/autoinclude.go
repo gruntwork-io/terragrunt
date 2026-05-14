@@ -53,8 +53,6 @@ type AutoIncludeResolved struct {
 	RawBody hcl.Body
 	// SourceBytes are the bytes of the file RawBody was parsed from. Generation slices expressions by HCL byte ranges and must use these bytes, not the root stack file's bytes, when the autoinclude originated in an included file.
 	SourceBytes []byte
-	// Values is the resolved `values = {...}` attribute; only valid for stack-kind autoincludes (unit-kind rejected in resolveAutoInclude). Propagated into the nested stack's terragrunt.values.hcl. Nil when absent.
-	Values *cty.Value
 	// Kind is KindUnit or KindStack and drives the generated filename (terragrunt.autoinclude.hcl vs terragrunt.autoinclude.stack.hcl).
 	Kind         AutoIncludeKind
 	Dependencies []AutoIncludeDependency
@@ -97,6 +95,15 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 		return &AutoIncludeResolved{EvalCtx: evalCtx, RawBody: a.Remain}, nil
 	}
 
+	if valuesAttr, hasValues := body.Attributes["values"]; hasValues {
+		return nil, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "`values` is not allowed inside `autoinclude`",
+			Detail:   "did you mean to declare `values = {...}` on the parent unit/stack block (next to `source`/`path`) instead of inside the `autoinclude` block?",
+			Subject:  valuesAttr.Range().Ptr(),
+		}}
+	}
+
 	var (
 		deps  []AutoIncludeDependency
 		diags hcl.Diagnostics
@@ -132,93 +139,11 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 		return nil, diags
 	}
 
-	// Evaluate the optional `values` attribute against an augmented eval context that binds dependency mock_outputs so expressions like `dependency.X.outputs.Y` resolve. Mock_outputs are the only dependency data available at parse time; at runtime the production parser will resolve dependencies for real if the generated autoinclude file is re-parsed there.
-	resolvedValues, valDiags := resolveAutoIncludeValues(body, evalCtx, deps)
-	diags = append(diags, valDiags...)
-
-	if diags.HasErrors() {
-		return nil, diags
-	}
-
 	return &AutoIncludeResolved{
 		EvalCtx:      evalCtx,
 		Dependencies: deps,
 		RawBody:      a.Remain,
-		Values:       resolvedValues,
 	}, nil
-}
-
-// resolveAutoIncludeValues extracts and evaluates the optional `values = {...}` attribute from the autoinclude body. The eval context is augmented with `dependency.<name>.outputs = mock_outputs` for each declared dependency so values that reference dependency outputs resolve to the mock value at parse time. Returns (nil, nil) when no values attribute is present.
-func resolveAutoIncludeValues(body *hclsyntax.Body, evalCtx *hcl.EvalContext, deps []AutoIncludeDependency) (*cty.Value, hcl.Diagnostics) {
-	valuesAttr, ok := body.Attributes[attrValues]
-	if !ok {
-		return nil, nil
-	}
-
-	depCtx, depDiags := ctxWithDeps(evalCtx, body, deps)
-	if depDiags.HasErrors() {
-		return nil, depDiags
-	}
-
-	val, diags := valuesAttr.Expr.Value(depCtx)
-	if diags.HasErrors() {
-		return nil, diags
-	}
-
-	return &val, nil
-}
-
-// ctxWithDeps returns a copy of evalCtx with `dependency.<name>` bound to an object whose `outputs` attribute is the resolved mock_outputs of each declared dependency. Dependencies without mock_outputs are bound with an empty outputs object so references through them do not panic.
-func ctxWithDeps(evalCtx *hcl.EvalContext, body *hclsyntax.Body, deps []AutoIncludeDependency) (*hcl.EvalContext, hcl.Diagnostics) {
-	depObj := make(map[string]cty.Value, len(deps))
-
-	var diags hcl.Diagnostics
-
-	for _, dep := range deps {
-		mockOutputs, mockDiags := mockOutputsFromBody(body, dep.Name, evalCtx)
-		diags = append(diags, mockDiags...)
-		depObj[dep.Name] = cty.ObjectVal(map[string]cty.Value{"outputs": mockOutputs})
-	}
-
-	if diags.HasErrors() {
-		return nil, diags
-	}
-
-	depCtx := &hcl.EvalContext{
-		Variables: make(map[string]cty.Value, len(evalCtx.Variables)+1),
-		Functions: evalCtx.Functions,
-	}
-
-	for k, v := range evalCtx.Variables {
-		depCtx.Variables[k] = v
-	}
-
-	depCtx.Variables[varDependency] = cty.ObjectVal(depObj)
-
-	return depCtx, nil
-}
-
-// mockOutputsFromBody finds the dependency block by name in body, extracts its `mock_outputs` attribute, and returns the evaluated value. Returns cty.EmptyObjectVal when the dependency has no mock_outputs.
-func mockOutputsFromBody(body *hclsyntax.Body, depName string, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
-	for _, block := range body.Blocks {
-		if block.Type != blockDependency || len(block.Labels) != 1 || block.Labels[0] != depName {
-			continue
-		}
-
-		attr, ok := block.Body.Attributes["mock_outputs"]
-		if !ok {
-			return cty.EmptyObjectVal, nil
-		}
-
-		val, diags := attr.Expr.Value(evalCtx)
-		if diags.HasErrors() {
-			return cty.EmptyObjectVal, diags
-		}
-
-		return val, nil
-	}
-
-	return cty.EmptyObjectVal, nil
 }
 
 // resolveDependencyBlock extracts config_path from a dependency block

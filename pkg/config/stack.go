@@ -184,7 +184,6 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		targetDir:       stackTargetDir,
 		autoIncludes:    autoIncludes,
 		stackSrcBytes:   stackSrcBytes,
-		stackValues:     values,
 		casEnabled:      casEnabled,
 		casInstance:     casInstance,
 		strictControls:  pctx.StrictControls,
@@ -235,12 +234,10 @@ func validateUpdateSourceWithCAS(stackFile *StackConfig, stackFilePath string, c
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
-	autoIncludes   map[string]*inthclparse.AutoIncludeResolved
-	casInstance    *cas.CAS
-	sourceMap      map[string]string
-	strictControls strict.Controls
-	// stackValues is the stack-level values (read from this stack's terragrunt.values.hcl) propagated into each generated unit's terragrunt.values.hcl. This carries inherited values down from a parent stack autoinclude `values = {...}` block: the parent writes the autoinclude values to the nested stack's values file, the nested GenerateStackFile reads them here, and we merge them into each nested unit's values so unit terragrunt.hcl `inputs = { x = values.x }` resolves.
-	stackValues     *cty.Value
+	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
+	casInstance     *cas.CAS
+	sourceMap       map[string]string
+	strictControls  strict.Controls
 	rootWorkingDir  string
 	stackConfigPath string
 	sourceFile      string
@@ -430,61 +427,6 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 	return nil
 }
 
-// stackAutoIncludeValues returns the resolved `values = {...}` for a stack-kind autoinclude, or nil when none applies.
-func stackAutoIncludeValues(opts *generateOpts, cmp *componentToGenerate) *cty.Value {
-	if cmp.kind != stackKind || opts.autoIncludes == nil {
-		return nil
-	}
-
-	resolved, ok := opts.autoIncludes[inthclparse.AutoIncludeKey(inthclparse.KindStack, cmp.name)]
-	if !ok {
-		return nil
-	}
-
-	return resolved.Values
-}
-
-// mergeStackAutoIncludeValues merges the autoinclude `values` (highest precedence) over the component's existing `values`. Returns baseValues unchanged when autoIncludeValues is nil. Returns an error when autoIncludeValues is not an object/map.
-func mergeStackAutoIncludeValues(baseValues, autoIncludeValues *cty.Value) (*cty.Value, error) {
-	if autoIncludeValues == nil {
-		return baseValues, nil
-	}
-
-	baseMap, baseOK, err := valuesMapForMerge("stack block", baseValues)
-	if err != nil {
-		return nil, err
-	}
-
-	autoMap, autoOK, err := valuesMapForMerge("stack autoinclude", autoIncludeValues)
-	if err != nil {
-		return nil, err
-	}
-
-	if !autoOK {
-		return baseValues, nil
-	}
-
-	merged := make(map[string]cty.Value)
-
-	if baseOK {
-		for k, v := range baseMap {
-			merged[k] = v
-		}
-	}
-
-	for k, v := range autoMap {
-		merged[k] = v
-	}
-
-	if len(merged) == 0 {
-		return baseValues, nil
-	}
-
-	out := cty.ObjectVal(merged)
-
-	return &out, nil
-}
-
 // generateComponent copies files from the source directory to the target destination and generates a corresponding values file.
 func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cmp *componentToGenerate) error {
 	source := cmp.source
@@ -514,75 +456,11 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		return err
 	}
 
-	// Compute final values once before writing. Unit components merge in parent-stack values so `values.<key>` resolves; stack components merge in their own autoinclude `values = {...}` so the nested stack's units inherit them via terragrunt.values.hcl.
-	effectiveValues, err := mergeUnitValuesWithStackValues(cmp.values, opts.stackValues, cmp.kind)
-	if err != nil {
-		return errors.Errorf("failed to merge unit values for %s: %w", cmp.name, err)
-	}
-
-	effectiveValues, err = mergeStackAutoIncludeValues(effectiveValues, stackAutoIncludeValues(opts, cmp))
-	if err != nil {
-		return errors.Errorf("failed to merge stack autoinclude values for %s: %w", cmp.name, err)
-	}
-
-	if err := writeValues(l, effectiveValues, dest); err != nil {
+	if err := writeValues(l, cmp.values, dest); err != nil {
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
 	return generateAutoInclude(l, opts, cmp, dest)
-}
-
-// mergeUnitValuesWithStackValues combines unit-declared values with stack-level values inherited from a parent stack autoinclude. Returns the unit values unchanged for stack components (only unit values benefit from the merge: nested stack values are propagated via the recursive GenerateStackFile's own values-file read). Unit-declared values win on key conflict.
-func mergeUnitValuesWithStackValues(unitValues, stackValues *cty.Value, kind componentKind) (*cty.Value, error) {
-	if kind == stackKind || stackValues == nil {
-		return unitValues, nil
-	}
-
-	stackMap, stackOK, err := valuesMapForMerge("stack-level", stackValues)
-	if err != nil {
-		return nil, err
-	}
-
-	if !stackOK {
-		return unitValues, nil
-	}
-
-	unitMap, unitOK, err := valuesMapForMerge("unit", unitValues)
-	if err != nil {
-		return nil, err
-	}
-
-	merged := make(map[string]cty.Value)
-	for k, v := range stackMap {
-		merged[k] = v
-	}
-
-	if unitOK {
-		for k, v := range unitMap {
-			merged[k] = v
-		}
-	}
-
-	if len(merged) == 0 {
-		return unitValues, nil
-	}
-
-	out := cty.ObjectVal(merged)
-
-	return &out, nil
-}
-
-func valuesMapForMerge(label string, values *cty.Value) (map[string]cty.Value, bool, error) {
-	if values == nil || values.IsNull() || !values.IsWhollyKnown() {
-		return nil, false, nil
-	}
-
-	valType := values.Type()
-	if !valType.IsObjectType() && !valType.IsMapType() {
-		return nil, false, errors.Errorf("%s values must be object or map, got %s", label, valType.FriendlyName())
-	}
-
-	return values.AsValueMap(), true, nil
 }
 
 // fetchComponentSource handles the paths for fetching a component's source:

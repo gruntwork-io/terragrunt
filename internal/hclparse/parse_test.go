@@ -1215,139 +1215,54 @@ func TestEvalString_NullValueIsError(t *testing.T) {
 	require.Error(t, err, "null value must produce an error, not an empty string")
 }
 
-// TestAutoIncludeResolve_ValuesAttribute pins that the autoinclude `values = {...}` attribute is captured into AutoIncludeResolved.Values when the body declares it, with dependency mock_outputs bound so `dependency.X.outputs.Y` references resolve at parse time.
-func TestAutoIncludeResolve_ValuesAttribute(t *testing.T) {
+// TestAutoIncludeResolve_RejectsValuesAttribute pins that a `values = {...}` attribute inside an `autoinclude` block is rejected with a guidance message pointing the user at the parent unit/stack block. Applies to both unit-kind and stack-kind autoincludes.
+func TestAutoIncludeResolve_RejectsValuesAttribute(t *testing.T) {
 	t.Parallel()
 
-	src := `
-stack "src" {
-  source = "../catalog/stacks/src"
-  path   = "src"
-}
-
-stack "consumer" {
-  source = "../catalog/stacks/consumer"
-  path   = "consumer"
-
-  autoinclude {
-    dependency "upstream" {
-      config_path = stack.src.path
-
-      mock_outputs_allowed_terraform_commands = ["validate", "plan"]
-      mock_outputs = {
-        val = "mock-from-dep"
-      }
-    }
-
-    values = {
-      val = dependency.upstream.outputs.val
-    }
-  }
-}
-`
-
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
-	})
-	require.NoError(t, err)
-
-	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("stack", "consumer")]
-	require.True(t, ok, "expected resolved autoinclude for stack 'consumer'")
-	require.NotNil(t, resolved.Values, "autoinclude `values = {...}` must be captured into AutoIncludeResolved.Values")
-
-	got := resolved.Values.AsValueMap()
-	assert.Equal(t, "mock-from-dep", got["val"].AsString(), "dependency.upstream.outputs.val must resolve to the dep's mock_outputs at parse time")
-}
-
-func TestAutoIncludeResolve_InvalidMockOutputsReturnsDiagnostic(t *testing.T) {
-	t.Parallel()
-
-	src := `
-stack "src" {
-  source = "../catalog/stacks/src"
-  path   = "src"
-}
-
-stack "consumer" {
-  source = "../catalog/stacks/consumer"
-  path   = "consumer"
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "unit-kind autoinclude with values",
+			src: `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
 
   autoinclude {
-    dependency "upstream" {
-      config_path = stack.src.path
-      mock_outputs = {
-        val = missing.value
-      }
-    }
-
-    values = {
-      val = "literal"
-    }
+    values = { v = "literal" }
   }
 }
-`
-
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing")
-}
-
-// TestAutoIncludeResolve_NoValuesAttribute returns nil Values when the autoinclude body has no values attribute.
-func TestAutoIncludeResolve_NoValuesAttribute(t *testing.T) {
-	t.Parallel()
-
-	src := `
-stack "src" {
-  source = "../catalog/stacks/src"
-  path   = "src"
-}
-
-stack "consumer" {
-  source = "../catalog/stacks/consumer"
-  path   = "consumer"
+`,
+		},
+		{
+			name: "stack-kind autoinclude with values",
+			src: `
+stack "s" {
+  source = "../catalog/stacks/s"
+  path   = "s"
 
   autoinclude {
-    dependency "upstream" {
-      config_path = stack.src.path
-    }
+    values = { v = "literal" }
   }
 }
-`
+`,
+		},
+	}
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
-	})
-	require.NoError(t, err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("stack", "consumer")]
-	require.True(t, ok)
-	assert.Nil(t, resolved.Values, "absent values attribute must leave AutoIncludeResolved.Values nil")
-}
-
-// TestAutoIncludeResolve_ValuesRejectedOnUnitKind pins that a unit-level autoinclude `values = {...}` block surfaces a parse error so the user is told `values` is stack-only.
-func TestAutoIncludeResolve_ValuesRejectedOnUnitKind(t *testing.T) {
-	t.Parallel()
-
-	src := `
-unit "consumer" {
-  source = "../catalog/units/consumer"
-  path   = "consumer"
-
-  autoinclude {
-    values = {
-      val = "literal"
-    }
-  }
-}
-`
-
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
-	})
-	require.Error(t, err, "unit-level autoinclude `values` must be rejected")
-	assert.Contains(t, err.Error(), "stack-level autoinclude")
+			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+				Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+			})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "`values` is not allowed inside `autoinclude`")
+			assert.Contains(t, err.Error(), "parent unit/stack block")
+		})
+	}
 }
 
 // TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude regresses the bootstrap-path include-after-refs ordering bug: a unit declared in an included file must be reachable as unit.<name>.path when another autoinclude in the same included file resolves.

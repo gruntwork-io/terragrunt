@@ -506,39 +506,3 @@ func FuzzEvalString(f *testing.F) {
 		_, _ = hclparse.EvalString(nil, ctxWithVars, "fuzz")
 	})
 }
-
-// FuzzAutoIncludeResolveWithValues exercises the new `values = {...}` attribute path on AutoIncludeHCL.Resolve, including the dependency.<name>.outputs mock_outputs binding. Verifies no panic on any body content.
-func FuzzAutoIncludeResolveWithValues(f *testing.F) {
-	seeds := []string{
-		`values = { v = "literal" }`,
-		`dependency "u" { config_path = "../u"; mock_outputs = { val = "mock-v" } }; values = { v = dependency.u.outputs.val }`,
-		`dependency "u" { config_path = "../u" }; values = { v = dependency.u.outputs.val }`,
-		`values = {}`,
-		`values = null`,
-		`values = "not-an-object"`,
-		`dependency "u" { config_path = "../u"; mock_outputs = "bad" }; values = { v = dependency.u.outputs.val }`,
-		``,
-		`{`,
-	}
-
-	for _, seed := range seeds {
-		f.Add(seed)
-	}
-
-	evalCtx := &hcl.EvalContext{
-		Variables: map[string]cty.Value{
-			"unit":  cty.EmptyObjectVal,
-			"stack": cty.EmptyObjectVal,
-		},
-	}
-
-	f.Fuzz(func(t *testing.T, input string) {
-		file, diags := hclsyntax.ParseConfig([]byte(input), "fuzz.hcl", hcl.Pos{Line: 1, Column: 1})
-		if diags.HasErrors() {
-			return
-		}
-
-		autoInclude := &hclparse.AutoIncludeHCL{Remain: file.Body}
-		_, _ = autoInclude.Resolve(evalCtx)
-	})
-}
