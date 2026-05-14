@@ -12,10 +12,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/puzpuzpuz/xsync/v3"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -99,12 +101,15 @@ func StackOutput(
 		return cty.NilVal, nil
 	}
 
-	outputs := make(map[string]map[string]cty.Value)
+	outputs := xsync.NewMapOf[string, map[string]cty.Value]()
 	declaredStacks := make(map[string]string)
 	declaredUnits := make(map[string]*config.Unit)
 
 	// save parsed stacks
 	parsedStackFiles := make(map[string]*config.StackConfig, len(foundFiles))
+
+	wp := worker.NewWorkerPool(opts.Parallelism)
+	defer wp.Stop()
 
 	for _, path := range foundFiles {
 		dir := filepath.Dir(path)
@@ -139,15 +144,24 @@ func StackOutput(
 				continue
 			}
 
-			unitOutput, err := readUnitOutput(ctx, l, pctx, unit, unitDir)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
 			key := filepath.Join(targetDir, unit.Path)
 			declaredUnits[key] = unit
-			outputs[key] = unitOutput
+
+			wp.Submit(func() error {
+				out, err := readUnitOutput(ctx, l, pctx, unit, unitDir)
+				if err != nil {
+					return err
+				}
+
+				outputs.Store(key, out)
+
+				return nil
+			})
 		}
+	}
+
+	if err := wp.Wait(); err != nil {
+		return cty.NilVal, err
 	}
 
 	unitOutputs := make(map[string]map[string]cty.Value)
@@ -155,7 +169,7 @@ func StackOutput(
 	// Build stack list separated by stacks, find all nested stacks, and build
 	// a dotted path. If no stack is found, use the unit name.
 	for path, unit := range declaredUnits {
-		output, found := outputs[path]
+		output, found := outputs.Load(path)
 		if !found {
 			l.Debugf("No output found for %s", path)
 			continue

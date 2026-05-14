@@ -220,6 +220,18 @@ This returns a single aggregated HCL object aggregating all the outputs for all 
 You can use the `--format json` flag to get the output in JSON format, which can be useful for accessing values programmatically.
 </Aside>
 
+### Limiting stack output parallelism
+
+By default, `terragrunt stack output` fetches outputs from every unit concurrently. On large stacks this is much faster than reading them one at a time, but each fetch spawns a `tofu output` child process, so very large stacks may need a cap to avoid file-descriptor exhaustion or hitting cloud-provider rate limits.
+
+Use the `--parallelism` flag to set the maximum number of concurrent unit fetches:
+
+```sh
+terragrunt stack output --parallelism 4
+```
+
+This mirrors how [`run --all`](/features/stacks/stack-operations/#limiting-run-parallelism) uses the same flag to bound unit execution.
+
 ## Using Local State with Stacks
 
 When using Explicit Stacks, you might want to use local state files instead of remote state for development, testing, or specific use cases. However, this presents a challenge because the generated `.terragrunt-stack` directory can be safely deleted and regenerated using `terragrunt stack clean && terragrunt stack generate`, which would normally cause local state files to be lost.
