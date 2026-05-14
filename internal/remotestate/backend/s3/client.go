@@ -502,7 +502,9 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 		return err
 	}
 
-	if err := client.TagS3Bucket(ctx, l); err != nil {
+	if client.SkipBucketTagging {
+		l.Debugf("Bucket tagging is disabled for the remote state S3 bucket %s using 'skip_bucket_tagging' config.", cfg.Bucket)
+	} else if err := client.TagS3Bucket(ctx, l); err != nil {
 		return err
 	}
 
@@ -530,7 +532,9 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 		l.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", cfg.Bucket)
 	}
 
-	if err := client.TagS3BucketAccessLogging(ctx, l); err != nil {
+	if client.SkipBucketTagging {
+		l.Debugf("Access logging bucket tagging is disabled for access logging bucket %s using 'skip_bucket_tagging' config.", client.AccessLoggingBucketName)
+	} else if err := client.TagS3BucketAccessLogging(ctx, l); err != nil {
 		return err
 	}
 
@@ -696,21 +700,30 @@ func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket s
 	l.Debugf("Creating S3 bucket %s", bucket)
 
 	input := &s3.CreateBucketInput{
-		Bucket:          aws.String(bucket),
-		ObjectOwnership: types.ObjectOwnershipObjectWriter,
+		Bucket: aws.String(bucket),
+	}
+
+	if client.SkipObjectOwnership {
+		l.Debugf("Object ownership is disabled for the remote state S3 bucket %s using 'skip_object_ownership' config.", bucket)
+	} else {
+		input.ObjectOwnership = types.ObjectOwnershipObjectWriter
 	}
 
 	// For regions other than us-east-1, we need to specify the location constraint
 	// to avoid IllegalLocationConstraintException
 	region := client.awsConfig.Region
-	if region != "us-east-1" && region != "" {
+	if client.SkipLocationConstraint {
+		l.Debugf("Location constraint is disabled for the remote state S3 bucket %s using 'skip_location_constraint' config.", bucket)
+	} else if region != "us-east-1" && region != "" {
 		l.Debugf("Creating S3 bucket %s in region %s", bucket, region)
 		input.CreateBucketConfiguration = &types.CreateBucketConfiguration{
 			LocationConstraint: types.BucketLocationConstraint(region),
 		}
 	}
 
-	if len(opts) > 0 && len(opts[0].Tags) > 0 {
+	if client.SkipBucketTagging {
+		l.Debugf("Bucket tagging is disabled for the remote state S3 bucket %s using 'skip_bucket_tagging' config.", bucket)
+	} else if len(opts) > 0 && len(opts[0].Tags) > 0 {
 		l.Debugf("Including %d tag(s) in CreateBucket request for %s", len(opts[0].Tags), bucket)
 
 		sdkTags := convertTags(opts[0].Tags)
