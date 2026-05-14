@@ -94,6 +94,40 @@ func (s *Server) CommitFile(path string, data []byte, msg string) error {
 	return nil
 }
 
+// CommitSymlink creates a symlink in the worktree pointing at target and
+// commits it. The recorded tree entry is mode 120000 (git's symlink type),
+// matching the on-disk representation produced by `git add` on a symlink.
+func (s *Server) CommitSymlink(link, target, msg string) error {
+	w, err := s.repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("worktree: %w", err)
+	}
+
+	if err := w.Filesystem.Symlink(target, link); err != nil {
+		return fmt.Errorf("symlink %s -> %s: %w", link, target, err)
+	}
+
+	if _, err := w.Add(link); err != nil {
+		return fmt.Errorf("add %s: %w", link, err)
+	}
+
+	sig := &object.Signature{
+		Name:  "Test",
+		Email: "test@test.com",
+		When:  time.Now(),
+	}
+
+	_, err = w.Commit(msg, &gogit.CommitOptions{
+		Author:    sig,
+		Committer: sig,
+	})
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	return nil
+}
+
 // Head returns the canonical hash of the current HEAD commit. Useful
 // in tests that need to capture a non-tip commit hash before adding
 // further commits.
