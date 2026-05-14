@@ -2,7 +2,6 @@
 package engine
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -25,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -56,8 +56,6 @@ const (
 	terraformCommandContextKey engineClientsKey = iota
 	locksContextKey            engineLocksKey   = iota
 	latestVersionsContextKey   engineLocksKey   = iota
-
-	dirPerm = 0755
 
 	errMsgEngineClientsFetch = "failed to fetch engine clients from context"
 	errMsgEngineClientsCast  = "failed to cast engine clients from context"
@@ -334,7 +332,7 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 		}
 	}()
 	// extract archive
-	if err = extract(l, downloadFile, tempDir); err != nil {
+	if err = vfs.NewZipDecompressor().Unzip(l, vfs.NewOSFS(), tempDir, downloadFile, 0); err != nil {
 		return errors.New(err)
 	}
 
@@ -1098,79 +1096,6 @@ func ConvertMetaToProtobuf(meta map[string]any) (map[string]*anypb.Any, error) {
 	}
 
 	return protoMeta, nil
-}
-
-// extract extracts a ZIP file into a specified destination directory.
-func extract(l log.Logger, zipFile, destDir string) error {
-	r, err := zip.OpenReader(zipFile)
-	if err != nil {
-		return errors.New(err)
-	}
-
-	defer func() {
-		if closeErr := r.Close(); closeErr != nil {
-			l.Warnf("warning: failed to close zip reader: %v", closeErr)
-		}
-	}()
-
-	if err = os.MkdirAll(destDir, dirPerm); err != nil {
-		return errors.New(err)
-	}
-
-	// Extract each file in the archive
-	for _, file := range r.File {
-		if err := extractFile(l, destDir, dirPerm, file); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// extractFile extracts a single file from a ZIP archive entry.
-func extractFile(l log.Logger, destDir string, dirPerm os.FileMode, file *zip.File) error {
-	fPath := filepath.Join(destDir, file.Name)
-
-	// Check for ZipSlip vulnerability
-	if !strings.HasPrefix(fPath, filepath.Clean(destDir)+string(os.PathSeparator)) {
-		return errors.Errorf("zip archive contains path traversal: %q escapes target dir %q", file.Name, destDir)
-	}
-
-	if file.FileInfo().IsDir() {
-		if err := os.MkdirAll(fPath, file.Mode()); err != nil {
-			return errors.New(err)
-		}
-		return nil
-	}
-
-	if err := os.MkdirAll(filepath.Dir(fPath), dirPerm); err != nil {
-		return errors.New(err)
-	}
-
-	outFile, err := os.OpenFile(fPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
-	if err != nil {
-		return errors.New(err)
-	}
-	defer func() {
-		if closeErr := outFile.Close(); closeErr != nil {
-			l.Warnf("warning: failed to close extracted output file: %v", closeErr)
-		}
-	}()
-
-	rc, err := file.Open()
-	if err != nil {
-		return errors.New(err)
-	}
-	defer func() {
-		if closeErr := rc.Close(); closeErr != nil {
-			l.Warnf("warning: failed to close file reader: %v", closeErr)
-		}
-	}()
-
-	if _, err := io.Copy(outFile, rc); err != nil {
-		return errors.New(err)
-	}
-	return nil
 }
 
 // detectFileType determines the type of file based on its magic bytes.
