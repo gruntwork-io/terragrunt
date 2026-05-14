@@ -100,25 +100,21 @@ func TestResolveStackFilePath(t *testing.T) {
 	wantStack := filepath.Join(tmpDir, DefaultStackFile)
 
 	cases := []struct {
-		name        string
-		raw         string
-		target      string
-		want        string
-		wantHandled bool
+		name   string
+		raw    string
+		target string
+		want   string // "" means the dep is an explicit unit config, not a stack candidate
 	}{
-		{"stackFileDirectly", filepath.Join(tmpDir, DefaultStackFile), wantStack, wantStack, true},
-		{"explicitTerragruntHCL", filepath.Join(tmpDir, DefaultTerragruntConfigPath), filepath.Join(tmpDir, DefaultTerragruntConfigPath), "", false},
-		{"explicitTerragruntJSON", filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), "", false},
-		{"bareDirectory", tmpDir, filepath.Join(tmpDir, DefaultTerragruntConfigPath), wantStack, true},
+		{"stackFileDirectly", filepath.Join(tmpDir, DefaultStackFile), wantStack, wantStack},
+		{"explicitTerragruntHCL", filepath.Join(tmpDir, DefaultTerragruntConfigPath), filepath.Join(tmpDir, DefaultTerragruntConfigPath), ""},
+		{"explicitTerragruntJSON", filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), ""},
+		{"bareDirectory", tmpDir, filepath.Join(tmpDir, DefaultTerragruntConfigPath), wantStack},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			got, handled := resolveStackFilePath(tc.raw, tc.target)
-			assert.Equal(t, tc.wantHandled, handled)
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.want, resolveStackFilePath(tc.raw, tc.target))
 		})
 	}
 }
@@ -143,9 +139,9 @@ func FuzzResolveStackFilePath(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, input string) {
-		got, handled := resolveStackFilePath(input, input)
-		if handled {
-			require.Equal(t, DefaultStackFile, filepath.Base(got), "resolveStackFilePath must always return a path whose base is %s (input=%q got=%q)", DefaultStackFile, input, got)
+		got := resolveStackFilePath(input, input)
+		if got != "" {
+			require.Equal(t, DefaultStackFile, filepath.Base(got), "resolveStackFilePath must return either \"\" or a path whose base is %s (input=%q got=%q)", DefaultStackFile, input, got)
 		}
 	})
 }

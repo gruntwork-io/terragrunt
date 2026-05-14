@@ -791,8 +791,8 @@ func tryGetStackOutput(
 	targetConfigPath string,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
-	stackFilePath, candidate := resolveStackFilePath(dependencyConfig.ConfigPath.AsString(), targetConfigPath)
-	if !candidate {
+	stackFilePath := resolveStackFilePath(dependencyConfig.ConfigPath.AsString(), targetConfigPath)
+	if stackFilePath == "" {
 		return nil, false, nil
 	}
 
@@ -828,22 +828,22 @@ func tryGetStackOutput(
 	return &result, true, nil
 }
 
-// resolveStackFilePath returns the candidate terragrunt.stack.hcl for a dependency target (bare dir → <dir>/terragrunt.stack.hcl; explicit terragrunt.hcl/.hcl.json → not a stack), with a bool that is false when the dep is an explicit unit config.
-func resolveStackFilePath(rawConfigPath string, targetConfigPath string) (string, bool) {
+// resolveStackFilePath returns the candidate terragrunt.stack.hcl path for a dependency target, or "" when the dep explicitly points at a unit config (terragrunt.hcl / terragrunt.hcl.json) and is therefore not a stack candidate. rawConfigPath is the user-supplied dependency.config_path; targetConfigPath is the same path after getCleanedTargetConfigPath has normalized bare-directory deps to <dir>/terragrunt.hcl.
+func resolveStackFilePath(rawConfigPath, targetConfigPath string) string {
 	switch filepath.Base(filepath.Clean(rawConfigPath)) {
 	case DefaultStackFile:
-		return targetConfigPath, true
+		return targetConfigPath
 	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
-		return "", false
+		return ""
+	}
+
+	switch filepath.Base(targetConfigPath) {
+	case DefaultStackFile:
+		return targetConfigPath
+	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
+		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile)
 	default:
-		switch filepath.Base(targetConfigPath) {
-		case DefaultStackFile:
-			return targetConfigPath, true
-		case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
-			return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile), true
-		default:
-			return filepath.Join(targetConfigPath, DefaultStackFile), true
-		}
+		return filepath.Join(targetConfigPath, DefaultStackFile)
 	}
 }
 

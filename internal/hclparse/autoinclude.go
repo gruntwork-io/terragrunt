@@ -104,10 +104,9 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 		}}
 	}
 
-	var (
-		deps  []AutoIncludeDependency
-		diags hcl.Diagnostics
-	)
+	deps := make([]AutoIncludeDependency, 0, len(body.Blocks))
+
+	var diags hcl.Diagnostics
 
 	for _, block := range body.Blocks {
 		if block.Type != blockDependency {

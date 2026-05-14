@@ -135,6 +135,32 @@ func TestBuildAutoIncludeEvalContext(t *testing.T) {
 	assert.Equal(t, "infra-stack", stackVar.GetAttr("infra").GetAttr("path").AsString())
 }
 
+func TestBuildAutoIncludeEvalContext_WithChildRefs(t *testing.T) {
+	t.Parallel()
+
+	stackRefs := []hclparse.ComponentRef{
+		{
+			Name: "stack_w_outputs",
+			Path: "/project/.terragrunt-stack/stack-w-outputs",
+			ChildRefs: []hclparse.ComponentRef{
+				{Name: "unit_w_outputs", Path: "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs"},
+			},
+		},
+	}
+
+	evalCtx := hclparse.BuildAutoIncludeEvalContext(nil, stackRefs)
+
+	stackVar := evalCtx.Variables["stack"]
+	stackRef := stackVar.GetAttr("stack_w_outputs")
+
+	// stack.stack_w_outputs.path works
+	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs", stackRef.GetAttr("path").AsString())
+
+	// stack.stack_w_outputs.unit_w_outputs.path works
+	unitRef := stackRef.GetAttr("unit_w_outputs")
+	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs", unitRef.GetAttr("path").AsString())
+}
+
 func TestDiscoverStackChildUnits(t *testing.T) {
 	t.Parallel()
 
@@ -193,32 +219,6 @@ func TestDiscoverStackChildUnits_NoStackFile(t *testing.T) {
 
 	refs := hclparse.DiscoverStackChildUnits(fs, "/nonexistent", "/gen")
 	assert.Nil(t, refs)
-}
-
-func TestBuildAutoIncludeEvalContext_WithChildRefs(t *testing.T) {
-	t.Parallel()
-
-	stackRefs := []hclparse.ComponentRef{
-		{
-			Name: "stack_w_outputs",
-			Path: "/project/.terragrunt-stack/stack-w-outputs",
-			ChildRefs: []hclparse.ComponentRef{
-				{Name: "unit_w_outputs", Path: "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs"},
-			},
-		},
-	}
-
-	evalCtx := hclparse.BuildAutoIncludeEvalContext(nil, stackRefs)
-
-	stackVar := evalCtx.Variables["stack"]
-	stackRef := stackVar.GetAttr("stack_w_outputs")
-
-	// stack.stack_w_outputs.path works
-	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs", stackRef.GetAttr("path").AsString())
-
-	// stack.stack_w_outputs.unit_w_outputs.path works
-	unitRef := stackRef.GetAttr("unit_w_outputs")
-	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs", unitRef.GetAttr("path").AsString())
 }
 
 func TestUnitPathsFromStackDir(t *testing.T) {

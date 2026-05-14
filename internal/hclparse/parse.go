@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
@@ -55,14 +56,16 @@ type ParseResult struct {
 	Stacks       []*StackBlockHCL
 }
 
-// ParseStackFile runs the four-phase parse documented at the package level. The eval context is built once and progressively populated as each phase succeeds, so every attribute is its natural Go type (no lazy hcl.Expression on unit/stack blocks).
+// ParseStackFile runs the four-phase parse documented at the package level. The eval context is built once and progressively populated as each phase succeeds, so every attribute is its natural Go type (no lazy hcl.Expression on unit/stack blocks). On error, returns both the error and whatever was successfully parsed up to the failure point so LSP/IDE callers can surface partial results.
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
 	validateParseStackFileInput(fs, input)
+
+	result := &ParseResult{AutoIncludes: map[string]*AutoIncludeResolved{}}
 
 	// Phase 1: slurp.
 	slurp, err := slurpStackFile(input.Src, input.Filename)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 
 	evalCtx := buildBaseEvalContext(input)
@@ -70,27 +73,34 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	// Phase 2: locals.
 	if slurp.Locals != nil {
 		if err := evaluateLocals(slurp.Locals.Remain, evalCtx); err != nil {
-			return nil, err
+			return result, err
 		}
 	}
 
 	// srcByFilename maps each source file (root + each included file) to its bytes so the autoinclude generator can slice expression byte ranges from the right file.
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
-	// Phase 3: includes. Each included file's Remain is appended via hcl.MergeBodies. Source bytes from each included file are recorded in srcByFilename.
+	// Phase 3: includes.
 	mergedRemain, err := mergeIncludes(fs, slurp, input.StackDir, evalCtx, srcByFilename)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 
 	// Phase 4: eager decode of unit/stack blocks.
 	decoded := &unitsAndStacksHCL{}
 	if diags := decodeRemain(mergedRemain, evalCtx, decoded); diags != nil {
-		return nil, FileDecodeError{Name: input.Filename, Detail: diags.Error(), Err: diags}
+		// Populate partial results: any successfully-decoded blocks survive in `decoded` even when other attributes diagnosed errors.
+		result.Units = decoded.Units
+		result.Stacks = decoded.Stacks
+
+		return result, FileDecodeError{Name: input.Filename, Detail: diags.Error(), Err: diags}
 	}
 
+	result.Units = decoded.Units
+	result.Stacks = decoded.Stacks
+
 	if err := validateUniqueNames(decoded); err != nil {
-		return nil, err
+		return result, err
 	}
 
 	// Build unit.*/stack.* refs from the decoded blocks and add them to the eval context for autoinclude resolution.
@@ -103,14 +113,12 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	autoIncludes, err := resolveAutoIncludes(decoded, evalCtx, srcByFilename)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 
-	return &ParseResult{
-		Units:        decoded.Units,
-		Stacks:       decoded.Stacks,
-		AutoIncludes: autoIncludes,
-	}, nil
+	result.AutoIncludes = autoIncludes
+
+	return result, nil
 }
 
 // validateParseStackFileInput panics on programmer errors so callers get a stack trace at the call site rather than a downstream nil-deref.
@@ -239,7 +247,7 @@ func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef 
 	return refs
 }
 
-// buildStackRefs builds ComponentRef values for each stack block. Child unit refs are discovered by recursively parsing the stack's source dir (best-effort; non-local sources are skipped).
+// buildStackRefs builds ComponentRef values for each stack block. Child unit refs are discovered by recursively parsing the stack's source dir; non-filesystem sources (git::, https://, s3://, ...) are skipped to avoid feeding go-getter URLs into filepath.Join.
 func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
@@ -251,17 +259,35 @@ func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir
 
 		ref := ComponentRef{Name: s.Name, Path: stackGenPath}
 
-		sourceDir := s.Source
-		if !filepath.IsAbs(sourceDir) {
-			sourceDir = filepath.Join(stackDir, sourceDir)
+		if sourceDir, ok := localStackSourceDir(s.Source, stackDir); ok {
+			ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, 0)
 		}
-
-		ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, 0)
 
 		refs = append(refs, ref)
 	}
 
 	return refs
+}
+
+// localStackSourceDir returns the absolute filesystem directory for a stack.Source when it is local. Returns ("", false) for go-getter-style remote sources (git::, https://, s3://, registry shorthand, ...) so the caller skips child-unit discovery instead of mangling the source with filepath.Join.
+func localStackSourceDir(source, stackDir string) (string, bool) {
+	if strings.HasPrefix(source, "file://") {
+		return strings.TrimPrefix(source, "file://"), true
+	}
+
+	if strings.Contains(source, "://") {
+		return "", false
+	}
+
+	if strings.Contains(source, "::") {
+		return "", false
+	}
+
+	if filepath.IsAbs(source) {
+		return source, true
+	}
+
+	return filepath.Join(stackDir, source), true
 }
 
 // evaluateLocals resolves locals in DAG order: build a graph of local.X references, evaluate in topological order. Each local is evaluated exactly once. Cycles are detected structurally (no iteration cap).
@@ -363,6 +389,14 @@ func topoSortLocals(deps map[string]map[string]struct{}) ([]string, []string) {
 	visit = func(name string, path []string) []string {
 		switch color[name] {
 		case colorGray:
+			// If we found a back-edge to a node already on the path, return only
+			// the cycle segment from that node onward for a precise error.
+			for i, p := range path {
+				if p == name {
+					return path[i:]
+				}
+			}
+
 			return path
 		case colorBlack:
 			return nil
