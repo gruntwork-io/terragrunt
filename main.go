@@ -35,11 +35,11 @@ func main() {
 
 	defer func() {
 		if opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode) {
-			errors.Recover(checkForErrorsAndExit(l, exitCode.GetFinalDetailedExitCode()))
+			errors.Recover(checkForPanicAndExit(l, exitCode.GetFinalDetailedExitCode()))
 			return
 		}
 
-		errors.Recover(checkForErrorsAndExit(l, exitCode.GetFinalExitCode()))
+		errors.Recover(checkForPanicAndExit(l, exitCode.GetFinalExitCode()))
 	}()
 
 	app := cli.NewApp(l, opts)
@@ -80,6 +80,20 @@ func checkForErrorsAndExit(l log.Logger, exitCode int) func(error) {
 		}
 
 		os.Exit(exitCoder)
+	}
+}
+
+func checkForPanicAndExit(l log.Logger, exitCode int) func(error) {
+	return func(err error) {
+		if err != nil {
+			l.Errorf("An internal Terragrunt bug was hit: this is a non-recoverable panic and should be reported as a bug.")
+
+			if errStack := errors.ErrorStack(err); errStack != "" {
+				l.Error(errStack)
+			}
+		}
+
+		checkForErrorsAndExit(l, exitCode)(err)
 	}
 }
 
