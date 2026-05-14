@@ -28,7 +28,7 @@ import (
 )
 
 // Run runs the list command.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, out io.Writer, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, w io.Writer, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
@@ -133,13 +133,13 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, out io.Writer, opts *Op
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(l, out, listedComponents)
+		return outputText(l, w, listedComponents)
 	case FormatTree:
-		return outputTree(l, out, opts, listedComponents, opts.Mode)
+		return outputTree(l, w, opts, listedComponents, opts.Mode)
 	case FormatLong:
-		return outputLong(l, out, opts, listedComponents)
+		return outputLong(l, w, opts, listedComponents)
 	case FormatDot:
-		return outputDot(out, listedComponents)
+		return outputDot(w, listedComponents)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -223,17 +223,17 @@ func discoveredToListed(l log.Logger, components component.Components, opts *Opt
 }
 
 // outputText outputs the discovered components in text format.
-func outputText(l log.Logger, out io.Writer, components dag.ListedComponents) error {
+func outputText(l log.Logger, w io.Writer, components dag.ListedComponents) error {
 	colorizer := dag.NewColorizer(shouldColor(l))
 
-	return renderTabular(out, components, colorizer)
+	return renderTabular(w, components, colorizer)
 }
 
 // outputLong outputs the discovered components in long format.
-func outputLong(l log.Logger, out io.Writer, opts *Options, components dag.ListedComponents) error {
+func outputLong(l log.Logger, w io.Writer, opts *Options, components dag.ListedComponents) error {
 	colorizer := dag.NewColorizer(shouldColor(l))
 
-	return renderLong(out, opts, components, colorizer)
+	return renderLong(w, opts, components, colorizer)
 }
 
 // shouldColor returns true if the output should be colored.
@@ -242,7 +242,7 @@ func shouldColor(l log.Logger) bool {
 }
 
 // renderLong renders the components in a long format.
-func renderLong(out io.Writer, opts *Options, components dag.ListedComponents, c *dag.Colorizer) error {
+func renderLong(w io.Writer, opts *Options, components dag.ListedComponents, c *dag.Colorizer) error {
 	var buf strings.Builder
 
 	longestPathLen := getLongestPathLen(components)
@@ -273,7 +273,7 @@ func renderLong(out io.Writer, opts *Options, components dag.ListedComponents, c
 		buf.WriteString("\n")
 	}
 
-	_, err := out.Write([]byte(buf.String()))
+	_, err := w.Write([]byte(buf.String()))
 
 	return errors.New(err)
 }
@@ -301,7 +301,7 @@ func buildLongHeadings(opts *Options, c *dag.Colorizer, longestPathLen int) stri
 }
 
 // renderTabular renders the components in a tabular format.
-func renderTabular(out io.Writer, components dag.ListedComponents, c *dag.Colorizer) error {
+func renderTabular(w io.Writer, components dag.ListedComponents, c *dag.Colorizer) error {
 	var buf strings.Builder
 
 	maxCols, colWidth := getMaxCols(components)
@@ -322,21 +322,21 @@ func renderTabular(out io.Writer, components dag.ListedComponents, c *dag.Colori
 
 	buf.WriteString("\n")
 
-	_, err := out.Write([]byte(buf.String()))
+	_, err := w.Write([]byte(buf.String()))
 
 	return errors.New(err)
 }
 
 // outputTree outputs the discovered components in tree format.
-func outputTree(l log.Logger, out io.Writer, opts *Options, components dag.ListedComponents, sort string) error {
+func outputTree(l log.Logger, w io.Writer, opts *Options, components dag.ListedComponents, sort string) error {
 	s := dag.NewTreeStyler(shouldColor(l))
 
-	return renderTree(out, opts, components, s, sort)
+	return renderTree(w, opts, components, s, sort)
 }
 
 // outputDot outputs the discovered components in GraphViz DOT format.
-func outputDot(out io.Writer, components dag.ListedComponents) error {
-	return renderDot(out, components)
+func outputDot(w io.Writer, components dag.ListedComponents) error {
+	return renderDot(w, components)
 }
 
 // generateTree creates a tree structure from dag.ListedComponents
@@ -401,7 +401,7 @@ func preProcessPath(path string) pathParts {
 }
 
 // renderTree renders the components in a tree format.
-func renderTree(out io.Writer, opts *Options, components dag.ListedComponents, s *dag.TreeStyler, _ string) error {
+func renderTree(w io.Writer, opts *Options, components dag.ListedComponents, s *dag.TreeStyler, _ string) error {
 	var t *tree.Tree
 
 	if opts.Mode == ModeDAG {
@@ -412,7 +412,7 @@ func renderTree(out io.Writer, opts *Options, components dag.ListedComponents, s
 
 	t = s.Style(t)
 
-	_, err := out.Write([]byte(t.String() + "\n"))
+	_, err := w.Write([]byte(t.String() + "\n"))
 	if err != nil {
 		return errors.New(err)
 	}
@@ -450,9 +450,9 @@ func getTerminalWidth() int {
 	// Default to 80 if we can't get the terminal width.
 	width := 80
 
-	w, _, err := term.GetSize(os.Stdout.Fd())
+	cols, _, err := term.GetSize(os.Stdout.Fd())
 	if err == nil {
-		width = w
+		width = cols
 	}
 
 	return width
@@ -473,7 +473,7 @@ func getLongestPathLen(components dag.ListedComponents) int {
 }
 
 // renderDot renders the components in GraphViz DOT format.
-func renderDot(out io.Writer, components dag.ListedComponents) error {
+func renderDot(w io.Writer, components dag.ListedComponents) error {
 	var buf strings.Builder
 
 	buf.WriteString("digraph {\n")
@@ -507,7 +507,7 @@ func renderDot(out io.Writer, components dag.ListedComponents) error {
 
 	buf.WriteString("}\n")
 
-	_, err := out.Write([]byte(buf.String()))
+	_, err := w.Write([]byte(buf.String()))
 
 	return errors.New(err)
 }
