@@ -155,6 +155,26 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 
 </Since>
 
+<Since version="1.0.4">
+
+- [x] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
+- [x] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
+- [x] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
+- [x] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
+- [x] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
+- [x] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
+- [x] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
+- [x] Add integration tests and test fixtures for end-to-end validation
+- [x] E2E validation with `stack run apply` and `stack run destroy`
+- [x] Resolve `stack.<name>.<nested_stack>.path` at arbitrary nesting depth
+- [x] Surface autoinclude dependencies in `terragrunt find` and `terragrunt list` (JSON, tree, and long formats)
+- [x] Use distinct filenames for unit (`terragrunt.autoinclude.hcl`) and stack (`terragrunt.autoinclude.stack.hcl`) autoincludes
+- [ ] Lazy-expression parsing for `source`/`path`/`values` so non-literal HCL expressions in unrelated unit attributes do not block autoinclude resolution
+- [ ] `terragrunt run --all` discovery walks generated nested stack files when they contain supported terragrunt path functions in unit `source`/`path`
+- [ ] Unify strict and permissive parser into a single code path
+
+</Since>
+
 <Since version="1.0.5">
 
 - [x] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures

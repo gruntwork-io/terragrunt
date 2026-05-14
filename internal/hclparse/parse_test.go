@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -1433,4 +1434,158 @@ stack "networking" {
 	})
 	require.Error(t, err, "bootstrap parse must surface unsupported-function eval errors in stack source instead of silently skipping the stack")
 	assert.Contains(t, err.Error(), "networking", "error must name the offending stack so users can locate it")
+}
+func TestParseStackFile_UsesCallerVariablesForIncludePath(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	require.NoError(t, vfs.WriteFile(fs, "/includes/extra.stack.hcl", []byte(`
+unit "extra" {
+  source = "../catalog/units/extra"
+  path   = "extra"
+}
+`), 0644))
+
+	src := []byte(`
+include "extra" {
+  path = feature.include_file.value
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "extra" {
+      config_path = unit.extra.path
+    }
+  }
+}
+`)
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      src,
+		Filename: "/test/terragrunt.stack.hcl",
+		StackDir: "/test",
+		Variables: map[string]cty.Value{
+			"feature": cty.ObjectVal(map[string]cty.Value{
+				"include_file": cty.ObjectVal(map[string]cty.Value{
+					"value": cty.StringVal("/includes/extra.stack.hcl"),
+				}),
+			}),
+		},
+	})
+
+	require.NoError(t, err)
+
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "app")]
+	require.NotNil(t, resolved)
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, filepath.Join("/test", ".terragrunt-stack", "extra"), resolved.Dependencies[0].ConfigPath)
+}
+
+func TestParseStackFile_LocalEvaluatedOnceWhenBestEffortSucceeds(t *testing.T) {
+	t.Parallel()
+
+	var calls int32
+
+	onceFn := function.New(&function.Spec{
+		Type: function.StaticReturnType(cty.String),
+		Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
+			atomic.AddInt32(&calls, 1)
+			return cty.StringVal("/includes/extra.stack.hcl"), nil
+		},
+	})
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/includes/extra.stack.hcl", []byte(`
+unit "extra" {
+  source = "../catalog/units/extra"
+  path   = "extra"
+}
+`), 0644))
+
+	src := []byte(`
+locals {
+  include_file = once()
+}
+
+include "extra" {
+  path = local.include_file
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+}
+`)
+
+	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      src,
+		Filename: "/test/terragrunt.stack.hcl",
+		StackDir: "/test",
+		Functions: map[string]function.Function{
+			"once": onceFn,
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
+}
+
+func TestParseStackFile_MissingRequiredSourceOrPathReturnsError(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "unit missing source",
+			src: `
+unit "vpc" {
+  path = "vpc"
+}
+`,
+		},
+		{
+			name: "unit missing path",
+			src: `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+}
+`,
+		},
+		{
+			name: "stack missing source",
+			src: `
+stack "networking" {
+  path = "networking"
+}
+`,
+		},
+		{
+			name: "stack missing path",
+			src: `
+stack "networking" {
+  source = "../catalog/stacks/networking"
+}
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+				Src:      []byte(tc.src),
+				Filename: "terragrunt.stack.hcl",
+				StackDir: testStackDir,
+			})
+
+			require.Error(t, err)
+		})
+	}
 }

@@ -128,7 +128,10 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return errors.Errorf("failed to rescope parsing context for autoinclude parser %s: %w", stackFilePath, scopedErr)
 		}
 
-		// Reuse the production parser's full eval context so the autoinclude parser sees the same function set (terraform stdlib + every terragrunt function: get_repo_root, find_in_parent_folders, run_cmd, ...) without duplicating or hardcoding any function list.
+		// Reuse the production parser's eval context so the autoinclude parser sees the same function set
+		// (terraform stdlib + every terragrunt function: get_repo_root, find_in_parent_folders, run_cmd, ...)
+		// and caller variables such as feature/dependency/include. ParseStackFile overlays stack-local
+		// variables (`unit`, `stack`, `local`, and `values`) for the file it is parsing.
 		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, l, stackFilePath)
 		if evalCtxErr != nil {
 			return errors.Errorf("failed to build eval context for autoinclude parser %s: %w", stackFilePath, evalCtxErr)
@@ -139,6 +142,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			Filename:  stackFilePath,
 			StackDir:  stackSourceDir,
 			Values:    values,
+			Variables: prodEvalCtx.Variables,
 			UnitRefs:  unitRefs,
 			StackRefs: stackRefs,
 			Functions: prodEvalCtx.Functions,

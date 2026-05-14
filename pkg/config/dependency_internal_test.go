@@ -92,7 +92,8 @@ func TestExtractFirstJSONObject(t *testing.T) {
 	}
 }
 
-// TestResolveStackFilePath pins the path-rewrite helper used by tryGetStackOutput across all dependency-target shapes: direct stack file, terragrunt.hcl sibling, terragrunt.hcl.json sibling (regression for JSON-config fall-through), and a bare directory.
+// TestResolveStackFilePath pins the path-rewrite helper used by tryGetStackOutput across dependency-target shapes:
+// direct stack file, explicit terragrunt config files, and bare directories.
 func TestResolveStackFilePath(t *testing.T) {
 	t.Parallel()
 
@@ -100,25 +101,30 @@ func TestResolveStackFilePath(t *testing.T) {
 	wantStack := filepath.Join(tmpDir, DefaultStackFile)
 
 	cases := []struct {
-		name  string
-		input string
-		want  string
+		name        string
+		raw         string
+		target      string
+		want        string
+		wantHandled bool
 	}{
-		{"stackFileDirectly", filepath.Join(tmpDir, DefaultStackFile), wantStack},
-		{"terragruntHCL", filepath.Join(tmpDir, DefaultTerragruntConfigPath), wantStack},
-		{"terragruntJSON", filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), wantStack},
-		{"bareDirectory", tmpDir, wantStack},
+		{"stackFileDirectly", filepath.Join(tmpDir, DefaultStackFile), wantStack, wantStack, true},
+		{"explicitTerragruntHCL", filepath.Join(tmpDir, DefaultTerragruntConfigPath), filepath.Join(tmpDir, DefaultTerragruntConfigPath), "", false},
+		{"explicitTerragruntJSON", filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), "", false},
+		{"bareDirectory", tmpDir, filepath.Join(tmpDir, DefaultTerragruntConfigPath), wantStack, true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, resolveStackFilePath(tc.input))
+
+			got, handled := resolveStackFilePath(tc.raw, tc.target)
+			assert.Equal(t, tc.wantHandled, handled)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-// FuzzResolveStackFilePath verifies the path-rewrite helper never panics and always returns a path ending in DefaultStackFile.
+// FuzzResolveStackFilePath verifies the path-rewrite helper never panics and every handled candidate ends in DefaultStackFile.
 func FuzzResolveStackFilePath(f *testing.F) {
 	seeds := []string{
 		"/abs/dir/" + DefaultStackFile,
@@ -138,7 +144,9 @@ func FuzzResolveStackFilePath(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, input string) {
-		got := resolveStackFilePath(input)
-		require.Equal(t, DefaultStackFile, filepath.Base(got), "resolveStackFilePath must always return a path whose base is %s (input=%q got=%q)", DefaultStackFile, input, got)
+		got, handled := resolveStackFilePath(input, input)
+		if handled {
+			require.Equal(t, DefaultStackFile, filepath.Base(got), "resolveStackFilePath must always return a path whose base is %s (input=%q got=%q)", DefaultStackFile, input, got)
+		}
 	})
 }

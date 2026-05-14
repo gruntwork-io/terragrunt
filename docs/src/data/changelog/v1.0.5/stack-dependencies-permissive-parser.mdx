@@ -37,7 +37,7 @@ unit "roles" {
 }
 ```
 
-`terragrunt run --all` now walks generated nested stack files via the unified lazy parser. It no longer fails with `Function calls not allowed; Functions may not be called here.` on a `.terragrunt-stack/<name>/terragrunt.stack.hcl` whose unit `source` contains supported terragrunt path functions such as `get_terragrunt_dir()`. Discovery binds the Terraform stdlib plus `get_terragrunt_dir`; other Terragrunt path helpers (`get_repo_root`, `find_in_parent_folders`, `path_relative_to_include`, etc.) are not available in generated nested stack files and now surface a clear evaluation error during discovery instead of being silently dropped.
+`terragrunt run --all` now walks generated nested stack files via the unified lazy parser. It no longer fails with `Function calls not allowed; Functions may not be called here.` on a `.terragrunt-stack/<name>/terragrunt.stack.hcl` whose unit `source` contains supported terragrunt path functions such as `get_terragrunt_dir()`. Unit-path discovery binds the Terraform stdlib plus `get_terragrunt_dir`; other Terragrunt path helpers (`get_repo_root`, `find_in_parent_folders`, `path_relative_to_include`, etc.) are not available there and surface an evaluation error when discovery requires the path. Best-effort nested-stack child discovery can still skip unsupported child refs; references to those skipped refs fail later as HCL diagnostics when used.
 
 Internally, the previously duplicated strict and permissive parse paths were unified. The `*Permissive` types and functions in `internal/hclparse/` were removed; the parser now has a single code path that uses lazy expressions and a caller-provided eval context.
 

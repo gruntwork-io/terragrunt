@@ -38,8 +38,8 @@ type UnitBlockHCL struct {
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
 	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,optional"`
 	NoValidation *bool           `hcl:"no_validation,optional"`
-	Source       hcl.Expression  `hcl:"source,optional"`
-	Path         hcl.Expression  `hcl:"path,optional"`
+	Source       hcl.Expression  `hcl:"source,attr"`
+	Path         hcl.Expression  `hcl:"path,attr"`
 	Name         string          `hcl:",label"`
 }
 
@@ -49,8 +49,8 @@ type StackBlockHCL struct {
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
 	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,optional"`
 	NoValidation *bool           `hcl:"no_validation,optional"`
-	Source       hcl.Expression  `hcl:"source,optional"`
-	Path         hcl.Expression  `hcl:"path,optional"`
+	Source       hcl.Expression  `hcl:"source,attr"`
+	Path         hcl.Expression  `hcl:"path,attr"`
 	Name         string          `hcl:",label"`
 }
 

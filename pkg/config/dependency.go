@@ -791,7 +791,10 @@ func tryGetStackOutput(
 	targetConfigPath string,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
-	stackFilePath := resolveStackFilePath(targetConfigPath)
+	stackFilePath, candidate := resolveStackFilePath(dependencyConfig.ConfigPath.AsString(), targetConfigPath)
+	if !candidate {
+		return nil, false, nil
+	}
 
 	if !util.FileExists(stackFilePath) {
 		return nil, false, nil
@@ -825,15 +828,25 @@ func tryGetStackOutput(
 	return &result, true, nil
 }
 
-// resolveStackFilePath rewrites a dependency target path into a candidate terragrunt.stack.hcl path. getCleanedTargetConfigPath appends terragrunt.hcl to bare directory deps, so peel that back to <dir>/terragrunt.stack.hcl; the JSON config sibling is handled the same way.
-func resolveStackFilePath(targetConfigPath string) string {
-	switch filepath.Base(targetConfigPath) {
+// resolveStackFilePath rewrites a dependency target path into a candidate terragrunt.stack.hcl path.
+// getCleanedTargetConfigPath appends terragrunt.hcl to bare directory deps, so peel that back to
+// <dir>/terragrunt.stack.hcl. Explicit terragrunt.hcl/terragrunt.hcl.json deps still target that unit
+// and must not be upgraded to a sibling stack.
+func resolveStackFilePath(rawConfigPath string, targetConfigPath string) (string, bool) {
+	switch filepath.Base(filepath.Clean(rawConfigPath)) {
 	case DefaultStackFile:
-		return targetConfigPath
+		return targetConfigPath, true
 	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
-		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile)
+		return "", false
 	default:
-		return filepath.Join(targetConfigPath, DefaultStackFile)
+		switch filepath.Base(targetConfigPath) {
+		case DefaultStackFile:
+			return targetConfigPath, true
+		case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
+			return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile), true
+		default:
+			return filepath.Join(targetConfigPath, DefaultStackFile), true
+		}
 	}
 }
 

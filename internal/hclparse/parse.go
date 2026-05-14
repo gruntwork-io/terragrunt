@@ -37,6 +37,10 @@ const (
 // ParseStackFileInput holds the input for ParseStackFile.
 type ParseStackFileInput struct {
 	Values *cty.Value
+	// Variables is the caller-provided HCL variable namespace from the production parser. Parser-owned variables
+	// (`unit`, `stack`, `local`, and `values`) are overlaid by ParseStackFile so stale caller state cannot shadow the
+	// stack file currently being parsed.
+	Variables map[string]cty.Value
 	// UnitRefs lets the caller supply already-resolved unit ComponentRefs (with paths, names, and any ChildRefs). When non-nil, the parser uses these for the autoinclude eval context instead of evaluating each unit's Path attribute itself, so non-literal source/path expressions in unrelated unit blocks do not block parsing.
 	UnitRefs []ComponentRef
 	// StackRefs is the analogous slice for stack blocks. Each ref's ChildRefs must already be populated when callers want stack.<name>.<unit>.path references to resolve.
@@ -85,8 +89,9 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	evalCtx := buildParseEvalContext(input, unitRefs, stackRefs)
 
+	var evaluatedLocals map[string]cty.Value
 	if stackFile.Locals != nil {
-		evaluateLocalsBestEffort(stackFile.Locals.Remain, evalCtx)
+		evaluatedLocals = evaluateLocalsBestEffort(stackFile.Locals.Remain, evalCtx)
 	}
 
 	if err := processStackIncludes(fs, stackFile, input.StackDir, evalCtx, srcByAutoInclude); err != nil {
@@ -102,7 +107,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	// Strict locals pass after includes so locals referencing unit.<X>.path see units contributed by included files; mergeOneInclude rejects locals in included files so root locals are the only locals here.
 	if stackFile.Locals != nil {
-		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx); err != nil {
+		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx, evaluatedLocals); err != nil {
 			return nil, err
 		}
 	}
@@ -146,12 +151,46 @@ func decodeStackFile(input *ParseStackFileInput) (*StackFileHCL, error) {
 		return nil, FileParseError{FilePath: input.Filename, Detail: diags.Error()}
 	}
 
+	if err := validateRequiredBlockAttrs(file.Body); err != nil {
+		return nil, err
+	}
+
 	stackFile := &StackFileHCL{}
 	if decodeDiags := gohcl.DecodeBody(file.Body, nil, stackFile); decodeDiags.HasErrors() {
 		return nil, FileDecodeError{Name: input.Filename, Detail: decodeDiags.Error()}
 	}
 
 	return stackFile, nil
+}
+
+func validateRequiredBlockAttrs(body hcl.Body) error {
+	syntaxBody, ok := body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	for _, block := range syntaxBody.Blocks {
+		switch block.Type {
+		case "unit", "stack":
+			for _, attr := range []string{attrSource, attrPath} {
+				if _, exists := block.Body.Attributes[attr]; !exists {
+					return FileDecodeError{Name: blockName(block), Detail: fmt.Sprintf("missing required %q attribute", attr)}
+				}
+			}
+		default:
+			continue
+		}
+	}
+
+	return nil
+}
+
+func blockName(block *hclsyntax.Block) string {
+	if len(block.Labels) == 0 {
+		return block.Type
+	}
+
+	return fmt.Sprintf("%s %q", block.Type, block.Labels[0])
 }
 
 // initialRefs returns the unit/stack ComponentRef slices used to seed the autoinclude eval context. When the caller supplied UnitRefs/StackRefs (post-include refs from the production parser), use them verbatim. Otherwise evaluate each unit/stack's lazy Path against a stdlib-only eval context so include path expressions can use unit.X.path / stack.X.path for what is already declared in the root file.
@@ -180,6 +219,15 @@ func buildParseEvalContext(input *ParseStackFileInput, unitRefs, stackRefs []Com
 	evalCtx := BuildAutoIncludeEvalContext(unitRefs, stackRefs)
 	if input.Functions != nil {
 		evalCtx.Functions = input.Functions
+	}
+
+	for name, value := range input.Variables {
+		switch name {
+		case varLocal, varUnit, varStack, varValues:
+			continue
+		default:
+			evalCtx.Variables[name] = value
+		}
 	}
 
 	if input.Values != nil {
@@ -240,49 +288,60 @@ func EvalString(expr hcl.Expression, ctx *hcl.EvalContext, attrName string) (str
 }
 
 // evaluateLocals strictly evaluates root locals against evalCtx. Returns an error on eval failure, dependency cycle, or iteration overflow. Used after include merging so locals referencing unit.<X>.path resolve against the fully populated context.
-func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
-	return evaluateLocalsRun(body, evalCtx, true)
+func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext, seed map[string]cty.Value) error {
+	_, err := evaluateLocalsRun(body, evalCtx, seed, true)
+	return err
 }
 
 // evaluateLocalsBestEffort evaluates root locals that are ready against evalCtx and silently leaves the rest for the later strict pass. Used before include merging so include paths referencing local.X resolve while locals referencing not-yet-merged units are deferred.
-func evaluateLocalsBestEffort(body hcl.Body, evalCtx *hcl.EvalContext) {
-	_ = evaluateLocalsRun(body, evalCtx, false)
+func evaluateLocalsBestEffort(body hcl.Body, evalCtx *hcl.EvalContext) map[string]cty.Value {
+	evaluated, _ := evaluateLocalsRun(body, evalCtx, nil, false)
+	return evaluated
 }
 
 // evaluateLocalsRun is the shared iterative evaluator used by both passes. Strict mode surfaces errors; best-effort mode skips failures silently so they can be retried after include merging.
-func evaluateLocalsRun(body hcl.Body, evalCtx *hcl.EvalContext, strict bool) error {
+func evaluateLocalsRun(body hcl.Body, evalCtx *hcl.EvalContext, seed map[string]cty.Value, strict bool) (map[string]cty.Value, error) {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {
-		return nil
+		return seed, nil
+	}
+
+	evaluated := make(map[string]cty.Value, len(syntaxBody.Attributes)+len(seed))
+	for name, value := range seed {
+		evaluated[name] = value
 	}
 
 	remaining := make(map[string]*hclsyntax.Attribute, len(syntaxBody.Attributes))
 	for name, attr := range syntaxBody.Attributes {
+		if _, exists := evaluated[name]; exists {
+			continue
+		}
+
 		remaining[name] = attr
 	}
-
-	evaluated := make(map[string]cty.Value, len(remaining))
 
 	const maxLocalsIterations = 10000
 
 	for i := 0; len(remaining) > 0 && i < maxLocalsIterations; i++ {
 		progress, err := evaluateLocalsPass(remaining, evaluated, evalCtx, strict)
 		if err != nil {
-			return err
+			return evaluated, err
 		}
 
 		if !progress {
-			return noProgressError(strict, remaining)
+			return evaluated, noProgressError(strict, remaining)
 		}
 
 		evalCtx.Variables[varLocal] = localObject(evaluated)
 	}
 
 	if strict && len(remaining) > 0 {
-		return LocalsMaxIterError{MaxIterations: maxLocalsIterations, Remaining: len(remaining)}
+		return evaluated, LocalsMaxIterError{MaxIterations: maxLocalsIterations, Remaining: len(remaining)}
 	}
 
-	return nil
+	evalCtx.Variables[varLocal] = localObject(evaluated)
+
+	return evaluated, nil
 }
 
 // noProgressError returns the cycle error for the strict pass and nil for the best-effort pass so callers can ignore it.
