@@ -14,6 +14,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-shellwords"
 )
@@ -37,12 +39,34 @@ func (provider *Provider) Name() string {
 	return fmt.Sprintf("external %s command", provider.authProviderCmd)
 }
 
-// GetCredentials implements providers.GetCredentials
+// GetCredentials implements providers.GetCredentials. When no auth provider command is
+// configured the call is a no-op short-circuit; we skip emitting the obtain_creds span
+// in that case so the trace isn't polluted with zero-duration spans.
 func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*providers.Credentials, error) {
 	if provider.authProviderCmd == "" {
 		return nil, nil
 	}
 
+	var creds *providers.Credentials
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "obtain_creds", map[string]any{
+		"auth_provider_cmd": provider.authProviderCmd,
+		"provider":          "external_cmd",
+	}, func(credsCtx context.Context) error {
+		var fetchErr error
+
+		creds, fetchErr = provider.fetchCredentials(credsCtx, l)
+
+		return fetchErr
+	})
+
+	return creds, err
+}
+
+// fetchCredentials runs the configured auth-provider command and decodes its JSON
+// response into providers.Credentials. Callers go through GetCredentials, which adds
+// the obtain_creds telemetry span around this work.
+func (provider *Provider) fetchCredentials(ctx context.Context, l log.Logger) (*providers.Credentials, error) {
 	parser := shellwords.NewParser()
 
 	// Normalize Windows paths before parsing - shellwords treats backslashes as escape characters
@@ -58,7 +82,10 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 		args = parts[1:]
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, provider.runOpts, "", true, false, command, args...)
+	output, err := shell.RunCommandWithOutput(
+		ctx, l, vexec.NewOSExec(), provider.runOpts,
+		"", true, false, command, args...,
+	)
 	if err != nil {
 		return nil, err
 	}

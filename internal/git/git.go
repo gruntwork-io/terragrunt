@@ -36,18 +36,23 @@ import (
 
 const (
 	minGitPartsLength = 2
+
+	// catFileMissingExitCode is the exit code `git cat-file -e` returns when
+	// the requested object is absent. Any other non-zero exit is an
+	// execution failure (e.g. 128 from a fatal error).
+	catFileMissingExitCode = 1
 )
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	goRepo       *git.Repository
-	goStorage    *filesystem.Storage
-	exec         vexec.Exec
-	repoRootOnce *sync.Once
-	repoRootErr  error
-	GitPath      string
-	WorkDir      string
-	repoRoot     string
+	goRepo         *git.Repository
+	goStorage      *filesystem.Storage
+	exec           vexec.Exec
+	repoRootMu     *sync.Mutex
+	GitPath        string
+	WorkDir        string
+	repoRoot       string
+	repoRootCached bool
 }
 
 // NewGitRunner creates a new GitRunner instance. The provided vexec.Exec is
@@ -63,24 +68,24 @@ func NewGitRunner(e vexec.Exec) (*GitRunner, error) {
 	}
 
 	return &GitRunner{
-		GitPath:      gitPath,
-		exec:         e,
-		repoRootOnce: &sync.Once{},
+		GitPath:    gitPath,
+		exec:       e,
+		repoRootMu: &sync.Mutex{},
 	}, nil
 }
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 	if g == nil {
-		return &GitRunner{WorkDir: workDir, exec: vexec.NewOSExec(), repoRootOnce: &sync.Once{}}
+		return &GitRunner{WorkDir: workDir, exec: vexec.NewOSExec(), repoRootMu: &sync.Mutex{}}
 	}
 
 	newRunner := *g
 	newRunner.WorkDir = workDir
 	// A different WorkDir may resolve to a different root, so reset the memo.
-	newRunner.repoRootOnce = &sync.Once{}
+	newRunner.repoRootMu = &sync.Mutex{}
 	newRunner.repoRoot = ""
-	newRunner.repoRootErr = nil
+	newRunner.repoRootCached = false
 
 	return &newRunner
 }
@@ -111,19 +116,31 @@ func (g *GitRunner) RequiresGoRepo() error {
 	return nil
 }
 
-// GetRepoRoot returns the root directory of the git repository, memoized
-// per-runner. WithWorkDir clears the memo so a derived runner resolves its
-// own root.
+// GetRepoRoot returns the root directory of the git repository. The
+// successful result is memoized per-runner so subsequent calls skip the
+// `git rev-parse` fork; failures are not cached so callers can retry.
+// WithWorkDir clears the memo so a derived runner resolves its own root.
 func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return "", err
 	}
 
-	g.repoRootOnce.Do(func() {
-		g.repoRoot, g.repoRootErr = g.runRepoRoot(ctx)
-	})
+	g.repoRootMu.Lock()
+	defer g.repoRootMu.Unlock()
 
-	return g.repoRoot, g.repoRootErr
+	if g.repoRootCached {
+		return g.repoRoot, nil
+	}
+
+	root, err := g.runRepoRoot(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	g.repoRoot = root
+	g.repoRootCached = true
+
+	return root, nil
 }
 
 // runRepoRoot performs the uncached `git rev-parse --show-toplevel`. Use
@@ -289,6 +306,135 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 	}
 
 	return nil
+}
+
+// InitBare runs `git init --bare` in the configured working directory.
+// `git init --bare` is itself idempotent (it reinitializes an existing bare
+// repo as a no-op), so callers may invoke this freely.
+func (g *GitRunner) InitBare(ctx context.Context) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, "init", "--bare", g.WorkDir)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_init_bare",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrGitInitBare, err),
+		}
+	}
+
+	return nil
+}
+
+// Fetch runs `git fetch` for a single ref against the given remote URL. A
+// positive depth adds --depth and --no-tags. A zero or negative depth fetches
+// full history.
+func (g *GitRunner) Fetch(ctx context.Context, repo, ref string, depth int) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	args := []string{}
+
+	if depth > 0 {
+		args = append(args, "--depth", strconv.Itoa(depth), "--no-tags")
+	}
+
+	args = append(args, repo, ref)
+
+	cmd := g.prepareCommand(ctx, "fetch", args...)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_fetch",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrGitFetch, err),
+		}
+	}
+
+	return nil
+}
+
+// RevParseCommit resolves ref to its canonical commit hash in the
+// configured working-directory repository. ref may be a full SHA
+// (SHA-1 or SHA-256) or an abbreviated SHA that disambiguates inside
+// the repo. The `^{commit}` peeling suffix is what enforces that the
+// object actually exists locally and is a commit; plain rev-parse
+// (even with --verify) only checks revision syntax and would let a
+// caller treat an empty bare repo as already containing the commit.
+// A non-zero exit returns [ErrUnknownRevision] so callers can branch
+// on the typed error without parsing stderr.
+func (g *GitRunner) RevParseCommit(ctx context.Context, ref string) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "--verify", ref+"^{commit}")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		if vexec.ExitCode(err) > 0 {
+			return "", &WrappedError{
+				Op:      "git_rev_parse",
+				Context: strings.TrimSpace(stderr.String()),
+				Err:     ErrUnknownRevision,
+			}
+		}
+
+		return "", &WrappedError{
+			Op:      "git_rev_parse",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+// HasObject reports whether the given object exists in the configured
+// working-directory repository. Exit code 1 from `git cat-file -e` means
+// the object is absent. Other non-zero exits (e.g. 128 for a corrupted
+// repo or unreadable .git) are returned as errors so callers do not loop
+// into a refetch against a broken store.
+func (g *GitRunner) HasObject(ctx context.Context, hash string) (bool, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return false, err
+	}
+
+	cmd := g.prepareCommand(ctx, "cat-file", "-e", hash)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		if vexec.ExitCode(err) == catFileMissingExitCode {
+			return false, nil
+		}
+
+		return false, &WrappedError{
+			Op:      "git_cat_file_exists",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return true, nil
 }
 
 // CreateTempDir creates a new temporary directory for git operations

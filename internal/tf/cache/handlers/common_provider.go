@@ -12,10 +12,10 @@ import (
 type CommonProviderHandler struct {
 	logger log.Logger
 
-	// registryURLCache stores discovered registry URLs
+	// discoveryURLCache stores discovered registry URLs
 	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
 	// instead of standard `sync.Map` since it's faster and has generic types.
-	registryURLCache *xsync.MapOf[string, *RegistryURLs]
+	discoveryURLCache *xsync.MapOf[string, *RegistryURLs]
 
 	// includeProviders and excludeProviders are sets of provider matching patterns that together define which providers are eligible to be potentially installed from the corresponding Source.
 	includeProviders models.Providers
@@ -35,10 +35,10 @@ func NewCommonProviderHandler(logger log.Logger, includes, excludes *[]string) *
 	}
 
 	return &CommonProviderHandler{
-		logger:           logger,
-		includeProviders: includeProviders,
-		excludeProviders: excludeProviders,
-		registryURLCache: xsync.NewMapOf[string, *RegistryURLs](),
+		logger:            logger,
+		includeProviders:  includeProviders,
+		excludeProviders:  excludeProviders,
+		discoveryURLCache: xsync.NewMapOf[string, *RegistryURLs](),
 	}
 }
 
@@ -54,9 +54,14 @@ func (handler *CommonProviderHandler) CanHandleProvider(provider *models.Provide
 	}
 }
 
+// SetDiscoveryURLCache pre-populates the discovery cache for a given registry.
+func (handler *CommonProviderHandler) SetDiscoveryURLCache(registryName string, urls *RegistryURLs) {
+	handler.discoveryURLCache.Store(registryName, urls)
+}
+
 // DiscoveryURL implements ProviderHandler.DiscoveryURL.
 func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, error) {
-	if urls, ok := handler.registryURLCache.Load(registryName); ok {
+	if urls, ok := handler.discoveryURLCache.Load(registryName); ok {
 		return urls, nil
 	}
 
@@ -72,7 +77,7 @@ func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registry
 		handler.logger.Debugf("Discovered %q registry URLs: %s", registryName, urls)
 	}
 
-	handler.registryURLCache.Store(registryName, urls)
+	handler.discoveryURLCache.Store(registryName, urls)
 
 	return urls, nil
 }

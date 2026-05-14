@@ -25,6 +25,13 @@ type Provider interface {
 	// PackageDir returns a directory with the unpacked provider.
 	PackageDir() string
 
+	// RegistryHashes returns the registry-supplied per-platform hashes (each value
+	// already prefixed with its scheme, e.g. "h1:" or "zh:"), keyed by `${os}_${arch}`.
+	// Returns nil when the registry response did not include this data, in which case
+	// callers should fall back to deriving hashes from the cached package and the
+	// shasums document.
+	RegistryHashes() map[string][]Hash
+
 	// Logger returns logger
 	Logger() log.Logger
 }

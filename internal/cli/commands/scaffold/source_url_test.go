@@ -14,13 +14,15 @@ func TestBuildSourceURL(t *testing.T) {
 		name        string
 		originalURL string
 		resolvedURL string
+		vars        map[string]any
 		expected    string
 	}{
 		{
 			name:        "catalog URL gets ref from resolved",
 			originalURL: "github.com/gruntwork-io/terragrunt-scale-catalog//modules/azure/resource-group",
-			resolvedURL: "git::https://github.com/gruntwork-io/terragrunt-scale-catalog.git//modules/azure/resource-group?ref=v1.10.2",
-			expected:    "github.com/gruntwork-io/terragrunt-scale-catalog//modules/azure/resource-group?ref=v1.10.2",
+			resolvedURL: "git::https://github.com/gruntwork-io/terragrunt-scale-catalog.git//" +
+				"modules/azure/resource-group?ref=v1.10.2",
+			expected: "github.com/gruntwork-io/terragrunt-scale-catalog//modules/azure/resource-group?ref=v1.10.2",
 		},
 		{
 			name:        "original already has ref",
@@ -52,13 +54,27 @@ func TestBuildSourceURL(t *testing.T) {
 			resolvedURL: "git::https://github.com/gruntwork-io/repo.git?ref=v3.0.0",
 			expected:    "github.com/gruntwork-io/repo?ref=v3.0.0",
 		},
+		{
+			name:        "SourceUrlType=git-ssh returns resolved URL",
+			originalURL: "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs",
+			resolvedURL: "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.67.4",
+			vars:        map[string]any{"SourceUrlType": "git-ssh"},
+			expected:    "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.67.4",
+		},
+		{
+			name:        "SourceUrlType=git-https falls through to original",
+			originalURL: "github.com/gruntwork-io/repo//modules/foo",
+			resolvedURL: "git::https://github.com/gruntwork-io/repo.git//modules/foo?ref=v1.0.0",
+			vars:        map[string]any{"SourceUrlType": "git-https"},
+			expected:    "github.com/gruntwork-io/repo//modules/foo?ref=v1.0.0",
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := scaffold.BuildSourceURL(tc.originalURL, tc.resolvedURL)
+			result := scaffold.BuildSourceURL(tc.originalURL, tc.resolvedURL, tc.vars)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

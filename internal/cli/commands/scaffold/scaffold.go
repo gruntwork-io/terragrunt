@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -27,8 +28,8 @@ import (
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/hashicorp/go-getter/v2"
 )
 
 const (
@@ -164,6 +165,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		return errors.New(NoModuleURLPassed{})
 	}
 
+	moduleURL = tf.RewriteLegacyGCSPublicSource(ctx, l, moduleURL, opts.StrictControls)
+	templateURL = tf.RewriteLegacyGCSPublicSource(ctx, l, templateURL, opts.StrictControls)
+
 	// create temporary directory where to download module
 	tempDir, err := os.MkdirTemp("", "scaffold")
 	if err != nil {
@@ -188,9 +192,17 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		return errors.New(err)
 	}
 
-	l.Infof("Scaffolding a new Terragrunt module %s to %s", moduleURL, outputDir)
+	l.Debugf("Scaffolding a new Terragrunt module %s to %s", moduleURL, outputDir)
 
-	if _, err := getter.GetAny(ctx, tempDir, moduleURL); err != nil {
+	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_module", map[string]any{
+		"module_url": moduleURL,
+	}, func(ctx context.Context) error {
+		if _, getErr := getter.GetAny(ctx, tempDir, moduleURL); getErr != nil {
+			return fmt.Errorf("downloading scaffold module from %s: %w", moduleURL, getErr)
+		}
+
+		return nil
+	}); err != nil {
 		return errors.New(err)
 	}
 
@@ -213,7 +225,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	vars["optionalVariables"] = optionalVariables
 
 	// Build sourceUrl from the original URL with the ref that parseModuleURL resolved.
-	vars["sourceUrl"] = BuildSourceURL(originalModuleURL, moduleURL)
+	vars["sourceUrl"] = BuildSourceURL(originalModuleURL, moduleURL, vars)
 
 	// Only set these if the `vars` map doesn't already have them set
 	if _, found := vars[enableRootInclude]; !found {
@@ -236,7 +248,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		)
 	}
 
-	l.Infof("Running boilerplate generation to %s", outputDir)
+	l.Debugf("Running boilerplate generation to %s", outputDir)
 	boilerplateOpts := NewBoilerplateOptions(boilerplateDir, outputDir, vars, opts)
 
 	emptyDep := &variables.Dependency{}
@@ -259,13 +271,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 
 	allFiles = slices.Compact(slices.Sorted(slices.Values(allFiles)))
 
-	l.Infof("Running fmt on generated code %s", outputDir)
+	l.Debugf("Running fmt on generated code %s", outputDir)
 
 	if err := format.RunForFiles(ctx, l, opts, outputDir, allFiles); err != nil {
 		return errors.New(err)
 	}
 
-	l.Info("Scaffolding completed")
+	l.Debug("Scaffolding completed")
 
 	return nil
 }
@@ -273,7 +285,15 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 // BuildSourceURL returns the original module URL with the ref query param
 // from the resolved URL appended, so the scaffolded source preserves the
 // user's original URL format while including the resolved version tag.
-func BuildSourceURL(originalURL, resolvedURL string) string {
+//
+// When vars sets SourceUrlType to git-ssh, the resolved URL is returned
+// instead so that the scaffolded source carries the Git/SSH rewrite that
+// rewriteModuleURL applied.
+func BuildSourceURL(originalURL, resolvedURL string, vars map[string]any) string {
+	if value, found := vars[sourceURLTypeVar]; found && fmt.Sprintf("%s", value) == sourceURLTypeGit {
+		return resolvedURL
+	}
+
 	refVal := ExtractQueryParam(resolvedURL, refParam)
 	if refVal == "" {
 		return originalURL
@@ -410,9 +430,18 @@ func downloadTemplate(
 		return "", errors.New(err)
 	}
 
-	l.Infof("Downloading template from %s into %s", baseURL.String(), templateDir)
-	// Downloading baseURL to support boilerplate dependencies and partials. Go-getter discards all but specified folder if one is provided.
-	if _, err := getter.GetAny(ctx, templateDir, baseURL.String()); err != nil {
+	l.Debugf("Downloading template from %s into %s", baseURL.String(), templateDir)
+	// Downloading baseURL to support boilerplate dependencies and partials.
+	// Go-getter discards all but specified folder if one is provided.
+	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_template", map[string]any{
+		"template_url": baseURL.String(),
+	}, func(ctx context.Context) error {
+		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
+			return fmt.Errorf("downloading scaffold template from %s: %w", baseURL.String(), getErr)
+		}
+
+		return nil
+	}); err != nil {
 		return "", errors.New(err)
 	}
 
@@ -550,7 +579,8 @@ func parseModuleURL(
 }
 
 // rewriteModuleURL rewrites module url to git ssh if required
-// github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
+// github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
 func rewriteModuleURL(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -577,7 +607,8 @@ func rewriteModuleURL(
 		return parsedModuleURL, nil
 	}
 	// try to rewrite module url if is https and is requested to be git
-	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
+	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+	// git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
 	if parsedValue.scheme == "https" && sourceURLType == sourceURLTypeGit {
 		gitUser := sourceGitSSHUser
 		if value, found := vars[sourceGitSSHUserVar]; found {
@@ -598,7 +629,8 @@ func rewriteModuleURL(
 }
 
 // rewriteTemplateURL rewrites template url with reference to tag
-// github.com/denis256/terragrunt-tests.git//scaffold/base-template => github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8
+// github.com/denis256/terragrunt-tests.git//scaffold/base-template =>
+// github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8
 func rewriteTemplateURL(
 	ctx context.Context,
 	l log.Logger,
@@ -655,7 +687,8 @@ func addRefToModuleURL(
 	ref := params.Get(refParam)
 	if ref == "" {
 		// if ref is not passed, find last release tag
-		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
+		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
 		rootSourceURL, _, err := tf.SplitSourceURL(l, moduleURL)
 		if err != nil {
 			return nil, errors.New(err)

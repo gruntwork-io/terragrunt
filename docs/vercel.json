@@ -2,6 +2,7 @@
   "buildCommand": "bun run build",
   "installCommand": "bun install",
   "framework": "astro",
+  "trailingSlash": true,
   "rewrites": [
     {
       "source": "/api/v1/compatibility",
@@ -16,26 +17,35 @@
     {
       "source": "/api/v1/compatibility",
       "destination": "/api/v1/compatibility/index"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap-index.xml"
     }
   ],
   "redirects": [
     {
-      "source": "/lp/:slug*",
-      "destination": "https://terragrunt.com/lp/:slug*",
+      "source": "/docs/(.*)",
+      "destination": "/$1",
       "permanent": true
     },
     {
-      "source": "/terragrunt-ambassador/:slug*",
-      "destination": "https://terragrunt.com/terragrunt-ambassador/:slug*",
+      "source": "/lp/(.*)",
+      "destination": "https://terragrunt.com/lp/$1",
       "permanent": true
     },
     {
-      "source": "/contact-tgs/:slug*",
-      "destination": "https://terragrunt.com/contact-tgs/:slug*",
+      "source": "/terragrunt-ambassador/(.*)",
+      "destination": "https://terragrunt.com/terragrunt-ambassador/$1",
       "permanent": true
     },
     {
-      "source": "/tgs-discord",
+      "source": "/contact-tgs/(.*)",
+      "destination": "https://terragrunt.com/contact-tgs/$1",
+      "permanent": true
+    },
+    {
+      "source": "/tgs-discord/",
       "destination": "https://discord.gg/SJgKFdcPns",
       "permanent": false
     }
@@ -55,6 +65,15 @@
         {
           "key": "Access-Control-Allow-Headers",
           "value": "Content-Type"
+        }
+      ]
+    },
+    {
+      "source": "/(llms\\.txt|llms-small\\.txt|llms-full\\.txt)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
         }
       ]
     }

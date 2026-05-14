@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -69,6 +71,20 @@ func (s *stringSet) Load(key string) bool {
 	_, ok := s.m[key]
 
 	return ok
+}
+
+// RelPathOrAbs returns target made relative to base. On filepath.Rel failure (Windows cross-volume, etc.), it warns
+// and returns target unchanged so the entry still appears in output. The desc is included parenthetically in the
+// warning to identify which path failed.
+func RelPathOrAbs(l log.Logger, base, target, desc string) string {
+	rel, err := filepath.Rel(base, target)
+	if err != nil {
+		l.Warnf("could not make %q relative to %q (%s): %v; emitting as-is", target, base, desc, err)
+
+		return target
+	}
+
+	return rel
 }
 
 // isExternal checks if a component path is outside the given working directory.
@@ -237,7 +253,11 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 		}
 
 		if !config.IsValidConfigPath(dependency.ConfigPath) {
-			errs = append(errs, errors.Errorf("skipping dependency %q in %q: config_path could not be resolved", dependency.Name, c.Path()))
+			errs = append(errs, errors.Errorf(
+				"skipping dependency %q in %q: "+
+					"config_path could not be resolved",
+				dependency.Name, c.Path()))
+
 			continue
 		}
 
@@ -290,7 +310,26 @@ func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) (
 	expanded := make([]string, 0, len(depPaths))
 
 	for _, depPath := range depPaths {
-		unitPaths := inthclparse.UnitPathsFromStackDir(fs, depPath)
+		// Stat upfront so a non-directory dep path (e.g. another-name.hcl) is preserved instead of
+		// being passed to the parser, which would reject it as ENOTDIR. The duplication of work is
+		// intentional.
+		info, statErr := fs.Stat(depPath)
+		// Real I/O errors (permission denied, etc.) must surface so a malformed DAG isn't silently
+		// produced; only ENOENT is treated as "keep the raw path".
+		if statErr != nil && !errors.Is(statErr, iofs.ErrNotExist) {
+			return nil, NewStackDependencyExpansionError(depPath, statErr)
+		}
+
+		if statErr != nil || !info.IsDir() {
+			expanded = append(expanded, depPath)
+			continue
+		}
+
+		unitPaths, err := inthclparse.UnitPathsFromStackDir(fs, depPath)
+		if err != nil {
+			return nil, NewStackDependencyExpansionError(depPath, err)
+		}
+
 		if len(unitPaths) > 0 {
 			expanded = append(expanded, unitPaths...)
 

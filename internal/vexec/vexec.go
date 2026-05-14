@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // Sentinel errors returned by the in-memory backend for misuse of the Cmd
@@ -31,6 +32,8 @@ var (
 	ErrStderrAlreadySet = errors.New("vexec: Stderr already set")
 	// ErrProcessNotStarted is returned from Signal before Start.
 	ErrProcessNotStarted = errors.New("vexec: process not started")
+	// ErrNotOSBacked reports that a Cmd does not satisfy OSCmder.
+	ErrNotOSBacked = errors.New("vexec: Cmd is not OS-backed")
 )
 
 // Exec is the process-execution interface used throughout the codebase.
@@ -53,6 +56,9 @@ type Cmd interface {
 	SetStderr(w io.Writer)
 	SetEnv(env []string)
 	SetDir(dir string)
+	// SetWaitDelay bounds the time Wait blocks after the context is canceled,
+	// mirroring exec.Cmd.WaitDelay. The in-memory backend ignores it.
+	SetWaitDelay(d time.Duration)
 
 	Run() error
 	Start() error
@@ -81,6 +87,13 @@ type Cmd interface {
 type ExitCoder interface {
 	error
 	ExitCode() int
+}
+
+// OSCmder exposes the underlying *exec.Cmd of an OS-backed Cmd. It is
+// intended as an escape hatch for callers that must pass the concrete type
+// to a library that does not accept the Cmd interface.
+type OSCmder interface {
+	OSCmd() *exec.Cmd
 }
 
 // ExitCode extracts an exit code from err. It returns 0 if err is nil, or -1
@@ -138,7 +151,11 @@ func (c *osCmd) SetStderr(w io.Writer) { c.cmd.Stderr = w }
 func (c *osCmd) SetEnv(env []string)   { c.cmd.Env = env }
 func (c *osCmd) SetDir(dir string)     { c.cmd.Dir = dir }
 
+func (c *osCmd) SetWaitDelay(d time.Duration) { c.cmd.WaitDelay = d }
+
 func (c *osCmd) SetCancel(fn func() error) { c.cmd.Cancel = fn }
+
+func (c *osCmd) OSCmd() *exec.Cmd { return c.cmd }
 
 func (c *osCmd) Signal(sig os.Signal) error {
 	if c.cmd.Process == nil {
@@ -263,6 +280,8 @@ func (c *memCmd) SetStdout(w io.Writer) { c.stdout = w }
 func (c *memCmd) SetStderr(w io.Writer) { c.stderr = w }
 func (c *memCmd) SetEnv(env []string)   { c.env = env }
 func (c *memCmd) SetDir(dir string)     { c.dir = dir }
+
+func (c *memCmd) SetWaitDelay(time.Duration) {}
 
 func (c *memCmd) ProcessState() *os.ProcessState { return nil }
 

@@ -48,6 +48,20 @@ terraform {
 }
 ```
 
+<Since version="1.0.5">
+
+`ref=` also accepts commit SHAs (full or abbreviated), not only branch and tag names.
+
+```hcl
+terraform {
+  source = "git@github.com:acme/infrastructure-modules.git//vpc?ref=a1b2c3d4e5f67890abcdef1234567890deadbeef"
+}
+```
+
+The first cold clone of a repository pinned to a commit SHA fetches the full history of every branch. Shallow fetches require a ref name, and fetching a commit SHA at limited depth depends on a server option (`uploadpack.allowAnySHA1InWant`) that is not universally enabled, so CAS fetches all branches at full depth and resolves the SHA locally. Subsequent clones reuse the cached repository and never touch the network for the same commit.
+
+</Since>
+
 ### Stack Usage
 
 <Before version="1.0.3">
@@ -92,6 +106,8 @@ terraform {
 
 During stack generation, Terragrunt rewrites these relative sources to `cas::` references that point to content stored in the CAS. The repository is cloned once, and subsequent stack generations resolve content from the local store without network access. Generated `.terragrunt-stack` files contain deterministic CAS references instead of version variables, so they do not produce diffs on regeneration.
 
+The catalog source can be either a remote Git URL or a local filesystem path (absolute, or relative to the current working directory). Local sources are copied into a temporary directory before rewriting, so the original catalog directory is never modified. This makes the same catalog layout usable against a published Git ref or a local checkout, which is useful when iterating on a catalog before tagging a release.
+
 For more details on using this with stacks, see [Explicit Stacks: CAS Integration](/features/stacks/explicit#cas-integration).
 
 <Aside type="caution">
@@ -100,7 +116,7 @@ Setting `update_source_with_cas = true` requires that the `cas` experiment is en
 
 </Since>
 
-When Terragrunt clones a repository while using the CAS, if the repository is not found in the CAS, Terragrunt will clone the repository from the original URL and store it in the CAS for future use.
+When Terragrunt clones a repository while using the CAS, if the repository is not found in the CAS, Terragrunt fetches into the central bare repository for that remote URL and stores the resulting blobs and trees in the CAS for future use. If the central store is unavailable, Terragrunt falls back to cloning the repository from the original URL into a temporary directory.
 
 When generating a repository from the CAS, Terragrunt will hard link entries from the CAS to the new repository. This allows Terragrunt to deduplicate content across multiple repositories.
 
@@ -108,7 +124,15 @@ In the event that hard linking fails due to some operating system / host incompa
 
 ## Storage
 
-The CAS is stored in the `~/.cache/terragrunt/cas` directory. This directory can be safely deleted at any time, as Terragrunt will automatically regenerate the CAS as needed.
+The CAS lives under the platform user cache directory:
+
+| Platform | Path |
+| --- | --- |
+| Linux | `$XDG_CACHE_HOME/terragrunt/cas`, falling back to `~/.cache/terragrunt/cas` |
+| macOS | `~/Library/Caches/terragrunt/cas` |
+| Windows | `%LocalAppData%\terragrunt\cas` |
+
+This directory can be deleted to reclaim disk space when no Terragrunt processes are running against it. Terragrunt will regenerate the CAS on the next run. Avoid deleting it while a Terragrunt operation is in progress, since that can race with in-flight reads, writes, and locks in the store.
 
 Avoid partial deletions of the CAS directory without care, as that might result in partially cloned repositories and unexpected behavior.
 
@@ -177,10 +201,14 @@ The CAS store is organized into namespaced directories:
     - trees/ (synthetic trees created during CAS-backed stack generation)
       - de/
         - def456...xyz
+  - git/ (one bare repository per remote URL, used for incremental fetches)
+    - 1a2b3c4d5e6f7890/
+      - repo/
+      - lock
 
 </FileTree>
 
-The `blobs/` directory stores all file content, identified by hash. Blobs are purely content-addressed, so the same file content always maps to the same hash regardless of origin. The `trees/` directory stores Git-derived tree structures that describe the layout of files in a repository. The `synth/trees/` directory stores synthetic tree structures created during CAS-backed stack generation when `update_source_with_cas` is used. These synthetic trees use a deterministic hash based on the Git reference and path within the repository.
+The `blobs/` directory stores all file content, identified by hash. Blobs are purely content-addressed, so the same file content always maps to the same hash regardless of origin. The `trees/` directory stores Git-derived tree structures that describe the layout of files in a repository. The `synth/trees/` directory stores synthetic tree structures created during CAS-backed stack generation when `update_source_with_cas` is used. These synthetic trees use a deterministic hash based on the Git reference and path within the repository. The `git/` directory holds one bare Git repository per remote URL, keyed by a hash of the URL, so cache misses can fetch only the new objects instead of re-cloning the repository.
 
 Each content object within a namespace is stored at `{hash[:2]}/{hash}`, where the first two characters create a partition directory to avoid degraded file system performance from large flat directories.
 </Since>
@@ -193,18 +221,20 @@ When Terragrunt needs to clone a repository using the CAS it does the following,
 
 For cold clones, where the content is not already in the CAS:
 
-1. Terragrunt resolves the Git reference (branch/tag) to a commit hash
+1. Terragrunt detects the ref type. Branch and tag refs resolve to a commit hash via `git ls-remote`. `ls-remote` lists named refs only and cannot fetch or resolve commit SHAs, so SHA refs are passed through to Step 3 for resolution against the central Git store.
 2. The tree related to the commit hash is not found in the CAS
-3. Terragrunt clones the repository to a temporary directory
-4. All blobs and trees required to reproduce the repository are extracted
+3. Terragrunt opens the bare repository for the remote URL under `cas/store/git/` (initializing it on first use), takes a per-URL lock, and fetches the requested ref. Branch and tag refs use a shallow fetch. SHA refs use a full-history fetch covering every branch and tag so the SHA can be resolved against the local store. Subsequent misses against the same URL reuse the existing pack files and only transfer new objects.
+4. All blobs and trees required to reproduce the repository are extracted from the bare repository
 5. Content is stored in the CAS, partitioned by hash prefix
 6. The tree structure is read from the CAS and hard links are created to the target directory
+
+Concurrent units that target the same remote URL share one fetch instead of cloning in parallel, so the objects are typically transferred once and reused. If the shared fetch hangs or fails, Terragrunt logs a warning and falls back to a clone in a temporary directory.
 
 #### Warm Clones
 
 For warm clones, where the content is already in the CAS:
 
-1. Terragrunt resolves the Git reference to a commit hash
+1. Terragrunt resolves the Git reference to a commit hash. For commit-SHA refs the local central Git store answers without contacting the remote when the SHA is already cached.
 2. CAS checks if the content exists
 3. The tree structure is read directly from the CAS
 4. Hard links are created from CAS to the target directory

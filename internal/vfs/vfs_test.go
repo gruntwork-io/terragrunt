@@ -3,11 +3,15 @@ package vfs_test
 import (
 	"archive/zip"
 	"bytes"
+	"context"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -222,6 +226,134 @@ func TestSymlink(t *testing.T) {
 
 		var linkErr *os.LinkError
 		assert.ErrorAs(t, err, &linkErr)
+	})
+}
+
+func TestEvalSymlinks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns regular path unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/real/sub", 0o755))
+
+		resolved, err := vfs.EvalSymlinks(fs, "/root/real/sub")
+
+		require.NoError(t, err)
+		assert.Equal(t, "/root/real/sub", resolved)
+	})
+
+	t.Run("resolves parent symlink", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/real/sub", 0o755))
+		require.NoError(t, vfs.Symlink(fs, "/root/real", "/root/link"))
+
+		resolved, err := vfs.EvalSymlinks(fs, "/root/link/sub")
+
+		require.NoError(t, err)
+		assert.Equal(t, "/root/real/sub", resolved)
+	})
+
+	t.Run("missing path returns error", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := vfs.EvalSymlinks(vfs.NewMemMapFS(), "/root/missing")
+
+		require.Error(t, err)
+	})
+}
+
+func TestParentPathHasSymlink(t *testing.T) {
+	t.Parallel()
+
+	t.Run("parent path contains symlink", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/real", 0o755))
+		require.NoError(t, vfs.Symlink(fs, "/root/real", "/root/link"))
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(fs, "/root", "link/file.txt")
+
+		require.NoError(t, err)
+		assert.True(t, hasSymlink)
+	})
+
+	t.Run("leaf symlink is not considered parent symlink", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/real", 0o755))
+		require.NoError(t, vfs.Symlink(fs, "/root/real", "/root/link"))
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(fs, "/root", "link")
+
+		require.NoError(t, err)
+		assert.False(t, hasSymlink)
+	})
+
+	t.Run("regular parents", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/real", 0o755))
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(fs, "/root", "real/file.txt")
+
+		require.NoError(t, err)
+		assert.False(t, hasSymlink)
+	})
+
+	t.Run("missing parent is not treated as symlink", func(t *testing.T) {
+		t.Parallel()
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "missing/file.txt")
+
+		require.NoError(t, err)
+		assert.False(t, hasSymlink)
+	})
+
+	t.Run("current directory is unsafe", func(t *testing.T) {
+		t.Parallel()
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", ".")
+
+		require.NoError(t, err)
+		assert.True(t, hasSymlink)
+	})
+
+	t.Run("absolute relative path is unsafe", func(t *testing.T) {
+		t.Parallel()
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "/root/file.txt")
+
+		require.NoError(t, err)
+		assert.True(t, hasSymlink)
+	})
+
+	t.Run("invalid relative path is unsafe", func(t *testing.T) {
+		t.Parallel()
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "../escape.txt")
+
+		require.NoError(t, err)
+		assert.True(t, hasSymlink)
+	})
+
+	t.Run("deep nested parent symlink", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, fs.MkdirAll("/root/a/b/real", 0o755))
+		require.NoError(t, vfs.Symlink(fs, "/root/a/b/real", "/root/a/b/link"))
+
+		hasSymlink, err := vfs.ParentPathHasSymlink(fs, "/root", "a/b/link/file.txt")
+
+		require.NoError(t, err)
+		assert.True(t, hasSymlink)
 	})
 }
 
@@ -910,6 +1042,81 @@ func TestWalkDir_OSFS(t *testing.T) {
 	assert.Equal(t, []string{".", "a.txt", "sub", filepath.Join("sub", "b.txt")}, paths)
 }
 
+func TestReadDirEntries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns sorted entries from MemMapFS", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/charlie.txt", []byte("c"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/alpha.txt", []byte("a"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/bravo.txt", []byte("b"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/sub/nested.txt", []byte("n"), 0644))
+
+		entries, err := vfs.ReadDirEntries(fsys, "/dir")
+		require.NoError(t, err)
+
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+
+		assert.Equal(t, []string{"alpha.txt", "bravo.txt", "charlie.txt", "sub"}, names)
+
+		var subEntry fs.DirEntry
+
+		for _, e := range entries {
+			if e.Name() == "sub" {
+				subEntry = e
+				break
+			}
+		}
+
+		require.NotNil(t, subEntry)
+		assert.True(t, subEntry.IsDir())
+	})
+
+	t.Run("returns sorted entries from OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "z.txt"), []byte("z"), 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0644))
+		require.NoError(t, os.Mkdir(filepath.Join(dir, "m"), 0755))
+
+		entries, err := vfs.ReadDirEntries(vfs.NewOSFS(), dir)
+		require.NoError(t, err)
+
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+
+		assert.Equal(t, []string{"a.txt", "m", "z.txt"}, names)
+	})
+
+	t.Run("returns empty slice for empty directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, fsys.Mkdir("/empty", 0755))
+
+		entries, err := vfs.ReadDirEntries(fsys, "/empty")
+		require.NoError(t, err)
+		assert.Empty(t, entries)
+	})
+
+	t.Run("returns error for missing directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		_, err := vfs.ReadDirEntries(fsys, "/does-not-exist")
+		require.Error(t, err)
+	})
+}
+
 func TestLock(t *testing.T) {
 	t.Parallel()
 
@@ -957,6 +1164,116 @@ func TestLock(t *testing.T) {
 		require.ErrorIs(t, err, vfs.ErrNoLock)
 
 		_, _, err = vfs.TryLock(readOnlyFs, "test.lock")
+		require.ErrorIs(t, err, vfs.ErrNoLock)
+	})
+}
+
+func TestLockContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("memMapFS acquires when lock is free", func(t *testing.T) {
+		t.Parallel()
+
+		memFs := vfs.NewMemMapFS()
+
+		lock, err := vfs.LockContext(t.Context(), memFs, "test.lock")
+		require.NoError(t, err)
+		require.NotNil(t, lock)
+		require.NoError(t, lock.Unlock())
+	})
+
+	t.Run("memMapFS waits for holder and acquires after release", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			memFs := vfs.NewMemMapFS()
+
+			held, err := vfs.Lock(memFs, "test.lock")
+			require.NoError(t, err)
+
+			// Release the held lock after fake time advances so the
+			// waiter transitions from "blocked" to "acquired".
+			go func() {
+				time.Sleep(50 * time.Millisecond)
+
+				_ = held.Unlock()
+			}()
+
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+
+			lock, err := vfs.LockContext(ctx, memFs, "test.lock")
+			require.NoError(t, err)
+			require.NotNil(t, lock)
+			require.NoError(t, lock.Unlock())
+		})
+	})
+
+	t.Run("memMapFS returns context error when waiter is canceled", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			memFs := vfs.NewMemMapFS()
+
+			held, err := vfs.Lock(memFs, "test.lock")
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = held.Unlock() })
+
+			ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+			defer cancel()
+
+			_, err = vfs.LockContext(ctx, memFs, "test.lock")
+			require.Error(t, err)
+			assert.True(
+				t,
+				errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled),
+				"expected context error, got %v", err,
+			)
+		})
+	})
+
+	t.Run("osFS acquires when lock is free", func(t *testing.T) {
+		t.Parallel()
+
+		osFs := vfs.NewOSFS()
+		lockPath := filepath.Join(t.TempDir(), "test.lock")
+
+		lock, err := vfs.LockContext(t.Context(), osFs, lockPath)
+		require.NoError(t, err)
+		require.NotNil(t, lock)
+		require.NoError(t, lock.Unlock())
+	})
+
+	t.Run("osFS returns context error when waiter is canceled", func(t *testing.T) {
+		t.Parallel()
+
+		osFs := vfs.NewOSFS()
+		lockPath := filepath.Join(t.TempDir(), "test.lock")
+
+		held, err := vfs.Lock(osFs, lockPath)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = held.Unlock() })
+
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+
+		_, err = vfs.LockContext(ctx, osFs, lockPath)
+		require.Error(t, err)
+		assert.True(
+			t,
+			errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled),
+			"expected context error, got %v", err,
+		)
+	})
+
+	t.Run("falls back to blocking Lock when filesystem lacks ContextLocker", func(t *testing.T) {
+		t.Parallel()
+
+		// afero.NewReadOnlyFs implements neither Locker nor ContextLocker, so
+		// LockContext should fall through to vfs.Lock and surface ErrNoLock.
+		readOnlyFs := afero.NewReadOnlyFs(vfs.NewMemMapFS())
+
+		_, err := vfs.LockContext(t.Context(), readOnlyFs, "test.lock")
 		require.ErrorIs(t, err, vfs.ErrNoLock)
 	})
 }

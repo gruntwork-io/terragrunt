@@ -2,6 +2,7 @@ package redesign_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -55,7 +56,9 @@ func TestWelcomeLoadingView_StatusTextUpdates(t *testing.T) {
 
 	content = stripANSI(m.View().Content)
 	assert.Contains(t, content, "Loading terraform-aws-vpc...", "status text should update after StatusUpdateMsg")
-	assert.NotContains(t, content, "Discovering components from your infrastructure...", "old status text should be replaced")
+	assert.NotContains(t, content,
+		"Discovering components from your infrastructure...",
+		"old status text should be replaced")
 }
 
 // --- Welcome No-Sources View ---
@@ -90,6 +93,38 @@ func TestWelcomeNoSourcesView_RendersHelpText(t *testing.T) {
 	assert.Contains(t, content, "q/esc: exit", "should show quit key hint")
 }
 
+// --- Welcome Discovery-Error View ---
+
+// TestWelcomeDiscoveryErrorView_RendersErrorAndHint verifies that when
+// discovery finishes with an error, the welcome model switches to the
+// discovery-error view and surfaces the underlying error message.
+func TestWelcomeDiscoveryErrorView_RendersErrorAndHint(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	erroringLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
+		return errors.New("network unreachable")
+	}
+
+	m := redesign.NewWelcomeModel(t.Context(), l, opts, erroringLoad)
+	m = updateModel(m, windowSize).(redesign.WelcomeModel)
+
+	m = updateModel(m, redesign.DiscoveryCompleteMsg{Err: errors.New("network unreachable")}).(redesign.WelcomeModel)
+
+	view := m.View()
+	content := stripANSI(view.Content)
+
+	assert.True(t, view.AltScreen, "discovery-error view should use alt screen")
+	assert.Contains(t, content, "Terragrunt Catalog", "should render title")
+	assert.Contains(t, content, "An error occurred while discovering catalog sources")
+	assert.Contains(t, content, "network unreachable", "should render the underlying error message")
+	assert.Contains(t, content, "q/esc: exit", "should render the quit hint")
+}
+
 // --- Component List View ---
 
 func TestComponentListView_LoadingTitle(t *testing.T) {
@@ -103,7 +138,7 @@ func TestComponentListView_LoadingTitle(t *testing.T) {
 	require.NotEmpty(t, components)
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh)
+	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -135,7 +170,7 @@ func TestComponentListView_MetadataRowRendered(t *testing.T) {
 	entry := components[0].WithVersion("v1.10.2").WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh)
+	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -162,7 +197,7 @@ func TestComponentListView_TemplateKindRendered(t *testing.T) {
 	)).WithSource("github.com/gruntwork-io/templates-repo")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, template, componentCh)
+	m := redesign.NewModelStreaming(l, opts, template, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -184,7 +219,7 @@ func TestComponentListView_NoVersionOmitsVersionPill(t *testing.T) {
 	entry := components[0].WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh)
+	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -193,6 +228,43 @@ func TestComponentListView_NoVersionOmitsVersionPill(t *testing.T) {
 	assert.Contains(t, content, "module", "metadata row should contain component kind label")
 	assert.Contains(t, content, "github.com/gruntwork-io/terragrunt-scale-catalog", "metadata row should contain source")
 	assert.NotContains(t, content, "v1.10.2", "version pill should not appear when version is empty")
+}
+
+// TestComponentListView_LongSourceAbbreviatesWithEllipsis feeds the metadata
+// row a long source string at a narrow terminal width. The rendered metadata
+// must contain the middle-ellipsis character and preserve both the prefix
+// and suffix of the source, which drives takeWidthPrefix and takeWidthSuffix
+// through abbreviateMiddle.
+func TestComponentListView_LongSourceAbbreviatesWithEllipsis(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	const longSource = "github.com/gruntwork-io/terragrunt-scale-catalog-extra-long-path-that-must-be-abbreviated/subdir"
+
+	entry := redesign.NewComponentEntry(redesign.NewComponentForTest(
+		redesign.ComponentKindModule,
+		longSource,
+		"modules/vpc",
+		"# VPC",
+	)).WithSource(longSource)
+
+	componentCh := make(chan *redesign.ComponentEntry, 1)
+	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+
+	// Narrow terminal forces the source column to shrink below the raw width,
+	// which forces abbreviateMiddle to truncate.
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 24})
+	m = updated.(redesign.Model)
+
+	content := stripANSI(m.View().Content)
+	assert.Contains(t, content, "…",
+		"abbreviateMiddle should emit the ellipsis when the source is too wide")
+	assert.Contains(t, content, "github.com",
+		"prefix of the source should survive abbreviation (takeWidthPrefix)")
 }
 
 // --- synctest: Streaming Flow ---
@@ -208,7 +280,11 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 		components := makeComponents(t)
 		require.GreaterOrEqual(t, len(components), 2, "need at least 2 components")
 
-		streamingLoad := func(_ context.Context, status redesign.StatusFunc, componentCh chan<- *redesign.ComponentEntry) error {
+		streamingLoad := func(
+			_ context.Context,
+			status redesign.StatusFunc,
+			componentCh chan<- *redesign.ComponentEntry,
+		) error {
 			status("Discovering catalog sources...")
 
 			for _, c := range components {
@@ -303,6 +379,108 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 					"components should be in alphabetical order: %q should come before %q", prev, curr)
 			}
 		}
+	})
+}
+
+// TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscovery_Synctest
+// drives the full welcome → streaming-list transition end-to-end through the
+// bubbletea command cycle and asserts that the rendered list view stops
+// showing the `(loading...)` tab-bar suffix once discovery completes. It
+// guards against a regression where the swap from WelcomeModel to the
+// streaming Model dropped the in-flight DiscoveryCompleteMsg, leaving the
+// loading indicator stuck on screen.
+func TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscovery_Synctest(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		l := logger.CreateLogger()
+		components := makeComponents(t)
+		require.NotEmpty(t, components)
+
+		streamingLoad := func(
+			_ context.Context,
+			_ redesign.StatusFunc,
+			componentCh chan<- *redesign.ComponentEntry,
+		) error {
+			for _, c := range components {
+				time.Sleep(50 * time.Millisecond)
+
+				componentCh <- c
+			}
+
+			return nil
+		}
+
+		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, opts, streamingLoad)
+
+		m = updateModel(m, windowSize)
+
+		cmd := m.Init()
+
+		msgCh := make(chan tea.Msg, 32)
+
+		spawn := func(c tea.Cmd) {
+			if c == nil {
+				return
+			}
+
+			go func() {
+				if msg := c(); msg != nil {
+					msgCh <- msg
+				}
+			}()
+		}
+
+		spawn(cmd)
+
+		drainOnce := func() {
+			for {
+				select {
+				case msg := <-msgCh:
+					// tea.Batch emits BatchMsg; the bubbletea runtime
+					// would normally fan it out into separate cmd
+					// goroutines. Replicate that here so listeners and
+					// the discovery goroutine all run.
+					if batch, ok := msg.(tea.BatchMsg); ok {
+						for _, c := range batch {
+							spawn(c)
+						}
+
+						continue
+					}
+
+					var next tea.Cmd
+
+					m, next = m.Update(msg)
+
+					spawn(next)
+				default:
+					return
+				}
+			}
+		}
+
+		// Repeatedly nudge time forward and drain. Each cycle gives any
+		// goroutines we've spawned a chance to finish and push onto msgCh.
+		for range 20 {
+			time.Sleep(100 * time.Millisecond)
+			drainOnce()
+		}
+
+		listModel, ok := m.(redesign.Model)
+		require.True(t, ok, "should have transitioned to streaming Model after discovery")
+
+		assert.False(t, redesign.LoadingForTest(listModel),
+			"streaming Model.loading should be cleared by DiscoveryCompleteMsg")
+
+		content := stripANSI(listModel.View().Content)
+		assert.NotContains(t, content, "(loading...)",
+			"loading indicator should disappear after DiscoveryCompleteMsg flows through "+
+				"the welcome → streaming-list swap; got tab bar:\n%s",
+			content)
 	})
 }
 

@@ -133,3 +133,29 @@ type LocalsMaxIterError struct {
 func (e LocalsMaxIterError) Error() string {
 	return fmt.Sprintf("locals evaluation exceeded %d iterations with %d unresolved locals", e.MaxIterations, e.Remaining)
 }
+
+// MalformedDependencyError indicates a dependency block in an autoinclude file is malformed. Err optionally carries the original HCL diagnostics so callers can extract position info via errors.As/Is.
+type MalformedDependencyError struct {
+	Err      error
+	FilePath string
+	Name     string
+	Reason   string
+}
+
+func (e MalformedDependencyError) Error() string {
+	return fmt.Sprintf("malformed dependency %q in %s: %s", e.Name, e.FilePath, e.Reason)
+}
+
+func (e MalformedDependencyError) Unwrap() error {
+	return e.Err
+}
+
+// EmptyArgError indicates that a required string argument was empty.
+type EmptyArgError struct {
+	Func string
+	Arg  string
+}
+
+func (e EmptyArgError) Error() string {
+	return fmt.Sprintf("hclparse.%s: %s is empty", e.Func, e.Arg)
+}

@@ -1,6 +1,7 @@
 package models_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"testing"
@@ -9,6 +10,54 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestResponseBodyPackagesRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Sample response shape extracted from opentofu/opentofu RFC
+	// 20251027-provider-registry-hashes.md, including the `packages` field that
+	// carries per-platform hashes.
+	raw := []byte(`{
+		"protocols": ["5.0"],
+		"os": "linux",
+		"arch": "amd64",
+		"filename": "terraform-provider-aws_5.31.0_linux_amd64.zip",
+		"download_url": "https://example.com/terraform-provider-aws_5.31.0_linux_amd64.zip",
+		"shasums_url": "https://example.com/SHA256SUMS",
+		"shasum": "5f9c7aa76b7c34d722fc91111111111111111111111111111111111111111111",
+		"signing_keys": {"gpg_public_keys": []},
+		"packages": {
+			"linux_amd64": {
+				"hashes": ["zh:abc", "h1:def"],
+				"package_size": 12345
+			},
+			"darwin_arm64": {
+				"hashes": ["zh:ghi", "h1:jkl"],
+				"package_size": 67890
+			}
+		}
+	}`)
+
+	var body models.ResponseBody
+	require.NoError(t, json.Unmarshal(raw, &body))
+
+	require.Len(t, body.Packages, 2)
+	require.Contains(t, body.Packages, "linux_amd64")
+	assert.Equal(t, []string{"zh:abc", "h1:def"}, body.Packages["linux_amd64"].Hashes)
+	assert.Equal(t, int64(12345), body.Packages["linux_amd64"].PackageSize)
+	assert.Equal(t, []string{"zh:ghi", "h1:jkl"}, body.Packages["darwin_arm64"].Hashes)
+}
+
+func TestResponseBodyPackagesAbsent(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{"os":"linux","arch":"amd64","filename":"x.zip","download_url":"https://example.com/x.zip","signing_keys":{"gpg_public_keys":[]}}`)
+
+	var body models.ResponseBody
+	require.NoError(t, json.Unmarshal(raw, &body))
+
+	assert.Nil(t, body.Packages)
+}
 
 func TestFilterValid(t *testing.T) {
 	t.Parallel()
@@ -112,39 +161,39 @@ func TestResolveRelativeReferences(t *testing.T) {
 		expectedResolved models.ResponseBody
 	}{
 		{
-			"https://releases.hashicorp.com/terraform-provider-local/2.5.1",
-			models.ResponseBody{
+			baseURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1",
+			body: models.ResponseBody{
 				DownloadURL:            "terraform-provider-local_2.5.1_darwin_amd64.zip",
 				SHA256SumsURL:          "terraform-provider-local_2.5.1_SHA256SUMS",
 				SHA256SumsSignatureURL: "terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
 			},
-			models.ResponseBody{
+			expectedResolved: models.ResponseBody{
 				DownloadURL:            "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_darwin_amd64.zip",
 				SHA256SumsURL:          "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS",
 				SHA256SumsSignatureURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
 			},
 		},
 		{
-			"https://somehost.com",
-			models.ResponseBody{
+			baseURL: "https://somehost.com",
+			body: models.ResponseBody{
 				DownloadURL:            "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_darwin_amd64.zip",
 				SHA256SumsURL:          "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS",
 				SHA256SumsSignatureURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
 			},
-			models.ResponseBody{
+			expectedResolved: models.ResponseBody{
 				DownloadURL:            "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_darwin_amd64.zip",
 				SHA256SumsURL:          "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS",
 				SHA256SumsSignatureURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
 			},
 		},
 		{
-			"https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64",
-			models.ResponseBody{
+			baseURL: "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64",
+			body: models.ResponseBody{
 				DownloadURL:            "/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider.zip",
 				SHA256SumsURL:          "/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS",
 				SHA256SumsSignatureURL: "/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS.sig",
 			},
-			models.ResponseBody{
+			expectedResolved: models.ResponseBody{
 				DownloadURL:            "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider.zip",
 				SHA256SumsURL:          "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS",
 				SHA256SumsSignatureURL: "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS.sig",

@@ -1,0 +1,8 @@
+---
+version: "v1.0.4"
+category: "bug-fixes"
+---
+
+#### Hardened module manifest handling
+
+Terragrunt now bounds `.terragrunt-module-manifest` cleanup to the manifest's own folder, skips paths with symlinked parents, and removes invalid manifests after reading any valid entries. Existing manifests keep the same gob format.

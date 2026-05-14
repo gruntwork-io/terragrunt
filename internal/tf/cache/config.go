@@ -65,6 +65,13 @@ func WithProxyProviderHandler(handler *handlers.ProxyProviderHandler) Option {
 	}
 }
 
+func WithProxyModuleHandler(handler *handlers.ProxyModuleHandler) Option {
+	return func(cfg Config) Config {
+		cfg.proxyModuleHandler = handler
+		return cfg
+	}
+}
+
 func WithCacheProviderHTTPStatusCode(statusCode int) Option {
 	return func(cfg Config) Config {
 		cfg.cacheProviderHTTPStatusCode = statusCode
@@ -83,6 +90,7 @@ type Config struct {
 	logger                      log.Logger
 	providerService             *services.ProviderService
 	proxyProviderHandler        *handlers.ProxyProviderHandler
+	proxyModuleHandler          *handlers.ProxyModuleHandler
 	hostname                    string
 	token                       string
 	providerHandlers            handlers.ProviderHandlers

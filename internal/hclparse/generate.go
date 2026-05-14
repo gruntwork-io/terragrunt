@@ -2,6 +2,7 @@ package hclparse
 
 import (
 	"cmp"
+	"fmt"
 	"path/filepath"
 	"slices"
 
@@ -12,14 +13,38 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+// AutoIncludeKind identifies whether a generated autoinclude file is unit-level or stack-level. The values intentionally match internal/component.{UnitKind,StackKind} but are defined here because internal/component -> pkg/config -> internal/hclparse is the established import direction; reusing the component constants would create a cycle.
+type AutoIncludeKind string
+
 const (
-	// AutoIncludeFile is the filename for generated autoinclude files.
+	// KindUnit selects the unit-level filename (terragrunt.autoinclude.hcl). Value matches component.UnitKind.
+	KindUnit AutoIncludeKind = "unit"
+	// KindStack selects the stack-level filename (terragrunt.autoinclude.stack.hcl). Value matches component.StackKind.
+	KindStack AutoIncludeKind = "stack"
+)
+
+const (
+	// AutoIncludeFile is the filename for generated unit-level autoinclude files.
 	AutoIncludeFile = "terragrunt.autoinclude.hcl"
+	// AutoIncludeStackFile is the filename for generated stack-level autoinclude files; the .stack.hcl suffix mirrors terragrunt.stack.hcl so tooling (LSP, read_terragrunt_config) can distinguish unit vs stack autoincludes by name.
+	AutoIncludeStackFile = "terragrunt.autoinclude.stack.hcl"
 	// autoIncludeFilePerm is the file permission for generated autoinclude files.
 	autoIncludeFilePerm = 0644
 	// autoIncludeDirPerm is the directory permission for generated autoinclude dirs.
 	autoIncludeDirPerm = 0755
 )
+
+// AutoIncludeFileNameForKind returns the autoinclude filename to generate for the given kind. Panics on unknown kinds (programmer error) so a misspelled or missing kind cannot silently produce the wrong filename.
+func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
+	switch kind {
+	case KindUnit:
+		return AutoIncludeFile
+	case KindStack:
+		return AutoIncludeStackFile
+	default:
+		panic(fmt.Sprintf("hclparse.AutoIncludeFileNameForKind: unknown kind %q (expected %q or %q)", kind, KindUnit, KindStack))
+	}
+}
 
 // GenerateAutoIncludeFile writes a terragrunt.autoinclude.hcl file in the
 // given directory from a resolved autoinclude.
@@ -32,9 +57,16 @@ const (
 //     from the original AST source bytes: dependency.*.outputs.* references
 //     are preserved without evaluation.
 //
-// srcBytes is the original terragrunt.stack.hcl file content, used to extract
-// source text for expressions via byte ranges.
+// Requires non-nil fs and non-empty targetDir (panics otherwise). resolved may be nil (no-op). srcBytes must be the bytes of the file resolved.RawBody was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
 func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: fs is nil (targetDir=%q, sourceFile=%q)", targetDir, resolvedSourceFile(resolved)))
+	}
+
+	if targetDir == "" {
+		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: targetDir is empty (sourceFile=%q)", resolvedSourceFile(resolved)))
+	}
+
 	if resolved == nil {
 		return nil
 	}
@@ -63,7 +95,7 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	// Write non-dependency content with binary per-attribute evaluation.
 	writeNonDependencyContent(outBody, body, srcBytes, evalCtx)
 
-	filePath := filepath.Join(targetDir, AutoIncludeFile)
+	filePath := filepath.Join(targetDir, AutoIncludeFileNameForKind(resolved.Kind))
 
 	if err := fs.MkdirAll(targetDir, autoIncludeDirPerm); err != nil {
 		return DirCreateError{DirPath: targetDir, Err: err}
@@ -242,4 +274,22 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.
 func quotedStringTokens(value string) hclwrite.Tokens {
 	return hclwrite.TokensForValue(cty.StringVal(value))
+}
+
+// resolvedSourceFile extracts the originating HCL filename from a resolved
+// autoinclude, used to enrich panic messages with file context. Reads the
+// SrcRange struct field on the known concrete body type so no interface
+// method is invoked — this keeps the helper panic-safe even when called
+// from inside a panic formatter.
+func resolvedSourceFile(resolved *AutoIncludeResolved) string {
+	if resolved == nil {
+		return ""
+	}
+
+	body, ok := resolved.RawBody.(*hclsyntax.Body)
+	if !ok || body == nil {
+		return ""
+	}
+
+	return body.SrcRange.Filename
 }

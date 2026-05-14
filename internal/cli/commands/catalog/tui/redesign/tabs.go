@@ -12,8 +12,10 @@ type tabKind int
 
 const (
 	TabAll tabKind = iota
-	TabModules
 	TabTemplates
+	TabStacks
+	TabUnits
+	TabModules
 	numTabs
 )
 
@@ -24,6 +26,10 @@ func (t tabKind) String() string {
 		return "Modules"
 	case TabTemplates:
 		return "Templates"
+	case TabUnits:
+		return "Units"
+	case TabStacks:
+		return "Stacks"
 	case TabAll, numTabs:
 		return "All"
 	default:
@@ -31,14 +37,25 @@ func (t tabKind) String() string {
 	}
 }
 
-// matches reports whether a component of the given kind belongs in this tab.
+// matches reports whether the given entry belongs in this tab. A component
+// is in a kind-specific tab when its Kind matches OR when one of its
+// front-matter tags case-insensitively names the tab's kind (so a
+// `template` tagged `module` shows up in both Templates and Modules).
 // TabAll matches everything.
-func (t tabKind) matches(kind ComponentKind) bool {
+func (t tabKind) matches(entry *ComponentEntry) bool {
+	if entry == nil {
+		return t == TabAll
+	}
+
 	switch t {
 	case TabModules:
-		return kind == ComponentKindModule
+		return entry.Kind() == ComponentKindModule || entry.HasTagForKind(ComponentKindModule)
 	case TabTemplates:
-		return kind == ComponentKindTemplate
+		return entry.Kind() == ComponentKindTemplate || entry.HasTagForKind(ComponentKindTemplate)
+	case TabUnits:
+		return entry.Kind() == ComponentKindUnit || entry.HasTagForKind(ComponentKindUnit)
+	case TabStacks:
+		return entry.Kind() == ComponentKindStack || entry.HasTagForKind(ComponentKindStack)
 	case TabAll, numTabs:
 		return true
 	default:
@@ -56,22 +73,54 @@ func (t tabKind) prev() tabKind {
 	return (t + numTabs - 1) % numTabs
 }
 
-// Tab bar styling.
-var (
-	tabBarActiveStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(titleForegroundColor)).
-				Background(lipgloss.Color(titleBackgroundColor)).
-				Bold(true).
-				Padding(0, 1)
+// componentKind returns the ComponentKind this tab filters to. TabAll and
+// the numTabs sentinel return false.
+func (t tabKind) componentKind() (ComponentKind, bool) {
+	switch t {
+	case TabModules:
+		return ComponentKindModule, true
+	case TabTemplates:
+		return ComponentKindTemplate, true
+	case TabUnits:
+		return ComponentKindUnit, true
+	case TabStacks:
+		return ComponentKindStack, true
+	case TabAll, numTabs:
+		return 0, false
+	}
 
-	tabBarInactiveStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#6C7086")).
-				Padding(0, 1)
-)
+	return 0, false
+}
 
-// renderTabBar returns the tab strip with the active tab highlighted. When
+// tabBarInactiveStyle is the style used for non-active tabs in the tab strip.
+var tabBarInactiveStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#6C7086")).
+	Padding(0, 1)
+
+// tabActiveStyle returns the active-tab style: kind tabs use their pill
+// colors, TabAll uses the neutral title style.
+func tabActiveStyle(t tabKind) lipgloss.Style {
+	kind, ok := t.componentKind()
+	if !ok {
+		return lipgloss.NewStyle().
+			Foreground(lipgloss.Color(titleForegroundColor)).
+			Background(lipgloss.Color(titleBackgroundColor)).
+			Bold(true).
+			Padding(0, 1)
+	}
+
+	bg, fg := pillColorsForKind(kind, false)
+
+	return lipgloss.NewStyle().
+		Background(lipgloss.Color(bg)).
+		Foreground(lipgloss.Color(fg)).
+		Bold(true).
+		Padding(0, 1)
+}
+
+// RenderTabBar returns the tab strip with the active tab highlighted. When
 // loading is true, a "(loading...)" suffix trails the strip.
-func renderTabBar(active tabKind, loading bool) string {
+func RenderTabBar(active tabKind, loading bool) string {
 	var parts []string
 
 	for i := range int(numTabs) {
@@ -79,7 +128,7 @@ func renderTabBar(active tabKind, loading bool) string {
 		label := t.String()
 
 		if t == active {
-			parts = append(parts, tabBarActiveStyle.Render(label))
+			parts = append(parts, tabActiveStyle(t).Render(label))
 
 			continue
 		}

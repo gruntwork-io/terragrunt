@@ -1,8 +1,10 @@
 package hclparse
 
 import (
+	"fmt"
 	iofs "io/fs"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -48,12 +50,16 @@ type AutoIncludeResolved struct {
 	// RawBody is the original autoinclude HCL body, preserved so
 	// the generator can write non-dependency content (inputs, etc.)
 	// directly from the AST without evaluating dependency.* references.
-	RawBody      hcl.Body
+	RawBody hcl.Body
+	// SourceBytes are the bytes of the file RawBody was parsed from. Generation slices expressions by HCL byte ranges and must use these bytes, not the root stack file's bytes, when the autoinclude originated in an included file.
+	SourceBytes []byte
+	// Kind is KindUnit or KindStack and drives the generated filename (terragrunt.autoinclude.hcl vs terragrunt.autoinclude.stack.hcl).
+	Kind         AutoIncludeKind
 	Dependencies []AutoIncludeDependency
 }
 
 // AutoIncludeDependency represents a resolved dependency block from autoinclude.
-// config_path has been evaluated (e.g. unit.vpc.path → "/abs/path/to/.terragrunt-stack/vpc").
+// config_path has been evaluated (e.g. unit.vpc.path -> "/abs/path/to/.terragrunt-stack/vpc").
 // The original HCL block is preserved for writing all attributes (mock_outputs, etc.)
 // into the generated file.
 type AutoIncludeDependency struct {
@@ -65,6 +71,10 @@ type AutoIncludeDependency struct {
 
 // Resolve evaluates the autoinclude body using the provided eval context,
 // which must contain unit.* and stack.* variables for path resolution.
+//
+// Callers that need to record the originating file's bytes on the returned
+// AutoIncludeResolved (so generation can slice expressions from the correct
+// source after include merging) should set SourceBytes on the result.
 //
 // The resolution follows three levels:
 //
@@ -91,7 +101,18 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 	)
 
 	for _, block := range body.Blocks {
-		if block.Type != blockDependency || len(block.Labels) == 0 {
+		if block.Type != blockDependency {
+			continue
+		}
+
+		if len(block.Labels) != 1 {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid dependency block labels",
+				Detail:   fmt.Sprintf("dependency block requires exactly one label, got %d", len(block.Labels)),
+				Subject:  block.DefRange().Ptr(),
+			})
+
 			continue
 		}
 
@@ -176,56 +197,123 @@ func BuildAutoIncludeEvalContext(unitRefs, stackRefs []ComponentRef) *hcl.EvalCo
 	}
 }
 
-// AutoIncludeDependencyPaths reads the terragrunt.autoinclude.hcl file in
-// unitDir and returns resolved dependency config_path values.
-// Returns (nil, nil) if the file does not exist or has no dependencies.
+// AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values. Returns EmptyArgError when unitDir is empty so callers can distinguish bad input from a missing file.
 func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fs is nil (unitDir=%q)", unitDir))
+	}
+
+	if unitDir == "" {
+		return nil, EmptyArgError{Func: "AutoIncludeDependencyPaths", Arg: "unitDir"}
+	}
+
 	unitDir = util.ResolvePath(unitDir)
 	autoIncludePath := filepath.Join(unitDir, AutoIncludeFile)
 
-	data, err := vfs.ReadFile(fs, autoIncludePath)
+	body, err := readAutoIncludeBody(fs, autoIncludePath)
+	if err != nil || body == nil {
+		return nil, err
+	}
+
+	paths := make([]string, 0, len(body.Blocks))
+
+	var errs []error
+
+	for _, block := range body.Blocks {
+		if block.Type != blockDependency {
+			continue
+		}
+
+		if len(block.Labels) != 1 {
+			errs = append(errs, MalformedDependencyError{
+				FilePath: autoIncludePath,
+				Name:     blockLabelsString(block),
+				Reason:   fmt.Sprintf("dependency block requires exactly one label, got %d", len(block.Labels)),
+			})
+
+			continue
+		}
+
+		depPath, extractErr := extractDepPath(block, autoIncludePath, unitDir)
+		if extractErr != nil {
+			errs = append(errs, extractErr)
+
+			continue
+		}
+
+		paths = append(paths, depPath)
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	return paths, nil
+}
+
+// readAutoIncludeBody reads and parses an autoinclude file, returning (nil, nil) when the file does not exist.
+func readAutoIncludeBody(fs vfs.FS, path string) (*hclsyntax.Body, error) {
+	data, err := vfs.ReadFile(fs, path)
 	if errors.Is(err, iofs.ErrNotExist) {
 		return nil, nil
 	}
 
 	if err != nil {
-		return nil, FileReadError{FilePath: autoIncludePath, Err: err}
+		return nil, FileReadError{FilePath: path, Err: err}
 	}
 
-	file, diags := hclsyntax.ParseConfig(data, autoIncludePath, hcl.Pos{Line: 1, Column: 1})
+	file, diags := hclsyntax.ParseConfig(data, path, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, FileParseError{FilePath: autoIncludePath, Detail: diags.Error()}
+		return nil, FileParseError{FilePath: path, Detail: diags.Error()}
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil, UnexpectedBodyTypeError{FilePath: autoIncludePath}
+		return nil, UnexpectedBodyTypeError{FilePath: path}
 	}
 
-	var paths []string
+	return body, nil
+}
 
-	for _, block := range body.Blocks {
-		if block.Type != blockDependency || len(block.Labels) == 0 {
-			continue
-		}
-
-		configPathAttr, exists := block.Body.Attributes[attrConfigPath]
-		if !exists {
-			continue
-		}
-
-		val, valDiags := configPathAttr.Expr.Value(nil)
-		if valDiags.HasErrors() || !val.IsKnown() || val.IsNull() || val.Type() != cty.String {
-			continue
-		}
-
-		depPath := val.AsString()
-		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Clean(filepath.Join(unitDir, depPath))
-		}
-
-		paths = append(paths, util.ResolvePath(depPath))
+// blockLabelsString joins a block's labels for error messages; returns "(unlabeled)" when there are none.
+func blockLabelsString(block *hclsyntax.Block) string {
+	if len(block.Labels) == 0 {
+		return "(unlabeled)"
 	}
 
-	return paths, nil
+	return strings.Join(block.Labels, " ")
+}
+
+// extractDepPath returns the resolved config_path for a dependency block. Caller must ensure the block has exactly one label.
+func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (string, error) {
+	name := block.Labels[0]
+
+	configPathAttr, exists := block.Body.Attributes[attrConfigPath]
+	if !exists {
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "missing config_path attribute"}
+	}
+
+	val, valDiags := configPathAttr.Expr.Value(nil)
+	if valDiags.HasErrors() {
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path: " + valDiags.Error(), Err: valDiags}
+	}
+
+	if !val.IsKnown() {
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path is unknown"}
+	}
+
+	if val.IsNull() {
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path is null"}
+	}
+
+	if val.Type() != cty.String {
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path must be a string, got " + val.Type().FriendlyName()}
+	}
+
+	depPath := val.AsString()
+	if !filepath.IsAbs(depPath) {
+		depPath = filepath.Clean(filepath.Join(unitDir, depPath))
+	}
+
+	return util.ResolvePath(depPath), nil
 }

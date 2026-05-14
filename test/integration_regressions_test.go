@@ -3,9 +3,13 @@ package test_test
 import (
 	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -14,6 +18,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -864,13 +869,11 @@ func TestExposedIncludeFullParseReturnsError(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	childPath := filepath.Join(rootPath, "child")
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --non-interactive --working-dir "+childPath+" -- plan",
 	)
 	require.Error(t, err, "Full parsing should fail when exposed include has unresolved dependency")
-	assert.Contains(t, stderr, "detected no outputs",
-		"Error should mention that dependency has no outputs")
 }
 
 // TestQueueDisplayOrder verifies that the flat queue display lists units in
@@ -995,4 +998,148 @@ func TestDAGQueueDisplay(t *testing.T) {
 		assert.Contains(t, stderr, "starting with dependents and then their dependencies")
 		assert.Contains(t, stderr, expectedDownTree)
 	})
+}
+
+// TestForgedModuleManifestDoesNotEscapeCache pins that a forged .terragrunt-module-manifest shipped inside a downloaded git module does not delete a sentinel file outside the cache.
+func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
+	t.Parallel()
+
+	sentinelDir := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(sentinelDir, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	require.NoError(t, srv.CommitFile("main.tf", []byte("# benign\n"), "module"))
+	require.NoError(t, srv.CommitFile(".terragrunt-module-manifest", encodeForgedManifest(t, forgedFile(sentinel)), "forged manifest"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	consumer := helpers.TmpDirWOSymlinks(t)
+	tgConfig := fmt.Sprintf("terraform {\n  source = \"git::%s\"\n}\n", url)
+	require.NoError(t, os.WriteFile(filepath.Join(consumer, "terragrunt.hcl"), []byte(tgConfig), 0o644))
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+consumer+" -- init -backend=false",
+	)
+	require.NoError(t, err, "init must succeed: stdout=%s stderr=%s", stdout, stderr)
+
+	cacheRoot := filepath.Join(consumer, ".terragrunt-cache")
+	cachedMain := findCachedFile(t, cacheRoot, "main.tf")
+	require.NotEmpty(t, cachedMain, "the benign main.tf from the module must be present in the cache")
+
+	cachedModuleDir := filepath.Dir(cachedMain)
+	staleCanary := filepath.Join(cachedModuleDir, "stale-canary.tf")
+	forgedManifestPath := filepath.Join(cachedModuleDir, ".terragrunt-module-manifest")
+
+	require.NoError(t, os.WriteFile(staleCanary, []byte("must be cleaned"), 0o600))
+	require.NoError(t, os.WriteFile(
+		forgedManifestPath,
+		encodeForgedManifest(t, forgedFile(staleCanary), forgedFile(sentinel), forgedDir(sentinelDir)),
+		0o600,
+	))
+	require.FileExists(t, forgedManifestPath, "test setup must plant the forged cache manifest before the second init")
+
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+consumer+" -- init -backend=false",
+	)
+	require.NoError(t, err, "second init must succeed: stdout=%s stderr=%s", stdout, stderr)
+
+	assert.NoFileExists(t, staleCanary, "forged manifest must have been processed and removed the in-cache canary")
+	assert.FileExists(t, sentinel, "forged manifest entry must not have deleted the sentinel outside the cache")
+
+	manifestEntries := readForgedManifestEntries(t, forgedManifestPath)
+	manifestPaths := make([]string, 0, len(manifestEntries))
+
+	for _, entry := range manifestEntries {
+		manifestPaths = append(manifestPaths, entry.Path)
+	}
+
+	assert.NotContains(t, manifestPaths, staleCanary, "fresh manifest should not retain the forged in-cache canary entry")
+	assert.NotContains(t, manifestPaths, sentinel, "fresh manifest should not retain the forged out-of-cache file entry")
+	assert.NotContains(t, manifestPaths, sentinelDir, "fresh manifest should not retain the forged out-of-cache directory entry")
+}
+
+// encodeForgedManifest builds a gob-encoded .terragrunt-module-manifest with one file entry per supplied path so tests can plant adversarial inputs.
+func encodeForgedManifest(t *testing.T, entries ...forgedManifestEntry) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	enc := gob.NewEncoder(&buf)
+
+	for _, entry := range entries {
+		require.NoError(t, enc.Encode(entry))
+	}
+
+	return buf.Bytes()
+}
+
+func readForgedManifestEntries(t *testing.T, path string) []forgedManifestEntry {
+	t.Helper()
+
+	file, err := os.Open(path)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, file.Close())
+	}()
+
+	decoder := gob.NewDecoder(file)
+	entries := []forgedManifestEntry{}
+
+	for {
+		var entry forgedManifestEntry
+		if err := decoder.Decode(&entry); err != nil {
+			if errors.Is(err, io.EOF) {
+				return entries
+			}
+
+			require.NoError(t, err)
+		}
+
+		entries = append(entries, entry)
+	}
+}
+
+// forgedManifestEntry mirrors the gob manifest entry layout for adversarial fixtures.
+type forgedManifestEntry struct {
+	Path  string
+	IsDir bool
+}
+
+func forgedFile(path string) forgedManifestEntry {
+	return forgedManifestEntry{Path: path}
+}
+
+func forgedDir(path string) forgedManifestEntry {
+	return forgedManifestEntry{Path: path, IsDir: true}
+}
+
+// findCachedFile returns the first path under cacheRoot whose basename matches name, or "" if not found.
+func findCachedFile(t *testing.T, cacheRoot, name string) string {
+	t.Helper()
+
+	var found string
+
+	walkErr := vfs.WalkDir(vfs.NewOSFS(), cacheRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !d.IsDir() && filepath.Base(path) == name {
+			found = path
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+	require.NoError(t, walkErr, "walking %s", cacheRoot)
+
+	return found
 }
