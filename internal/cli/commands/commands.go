@@ -455,6 +455,11 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 		opts.WorkingDir = workingDir
 	}
 
+	// We often want to take paths relative to the working dir like filepath.Rel(opts.WorkingDir, other)
+	// The other path is often a canonical path with symlinks resolved, so opts.WorkingDir needs it as well
+	if resolved, evalErr := filepath.EvalSymlinks(opts.WorkingDir); evalErr == nil {
+		opts.WorkingDir = resolved
+	}
 	opts.WorkingDir = filepath.Clean(opts.WorkingDir)
 
 	l = l.WithField(placeholders.WorkDirKeyName, opts.WorkingDir)
