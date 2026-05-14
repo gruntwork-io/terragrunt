@@ -438,6 +438,17 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.Env = env.Parse(os.Environ())
 
+	// If TG_CPU_PROFILE_DIR is set, per-module TOFU_CPU_PROFILE is handled
+	// in runTerragruntWithConfig() based on each module's working directory.
+	// Otherwise, propagate TG_CPU_PROFILE to TOFU_CPU_PROFILE directly.
+	if opts.Env[tf.EnvNameTGCPUProfileDir] == "" {
+		if cpuProfile := opts.Env[tf.EnvNameTGCPUProfile]; cpuProfile != "" {
+			if _, set := opts.Env[tf.EnvNameTofuCPUProfile]; !set {
+				opts.Env[tf.EnvNameTofuCPUProfile] = cpuProfile
+			}
+		}
+	}
+
 	// --- Working Dir
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
