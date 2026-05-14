@@ -11,10 +11,11 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/prepare"
-	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -31,32 +32,41 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 }
 
 func runPrint(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	prepared, err := prepare.PrepareConfig(ctx, l, opts)
+	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	cfg, err := config.PartialParseConfigFile(
+		ctx,
+		pctx.WithDecodeList(
+			config.TerragruntVersionConstraints,
+			config.TerragruntFlags,
+			config.TerraformSource,
+			config.RemoteStateBlock,
+		),
+		l,
+		opts.TerragruntConfigPath,
+		nil,
+	)
 	if err != nil {
-		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
-
-		if printErr := printTerragruntContext(l, opts); printErr != nil {
-			l.Errorf("Error printing info: %v", printErr)
-		}
-
-		return nil
 	}
 
-	// Download source
-	updatedOpts, err := prepare.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, report.NewReport())
-	if err != nil {
-		// Even on error, try to print what info we have
-		l.Debugf("Fetching info with error: %v", err)
-
-		if printErr := printTerragruntContext(l, opts); printErr != nil {
-			l.Errorf("Error printing info: %v", printErr)
+	if cfg != nil {
+		if cfg.TerraformBinary != "" {
+			opts.TFPath = cfg.TerraformBinary
 		}
 
-		return nil
+		opts.IAMRoleOptions = iam.MergeRoleOptions(
+			cfg.GetIAMRoleOptions(),
+			opts.OriginalIAMRoleOptions,
+		)
+
+		_, defaultDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+		if opts.DownloadDir == defaultDownloadDir && cfg.DownloadDir != "" {
+			opts.DownloadDir = cfg.DownloadDir
+		}
 	}
 
-	return printTerragruntContext(l, updatedOpts)
+	return printTerragruntContext(l, opts)
 }
 
 func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
