@@ -382,9 +382,8 @@ func PartialParseConfigString(ctx context.Context, pctx *ParsingContext, l log.L
 func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	errs := &errors.MultiError{}
 
-	depsFromReads := make([]string, 0)
 	pctx = pctx.Clone()
-	pctx.dependenciesFromReads = &depsFromReads
+	pctx.dependenciesFromReads = &dependenciesFromReadCollector{}
 
 	// Detect and block deprecated configurations early, before attempting to parse.
 	// This ensures included configs with deprecated syntax get clear error messages
@@ -658,7 +657,7 @@ func mergeDependenciesFromReads(pctx *ParsingContext, output *TerragruntConfig) 
 		return
 	}
 
-	deps := *pctx.dependenciesFromReads
+	deps := pctx.dependenciesFromReads.snapshot()
 	if len(deps) == 0 {
 		return
 	}

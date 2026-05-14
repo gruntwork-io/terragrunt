@@ -859,6 +859,44 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	return TerragruntConfigAsCty(config)
 }
 
+type dependenciesFromReadCollector struct {
+	paths []string
+	mu    sync.Mutex
+}
+
+func (collector *dependenciesFromReadCollector) appendUniqueResolvedPath(baseDir, rawPath string) {
+	if collector == nil || rawPath == "" {
+		return
+	}
+
+	resolved := rawPath
+	if !filepath.IsAbs(resolved) {
+		resolved = filepath.Join(baseDir, resolved)
+	}
+
+	resolved = filepath.Clean(resolved)
+
+	collector.mu.Lock()
+	defer collector.mu.Unlock()
+
+	if slices.Contains(collector.paths, resolved) {
+		return
+	}
+
+	collector.paths = append(collector.paths, resolved)
+}
+
+func (collector *dependenciesFromReadCollector) snapshot() []string {
+	if collector == nil {
+		return nil
+	}
+
+	collector.mu.Lock()
+	defer collector.mu.Unlock()
+
+	return slices.Clone(collector.paths)
+}
+
 // recordDependenciesFromRead appends `config`'s dependency paths to pctx.dependenciesFromReads.
 func recordDependenciesFromRead(pctx *ParsingContext, config *TerragruntConfig, targetConfig string) {
 	if pctx == nil || pctx.dependenciesFromReads == nil || config == nil {
@@ -871,8 +909,7 @@ func recordDependenciesFromRead(pctx *ParsingContext, config *TerragruntConfig, 
 			continue
 		}
 
-		appendUniqueResolvedPath(
-			pctx.dependenciesFromReads,
+		pctx.dependenciesFromReads.appendUniqueResolvedPath(
 			dependencyBlockSourceDir(config, dep, targetConfig),
 			dep.ConfigPath.AsString(),
 		)
@@ -880,8 +917,7 @@ func recordDependenciesFromRead(pctx *ParsingContext, config *TerragruntConfig, 
 
 	if config.Dependencies != nil {
 		for _, path := range config.Dependencies.Paths {
-			appendUniqueResolvedPath(
-				pctx.dependenciesFromReads,
+			pctx.dependenciesFromReads.appendUniqueResolvedPath(
 				dependencySourceDir(config, MetadataDependencies, path, targetConfig),
 				path,
 			)
@@ -911,26 +947,6 @@ func dependencySourceDir(config *TerragruntConfig, fieldType, fieldName, fallbac
 	}
 
 	return filepath.Dir(fallbackConfig)
-}
-
-// appendUniqueResolvedPath resolves rawPath against baseDir if relative and appends to *dst when not already present.
-func appendUniqueResolvedPath(dst *[]string, baseDir, rawPath string) {
-	if rawPath == "" {
-		return
-	}
-
-	resolved := rawPath
-	if !filepath.IsAbs(resolved) {
-		resolved = filepath.Join(baseDir, resolved)
-	}
-
-	resolved = filepath.Clean(resolved)
-
-	if slices.Contains(*dst, resolved) {
-		return
-	}
-
-	*dst = append(*dst, resolved)
 }
 
 // Create a cty Function that can be used to for calling read_terragrunt_config.
