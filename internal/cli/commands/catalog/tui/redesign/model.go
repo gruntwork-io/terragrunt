@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -59,6 +60,7 @@ type Model struct {
 	currentPagerButtons []button
 	exitMessage         string
 	viewport            viewport.Model
+	venv                venv.Venv
 	activeButton        button
 	State               sessionState
 	activeTab           tabKind
@@ -76,10 +78,17 @@ type Model struct {
 // for receiving additional entries as they are discovered. errCh carries the
 // loadFunc result; the streaming Model drains it after componentCh closes so
 // it can synthesize a DiscoveryCompleteMsg without racing the welcome model.
-func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *ComponentEntry, componentCh chan *ComponentEntry, errCh chan error) Model {
+func NewModelStreaming(
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	initial *ComponentEntry,
+	componentCh chan *ComponentEntry,
+	errCh chan error,
+) Model {
 	items := []list.Item{initial}
 
-	m := newModelWithItems(l, opts, items, componentCh)
+	m := newModelWithItems(l, v, opts, items, componentCh)
 	m.errCh = errCh
 	m.loading = true
 
@@ -270,7 +279,13 @@ func isDuplicate(items []list.Item, sourcePath string) bool {
 	return false
 }
 
-func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []list.Item, componentCh chan *ComponentEntry) Model {
+func newModelWithItems(
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	items []list.Item,
+	componentCh chan *ComponentEntry,
+) Model {
 	listKeys := tui.NewListKeyMap()
 	delegateKeys := tui.NewDelegateKeyMap()
 	pagerKeys := tui.NewPagerKeyMap()
@@ -319,6 +334,7 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []li
 		terragruntOptions: opts,
 		logger:            l,
 		componentCh:       componentCh,
+		venv:              v,
 		// Matches lipgloss.HasDarkBackground's fallback. Corrected on the
 		// first tea.BackgroundColorMsg.
 		hasDarkBG: true,

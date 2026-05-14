@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -14,18 +15,30 @@ import (
 // Run is the main entry point for the catalog command.
 // It dispatches to either the default or redesigned catalog experience
 // based on the catalog-redesign experiment.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, repoURL string) error {
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	repoURL string,
+) error {
 	if opts.Experiments.Evaluate(experiment.CatalogRedesign) {
-		return runRedesign(ctx, l, opts, repoURL)
+		return runRedesign(ctx, l, v, opts, repoURL)
 	}
 
-	return runDefault(ctx, l, opts, repoURL)
+	return runDefault(ctx, l, v, opts, repoURL)
 }
 
 // runDefault is the default catalog experience.
 // It initializes the catalog service, retrieves modules, and then launches the TUI.
-func runDefault(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, repoURL string) error {
-	svc := catalog.NewCatalogService(opts)
+func runDefault(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	repoURL string,
+) error {
+	svc := catalog.NewCatalogService(opts, v)
 
 	if repoURL != "" {
 		svc.WithRepoURL(repoURL)

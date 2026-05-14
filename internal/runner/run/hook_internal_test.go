@@ -2,7 +2,6 @@ package run
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -10,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHookErrorMessage_WithStderr(t *testing.T) {
@@ -20,7 +18,7 @@ func TestHookErrorMessage_WithStderr(t *testing.T) {
 	output.Stderr.WriteString("resource missing required tags")
 
 	err := util.ProcessExecutionError{
-		Err:        getExitError(t, 2),
+		Err:        stubExitErr{code: 2},
 		Command:    "tflint",
 		Args:       []string{"--config", ".tflint.hcl"},
 		WorkingDir: "/tmp",
@@ -41,7 +39,7 @@ func TestHookErrorMessage_StdoutFallback(t *testing.T) {
 	output.Stdout.WriteString("warning: deprecated feature")
 
 	err := util.ProcessExecutionError{
-		Err:        getExitError(t, 1),
+		Err:        stubExitErr{code: 1},
 		Command:    "custom-lint",
 		Args:       []string{"--fix"},
 		WorkingDir: "/tmp",
@@ -59,7 +57,7 @@ func TestHookErrorMessage_NoOutput(t *testing.T) {
 	t.Parallel()
 
 	err := util.ProcessExecutionError{
-		Err:        getExitError(t, 3),
+		Err:        stubExitErr{code: 3},
 		Command:    "check",
 		Args:       []string{"-strict"},
 		WorkingDir: "/tmp",
@@ -78,7 +76,7 @@ func TestHookErrorMessage_TflintWrapped(t *testing.T) {
 	output.Stderr.WriteString("3 issue(s) found")
 
 	processErr := util.ProcessExecutionError{
-		Err:        getExitError(t, 2),
+		Err:        stubExitErr{code: 2},
 		Command:    "tflint",
 		Args:       []string{"--config", ".tflint.hcl"},
 		WorkingDir: "/tmp",
@@ -151,7 +149,7 @@ func FuzzHookErrorMessage(f *testing.F) {
 			output.Stdout.WriteString(stdout)
 
 			feed = util.ProcessExecutionError{
-				Err:        fuzzExitErr{code: exitCode},
+				Err:        stubExitErr{code: exitCode},
 				Command:    command,
 				Args:       args,
 				WorkingDir: "/tmp",
@@ -166,24 +164,11 @@ func FuzzHookErrorMessage(f *testing.F) {
 	})
 }
 
-func getExitError(t *testing.T, exitCode int) *exec.ExitError {
-	t.Helper()
+// stubExitErr is a stand-in error that exposes an ExitStatus() so
+// [util.GetExitCode] resolves to the encoded code. Both unit tests and
+// the fuzz target use it instead of shelling out to produce a real
+// *exec.ExitError.
+type stubExitErr struct{ code int }
 
-	cmd := exec.CommandContext(t.Context(), "sh", "-c", fmt.Sprintf("exit %d", exitCode))
-	err := cmd.Run()
-	require.Error(t, err)
-
-	var exitErr *exec.ExitError
-
-	require.True(t, errors.As(err, &exitErr))
-
-	return exitErr
-}
-
-// fuzzExitErr is a stand-in error that exposes an ExitStatus() so
-// [util.GetExitCode] resolves to the encoded code. It lets the fuzz target
-// avoid the per-iteration cost of shelling out for a real *exec.ExitError.
-type fuzzExitErr struct{ code int }
-
-func (e fuzzExitErr) Error() string            { return fmt.Sprintf("exit status %d", e.code) }
-func (e fuzzExitErr) ExitStatus() (int, error) { return e.code, nil }
+func (e stubExitErr) Error() string            { return fmt.Sprintf("exit status %d", e.code) }
+func (e stubExitErr) ExitStatus() (int, error) { return e.code, nil }

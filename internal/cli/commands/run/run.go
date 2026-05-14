@@ -200,7 +200,12 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		opts.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	l, ver, impl, err := run.PopulateTFVersion(ctx, l, v.Exec, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
+	l, ver, impl, err := run.PopulateTFVersion(
+		ctx, l, v.Exec,
+		opts.WorkingDir,
+		opts.VersionManagerFileName,
+		configbridge.TFRunOptsFromOpts(opts),
+	)
 	if err != nil {
 		return l, err
 	}

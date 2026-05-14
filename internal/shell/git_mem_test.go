@@ -15,14 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// gitMemCtx returns a context primed with the repo-root cache so
-// GitTopLevelDir can satisfy its memoization invariants without hitting
-// the OS.
-func gitMemCtx(t *testing.T) context.Context {
-	t.Helper()
-	return cache.ContextWithCache(t.Context())
-}
-
 // TestGitTopLevelDirDispatchesGitRevParse pins the exact subprocess
 // invocation GitTopLevelDir uses to resolve a repository root. The mem
 // backend asserts the command, args, and working directory so a refactor
@@ -153,4 +145,12 @@ func TestGitLastReleaseTagEmptyOnNoSemver(t *testing.T) {
 	tag, err := shell.GitLastReleaseTag(t.Context(), logger.CreateLogger(), exec, nil, "/work", u)
 	require.NoError(t, err)
 	assert.Empty(t, tag)
+}
+
+// gitMemCtx returns a context primed with the repo-root cache so
+// GitTopLevelDir can satisfy its memoization invariants without hitting
+// the OS.
+func gitMemCtx(t *testing.T) context.Context {
+	t.Helper()
+	return cache.ContextWithCache(t.Context())
 }

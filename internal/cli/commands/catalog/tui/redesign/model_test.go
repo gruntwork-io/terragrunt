@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -53,7 +54,7 @@ func TestModelStreamingInsertsSorted(t *testing.T) {
 		require.GreaterOrEqual(t, len(components), 2, "need at least 2 components")
 
 		componentCh := make(chan *redesign.ComponentEntry, len(components))
-		m := redesign.NewModelStreaming(l, opts, components[len(components)-1], componentCh, nil)
+		m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[len(components)-1], componentCh, nil)
 		close(componentCh)
 
 		msgs := make([]tea.Msg, 0, len(components))
@@ -111,7 +112,7 @@ func TestModelTabsFilterByKind(t *testing.T) {
 		components := makeMixedComponents(t)
 
 		componentCh := make(chan *redesign.ComponentEntry, len(components))
-		m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+		m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[0], componentCh, nil)
 		close(componentCh)
 
 		// Cycle: All -> Templates (first tab after All in the current order).
@@ -144,7 +145,7 @@ func TestModelTabShiftTabCycles(t *testing.T) {
 		components := makeMixedComponents(t)
 
 		componentCh := make(chan *redesign.ComponentEntry, len(components))
-		m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+		m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[0], componentCh, nil)
 		close(componentCh)
 
 		// Starts on All. Shift+Tab wraps to the last tab (Stacks).
@@ -194,7 +195,7 @@ func TestModelCopyActionTransitionsToScaffoldState(t *testing.T) {
 		componentCh := make(chan *redesign.ComponentEntry)
 		close(componentCh)
 
-		m := redesign.NewModelStreaming(logger.CreateLogger(), opts, entry, componentCh, nil)
+		m := redesign.NewModelStreaming(logger.CreateLogger(), venv.OSVenv(), opts, entry, componentCh, nil)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 's', Text: "s"}}
 
@@ -219,7 +220,7 @@ func TestModelStreamingDeduplicates(t *testing.T) {
 		require.NotEmpty(t, components)
 
 		componentCh := make(chan *redesign.ComponentEntry, len(components))
-		m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+		m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[0], componentCh, nil)
 		close(componentCh)
 
 		msgs := []tea.Msg{
@@ -254,7 +255,7 @@ func TestModelCopyFinishedWritesValuesExitMessage(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	// Copy-written: 2 required TODOs (exercises the plural "entries" branch)
 	// and 1 optional (exercises the singular "default" branch).
@@ -293,7 +294,7 @@ func TestModelCopyFinishedSkippedValuesExitMessage(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	msg := redesign.NewCopyFinishedMsgForTest(nil, workingDir,
 		[]string{"zeta"},
@@ -332,7 +333,7 @@ func TestModelCopyFinishedEmptyReferencesLeavesNoExitMessage(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	msg := redesign.NewCopyFinishedMsgForTest(nil, opts.WorkingDir, nil, nil, false, false)
 
@@ -360,7 +361,7 @@ func TestModelScaffoldFinishedSetsExitMessage(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(redesign.NewScaffoldFinishedMsgForTest(nil))
 	finalModel := updated.(redesign.Model)
@@ -387,7 +388,7 @@ func TestModelScaffoldFinishedEmptyOutputDirHasNoExitMessage(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(redesign.NewScaffoldFinishedMsgForTest(nil))
 	finalModel := updated.(redesign.Model)
@@ -427,7 +428,7 @@ func TestModelCopyFinishedDisplayPathEscapesBaseDir(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	msg := redesign.NewCopyFinishedMsgForTest(nil, baseTmp, []string{"a"}, nil, true, false)
 
@@ -456,7 +457,7 @@ func TestModelRendererErrMsgSetsViewportAndPagerState(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	// Seed the viewport with a WindowSizeMsg so it has a positive size,
 	// otherwise the pager view will produce a degenerate string.
@@ -502,7 +503,7 @@ func TestModelPagerViewRendersAfterEnter(t *testing.T) {
 		componentCh := make(chan *redesign.ComponentEntry)
 		close(componentCh)
 
-		m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+		m := redesign.NewModelStreaming(l, venv.OSVenv(), opts, entry, componentCh, nil)
 
 		msgs := []tea.Msg{
 			tea.KeyPressMsg{Code: tea.KeyEnter},

@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -71,7 +72,7 @@ func TestListModules_HappyPath(t *testing.T) {
 	os.MkdirAll(unitDir, 0755)
 	opts.TerragruntConfigPath = filepath.Join(unitDir, "terragrunt.hcl")
 
-	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
+	svc := catalog.NewCatalogService(opts, venv.OSVenv()).WithNewRepoFunc(mockNewRepo)
 
 	l := logger.CreateLogger()
 
@@ -96,7 +97,7 @@ func TestListModules_NoRepositoriesConfigured(t *testing.T) {
 	opts.TerragruntConfigPath = filepath.Join(tmpDir, "nonexistent-terragrunt.hcl")
 
 	// No customNewRepoFunc needed as it should error before trying to create a repo.
-	svc := catalog.NewCatalogService(opts)
+	svc := catalog.NewCatalogService(opts, venv.OSVenv())
 	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 
@@ -127,7 +128,7 @@ func TestListModules_SingleRepoFromFlag(t *testing.T) {
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoOpts.CloneURL)
 	}
 
-	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/only-repo")
+	svc := catalog.NewCatalogService(opts, venv.OSVenv()).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/only-repo")
 	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 
@@ -150,7 +151,7 @@ func TestListModules_ErrorFromNewRepo(t *testing.T) {
 		return nil, expectedErr
 	}
 
-	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/error-repo")
+	svc := catalog.NewCatalogService(opts, venv.OSVenv()).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/error-repo")
 	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 
@@ -185,7 +186,7 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoOpts.CloneURL)
 	}
 
-	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/find-error-repo")
+	svc := catalog.NewCatalogService(opts, venv.OSVenv()).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/find-error-repo")
 	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 
@@ -217,7 +218,7 @@ func TestListModules_TofuExtension(t *testing.T) {
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoOpts.CloneURL)
 	}
 
-	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/tofu-repo")
+	svc := catalog.NewCatalogService(opts, venv.OSVenv()).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/tofu-repo")
 	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 
@@ -262,7 +263,7 @@ func TestListModules_MixedTfAndTofu(t *testing.T) {
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoOpts.CloneURL)
 	}
 
-	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/mixed-repo")
+	svc := catalog.NewCatalogService(opts, venv.OSVenv()).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/mixed-repo")
 	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 
@@ -294,7 +295,7 @@ func TestListModules_NoModulesFound(t *testing.T) {
 		return module.NewRepo(ctx, logger, fsys, repoOpts)
 	}
 
-	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/empty-repo")
+	svc := catalog.NewCatalogService(opts, venv.OSVenv()).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/empty-repo")
 	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 	require.Error(t, err)

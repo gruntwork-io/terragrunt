@@ -1,6 +1,7 @@
 package run_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -486,8 +487,8 @@ func createConfig(
 ) (*tf.Source, *options.TerragruntOptions, *runcfg.RunConfig, error) {
 	t.Helper()
 
-	logger := logger.CreateLogger()
-	logger.SetOptions(log.WithOutput(io.Discard))
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
 
 	terraformSource := &tf.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
@@ -508,7 +509,21 @@ func createConfig(
 		},
 	}
 
-	_, ver, impl, err := run.PopulateTFVersion(t.Context(), logger, vexec.NewOSExec(), opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
+	// Mem-backed exec: this helper only needs PopulateTFVersion to
+	// populate opts.TerraformVersion / TofuImplementation; the version
+	// probe behavior itself is covered by TestGetTFVersion* in
+	// version_check_mem_test.go. Forking real tofu here would make every
+	// download_source test depend on tofu being installed.
+	versionExec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
+	})
+
+	_, ver, impl, err := run.PopulateTFVersion(
+		t.Context(), l, versionExec,
+		opts.WorkingDir,
+		opts.VersionManagerFileName,
+		configbridge.TFRunOptsFromOpts(opts),
+	)
 	require.NoError(t, err)
 
 	opts.TerraformVersion = ver
@@ -520,8 +535,8 @@ func createConfig(
 func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir string, expected bool) {
 	t.Helper()
 
-	logger := logger.CreateLogger()
-	logger.SetOptions(log.WithOutput(io.Discard))
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
 
 	terraformSource := &tf.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
@@ -533,7 +548,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	actual, err := run.AlreadyHaveLatestCode(logger, terraformSource, configbridge.NewRunOptions(opts))
+	actual, err := run.AlreadyHaveLatestCode(l, terraformSource, configbridge.NewRunOptions(opts))
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }

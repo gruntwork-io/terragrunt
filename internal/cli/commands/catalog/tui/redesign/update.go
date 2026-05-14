@@ -344,7 +344,7 @@ type copyFinishedMsg struct {
 // via the redesign-owned scaffold command. It does not require the legacy
 // catalog.CatalogService.
 func scaffoldComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd {
-	return tea.Exec(newScaffoldCmd(l, m.terragruntOptions, c), func(err error) tea.Msg {
+	return tea.Exec(newScaffoldCmd(l, m.venv, m.terragruntOptions, c), func(err error) tea.Msg {
 		return scaffoldFinishedMsg{err}
 	})
 }

@@ -19,19 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newVersionTFOptions returns a minimal *tf.TFOptions wired with the mem
-// backend so GetTFVersion can dispatch `terraform -version` without spawning
-// a real subprocess.
-func newVersionTFOptions(tfPath string, env map[string]string) *tf.TFOptions {
-	return &tf.TFOptions{
-		TerraformCliArgs: iacargs.New(),
-		ShellOptions: shell.NewShellOptions().
-			WithTFPath(tfPath).
-			WithEnv(env).
-			WithWriters(writer.Writers{Writer: io.Discard, ErrWriter: io.Discard}),
-	}
-}
-
 func TestGetTFVersionOpenTofu(t *testing.T) {
 	t.Parallel()
 
@@ -126,5 +113,18 @@ func TestGetTFVersionStripsTFCLIArgs(t *testing.T) {
 	got, _ := observed.Load().([]string)
 	for _, kv := range got {
 		assert.NotContains(t, kv, "TF_CLI_ARGS", "TF_CLI_ARGS* must be stripped before invoking the version probe; saw %q", kv)
+	}
+}
+
+// newVersionTFOptions returns a minimal *tf.TFOptions wired with the mem
+// backend so GetTFVersion can dispatch `terraform -version` without spawning
+// a real subprocess.
+func newVersionTFOptions(tfPath string, env map[string]string) *tf.TFOptions {
+	return &tf.TFOptions{
+		TerraformCliArgs: iacargs.New(),
+		ShellOptions: shell.NewShellOptions().
+			WithTFPath(tfPath).
+			WithEnv(env).
+			WithWriters(writer.Writers{Writer: io.Discard, ErrWriter: io.Discard}),
 	}
 }
