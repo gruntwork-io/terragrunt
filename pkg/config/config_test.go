@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -112,6 +113,54 @@ remote_state = {
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.True(t, terragruntConfig.RemoteState.DisableInit)
 		assert.False(t, terragruntConfig.RemoteState.DisableDependencyOptimization)
+	}
+}
+
+// TestParseTerragruntConfigRemoteStateTernaryUseLockfile reproduces issue #5646:
+// when remote_state.config is produced from a local resolved with a ternary operator,
+// HCL type unification converts bool values (like use_lockfile) to strings.
+// The S3 backend must normalize these back to native bools before codegen.
+func TestParseTerragruntConfigRemoteStateTernaryUseLockfile(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+locals {
+  is_prod = true
+  remote_state_config = local.is_prod ? {
+    bucket       = "prod-bucket"
+    key          = "terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  } : {
+    bucket       = "dev-bucket"
+    key          = "terraform.tfstate"
+    region       = "us-west-2"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+
+remote_state {
+  backend = "s3"
+  config  = local.remote_state_config
+}
+`
+
+	l := createLogger()
+
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	if assert.NotNil(t, terragruntConfig.RemoteState) {
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.Equal(t, "prod-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+
+		// After parsing, verify S3 backend normalizes string bools in GetTFInitArgs
+		s3Backend := s3.NewBackend()
+		initArgs := s3Backend.GetTFInitArgs(terragruntConfig.RemoteState.BackendConfig)
+		assert.IsType(t, true, initArgs["use_lockfile"])
 	}
 }
 
@@ -602,14 +651,15 @@ include {
 }
 `, "root.hcl")
 
-	cfgPath := "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath
+	cfgPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "parent-folders", "terragrunt-in-root", "child", "sub-child", "sub-sub-child", config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
 
 	l := createLogger()
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
-	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
+	terragruntConfig, parseErr := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
+	if assert.NoError(t, parseErr, "Unexpected error: %v", errors.New(parseErr)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -1680,6 +1730,8 @@ locals {
 
 terraform {
 	source = "git::git@github.com:org/repo.git//modules/test?ref=v0.1.0"
+	update_source_with_cas = true
+	mutable = true
 
 	extra_arguments "secrets" {
 		commands = ["plan", "apply"]
@@ -1845,6 +1897,8 @@ inputs = {
 	// Verify the configs match
 	assert.Equal(t, terragruntConfig.Locals, rereadConfig.Locals)
 	assert.Equal(t, terragruntConfig.Terraform.Source, rereadConfig.Terraform.Source)
+	assert.Equal(t, terragruntConfig.Terraform.UpdateSourceWithCAS, rereadConfig.Terraform.UpdateSourceWithCAS)
+	assert.Equal(t, terragruntConfig.Terraform.Mutable, rereadConfig.Terraform.Mutable)
 	assert.Equal(t, terragruntConfig.Terraform.ExtraArgs, rereadConfig.Terraform.ExtraArgs)
 	assert.Equal(t, terragruntConfig.Terraform.BeforeHooks, rereadConfig.Terraform.BeforeHooks)
 	assert.Equal(t, terragruntConfig.Terraform.AfterHooks, rereadConfig.Terraform.AfterHooks)

@@ -16,7 +16,7 @@ However, given the nature of the problems that Terragrunt solves, there are some
 
 One of the most expensive things that OpenTofu/Terraform does, from a bandwidth and disk utilization perspective, is download and install providers. These are large binary files that are downloaded from the internet, and not cached across units by default.
 
-If you're using OpenTofu >= 1.10 and the latest version of Terragrunt, you'll use the [Automatic Provider Cache Dir](/features/auto-provider-cache-dir) feature by default.
+If you're using OpenTofu >= 1.10 and the latest version of Terragrunt, you'll use the [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir) feature by default.
 
 This feature automatically configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable to a central location on the filesystem, allowing reuse of downloaded providers across multiple Terragrunt runs.
 
@@ -26,7 +26,7 @@ For most users at sensible scales, this is an automatic performance win that you
 
 At very large scales, you might find that the filesystem lock contention between OpenTofu processes to synchronize access to the provider cache directory is a bottleneck. You might also find that you can't use the provider cache directory because you are storing your provider cache in a shared NFS mount or are using Terraform or an older version of OpenTofu.
 
-In these scenarios, you can use the [Provider Cache Server](/features/provider-cache-server) feature to improve performance.
+In these scenarios, you can use the [Provider Cache Server](/features/caching/provider-cache-server) feature to improve performance.
 
 ### Provider Cache Server
 
@@ -40,7 +40,7 @@ terragrunt run --all plan --provider-cache
 
 The provider cache server is a single server that is used by all Terragrunt runs being performed in a given Terragrunt invocation. You will see the most benefit if you are using it in a command that will perform many OpenTofu/Terraform operations, like with the `--all` flag and the `--graph` flag.
 
-When performing individual runs, like `terragrunt plan`, the provider cache server can be a net negative to performance, because starting and stopping the server might add more overhead than just downloading the providers (or using the [Automatic Provider Cache Dir](/features/auto-provider-cache-dir) feature). Whether this is the case depends on many factors, including network speed, the number of providers being downloaded, and whether or not the providers are already cached in the Terragrunt provider cache.
+When performing individual runs, like `terragrunt plan`, the provider cache server can be a net negative to performance, because starting and stopping the server might add more overhead than just downloading the providers (or using the [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir) feature). Whether this is the case depends on many factors, including network speed, the number of providers being downloaded, and whether or not the providers are already cached in the Terragrunt provider cache.
 
 When in doubt, [measure the performance](#measuring-performance) before and after enabling the provider cache server to see if it's a net win for your use case.
 
@@ -65,6 +65,8 @@ The first thing you need to be aware of when considering usage of the `dependenc
 Next, you should be aware that there is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform.
 
 We are coordinating with the OpenTofu team to improve the performance of the `output` command, and we hope that this flag will be unnecessary for most users in the future.
+
+Additionally, this experiment is **not compatible with OpenTofu state encryption**. When client-side state encryption is enabled, the state file in S3 is encrypted before upload and cannot be parsed directly by Terragrunt, resulting in a hard failure. If you encounter JSON parsing errors when using this experiment, check whether you have OpenTofu state encryption enabled and disable the experiment with `--no-dependency-fetch-output-from-state` if so.
 
 See [#1549](https://github.com/opentofu/opentofu/issues/1549) for more details.
 

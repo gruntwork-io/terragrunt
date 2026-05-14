@@ -1,0 +1,174 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3StateBucketAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketVersioning",
+        "s3:GetBucketAcl",
+        "s3:GetBucketLogging",
+        "s3:CreateBucket",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutBucketTagging",
+        "s3:PutBucketPolicy",
+        "s3:PutBucketVersioning",
+        "s3:PutEncryptionConfiguration",
+        "s3:PutBucketAcl",
+        "s3:PutBucketLogging",
+        "s3:GetEncryptionConfiguration",
+        "s3:GetBucketPolicy",
+        "s3:GetBucketPublicAccessBlock",
+        "s3:PutLifecycleConfiguration",
+        "s3:PutBucketOwnershipControls"
+      ],
+      "Resource": "arn:aws:s3:::${state_bucket_name}"
+    },
+    {
+      "Sid": "S3StateBucketObjectAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::${state_bucket_name}/*"
+    },
+    {
+      "Sid": "DynamoDBLocksTableAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DescribeTable",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem"
+      ],
+      "Resource": "arn:${aws_partition}:dynamodb:*:*:table/terraform-locks"
+    },
+    {
+      "Sid": "DynamoDBFullAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:CreateTable",
+        "dynamodb:DeleteTable",
+        "dynamodb:UpdateTable",
+        "dynamodb:DescribeTable",
+        "dynamodb:DescribeContinuousBackups",
+        "dynamodb:DescribeTimeToLive",
+        "dynamodb:UpdateTimeToLive",
+        "dynamodb:UpdateContinuousBackups",
+        "dynamodb:TagResource",
+        "dynamodb:UntagResource",
+        "dynamodb:ListTagsOfResource"
+      ],
+      "Resource": "arn:${aws_partition}:dynamodb:*:*:table/my-special-app-db"
+    },
+    {
+      "Sid": "LambdaFullAccess",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:CreateFunction",
+        "lambda:DeleteFunction",
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:GetFunctionCodeSigningConfig",
+        "lambda:GetFunctionUrlConfig",
+        "lambda:CreateFunctionUrlConfig",
+        "lambda:UpdateFunctionUrlConfig",
+        "lambda:DeleteFunctionUrlConfig",
+        "lambda:GetPolicy",
+        "lambda:AddPermission",
+        "lambda:RemovePermission",
+        "lambda:ListVersionsByFunction",
+        "lambda:ListTags",
+        "lambda:TagResource",
+        "lambda:UntagResource",
+        "lambda:PublishVersion"
+      ],
+      "Resource": "arn:${aws_partition}:lambda:*:*:function:my-special-app*"
+    },
+    {
+      "Sid": "IAMAppRoleFullAccess",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:UpdateRole",
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:ListRoleTags",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:PassRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy"
+      ],
+      "Resource": "arn:${aws_partition}:iam::*:role/my-special-app*"
+    },
+    {
+      "Sid": "IAMPipelinesRoleFullAccess",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:UpdateRole",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:GetRole",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:ListRoleTags",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy"
+      ],
+      "Resource": [
+        "arn:${aws_partition}:iam::*:role/pipelines-plan",
+        "arn:${aws_partition}:iam::*:role/pipelines-apply"
+      ]
+    },
+    {
+      "Sid": "IAMPipelinesPolicyFullAccess",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreatePolicy",
+        "iam:DeletePolicy",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicyVersion",
+        "iam:ListPolicyVersions",
+        "iam:TagPolicy",
+        "iam:UntagPolicy"
+      ],
+      "Resource": [
+        "arn:${aws_partition}:iam::*:policy/pipelines-plan",
+        "arn:${aws_partition}:iam::*:policy/pipelines-apply"
+      ]
+    },
+    {
+      "Sid": "OIDCProviderFullAccess",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateOpenIDConnectProvider",
+        "iam:DeleteOpenIDConnectProvider",
+        "iam:UpdateOpenIDConnectProviderThumbprint",
+        "iam:GetOpenIDConnectProvider",
+        "iam:AddClientIDToOpenIDConnectProvider",
+        "iam:RemoveClientIDFromOpenIDConnectProvider",
+        "iam:TagOpenIDConnectProvider",
+        "iam:UntagOpenIDConnectProvider"
+      ],
+      "Resource": "arn:${aws_partition}:iam::*:oidc-provider/token.actions.githubusercontent.com"
+    }
+  ]
+}

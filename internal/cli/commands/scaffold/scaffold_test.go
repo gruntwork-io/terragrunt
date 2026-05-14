@@ -22,7 +22,11 @@ import (
 )
 
 // newTestBoilerplateOptions creates a BoilerplateOptions for testing
-func newTestBoilerplateOptions(templateFolder, outputFolder string, vars map[string]any, noShell, noHooks bool) *boilerplateoptions.BoilerplateOptions {
+func newTestBoilerplateOptions(
+	templateFolder, outputFolder string,
+	vars map[string]any,
+	noShell, noHooks bool,
+) *boilerplateoptions.BoilerplateOptions {
 	return &boilerplateoptions.BoilerplateOptions{
 		TemplateFolder:          templateFolder,
 		OutputFolder:            outputFolder,
@@ -85,7 +89,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, vars, true, true)
 
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -107,7 +111,9 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	assert.Len(t, cfg.Inputs, 1)
 	_, found := cfg.Inputs["required_var_1"]
 	require.True(t, found)
-	require.Equal(t, "git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8", *cfg.Terraform.Source)
+	require.Equal(t,
+		"git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8",
+		*cfg.Terraform.Source)
 }
 
 func TestCatalogConfigApplication(t *testing.T) {
@@ -485,7 +491,7 @@ shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -543,7 +549,7 @@ shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -609,7 +615,7 @@ test_var = "{{ .TestVar }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, true)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -677,7 +683,7 @@ test_var = "{{ .TestVar }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -739,7 +745,7 @@ shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, true)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 

@@ -5,12 +5,11 @@ on:
   workflow_dispatch:
 
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   run_cloud_nuke:
+    permissions:
+      id-token: write
+      contents: read
     name: Nuke
     runs-on: ubuntu-latest
     steps:
@@ -27,10 +26,10 @@ jobs:
         env:
             # Authenticate to reduce the likelihood of hitting rate limit issues.
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            VERSION: 0.40.0
+            VERSION: 0.49.0
 
       - name: Authenticate to AWS
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6
         with:
           role-to-assume: ${{ secrets.CLOUD_NUKE_ROLE }}
           aws-region: us-east-1

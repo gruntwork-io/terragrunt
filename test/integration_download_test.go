@@ -3,11 +3,11 @@ package test_test
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -271,7 +271,7 @@ func TestRemoteWithModuleInRoot(t *testing.T) {
 func TestCustomLockFile(t *testing.T) {
 	t.Parallel()
 
-	path := fmt.Sprintf("%s-%s", testFixtureCustomLockFile, wrappedBinary())
+	path := fmt.Sprintf("%s-%s", testFixtureCustomLockFile, wrappedBinary(t.Context()))
 	tmpEnvPath := helpers.CopyEnvironment(t, filepath.Dir(testFixtureCustomLockFile))
 	rootPath := filepath.Join(tmpEnvPath, path)
 
@@ -957,17 +957,41 @@ func TestDownloadWithCASEnabled(t *testing.T) {
 	assert.Contains(t, stderr.String(), "Downloading Terraform configurations")
 }
 
-func TestCASStorageDirectory(t *testing.T) {
+func TestDownloadWithCASCommitRef(t *testing.T) {
 	t.Parallel()
 
-	homeDir, err := os.UserHomeDir()
-	require.NoError(t, err)
+	fixturePath := "fixtures/download/remote-commit-ref"
 
-	expectedCASDir := filepath.Join(homeDir, ".cache", "terragrunt", "cas")
+	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
+	testPath := filepath.Join(tmpEnvPath, fixturePath)
+	helpers.CleanupTerraformFolder(t, testPath)
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
-	testPath := filepath.Join(tmpEnvPath, "fixtures/download/local")
+	applyCmd := "terragrunt apply --auto-approve --non-interactive --experiment cas --working-dir " + testPath
+	require.NoError(t, helpers.RunTerragruntCommand(t, applyCmd, io.Discard, io.Discard))
 
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	outputCmd := "terragrunt output -raw test --non-interactive --experiment cas --working-dir " + testPath
+	require.NoError(t, helpers.RunTerragruntCommand(t, outputCmd, &stdout, &stderr))
+
+	assert.Equal(t, "Hello, World", stdout.String())
+}
+
+// TestDownloadWithCASMutable exercises the end-to-end path for `mutable = true`
+// on a `terraform` block: CAS materializes the source as a writable copy
+// rather than a read-only hardlink, so every `.tf` file must land with the
+// user-write bit set. The non-mutable path would strip write bits, producing
+// 0o444 / 0o555 instead.
+func TestDownloadWithCASMutable(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := "fixtures/download/remote-mutable"
+
+	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
+	testPath := filepath.Join(tmpEnvPath, fixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 
 	var (
@@ -975,18 +999,34 @@ func TestCASStorageDirectory(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	cmd := "terragrunt plan --experiment cas --working-dir " + testPath
-	_ = helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+	cmd := "terragrunt apply --auto-approve --non-interactive --experiment cas --log-level debug --working-dir " + testPath
+	require.NoError(t, helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr))
 
-	// Use require.Eventually to handle potential timing issues with CAS directory creation
-	require.Eventually(t, func() bool {
-		_, err := os.Stat(expectedCASDir)
-		return err == nil
-	}, 10*time.Second, 100*time.Millisecond, "CAS directory should be created at %s", expectedCASDir)
+	cacheDir := filepath.Join(testPath, ".terragrunt-cache")
 
-	storeDir := filepath.Join(expectedCASDir, "store")
-	require.Eventually(t, func() bool {
-		_, err := os.Stat(storeDir)
-		return err == nil
-	}, 10*time.Second, 100*time.Millisecond, "CAS store directory should be created at %s", storeDir)
+	var checked int
+
+	require.NoError(t, filepath.WalkDir(cacheDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() || filepath.Ext(path) != ".tf" {
+			return nil
+		}
+
+		info, statErr := d.Info()
+		if statErr != nil {
+			return statErr
+		}
+
+		assert.NotZero(t, info.Mode().Perm()&0o200,
+			"mutable=true must materialize %s as writable (got perms %#o)", path, info.Mode().Perm())
+
+		checked++
+
+		return nil
+	}))
+
+	require.Positive(t, checked, "expected at least one .tf file under %s", cacheDir)
 }

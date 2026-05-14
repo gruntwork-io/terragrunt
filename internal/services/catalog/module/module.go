@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -16,10 +17,7 @@ const (
 	maxDescriptionLength = 200
 )
 
-var (
-	terraformFileExts = []string{".tf"}
-	ignoreFiles       = []string{"terraform-cloud-enterprise-private-module-registry-placeholder.tf"}
-)
+var ignoreFiles = []string{"terraform-cloud-enterprise-private-module-registry-placeholder.tf"}
 
 type Modules []*Module
 
@@ -34,7 +32,7 @@ type Module struct {
 }
 
 // NewModule returns a module instance if the given `moduleDir` path contains an OpenTofu/Terraform module, otherwise returns nil.
-func NewModule(repo *Repo, moduleDir string) (*Module, error) {
+func NewModule(l log.Logger, repo *Repo, moduleDir string) (*Module, error) {
 	module := &Module{
 		Repo:      repo,
 		cloneURL:  repo.cloneURL,
@@ -46,11 +44,11 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 		return nil, err
 	}
 
-	repo.logger.Debugf("Found module in directory %q", moduleDir)
+	l.Debugf("Found module in directory %q", moduleDir)
 
 	module.url = repo.ModuleURL(moduleDir)
 
-	repo.logger.Debugf("Module URL: %s", module.url)
+	l.Debugf("Module URL: %s", module.url)
 
 	modulePath := filepath.Join(module.repoPath, module.moduleDir)
 
@@ -62,10 +60,6 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	module.Doc = doc
 
 	return module, nil
-}
-
-func (module *Module) Logger() log.Logger {
-	return module.logger
 }
 
 // FilterValue implements /github.com/charmbracelet/bubbles.list.Item.FilterValue
@@ -128,8 +122,7 @@ func (module *Module) isValid() (bool, error) {
 			continue
 		}
 
-		ext := filepath.Ext(file.Name())
-		if collections.ListContainsElement(terraformFileExts, ext) {
+		if util.IsTFFile(file.Name()) {
 			return true, nil
 		}
 	}

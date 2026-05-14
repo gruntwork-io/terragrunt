@@ -22,7 +22,7 @@ jobs:
           ref: main
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           version: 2026.1.9
           experimental: true

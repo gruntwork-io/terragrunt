@@ -217,8 +217,25 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	t.Parallel()
 
+	// Fields that are intentionally excluded from CtyTerraformConfig because
+	// they use omit-when-nil semantics via ctyObjectAddField.
+	omitWhenNilFields := map[string]bool{
+		"UpdateSourceWithCAS": true,
+		"Mutable":             true,
+	}
+
 	terraformConfigStructInfo := structs.New(config.TerraformConfig{})
-	terraformConfigFields := terraformConfigStructInfo.Names()
+
+	var terraformConfigFields []string
+
+	for _, name := range terraformConfigStructInfo.Names() {
+		if omitWhenNilFields[name] {
+			continue
+		}
+
+		terraformConfigFields = append(terraformConfigFields, name)
+	}
+
 	sort.Strings(terraformConfigFields)
 
 	ctyTerraformConfigStructInfo := structs.New(config.CtyTerraformConfig{})

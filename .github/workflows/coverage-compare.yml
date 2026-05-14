@@ -1,0 +1,212 @@
+name: Coverage Compare (Ad-hoc)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: 'Base ref (branch, tag, or commit SHA)'
+        required: true
+        default: 'main'
+      head_ref:
+        description: 'Head ref (branch, tag, or commit SHA)'
+        required: true
+      notify_slack:
+        description: 'Send results to Slack'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  coverage-base:
+    name: Coverage (${{ inputs.base_ref }})
+    runs-on: ubuntu-latest
+    env:
+      MISE_PROFILE: cicd
+      GOGC: "400"
+    steps:
+      - name: Fetch coverage scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+          path: _coverage-scripts
+          fetch-depth: 1
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ inputs.base_ref }}
+          fetch-depth: 1
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: 2026.1.9
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Go Build Cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-build-
+
+      - name: Go Mod Cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-mod-
+
+      - name: Run Tests with Coverage
+        run: |
+          set -o pipefail
+          if ! go test -coverprofile=coverage.out -covermode=atomic ./... -timeout 45m; then
+            echo "::warning::Some tests failed — coverage data may be incomplete"
+          fi
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Coverage Summary
+        run: ./_coverage-scripts/.github/scripts/coverage/generate-summary.sh
+
+      - name: Upload Coverage
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-base
+          path: coverage-summary.json
+
+  coverage-head:
+    name: Coverage (${{ inputs.head_ref }})
+    runs-on: ubuntu-latest
+    env:
+      MISE_PROFILE: cicd
+      GOGC: "400"
+    steps:
+      - name: Fetch coverage scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+          path: _coverage-scripts
+          fetch-depth: 1
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ inputs.head_ref }}
+          fetch-depth: 1
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: 2026.1.9
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Go Build Cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-build-
+
+      - name: Go Mod Cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-mod-
+
+      - name: Run Tests with Coverage
+        run: |
+          set -o pipefail
+          if ! go test -coverprofile=coverage.out -covermode=atomic ./... -timeout 45m; then
+            echo "::warning::Some tests failed — coverage data may be incomplete"
+          fi
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Coverage Summary
+        run: ./_coverage-scripts/.github/scripts/coverage/generate-summary.sh
+
+      - name: Upload Coverage
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-head
+          path: coverage-summary.json
+
+  compare:
+    name: Compare
+    needs: [coverage-base, coverage-head]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (scripts only)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+          fetch-depth: 1
+
+      - name: Download Base Coverage
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: coverage-base
+          path: base/
+
+      - name: Download Head Coverage
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: coverage-head
+          path: head/
+
+      - name: Compare Coverage
+        id: compare
+        run: |
+          ./.github/scripts/coverage/compare-coverage.sh head/coverage-summary.json base/coverage-summary.json comparison-report.json
+
+      - name: Write Summary
+        if: always()
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+          HEAD_REF: ${{ inputs.head_ref }}
+        run: ./.github/scripts/coverage/write-summary-compare.sh comparison-report.json
+
+      - name: Upload comparison-report.json
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: comparison-report.json
+          path: comparison-report.json
+          retention-days: 30
+
+      - name: Upload comparison-report.html
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: comparison-report.html
+          path: comparison-report.html
+          retention-days: 30
+
+      - name: Notify Slack
+        if: ${{ inputs.notify_slack && env.COVERAGE_SLACK_WEBHOOK_URL != '' }}
+        env:
+          COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
+          BASE_REF: ${{ inputs.base_ref }}
+          HEAD_REF: ${{ inputs.head_ref }}
+          REPO: ${{ github.repository }}
+        run: ./.github/scripts/coverage/notify-slack.sh comparison-report.json

@@ -1,0 +1,30 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### `remote_state`: apply tags during DynamoDB lock table creation
+
+Terragrunt previously applied `dynamodb_table_tags` to DynamoDB lock tables after table creation rather than during the initial `CreateTable` API request.
+
+This caused failures in environments enforcing required AWS resource tags through SCPs or tag policies, where tags must be present at resource creation time.
+
+Terragrunt now includes `dynamodb_table_tags` in the initial DynamoDB table creation request during remote state bootstrap.
+
+```hcl
+remote_state {
+  backend = "s3"
+
+  config = {
+    bucket         = "my-state-bucket"
+    dynamodb_table = "terraform-locks"
+
+    dynamodb_table_tags = {
+      Environment = "prod"
+      Team        = "platform"
+    }
+  }
+}
+```
+
+Thanks to [@Rahul-Kumar-prog](https://github.com/Rahul-Kumar-prog) for contributing this fix!

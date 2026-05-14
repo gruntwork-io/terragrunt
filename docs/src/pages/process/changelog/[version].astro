@@ -1,0 +1,144 @@
+export const prerender = true;
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import ReleaseEntries from '@components/ReleaseEntries.astro';
+import PullRequests from '@components/PullRequests.astro';
+import CopyReleaseNotes from '@components/CopyReleaseNotes.astro';
+import { getCollection } from 'astro:content';
+import { getLatestRelease, getReleaseByTag } from '@lib/github';
+import {
+  compareVersionsDesc,
+  entriesForVersion,
+  groupByCategory,
+  isReleased,
+  parsePullRequests,
+  prepareForGitHub,
+  pullRequestsToMarkdown,
+  uniqueVersions,
+} from '@lib/changelog';
+import { sidebar } from '../../../data/sidebar';
+
+export async function getStaticPaths() {
+  const showUnreleased = import.meta.env.DEV;
+  const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
+  const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+
+  const entries = await getCollection('changelog');
+  const versions = uniqueVersions(entries).filter(
+    (version) => showUnreleased || isReleased(version, latestVersion),
+  );
+
+  return versions.map((version) => ({
+    params: { version },
+    props: { version },
+  }));
+}
+
+interface Props {
+  version: string;
+}
+
+const { version } = Astro.props;
+
+const showUnreleased = import.meta.env.DEV;
+const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
+const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+
+const allEntries = await getCollection('changelog');
+const entries = entriesForVersion(allEntries, version);
+const groups = groupByCategory(entries);
+
+const visibleVersions = uniqueVersions(allEntries)
+  .filter((v) => showUnreleased || isReleased(v, latestVersion))
+  .sort(compareVersionsDesc);
+
+const currentIndex = visibleVersions.indexOf(version);
+const newer = currentIndex > 0 ? visibleVersions[currentIndex - 1] : null;
+const older =
+  currentIndex >= 0 && currentIndex < visibleVersions.length - 1
+    ? visibleVersions[currentIndex + 1]
+    : null;
+
+const tagName = version.startsWith('v') ? version : `v${version}`;
+const versionRelease = await getReleaseByTag('gruntwork-io', 'terragrunt', tagName);
+const pullRequestGroups = parsePullRequests(versionRelease?.body);
+
+const siteUrl = Astro.site?.origin ?? 'https://docs.terragrunt.com';
+const isSemver = version.startsWith('v');
+
+const releaseEntriesMd = prepareForGitHub(
+  groups
+    .map((group) => {
+      const bodies = group.entries.map((e) => (e.body ?? '').trim()).join('\n\n');
+      return `### ${group.category.label}\n\n---\n\n${bodies}`;
+    })
+    .join('\n\n'),
+  siteUrl,
+);
+const pullRequestsMd = pullRequestsToMarkdown(pullRequestGroups);
+const githubMarkdown = [releaseEntriesMd, pullRequestsMd].filter(Boolean).join('\n\n');
+
+const headings = [
+  ...groups.map((group) => ({
+    depth: 2,
+    slug: group.category.slug,
+    text: group.category.label,
+  })),
+  ...(pullRequestGroups.length > 0
+    ? [{ depth: 2, slug: 'pull-requests', text: 'Pull Requests' }]
+    : []),
+];
+---
+
+<StarlightPage
+  frontmatter={{
+    title: version,
+    description: `Notable changes in Terragrunt ${version}.`,
+    pagination: true,
+    prev: older ? { label: older, link: `/process/changelog/${older}` } : false,
+    next: newer ? { label: newer, link: `/process/changelog/${newer}` } : false,
+  }}
+  headings={headings}
+  sidebar={sidebar}
+>
+  <div data-pagefind-ignore>
+    <ReleaseEntries entries={entries} />
+    <PullRequests groups={pullRequestGroups} />
+    {isSemver && (
+      <aside class="copy-section">
+        <p class="copy-heading">Copy to GitHub Releases</p>
+        <p class="copy-description">Copy these release notes with absolute URLs and heading levels adjusted for use in a <a href={`https://github.com/gruntwork-io/terragrunt/releases/new?tag=${version}`}>GitHub Release</a>.</p>
+        <CopyReleaseNotes markdown={githubMarkdown} />
+      </aside>
+    )}
+  </div>
+</StarlightPage>
+
+<style>
+  .copy-section {
+    margin-top: 2rem;
+    padding: 1.25rem;
+    border: 1px solid var(--sl-color-docs-stroke);
+    border-radius: 0.5rem;
+    background: var(--sl-color-bg-nav);
+  }
+
+  .copy-heading {
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    color: var(--sl-color-white);
+    margin: 0 0 0.375rem;
+  }
+
+  .copy-description {
+    font-size: 0.8125rem;
+    color: var(--sl-color-gray-3);
+    margin: 0 0 0.75rem;
+    line-height: 1.5;
+  }
+
+  .copy-description a {
+    color: var(--sl-color-accent);
+  }
+</style>

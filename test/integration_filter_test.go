@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -11,7 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -722,7 +723,7 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -891,7 +892,7 @@ func TestFilterFlagWithFindGitFilterRelativeInclude(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1035,7 +1036,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -1221,7 +1222,7 @@ func TestFilterFlagWithRunAllGitFilterRemovedUnitDestroyFlag(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1273,17 +1274,14 @@ terraform {
 	require.NoError(t, err)
 
 	// Apply the unit so that it shows up in state first.
-	cmd := "terragrunt run --non-interactive --all --no-color --working-dir " + tmpDir + " -- apply"
+	cmd := "terragrunt run --non-interactive --all --no-color --report-file report.json --working-dir " + tmpDir + " -- apply"
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	assert.Contains(
-		t,
-		stderr,
-		"Unit unit-to-be-removed",
-		"unit-to-be-removed should be discovered and run",
-	)
+	runs := helpers.ReadReport(t, tmpDir, "report.json")
+	assert.NotNil(t, runs.FindByName("unit-to-be-removed"),
+		"unit-to-be-removed should be discovered and run")
 
 	assert.Contains(
 		t,
@@ -1310,7 +1308,7 @@ terraform {
 	cmd = "terragrunt run --non-interactive --all --no-color --working-dir " + tmpDir +
 		" --filter '[HEAD~1]' --filter-allow-destroy -- plan"
 
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, cmd)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 	combinedOutput := stdout + stderr
 
@@ -1386,7 +1384,7 @@ func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
 			tmpDir, err := filepath.EvalSymlinks(tmpDir)
 			require.NoError(t, err)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -1519,7 +1517,7 @@ func TestFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -1955,37 +1953,20 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
-		if util.FileExists(reportFilePath) {
-			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
-			require.NoError(t, err, "Should be able to parse report JSON")
+		require.FileExists(t, reportFilePath, "Report file should exist")
+		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		require.NoError(t, err, "Should be able to parse report JSON")
 
-			names := runs.Names()
+		names := runs.Names()
 
-			// Verify expected units are in the report
-			found := false
+		require.True(t, slices.ContainsFunc(names, func(name string) bool {
+			return strings.Contains(name, "target-unit")
+		}), "target-unit should be in report. Found units: %v", names)
 
-			for _, name := range names {
-				if strings.Contains(name, "target-unit") {
-					found = true
-					break
-				}
-			}
-
-			require.True(t, found, "target-unit should be in report. Found units: %v", names)
-
-			// Verify land-mine units are NOT in the report
-			for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
-				found := false
-
-				for _, name := range names {
-					if strings.Contains(name, excludedUnit) {
-						found = true
-						break
-					}
-				}
-
-				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
-			}
+		for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
+			assert.False(t, slices.ContainsFunc(names, func(name string) bool {
+				return strings.Contains(name, excludedUnit)
+			}), "Excluded unit '%s' should NOT be in report", excludedUnit)
 		}
 	})
 
@@ -2010,49 +1991,119 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
-		if util.FileExists(reportFilePath) {
-			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
-			require.NoError(t, err, "Should be able to parse report JSON")
+		require.FileExists(t, reportFilePath)
 
-			names := runs.Names()
+		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		require.NoError(t, err, "Should be able to parse report JSON")
 
-			// Verify expected units are in the report
-			found := false
+		names := runs.Names()
 
-			for _, name := range names {
-				if strings.Contains(name, "target-unit") {
-					found = true
-					break
-				}
-			}
-
-			require.True(t, found, "target-unit should be in report. Found units: %v", names)
-
-			found = false
-
-			for _, name := range names {
-				if strings.Contains(name, "dependency-unit") {
-					found = true
-					break
-				}
-			}
-
-			require.True(t, found, "dependency-unit should be in report. Found units: %v", names)
-
-			// Verify land-mine units are NOT in the report
-			for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
-				found := false
-
-				for _, name := range names {
-					if strings.Contains(name, excludedUnit) {
-						found = true
-						break
-					}
-				}
-
-				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
-			}
+		for _, expected := range []string{"target-unit", "dependency-unit"} {
+			require.True(t, slices.ContainsFunc(names, func(name string) bool {
+				return strings.Contains(name, expected)
+			}), "%s should be in report. Found units: %v", expected, names)
 		}
+
+		for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
+			assert.False(t, slices.ContainsFunc(names, func(name string) bool {
+				return strings.Contains(name, excludedUnit)
+			}), "Excluded unit '%s' should NOT be in report", excludedUnit)
+		}
+	})
+
+	t.Run("positive and negative filter", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsing)
+
+		// excluded-unit-{2,3} match neither expression; classifier must early-exclude them or their land-mine run_cmd fires.
+		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath +
+			" --filter './target-unit' --filter '!./excluded-unit-1' --report-file " + helpers.ReportFile
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+		require.NoError(t, err)
+
+		assert.NotContains(t, stderr, "excluded-unit-1", "excluded-unit-1 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-2", "excluded-unit-2 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-3", "excluded-unit-3 should not be parsed")
+
+		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+		require.FileExists(t, reportFilePath)
+
+		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		require.NoError(t, err, "Should be able to parse report JSON")
+
+		names := runs.Names()
+
+		require.True(t, slices.ContainsFunc(names, func(name string) bool {
+			return strings.Contains(name, "target-unit")
+		}), "target-unit should be in report. Found units: %v", names)
+
+		for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
+			assert.False(t, slices.ContainsFunc(names, func(name string) bool {
+				return strings.Contains(name, excludedUnit)
+			}), "Excluded unit '%s' should NOT be in report", excludedUnit)
+		}
+	})
+
+	t.Run("graph filter with negation", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsing)
+
+		// Pins step-1 ordering: a simple negation must short-circuit before graph dep traversal forces parsing.
+		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath +
+			" --filter './target-unit...' --filter '!./excluded-unit-1' --report-file " + helpers.ReportFile
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+		require.NoError(t, err)
+
+		assert.NotContains(t, stderr, "excluded-unit-1", "excluded-unit-1 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-2", "excluded-unit-2 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-3", "excluded-unit-3 should not be parsed")
+
+		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+		require.FileExists(t, reportFilePath)
+
+		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		require.NoError(t, err, "Should be able to parse report JSON")
+
+		names := runs.Names()
+
+		for _, expected := range []string{"target-unit", "dependency-unit"} {
+			require.True(t, slices.ContainsFunc(names, func(name string) bool {
+				return strings.Contains(name, expected)
+			}), "%s should be in report. Found units: %v", expected, names)
+		}
+
+		for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
+			assert.False(t, slices.ContainsFunc(names, func(name string) bool {
+				return strings.Contains(name, excludedUnit)
+			}), "Excluded unit '%s' should NOT be in report", excludedUnit)
+		}
+	})
+
+	t.Run("negated graph target still parses for traversal", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsing)
+
+		// Graph traversal requires parsing the target to discover deps; negation only scopes the final result.
+		// Verifies minimization still applies to the unrelated land-mine units.
+		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath +
+			" --filter './excluded-unit-1...' --filter '!./excluded-unit-1' --report-file " + helpers.ReportFile
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+		require.Error(t, err)
+		assert.Contains(t, stderr, "excluded-unit-1", "excluded-unit-1 must be parsed because it is the graph target")
+		assert.NotContains(t, stderr, "excluded-unit-2", "excluded-unit-2 should not be parsed")
+		assert.NotContains(t, stderr, "excluded-unit-3", "excluded-unit-3 should not be parsed")
 	})
 
 	t.Run("destroy without graph filter", func(t *testing.T) {
@@ -2077,37 +2128,21 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
-		if util.FileExists(reportFilePath) {
-			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
-			require.NoError(t, err, "Should be able to parse report JSON")
+		require.FileExists(t, reportFilePath)
 
-			names := runs.Names()
+		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		require.NoError(t, err, "Should be able to parse report JSON")
 
-			// Verify expected unit is in the report
-			found := false
+		names := runs.Names()
 
-			for _, name := range names {
-				if strings.Contains(name, "unit-a") {
-					found = true
-					break
-				}
-			}
+		require.True(t, slices.ContainsFunc(names, func(name string) bool {
+			return strings.Contains(name, "unit-a")
+		}), "unit-a should be in report. Found units: %v", names)
 
-			require.True(t, found, "unit-a should be in report. Found units: %v", names)
-
-			// Verify land-mine units are NOT in the report
-			for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
-				found := false
-
-				for _, name := range names {
-					if strings.Contains(name, excludedUnit) {
-						found = true
-						break
-					}
-				}
-
-				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
-			}
+		for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
+			assert.False(t, slices.ContainsFunc(names, func(name string) bool {
+				return strings.Contains(name, excludedUnit)
+			}), "Excluded unit '%s' should NOT be in report", excludedUnit)
 		}
 	})
 
@@ -2134,37 +2169,21 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
-		if util.FileExists(reportFilePath) {
-			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
-			require.NoError(t, err, "Should be able to parse report JSON")
+		require.FileExists(t, reportFilePath)
 
-			names := runs.Names()
+		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		require.NoError(t, err, "Should be able to parse report JSON")
 
-			// Verify expected unit is in the report
-			found := false
+		names := runs.Names()
 
-			for _, name := range names {
-				if strings.Contains(name, "unit-a") {
-					found = true
-					break
-				}
-			}
+		require.True(t, slices.ContainsFunc(names, func(name string) bool {
+			return strings.Contains(name, "unit-a")
+		}), "unit-a should be in report. Found units: %v", names)
 
-			require.True(t, found, "unit-a should be in report. Found units: %v", names)
-
-			// Verify land-mine units are NOT in the report
-			for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
-				found := false
-
-				for _, name := range names {
-					if strings.Contains(name, excludedUnit) {
-						found = true
-						break
-					}
-				}
-
-				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
-			}
+		for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
+			assert.False(t, slices.ContainsFunc(names, func(name string) bool {
+				return strings.Contains(name, excludedUnit)
+			}), "Excluded unit '%s' should NOT be in report", excludedUnit)
 		}
 	})
 }
@@ -2233,7 +2252,7 @@ func TestOutDirWithGitFilter(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	outDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -2348,7 +2367,7 @@ func TestDestroyWithOutDirGitFilter(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	outDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)

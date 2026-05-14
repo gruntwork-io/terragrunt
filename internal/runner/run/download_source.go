@@ -5,18 +5,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
-
-	"github.com/hashicorp/go-getter"
-	getterv2 "github.com/hashicorp/go-getter/v2"
+	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -52,34 +53,67 @@ func DownloadTerraformSource(
 ) (*Options, error) {
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
+	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.StrictControls)
+
 	terraformSource, err := tf.NewSource(l, source, opts.DownloadDir, opts.WorkingDir, walkWithSymlinks)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r); err != nil {
+	// Serialize concurrent downloads to the same cache directory. Without this,
+	// manifest.Clean() in one goroutine can delete files while another goroutine
+	// is checking for them (e.g. during CheckFolderContainsTerraformCode).
+	rawLock, _ := sourceChangeLocks.LoadOrStore(terraformSource.DownloadDir, &sync.Mutex{})
+	dirLock := rawLock.(*sync.Mutex)
+	dirLock.Lock()
+	defer dirLock.Unlock()
+
+	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r)
+	if err != nil {
 		return nil, err
 	}
 
-	l.Debugf(
-		"Copying files from %s into %s",
-		util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.Writers.LogShowAbsPaths),
-		util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
-	)
+	// When no download was needed (AlreadyHaveLatestCode=true) and the source
+	// directory IS the working directory (source="."), skip the module copy: the
+	// version hash incorporates all file mod times, so no files have changed and
+	// the cache already has the correct content from a previous run. Skipping
+	// avoids manifest.Clean() deleting files that a concurrent goroutine expects
+	// to exist.
+	//
+	// When the source is a different directory (local or remote), the module copy
+	// overlays working-dir files on top of the downloaded source. These files may
+	// change independently of the source version hash, so the copy must always run.
+	sourceIsWorkingDir := tf.IsLocalSource(terraformSource.CanonicalSourceURL) &&
+		filepath.Clean(terraformSource.CanonicalSourceURL.Path) == filepath.Clean(opts.WorkingDir)
+	needsModuleCopy := downloaded || !sourceIsWorkingDir
 
-	// Always include the .tflint.hcl file, if it exists
-	includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
+	if needsModuleCopy {
+		l.Debugf(
+			"Copying files from %s into %s",
+			util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.Writers.LogShowAbsPaths),
+			util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
+		)
 
-	err = util.CopyFolderContents(
-		l,
-		opts.WorkingDir,
-		terraformSource.WorkingDir,
-		ModuleManifestName,
-		includeInCopy,
-		cfg.Terraform.ExcludeFromCopy,
-	)
-	if err != nil {
-		return nil, err
+		// Always include the .tflint.hcl file, if it exists
+		includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
+
+		copyOpts := []util.CopyOption{
+			util.WithIncludeInCopy(includeInCopy...),
+			util.WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...),
+		}
+		if controls.IsFastCopyEnabled(opts.StrictControls) {
+			copyOpts = append(copyOpts, util.WithFastCopy())
+		}
+
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "copy_folder_contents", map[string]any{
+			"src":  opts.WorkingDir,
+			"dest": terraformSource.WorkingDir,
+		}, func(_ context.Context) error {
+			return util.CopyFolderContents(l, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	l, updatedOpts, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
@@ -100,7 +134,8 @@ func DownloadTerraformSource(
 	return updatedOpts, nil
 }
 
-// DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been downloaded.
+// DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been
+// downloaded. It returns true if a download was performed, or false if the existing cache was up to date.
 func DownloadTerraformSourceIfNecessary(
 	ctx context.Context,
 	l log.Logger,
@@ -108,22 +143,22 @@ func DownloadTerraformSourceIfNecessary(
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
-) error {
+) (bool, error) {
 	if opts.SourceUpdate {
 		l.Debugf("The --source-update flag is set, so deleting the temporary folder %s before downloading source.", terraformSource.DownloadDir)
 
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
-			return errors.New(err)
+			return false, errors.New(err)
 		}
 	} else {
 		alreadyLatest, err := AlreadyHaveLatestCode(l, terraformSource, opts)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		if alreadyLatest {
 			if err := ValidateWorkingDir(terraformSource); err != nil {
-				return err
+				return false, err
 			}
 
 			l.Debugf(
@@ -136,7 +171,7 @@ func DownloadTerraformSourceIfNecessary(
 				),
 			)
 
-			return nil
+			return false, nil
 		}
 	}
 
@@ -148,7 +183,7 @@ func DownloadTerraformSourceIfNecessary(
 
 		previousVersion, err = readVersionFile(terraformSource)
 		if err != nil {
-			return err
+			return false, err
 		}
 	}
 
@@ -157,7 +192,7 @@ func DownloadTerraformSourceIfNecessary(
 	// before and after hooks (if any).
 	l, optsForDownload, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	optsForDownload.TerraformCommand = tf.CommandNameInitFromModule
@@ -170,19 +205,30 @@ func DownloadTerraformSourceIfNecessary(
 		cfg,
 		r,
 		func(childCtx context.Context) error {
+			if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
+				sourceURL := strings.TrimPrefix(terraformSource.CanonicalSourceURL.String(), fileURIScheme)
+
+				return util.NotifyIfSlow(childCtx, l, util.SpinnerWriter(), time.Second, util.SlowNotifyMsg{
+					Spinner: "Downloading source from " + sourceURL + "...",
+					Done:    "Downloaded source from " + sourceURL,
+				}, func() error {
+					return downloadSource(childCtx, l, terraformSource, opts, cfg, r)
+				})
+			}
+
 			return downloadSource(childCtx, l, terraformSource, opts, cfg, r)
 		},
 	)
 	if downloadErr != nil {
-		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
+		return false, DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
 	}
 
 	if err := terraformSource.WriteVersionFile(l); err != nil {
-		return err
+		return false, err
 	}
 
 	if err := ValidateWorkingDir(terraformSource); err != nil {
-		return err
+		return false, err
 	}
 
 	currentVersion, err := terraformSource.EncodeSourceVersion(l)
@@ -195,13 +241,13 @@ func DownloadTerraformSourceIfNecessary(
 
 		f, createErr := os.Create(initFile)
 		if createErr != nil {
-			return createErr
+			return false, createErr
 		}
 
 		defer f.Close()
 	}
 
-	return nil
+	return true, nil
 }
 
 // AlreadyHaveLatestCode returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
@@ -249,73 +295,14 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 	return util.ReadFileAsString(terraformSource.VersionFile)
 }
 
-// UpdateGetters returns the customized go-getter interfaces that Terragrunt relies on. Specifically:
-//   - Local file path getter is updated to copy the files instead of creating symlinks, which is what go-getter defaults
-//     to.
-//   - Include the customized getter for fetching sources from the Terraform Registry.
+// downloadSource downloads the canonical source URL into src.DownloadDir.
 //
-// This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
-// necessary for customizing the behavior of the file getter.
-func UpdateGetters(l log.Logger, opts *Options, cfg *runcfg.RunConfig) func(*getter.Client) error {
-	return func(client *getter.Client) error {
-		// We iterate over the global getter.Getters map and clone each getter
-		// to avoid race conditions. The global map contains shared getter
-		// instances, and when SetClient is called on them from multiple
-		// goroutines, it causes data races. Cloning via dereference ensures
-		// each client has its own getter state, while automatically picking
-		// up any new getter types registered by go-getter.
-		client.Getters = make(map[string]getter.Getter, len(getter.Getters))
-		for name, g := range getter.Getters {
-			v := reflect.ValueOf(g).Elem()
-			clone := reflect.New(v.Type())
-			clone.Elem().Set(v)
-			client.Getters[name] = clone.Interface().(getter.Getter)
-		}
-
-		// Override with Terragrunt-specific customizations
-		client.Getters["file"] = &FileCopyGetter{
-			Logger:          l,
-			IncludeInCopy:   cfg.Terraform.IncludeInCopy,
-			ExcludeFromCopy: cfg.Terraform.ExcludeFromCopy,
-		}
-		client.Getters["http"] = &getter.HttpGetter{Netrc: true}
-		client.Getters["https"] = &getter.HttpGetter{Netrc: true}
-
-		// Load in custom getters that are only supported in Terragrunt
-		client.Getters["tfr"] = &tf.RegistryGetter{
-			TofuImplementation: opts.TofuImplementation,
-		}
-
-		return nil
-	}
-}
-
-// preserveSymlinksOption is a custom client option that ensures DisableSymlinks
-// setting is preserved during git operations
-func preserveSymlinksOption() getter.ClientOption {
-	return func(c *getter.Client) error {
-		// Create a custom git getter that preserves symlink settings
-		if c.Getters != nil {
-			if _, exists := c.Getters["git"]; exists {
-				// Replace with a wrapper that preserves symlink settings.
-				// We create a fresh GitGetter instance instead of wrapping the
-				// existing one to avoid race conditions when multiple goroutines
-				// share the same getter from the global getter.Getters map.
-				c.Getters["git"] = &symlinkPreservingGitGetter{
-					original: &getter.GitGetter{},
-					client:   c,
-				}
-			}
-		}
-
-		// Ensure DisableSymlinks is set to false
-		c.DisableSymlinks = false
-
-		return nil
-	}
-}
-
-// Download the code from the Canonical Source URL into the Download Folder using the go-getter library
+// When CAS is enabled and the source is remote, it tries the CAS-only client
+// first (cas::sha1:<hash> + git-via-CAS). On CAS failure or for local
+// sources, it falls through to the standard Terragrunt-configured client
+// from internal/getter, which registers the full default protocol set
+// (s3, gcs, git, hg, smb, http(s), file) plus the FileCopy and tfr
+// customizations.
 func downloadSource(
 	ctx context.Context,
 	l log.Logger,
@@ -326,8 +313,7 @@ func downloadSource(
 ) error {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
 
-	// Since we convert abs paths to rel in logs, `file://../../path/to/dir` doesn't look good,
-	// so it's better to get rid of it.
+	// Strip file:// so file://../../path/to/dir doesn't show up in user-facing logs.
 	canonicalSourceURL = strings.TrimPrefix(canonicalSourceURL, fileURIScheme)
 
 	l.Infof(
@@ -335,49 +321,123 @@ func downloadSource(
 		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.Writers.LogShowAbsPaths),
 		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.Writers.LogShowAbsPaths))
 
-	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
+	allowCAS := opts.Experiments.Evaluate(experiment.CAS) && !opts.NoCAS
+
+	if cfg.Terraform.UpdateSourceWithCAS && !allowCAS {
+		return errors.New(&cas.UpdateSourceWithCASRequiresCASError{
+			BlockType: "terraform",
+			Path:      opts.TerragruntConfigPath,
+		})
+	}
 
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
-		l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
-
-		c, err := cas.New(cas.Options{})
+		done, err := tryCASDownload(ctx, l, src, opts, cfg.Terraform.Mutable)
 		if err != nil {
-			l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
-		} else {
-			cloneOpts := cas.CloneOptions{
-				Dir:              src.DownloadDir,
-				IncludedGitFiles: []string{"HEAD", "config"},
-			}
+			return err
+		}
 
-			casGetter := cas.NewCASGetter(l, c, &cloneOpts)
-
-			// Use go-getter v2 Client to properly process the Request
-			client := getterv2.Client{
-				Getters: []getterv2.Getter{casGetter},
-			}
-
-			// Set Pwd to the working directory so go-getter v2 can resolve relative paths
-			req := &getterv2.Request{
-				Src: src.CanonicalSourceURL.String(),
-				Dst: src.DownloadDir,
-				Pwd: opts.WorkingDir,
-			}
-
-			if _, casErr := client.Get(ctx, req); casErr == nil {
-				l.Debugf("Successfully downloaded source using CAS: %s", canonicalSourceURL)
-				return nil
-			} else {
-				l.Warnf("CAS download failed: %v. Falling back to standard getter.", casErr)
-			}
+		if done {
+			return nil
 		}
 	}
 
-	// Fallback to standard go-getter
 	return opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(l, opts, cfg), preserveSymlinksOption())
+		client := BuildDownloadClient(l, opts, cfg)
+
+		_, err := client.Get(ctx, &getter.Request{
+			Src:     src.CanonicalSourceURL.String(),
+			Dst:     src.DownloadDir,
+			GetMode: getter.ModeAny,
+		})
+
+		return err
 	})
+}
+
+// tryCASDownload attempts a CAS-backed fetch.
+//
+// Returns (true, nil) on success. Caller is done.
+// Returns (false, nil) when the CAS path could not be taken but the failure
+// is recoverable (CAS init failure, CAS-getter download failure). Caller
+// should fall through to the standard getter.
+// Returns (false, err) for fatal misconfiguration the user must fix
+// (e.g. an invalid CASCloneDepth). Caller must propagate the error.
+func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Options, mutable bool) (bool, error) {
+	canonicalSourceURL := src.CanonicalSourceURL.String()
+
+	l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
+
+	if err := cas.ValidateCASCloneDepth(opts.CASCloneDepth); err != nil {
+		return false, err
+	}
+
+	c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth))
+	if err != nil {
+		l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
+		return false, nil
+	}
+
+	cloneOpts := cas.CloneOptions{
+		Dir:              src.DownloadDir,
+		IncludedGitFiles: []string{"HEAD", "config"},
+		Mutable:          mutable,
+	}
+
+	casProtocol := getter.NewCASProtocolGetter(l, c)
+	casProtocol.Mutable = mutable
+
+	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
+	// (from CAS-rewritten stacks); CASGetter handles git:: and other remote
+	// sources via CAS. No fallback getters here, so a failure means the
+	// caller should retry through the standard client.
+	client := &getter.Client{
+		Getters: []getter.Getter{
+			casProtocol,
+			getter.NewCASGetter(l, c, &cloneOpts),
+		},
+	}
+
+	if _, err := client.Get(ctx, &getter.Request{
+		Src: canonicalSourceURL,
+		Dst: src.DownloadDir,
+		Pwd: opts.WorkingDir,
+	}); err != nil {
+		l.Warnf("CAS download failed: %v. Falling back to standard getter.", err)
+
+		// Clear any partial CAS output before the fallback runs; mixing
+		// leftover CAS files with the standard getter's output leaves the
+		// module dir in an inconsistent state.
+		if removeErr := os.RemoveAll(src.DownloadDir); removeErr != nil {
+			l.Warnf("Failed to clean partial CAS output at %s: %v", src.DownloadDir, removeErr)
+		}
+
+		return false, nil
+	}
+
+	l.Debugf("Successfully downloaded source using CAS: %s", canonicalSourceURL)
+
+	return true, nil
+}
+
+// BuildDownloadClient constructs the go-getter client used for the standard
+// (non-CAS) download path. The customizations layered on top of the default
+// protocol set are: FileCopyGetter (copies local sources instead of
+// symlinking) and RegistryGetter (resolves tfr:// sources).
+//
+// Exported so tests can assert the protocol set directly.
+func BuildDownloadClient(l log.Logger, opts *Options, cfg *runcfg.RunConfig) *getter.Client {
+	return getter.NewClient(
+		getter.WithLogger(l),
+		getter.WithFileCopy(getter.NewFileCopyGetter().
+			WithLogger(l).
+			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
+			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
+			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
+		getter.WithTFRegistry(getter.NewRegistryGetter(l).
+			WithTofuImplementation(opts.TofuImplementation)),
+	)
 }
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory
@@ -419,4 +479,8 @@ type DownloadingTerraformSourceErr struct {
 
 func (err DownloadingTerraformSourceErr) Error() string {
 	return fmt.Sprintf("downloading source url %s\n%v", err.URL, err.ErrMsg)
+}
+
+func (err DownloadingTerraformSourceErr) Unwrap() error {
+	return err.ErrMsg
 }

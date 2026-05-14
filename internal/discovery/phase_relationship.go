@@ -7,6 +7,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -152,19 +154,24 @@ func (p *RelationshipPhase) discoverRelationships(
 		return nil
 	}
 
-	cfg := unit.Config()
-	if cfg == nil {
-		err := parseComponent(ctx, l, c, state.opts, state.discovery)
-		if err != nil {
-			return err
-		}
+	ctx = contextWithParsePhase(ctx, parsePhaseTagRelationship)
 
-		cfg = unit.Config()
+	if err := ensureParsed(ctx, l, c, state.opts, state.discovery); err != nil {
+		return err
 	}
+
+	cfg := unit.Config()
 
 	paths, err := extractDependencyPaths(cfg, c)
 	if err != nil {
 		return err
+	}
+
+	if state.opts.Experiments.Evaluate(experiment.StackDependencies) {
+		paths, err = stackDependencyPaths(vfs.NewOSFS(), paths, c)
+		if err != nil {
+			return err
+		}
 	}
 
 	if len(paths) == 0 {
@@ -202,7 +209,7 @@ func (p *RelationshipPhase) discoverRelationships(
 	for _, dep := range depsToDiscover {
 		g.Go(func() error {
 			err := p.discoverRelationships(
-				ctx,
+				contextWithIncrementedParseDepth(ctx),
 				l,
 				state,
 				dep,

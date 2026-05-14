@@ -39,8 +39,12 @@ const (
 
 func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	filterFlags := shared.NewFilterFlags(l, opts.TerragruntOptions)
 
-	flags := clihelper.Flags{
+	const numLocalFlags = 9
+
+	result := make(clihelper.Flags, 0, numLocalFlags+len(filterFlags))
+	result = append(result,
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
@@ -78,8 +82,9 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:    ExternalFlagName,
 			EnvVars: tgPrefix.EnvVars(ExternalFlagName),
-			Usage:   "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
-			Hidden:  true,
+			Usage: "Discover external dependencies from initial results," +
+				" and add them to top-level results (implies discovery of dependencies).",
+			Hidden: true,
 			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
 				if !value {
 					return nil
@@ -123,9 +128,9 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 			Usage:       "Construct the queue as if a specific command was run.",
 			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
-	}
+	)
 
-	return append(flags, shared.NewFilterFlags(l, opts.TerragruntOptions)...)
+	return append(result, filterFlags...)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {

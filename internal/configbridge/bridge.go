@@ -17,7 +17,11 @@ import (
 )
 
 // NewParsingContext creates a config.ParsingContext populated from TerragruntOptions.
-func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *config.ParsingContext) {
+func NewParsingContext(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (context.Context, *config.ParsingContext) {
 	ctx, pctx := config.NewParsingContext(ctx, l, config.WithStrictControls(opts.StrictControls))
 	populateFromOpts(pctx, opts)
 
@@ -62,6 +66,8 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.CheckDependentUnits = opts.CheckDependentUnits
 	pctx.Telemetry = opts.Telemetry
 	pctx.NoStackValidate = opts.NoStackValidate
+	pctx.NoCAS = opts.NoCAS
+	pctx.CASCloneDepth = opts.CASCloneDepth
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
 	pctx.ProviderCacheOptions = opts.ProviderCacheOptions
@@ -69,19 +75,17 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 
 // ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
 func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
-	return &shell.ShellOptions{
-		Writers:         opts.Writers,
-		EngineOptions:   opts.EngineOptions,
-		WorkingDir:      opts.WorkingDir,
-		Env:             opts.Env,
-		TFPath:          opts.TFPath,
-		EngineConfig:    opts.EngineConfig,
-		Experiments:     opts.Experiments,
-		Telemetry:       opts.Telemetry,
-		RootWorkingDir:  opts.RootWorkingDir,
-		Headless:        opts.Headless,
-		ForwardTFStdout: opts.ForwardTFStdout,
-	}
+	return shell.NewShellOptions().
+		WithWorkingDir(opts.WorkingDir).
+		WithEnv(opts.Env).
+		WithWriters(opts.Writers).
+		WithTelemetry(opts.Telemetry).
+		WithEngine(opts.EngineConfig, opts.EngineOptions).
+		WithTFPath(opts.TFPath).
+		WithRootWorkingDir(opts.RootWorkingDir).
+		WithExperiments(opts.Experiments).
+		WithHeadless(opts.Headless).
+		WithForwardTFStdout(opts.ForwardTFStdout)
 }
 
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
@@ -156,5 +160,7 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          opts.DisableBucketUpdate,
 		SourceUpdate:                 opts.SourceUpdate,
+		CASCloneDepth:                opts.CASCloneDepth,
+		NoCAS:                        opts.NoCAS,
 	}
 }

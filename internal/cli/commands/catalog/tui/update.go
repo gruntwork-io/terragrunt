@@ -2,13 +2,14 @@ package tui
 
 import (
 	"fmt"
+	"os"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/pkg/browser"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/command"
@@ -18,30 +19,35 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
+func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
 	)
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Don't match any of the keys below if we're actively filtering.
 		if m.List.FilterState() == list.Filtering {
 			break
 		}
 
 		switch {
-		case key.Matches(msg, m.delegateKeys.choose, m.delegateKeys.scaffold):
+		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.Scaffold):
 			if selectedModule, ok := m.List.SelectedItem().(*module.Module); ok {
 				switch {
-				case key.Matches(msg, m.delegateKeys.choose):
+				case key.Matches(msg, m.delegateKeys.Choose):
 					// prepare the viewport
 					var content string
 
 					if selectedModule.IsMarkDown() {
+						style := "dark"
+						if !lipgloss.HasDarkBackground(os.Stdin, os.Stdout) {
+							style = "light"
+						}
+
 						renderer, err := glamour.NewTermRenderer(
-							glamour.WithAutoStyle(),
+							glamour.WithStandardStyle(style),
 							glamour.WithWordWrap(m.width),
 						)
 						if err != nil {
@@ -82,8 +88,13 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 					// advance state
 					m.selectedModule = selectedModule
 					m.State = PagerState
-				case key.Matches(msg, m.delegateKeys.scaffold):
+				case key.Matches(msg, m.delegateKeys.Scaffold):
+					if m.SVC == nil {
+						return m, nil
+					}
+
 					m.State = ScaffoldState
+
 					return m, scaffoldModuleCmd(m.logger, m, m.SVC, selectedModule)
 				}
 			} else {
@@ -107,14 +118,14 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 	return m, cmd
 }
 
-func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
+func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
 	)
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		bbModel, barCmd := m.buttonBar.Update(msg)
 		if newButtonBar, ok := bbModel.(*buttonbar.ButtonBar); ok {
 			m.buttonBar = newButtonBar
@@ -132,7 +143,12 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 			switch currentAction {
 			case scaffoldBtn:
+				if m.SVC == nil {
+					return m, nil
+				}
+
 				m.State = ScaffoldState
+
 				return m, scaffoldModuleCmd(m.logger, m, m.SVC, m.selectedModule)
 			case viewSourceBtn:
 				if m.selectedModule.URL() != "" {
@@ -145,7 +161,12 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 			}
 
 		case key.Matches(msg, m.pagerKeys.Scaffold):
+			if m.SVC == nil {
+				return m, nil
+			}
+
 			m.State = ScaffoldState
+
 			return m, scaffoldModuleCmd(m.logger, m, m.SVC, m.selectedModule)
 
 		case key.Matches(msg, m.pagerKeys.Quit):
@@ -168,10 +189,10 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 }
 
 // Update handles all TUI interactions and implements bubbletea.Model.Update.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		h, v := appStyle.GetFrameSize()
+		h, v := AppStyle.GetFrameSize()
 		m.List.SetSize(msg.Width-h, msg.Height-v)
 		m.width = msg.Width
 		m.height = msg.Height
@@ -182,11 +203,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 			// we can initialize the viewport. The initial dimensions come in
 			// quickly, though asynchronously, which is why we wait for them
 			// here.
-			m.viewport = viewport.New(msg.Width, msg.Height-v-lipgloss.Height(m.footerView()))
+			m.viewport = viewport.New(viewport.WithWidth(msg.Width), viewport.WithHeight(msg.Height-v-lipgloss.Height(m.footerView())))
 			m.ready = true
 		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - v - lipgloss.Height(m.footerView())
+			m.viewport.SetWidth(msg.Width)
+			m.viewport.SetHeight(msg.Height - v - lipgloss.Height(m.footerView()))
 		}
 
 	case scaffoldFinishedMsg:
@@ -229,7 +250,7 @@ func rendererErrCmd(err error) tea.Cmd {
 type scaffoldFinishedMsg struct{ err error }
 
 // Return a tea.Cmd that will scaffold the given module.
-func scaffoldModuleCmd(l log.Logger, m Model, svc catalog.CatalogService, module *module.Module) tea.Cmd { //nolint:gocritic
+func scaffoldModuleCmd(l log.Logger, m Model, svc catalog.CatalogService, module *module.Module) tea.Cmd {
 	return tea.Exec(command.NewScaffold(l, m.terragruntOptions, svc, module), func(err error) tea.Msg {
 		return scaffoldFinishedMsg{err}
 	})

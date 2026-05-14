@@ -1,0 +1,6 @@
+# The fixtures in this directory are used to test that Terragrunt produces a
+# `.terraform.lock.hcl` populated with `h1:` hashes for every supported platform
+# in a single `init`, both with and without the provider cache server.
+#
+# Don't commit a generated lock file here. Each test run must produce its own.
+.terraform.lock.hcl

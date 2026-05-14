@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 
 	"go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.39.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 )
 
 const (
@@ -71,7 +71,9 @@ func NewMeter(ctx context.Context, appName, appVersion string, writer io.Writer,
 }
 
 // Time collects time for function execution
-func (meter *Meter) Time(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
+func (meter *Meter) Time(
+	ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error,
+) error {
 	if meter == nil || meter.exporter == nil {
 		return fn(ctx)
 	}

@@ -7,7 +7,7 @@ sidebar:
 ---
 
 import InstallTabs from '@components/InstallTabs.astro'
-import { Code } from '@astrojs/starlight/components'
+import { Aside, Code, Tabs, TabItem } from '@astrojs/starlight/components'
 import { getLatestRelease } from '@lib/github';
 export const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
 export const version = releaseData?.tag_name || 'v0.99.0';
@@ -17,12 +17,20 @@ export const version = releaseData?.tag_name || 'v0.99.0';
 The quickest way to install Terragrunt on Linux or macOS:
 
 ```bash
-curl -sL https://docs.terragrunt.com/install | bash
+curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash
 ```
 
-:::tip[Script Options]
-Run `curl -sL https://docs.terragrunt.com/install | bash -s -- --help` to see all options, or [view the script on GitHub](https://github.com/gruntwork-io/terragrunt/blob/main/docs/public/install).
-:::
+<Aside type="tip" title="Script options and inspecting the script">
+  Run `curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash -s -- --help` to see all options, or [read the script on GitHub](https://github.com/gruntwork-io/terragrunt/blob/main/docs/public/install).
+
+  Piping a remote script directly into `bash` means executing code you haven't read. If you'd rather review the script before running it, download it to your local filesystem, read through it, and then run it:
+
+  ```bash
+  curl -sSfL --proto '=https' --tlsv1.2 -o install.sh https://terragrunt.com/install
+  less install.sh
+  bash install.sh
+  ```
+</Aside>
 
 ## Download from releases page
 
@@ -74,8 +82,7 @@ uid           [ unknown] Gruntwork (Code Signing Key) <security@gruntwork.io>
 
 ```bash
 cosign verify-blob SHA256SUMS \
-  --signature SHA256SUMS.sig \
-  --certificate SHA256SUMS.pem \
+  --bundle SHA256SUMS.sigstore.json \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp "github.com/gruntwork-io/terragrunt"
 ```
@@ -173,6 +180,167 @@ cd terragrunt
 # Feel free to checkout a particular tag, etc if you want here.
 go install
 ```
+
+## Install tip or test builds
+
+Every successful CI run on the `main` branch produces a **tip build** of Terragrunt. Maintainers can also trigger **test builds** from any branch. Both are useful for testing unreleased changes or reproducing issues against the most recent code.
+
+Tip builds are served via the builds API at `https://builds.terragrunt.com` and are available for all platforms supported in official releases. While tip builds are always built on every push to `main`, test builds are only built when maintainers explicitly want to distribute a test build of Terragrunt from a branch other than `main` to get stakeholder feedback. Maintainers may ask that you try out a test build to see if a WIP solution solves an issue you are facing, and you are free to request a test build if you want to try the latest in some in-progress work.
+
+<Aside type="caution" title="No retention guarantee">
+  Tip and test builds may be reclaimed at any time to reduce hosting costs. Do not rely on a specific build being available indefinitely. Use [official releases](https://github.com/gruntwork-io/terragrunt/releases) for production.
+</Aside>
+
+### Quick install for tip and test builds
+
+The same install script used for official releases supports tip and test builds via flags.
+
+To install the latest tip build:
+
+```bash
+curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash -s -- --tip
+```
+
+To install a tip build at a specific commit:
+
+```bash
+curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash -s -- --tip --commit <commit-sha>
+```
+
+To install a test build at a specific commit:
+
+```bash
+curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash -s -- --test --commit <commit-sha>
+```
+
+If you prefer to run the install steps manually, the tabs below show the equivalent commands:
+
+<Tabs>
+  <TabItem label="Latest tip">
+    ```bash
+    set -euo pipefail
+
+    # Set your platform (linux, darwin, windows) and architecture (amd64, arm64, 386)
+    OS="linux"
+    ARCH="amd64"
+
+    ARCHIVE="terragrunt_${OS}_${ARCH}.tar.gz"
+
+    # Download the archive and checksums
+    curl -sL -o "$ARCHIVE" \
+      "https://builds.terragrunt.com/api/v1/tip/latest/download?os=${OS}&arch=${ARCH}"
+    curl -sL -o SHA256SUMS \
+      "https://builds.terragrunt.com/api/v1/tip/latest/download?filename=SHA256SUMS"
+
+    # Verify checksum
+    EXPECTED=$(awk -v f="$ARCHIVE" '$2 == f {print $1; exit}' SHA256SUMS)
+    ACTUAL=$(sha256sum "$ARCHIVE" | awk '{print $1}')  # macOS: use "shasum -a 256"
+    if [ "$EXPECTED" != "$ACTUAL" ]; then
+      echo "Checksum verification failed!"
+      exit 1
+    fi
+    echo "Checksum verified!"
+
+    # Extract and install
+    tar -xzf "$ARCHIVE"
+    chmod +x "terragrunt_${OS}_${ARCH}"
+    sudo mv "terragrunt_${OS}_${ARCH}" /usr/local/bin/terragrunt
+    ```
+  </TabItem>
+  <TabItem label="Specific commit">
+    ```bash
+    set -euo pipefail
+
+    # Set the commit SHA, platform, and architecture
+    COMMIT="abc123def456"
+    OS="linux"
+    ARCH="amd64"
+
+    ARCHIVE="terragrunt_${OS}_${ARCH}.tar.gz"
+
+    # Download the archive and checksums
+    curl -sL -o "$ARCHIVE" \
+      "https://builds.terragrunt.com/api/v1/tip/${COMMIT}/download?os=${OS}&arch=${ARCH}"
+    curl -sL -o SHA256SUMS \
+      "https://builds.terragrunt.com/api/v1/tip/${COMMIT}/download?filename=SHA256SUMS"
+
+    # Verify checksum
+    EXPECTED=$(awk -v f="$ARCHIVE" '$2 == f {print $1; exit}' SHA256SUMS)
+    ACTUAL=$(sha256sum "$ARCHIVE" | awk '{print $1}')  # macOS: use "shasum -a 256"
+    if [ "$EXPECTED" != "$ACTUAL" ]; then
+      echo "Checksum verification failed!"
+      exit 1
+    fi
+    echo "Checksum verified!"
+
+    # Extract and install
+    tar -xzf "$ARCHIVE"
+    chmod +x "terragrunt_${OS}_${ARCH}"
+    sudo mv "terragrunt_${OS}_${ARCH}" /usr/local/bin/terragrunt
+    ```
+  </TabItem>
+  <TabItem label="Test build">
+    ```bash
+    set -euo pipefail
+
+    # Set the commit SHA, platform, and architecture
+    COMMIT="abc123def456"
+    OS="linux"
+    ARCH="amd64"
+
+    ARCHIVE="terragrunt_${OS}_${ARCH}.tar.gz"
+    BASE_URL="https://builds.terragrunt.com/test/${COMMIT}"
+
+    # Download the archive and checksums
+    curl -sL -o "$ARCHIVE" "${BASE_URL}/${ARCHIVE}"
+    curl -sL -o SHA256SUMS "${BASE_URL}/SHA256SUMS"
+
+    # Verify checksum
+    EXPECTED=$(awk -v f="$ARCHIVE" '$2 == f {print $1; exit}' SHA256SUMS)
+    ACTUAL=$(sha256sum "$ARCHIVE" | awk '{print $1}')  # macOS: use "shasum -a 256"
+    if [ "$EXPECTED" != "$ACTUAL" ]; then
+      echo "Checksum verification failed!"
+      exit 1
+    fi
+    echo "Checksum verified!"
+
+    # Extract and install
+    tar -xzf "$ARCHIVE"
+    chmod +x "terragrunt_${OS}_${ARCH}"
+    sudo mv "terragrunt_${OS}_${ARCH}" /usr/local/bin/terragrunt
+    ```
+  </TabItem>
+</Tabs>
+
+### Verifying signatures
+
+Tip and test builds are signed using the same process as official releases. You can optionally verify the GPG or Cosign signature after downloading:
+
+```bash
+# Download signature files (replace "latest" with a commit SHA if needed)
+curl -sL -o SHA256SUMS.gpgsig \
+  "https://builds.terragrunt.com/api/v1/tip/latest/download?filename=SHA256SUMS.gpgsig"
+
+# GPG verification
+curl -s https://gruntwork.io/.well-known/pgp-key.txt | gpg --import
+gpg --verify SHA256SUMS.gpgsig SHA256SUMS
+```
+
+Alternatively, verify with Cosign:
+
+```bash
+curl -sL -o SHA256SUMS.sigstore.json \
+  "https://builds.terragrunt.com/api/v1/tip/latest/download?filename=SHA256SUMS.sigstore.json"
+
+cosign verify-blob SHA256SUMS \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp "github.com/gruntwork-io/terragrunt"
+```
+
+<Aside>
+  For full API documentation and more details about Terragrunt is distributed, see the [Releases documentation](/process/releases#tip-builds).
+</Aside>
 
 ## Enable tab completion
 

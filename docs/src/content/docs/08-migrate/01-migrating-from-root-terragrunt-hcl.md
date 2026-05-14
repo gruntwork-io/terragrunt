@@ -49,7 +49,7 @@ include "root" {
 
 ## Additional Considerations
 
-If you use [Scaffold](/features/scaffold) and [Catalog](/features/catalog), you may need to use additional flags to control how new units are generated. It was previously a safe assumption that most users would leverage a root `terragrunt.hcl` file, and thus, the default behavior was to generate a new unit that would look for a `terragrunt.hcl` file above it.
+If you use [Scaffold](/features/catalog/scaffold) and [Catalog](/features/catalog), you may need to use additional flags to control how new units are generated. It was previously a safe assumption that most users would leverage a root `terragrunt.hcl` file, and thus, the default behavior was to generate a new unit that would look for a `terragrunt.hcl` file above it.
 
 You can use the `--root-file-name` and `--no-include-root` flags of both `catalog` and `scaffold` to explicitly control how new units are generated, and what they will look for as the root configuration file (or if they should look for one at all).
 
@@ -67,7 +67,7 @@ terragrunt catalog --root-file-name root.hcl
 
 ## Strict Control
 
-To enforce this recommended pattern, you can also enable the [root-terragrunt-hcl](/reference/strict-controls#root-terragrunt-hcl) strict control to throw an error when Terragrunt detects that a root `terragrunt.hcl` file is being used.
+To enforce this recommended pattern, you can also enable the [root-terragrunt-hcl](/reference/strict-controls/active#root-terragrunt-hcl) strict control to throw an error when Terragrunt detects that a root `terragrunt.hcl` file is being used.
 
 e.g.
 

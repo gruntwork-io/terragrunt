@@ -1,0 +1,21 @@
+---
+version: "v1.0.4"
+category: "experiments-updated"
+---
+
+#### `cas` — Local paths supported as stack component sources
+
+CAS-backed stack generation now accepts a local filesystem path as the `source` of a consumer `stack` or `unit` block, in addition to a remote Git URL. Terragrunt copies the referenced directory into a temporary directory, computes a content-addressed root hash over the copy, and applies the same `update_source_with_cas` rewriting as the remote flow. The original directory is left untouched.
+
+```hcl
+# live/terragrunt.stack.hcl
+stack "service" {
+  source = "../catalog//stacks/service"
+
+  path = "service"
+}
+```
+
+This makes a catalog usable against a local checkout under the same `update_source_with_cas = true` attributes that already work for Git URLs, which is helpful when iterating on a catalog before tagging a release.
+
+See the [CAS documentation](/features/caching/cas) and [Explicit Stacks: Local catalog sources](/features/stacks/explicit#local-catalog-sources) for details.

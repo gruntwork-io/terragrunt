@@ -6,12 +6,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 )
 
-// ClassificationStatus indicates whether a component is definitely included, a candidate, or excluded.
+// ClassificationStatus indicates whether a component is ready for filter evaluation,
+// needs further processing, or is excluded from even being considered during filter
+// evaluation.
 type ClassificationStatus int
 
 const (
-	// StatusDiscovered indicates the component is definitely included in results.
-	StatusDiscovered ClassificationStatus = iota
+	// StatusReadyForFilter indicates the component has passed classification and is
+	// ready for the final filter evaluation step, which may still exclude it.
+	StatusReadyForFilter ClassificationStatus = iota
 	// StatusCandidate indicates the component might be included (needs further evaluation).
 	StatusCandidate
 	// StatusExcluded indicates the component is definitely excluded from results.
@@ -21,7 +24,7 @@ const (
 // String returns a string representation of the ClassificationStatus.
 func (cs ClassificationStatus) String() string {
 	switch cs {
-	case StatusDiscovered:
+	case StatusReadyForFilter:
 		return "discovered"
 	case StatusCandidate:
 		return "candidate"
@@ -97,11 +100,23 @@ type GraphExpressionInfo struct {
 // Classifier analyzes filter expressions to efficiently classify components
 // as discovered, candidate, or excluded without full evaluation.
 type Classifier struct {
-	filesystemExprs    []Expression
-	parseExprs         []Expression
-	graphExprs         []*GraphExpressionInfo
-	gitExprs           []*GitExpression
-	negatedExprs       []Expression
+	// pathExprs are path-based expressions that target specific filesystem locations.
+	pathExprs []Expression
+	// attributeExprs are attribute-based expressions (e.g. type=stack) that qualify
+	// components broadly. Unlike path expressions, these do not discount negated path
+	// expressions during early exclusion.
+	attributeExprs []Expression
+	// parseExprs are expressions that require HCL parsing to evaluate (e.g. reading=).
+	parseExprs []Expression
+	// graphExprs are graph traversal expressions (e.g. ...foo, foo...).
+	graphExprs []*GraphExpressionInfo
+	// gitExprs are git reference expressions (e.g. [HEAD~1...HEAD]).
+	gitExprs []*GitExpression
+	// negatedExprs are the inner expressions from negation filters (e.g. the path
+	// from !./path).
+	negatedExprs []Expression
+	// hasPositiveFilters tracks whether any non-negated filter exists, used to
+	// determine exclude-by-default behavior.
 	hasPositiveFilters bool
 }
 
@@ -115,6 +130,10 @@ func NewClassifier(filters Filters) *Classifier {
 		expr := f.Expression()
 		if expr == nil {
 			continue
+		}
+
+		if !IsNegated(expr) {
+			c.hasPositiveFilters = true
 		}
 
 		c.analyzeExpression(expr, i)
@@ -136,12 +155,11 @@ func NewClassifier(filters Filters) *Classifier {
 //  4. Check if component matches any git expression -> DISCOVERED
 //  5. Check if component matches any graph expression target -> CANDIDATE (GraphTarget, returns index)
 //  6. Check if dependent filters exist and parse data unavailable -> CANDIDATE (PotentialDependent)
-//  7. If negated expressions exist and component doesn't match any -> DISCOVERED (negation acts as inclusion)
-//  8. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
-//  9. If no positive filters exist -> DISCOVERED (include-by-default)
+//  7. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
+//  8. If no positive filters exist -> DISCOVERED (include-by-default)
 func (c *Classifier) Classify(comp component.Component, classCtx ClassificationContext) (ClassificationStatus, CandidacyReason, int) {
 	hasNegativeMatch := c.matchesAnyNegated(comp)
-	hasPositiveMatch := c.matchesAnyPositive(comp, classCtx)
+	hasPositiveMatch := c.matchesAnyPositive(comp)
 
 	// Before excluding due to negation, check if the component matches a negated graph expression target.
 	// If so, we need to process it through the graph phase to discover dependencies/dependents
@@ -154,19 +172,16 @@ func (c *Classifier) Classify(comp component.Component, classCtx ClassificationC
 		return StatusExcluded, CandidacyReasonNone, -1
 	}
 
-	matchesFilesystem := c.matchesFilesystemExpression(comp)
-	matchesGit := c.matchesGitExpression(comp)
-
 	if len(c.parseExprs) > 0 && !classCtx.ParseDataAvailable {
 		return StatusCandidate, CandidacyReasonRequiresParse, -1
 	}
 
-	if matchesFilesystem {
-		return StatusDiscovered, CandidacyReasonNone, -1
+	if c.matchesPathExpression(comp) || c.matchesAttributeExpression(comp) {
+		return StatusReadyForFilter, CandidacyReasonNone, -1
 	}
 
-	if matchesGit {
-		return StatusDiscovered, CandidacyReasonNone, -1
+	if c.matchesGitExpression(comp) {
+		return StatusReadyForFilter, CandidacyReasonNone, -1
 	}
 
 	if graphIdx := c.matchesGraphExpressionTarget(comp); graphIdx >= 0 {
@@ -177,32 +192,25 @@ func (c *Classifier) Classify(comp component.Component, classCtx ClassificationC
 		return StatusCandidate, CandidacyReasonPotentialDependent, -1
 	}
 
-	if len(c.negatedExprs) > 0 && !hasNegativeMatch {
-		return StatusDiscovered, CandidacyReasonNone, -1
-	}
-
 	if c.hasPositiveFilters {
 		return StatusExcluded, CandidacyReasonNone, -1
 	}
 
-	return StatusDiscovered, CandidacyReasonNone, -1
+	return StatusReadyForFilter, CandidacyReasonNone, -1
 }
 
 // analyzeExpression recursively analyzes an expression and categorizes it.
 func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
 	switch node := expr.(type) {
 	case *PathExpression:
-		c.filesystemExprs = append(c.filesystemExprs, node)
-		c.hasPositiveFilters = true
+		c.pathExprs = append(c.pathExprs, node)
 
 	case *AttributeExpression:
 		if _, requiresParse := node.RequiresParse(); requiresParse {
 			c.parseExprs = append(c.parseExprs, node)
 		} else {
-			c.filesystemExprs = append(c.filesystemExprs, node)
+			c.attributeExprs = append(c.attributeExprs, node)
 		}
-
-		c.hasPositiveFilters = true
 
 	case *GraphExpression:
 		info := &GraphExpressionInfo{
@@ -216,11 +224,9 @@ func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
 			DependentDepth:      node.DependentDepth,
 		}
 		c.graphExprs = append(c.graphExprs, info)
-		c.hasPositiveFilters = true
 
 	case *GitExpression:
 		c.gitExprs = append(c.gitExprs, node)
-		c.hasPositiveFilters = true
 
 	case *PrefixExpression:
 		// Right now, the only prefix operator is "!".
@@ -274,27 +280,18 @@ func (c *Classifier) matchesAnyNegated(comp component.Component) bool {
 	})
 }
 
-// matchesAnyPositive checks if the component matches any positive (non-negated) expression.
-func (c *Classifier) matchesAnyPositive(comp component.Component, classCtx ClassificationContext) bool {
-	if c.matchesFilesystemExpression(comp) {
-		return true
-	}
-
+// matchesAnyPositive checks if the component matches a positive expression that
+// requires delaying the negation-based exclusion. Graph expression targets and
+// git expressions qualify because they involve traversal or worktree comparison
+// that must complete before the final evaluation can determine inclusion.
+// Path and attribute expressions do not prevent early exclusion, since negated
+// filters always apply after positive filters in the final evaluation.
+func (c *Classifier) matchesAnyPositive(comp component.Component) bool {
 	if c.matchesGraphExpressionTarget(comp) >= 0 {
 		return true
 	}
 
-	if c.matchesGitExpression(comp) {
-		return true
-	}
-
-	if !classCtx.ParseDataAvailable || len(c.parseExprs) == 0 {
-		return false
-	}
-
-	return slices.ContainsFunc(c.parseExprs, func(expr Expression) bool {
-		return MatchComponent(comp, expr)
-	})
+	return c.matchesGitExpression(comp)
 }
 
 // matchesGitExpression checks if a component matches any git expression.
@@ -310,9 +307,16 @@ func (c *Classifier) matchesGitExpression(comp component.Component) bool {
 	})
 }
 
-// matchesFilesystemExpression checks if the component matches any filesystem-evaluable expression.
-func (c *Classifier) matchesFilesystemExpression(comp component.Component) bool {
-	return slices.ContainsFunc(c.filesystemExprs, func(expr Expression) bool {
+// matchesPathExpression checks if the component matches any path expression.
+func (c *Classifier) matchesPathExpression(comp component.Component) bool {
+	return slices.ContainsFunc(c.pathExprs, func(expr Expression) bool {
+		return MatchComponent(comp, expr)
+	})
+}
+
+// matchesAttributeExpression checks if the component matches any non-parse attribute expression.
+func (c *Classifier) matchesAttributeExpression(comp component.Component) bool {
+	return slices.ContainsFunc(c.attributeExprs, func(expr Expression) bool {
 		return MatchComponent(comp, expr)
 	})
 }

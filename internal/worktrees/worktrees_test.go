@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -27,7 +28,7 @@ func TestNewWorktrees(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -71,8 +72,7 @@ func TestNewWorktrees(t *testing.T) {
 	w, err := worktrees.NewWorktrees(
 		t.Context(),
 		logger.CreateLogger(),
-		tmpDir,
-		filters.UniqueGitFilters(),
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
 	)
 	require.NoError(t, err)
 
@@ -90,7 +90,7 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize Git repository
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -129,8 +129,7 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	_, err = worktrees.NewWorktrees(
 		t.Context(),
 		logger.CreateLogger(),
-		tmpDir,
-		filters.UniqueGitFilters(),
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
 	)
 	require.Error(t, err)
 }
@@ -200,16 +199,16 @@ func TestExpressionExpansion(t *testing.T) {
 			expectedToReadings: []string{"app1/main.tf", "app1/variables.tf", "app2/data.tf"},
 		},
 		{
-			name: "changed stack files are skipped",
+			name: "changed stack files create reading filters",
 			diffs: &git.Diffs{
 				Changed: []string{
 					"stack/terragrunt.stack.hcl",
 				},
 			},
 			expectedFrom:       0,
-			expectedTo:         0,
+			expectedTo:         1,
 			expectedToPaths:    []string{},
-			expectedToReadings: []string{},
+			expectedToReadings: []string{"stack/terragrunt.stack.hcl"},
 		},
 		{
 			name: "mixed file types create appropriate filters",
@@ -228,9 +227,9 @@ func TestExpressionExpansion(t *testing.T) {
 				},
 			},
 			expectedFrom:       1,
-			expectedTo:         4,
+			expectedTo:         5,
 			expectedToPaths:    []string{"app-added", "app-modified"},
-			expectedToReadings: []string{"app-modified/main.tf", "other/file.hcl"},
+			expectedToReadings: []string{"app-modified/main.tf", "stack/terragrunt.stack.hcl", "other/file.hcl"},
 		},
 	}
 
@@ -240,7 +239,7 @@ func TestExpressionExpansion(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -387,7 +386,7 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -693,7 +692,7 @@ func TestWorktreeCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize Git repository
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -733,8 +732,7 @@ func TestWorktreeCleanup(t *testing.T) {
 	_, err = worktrees.NewWorktrees(
 		t.Context(),
 		logger.CreateLogger(),
-		tmpDir,
-		filters.UniqueGitFilters(),
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
 	)
 	require.Error(t, err)
 

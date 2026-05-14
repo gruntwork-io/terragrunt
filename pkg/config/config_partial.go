@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -269,7 +270,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, TerragruntConfigNotFoundError{Path: configPath}
 		}
 
@@ -321,7 +322,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 // filename, configString, includeFromChild and decodeList are used for the cache key,
 // by getting the default value (%#v) through fmt.
 func TerragruntConfigFromPartialConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-	var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList, pctx.TerragruntConfigPath)
+	cacheKey := fmt.Sprintf("%#v-%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList, pctx.TerragruntConfigPath)
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, TerragruntConfigCacheContextKey)
 	if pctx.UsePartialParseConfigCache {
@@ -386,6 +387,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	// See: https://github.com/gruntwork-io/terragrunt/issues/4983
 	if err := DetectDeprecatedConfigurations(ctx, pctx, l, file); err != nil {
 		return nil, err
+	}
+
+	if includeFromChild != nil && includeFromChild.Path != "" && !filepath.IsAbs(includeFromChild.Path) {
+		includeFromChild.Path = filepath.Clean(filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includeFromChild.Path))
 	}
 
 	pctx = pctx.WithTrackInclude(nil)
@@ -605,33 +610,20 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 	// If this file includes another, parse and merge the partial blocks. Otherwise, just return this config.
 	// If there have been errors during this parse, don't attempt to parse the included config.
-	if len(pctx.TrackInclude.CurrentList) > 0 && !errsContainsIncludeErr {
-		includeCount := len(pctx.TrackInclude.CurrentList)
-		includePaths := make([]string, 0, includeCount)
-
-		for _, inc := range pctx.TrackInclude.CurrentList {
-			if inc.Path != "" {
-				includePaths = append(includePaths, inc.Path)
-			}
-		}
-
-		var config *TerragruntConfig
-
-		err := TraceParseIncludeMerge(ctx, file.ConfigPath, includeCount, includePaths, func(ctx context.Context) error {
-			var mergeErr error
-
-			config, mergeErr = handleInclude(ctx, pctx, l, output, true)
-
-			return mergeErr
-		})
+	// TrackInclude is nil when DecodeBaseBlocks returned (nil, err), e.g. an invalid feature
+	// default. Skip the merge in that case and let the error surface at the return below.
+	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 && !errsContainsIncludeErr {
+		config, err := handleInclude(ctx, pctx, l, output, true)
 		if err != nil {
 			errs = errs.Append(err)
 		}
 
-		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
-		config.ProcessedIncludes = pctx.TrackInclude.CurrentMap
-
-		output = config
+		// handleInclude returns nil when a Merge/DeepMerge fails; keep the pre-include output so the
+		// appended error surfaces below instead of panicking on a nil ProcessedIncludes assignment.
+		if config != nil {
+			config.ProcessedIncludes = pctx.TrackInclude.CurrentMap
+			output = config
+		}
 	}
 
 	if errs.ErrorOrNil() != nil {
@@ -676,10 +668,6 @@ func partialParseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log
 	}
 
 	includePath := includedConfig.Path
-
-	if !filepath.IsAbs(includePath) {
-		includePath = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includePath)
-	}
 
 	config, err := PartialParseConfigFile(
 		ctx,

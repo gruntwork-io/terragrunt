@@ -27,7 +27,7 @@ The Gruntwork recommended best practice for creating reusable IaC is to create a
 To reorganize the resources that we've created so far into reusable modules, we'll create a directory called `catalog/modules` where we can store our modules for reusability. We'll create an OpenTofu module for each piece of high-level functionality that we are provisioning in our current environment (`s3`, `lambda`, `iam` and `ddb`).
 
 ```bash
-mkdir -p catalog/modules/{s3, lambda, iam, ddb}
+mkdir -p catalog/modules/{s3,lambda,iam,ddb}
 ```
 
 Now we can move over the files that were provisioning these independent resources into their own modules so we can establish APIs for them and start reusing some of this code. It's a pretty standard convention to name the core file used in a module `main.tf`. Good modules do one thing, and if you can't figure out what a module does by the name of the module, it's probably indicative that you're making an odd abstraction.
@@ -152,9 +152,9 @@ And introduced resources at addresses the like the following:
 
 The reason for this is that OpenTofu doesn't really have a way of knowing the difference between moving a file like that for the sake of reorganization and completely removing infrastructure in one place and adding it in another without some help from IaC authors.
 
-The way we communicate to OpenTofu that a resource at one address has simply moved to a new address is to introduce `move` blocks.
+The way we communicate to OpenTofu that a resource at one address has simply moved to a new address is to introduce `moved` blocks.
 
-For each resource that we want to move, we'll want to introduce a `move` block with a `from` of the old address (what OpenTofu reports as being destroyed in our plan) and a `to` of the equivalent new address (what OpenTofu reports as being created in our plan).
+For each resource that we want to move, we'll want to introduce a `moved` block with a `from` of the old address (what OpenTofu reports as being destroyed in our plan) and a `to` of the equivalent new address (what OpenTofu reports as being created in our plan).
 
 import liveMovedTf from '../../../../fixtures/terralith-to-terragrunt/walkthrough/step-2-refactoring/live/moved.tf?raw';
 

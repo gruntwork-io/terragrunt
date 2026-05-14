@@ -489,6 +489,10 @@ func excludeConfigAsCty(config *ExcludeConfig) (cty.Value, error) {
 
 // CtyTerraformConfig is an alternate representation of TerraformConfig that converts internal blocks into a map that
 // maps the name to the underlying struct, as opposed to a list representation.
+//
+// Fields that should be omitted when nil (rather than serialized as null) must not be included in this struct.
+// Instead, conditionally add them to the cty value in terraformConfigAsCty using ctyObjectAddField.
+// This is necessary because gocty does not support omitempty semantics.
 type CtyTerraformConfig struct {
 	ExtraArgs             map[string]TerraformExtraArguments `cty:"extra_arguments"`
 	Source                *string                            `cty:"source"`
@@ -533,7 +537,22 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 		configCty.ErrorHooks[errorHook.Name] = errorHook
 	}
 
-	return GoTypeToCty(configCty)
+	val, err := GoTypeToCty(configCty)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	// Only include update_source_with_cas when explicitly set, to avoid
+	// surfacing it as null in outputs for configs that don't use it.
+	if config.UpdateSourceWithCAS != nil {
+		val = ctyObjectAddField(val, "update_source_with_cas", goboolToCty(*config.UpdateSourceWithCAS))
+	}
+
+	if config.Mutable != nil {
+		val = ctyObjectAddField(val, "mutable", goboolToCty(*config.Mutable))
+	}
+
+	return val, nil
 }
 
 // RemoteStateAsCty serializes RemoteState to a cty Value. We can't directly
@@ -836,6 +855,18 @@ func goboolToCty(val bool) cty.Value {
 	}
 
 	return ctyOut
+}
+
+// ctyObjectAddField returns a new cty object value with an additional attribute.
+func ctyObjectAddField(obj cty.Value, name string, val cty.Value) cty.Value {
+	attrs := obj.AsValueMap()
+	if attrs == nil {
+		attrs = map[string]cty.Value{}
+	}
+
+	attrs[name] = val
+
+	return cty.ObjectVal(attrs)
 }
 
 // FormatValue converts a primitive value to its string representation.

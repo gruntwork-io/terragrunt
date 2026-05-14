@@ -24,26 +24,22 @@ jobs:
             target: ./test
             setup_scripts:
               - .github/scripts/setup/terraform-switch-latest.sh
-          - name: SSH
+          - name: Independent Integration Tests
             os: ubuntu
             target: ./...
             setup_scripts:
               - .github/scripts/setup/ssh.sh
-            tags: ssh
-            run: '^TestSSH'
-            secrets: [GHA_DEPLOY_KEY]
-          - name: SOPS
-            os: ubuntu
-            target: ./...
-            setup_scripts:
               - .github/scripts/setup/sops.sh
-            tags: sops
-            run: '^TestSOPS'
+              - .github/scripts/setup/engine.sh
+              - .github/scripts/setup/generate-mocks.sh
+            tags: "ssh,sops,deprecated,mocks,engine"
+            run: "^(TestSSH|TestSOPS|TestDeprecated|TestMock|TestEngine)"
+            secrets: [GHA_DEPLOY_KEY]
           - name: Tflint
             os: ubuntu
             target: ./...
             tags: tflint
-            run: '^TestTflint'
+            run: "^TestTflint"
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
           - name: GCP
             os: ubuntu
@@ -51,22 +47,40 @@ jobs:
             setup_scripts:
               - .github/scripts/setup/gcp.sh
             tags: gcp
-            run: '^TestGcp'
-            secrets: [GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID, GCLOUD_SERVICE_KEY_IMPERSONATOR]
+            run: "^TestGcp"
+            secrets:
+              [
+                GCLOUD_SERVICE_KEY,
+                GOOGLE_CLOUD_PROJECT,
+                GOOGLE_COMPUTE_ZONE,
+                GOOGLE_IDENTITY_EMAIL,
+                GOOGLE_PROJECT_ID,
+                GCLOUD_SERVICE_KEY_IMPERSONATOR,
+              ]
           - name: AWS Tofu
             os: ubuntu
             target: ./...
-            tags: 'aws,tofu'
-            run: '^TestAws'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
+            tags: "aws,tofu"
+            run: "^TestAws"
+            secrets:
+              [
+                AWS_ACCESS_KEY_ID,
+                AWS_SECRET_ACCESS_KEY,
+                AWS_TEST_S3_ASSUME_ROLE,
+              ]
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
           - name: AWS with Latest Terraform
             os: ubuntu
             target: ./...
             tags: aws
-            run: '^TestAws'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
+            run: "^TestAws"
+            secrets:
+              [
+                AWS_ACCESS_KEY_ID,
+                AWS_SECRET_ACCESS_KEY,
+                AWS_TEST_S3_ASSUME_ROLE,
+              ]
             setup_scripts:
               - .github/scripts/setup/terraform-switch-latest.sh
           - name: AWSGCP
@@ -75,22 +89,24 @@ jobs:
             setup_scripts:
               - .github/scripts/setup/gcp.sh
             tags: awsgcp
-            run: '^TestAwsGcp'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
-          - name: Engine
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/engine.sh
-            tags: engine
-            run: '^TestEngine'
+            run: "^TestAwsGcp"
+            secrets:
+              [
+                AWS_ACCESS_KEY_ID,
+                AWS_SECRET_ACCESS_KEY,
+                GCLOUD_SERVICE_KEY,
+                GOOGLE_CLOUD_PROJECT,
+                GOOGLE_COMPUTE_ZONE,
+                GOOGLE_IDENTITY_EMAIL,
+                GOOGLE_PROJECT_ID,
+              ]
           - name: Windows
             os: windows
             target: ./...
             setup_scripts:
               - .github/scripts/setup/windows-setup.ps1
             tags: windows
-            run: '^TestWindows'
+            run: "^TestWindows"
           - name: Provider Cache Server with Latest Terraform
             os: ubuntu
             target: ./test
@@ -104,38 +120,29 @@ jobs:
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/tofu-switch.sh
-          - name: Deprecated
-            os: ubuntu
-            target: ./...
-            tags: deprecated
-            run: '^TestDeprecated'
-          - name: Mock
-            os: ubuntu
-            target: ./...
-            tags: mocks
-            run: '^TestMock'
-            setup_scripts:
-              - .github/scripts/setup/generate-mocks.sh
           - name: Race
             os: ubuntu
             target: ./...
-            run: '.*WithRacing'
+            run: ".*WithRacing"
             test_args: "-race"
           - name: Parse
             os: ubuntu
             target: ./...
             tags: parse
-            run: '^TestParse'
-          - name: CAS
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/cas.sh
+            run: "^TestParse"
           - name: Experiment mode
             os: ubuntu
             target: ./...
             setup_scripts:
               - .github/scripts/setup/experiment-mode.sh
+          - name: Exec
+            os: ubuntu
+            target: ./internal/vexec/...
+            tags: exec
+          - name: Exec Windows
+            os: windows
+            target: ./internal/vexec/...
+            tags: exec
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -145,7 +152,7 @@ jobs:
       - name: "Setup Docker"
         if: runner.os == 'Linux'
         id: set-up-docker
-        uses: docker/setup-docker-action@v4
+        uses: docker/setup-docker-action@1a6edb0ba9ac496f6850236981f15d8f9a82254d # v5
 
       - name: "Save space on node"
         if: runner.os != 'Windows'
@@ -155,16 +162,9 @@ jobs:
           sudo docker builder prune -a
           df -h
 
-      - name: "Mount tmpfs"
-        shell: bash
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p /home/runner/.cache/go-build
-          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
-
       # install dependencies for the integration tests
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           version: 2026.1.9
           experimental: true
@@ -213,7 +213,7 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ${{ steps.go-cache-paths.outputs.go-build }}
@@ -224,7 +224,7 @@ jobs:
 
       - name: Terragrunt Provider Cache
         if: runner.os == 'Linux'
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/terragrunt
           key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
@@ -268,13 +268,13 @@ jobs:
             result.xml
 
       - name: Display Test Results (${{ matrix.integration.name }})
-        uses: mikepenz/action-junit-report@a294a61c909bd8a4b563024a2faa28897fd53ebc # v6
+        uses: mikepenz/action-junit-report@49b2ca06f62aa7ef83ae6769a2179271e160d8e4 # v6
         if: always()
         with:
           report_paths: result.xml
-          detailed_summary: 'true'
-          include_time_in_summary: 'true'
-          group_suite: 'true'
+          detailed_summary: "true"
+          include_time_in_summary: "true"
+          group_suite: "true"
 
       - name: Print Failed Tests (${{ matrix.integration.name }})
         run: |

@@ -8,6 +8,8 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
@@ -67,7 +69,7 @@ The `terraform` block supports the following arguments:
   *Note that using `include_in_copy` and `exclude_from_copy` are not mutually exclusive.*
   If a file matches a pattern in both `include_in_copy` and `exclude_from_copy`, it will not be included. If you would like to ensure that the file *is* included, make sure the patterns you use for `include_in_copy` do not match the patterns in `exclude_from_copy`.
 
-  *Note that if you wish to exclude files from being copied from a terraform module source, you should use the [before_hook](/features/hooks) feature.*
+  *Note that if you wish to exclude files from being copied from a terraform module source, you should use the [before_hook](/features/units/hooks) feature.*
 
 - `copy_terraform_lock_file` (attribute): In certain use cases, you don't want to check the terraform provider lock
   file into your source repository from your working directory as described in
@@ -75,7 +77,7 @@ The `terraform` block supports the following arguments:
   of the generated or existing `.terraform.lock.hcl` from the temp folder into the working directory. Default is `true`.
 
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `tofu`/`terraform` binary. Learn more
-  about its usage in the [Keep your CLI flags DRY](/features/extra-arguments) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY](/features/units/extra-arguments) use case overview. Supports
   the following arguments:
 
   - `arguments` (required) : A list of CLI arguments to pass to `tofu`/`terraform`.
@@ -111,6 +113,25 @@ The `terraform` block supports the following arguments:
   error must match one of the expressions listed in the `on_errors` attribute. Error hooks are executed after the before/after hooks.
   To handle errors during source download (when using the `source` attribute), use `init-from-module` in the `commands` list.
 
+<Before version="1.0.5">
+
+<Aside type="tip">
+A `mutable` attribute that opts a `terraform` block out of CAS hardlinking is coming in v1.0.5.
+</Aside>
+
+</Before>
+
+<Since version="1.0.5">
+
+- `mutable` (attribute): When `true`, content fetched into `.terragrunt-cache` through the
+  [content-addressable storage (CAS)](/features/caching/cas) is copied from the CAS store and the
+  working tree under `.terragrunt-cache` is editable. The default is `false`: files are
+  materialized read-only so an accidental edit cannot reach back into the shared CAS store. The
+  flag has no effect when CAS is not used to fetch the source; the standard download path already
+  produces an independent, writable copy.
+
+</Since>
+
 In addition to supporting before and after hooks for all OpenTofu/Terraform commands, the following specialized hooks are also
 supported:
 
@@ -122,7 +143,7 @@ supported:
 
 - `init-from-module` and `init`: Terragrunt has two stages of initialization: one is to download [remote
   configurations](/features/units) using `go-getter`; the other
-  is [Auto-Init](/features/auto-init), which configures the backend and downloads
+  is [Auto-Init](/features/units/auto-init), which configures the backend and downloads
   provider plugins and modules. If you wish to run a hook when Terragrunt is using `go-getter` to download remote
   configurations, use `init-from-module` for the command. This includes `error_hook` blocks to handle download failures.
   If you wish to execute a hook when Terragrunt is using
@@ -306,7 +327,7 @@ instead of the module repository.**
 
 The `remote_state` block is used to configure how Terragrunt will set up the remote state configuration of your
 OpenTofu/Terraform code. You can read more about Terragrunt's remote state functionality in [Keep your remote state configuration
-DRY](/features/state-backend/) use case overview.
+DRY](/features/units/state-backend/) use case overview.
 
 The `remote_state` block supports the following arguments:
 
@@ -485,13 +506,14 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `gcs_bucket_labels`: A map of key value pairs to associate as labels on the created GCS bucket.
 - `credentials`: Local path to Google Cloud Platform account credentials in JSON format.
 - `access_token`: A temporary [OAuth 2.0 access token] obtained from the Google Authorization server.
-  Example with S3:
+
+Example with S3:
 
 ```hcl
 # root.hcl
 
 # Configure OpenTofu/Terraform state to be stored in S3, in the bucket "my-tofu-state" in us-east-1 under a key that is
-# relative to included terragrunt config. For example, if you had the following folder structure:
+# relative to included terragrunt config. For example, if you had the following filesystem layout:
 #
 # .
 # ├── root.hcl
@@ -539,7 +561,7 @@ Example with GCS:
 # the eu region under a key that is relative to included terragrunt config. This will also apply the labels
 # "owner=terragrunt_test" and "name=tofu_state_storage" to the bucket if it is created by Terragrunt.
 #
-# For example, if you had the following folder structure:
+# For example, if you had the following filesystem layout:
 #
 # .
 # ├── root.hcl
@@ -680,7 +702,7 @@ terraform {
 The `include` block is used to specify inheritance of Terragrunt configuration files. The included config (also called
 the `parent`) will be merged with the current configuration (also called the `child`) before processing. You can learn
 more about the inheritance properties of Terragrunt in the [Filling in remote state settings with Terragrunt
-section](/features/state-backend/#generating-remote-state-settings-with-terragrunt) of the
+section](/features/units/state-backend/#generating-remote-state-settings-with-terragrunt) of the
 "Keep your remote state configuration DRY" use case overview.
 
 You can have more than one `include` block, but each one must have a unique label. It is recommended to always label
@@ -716,7 +738,7 @@ Examples:
 ```hcl
 # root.hcl
 
-# If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
+# If you have the following filesystem layout, and the following contents for ./child/terragrunt.hcl, this will include
 # and merge the configurations in the root.hcl file.
 #
 # .
@@ -760,7 +782,7 @@ terraform {
 ```hcl
 # root.hcl
 
-# If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
+# If you have the following filesystem layout, and the following contents for ./child/terragrunt.hcl, this will include
 # and merge the configurations in the root.hcl, while only loading the data in the region.hcl
 # configuration.
 #
@@ -1226,7 +1248,7 @@ Use this feature judiciously.
 The `dependency` block is used to configure module dependencies. Each dependency block exports the outputs of the target
 module as block attributes you can reference throughout the configuration. You can learn more about `dependency` blocks
 in the [Dependencies between modules
-section](/features/stacks#dependencies-between-units) of the
+section](/features/stacks/stack-operations#dependencies-between-units) of the
 "Execute Opentofu/Terraform commands on multiple modules at once" use case overview.
 
 You can define more than one `dependency` block. Each label you provide to the block identifies another `dependency`
@@ -1434,10 +1456,37 @@ locals {
 generate = local.common.generate
 ```
 
+## catalog
+
+The `catalog` block is used to configure IaC catalogs for use with the [`catalog`](/reference/cli/commands/catalog) and [`scaffold`](/reference/cli/commands/scaffold) commands. It defines where Terragrunt should look for reusable patterns like OpenTofu/Terraform modules and Boilerplate templates, in addition to configuring behavior for scaffolding.
+
+The `catalog` block supports the following attributes:
+
+- `urls` (attribute, required): A list of URLs pointing to module catalogs. These can be local file paths or remote URLs (e.g., GitHub repositories). Relative paths are resolved relative to the configuration file.
+- `default_template` (attribute, optional): Path to a default [Boilerplate](https://github.com/gruntwork-io/boilerplate) template to use when scaffolding modules that don't include their own `.boilerplate` directory.
+- `no_shell` (attribute, optional): When `true`, disables shell command execution in Boilerplate templates during scaffolding. Defaults to `false`. Can be overridden via the `--no-shell` CLI flag.
+- `no_hooks` (attribute, optional): When `true`, disables hook execution in Boilerplate templates during scaffolding. Defaults to `false`. Can be overridden via the `--no-hooks` CLI flag.
+
+Example:
+
+```hcl
+# terragrunt.hcl
+
+catalog {
+  urls = [
+    "/Users/acme/modules",
+    "github.com/acme/infrastructure-modules",
+  ]
+  default_template = "/Users/acme/templates/default"
+}
+```
+
+For more details, see the [Catalog feature documentation](/features/catalog).
+
 ## engine
 
 The `engine` block is used to configure experimental Terragrunt engine configuration.
-More details in [engine section](https://docs.terragrunt.com/features/engine/).
+More details in [engine section](https://docs.terragrunt.com/features/units/engine/).
 
 ## feature
 

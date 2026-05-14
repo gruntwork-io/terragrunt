@@ -6,7 +6,10 @@ sidebar:
   order: 4
 ---
 
+import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
 
@@ -93,7 +96,7 @@ include "root" {
 ```
 
 Note that this function searches relative to the `terragrunt.hcl` file when called from a parent config. For
-example, if you had the following folder structure:
+example, if you had the following filesystem layout:
 
 <FileTree>
 
@@ -122,7 +125,7 @@ finding the `env.hcl` file in the `prod` directory.
 
 ## path_relative_to_include
 
-`path_relative_to_include()` returns the relative path between the current `terragrunt.hcl` file and the `path` specified in its `include` block. For example, consider the following folder structure:
+`path_relative_to_include()` returns the relative path between the current `terragrunt.hcl` file and the `path` specified in its `include` block. For example, consider the following filesystem layout:
 
 <FileTree>
 
@@ -186,7 +189,7 @@ terraform {
 
 ## path_relative_from_include
 
-`path_relative_from_include()` returns the relative path between the `path` specified in its `include` block and the current `terragrunt.hcl` file (it is the counterpart of `path_relative_to_include()`). For example, consider the following folder structure:
+`path_relative_from_include()` returns the relative path between the `path` specified in its `include` block and the current `terragrunt.hcl` file (it is the counterpart of `path_relative_to_include()`). For example, consider the following filesystem layout:
 
 <FileTree>
 
@@ -529,7 +532,7 @@ configs via `read_terragrunt_config()`.
 
 ## get_terraform_commands_that_need_vars
 
-`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments](/features/units/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -544,7 +547,7 @@ terraform {
 
 ## get_terraform_commands_that_need_input
 
-`get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments](/features/units/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -560,7 +563,7 @@ terraform {
 
 ## get_terraform_commands_that_need_locking
 
-`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments](/features/units/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -576,7 +579,7 @@ terraform {
 
 ## get_terraform_commands_that_need_parallelism
 
-`get_terraform_commands_that_need_parallelism()` returns the list of terraform commands that accept the `-parallelism` parameter. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_parallelism()` returns the list of terraform commands that accept the `-parallelism` parameter. This function is used when defining [extra_arguments](/features/units/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -1041,6 +1044,62 @@ The same technique can be used to mark a file as read when a file is read using 
 **NOTE**: Due to the way that Terragrunt parses configurations during a `run --all`, functions will only properly mark files as read
 if they are used in the `locals` block. Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs`
 block is not evaluated until *after* the queue has been populated with units to run.
+
+## mark_glob_as_read
+
+<Before version="1.0.3">
+
+<Aside type="tip">
+Coming soon!
+</Aside>
+
+</Before>
+
+<Since version="1.0.3">
+
+<Aside type="caution">
+`mark_glob_as_read` requires the [`mark-many-as-read`](/reference/experiments) experiment. Calling it without the experiment enabled returns an error.
+</Aside>
+
+<Aside type="caution">
+`mark_glob_as_read` writes to the same read tracker as [`mark_as_read`](#mark_as_read), so the same evaluation-order caveat applies: during a `run --all`, the queue is populated before `inputs` is evaluated, so a call placed in `inputs` (or any other later-evaluated block) will not influence queue construction. Call `mark_glob_as_read` from `locals` to ensure matched files are considered when the queue is built.
+</Aside>
+
+`mark_glob_as_read(pattern)` expands the given glob and marks every matching file as read. It returns the list of absolute paths that matched, so it can be composed with other expressions.
+
+Pattern syntax follows [`gobwas/glob`](https://github.com/gobwas/glob), the same matcher used elsewhere in Terragrunt. `/` is the path separator, `*` matches within a single segment, `**` matches any sequence of characters including separators, `?` matches any single non-separator character, `[abc]` matches a character class, and `{a,b}` matches any of the listed alternatives. A backslash escapes the following metacharacter.
+
+Relative patterns are resolved against the current working directory, the same way `mark_as_read` resolves a relative file path.
+
+<Aside type="caution">
+Glob patterns must use forward slashes (`/`) as the path separator, even on Windows. The matcher treats `\` as an escape character, not a path separator, so a backslash-separated pattern will not match any files.
+</Aside>
+
+<Aside type="caution">
+`**` only collapses the separators around it when the adjacent segments are literals. `config/**/*.yaml` matches files at least one directory below `config/`, but not files directly inside `config/`, because the trailing segment `*.yaml` is a wildcard. Use brace alternation to match at any depth:
+
+```hcl
+mark_glob_as_read("${get_terragrunt_dir()}/config/{*.yaml,**/*.yaml}")
+```
+</Aside>
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  configs = mark_glob_as_read("${get_terragrunt_dir()}/config/{*.yaml,**/*.yaml}")
+}
+
+inputs = {
+  configs = [for f in local.configs : yamldecode(file(f))]
+}
+```
+
+A typical use case is a unit that consumes a directory of configuration files indirectly (for example, through `run_cmd`, `templatefile`, or a shared helper module) and wants changes to any of them to trigger the unit through [reading-based filter expressions](/features/filter/attributes#reading-based-expressions) such as `--filter 'reading=./config/**'`.
+
+If the pattern matches nothing, the function returns an empty list without error.
+
+</Since>
 
 ## constraint_check
 

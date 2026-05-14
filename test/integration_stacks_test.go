@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -62,6 +65,7 @@ const (
 	testFixtureStackOriginalTerragruntDir      = "fixtures/stacks/get-original-terragrunt-dir"
 	testFixtureStackVersionConstraints         = "fixtures/stacks/version-constraints"
 	testFixtureStackCoexistHclAndStack         = "fixtures/stacks/coexist-hcl-and-stack"
+	testFixtureStackExcludeOutput              = "fixtures/stacks/exclude-output"
 )
 
 func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
@@ -71,13 +75,14 @@ func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --queue-include-dir .terragrunt-stack/chicks/chick-2 --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --queue-include-dir .terragrunt-stack/chicks/chick-2 --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-1")
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/father")
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/mother")
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-2")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/chicks/chick-1"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/father"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/mother"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/chicks/chick-2"))
 
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -94,16 +99,17 @@ func TestStacksGenerateBasicWithFilterFlag(t *testing.T) {
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all plan --filter './.terragrunt-stack/chicks/chick-2' --working-dir "+rootPath,
+		"terragrunt run --all plan --filter './.terragrunt-stack/chicks/chick-2' --report-file report.json --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-1")
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/father")
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/mother")
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-2")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/chicks/chick-1"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/father"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/mother"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/chicks/chick-2"))
 
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -116,16 +122,17 @@ func TestStacksGenerateBasicWithQueueExcludeDirFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all plan --queue-exclude-dir .terragrunt-stack/chicks/chick-2 --working-dir "+rootPath,
+		"terragrunt run --all plan --queue-exclude-dir .terragrunt-stack/chicks/chick-2 --report-file report.json --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-1")
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/father")
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/mother")
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-2")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/chicks/chick-1"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/father"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/mother"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/chicks/chick-2"))
 
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -151,7 +158,7 @@ func TestNestedStacksGenerate(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -181,7 +188,7 @@ func TestStacksGenerateErrorOnCoexistingHclAndStackFiles(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackCoexistHclAndStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackCoexistHclAndStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -207,7 +214,7 @@ func TestStacksGenerateLocals(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureStacksLocals)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocals)
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)
@@ -402,7 +409,7 @@ func TestStackCleanRecursively(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -716,7 +723,7 @@ func TestNestedStackOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -769,7 +776,7 @@ func TestNestedStacksApply(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -797,7 +804,7 @@ func TestStackValuesGeneration(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -823,7 +830,7 @@ func TestStackValuesApply(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -860,7 +867,7 @@ func TestStackValuesOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -932,10 +939,11 @@ func TestStackApplyWithDependency(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --non-interactive --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that data.txt exists in the cache directory (since terraform now runs from cache)
 	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
@@ -949,10 +957,11 @@ func TestStackApplyWithDependencyParallelism(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 10 --non-interactive --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 10 --non-interactive --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that data.txt exists in the cache directory (since terraform now runs from cache)
 	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
@@ -966,10 +975,11 @@ func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 1 --non-interactive --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 1 --non-interactive --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that data.txt exists in the cache directory (since terraform now runs from cache)
 	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
@@ -985,9 +995,11 @@ func TestStackApplyDestroyWithDependency(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --non-interactive --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --non-interactive --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that the data.txt file was deleted
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
@@ -1038,15 +1050,16 @@ func TestStackApplyStrictInclude(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --non-interactive --working-dir "+rootPath)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run apply --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath,
+		"terragrunt stack run apply --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --report-file report.json --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app1")
-	assert.NotContains(t, stderr, "Unit .terragrunt-stack/app2")
-	assert.NotContains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app1"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/app2"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that test file wasn't created
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
@@ -1066,15 +1079,16 @@ func TestStackApplyStrictIncludeWithFilter(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --non-interactive --working-dir "+rootPath)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run apply --filter ./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath,
+		"terragrunt stack run apply --filter ./.terragrunt-stack/app1 --non-interactive --report-file report.json --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app1")
-	assert.NotContains(t, stderr, "Unit .terragrunt-stack/app2")
-	assert.NotContains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app1"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/app2"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that test file wasn't created
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
@@ -1141,12 +1155,14 @@ func TestStacksSourceMapModule(t *testing.T) {
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+"  --non-interactive --working-dir "+rootPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+"  --non-interactive --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app1")
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app2")
+
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app1"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app2"))
 }
 
 func TestStacksGenerateAbsolutePathError(t *testing.T) {
@@ -1156,7 +1172,7 @@ func TestStacksGenerateAbsolutePathError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackAbsolutePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackAbsolutePath, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -1179,7 +1195,7 @@ func TestStacksGenerateIncorrectSource(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackIncorrectSource)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackIncorrectSource, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -1203,7 +1219,7 @@ func TestStacksGenerateRelativePathError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackRelativePathOutsideOfStack)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackRelativePathOutsideOfStack, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -1229,7 +1245,7 @@ func TestStacksGenerateNoStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNoStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1251,7 +1267,7 @@ func TestStacksApplyNoStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNoStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1273,7 +1289,7 @@ func TestStacksCyclesErrors(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackCycles)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackCycles)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1353,7 +1369,7 @@ func TestStacksReadFiles(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureReadStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1473,7 +1489,7 @@ func TestStackUnitValidation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationUnitPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValidationUnitPath)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1505,7 +1521,7 @@ func TestStackValidation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationStackPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValidationStackPath)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1581,7 +1597,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNestedOutputs)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackNestedOutputs)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1740,14 +1756,15 @@ func TestStacksNoValidation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNoValidation)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackNoValidation, "live")
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run plan --non-interactive --working-dir "+rootPath,
+		"terragrunt stack run plan --non-interactive --report-file report.json --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/stack1/stack1/.terragrunt-stack/unit2/app1/code")
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/unit1/app1/code")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/stack1/stack1/.terragrunt-stack/unit2/app1/code"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/unit1/app1/code"))
 
 	assert.Contains(t, stdout, "Plan: 1 to add, 0 to change, 0 to destroy")
 	assert.Contains(t, stdout, "local_file.file will be created")
@@ -1782,7 +1799,7 @@ func TestStackTerragruntDir(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackTerragruntDir)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackTerragruntDir)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1848,12 +1865,12 @@ func TestStackOriginalTerragruntDir(t *testing.T) {
 		content, readErr := os.ReadFile(valuesPath)
 		require.NoError(t, readErr)
 
-		idx := strings.Index(valuesPath, string(os.PathSeparator)+dotStackDirName+string(os.PathSeparator))
-		if idx == -1 {
+		before, _, ok := strings.Cut(valuesPath, string(os.PathSeparator)+dotStackDirName+string(os.PathSeparator))
+		if !ok {
 			continue
 		}
 
-		expected := valuesPath[:idx]
+		expected := before
 
 		isNoLocals := strings.Contains(valuesPath, "no-locals")
 		isNestedReadConfig := strings.Contains(valuesPath, "read-config-nested")
@@ -1940,17 +1957,18 @@ func TestStackFindInParentFolders(t *testing.T) {
 
 	// Run stack with --queue-exclude-dir to exclude units source directory
 	// This tests that source templates are skipped during parsing
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run plan --queue-exclude-dir '**/units/**' --working-dir "+stackPath,
+		"terragrunt stack run plan --queue-exclude-dir '**/units/**' --report-file report.json --working-dir "+stackPath,
 	)
 	require.NoError(t, err)
 
 	// Verify generated unit runs
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/foo")
+	runs := helpers.ReadReport(t, stackPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/foo"))
 
 	// Verify source template is excluded
-	assert.NotContains(t, stderr, "- Unit units/foo")
+	assert.Nil(t, runs.FindByName("units/foo"))
 }
 
 func TestStackGenerateWithFilter(t *testing.T) {
@@ -1961,7 +1979,7 @@ func TestStackGenerateWithFilter(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 	liveDir := filepath.Join(rootPath, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -2014,6 +2032,24 @@ func TestStackGenerateWithFilter(t *testing.T) {
 
 	prodDir = filepath.Join(stackDir, "prod", ".terragrunt-stack")
 	require.DirExists(t, prodDir)
+}
+
+// TestStackGenerateDedupAtDiscoveryWithRacing guards intra-invocation duplicate-dispatch under -race.
+func TestStackGenerateDedupAtDiscoveryWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	setupNestedStackFixture(t, tmpDir)
+
+	liveDir := filepath.Join(tmpDir, "live")
+
+	for range 2 {
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+			"terragrunt stack generate --working-dir "+liveDir)
+		require.NoError(t, err)
+	}
+
+	verifyGeneratedUnits(t, filepath.Join(liveDir, ".terragrunt-stack"))
 }
 
 func TestStackGenerationWithNestedTopologyWithRacing(t *testing.T) {
@@ -2215,4 +2251,357 @@ func TestStackVersionConstraints(t *testing.T) {
 
 	var invalidVersionError run.InvalidTerragruntVersion
 	assert.ErrorAs(t, err, &invalidVersionError)
+}
+
+func TestStackOutputWithExclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackExcludeOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackExcludeOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackExcludeOutput, "live")
+
+	// Apply the stack -- excluded units are skipped because "apply" is in their exclude actions
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
+
+	// Test JSON output with the dependency-fetch-output-from-state experiment to exercise
+	// the original bug path from #5864 (S3 direct fetch). Even with local state, this ensures
+	// the exclude check happens before any attempt to fetch state.
+	stdoutJSON, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack output --experiment dependency-fetch-output-from-state --format json --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdoutJSON), &result))
+
+	// normal_app should be present with output
+	assert.Contains(t, result, "normal_app")
+
+	normalApp, ok := result["normal_app"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, normalApp, "result")
+
+	// excluded_app (actions=["plan","apply","destroy","output"]) should be omitted
+	assert.NotContains(t, result, "excluded_app")
+
+	// excluded_all (actions=["all"], no_run=true) should be omitted
+	assert.NotContains(t, result, "excluded_all")
+
+	// not_excluded_all_except_output (actions=["all_except_output"], no_run=true) is not excluded
+	// from "output" action, but was never applied (apply matches all_except_output), so
+	// terraform output returns {} on the empty state directory
+	require.Contains(t, result, "not_excluded_all_except_output")
+
+	notExcluded, ok := result["not_excluded_all_except_output"].(map[string]any)
+	require.True(t, ok)
+	assert.Empty(t, notExcluded, "unit was never applied so output should be empty")
+
+	// Verify no terraform was attempted for excluded units
+	for _, excluded := range []string{"excluded-app", "excluded-all"} {
+		tfDir := filepath.Join(rootPath, ".terragrunt-stack", excluded, ".terraform")
+		assert.True(t, util.FileNotExists(tfDir),
+			"excluded unit %s should not have .terraform directory", excluded)
+	}
+}
+
+// TestCASInStacks verifies that CAS works when integrated with stacks.
+func TestCASInStacks(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	bazModule := ``
+	require.NoError(t, srv.CommitFile("modules/baz/main.tf", []byte(bazModule), "commit"))
+
+	require.NoError(t, srv.CommitFile("units/bar/terragrunt.hcl", []byte(`terraform {
+  source = "../..//modules/baz"
+
+  update_source_with_cas = true
+}
+`), "commit"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	remoteStack := `unit "bar" {
+  source = "../..//units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`
+	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit"))
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	liveStackPath := filepath.Join(tmp, "live", "terragrunt.stack.hcl")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(liveStackPath, []byte(liveStack), 0644))
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	runLog := stdout + stderr
+	assert.Contains(t, runLog, ".terragrunt-stack/foo")
+
+	// Generated tree lives next to the stack file: <tmp>/live/.terragrunt-stack/...
+	stackDir := filepath.Join(tmp, "live", ".terragrunt-stack")
+	assert.DirExists(t, stackDir)
+
+	expectedFiles := []string{
+		"foo/terragrunt.stack.hcl",
+		"foo/.terragrunt-stack/bar/terragrunt.hcl",
+	}
+
+	for _, expectedFile := range expectedFiles {
+		assert.FileExists(t, filepath.Join(stackDir, expectedFile))
+	}
+
+	unitDir := filepath.Join(stackDir, "foo", ".terragrunt-stack", "bar")
+	assert.DirExists(t, unitDir)
+
+	stackConfig := filepath.Join(stackDir, "foo", "terragrunt.stack.hcl")
+	unitConfig := filepath.Join(unitDir, "terragrunt.hcl")
+
+	require.FileExists(t, stackConfig)
+	require.FileExists(t, unitConfig)
+
+	stackConfigContent, err := os.ReadFile(stackConfig)
+	require.NoError(t, err)
+	unitConfigContent, err := os.ReadFile(unitConfig)
+	require.NoError(t, err)
+
+	stackStr := string(stackConfigContent)
+	unitStr := string(unitConfigContent)
+
+	// CAS digests depend on the resolved git ref and repo paths; assert exact file shape using the emitted hashes.
+	casSHA1Quoted := regexp.MustCompile(`"cas::sha1:([a-f0-9]{40})"`)
+	stackMatch := casSHA1Quoted.FindStringSubmatch(stackStr)
+	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha1 reference in a quoted source attribute")
+
+	unitMatch := casSHA1Quoted.FindStringSubmatch(unitStr)
+	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha1 reference in a quoted source attribute")
+
+	wantStack := fmt.Sprintf(`unit "bar" {
+  source = "cas::sha1:%s"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`, stackMatch[1])
+
+	wantUnit := fmt.Sprintf(`terraform {
+  source = "cas::sha1:%s"
+
+  update_source_with_cas = true
+}
+`, unitMatch[1])
+
+	assert.Equal(t, wantStack, stackStr)
+	assert.Equal(t, wantUnit, unitStr)
+}
+
+// TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS verifies that stack generation
+// errors when a unit or stack block declares update_source_with_cas = true while
+// --no-cas is set. The "experiment off" branch is covered by the unit tests in
+// internal/runner/run/download_source_test.go; integration-mode here always has the
+// cas experiment enabled via TG_EXPERIMENT_MODE, so --no-cas is the only way to
+// disable CAS for this scenario.
+func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	testCases := []struct {
+		name        string
+		stackConfig string
+		wantName    string
+	}{
+		{
+			name: "unit block",
+			stackConfig: `unit "bar" {
+  source = "../units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`,
+			wantName: `"bar"`,
+		},
+		{
+			name: "stack block",
+			stackConfig: `stack "nested" {
+  source = "../nested"
+  path   = "nested"
+
+  update_source_with_cas = true
+}
+`,
+			wantName: `"nested"`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmp := helpers.TmpDirWOSymlinks(t)
+			liveDir := filepath.Join(tmp, "live")
+			require.NoError(t, os.MkdirAll(liveDir, 0755))
+			require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(tc.stackConfig), 0644))
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt stack generate --no-cas --non-interactive --working-dir "+liveDir,
+			)
+			require.Error(t, err)
+
+			combined := stderr + err.Error()
+			assert.Contains(t, combined, "update_source_with_cas")
+			assert.Contains(t, combined, tc.wantName)
+		})
+	}
+}
+
+// TestCASInStacksLocalSource verifies that CAS processing works end-to-end
+// when the top-level stack source is a local filesystem path rather than a
+// remote git URL. The catalog-like tree lives on disk, the live stack points
+// at it directly, and update_source_with_cas on nested blocks must be
+// rewritten to cas::sha256 references that materialize correctly at run time.
+func TestCASInStacksLocalSource(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	// Keep the catalog on a sibling path outside the live working directory so
+	// terragrunt stack generate doesn't discover the catalog's stack file as a
+	// top-level entry and recurse into it alongside the live stack.
+	catalog := helpers.TmpDirWOSymlinks(t)
+	liveDir := helpers.TmpDirWOSymlinks(t)
+
+	writeFile := func(rel, body string) {
+		full := filepath.Join(catalog, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0644))
+	}
+
+	writeFile("modules/baz/main.tf", ``)
+
+	writeFile("units/bar/terragrunt.hcl", `terraform {
+  source = "../..//modules/baz"
+
+  update_source_with_cas = true
+}
+`)
+
+	writeFile("stacks/foo/terragrunt.stack.hcl", `unit "bar" {
+  source = "../..//units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`)
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = %s
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, strconv.Quote(filepath.ToSlash(catalog)+"//stacks/foo"))
+	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --working-dir "+liveDir,
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --working-dir "+liveDir,
+	)
+	require.NoError(t, err)
+
+	runLog := stdout + stderr
+	assert.Contains(t, runLog, ".terragrunt-stack/foo")
+
+	stackDir := filepath.Join(liveDir, ".terragrunt-stack")
+	assert.DirExists(t, stackDir)
+
+	expectedFiles := []string{
+		"foo/terragrunt.stack.hcl",
+		"foo/.terragrunt-stack/bar/terragrunt.hcl",
+	}
+
+	for _, expectedFile := range expectedFiles {
+		assert.FileExists(t, filepath.Join(stackDir, expectedFile))
+	}
+
+	stackConfig := filepath.Join(stackDir, "foo", "terragrunt.stack.hcl")
+	unitConfig := filepath.Join(stackDir, "foo", ".terragrunt-stack", "bar", "terragrunt.hcl")
+
+	stackConfigContent, err := os.ReadFile(stackConfig)
+	require.NoError(t, err)
+	unitConfigContent, err := os.ReadFile(unitConfig)
+	require.NoError(t, err)
+
+	stackStr := string(stackConfigContent)
+	unitStr := string(unitConfigContent)
+
+	// Local sources are content-addressed with SHA-256.
+	casSHA256Quoted := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})"`)
+
+	stackMatch := casSHA256Quoted.FindStringSubmatch(stackStr)
+	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha256 reference")
+
+	unitMatch := casSHA256Quoted.FindStringSubmatch(unitStr)
+	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha256 reference")
+
+	wantStack := fmt.Sprintf(`unit "bar" {
+  source = "cas::sha256:%s"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`, stackMatch[1])
+
+	wantUnit := fmt.Sprintf(`terraform {
+  source = "cas::sha256:%s"
+
+  update_source_with_cas = true
+}
+`, unitMatch[1])
+
+	assert.Equal(t, wantStack, stackStr)
+	assert.Equal(t, wantUnit, unitStr)
 }

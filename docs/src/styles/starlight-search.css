@@ -6,17 +6,6 @@
   }
 }
 
-site-search button {
-  background-color: var(--color-opacity-5);
-  border: 1px solid var(--color-opacity-10);
-  border-radius: 6px;
-  color: var(--color-gray-2);
-  height: 100%;
-  max-width: none;
-  min-height: 44px;
-  padding: 6px 12px;
-}
-
 /* Search Box NOT inside Dialog  */
 site-search>button {
   display: flex;
@@ -30,6 +19,7 @@ site-search button svg {
 /* Search Dialog Box */
 site-search dialog[open] {
   background: var(--color-dialog-bg);
+  color: #1c2541;
   border-radius: .5rem;
   display: flex;
   height: max-content;
@@ -38,6 +28,10 @@ site-search dialog[open] {
   max-width: 40rem;
   min-height: 15rem;
   width: 90%;
+}
+
+button[data-open-modal]:hover {
+  color: var(--sl-color-gray-2);
 }
 
 button[data-close-modal] {
@@ -128,7 +122,9 @@ input.pagefind-ui__search-input:focus {
 .pagefind-ui__search-clear {
   background-color: transparent;
   border: none;
+  padding: 10px;
   right: 0;
+  width: 40px;
 }
 
 .pagefind-ui__search-clear:before {
@@ -173,6 +169,17 @@ input.pagefind-ui__search-input:focus {
 
 .pagefind-ui__result-title a:hover {
   color: #448daf;
+}
+
+#starlight__search mark {
+  color: #4F2FD0;
+  background-color: transparent;
+  font-weight: 600;
+}
+
+/* Hide Light/Dark Mode Toggle in Hamburger Menu */
+div.mobile-preferences {
+  display: none;
 }
 
 /* Fix to site-search button area smaller on mobile */

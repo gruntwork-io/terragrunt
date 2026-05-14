@@ -17,50 +17,13 @@ jobs:
       GOGC: "400"
 
     steps:
-      - name: "Mount tmpfs"
-        shell: bash
-        if: runner.os == 'Linux'
-        run: |
-          sudo mount -t tmpfs -o size=12G tmpfs /tmp
-          mkdir -p /home/runner/go
-          sudo mount -t tmpfs -o size=12G tmpfs /home/runner/go
-          mkdir -p /home/runner/.cache/go-build
-          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
-          mkdir -p /home/runner/.cache/terragrunt
-          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/terragrunt
-
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
 
-      # RAM disk for go-build cache — persists through post-steps so cache save works.
-      # If ramdisk is unmounted before job cleanup, cache save will fail silently.
-      - name: "Mount RAM disk"
-        shell: bash
-        if: runner.os == 'macOS'
-        run: |
-          RAMDISK=$(hdiutil attach -nomount ram://8388608 | tr -d '[:space:]') || { echo "Failed to create RAM disk"; exit 1; }
-          # Wait for disk device to be registered in kernel (hdiutil may return before kernel is ready)
-          for i in $(seq 1 10); do
-            diskutil info "$RAMDISK" > /dev/null 2>&1 && break
-            sleep 1
-          done
-          diskutil erasevolume HFS+ RAMDisk "$RAMDISK"
-          mkdir -p /Volumes/RAMDisk/go-build
-          rm -rf ~/Library/Caches/go-build
-          ln -sf /Volumes/RAMDisk/go-build ~/Library/Caches/go-build
-
-      - name: Cache mise tools
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
-        with:
-          path: ~/.local/share/mise/installs
-          key: ${{ runner.os }}-mise-tools-${{ hashFiles('mise.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-mise-tools-
-
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           version: 2026.1.9
           experimental: true
@@ -75,7 +38,7 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
@@ -83,7 +46,7 @@ jobs:
             ${{ runner.os }}-go-build-
 
       - name: Go Mod Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
@@ -91,7 +54,7 @@ jobs:
             ${{ runner.os }}-go-mod-
 
       - name: Terragrunt Provider Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ${{ runner.os == 'Linux' && '~/.cache/terragrunt' || '~/Library/Caches/terragrunt' }}
           key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
@@ -102,7 +65,7 @@ jobs:
         id: run-tests
         run: |
           set -o pipefail
-          go test -v ./... -timeout 45m | tee >(go-junit-report -set-exit-code > result.xml)
+          go test -v -coverprofile=coverage.out -covermode=atomic ./... -timeout 45m | tee >(go-junit-report -set-exit-code > result.xml)
         shell: bash
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
@@ -111,6 +74,35 @@ jobs:
           # Default /var/folders/.../T/ paths are too long for Git's path resolution.
           TMPDIR: ${{ matrix.os == 'macos' && '/tmp' || '' }}
 
+      - name: Generate Coverage Summary
+        if: always() && matrix.os == 'ubuntu'
+        run: ./.github/scripts/coverage/generate-summary.sh
+        shell: bash
+
+      - name: Upload coverage.out
+        if: always() && matrix.os == 'ubuntu'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage.out
+          path: coverage.out
+          retention-days: 30
+
+      - name: Upload coverage-summary.json
+        if: always() && matrix.os == 'ubuntu'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-summary.json
+          path: coverage-summary.json
+          retention-days: 30
+
+      - name: Upload coverage-summary.html
+        if: always() && matrix.os == 'ubuntu'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-summary.html
+          path: coverage-summary.html
+          retention-days: 30
+
       - name: Upload Report (${{ matrix.os }})
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -118,7 +110,7 @@ jobs:
           path: result.xml
 
       - name: Display Test Results (${{ matrix.os }})
-        uses: mikepenz/action-junit-report@a294a61c909bd8a4b563024a2faa28897fd53ebc # v6
+        uses: mikepenz/action-junit-report@49b2ca06f62aa7ef83ae6769a2179271e160d8e4 # v6
         if: always()
         with:
           report_paths: result.xml

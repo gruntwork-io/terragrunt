@@ -1,0 +1,45 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import ExperimentEntries from '@components/ExperimentEntries.astro';
+import { getCollection } from 'astro:content';
+import { sidebar } from '../../../data/sidebar';
+
+const entries = await getCollection('experiments');
+
+const completed = entries
+	.filter((e) => e.data.status === 'completed')
+	.sort((a, b) => a.data.name.localeCompare(b.data.name));
+
+// Build TOC headings
+const headings: { depth: number; slug: string; text: string }[] = [];
+
+for (const entry of completed) {
+	headings.push({ depth: 2, slug: entry.data.name, text: entry.data.name });
+
+	const h3Lines = entry.body?.match(/^### .+/gm) ?? [];
+	for (const line of h3Lines) {
+		const text = line.replace(/^### /, '').replaceAll('`', '');
+		const slug = text
+			.toLowerCase()
+			.replace(/[^\w\s-]/g, '')
+			.trim()
+			.replace(/\s+/g, '-');
+		headings.push({ depth: 3, slug, text });
+	}
+}
+---
+
+<StarlightPage
+	frontmatter={{
+		title: 'Completed Experiments',
+		description: 'Experiments that have graduated to stable features.',
+	}}
+	headings={headings}
+	sidebar={sidebar}
+>
+	<p>
+		These experiments have been completed and their features are now available by default. The experiment flags are no longer needed.
+	</p>
+	<hr />
+	<ExperimentEntries status="completed" />
+</StarlightPage>

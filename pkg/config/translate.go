@@ -62,11 +62,23 @@ func translateTerraformConfig(tf *TerraformConfig, l log.Logger) runcfg.Terrafor
 		noCopyTerraformLockFile = !*tf.CopyTerraformLockFile
 	}
 
+	updateSourceWithCAS := false
+	if tf.UpdateSourceWithCAS != nil {
+		updateSourceWithCAS = *tf.UpdateSourceWithCAS
+	}
+
+	mutable := false
+	if tf.Mutable != nil {
+		mutable = *tf.Mutable
+	}
+
 	return runcfg.TerraformConfig{
 		Source:                  source,
 		IncludeInCopy:           includeInCopy,
 		ExcludeFromCopy:         excludeFromCopy,
 		NoCopyTerraformLockFile: noCopyTerraformLockFile,
+		UpdateSourceWithCAS:     updateSourceWithCAS,
+		Mutable:                 mutable,
 		ExtraArgs:               translateExtraArgs(tf.ExtraArgs, l),
 		BeforeHooks:             translateHooks(tf.BeforeHooks),
 		AfterHooks:              translateHooks(tf.AfterHooks),

@@ -250,19 +250,6 @@ function Patch-Binaries {
     Write-Host "All Windows binaries patched with resources"
 }
 
-function Save-Credentials {
-    Write-Host "Saving credentials to Windows Credential Manager..."
-
-    & smctl.exe credentials save $env:SM_API_KEY $env:SM_CLIENT_CERT_PASSWORD
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to save credentials"
-        exit 1
-    }
-
-    Write-Host "Credentials saved to Windows Credential Manager"
-}
-
 function Invoke-Healthcheck {
     Write-Host "Running smctl healthcheck..."
 
@@ -344,9 +331,6 @@ function Main {
 
     # Patch all Windows binaries with resources (icon, manifest, version info)
     Patch-Binaries -Platforms $windowsPlatforms
-
-    # Save credentials
-    Save-Credentials
 
     # Run healthcheck
     Invoke-Healthcheck

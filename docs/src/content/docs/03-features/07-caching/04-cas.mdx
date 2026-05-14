@@ -1,0 +1,303 @@
+---
+title: Content Addressable Store (CAS)
+description: Learn how Terragrunt supports deduplication of content using a Content Addressable Store (CAS).
+slug: features/caching/cas
+sidebar:
+  order: 4
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
+
+Terragrunt supports a Content Addressable Store (CAS) to deduplicate content across multiple Terragrunt configurations. This feature is still experimental and not recommended for general production usage.
+
+The CAS is used to speed up catalog cloning, OpenTofu/Terraform source cloning, and stack generation by avoiding redundant downloads of Git repositories.
+
+To use the CAS, you will need to enable the [cas](/reference/experiments/active#cas) experiment.
+
+
+<Since version="1.0.3">
+You can disable the CAS at any time using the `--no-cas` flag, even when the experiment is enabled. This flag is available on the [`run`](/reference/cli/commands/run), [`stack generate`](/reference/cli/commands/stack/generate), and [`stack run`](/reference/cli/commands/stack/run) commands.
+</Since>
+
+## Usage
+
+When you enable the `cas` experiment, Terragrunt will automatically use the CAS when cloning any compatible source (Git repositories).
+
+### Catalog Usage
+
+```hcl
+# root.hcl
+
+catalog {
+  urls = [
+    "git@github.com:acme/modules.git"
+  ]
+}
+```
+
+### OpenTofu/Terraform Source Usage
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  source = "git@github.com:acme/infrastructure-modules.git//vpc?ref=v1.0.0"
+}
+```
+
+<Since version="1.0.5">
+
+`ref=` also accepts commit SHAs (full or abbreviated), not only branch and tag names.
+
+```hcl
+terraform {
+  source = "git@github.com:acme/infrastructure-modules.git//vpc?ref=a1b2c3d4e5f67890abcdef1234567890deadbeef"
+}
+```
+
+The first cold clone of a repository pinned to a commit SHA fetches the full history of every branch. Shallow fetches require a ref name, and fetching a commit SHA at limited depth depends on a server option (`uploadpack.allowAnySHA1InWant`) that is not universally enabled, so CAS fetches all branches at full depth and resolves the SHA locally. Subsequent clones reuse the cached repository and never touch the network for the same commit.
+
+</Since>
+
+### Stack Usage
+
+<Before version="1.0.3">
+
+<Aside type="tip">
+Experimental integration between CAS and Stacks is coming soon. Follow the progress in [#5558](https://github.com/gruntwork-io/terragrunt/issues/5558).
+</Aside>
+
+</Before>
+
+<Since version="1.0.3">
+
+<Aside type="tip">
+This functionality is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
+</Aside>
+
+When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to allow relative paths in `source` attributes. This removes the need to plumb remote Git URLs through `values` expressions.
+
+```hcl
+# stacks/my-stack/terragrunt.stack.hcl (in your catalog repository)
+
+unit "service" {
+  source = "../..//units/my-service"
+
+  update_source_with_cas = true
+
+  path = "service"
+}
+```
+
+The referenced unit can also use relative paths:
+
+```hcl
+# units/my-service/terragrunt.hcl (in your catalog repository)
+
+terraform {
+  source = "../..//modules/my-module"
+
+  update_source_with_cas = true
+}
+```
+
+During stack generation, Terragrunt rewrites these relative sources to `cas::` references that point to content stored in the CAS. The repository is cloned once, and subsequent stack generations resolve content from the local store without network access. Generated `.terragrunt-stack` files contain deterministic CAS references instead of version variables, so they do not produce diffs on regeneration.
+
+The catalog source can be either a remote Git URL or a local filesystem path (absolute, or relative to the current working directory). Local sources are copied into a temporary directory before rewriting, so the original catalog directory is never modified. This makes the same catalog layout usable against a published Git ref or a local checkout, which is useful when iterating on a catalog before tagging a release.
+
+For more details on using this with stacks, see [Explicit Stacks: CAS Integration](/features/stacks/explicit#cas-integration).
+
+<Aside type="caution">
+Setting `update_source_with_cas = true` requires that the `cas` experiment is enabled and that `--no-cas` is not set. Terragrunt errors out otherwise, since the relative source must be updated to a synthetic tree stored in the CAS.
+</Aside>
+
+</Since>
+
+When Terragrunt clones a repository while using the CAS, if the repository is not found in the CAS, Terragrunt fetches into the central bare repository for that remote URL and stores the resulting blobs and trees in the CAS for future use. If the central store is unavailable, Terragrunt falls back to cloning the repository from the original URL into a temporary directory.
+
+When generating a repository from the CAS, Terragrunt will hard link entries from the CAS to the new repository. This allows Terragrunt to deduplicate content across multiple repositories.
+
+In the event that hard linking fails due to some operating system / host incompatibility with hard links, Terragrunt will fall back to performing copies of the content from the CAS.
+
+## Storage
+
+The CAS lives under the platform user cache directory:
+
+| Platform | Path |
+| --- | --- |
+| Linux | `$XDG_CACHE_HOME/terragrunt/cas`, falling back to `~/.cache/terragrunt/cas` |
+| macOS | `~/Library/Caches/terragrunt/cas` |
+| Windows | `%LocalAppData%\terragrunt\cas` |
+
+This directory can be deleted to reclaim disk space when no Terragrunt processes are running against it. Terragrunt will regenerate the CAS on the next run. Avoid deleting it while a Terragrunt operation is in progress, since that can race with in-flight reads, writes, and locks in the store.
+
+Avoid partial deletions of the CAS directory without care, as that might result in partially cloned repositories and unexpected behavior.
+
+## How it works
+
+Terragrunt's CAS uses a content-addressable storage model to deduplicate repository content from Git clones to save disk space and improve performance. Each Git object is identified by its hash, allowing identical content to be shared across multiple cloned repositories and repeated clones.
+
+### Content Addressing
+
+
+<Before version="1.0.3">
+CAS uses Git's native content addressing scheme where each object is uniquely identified by its SHA1 hash. This means:
+
+- **Identical content** across different repositories shares the same hash
+- **Same commit hash** always represents the same content
+- **Storage is partitioned** by the first two characters of the hash (e.g., `ab/abc123...`)
+</Before>
+
+<Since version="1.0.3">
+CAS uses Git's native content addressing scheme where each object is uniquely identified by its hash. Terragrunt detects the hash algorithm used by the repository (`sha1` or `sha256`) via `git rev-parse --show-object-format`. This means:
+
+- **Identical content** across different repositories shares the same hash
+- **Same commit hash** always represents the same content
+- **Storage is partitioned** by the first two characters of the hash (e.g., `ab/abc123...`)
+- **Both SHA-1 and SHA-256** repositories are supported
+</Since>
+
+### Storage Structure
+
+<Before version="1.0.3">
+The CAS store is organized in a partitioned structure to optimize file system performance:
+
+<FileTree>
+
+- ~/.cache/terragrunt/cas/store/
+  - ab/
+    - abc123...xyz (blob)
+    - abc123...xyz.lock (lock file)
+    - abd456...xyz (tree)
+  - cd/
+    - cd7890...xyz (blob)
+    - cd7890...xyz.lock (lock file)
+  - ...
+
+</FileTree>
+
+Each content object is stored at `{hash[:2]}/{hash}`, where the first two characters create a partition directory. This prevents having thousands of files in a single directory, which can degrade file system performance.
+</Before>
+
+<Since version="1.0.3">
+The CAS store is organized into namespaced directories:
+
+<FileTree>
+
+- ~/.cache/terragrunt/cas/store/
+  - blobs/ (file content from Git repositories and synthetic sources)
+    - ab/
+      - abc123...xyz
+      - abc123...xyz.lock
+    - cd/
+      - cd7890...xyz
+  - trees/ (Git-derived tree structures)
+    - f3/
+      - f39ea0...xyz
+  - synth/
+    - trees/ (synthetic trees created during CAS-backed stack generation)
+      - de/
+        - def456...xyz
+  - git/ (one bare repository per remote URL, used for incremental fetches)
+    - 1a2b3c4d5e6f7890/
+      - repo/
+      - lock
+
+</FileTree>
+
+The `blobs/` directory stores all file content, identified by hash. Blobs are purely content-addressed, so the same file content always maps to the same hash regardless of origin. The `trees/` directory stores Git-derived tree structures that describe the layout of files in a repository. The `synth/trees/` directory stores synthetic tree structures created during CAS-backed stack generation when `update_source_with_cas` is used. These synthetic trees use a deterministic hash based on the Git reference and path within the repository. The `git/` directory holds one bare Git repository per remote URL, keyed by a hash of the URL, so cache misses can fetch only the new objects instead of re-cloning the repository.
+
+Each content object within a namespace is stored at `{hash[:2]}/{hash}`, where the first two characters create a partition directory to avoid degraded file system performance from large flat directories.
+</Since>
+
+### Clone Flow
+
+When Terragrunt needs to clone a repository using the CAS it does the following, depending on whether the content is already in the CAS or not:
+
+#### Cold Clones
+
+For cold clones, where the content is not already in the CAS:
+
+1. Terragrunt detects the ref type. Branch and tag refs resolve to a commit hash via `git ls-remote`. `ls-remote` lists named refs only and cannot fetch or resolve commit SHAs, so SHA refs are passed through to Step 3 for resolution against the central Git store.
+2. The tree related to the commit hash is not found in the CAS
+3. Terragrunt opens the bare repository for the remote URL under `cas/store/git/` (initializing it on first use), takes a per-URL lock, and fetches the requested ref. Branch and tag refs use a shallow fetch. SHA refs use a full-history fetch covering every branch and tag so the SHA can be resolved against the local store. Subsequent misses against the same URL reuse the existing pack files and only transfer new objects.
+4. All blobs and trees required to reproduce the repository are extracted from the bare repository
+5. Content is stored in the CAS, partitioned by hash prefix
+6. The tree structure is read from the CAS and hard links are created to the target directory
+
+Concurrent units that target the same remote URL share one fetch instead of cloning in parallel, so the objects are typically transferred once and reused. If the shared fetch hangs or fails, Terragrunt logs a warning and falls back to a clone in a temporary directory.
+
+#### Warm Clones
+
+For warm clones, where the content is already in the CAS:
+
+1. Terragrunt resolves the Git reference to a commit hash. For commit-SHA refs the local central Git store answers without contacting the remote when the SHA is already cached.
+2. CAS checks if the content exists
+3. The tree structure is read directly from the CAS
+4. Hard links are created from CAS to the target directory
+
+#### Flow Diagram
+
+```d2
+direction: down
+
+# Source
+git_repo: "Git Repository\n\ngit@github.com:acme/modules.git?ref=v1.0.0" {
+  shape: cylinder
+}
+
+# Decision Point
+check_cas: "In CAS?\n\nhash = 123abc..." {
+  shape: diamond
+}
+
+# First Clone Path (Content Not in CAS)
+clone_store: "Clone & Store\n(git clone → extract → store)" {
+  shape: rectangle
+}
+
+# Subsequent Clone Path (Content Already in CAS)
+read_cas: "Read from CAS\n\n123abc..." {
+  shape: rectangle
+}
+
+# Link Step
+link_step: "Link to Targets\n\nblob abc123... main.tf\nblob cd7890... variables.tf" {
+  shape: rectangle
+}
+
+# Linked Targets
+linked_target1: "Linked Target\n\n.terragrunt-cache/.../main.tf -->\n~/.cache/terragrunt/cas/store/ab/abc123..." {
+  shape: rectangle
+}
+
+linked_target2: "Linked Target\n\n.terragrunt-cache/.../variables.tf -->\n~/.cache/terragrunt/cas/store/cd/cd7890..." {
+  shape: rectangle
+}
+
+# Flow
+git_repo -> check_cas
+check_cas -> clone_store
+check_cas -> read_cas
+clone_store -> read_cas
+read_cas -> link_step
+link_step -> linked_target1
+link_step -> linked_target2
+```
+
+### Deduplication Mechanism
+
+CAS achieves deduplication through hard links, which allows multiple files to use the same physical space on disk, avoiding duplicated content in repositories cloned by Terragrunt.
+
+- **Hard Links**: When the same content is requested multiple times, CAS creates hard links from the read-only store to each target directory
+- **Automatic Fallback**: If hard linking fails (e.g., cross-filesystem boundaries, operating system limitations), CAS automatically falls back to copying the content instead
+
+### Performance Benefits
+
+CAS provides significant performance improvements:
+
+- **Faster Subsequent Clones**: Once content is in CAS, subsequent clones skip the network download and Git clone operations entirely
+- **Reduced Disk Usage**: Hard links share the same inode, so duplicate content only consumes disk space once, regardless of how many times the file is used in clones by Terragrunt

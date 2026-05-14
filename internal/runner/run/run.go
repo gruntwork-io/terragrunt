@@ -28,6 +28,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -70,8 +72,9 @@ var TerraformCommandsThatDoNotNeedInit = []string{
 
 var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
-// sourceChangeLocks is a map that keeps track of locks for source changes, to ensure we aren't overriding the generated
-// code while another hook (e.g. `tflint`) is running. We use sync.Map to ensure atomic updates during concurrent access.
+// sourceChangeLocks is a map of per-directory mutexes that serializes concurrent access to cache directories.
+// It prevents generated code from being overwritten while a hook (e.g. `tflint`) is running, and prevents
+// concurrent source downloads from racing on the same cache directory (see DownloadTerraformSource).
 var sourceChangeLocks = sync.Map{}
 
 // Run downloads terraform source if necessary, then runs terraform with the given options and CLI args.
@@ -274,7 +277,7 @@ func runTerragruntWithConfig(
 
 	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(childCtx context.Context) error {
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...)
+		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, vexec.NewOSExec(), opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, &cfg.Terraform) {
@@ -422,7 +425,7 @@ func checkTerraformCodeDefinesBackend(opts *Options, backendType string) error {
 		return errors.New(err)
 	}
 
-	definesJSONBackend, err := util.Grep(terraformJSONBackendRegexp, opts.WorkingDir+"/**/*.tf.json")
+	definesJSONBackend, err := util.GrepFilesWithSuffix(vfs.NewOSFS(), terraformJSONBackendRegexp, opts.WorkingDir, ".tf.json")
 	if err != nil {
 		return err
 	}
@@ -478,11 +481,6 @@ func modulesNeedInit(opts *Options) (bool, error) {
 	modulesPath := filepath.Join(opts.DataDir(), "modules")
 	if util.FileExists(modulesPath) {
 		return false, nil
-	}
-
-	moduleNeedInit := filepath.Join(opts.WorkingDir, ModuleInitRequiredFile)
-	if util.FileExists(moduleNeedInit) {
-		return true, nil
 	}
 
 	// Check for module definitions in .tf and .tofu files using WalkDir
@@ -656,6 +654,12 @@ func PrepareNonInitCommand(
 func needsInitRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runcfg.RunConfig) (bool, error) {
 	if slices.Contains(TerraformCommandsThatDoNotNeedInit, opts.TerraformCliArgs.First()) {
 		return false, nil
+	}
+
+	// Marker check lives here, not in modulesNeedInit, so a populated .terraform/modules/
+	// can't short-circuit past it. Refs: #1921, #6058.
+	if util.FileExists(filepath.Join(opts.WorkingDir, ModuleInitRequiredFile)) {
+		return true, nil
 	}
 
 	if providersNeedInit(opts) {

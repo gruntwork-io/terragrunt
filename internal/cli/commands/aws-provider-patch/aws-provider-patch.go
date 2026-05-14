@@ -1,6 +1,7 @@
 package awsproviderpatch
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -125,7 +126,7 @@ func runAwsProviderPatch(l log.Logger, opts *options.TerragruntOptions) error {
 		if codeWasUpdated {
 			l.Debugf("Patching AWS provider in %s", terraformFile)
 
-			if err := util.WriteFileWithSamePermissions(terraformFile, terraformFile, []byte(updatedTerraformFileContents)); err != nil {
+			if err := util.WriteFileWithSamePermissions(terraformFile, terraformFile, bytes.NewBufferString(updatedTerraformFileContents)); err != nil {
 				return err
 			}
 		}

@@ -6,18 +6,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/go-commons/env"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
@@ -128,10 +131,22 @@ func New(l log.Logger, opts *options.TerragruntOptions) clihelper.Commands {
 	return allCommands
 }
 
-// WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
-func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
-	return func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
-		return telemetry.TelemeterFromContext(ctx).Collect(ctx, fmt.Sprintf("%s %s", cliCtx.Command.Name, opts.TerraformCommand), map[string]any{
+// WrapWithTelemetry wraps CLI command execution with setting of telemetry
+// context and labels. If telemetry is disabled, just runs the command.
+func WrapWithTelemetry(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
+	return func(
+		ctx context.Context,
+		cliCtx *clihelper.Context,
+		action clihelper.ActionFunc,
+	) error {
+		cmdName := fmt.Sprintf(
+			"%s %s", cliCtx.Command.Name, opts.TerraformCommand,
+		)
+
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx, cmdName, map[string]any{
 			"terraformCommand": opts.TerraformCommand,
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,
@@ -140,7 +155,7 @@ func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx c
 				return err
 			}
 
-			if err := runAction(childCtx, cliCtx, l, opts, action); err != nil {
+			if err := RunAction(childCtx, cliCtx, l, opts, action); err != nil {
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
 				return err
 			}
@@ -150,7 +165,89 @@ func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx c
 	}
 }
 
-func runAction(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opts *options.TerragruntOptions, action clihelper.ActionFunc) error {
+// GiveWindowsSymlinksTip warns Windows users that OpenTofu/Terraform may not create symlinks
+// for provider plugins installed in the local cache directory.
+//
+// We generally don't need to recommend this if:
+//   - The user is not on Windows (this is generally a Windows-only problem)
+//   - The user isn't using the provider cache directory or provider cache server
+//   - We can successfully create a test symlink
+//
+// Note that OpenTofu doesn't want to emit a warning like this for OpenTofu users.
+//
+// See: https://github.com/opentofu/opentofu/issues/3972
+//
+// In the future, this may be less important, as the OpenTofu global provider cache
+// dir might be the default, and no copying/symlinking will happen anyways. At that
+// time, this check may need to have a version gate to avoid warning Windows users
+// on a sufficiently new version of OpenTofu.
+func GiveWindowsSymlinksTip(
+	l log.Logger,
+	fs vfs.FS,
+	goos string,
+	allTips tips.Tips,
+	envs map[string]string,
+	providerCacheEnabled bool,
+	tfImpl tfimpl.Type,
+	tfVersion *version.Version,
+) {
+	if goos != "windows" {
+		return
+	}
+
+	if envs[tf.EnvNameTFPluginCacheDir] == "" && !providerCacheEnabled {
+		return
+	}
+
+	tmp, err := vfs.MkdirTemp(fs, "", "terragrunt-test-symlink")
+	if err != nil {
+		l.Debugf("Failed to create temporary directory for testing symlink: %v", err)
+		return
+	}
+
+	defer func() {
+		if err := fs.RemoveAll(tmp); err != nil {
+			l.Debugf("Failed to remove temporary directory for testing symlink: %v", err)
+		}
+	}()
+
+	source := filepath.Join(tmp, "source")
+	target := filepath.Join(tmp, "target")
+
+	if err := fs.Mkdir(source, 0755); err != nil { //nolint:mnd
+		l.Debugf("Failed to create source directory for testing symlink: %v", err)
+		return
+	}
+
+	err = vfs.Symlink(fs, source, target)
+	if err == nil {
+		return
+	}
+
+	tip := allTips.Find(tips.WindowsSymlinkWarning)
+	if tip == nil {
+		return
+	}
+
+	if tfImpl == tfimpl.OpenTofu && tfVersion != nil {
+		minVersion, verErr := version.NewVersion("1.12.0")
+		if verErr == nil && !tfVersion.LessThan(minVersion) {
+			tip.Message = tips.WindowsSymlinkWarningOpenTofuMessage
+		}
+	}
+
+	tip.Evaluate(l)
+}
+
+// RunAction wires up cancellation, run-scoped caches, and (when enabled)
+// the provider cache server, then invokes action with the resulting context.
+func RunAction(
+	ctx context.Context,
+	cliCtx *clihelper.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	action clihelper.ActionFunc,
+) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -163,8 +260,27 @@ func runAction(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 		}
 	}
 
-	// actionCtx is the context passed to the action, which may be wrapped with hooks
-	actionCtx := ctx
+	GiveWindowsSymlinksTip(
+		l,
+		vfs.NewOSFS(),
+		runtime.GOOS,
+		opts.Tips,
+		opts.Env,
+		opts.ProviderCacheOptions.Enabled,
+		opts.TofuImplementation,
+		opts.TerraformVersion,
+	)
+
+	// Re-enable VT processing after subprocess execution may have reset console mode.
+	// Defense-in-depth on top of RunCommandWithOutput's own save/restore cycle.
+	if !exec.PrepareConsole(l) {
+		l.Formatter().SetDisabledColors(true)
+	}
+
+	// Install run-scoped caches on actionCtx so memoized helpers like
+	// [github.com/gruntwork-io/terragrunt/internal/shell.GitTopLevelDir] share
+	// state across the whole action.
+	actionCtx := cache.ContextWithCache(ctx)
 
 	// Run provider cache server
 	if opts.ProviderCacheOptions.Enabled {
@@ -173,16 +289,16 @@ func runAction(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 			return err
 		}
 
-		ln, err := server.Listen(ctx)
+		ln, err := server.Listen(actionCtx)
 		if err != nil {
 			return err
 		}
 		defer ln.Close() //nolint:errcheck
 
-		actionCtx = tf.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
+		actionCtx = tf.ContextWithTerraformCommandHook(actionCtx, server.TerraformCommandHook)
 
 		errGroup.Go(func() error {
-			return server.Run(ctx, ln)
+			return server.Run(actionCtx, ln)
 		})
 	}
 
@@ -217,7 +333,11 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	if opts.TerraformVersion == nil {
-		_, ver, impl, err := run.PopulateTFVersion(ctx, l, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
+		_, ver, impl, err := run.PopulateTFVersion(
+			ctx, l, opts.WorkingDir,
+			opts.VersionManagerFileName,
+			configbridge.TFRunOptsFromOpts(opts),
+		)
 		if err != nil {
 			return err
 		}
@@ -251,7 +371,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	// Set up the provider cache directory
 	providerCacheDir := opts.ProviderCacheOptions.Dir
 	if providerCacheDir == "" {
-		cacheDir, err := util.GetCacheDir()
+		cacheDir, err := util.EnsureCacheDir()
 		if err != nil {
 			return errors.Errorf("failed to get cache directory: %w", err)
 		}
@@ -298,7 +418,9 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	}
 
 	// `terraform apply -destroy` is an alias for `terraform destroy`.
-	// It is important to resolve the alias because the `run --all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
+	// It is important to resolve the alias because `run --all` relies on
+	// the OpenTofu/Terraform command to determine the order, and for
+	// `destroy` the reverse order is used.
 	if cmdName == tf.CommandNameApply && slices.Contains(args, tf.FlagNameDestroy) {
 		cmdName = tf.CommandNameDestroy
 		args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
@@ -425,7 +547,8 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	}
 
 	opts.TerragruntVersion = terragruntVersion
-	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
+	// Log the terragrunt version in debug mode. This helps with
+	// debugging issues and ensuring a specific version is used.
 	l.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
 
 	// --- Others
@@ -438,7 +561,10 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	opts.OriginalTerraformCommand = opts.TerraformCommand
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
-	exec.PrepareConsole(l)
+	if !exec.PrepareConsole(l) {
+		l.Debugf("Virtual terminal processing not available, disabling colors")
+		l.Formatter().SetDisabledColors(true)
+	}
 
 	return nil
 }

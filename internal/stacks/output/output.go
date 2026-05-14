@@ -4,6 +4,7 @@ package output
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -17,6 +18,21 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/zclconf/go-cty/cty"
 )
+
+// UnitOutputError is returned when reading terraform outputs for a stack unit fails.
+type UnitOutputError struct {
+	Err      error
+	UnitName string
+	UnitDir  string
+}
+
+func (e UnitOutputError) Error() string {
+	return fmt.Sprintf("failed to read outputs for unit %s in %s: %v", e.UnitName, e.UnitDir, e.Err)
+}
+
+func (e UnitOutputError) Unwrap() error {
+	return e.Err
+}
 
 // StackOutput collects and returns the OpenTofu/Terraform output values for all declared units in a stack hierarchy.
 //
@@ -72,7 +88,8 @@ func StackOutput(
 		}()
 	}
 
-	foundFiles, err := generate.ListStackFiles(ctx, l, opts, opts.WorkingDir, wts)
+	// Single discovery walk returns both stack files and excluded unit paths.
+	foundFiles, excludedPaths, err := generate.ListStackFilesWithExcludes(ctx, l, opts, wts)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
@@ -116,34 +133,27 @@ func StackOutput(
 		for _, unit := range stackFile.Units {
 			unitDir := config.GetUnitDir(dir, unit)
 
-			var output map[string]cty.Value
+			// Excluded units are fully omitted from the final output, matching stack run behavior.
+			if _, excluded := excludedPaths[filepath.Clean(unitDir)]; excluded {
+				l.Debugf("Skipping output for excluded unit %s in %s", unit.Name, unitDir)
+				continue
+			}
 
-			telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
-				"unit_name":   unit.Name,
-				"unit_source": unit.Source,
-				"unit_path":   unit.Path,
-			}, func(ctx context.Context) error {
-				var outputErr error
-
-				output, outputErr = unit.ReadOutputs(ctx, l, pctx, unitDir)
-
-				return outputErr
-			})
-			if telemetryErr != nil {
-				return cty.NilVal, errors.New(telemetryErr)
+			unitOutput, err := readUnitOutput(ctx, l, pctx, unit, unitDir)
+			if err != nil {
+				return cty.NilVal, err
 			}
 
 			key := filepath.Join(targetDir, unit.Path)
 			declaredUnits[key] = unit
-			outputs[key] = output
-
-			l.Debugf("Added output for %s", key)
+			outputs[key] = unitOutput
 		}
 	}
 
 	unitOutputs := make(map[string]map[string]cty.Value)
 
-	// Build stack list separated by stacks, find all nested stacks, and build a dotted path. If no stack is found, use the unit name.
+	// Build stack list separated by stacks, find all nested stacks, and build
+	// a dotted path. If no stack is found, use the unit name.
 	for path, unit := range declaredUnits {
 		output, found := outputs[path]
 		if !found {
@@ -261,6 +271,34 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 	return nested, nil
 }
 
+// readUnitOutput returns the tofu/terraform outputs for a unit.
+func readUnitOutput(
+	ctx context.Context,
+	l log.Logger,
+	pctx *config.ParsingContext,
+	unit *config.Unit,
+	unitDir string,
+) (map[string]cty.Value, error) {
+	var output map[string]cty.Value
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
+		"unit_name":   unit.Name,
+		"unit_source": unit.Source,
+		"unit_path":   unit.Path,
+	}, func(ctx context.Context) error {
+		var outputErr error
+
+		output, outputErr = unit.ReadOutputs(ctx, l, pctx, unitDir)
+
+		return outputErr
+	})
+	if err != nil {
+		return nil, UnitOutputError{UnitName: unit.Name, UnitDir: unitDir, Err: err}
+	}
+
+	return output, nil
+}
+
 // buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.
 // Returns nil worktrees if the experiment is not enabled or no git filters are present.
 func buildWorktreesIfNeeded(
@@ -273,5 +311,9 @@ func buildWorktreesIfNeeded(
 		return nil, nil
 	}
 
-	return worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+	return worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+		WorkingDir:     opts.WorkingDir,
+		GitExpressions: gitFilters,
+		Experiments:    opts.Experiments,
+	})
 }

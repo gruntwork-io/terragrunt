@@ -152,7 +152,7 @@ In the simplest case, a run in a unit with an empty `terragrunt.hcl` file will b
 
 An execution is a single command run by Terragrunt, which does not necessarily have anything to do with OpenTofu/Terraform.
 
-Ways in which Terragrunt can perform executions are limited to features like [hooks](/features/hooks/), [run_cmd](/reference/hcl/functions#run_cmd), etc.
+Ways in which Terragrunt can perform executions are limited to features like [hooks](/features/units/hooks/), [run_cmd](/reference/hcl/functions#run_cmd), etc.
 
 These utilities are part of what makes Terragrunt so powerful, as they allow users to move infrastructure management complexity out of modules.
 
@@ -162,7 +162,7 @@ The Run Queue is the queue of all units that Terragrunt will do work on over one
 
 Certain commands like [run --all](/reference/cli/commands/run#all) populate the Run Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Run Queue with the unit that the command was run in.
 
-Certain flags like [--include-dir](/reference/cli/commands/run#include-dir) can be used to adjust the Run Queue to include additional units. Conversely, there are flags like [--exclude-dir](/reference/cli/commands/run#exclude-dir) that can be used to adjust the Run Queue to exclude units.
+The [`--filter`](/features/filter) flag can be used to adjust the Run Queue, including or excluding units based on filter expressions. For example, `--filter './networking'` includes a specific path, while `--filter '!./legacy'` excludes one.
 
 Terragrunt will always attempt to run until the Run Queue is empty.
 
@@ -213,7 +213,7 @@ By default, Terragrunt will interact with OpenTofu/Terraform in order to retriev
 
 Terragrunt does have the ability to mock outputs, which is useful when dependencies do not yet have outputs to be consumed (e.g. during the run of a unit with a dependency that has not been applied).
 
-Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--fetch-dependency-output-from-state](/reference/cli/commands/run#fetch-dependency-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
+Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/reference/cli/commands/run#dependency-fetch-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
 
 ### Feature
 
@@ -227,7 +227,7 @@ Like all good feature flags, you are encouraged to use them with good judgement 
 
 ### IaC Engine
 
-[IaC Engines](/features/engine/) (typically abbreviated "Engines") are a way to extend the capabilities of Terragrunt by allowing users to control exactly how Terragrunt performs runs.
+[IaC Engines](/features/units/engine/) (typically abbreviated "Engines") are a way to extend the capabilities of Terragrunt by allowing users to control exactly how Terragrunt performs runs.
 
 Engines allow Terragrunt users to author custom logic for how runs are to be executed in plugins, including defining exactly how OpenTofu/Terraform is to be invoked, where OpenTofu/Terraform is to be invoked, etc.
 

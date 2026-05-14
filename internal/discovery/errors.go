@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -113,24 +114,45 @@ func NewClassificationError(componentPath, reason string) error {
 // CoexistenceError represents an error when a directory contains both
 // a unit configuration file and a stack configuration file.
 type CoexistenceError struct {
-	ComponentPath   string
-	UnitConfigFile  string
-	StackConfigFile string
+	ComponentPath string
+	ConfigFileA   string
+	ConfigFileB   string
 }
 
 func (e CoexistenceError) Error() string {
 	return fmt.Sprintf(
 		"Component %q contains both configuration files %s and %s. "+
 			"A component must be either a unit or a stack, not both.",
-		e.ComponentPath, e.UnitConfigFile, e.StackConfigFile,
+		e.ComponentPath, e.ConfigFileA, e.ConfigFileB,
 	)
 }
 
-// NewCoexistenceError creates a new CoexistenceError.
-func NewCoexistenceError(componentPath, unitConfigFile, stackConfigFile string) error {
+// NewCoexistenceError creates a new CoexistenceError from two components with different kinds.
+func NewCoexistenceError(a, b component.Component) error {
 	return errors.New(CoexistenceError{
-		ComponentPath:   componentPath,
-		UnitConfigFile:  unitConfigFile,
-		StackConfigFile: stackConfigFile,
+		ComponentPath: a.Path(),
+		ConfigFileA:   a.ConfigFile(),
+		ConfigFileB:   b.ConfigFile(),
 	})
+}
+
+// StackDependencyExpansionError indicates that a stack dependency path could not be expanded into
+// its constituent unit paths. Wraps the underlying parse error so callers can extract typed details
+// via errors.As.
+type StackDependencyExpansionError struct {
+	Wrapped error
+	DepPath string
+}
+
+func (e StackDependencyExpansionError) Error() string {
+	return fmt.Sprintf("failed to expand stack dependency path %s: %s", e.DepPath, e.Wrapped)
+}
+
+func (e StackDependencyExpansionError) Unwrap() error {
+	return e.Wrapped
+}
+
+// NewStackDependencyExpansionError wraps err with the dependency path that triggered the expansion.
+func NewStackDependencyExpansionError(depPath string, err error) error {
+	return errors.New(StackDependencyExpansionError{DepPath: depPath, Wrapped: err})
 }

@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Version constraints in stack runs fixed
+
+When running against a stack, a bug prevented Terragrunt + OpenTofu/Terraform version constraints from being respected while using the `terragrunt_version_constraint` and `terraform_version_constraint` HCL attributes. That bug has been fixed.

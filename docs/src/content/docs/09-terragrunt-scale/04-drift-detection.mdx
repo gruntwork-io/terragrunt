@@ -1,0 +1,42 @@
+---
+title: Drift Detection
+description: Automatically detect and remediate infrastructure drift in your Terragrunt-managed resources.
+slug: terragrunt-scale/drift-detection
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Drift Detection is the infrastructure reconciliation component of Terragrunt Scale. It regularly compares your deployed units against your Terragrunt code to identify drift and remediate it.
+
+## How It Works
+
+1. Drift Detection runs `terragrunt plan` on a configurable schedule against your infrastructure units.
+2. When drift is detected (the plan shows more than zero changes) it automatically opens a pull request identifying the changes for only the drifted units.
+3. The PR includes details about what drifted and proposes remediation, so your team can review and merge to bring infrastructure back in line.
+
+## Key Capabilities
+
+- **Scheduled or on-demand scans** — Run drift detection manually from your VCS UI, or on a cron.
+- **Automatic remediation PRs** — Drift is surfaced as a PR/MR on a `drift-detection` branch. Merging it triggers `terragrunt apply` on the drifted units to bring infrastructure back in line.
+- **Glob-based filtering** — Target specific environments or directories using glob patterns (e.g. `management/**`), so you can start with a narrow scope and expand over time.
+- **Two remediation paths** — Either merge the drift PR/MR to apply the code as-is, or update the IaC on the `drift-detection` branch to match the desired cloud state before merging.
+
+## Why It Matters
+
+Infrastructure drift happens when cloud resources are modified outside of your IaC workflow. This can happen through the console, CLI, or other automation.
+
+Over time, undetected drift leads to:
+
+- Unexpected behavior during the next `terragrunt apply`
+- Security and compliance gaps from untracked configuration changes
+- Increased difficulty troubleshooting production issues
+
+Drift Detection catches these changes early, before they compound into larger problems.
+
+<Aside type="tip" title="Full Documentation">
+
+For setup instructions and configuration options, see the [Gruntwork Drift Detection documentation](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/drift-detection).
+
+</Aside>

@@ -12,32 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// Type aliases for filter package types used throughout discovery.
-// These provide backward compatibility and shorter type names within the discovery package.
-type (
-	// ClassificationStatus is an alias for filter.ClassificationStatus.
-	ClassificationStatus = filter.ClassificationStatus
-	// CandidacyReason is an alias for filter.CandidacyReason.
-	CandidacyReason = filter.CandidacyReason
-	// GraphExpressionInfo is an alias for filter.GraphExpressionInfo.
-	GraphExpressionInfo = filter.GraphExpressionInfo
-)
-
-// Status constants are aliases for filter package constants.
-const (
-	StatusDiscovered = filter.StatusDiscovered
-	StatusCandidate  = filter.StatusCandidate
-	StatusExcluded   = filter.StatusExcluded
-)
-
-// CandidacyReason constants are aliases for filter package constants.
-const (
-	CandidacyReasonNone               = filter.CandidacyReasonNone
-	CandidacyReasonGraphTarget        = filter.CandidacyReasonGraphTarget
-	CandidacyReasonRequiresParse      = filter.CandidacyReasonRequiresParse
-	CandidacyReasonPotentialDependent = filter.CandidacyReasonPotentialDependent
-)
-
 // PhaseKind identifies the type of discovery phase.
 type PhaseKind int
 
@@ -80,10 +54,11 @@ func (pk PhaseKind) String() string {
 type DiscoveryResult struct {
 	// Component is the discovered Terragrunt component.
 	Component component.Component
-	// Status indicates whether this is a definite discovery, candidate, or excluded.
-	Status ClassificationStatus
-	// Reason explains why the component is a candidate (only meaningful when Status == StatusCandidate).
-	Reason CandidacyReason
+	// Status indicates whether this component is ready for filter evaluation, a candidate
+	// for further processing, or excluded.
+	Status filter.ClassificationStatus
+	// Reason explains why the component is a candidate (only meaningful when Status == filter.StatusCandidate).
+	Reason filter.CandidacyReason
 	// Phase indicates which phase produced this result.
 	Phase PhaseKind
 	// GraphExpressionIndex is the index of the graph expression that matched (for candidates).
@@ -174,6 +149,10 @@ type Discovery struct {
 	// gitExpressions contains Git filter expressions that require worktree discovery.
 	gitExpressions filter.GitExpressions
 
+	// parseReasons gates the parse phase: non-empty (or classifier
+	// parse-required filters at activation) runs it. Surfaced on telemetry.
+	parseReasons []parseReason
+
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 
@@ -182,9 +161,6 @@ type Discovery struct {
 
 	// noHidden determines whether to detect configurations in hidden directories.
 	noHidden bool
-
-	// requiresParse is true when the discovery requires parsing Terragrunt configurations.
-	requiresParse bool
 
 	// parseExclude determines whether to parse exclude configurations.
 	parseExclude bool

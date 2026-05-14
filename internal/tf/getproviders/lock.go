@@ -95,33 +95,7 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	// Otherwise, we specify the constraints attribute the same as the version.
 	currentConstraintsAttr := providerBlock.Body().GetAttribute("constraints")
 
-	shouldUpdateConstraints := false
-
-	if currentConstraintsAttr != nil {
-		currentConstraintsValue := strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, "")
-		currentConstraints, err := version.NewConstraint(currentConstraintsValue)
-		// If current version constraints are malformed, we should update it.
-		if err != nil {
-			shouldUpdateConstraints = true
-		} else {
-			newVersion, _ := version.NewVersion(provider.Version())
-			// If current version constrains do not match the new provider version, we should update it.
-			if !currentConstraints.Check(newVersion) {
-				shouldUpdateConstraints = true
-			} else {
-				// Even if current constraints are valid, check if module constraints have changed
-				moduleConstraints := provider.Constraints()
-				if moduleConstraints != "" && moduleConstraints != currentConstraintsValue {
-					shouldUpdateConstraints = true
-				}
-			}
-		}
-	} else {
-		// If there is no constraints attribute, we should update it.
-		shouldUpdateConstraints = true
-	}
-
-	if shouldUpdateConstraints {
+	if shouldUpdateConstraints(currentConstraintsAttr, provider.Version()) {
 		// Use module constraints if available, otherwise fall back to exact version
 		constraintsValue := provider.Constraints()
 		if constraintsValue == "" {
@@ -131,27 +105,15 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(constraintsValue))
 	}
 
-	h1Hash, err := PackageHashV1(provider.PackageDir())
+	newHashes, err := collectNewHashes(ctx, provider)
 	if err != nil {
 		return err
-	}
-
-	newHashes := []Hash{h1Hash}
-
-	documentSHA256Sums, err := provider.DocumentSHA256Sums(ctx)
-	if err != nil {
-		return err
-	}
-
-	if documentSHA256Sums != nil {
-		zipHashes := DocumentHashes(documentSHA256Sums)
-		newHashes = append(newHashes, zipHashes...)
 	}
 
 	// merge with existing hashes
-	for _, newHashe := range newHashes {
-		if !slices.Contains(hashes, newHashe) {
-			hashes = append(hashes, newHashe)
+	for _, newHash := range newHashes {
+		if !slices.Contains(hashes, newHash) {
+			hashes = append(hashes, newHash)
 		}
 	}
 
@@ -160,6 +122,70 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	providerBlock.Body().SetAttributeRaw("hashes", tokensForListPerLine(hashes))
 
 	return nil
+}
+
+// collectNewHashes returns the hashes to merge into the lock file for the
+// given provider. The locally-computed `h1:` hash for the unpacked package is
+// always included so verification still works if the registry omits an `h1:`
+// entry for the running platform. When the registry supplies per-platform
+// hashes (the OpenTofu 1.12 `packages` field), those are merged in; otherwise
+// the shasums document supplies the additional `zh:` hashes.
+func collectNewHashes(ctx context.Context, provider Provider) ([]Hash, error) {
+	h1Hash, err := PackageHashV1(provider.PackageDir())
+	if err != nil {
+		return nil, err
+	}
+
+	hashes := []Hash{h1Hash}
+
+	if registryHashes := provider.RegistryHashes(); len(registryHashes) > 0 {
+		return appendUnique(hashes, flattenRegistryHashes(registryHashes)), nil
+	}
+
+	documentSHA256Sums, err := provider.DocumentSHA256Sums(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if documentSHA256Sums != nil {
+		hashes = appendUnique(hashes, DocumentHashes(documentSHA256Sums))
+	}
+
+	return hashes, nil
+}
+
+// flattenRegistryHashes flattens the per-platform hashes from the OpenTofu
+// registry's `packages` response field into a deduplicated list. Each input
+// hash is already scheme-prefixed (e.g. `h1:` or `zh:`).
+func flattenRegistryHashes(byPlatform map[string][]Hash) []Hash {
+	seen := make(map[Hash]struct{})
+
+	var hashes []Hash
+
+	for _, platformHashes := range byPlatform {
+		for _, h := range platformHashes {
+			if _, ok := seen[h]; ok {
+				continue
+			}
+
+			seen[h] = struct{}{}
+			hashes = append(hashes, h)
+		}
+	}
+
+	return hashes
+}
+
+// appendUnique appends additional hashes to base, skipping any value already
+// present in base.
+func appendUnique(base, additional []Hash) []Hash {
+	for _, h := range additional {
+		if !slices.Contains(base, h) {
+			base = append(base, h)
+		}
+	}
+
+	return base
 }
 
 func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash, error) {
@@ -188,6 +214,32 @@ func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash
 	}
 
 	return hashes, nil
+}
+
+// shouldUpdateConstraints returns true if the constraints attribute should be updated
+// based on the current lock file state and the new provider version.
+func shouldUpdateConstraints(currentConstraintsAttr *hclwrite.Attribute, providerVersion string) bool {
+	if currentConstraintsAttr == nil {
+		return true
+	}
+
+	currentConstraintsValue := strings.ReplaceAll(
+		string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()),
+		`"`,
+		"",
+	)
+
+	currentConstraints, err := version.NewConstraint(currentConstraintsValue)
+	if err != nil {
+		return true
+	}
+
+	newVersion, err := version.NewVersion(providerVersion)
+	if err != nil {
+		return true
+	}
+
+	return !currentConstraints.Check(newVersion)
 }
 
 // getAttributeValueAsString returns a value of Attribute as string. There is no way to get value as string directly, so we parses tokens of Attribute and build string representation.
@@ -255,7 +307,7 @@ func UpdateLockfileConstraints(ctx context.Context, workingDir string, constrain
 	filename := filepath.Join(workingDir, tf.TerraformLockFile)
 
 	if !util.FileExists(filename) {
-		return nil // No lock file to update
+		return nil
 	}
 
 	content, err := os.ReadFile(filename)
@@ -273,17 +325,37 @@ func UpdateLockfileConstraints(ctx context.Context, workingDir string, constrain
 	// Update constraints for each provider in the lock file
 	for providerAddr, newConstraint := range constraints {
 		providerBlock := file.Body().FirstMatchingBlock("provider", []string{providerAddr})
-		if providerBlock != nil {
-			currentConstraintsAttr := providerBlock.Body().GetAttribute("constraints")
-			if currentConstraintsAttr != nil {
-				currentConstraintsValue := strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, "")
-				if currentConstraintsValue != newConstraint {
-					providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(newConstraint))
+		if providerBlock == nil {
+			continue
+		}
 
-					updated = true
-				}
+		currentConstraintsAttr := providerBlock.Body().GetAttribute("constraints")
+		if currentConstraintsAttr == nil {
+			continue
+		}
+
+		currentConstraintsValue := strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, "")
+
+		currentConstraints, err := version.NewConstraint(currentConstraintsValue)
+		if err != nil {
+			providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(newConstraint))
+
+			updated = true
+
+			continue
+		}
+
+		versionAttr := providerBlock.Body().GetAttribute("version")
+		if versionAttr != nil {
+			versionVal := getAttributeValueAsUnquotedString(versionAttr)
+			if v, err := version.NewVersion(versionVal); err == nil && currentConstraints.Check(v) {
+				continue
 			}
 		}
+
+		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(newConstraint))
+
+		updated = true
 	}
 
 	if updated {

@@ -3,16 +3,19 @@ package scaffold
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -20,12 +23,13 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
-	boilerplate_options "github.com/gruntwork-io/boilerplate/options"
+	"github.com/gruntwork-io/boilerplate/manifest"
+	boilerplateoptions "github.com/gruntwork-io/boilerplate/options"
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/hashicorp/go-getter/v2"
 )
 
 const (
@@ -113,12 +117,12 @@ func NewBoilerplateOptions(
 	outputFolder string,
 	vars map[string]any,
 	terragruntOpts *options.TerragruntOptions,
-) *boilerplate_options.BoilerplateOptions {
-	return &boilerplate_options.BoilerplateOptions{
+) *boilerplateoptions.BoilerplateOptions {
+	return &boilerplateoptions.BoilerplateOptions{
 		TemplateFolder:          templateFolder,
 		OutputFolder:            outputFolder,
-		OnMissingKey:            boilerplate_options.DefaultMissingKeyAction,
-		OnMissingConfig:         boilerplate_options.DefaultMissingConfigAction,
+		OnMissingKey:            boilerplateoptions.DefaultMissingKeyAction,
+		OnMissingConfig:         boilerplateoptions.DefaultMissingConfigAction,
 		Vars:                    vars,
 		ShellCommandAnswers:     map[string]bool{},
 		NoShell:                 terragruntOpts.NoShell,
@@ -161,6 +165,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		return errors.New(NoModuleURLPassed{})
 	}
 
+	moduleURL = tf.RewriteLegacyGCSPublicSource(ctx, l, moduleURL, opts.StrictControls)
+	templateURL = tf.RewriteLegacyGCSPublicSource(ctx, l, templateURL, opts.StrictControls)
+
 	// create temporary directory where to download module
 	tempDir, err := os.MkdirTemp("", "scaffold")
 	if err != nil {
@@ -175,15 +182,27 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		return errors.New(err)
 	}
 
-	// parse module url
+	// Save the original URL before go-getter transformation so the scaffolded
+	// source attribute matches the catalog config format.
+	originalModuleURL := moduleURL
+
+	// parse module url (transforms for go-getter download)
 	moduleURL, err = parseModuleURL(ctx, l, opts, vars, moduleURL)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	l.Infof("Scaffolding a new Terragrunt module %s to %s", moduleURL, outputDir)
+	l.Debugf("Scaffolding a new Terragrunt module %s to %s", moduleURL, outputDir)
 
-	if _, err := getter.GetAny(ctx, tempDir, moduleURL); err != nil {
+	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_module", map[string]any{
+		"module_url": moduleURL,
+	}, func(ctx context.Context) error {
+		if _, getErr := getter.GetAny(ctx, tempDir, moduleURL); getErr != nil {
+			return fmt.Errorf("downloading scaffold module from %s: %w", moduleURL, getErr)
+		}
+
+		return nil
+	}); err != nil {
 		return errors.New(err)
 	}
 
@@ -205,7 +224,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	vars["requiredVariables"] = requiredVariables
 	vars["optionalVariables"] = optionalVariables
 
-	vars["sourceUrl"] = moduleURL
+	// Build sourceUrl from the original URL with the ref that parseModuleURL resolved.
+	vars["sourceUrl"] = BuildSourceURL(originalModuleURL, moduleURL, vars)
 
 	// Only set these if the `vars` map doesn't already have them set
 	if _, found := vars[enableRootInclude]; !found {
@@ -228,23 +248,92 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		)
 	}
 
-	l.Infof("Running boilerplate generation to %s", outputDir)
+	l.Debugf("Running boilerplate generation to %s", outputDir)
 	boilerplateOpts := NewBoilerplateOptions(boilerplateDir, outputDir, vars, opts)
 
-	emptyDep := variables.Dependency{}
-	if err := templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep); err != nil {
+	emptyDep := &variables.Dependency{}
+
+	result, err := templates.ProcessTemplateWithContext(ctx, boilerplateOpts, boilerplateOpts, emptyDep)
+	if err != nil {
 		return errors.New(err)
 	}
 
-	l.Infof("Running fmt on generated code %s", outputDir)
-
-	if err := format.Run(ctx, l, opts); err != nil {
+	depFiles, err := collectDependencyFiles(result.Dependencies, 0)
+	if err != nil {
 		return errors.New(err)
 	}
 
-	l.Info("Scaffolding completed")
+	allFiles := slices.Concat(result.GeneratedFiles, depFiles)
+
+	for i, f := range allFiles {
+		allFiles[i] = filepath.Clean(f)
+	}
+
+	allFiles = slices.Compact(slices.Sorted(slices.Values(allFiles)))
+
+	l.Debugf("Running fmt on generated code %s", outputDir)
+
+	if err := format.RunForFiles(ctx, l, opts, outputDir, allFiles); err != nil {
+		return errors.New(err)
+	}
+
+	l.Debug("Scaffolding completed")
 
 	return nil
+}
+
+// BuildSourceURL returns the original module URL with the ref query param
+// from the resolved URL appended, so the scaffolded source preserves the
+// user's original URL format while including the resolved version tag.
+//
+// When vars sets SourceUrlType to git-ssh, the resolved URL is returned
+// instead so that the scaffolded source carries the Git/SSH rewrite that
+// rewriteModuleURL applied.
+func BuildSourceURL(originalURL, resolvedURL string, vars map[string]any) string {
+	if value, found := vars[sourceURLTypeVar]; found && fmt.Sprintf("%s", value) == sourceURLTypeGit {
+		return resolvedURL
+	}
+
+	refVal := ExtractQueryParam(resolvedURL, refParam)
+	if refVal == "" {
+		return originalURL
+	}
+
+	base, rawQuery := splitURLQuery(originalURL)
+
+	params, err := url.ParseQuery(rawQuery)
+	if err != nil || params.Has(refParam) {
+		return originalURL
+	}
+
+	params.Set(refParam, refVal)
+
+	return base + "?" + params.Encode()
+}
+
+// ExtractQueryParam extracts a query parameter value from a URL string.
+// It splits on the last "?" to find the query portion, avoiding issues with
+// go-getter prefixes (e.g. "git::") that confuse url.Parse.
+func ExtractQueryParam(rawURL, param string) string {
+	_, rawQuery := splitURLQuery(rawURL)
+
+	params, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return ""
+	}
+
+	return params.Get(param)
+}
+
+// splitURLQuery splits a raw URL at the last "?" into the base and query
+// string. Go-getter URLs may contain "::" prefixes that prevent full URL
+// parsing, but the query string is always after the final "?".
+func splitURLQuery(rawURL string) (string, string) {
+	if idx := strings.LastIndex(rawURL, "?"); idx >= 0 {
+		return rawURL[:idx], rawURL[idx+1:]
+	}
+
+	return rawURL, ""
 }
 
 // applyCatalogConfigToScaffold applies catalog configuration settings to scaffold options.
@@ -281,7 +370,7 @@ func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, opts *optio
 
 // generateDefaultTemplate - write default template to provided dir
 func generateDefaultTemplate(boilerplateDir string) (string, error) {
-	const ownerWriteGlobalReadPerms = 0644
+	const ownerWriteGlobalReadPerms = 0o644
 	if err := os.WriteFile(
 		filepath.Join(
 			boilerplateDir,
@@ -341,9 +430,18 @@ func downloadTemplate(
 		return "", errors.New(err)
 	}
 
-	l.Infof("Downloading template from %s into %s", baseURL.String(), templateDir)
-	// Downloading baseURL to support boilerplate dependencies and partials. Go-getter discards all but specified folder if one is provided.
-	if _, err := getter.GetAny(ctx, templateDir, baseURL.String()); err != nil {
+	l.Debugf("Downloading template from %s into %s", baseURL.String(), templateDir)
+	// Downloading baseURL to support boilerplate dependencies and partials.
+	// Go-getter discards all but specified folder if one is provided.
+	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_template", map[string]any{
+		"template_url": baseURL.String(),
+	}, func(ctx context.Context) error {
+		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
+			return fmt.Errorf("downloading scaffold template from %s: %w", baseURL.String(), getErr)
+		}
+
+		return nil
+	}); err != nil {
 		return "", errors.New(err)
 	}
 
@@ -352,7 +450,7 @@ func downloadTemplate(
 		subFolder = strings.TrimPrefix(subFolder, "/")
 		templateDir = filepath.Join(templateDir, subFolder)
 		// Verify that subfolder exists
-		if _, err := os.Stat(templateDir); os.IsNotExist(err) {
+		if _, err := os.Stat(templateDir); errors.Is(err, fs.ErrNotExist) {
 			return "", errors.Errorf(
 				"subfolder \"//%s\" not found in downloaded template from %s",
 				subFolder,
@@ -481,14 +579,15 @@ func parseModuleURL(
 }
 
 // rewriteModuleURL rewrites module url to git ssh if required
-// github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
+// github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
 func rewriteModuleURL(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	vars map[string]any,
 	moduleURL string,
 ) (*url.URL, error) {
-	var updatedModuleURL = moduleURL
+	updatedModuleURL := moduleURL
 
 	sourceURLType := sourceURLTypeHTTPS
 	if value, found := vars[sourceURLTypeVar]; found {
@@ -508,7 +607,8 @@ func rewriteModuleURL(
 		return parsedModuleURL, nil
 	}
 	// try to rewrite module url if is https and is requested to be git
-	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
+	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+	// git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
 	if parsedValue.scheme == "https" && sourceURLType == sourceURLTypeGit {
 		gitUser := sourceGitSSHUser
 		if value, found := vars[sourceGitSSHUserVar]; found {
@@ -529,7 +629,8 @@ func rewriteModuleURL(
 }
 
 // rewriteTemplateURL rewrites template url with reference to tag
-// github.com/denis256/terragrunt-tests.git//scaffold/base-template => github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8
+// github.com/denis256/terragrunt-tests.git//scaffold/base-template =>
+// github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8
 func rewriteTemplateURL(
 	ctx context.Context,
 	l log.Logger,
@@ -573,7 +674,7 @@ func addRefToModuleURL(
 	parsedModuleURL *url.URL,
 	vars map[string]any,
 ) (*url.URL, error) {
-	var moduleURL = parsedModuleURL
+	moduleURL := parsedModuleURL
 	// append ref to source url, if is passed through variables or find it from git tags
 	params := moduleURL.Query()
 
@@ -586,7 +687,8 @@ func addRefToModuleURL(
 	ref := params.Get(refParam)
 	if ref == "" {
 		// if ref is not passed, find last release tag
-		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
+		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
 		rootSourceURL, _, err := tf.SplitSourceURL(l, moduleURL)
 		if err != nil {
 			return nil, errors.New(err)
@@ -625,15 +727,46 @@ type parsedURL struct {
 	path   string
 }
 
-type failedToParseURLError struct {
+const maxDependencyDepth = 100
+
+// collectDependencyFiles recursively collects file paths from all boilerplate
+// dependencies and their nested sub-dependencies up to maxDependencyDepth.
+func collectDependencyFiles(deps []manifest.ManifestDependency, depth int) ([]string, error) {
+	if depth >= maxDependencyDepth {
+		return nil, errors.New(MaxDependencyDepthExceededError{})
+	}
+
+	var files []string
+
+	for i := range deps {
+		for _, f := range deps[i].Files {
+			files = append(files, f.Path)
+		}
+
+		subFiles, err := collectDependencyFiles(deps[i].Dependencies, depth+1)
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, subFiles...)
+	}
+
+	return files, nil
 }
+
+type MaxDependencyDepthExceededError struct{}
+
+func (err MaxDependencyDepthExceededError) Error() string {
+	return fmt.Sprintf("dependency depth limit of %d exceeded, possible circular dependencies", maxDependencyDepth)
+}
+
+type failedToParseURLError struct{}
 
 func (err failedToParseURLError) Error() string {
 	return "Failed to parse Url."
 }
 
-type NoModuleURLPassed struct {
-}
+type NoModuleURLPassed struct{}
 
 func (err NoModuleURLPassed) Error() string {
 	return "No module URL passed."
