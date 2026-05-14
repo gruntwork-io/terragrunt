@@ -154,52 +154,30 @@ func IsPure(expr hclsyntax.Expression, deferred map[string]bool) bool {
 	return true
 }
 
+// containsFunctionCall reports whether expr contains any FunctionCallExpr anywhere in its AST. Uses hclsyntax.Walk so any node type (including ones we don't enumerate) is covered.
 func containsFunctionCall(expr hclsyntax.Expression) bool {
-	switch e := expr.(type) {
-	case *hclsyntax.FunctionCallExpr:
-		return true
-	case *hclsyntax.TemplateExpr:
-		for _, part := range e.Parts {
-			if containsFunctionCall(part) {
-				return true
-			}
-		}
-	case *hclsyntax.TemplateWrapExpr:
-		return containsFunctionCall(e.Wrapped)
-	case *hclsyntax.ObjectConsExpr:
-		for _, item := range e.Items {
-			if containsFunctionCall(item.KeyExpr) || containsFunctionCall(item.ValueExpr) {
-				return true
-			}
-		}
-	case *hclsyntax.TupleConsExpr:
-		for _, elem := range e.Exprs {
-			if containsFunctionCall(elem) {
-				return true
-			}
-		}
-	case *hclsyntax.ConditionalExpr:
-		return containsFunctionCall(e.Condition) || containsFunctionCall(e.TrueResult) || containsFunctionCall(e.FalseResult)
-	case *hclsyntax.ParenthesesExpr:
-		return containsFunctionCall(e.Expression)
-	case *hclsyntax.BinaryOpExpr:
-		return containsFunctionCall(e.LHS) || containsFunctionCall(e.RHS)
-	case *hclsyntax.UnaryOpExpr:
-		return containsFunctionCall(e.Val)
-	case *hclsyntax.IndexExpr:
-		return containsFunctionCall(e.Collection) || containsFunctionCall(e.Key)
-	case *hclsyntax.ForExpr:
-		return containsFunctionCall(e.CollExpr) ||
-			(e.KeyExpr != nil && containsFunctionCall(e.KeyExpr)) ||
-			containsFunctionCall(e.ValExpr) ||
-			(e.CondExpr != nil && containsFunctionCall(e.CondExpr))
-	case *hclsyntax.SplatExpr:
-		return containsFunctionCall(e.Source) || containsFunctionCall(e.Each)
-	default:
-		return false
+	w := &functionCallWalker{}
+
+	_ = hclsyntax.Walk(expr, w)
+
+	return w.found
+}
+
+// functionCallWalker is an hclsyntax.Walker that flips found=true on the first FunctionCallExpr it sees.
+type functionCallWalker struct {
+	found bool
+}
+
+func (w *functionCallWalker) Enter(node hclsyntax.Node) hcl.Diagnostics {
+	if _, ok := node.(*hclsyntax.FunctionCallExpr); ok {
+		w.found = true
 	}
 
-	return false
+	return nil
+}
+
+func (w *functionCallWalker) Exit(_ hclsyntax.Node) hcl.Diagnostics {
+	return nil
 }
 
 func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {

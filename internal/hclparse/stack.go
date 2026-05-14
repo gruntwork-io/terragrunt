@@ -13,6 +13,9 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+// StackFileName is the canonical filename of a Terragrunt stack file.
+const StackFileName = "terragrunt.stack.hcl"
+
 // StackFileHCL is the Phase 1 slurp of a terragrunt.stack.hcl file. Only the locals block, include blocks, and the rest of the body (Remain) are captured at this stage. Unit/stack blocks live inside Remain and are decoded later against a populated eval context.
 type StackFileHCL struct {
 	Remain   hcl.Body           `hcl:",remain"`
@@ -137,7 +140,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	}
 
 	stackDir = util.ResolvePath(stackDir)
-	stackFile := filepath.Join(stackDir, "terragrunt.stack.hcl")
+	stackFile := filepath.Join(stackDir, StackFileName)
 
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
@@ -166,7 +169,7 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 	}
 
 	stackDir = util.ResolvePath(stackDir)
-	stackFile := filepath.Join(stackDir, "terragrunt.stack.hcl")
+	stackFile := filepath.Join(stackDir, StackFileName)
 
 	units, _, err := decodeDiscovery(fs, stackDir, stackFile)
 	if err != nil {
@@ -215,7 +218,7 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 		return nil
 	}
 
-	stackFile := filepath.Join(stackSourceDir, "terragrunt.stack.hcl")
+	stackFile := filepath.Join(stackSourceDir, StackFileName)
 
 	units, stacks, err := decodeDiscovery(fs, stackSourceDir, stackFile)
 	if err != nil || (units == nil && stacks == nil) {

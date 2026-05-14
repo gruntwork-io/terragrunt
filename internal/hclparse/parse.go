@@ -271,48 +271,71 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 		return nil
 	}
 
-	// deps[name] = set of local names this local depends on.
-	deps := make(map[string]map[string]struct{}, len(syntaxBody.Attributes))
-
-	for name, attr := range syntaxBody.Attributes {
-		depSet := make(map[string]struct{})
-
-		for _, traversal := range attr.Expr.Variables() {
-			if traversal.RootName() != varLocal {
-				continue
-			}
-
-			split := traversal.SimpleSplit()
-			if len(split.Rel) == 0 {
-				continue
-			}
-
-			step, ok := split.Rel[0].(hcl.TraverseAttr)
-			if !ok {
-				continue
-			}
-
-			if _, declared := syntaxBody.Attributes[step.Name]; declared {
-				depSet[step.Name] = struct{}{}
-			}
-		}
-
-		deps[name] = depSet
-	}
+	deps := buildLocalsDeps(syntaxBody.Attributes)
 
 	order, cycle := topoSortLocals(deps)
 	if cycle != nil {
 		return LocalsCycleError{Names: cycle}
 	}
 
-	evaluated := make(map[string]cty.Value, len(syntaxBody.Attributes))
+	return evaluateLocalsInOrder(syntaxBody.Attributes, order, evalCtx)
+}
 
+// buildLocalsDeps returns the local-to-local dependency graph for the locals block. References to undeclared names are skipped — they will surface as eval errors later.
+func buildLocalsDeps(attrs map[string]*hclsyntax.Attribute) map[string]map[string]struct{} {
+	deps := make(map[string]map[string]struct{}, len(attrs))
+
+	for name, attr := range attrs {
+		deps[name] = localDependsOn(attr, attrs)
+	}
+
+	return deps
+}
+
+// localDependsOn returns the set of declared local names that attr references via local.X.
+func localDependsOn(attr *hclsyntax.Attribute, declared map[string]*hclsyntax.Attribute) map[string]struct{} {
+	depSet := make(map[string]struct{})
+
+	for _, traversal := range attr.Expr.Variables() {
+		if traversal.RootName() != varLocal {
+			continue
+		}
+
+		name, ok := firstAttrStep(traversal)
+		if !ok {
+			continue
+		}
+
+		if _, exists := declared[name]; exists {
+			depSet[name] = struct{}{}
+		}
+	}
+
+	return depSet
+}
+
+// firstAttrStep returns the first attribute name a traversal walks into (e.g. "x" for `local.x.y`). Returns ok=false for bare-root traversals or non-attribute steps.
+func firstAttrStep(traversal hcl.Traversal) (string, bool) {
+	split := traversal.SimpleSplit()
+	if len(split.Rel) == 0 {
+		return "", false
+	}
+
+	step, ok := split.Rel[0].(hcl.TraverseAttr)
+	if !ok {
+		return "", false
+	}
+
+	return step.Name, true
+}
+
+// evaluateLocalsInOrder evaluates each local in the supplied order, registering the running result as `local.*` in evalCtx after every successful evaluation.
+func evaluateLocalsInOrder(attrs map[string]*hclsyntax.Attribute, order []string, evalCtx *hcl.EvalContext) error {
+	evaluated := make(map[string]cty.Value, len(order))
 	evalCtx.Variables[varLocal] = localObject(evaluated)
 
 	for _, name := range order {
-		attr := syntaxBody.Attributes[name]
-
-		val, diags := attr.Expr.Value(evalCtx)
+		val, diags := attrs[name].Expr.Value(evalCtx)
 		if diags.HasErrors() {
 			return LocalEvalError{Name: name, Detail: diags.Error(), Err: diags}
 		}
