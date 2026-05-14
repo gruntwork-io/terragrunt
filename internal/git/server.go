@@ -94,6 +94,40 @@ func (s *Server) CommitFile(path string, data []byte, msg string) error {
 	return nil
 }
 
+// CommitSymlink creates a symlink in the worktree pointing at target and
+// commits it. The recorded tree entry is mode 120000 (git's symlink type),
+// matching the on-disk representation produced by `git add` on a symlink.
+func (s *Server) CommitSymlink(link, target, msg string) error {
+	w, err := s.repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("worktree: %w", err)
+	}
+
+	if err := w.Filesystem.Symlink(target, link); err != nil {
+		return fmt.Errorf("symlink %s -> %s: %w", link, target, err)
+	}
+
+	if _, err := w.Add(link); err != nil {
+		return fmt.Errorf("add %s: %w", link, err)
+	}
+
+	sig := &object.Signature{
+		Name:  "Test",
+		Email: "test@test.com",
+		When:  time.Now(),
+	}
+
+	_, err = w.Commit(msg, &gogit.CommitOptions{
+		Author:    sig,
+		Committer: sig,
+	})
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	return nil
+}
+
 // Head returns the canonical hash of the current HEAD commit. Useful
 // in tests that need to capture a non-tip commit hash before adding
 // further commits.
@@ -135,6 +169,18 @@ func (s *Server) Branch(name string) error {
 	branchRef := plumbing.NewHashReference(plumbing.NewBranchReferenceName(name), ref.Hash())
 	if err := s.repo.Storer.SetReference(branchRef); err != nil {
 		return fmt.Errorf("set branch %s: %w", name, err)
+	}
+
+	return nil
+}
+
+// SetBranch points the named branch at the given commit hash, creating
+// it if missing. Tests use this to rewind a branch past a tagged
+// commit so the commit is reachable only via the tag.
+func (s *Server) SetBranch(name, hash string) error {
+	ref := plumbing.NewHashReference(plumbing.NewBranchReferenceName(name), plumbing.NewHash(hash))
+	if err := s.repo.Storer.SetReference(ref); err != nil {
+		return fmt.Errorf("set branch %s to %s: %w", name, hash, err)
 	}
 
 	return nil
