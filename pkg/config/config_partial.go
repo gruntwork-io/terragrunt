@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -381,6 +382,18 @@ func PartialParseConfigString(ctx context.Context, pctx *ParsingContext, l log.L
 func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	errs := &errors.MultiError{}
 
+	// Snapshot DependenciesFromReads at entry so we only consume entries appended during this parse and don't leak them to sibling parses (issue #5993).
+	depsFromReadsStart := -1
+	if pctx.DependenciesFromReads != nil {
+		depsFromReadsStart = len(*pctx.DependenciesFromReads)
+
+		defer func() {
+			if pctx.DependenciesFromReads != nil && depsFromReadsStart >= 0 && depsFromReadsStart <= len(*pctx.DependenciesFromReads) {
+				*pctx.DependenciesFromReads = (*pctx.DependenciesFromReads)[:depsFromReadsStart]
+			}
+		}()
+	}
+
 	// Detect and block deprecated configurations early, before attempting to parse.
 	// This ensures included configs with deprecated syntax get clear error messages
 	// instead of cryptic "Could not find Terragrunt configuration settings" errors.
@@ -639,6 +652,9 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 	}
 
+	// Fold dep paths recorded by read_terragrunt_config during this parse into output.Dependencies (issue #5993).
+	mergeDependenciesFromReads(pctx, output, depsFromReadsStart)
+
 	if errs.ErrorOrNil() != nil {
 		return output, errs.ErrorOrNil()
 	}
@@ -648,6 +664,30 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	}
 
 	return output, nil
+}
+
+// mergeDependenciesFromReads folds entries appended to pctx.DependenciesFromReads since startIdx into output.Dependencies.Paths, deduped.
+func mergeDependenciesFromReads(pctx *ParsingContext, output *TerragruntConfig, startIdx int) {
+	if pctx == nil || pctx.DependenciesFromReads == nil || output == nil || startIdx < 0 {
+		return
+	}
+
+	deps := *pctx.DependenciesFromReads
+	if startIdx >= len(deps) {
+		return
+	}
+
+	delta := deps[startIdx:]
+
+	if output.Dependencies == nil {
+		output.Dependencies = &ModuleDependencies{}
+	}
+
+	for _, p := range delta {
+		if !slices.Contains(output.Dependencies.Paths, p) {
+			output.Dependencies.Paths = append(output.Dependencies.Paths, p)
+		}
+	}
 }
 
 // processExcludes evaluate exclude blocks and merge them into the config.

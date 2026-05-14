@@ -52,6 +52,9 @@ type ParsingContext struct {
 	Features            *cty.Value
 	Locals              *cty.Value
 
+	// DependenciesFromReads collects dep paths surfaced by read_terragrunt_config so partial parse can fold them into Dependencies.Paths (issue #5993).
+	DependenciesFromReads *[]string
+
 	Env                 map[string]string
 	SourceMap           map[string]string
 	PredefinedFunctions map[string]function.Function
@@ -105,10 +108,12 @@ type ParsingContext struct {
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {
 	filesRead := make([]string, 0)
+	depsFromReads := make([]string, 0)
 
 	pctx := &ParsingContext{
-		TerraformCliArgs: iacargs.New(),
-		FilesRead:        &filesRead,
+		TerraformCliArgs:      iacargs.New(),
+		FilesRead:             &filesRead,
+		DependenciesFromReads: &depsFromReads,
 	}
 
 	for _, opt := range opts {

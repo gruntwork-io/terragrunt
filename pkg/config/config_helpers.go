@@ -1089,6 +1089,9 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 		return cty.NilVal, err
 	}
 
+	// Surface the target config's dependencies so discovery's DAG sees them (issue #5993).
+	recordDependenciesFromRead(pctx, config, targetConfig)
+
 	// We have to set the rendered outputs here because ParseConfigFile will not do so on the TerragruntConfig. The
 	// outputs are stored in a special map that is used only for rendering and thus is not available when we try to
 	// serialize the config for consumption.
@@ -1102,6 +1105,49 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	}
 
 	return TerragruntConfigAsCty(config)
+}
+
+// recordDependenciesFromRead appends `config`'s dependency paths to pctx.DependenciesFromReads, resolved against targetConfig's directory.
+func recordDependenciesFromRead(pctx *ParsingContext, config *TerragruntConfig, targetConfig string) {
+	if pctx == nil || pctx.DependenciesFromReads == nil || config == nil {
+		return
+	}
+
+	baseDir := filepath.Dir(targetConfig)
+
+	for _, dep := range config.TerragruntDependencies {
+		if dep.isDisabled() || !IsValidConfigPath(dep.ConfigPath) {
+			continue
+		}
+
+		appendUniqueResolvedPath(pctx.DependenciesFromReads, baseDir, dep.ConfigPath.AsString())
+	}
+
+	if config.Dependencies != nil {
+		for _, path := range config.Dependencies.Paths {
+			appendUniqueResolvedPath(pctx.DependenciesFromReads, baseDir, path)
+		}
+	}
+}
+
+// appendUniqueResolvedPath resolves rawPath against baseDir if relative and appends to *dst when not already present.
+func appendUniqueResolvedPath(dst *[]string, baseDir, rawPath string) {
+	if rawPath == "" {
+		return
+	}
+
+	resolved := rawPath
+	if !filepath.IsAbs(resolved) {
+		resolved = filepath.Join(baseDir, resolved)
+	}
+
+	resolved = filepath.Clean(resolved)
+
+	if slices.Contains(*dst, resolved) {
+		return
+	}
+
+	*dst = append(*dst, resolved)
 }
 
 // Create a cty Function that can be used to for calling read_terragrunt_config.

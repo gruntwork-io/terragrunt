@@ -737,6 +737,36 @@ func TestReadTerragruntConfigDependencyInStack(t *testing.T) {
 		"read_terragrunt_config should be able to parse dependency blocks during stack runs")
 }
 
+// TestReadTerragruntConfigDependencyApplyAll exercises `apply --all` on a
+// fixture where one unit (`app`) reads a sibling HCL file via
+// `read_terragrunt_config`, and that file declares a `dependency` block on
+// another unit (`dep`).
+//
+// Without the fix, discovery does not see the transitive dependency hidden
+// inside the read file. `app` and `dep` are scheduled in parallel, so `app`'s
+// parse fetches `dep`'s outputs before `dep` has been applied, and the apply
+// fails with "detected no outputs".
+//
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5993.
+func TestReadTerragruntConfigDependencyApplyAll(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureReadConfigDependencyStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfigDependencyStack)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfigDependencyStack)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err, "apply --all should succeed; stderr:\n%s", stderr)
+
+	assert.NotContains(t, stderr, "detected no outputs",
+		"apply --all should not fail fetching dependency outputs introduced via read_terragrunt_config")
+	assert.NotContains(t, stderr, "\"dependency\" is not defined",
+		"dependency variable should be defined when read_terragrunt_config returns a config with dependency blocks")
+}
+
 // TestReadTerragruntConfigDependencyInStackWithRacing exercises the same scenario
 // as TestReadTerragruntConfigDependencyInStack under the race detector.
 // The `run --all` command internally processes units concurrently, which is
