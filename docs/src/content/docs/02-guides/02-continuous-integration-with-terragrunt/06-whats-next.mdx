@@ -1,0 +1,20 @@
+---
+title: What's next
+description: Next steps after completing the Continuous Integration with Terragrunt guide
+slug: guides/ci-with-terragrunt/whats-next
+sidebar:
+  order: 6
+next: false
+---
+
+You've gone from a blank account to a working CI pipeline that plans on every PR and applies on merge, with OIDC authentication and DAG-aware orchestration. You can continue to use the same setup for your real production infrastructure going forward.
+
+Some things worth exploring beyond this guide:
+
+- **Granular Modifications**: What happens when you redeploy the stack, then edit the `memory` value for the `service` unit? What happens when you add another `service` unit? What happens when you remove one of them? How many units get planned? How many get applied?
+- **Building your own catalog**: The sample infrastructure uses modules from an example catalog. When you're ready to write your own reusable modules, the [terragrunt-infrastructure-catalog-example](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example) repository is a good starting point.
+- **Multi-account, multi-region**: The sample repository has `non-prod` and `prod` account directories and `us-east-1` as a region. The [terragrunt-infrastructure-live-stacks-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example) repository demonstrates the full pattern for managing infrastructure across multiple accounts and regions. Read through the [Pipelines AWS Authentication documentation](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/aws) to learn how to configure Pipelines for multiple AWS accounts. Try setting cross account dependencies!
+- **Terralith to Terragrunt**: The [Terralith to Terragrunt](/guides/terralith-to-terragrunt/) guide is another long form guide where you'll learn how to provision a much more interesting application than the one deployed here. Try deploying it using Terragrunt Scale!
+- **The Full Terragrunt Scale Experience**: In this guide, we only took advantage of the features in the Terragrunt Scale Free Tier. If you're interested in Drift Detection to automatically remediate drift between your IaC and deployed infrastructure or Patcher to automatically keep your infrastructure up to date (even through breaking changes), check out the full [Terragrunt Scale](https://terragrunt.com/terragrunt-scale) offering.
+
+If you get stuck or have questions, the [Terragrunt Discord](/community/invite) community is active and happy to help.

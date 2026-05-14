@@ -10,6 +10,10 @@ export const sidebar = [
         label: "Terralith to Terragrunt",
         autogenerate: { directory: "02-guides/01-terralith-to-terragrunt", collapsed: true },
       },
+      {
+        label: "Continuous Integration with Terragrunt",
+        autogenerate: { directory: "02-guides/02-continuous-integration-with-terragrunt", collapsed: true },
+      },
     ],
     collapsed: true,
   },

@@ -329,8 +329,6 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			return nil, err
 		}
 
-		depCtx.DownloadDir = filepath.Join(filepath.Dir(depPath), util.TerragruntCacheDir)
-
 		if depCtx.IAMRoleOptions != depCtx.OriginalIAMRoleOptions {
 			depCtx.IAMRoleOptions = iam.RoleOptions{}
 		}
@@ -992,11 +990,6 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 	pctx.CheckDependentUnits = false
 	pctx.TerraformCommand = "output"
 	pctx.TerraformCliArgs = iacargs.New().SetCommand("output").AppendFlag("-json")
-
-	// DownloadDir needs to be the dependency's default download directory
-	_, downloadDir := util.DefaultWorkingAndDownloadDirs(targetConfig)
-
-	pctx.DownloadDir = downloadDir
 
 	// Clear IAM if changed from original
 	if pctx.IAMRoleOptions != pctx.OriginalIAMRoleOptions {
