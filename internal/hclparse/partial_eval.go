@@ -2,7 +2,6 @@ package hclparse
 
 import (
 	"bytes"
-	"slices"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -88,15 +87,32 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) []byt
 	return RangeBytes(args.SrcBytes, e.Range())
 }
 
+// stitchExpression rebuilds the source bytes of a parent expression with each child replaced by its PartialEval output. Gaps between/around children (operators, brackets, commas, whitespace) come from the source verbatim, so user formatting is preserved and there are no hard-coded separator strings.
+func stitchExpression(args *EvalArgs, parentRange hcl.Range, children []hclsyntax.Expression) []byte {
+	if len(children) == 0 {
+		return RangeBytes(args.SrcBytes, parentRange)
+	}
+
+	src := args.SrcBytes
+	out := make([]byte, 0, parentRange.End.Byte-parentRange.Start.Byte)
+	cursor := parentRange.Start.Byte
+
+	for _, child := range children {
+		cr := child.Range()
+
+		out = append(out, src[cursor:cr.Start.Byte]...)
+		out = append(out, PartialEval(child, args)...)
+		cursor = cr.End.Byte
+	}
+
+	out = append(out, src[cursor:parentRange.End.Byte]...)
+
+	return out
+}
+
 func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte {
 	if !IsPure(e.Condition, args.Deferred) || containsFunctionCall(e.Condition) {
-		return slices.Concat(
-			PartialEval(e.Condition, args),
-			[]byte(" ? "),
-			PartialEval(e.TrueResult, args),
-			[]byte(" : "),
-			PartialEval(e.FalseResult, args),
-		)
+		return stitchExpression(args, e.Range(), []hclsyntax.Expression{e.Condition, e.TrueResult, e.FalseResult})
 	}
 
 	condVal, diags := e.Condition.Value(args.EvalCtx)
@@ -117,30 +133,19 @@ func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte
 }
 
 func partialEvalFunctionCall(e *hclsyntax.FunctionCallExpr, args *EvalArgs) []byte {
-	callArgs := make([][]byte, 0, len(e.Args))
+	children := make([]hclsyntax.Expression, len(e.Args))
+	copy(children, e.Args)
 
-	for i, arg := range e.Args {
-		evaluated := PartialEval(arg, args)
-		if e.ExpandFinal && i == len(e.Args)-1 {
-			evaluated = slices.Concat(evaluated, []byte("..."))
-		}
-
-		callArgs = append(callArgs, evaluated)
-	}
-
-	return slices.Concat([]byte(e.Name+"("), bytes.Join(callArgs, []byte(", ")), []byte(")"))
+	return stitchExpression(args, e.Range(), children)
 }
 
 func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) []byte {
-	inner := PartialEval(e.Expression, args)
-
-	// Pure expressions evaluate to literals: parens not needed.
+	// Pure inner expression evaluates to a literal; parens are unnecessary.
 	if IsPure(e.Expression, args.Deferred) {
-		return inner
+		return PartialEval(e.Expression, args)
 	}
 
-	// Wrap deferred expressions in parentheses.
-	return slices.Concat([]byte("("), inner, []byte(")"))
+	return stitchExpression(args, e.Range(), []hclsyntax.Expression{e.Expression})
 }
 
 // IsPure returns true if the expression has no references to deferred root names.
@@ -226,39 +231,20 @@ func HCLStringContent(s string) []byte {
 }
 
 func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) []byte {
-	f := hclwrite.NewEmptyFile()
-	body := f.Body()
-
-	for _, item := range e.Items {
-		key := objectKeyName(item.KeyExpr, args.SrcBytes)
-		body.SetAttributeRaw(key, RawTokens(PartialEval(item.ValueExpr, args)))
+	// Stitch only the value expressions; keys + `=` + `,` + braces stay verbatim from the source.
+	children := make([]hclsyntax.Expression, len(e.Items))
+	for i, item := range e.Items {
+		children[i] = item.ValueExpr
 	}
 
-	// hclwrite produces file-level attributes; wrap in braces for object syntax.
-	inner := bytes.TrimSpace(f.Bytes())
-
-	return slices.Concat([]byte("{\n"), inner, []byte("\n}"))
-}
-
-func objectKeyName(expr hclsyntax.Expression, srcBytes []byte) string {
-	if keyExpr, ok := expr.(*hclsyntax.ObjectConsKeyExpr); ok {
-		kw := hcl.ExprAsKeyword(keyExpr)
-		if kw != "" {
-			return kw
-		}
-	}
-
-	return string(RangeBytes(srcBytes, expr.Range()))
+	return stitchExpression(args, e.Range(), children)
 }
 
 func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) []byte {
-	parts := make([][]byte, 0, len(e.Exprs))
+	children := make([]hclsyntax.Expression, len(e.Exprs))
+	copy(children, e.Exprs)
 
-	for _, elem := range e.Exprs {
-		parts = append(parts, PartialEval(elem, args))
-	}
-
-	return slices.Concat([]byte("["), bytes.Join(parts, []byte(", ")), []byte("]"))
+	return stitchExpression(args, e.Range(), children)
 }
 
 // ValueToHCLBytes converts a cty.Value to HCL source text bytes.
