@@ -82,10 +82,11 @@ type terraformConfigSourceOnly struct {
 
 // terragruntFlags is a struct that can be used to only decode the flag attributes (prevent_destroy)
 type terragruntFlags struct {
-	IamRole             *string  `hcl:"iam_role,attr"`
-	IamWebIdentityToken *string  `hcl:"iam_web_identity_token,attr"`
-	PreventDestroy      *bool    `hcl:"prevent_destroy,attr"`
-	Remain              hcl.Body `hcl:",remain"`
+	IamRole                              *string  `hcl:"iam_role,attr"`
+	IamWebIdentityToken                  *string  `hcl:"iam_web_identity_token,attr"`
+	IamAssumeRoleWithExistingCredentials *bool    `hcl:"iam_assume_role_with_existing_credentials,attr"`
+	PreventDestroy                       *bool    `hcl:"prevent_destroy,attr"`
+	Remain                               hcl.Body `hcl:",remain"`
 }
 
 // terragruntVersionConstraints is a struct that can be used to only decode the attributes related to constraining the
@@ -521,6 +522,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 			if decoded.IamWebIdentityToken != nil {
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
+			}
+
+			if decoded.IamAssumeRoleWithExistingCredentials != nil {
+				output.IamAssumeRoleWithExistingCredentials = *decoded.IamAssumeRoleWithExistingCredentials
 			}
 		case TerragruntVersionConstraints:
 			decoded := terragruntVersionConstraints{}

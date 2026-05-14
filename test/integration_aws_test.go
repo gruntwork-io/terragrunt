@@ -57,6 +57,7 @@ const (
 	testFixtureS3BackendUseLockfile              = "fixtures/s3-backend/use-lockfile"
 	testFixtureS3BackendDisableInit              = "fixtures/s3-backend-disable-init"
 	testFixtureAssumeRoleWithExternalIDWithComma = "fixtures/assume-role/external-id-with-comma"
+	testFixtureAssumeRoleWithExistingCredentials = "fixtures/assume-role-with-existing-credentials"
 
 	qaMyAppRelPath = "qa/my-app"
 )
@@ -1543,6 +1544,171 @@ func TestAwsAssumeRoleDuration(t *testing.T) {
 	assert.NotContains(t, output, "Initializing the backend...")
 	assert.NotContains(t, output, "has been successfully initialized!")
 	assert.Contains(t, output, "no changes are needed.")
+}
+
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/4979
+func TestAwsAssumeRoleWithExistingCredentials(t *testing.T) {
+	t.Parallel()
+
+	awsCfg, err := awshelper.NewAWSConfigBuilder().
+		WithSessionConfig(&awshelper.AwsSessionConfig{Region: helpers.TerraformRemoteStateS3Region}).
+		Build(t.Context(), createLogger())
+	require.NoError(t, err, "building AWS config")
+
+	iamClient := iam.NewFromConfig(awsCfg)
+	stsClient := sts.NewFromConfig(awsCfg)
+
+	identity, err := stsClient.GetCallerIdentity(t.Context(), &sts.GetCallerIdentityInput{})
+	require.NoError(t, err, "getting caller identity")
+
+	callerARN := aws.ToString(identity.Arn)
+
+	uniqueID := strings.ToLower(helpers.UniqueID())
+	roleBName := "tg-test-role-b-" + uniqueID
+	s3BucketName := "terragrunt-test-bucket-" + uniqueID
+
+	t.Logf("Creating IAM role %s", roleBName)
+
+	roleBTrustPolicy := fmt.Sprintf(
+		`{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":%q},"Action":"sts:AssumeRole"}]}`,
+		callerARN,
+	)
+
+	roleBOut, err := iamClient.CreateRole(t.Context(), &iam.CreateRoleInput{
+		RoleName:                 aws.String(roleBName),
+		AssumeRolePolicyDocument: aws.String(roleBTrustPolicy),
+		Description:              aws.String("Terragrunt integration test: S3 backend role"),
+	})
+	require.NoError(t, err, "creating ROLE_B")
+
+	roleBARN := aws.ToString(roleBOut.Role.Arn)
+
+	t.Cleanup(func() {
+		t.Logf("Deleting IAM role %s", roleBName)
+		iamClient.DeleteRolePolicy(t.Context(), &iam.DeleteRolePolicyInput{ //nolint:errcheck
+			RoleName: aws.String(roleBName), PolicyName: aws.String("s3-access"),
+		})
+		iamClient.DeleteRole(t.Context(), &iam.DeleteRoleInput{RoleName: aws.String(roleBName)}) //nolint:errcheck
+	})
+
+	roleBPolicyDoc := fmt.Sprintf(
+		`{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":[%q,%q]}]}`,
+		"arn:aws:s3:::"+s3BucketName,
+		"arn:aws:s3:::"+s3BucketName+"/*",
+	)
+	_, err = iamClient.PutRolePolicy(t.Context(), &iam.PutRolePolicyInput{
+		RoleName:       aws.String(roleBName),
+		PolicyName:     aws.String("s3-access"),
+		PolicyDocument: aws.String(roleBPolicyDoc),
+	})
+	require.NoError(t, err, "attaching S3 policy to ROLE_B")
+
+	t.Cleanup(func() { deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName) })
+
+	t.Log("Waiting for IAM role propagation...")
+	time.Sleep(10 * time.Second)
+
+	// ── Bootstrap: apply app1 once into S3; its state is shared by both sub-tests ─────────────
+	bootstrapEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWithExistingCredentials)
+	helpers.CleanupTerraformFolder(t, bootstrapEnvPath)
+
+	bootstrapRootHCL := filepath.Join(bootstrapEnvPath, testFixtureAssumeRoleWithExistingCredentials, "root.hcl")
+	helpers.CopyAndFillMapPlaceholders(t, bootstrapRootHCL, bootstrapRootHCL, map[string]string{
+		"__FILL_IN_BUCKET_NAME__": s3BucketName,
+		"__FILL_IN_REGION__":      helpers.TerraformRemoteStateS3Region,
+		"__FILL_IN_ASSUME_ROLE__": roleBARN,
+	})
+
+	app1BootstrapPath := filepath.Join(bootstrapEnvPath, testFixtureAssumeRoleWithExistingCredentials, "env1", "app1")
+
+	helpers.RunTerragrunt(t, "terragrunt apply --backend-bootstrap --auto-approve --non-interactive --working-dir "+app1BootstrapPath)
+
+	// ── Apply restrictive bucket policy ──────────────────────────────────────────────────────
+	// Deny S3 data operations to every principal except ROLE_B.  This means direct use of the
+	// ambient credentials (which trigger the early-exit bug) will fail with 403.  Only after
+	// assuming ROLE_B (via CLI flag or HCL config) does the access succeed.
+	s3Client := helpers.CreateS3ClientForTest(t, helpers.TerraformRemoteStateS3Region)
+
+	bucketPolicy := fmt.Sprintf(`{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Deny",
+    "Principal": "*",
+    "Action": ["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:ListBucket","s3:ListBucketVersions","s3:GetObjectVersion"],
+    "Resource": [%q, %q],
+    "Condition": {"ArnNotEquals": {"aws:PrincipalArn": %q}}
+  }]
+}`,
+		"arn:aws:s3:::"+s3BucketName,
+		"arn:aws:s3:::"+s3BucketName+"/*",
+		roleBARN,
+	)
+
+	t.Logf("Setting restrictive bucket policy on %s", s3BucketName)
+
+	_, err = s3Client.PutBucketPolicy(t.Context(), &s3.PutBucketPolicyInput{
+		Bucket: aws.String(s3BucketName),
+		Policy: aws.String(bucketPolicy),
+	})
+	require.NoError(t, err, "setting bucket policy")
+
+	t.Cleanup(func() {
+		t.Logf("Removing bucket policy from %s", s3BucketName)
+		s3Client.DeleteBucketPolicy(t.Context(), &s3.DeleteBucketPolicyInput{Bucket: aws.String(s3BucketName)}) //nolint:errcheck
+	})
+
+	copyFixture := func(t *testing.T, appDir string) string {
+		t.Helper()
+
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWithExistingCredentials)
+		helpers.CleanupTerraformFolder(t, tmpEnvPath)
+
+		rootHCL := filepath.Join(tmpEnvPath, testFixtureAssumeRoleWithExistingCredentials, "root.hcl")
+		helpers.CopyAndFillMapPlaceholders(t, rootHCL, rootHCL, map[string]string{
+			"__FILL_IN_BUCKET_NAME__": s3BucketName,
+			"__FILL_IN_REGION__":      helpers.TerraformRemoteStateS3Region,
+			"__FILL_IN_ASSUME_ROLE__": roleBARN,
+		})
+
+		return filepath.Join(tmpEnvPath, testFixtureAssumeRoleWithExistingCredentials, "env1", appDir)
+	}
+
+	// ── Sub-test 1: flag supplied on the CLI ─────────────────────────────────────────────────
+	// env1/app2/terragrunt.hcl has no iam_assume_role_with_existing_credentials; the flag is
+	// passed explicitly on the command line.
+	t.Run("via CLI flag", func(t *testing.T) {
+		t.Parallel()
+
+		app2Path := copyFixture(t, "app2")
+
+		helpers.RunTerragrunt(t, "terragrunt apply --auto-approve --non-interactive "+
+			"--experiment dependency-fetch-output-from-state "+
+			"--iam-assume-role-with-existing-credentials "+
+			"--working-dir "+app2Path)
+
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+			"terragrunt output --non-interactive --working-dir "+app2Path)
+		require.NoError(t, err)
+		assert.Contains(t, stdout, "app1 output")
+	})
+
+	// ── Sub-test 2: flag set in HCL config, not on the CLI ───────────────────────────────────
+	// env1/app2-via-hcl/terragrunt.hcl carries iam_assume_role_with_existing_credentials = true
+	// directly, so no CLI flag is needed.
+	t.Run("via HCL config", func(t *testing.T) {
+		t.Parallel()
+
+		app2Path := copyFixture(t, "app2-via-hcl")
+
+		helpers.RunTerragrunt(t, "terragrunt apply --auto-approve --non-interactive "+
+			// "--experiment dependency-fetch-output-from-state "+
+			"--working-dir "+app2Path)
+
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+			"terragrunt output --non-interactive --working-dir "+app2Path)
+		require.NoError(t, err)
+		assert.Contains(t, stdout, "app1 output")
+	})
 }
 
 // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906

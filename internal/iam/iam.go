@@ -19,10 +19,11 @@ func GetDefaultAssumeRoleSessionName() string {
 
 // RoleOptions represents options that are used by Terragrunt to assume an IAM role.
 type RoleOptions struct {
-	RoleARN               string
-	WebIdentityToken      string
-	AssumeRoleSessionName string
-	AssumeRoleDuration    int64
+	RoleARN                           string
+	WebIdentityToken                  string
+	AssumeRoleSessionName             string
+	AssumeRoleDuration                int64
+	AssumeRoleWithExistingCredentials bool
 }
 
 // MergeRoleOptions merges the source IAM role options into the target, preferring
@@ -44,6 +45,10 @@ func MergeRoleOptions(target RoleOptions, source RoleOptions) RoleOptions {
 
 	if source.WebIdentityToken != "" {
 		out.WebIdentityToken = source.WebIdentityToken
+	}
+
+	if source.AssumeRoleWithExistingCredentials {
+		out.AssumeRoleWithExistingCredentials = true
 	}
 
 	return out
