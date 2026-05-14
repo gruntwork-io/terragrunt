@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/function"
 )
 
 // StackFileHCL represents the first-phase parse of a terragrunt.stack.hcl file.
@@ -328,19 +327,12 @@ func discoverStackRef(fs vfs.FS, s *StackBlockHCL, evalCtx *hcl.EvalContext, sta
 	}, true
 }
 
-// stdlibEvalContext builds a minimal eval context wired with the terraform stdlib (matching the production parser's tflang.Scope setup in pkg/config/config_helpers.go) plus get_terragrunt_dir bound to baseDir, so the most common Terragrunt path function resolves during discovery on generated stack files where no pctx is available.
+// stdlibEvalContext builds a minimal eval context wired with the terraform stdlib (matching the production parser's tflang.Scope setup in pkg/config/config_helpers.go). Used on the bootstrap parse path and during discovery on generated stack files where no pctx is available. Terragrunt path helpers (`get_terragrunt_dir`, `get_repo_root`, `find_in_parent_folders`, ...) are intentionally not bound here — the production parser supplies the full function set via ParseStackFileInput.Functions.
 func stdlibEvalContext(baseDir string) *hcl.EvalContext {
 	tfscope := tflang.Scope{BaseDir: baseDir}
-	funcs := tfscope.Functions()
-	funcs["get_terragrunt_dir"] = function.New(&function.Spec{
-		Type: function.StaticReturnType(cty.String),
-		Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
-			return cty.StringVal(baseDir), nil
-		},
-	})
 
 	return &hcl.EvalContext{
-		Functions: funcs,
+		Functions: tfscope.Functions(),
 		Variables: map[string]cty.Value{},
 	}
 }

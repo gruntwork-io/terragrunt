@@ -609,7 +609,7 @@ func TestStackDepsAutoIncludePassesViaInclude(t *testing.T) {
 	require.FileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }
 
-// Root's include.path is an HCL expression (format()) the simplified parser cannot decode; production parser still resolves it and the included file declares autoinclude. Generation must succeed.
+// Root's include.path is an HCL expression (format()) that the stack-dependencies parser must resolve with the production function context. The included file declares autoinclude, so generation must succeed.
 func TestStackDepsAutoIncludePassesViaDynamicInclude(t *testing.T) {
 	t.Parallel()
 
@@ -1080,7 +1080,7 @@ func TestStackDepsE2EAutoIncludeWithComplexSiblings(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
 }
 
-// Regression: `run --all` discovery must walk a generated nested stack file even when its unit `source`/`path` attributes contain terragrunt function calls.
+// Regression: `run --all` discovery must walk a generated nested stack file even when its unit `source` attribute contains terragrunt function calls.
 func TestStackDepsRunAllWithFunctionsInNestedStack(t *testing.T) {
 	t.Parallel()
 

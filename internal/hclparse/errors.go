@@ -67,14 +67,19 @@ func (e FileParseError) Error() string {
 	return fmt.Sprintf("failed to parse %s: %s", e.FilePath, e.Detail)
 }
 
-// FileDecodeError indicates a failure to decode an HCL file into a struct.
+// FileDecodeError indicates a failure to decode an HCL file into a struct. Err preserves the underlying error (typically hcl.Diagnostics) so callers can extract it via errors.As.
 type FileDecodeError struct {
+	Err    error
 	Name   string
 	Detail string
 }
 
 func (e FileDecodeError) Error() string {
 	return fmt.Sprintf("failed to decode %q: %s", e.Name, e.Detail)
+}
+
+func (e FileDecodeError) Unwrap() error {
+	return e.Err
 }
 
 // FileWriteError indicates a failure to write a file to the filesystem.
@@ -105,14 +110,19 @@ func (e DirCreateError) Unwrap() error {
 	return e.Err
 }
 
-// LocalEvalError indicates a failure to evaluate a local variable.
+// LocalEvalError indicates a failure to evaluate a local variable. Err preserves the underlying hcl.Diagnostics so callers can extract them via errors.As.
 type LocalEvalError struct {
+	Err    error
 	Name   string
 	Detail string
 }
 
 func (e LocalEvalError) Error() string {
 	return fmt.Sprintf("failed to evaluate local %q: %s", e.Name, e.Detail)
+}
+
+func (e LocalEvalError) Unwrap() error {
+	return e.Err
 }
 
 // LocalsCycleError indicates that locals have circular dependencies.
@@ -160,7 +170,7 @@ func (e EmptyArgError) Error() string {
 	return fmt.Sprintf("hclparse.%s: %s is empty", e.Func, e.Arg)
 }
 
-// RefEvalError indicates that a unit's or stack's lazy attribute expression (path or source) could not be evaluated against the bootstrap eval context.
+// RefEvalError indicates that a unit's or stack's lazy `path` or `source` expression could not be evaluated. Surfaced on the bootstrap parse path (i.e. when the caller did not supply pre-resolved UnitRefs/StackRefs from the production parser), where evaluation runs against a minimal stdlib-only eval context.
 type RefEvalError struct {
 	Err  error
 	Kind string

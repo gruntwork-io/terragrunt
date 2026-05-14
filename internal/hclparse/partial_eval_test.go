@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 func TestPartialEval(t *testing.T) {
@@ -241,6 +242,30 @@ func parseFirstAttrExpr(t *testing.T, src string) (hclsyntax.Expression, []byte)
 	t.Fatal("unreachable")
 
 	return nil, nil
+}
+
+func TestPartialEval_PreservesFunctionCalls(t *testing.T) {
+	t.Parallel()
+
+	var called bool
+
+	evalCtx := buildEvalCtx()
+	evalCtx.Functions = map[string]function.Function{
+		"danger": function.New(&function.Spec{
+			Type: function.StaticReturnType(cty.String),
+			Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
+				called = true
+				return cty.StringVal("executed"), nil
+			},
+		}),
+	}
+
+	expr, srcBytes := parseFirstAttrExpr(t, `val = danger()`)
+	result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred}))
+
+	assert.False(t, called, "partial evaluation must preserve function calls instead of executing them during generation")
+	assert.Contains(t, result, "danger()")
+	assert.NotContains(t, result, "executed")
 }
 
 // buildEvalCtx creates an eval context with local.env = "production" and

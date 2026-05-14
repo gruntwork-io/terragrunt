@@ -282,25 +282,6 @@ unit "db" {
 	assert.Contains(t, paths[1], ".terragrunt-stack")
 }
 
-// TestUnitPathsFromStackDir_PathWithTerragruntDir pins that discovery resolves unit.path that uses get_terragrunt_dir(), since the stdlib eval context binds it to the stack file's dir.
-func TestUnitPathsFromStackDir_PathWithTerragruntDir(t *testing.T) {
-	t.Parallel()
-
-	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
-unit "vpc" {
-  source = "../units/vpc"
-  path   = "${get_terragrunt_dir()}/vpc-dyn"
-}
-`), 0644))
-
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
-	require.NoError(t, err)
-	require.Len(t, paths, 1, "unit with get_terragrunt_dir() in path must not be skipped during discovery")
-	assert.Contains(t, paths[0], "vpc-dyn")
-}
-
 func TestUnitPathsFromStackDir_PathWithUnsupportedFunctionReturnsError(t *testing.T) {
 	t.Parallel()
 

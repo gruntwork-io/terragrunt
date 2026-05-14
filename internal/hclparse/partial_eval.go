@@ -33,8 +33,10 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 		return RangeBytes(args.SrcBytes, expr.Range())
 	}
 
-	// Fast path: no deferred refs anywhere: evaluate the whole thing.
-	if IsPure(expr, args.Deferred) {
+	// Fast path: no deferred refs anywhere and no function calls: evaluate the
+	// whole thing. Function calls are intentionally preserved because the eval
+	// context can include Terragrunt functions with generation-time side effects.
+	if IsPure(expr, args.Deferred) && !containsFunctionCall(expr) {
 		val, diags := expr.Value(args.EvalCtx)
 		if !diags.HasErrors() {
 			return ValueToHCLBytes(val)
@@ -133,6 +135,54 @@ func IsPure(expr hclsyntax.Expression, deferred map[string]bool) bool {
 	return true
 }
 
+func containsFunctionCall(expr hclsyntax.Expression) bool {
+	switch e := expr.(type) {
+	case *hclsyntax.FunctionCallExpr:
+		return true
+	case *hclsyntax.TemplateExpr:
+		for _, part := range e.Parts {
+			if containsFunctionCall(part) {
+				return true
+			}
+		}
+	case *hclsyntax.TemplateWrapExpr:
+		return containsFunctionCall(e.Wrapped)
+	case *hclsyntax.ObjectConsExpr:
+		for _, item := range e.Items {
+			if containsFunctionCall(item.KeyExpr) || containsFunctionCall(item.ValueExpr) {
+				return true
+			}
+		}
+	case *hclsyntax.TupleConsExpr:
+		for _, elem := range e.Exprs {
+			if containsFunctionCall(elem) {
+				return true
+			}
+		}
+	case *hclsyntax.ConditionalExpr:
+		return containsFunctionCall(e.Condition) || containsFunctionCall(e.TrueResult) || containsFunctionCall(e.FalseResult)
+	case *hclsyntax.ParenthesesExpr:
+		return containsFunctionCall(e.Expression)
+	case *hclsyntax.BinaryOpExpr:
+		return containsFunctionCall(e.LHS) || containsFunctionCall(e.RHS)
+	case *hclsyntax.UnaryOpExpr:
+		return containsFunctionCall(e.Val)
+	case *hclsyntax.IndexExpr:
+		return containsFunctionCall(e.Collection) || containsFunctionCall(e.Key)
+	case *hclsyntax.ForExpr:
+		return containsFunctionCall(e.CollExpr) ||
+			(e.KeyExpr != nil && containsFunctionCall(e.KeyExpr)) ||
+			containsFunctionCall(e.ValExpr) ||
+			(e.CondExpr != nil && containsFunctionCall(e.CondExpr))
+	case *hclsyntax.SplatExpr:
+		return containsFunctionCall(e.Source) || containsFunctionCall(e.Each)
+	default:
+		return false
+	}
+
+	return false
+}
+
 func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 	var buf bytes.Buffer
 
@@ -145,7 +195,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 			continue
 		}
 
-		if IsPure(part, args.Deferred) {
+		if IsPure(part, args.Deferred) && !containsFunctionCall(part) {
 			val, diags := part.Value(args.EvalCtx)
 			if !diags.HasErrors() {
 				strVal, err := convert.Convert(val, cty.String)

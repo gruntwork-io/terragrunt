@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -1569,4 +1570,51 @@ unit "app" {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `included stack file "extra"`)
 	assert.Contains(t, err.Error(), `missing required "path" attribute`)
+}
+
+func TestParseStackFile_RecomputesIncludeSensitiveLocalAfterInclude(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(`
+unit "shared_unit" {
+  source = "../catalog/units/shared"
+  path   = "shared"
+}
+`), 0644))
+
+	src := []byte(`
+locals {
+  shared_path = can(unit.shared_unit.path) ? unit.shared_unit.path : "fallback"
+}
+
+include "shared" {
+  path = "shared.hcl"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "shared" {
+      config_path = local.shared_path
+    }
+  }
+}
+`)
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:       src,
+		Filename:  filepath.Join(testStackDir, "terragrunt.stack.hcl"),
+		StackDir:  testStackDir,
+		Functions: (&tflang.Scope{BaseDir: testStackDir}).Functions(),
+	})
+	require.NoError(t, err)
+
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "app")]
+	require.NotNil(t, resolved)
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "shared"), resolved.Dependencies[0].ConfigPath)
 }

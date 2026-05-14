@@ -1103,17 +1103,30 @@ func buildStackRefs(stackFile *StackConfig, stackSourceDir, stackTargetDir strin
 
 		stackGenPath := filepath.Join(dir, s.Path)
 
-		sourceDir := s.Source
-		if !filepath.IsAbs(sourceDir) {
-			sourceDir = filepath.Join(stackSourceDir, sourceDir)
+		ref := inthclparse.ComponentRef{Name: s.Name, Path: stackGenPath}
+		if sourceDir, isLocal := localStackSourceDir(s.Source, stackSourceDir); isLocal {
+			ref.ChildRefs = inthclparse.DiscoverStackChildUnits(osfs, sourceDir, stackGenPath)
 		}
 
-		refs = append(refs, inthclparse.ComponentRef{
-			Name:      s.Name,
-			Path:      stackGenPath,
-			ChildRefs: inthclparse.DiscoverStackChildUnits(osfs, sourceDir, stackGenPath),
-		})
+		refs = append(refs, ref)
 	}
 
 	return refs
+}
+
+// localStackSourceDir returns the absolute filesystem directory for a stack.Source when it is local (plain relative/absolute path or file://). Returns ("", false) for go-getter-style remote sources (git::, https://, s3://, etc.) so the caller skips child-unit discovery instead of mangling the source with filepath.Join.
+func localStackSourceDir(source, stackSourceDir string) (string, bool) {
+	if strings.HasPrefix(source, "file://") {
+		return strings.TrimPrefix(source, "file://"), true
+	}
+
+	if strings.Contains(source, "://") {
+		return "", false
+	}
+
+	if filepath.IsAbs(source) {
+		return source, true
+	}
+
+	return filepath.Join(stackSourceDir, source), true
 }

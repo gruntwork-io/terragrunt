@@ -36,20 +36,22 @@ const (
 
 // ParseStackFileInput holds the input for ParseStackFile.
 type ParseStackFileInput struct {
+	// Values is the `values` overlay registered as the `values` HCL variable so unit/stack/include expressions can reference `values.<key>`.
 	Values *cty.Value
-	// Variables is the caller-provided HCL variable namespace from the production parser. Parser-owned variables
-	// (`unit`, `stack`, `local`, and `values`) are overlaid by ParseStackFile so stale caller state cannot shadow the
-	// stack file currently being parsed.
+	// Variables is the caller-provided HCL variable namespace from the production parser. Parser-owned variables (`unit`, `stack`, `local`, and `values`) are overlaid by ParseStackFile so stale caller state cannot shadow the stack file currently being parsed.
 	Variables map[string]cty.Value
-	// UnitRefs lets the caller supply already-resolved unit ComponentRefs (with paths, names, and any ChildRefs). When non-nil, the parser uses these for the autoinclude eval context instead of evaluating each unit's Path attribute itself, so non-literal source/path expressions in unrelated unit blocks do not block parsing.
+	// UnitRefs is the caller-supplied slice of resolved unit ComponentRefs (with names, paths, and any ChildRefs). When non-nil, the parser uses these to populate the `unit` HCL variable instead of evaluating each unit's Path attribute itself, so non-literal source/path expressions in unrelated unit blocks do not block parsing. Pair with StackRefs (both or neither).
 	UnitRefs []ComponentRef
-	// StackRefs is the analogous slice for stack blocks. Each ref's ChildRefs must already be populated when callers want stack.<name>.<unit>.path references to resolve.
+	// StackRefs is the caller-supplied slice of resolved stack ComponentRefs. Each ref's ChildRefs must be populated when callers want `stack.<name>.<unit>.path` references to resolve. Pair with UnitRefs (both or neither).
 	StackRefs []ComponentRef
 	// Functions is the HCL function set the parser registers on the autoinclude eval context. Callers should pass the function map built by the production parser (pkg/config.createTerragruntEvalContext) so include paths and dependency.config_path expressions evaluate the same way they would in a unit's terragrunt.hcl. May be nil for callers (e.g. tests) that only use literal expressions.
 	Functions map[string]function.Function
-	Filename  string
-	StackDir  string
-	Src       []byte
+	// Filename is the path passed to HCL diagnostics for source-location reporting.
+	Filename string
+	// StackDir is the directory of the stack file being parsed; used to resolve include paths and the destination of generated `.terragrunt-stack/` subtree.
+	StackDir string
+	// Src is the raw bytes of the stack file being parsed.
+	Src []byte
 }
 
 // ParseResult holds the output of a two-pass parse of a terragrunt.stack.hcl file.
@@ -80,7 +82,13 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	recordAutoIncludeSources(srcByAutoInclude, stackFile, input.Src)
 
 	stackTargetDir := filepath.Join(input.StackDir, StackDir)
-	callerSuppliedRefs := input.UnitRefs != nil || input.StackRefs != nil
+
+	// UnitRefs and StackRefs are paired: callers must supply both (post-include refs from the production parser) or neither (bootstrap-path discovery). Supplying only one leaves the other namespace empty and breaks autoinclude eval.
+	if (input.UnitRefs == nil) != (input.StackRefs == nil) {
+		return nil, FileDecodeError{Name: input.Filename, Detail: "ParseStackFileInput: UnitRefs and StackRefs must be supplied together or both omitted"}
+	}
+
+	callerSuppliedRefs := input.UnitRefs != nil && input.StackRefs != nil
 
 	unitRefs, stackRefs, err := initialRefs(fs, input, stackFile, stackTargetDir, callerSuppliedRefs)
 	if err != nil {
@@ -89,11 +97,14 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	evalCtx := buildParseEvalContext(input, unitRefs, stackRefs)
 
-	// Evaluate root locals first so include paths can reference local.X. Locals cannot reference unit.X.path / stack.X.path (refs are not bound yet); enforcing one direction keeps the parser single-pass.
+	var preIncludeLocals map[string]cty.Value
+
+	// Evaluate root locals best-effort before include processing so include
+	// paths can reference local.X. Locals that need refs contributed by
+	// includes are recomputed strictly after include merging.
 	if stackFile.Locals != nil {
-		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx); err != nil {
-			return nil, err
-		}
+		preIncludeLocals = evaluateLocalsBestEffort(stackFile.Locals.Remain, evalCtx)
+		evalCtx.Variables[varLocal] = localObject(preIncludeLocals)
 	}
 
 	if err := processStackIncludes(fs, stackFile, input.StackDir, evalCtx, srcByAutoInclude); err != nil {
@@ -103,6 +114,15 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	// Bootstrap path: refresh refs and the unit/stack eval variables now that included units/stacks have been merged into stackFile. Caller-supplied refs already reflect the post-include layout (the production parser does include merging upstream) and must not be overwritten.
 	if !callerSuppliedRefs {
 		if err := refreshBootstrapRefs(fs, input, stackFile, stackTargetDir, evalCtx); err != nil {
+			return nil, err
+		}
+	}
+
+	if stackFile.Locals != nil {
+		reusable := reusableLocals(stackFile.Locals.Remain, preIncludeLocals)
+
+		evalCtx.Variables[varLocal] = localObject(reusable)
+		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx, reusable); err != nil {
 			return nil, err
 		}
 	}
@@ -152,7 +172,7 @@ func decodeStackFile(input *ParseStackFileInput) (*StackFileHCL, error) {
 
 	stackFile := &StackFileHCL{}
 	if decodeDiags := gohcl.DecodeBody(file.Body, nil, stackFile); decodeDiags.HasErrors() {
-		return nil, FileDecodeError{Name: input.Filename, Detail: decodeDiags.Error()}
+		return nil, FileDecodeError{Name: input.Filename, Detail: decodeDiags.Error(), Err: decodeDiags}
 	}
 
 	return stackFile, nil
@@ -266,7 +286,7 @@ func EvalString(expr hcl.Expression, ctx *hcl.EvalContext, attrName string) (str
 
 	val, diags := expr.Value(ctx)
 	if diags.HasErrors() {
-		return "", FileDecodeError{Name: attrName, Detail: diags.Error()}
+		return "", FileDecodeError{Name: attrName, Detail: diags.Error(), Err: diags}
 	}
 
 	if val.IsNull() {
@@ -284,46 +304,69 @@ func EvalString(expr hcl.Expression, ctx *hcl.EvalContext, attrName string) (str
 	return val.AsString(), nil
 }
 
-// evaluateLocals iteratively evaluates root locals against evalCtx in dependency order. Returns an error on eval failure, dependency cycle, or iteration overflow. Locals are evaluated before include processing so include paths and other attributes can reference local.X. Locals may reference unit.X.path / stack.X.path for blocks declared in the root file (already bound by buildParseEvalContext); refs contributed by included files are not yet merged at this point.
-func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
+// evaluateLocals iteratively evaluates root locals against evalCtx in dependency order. Returns an error on eval failure, dependency cycle, or iteration overflow. seed contains already-safe locals that should not be re-evaluated.
+func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext, seed map[string]cty.Value) error {
+	_, err := evaluateLocalsRun(body, evalCtx, seed, true)
+
+	return err
+}
+
+// evaluateLocalsBestEffort evaluates the locals that can be resolved with the current eval context and skips locals that fail because refs are not available yet.
+func evaluateLocalsBestEffort(body hcl.Body, evalCtx *hcl.EvalContext) map[string]cty.Value {
+	evaluated, _ := evaluateLocalsRun(body, evalCtx, nil, false)
+
+	return evaluated
+}
+
+func evaluateLocalsRun(body hcl.Body, evalCtx *hcl.EvalContext, seed map[string]cty.Value, strict bool) (map[string]cty.Value, error) {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {
-		return nil
+		return nil, nil
 	}
 
 	evaluated := make(map[string]cty.Value, len(syntaxBody.Attributes))
 	remaining := make(map[string]*hclsyntax.Attribute, len(syntaxBody.Attributes))
 
+	for name, val := range seed {
+		evaluated[name] = val
+	}
+
 	for name, attr := range syntaxBody.Attributes {
-		remaining[name] = attr
+		if _, seeded := evaluated[name]; !seeded {
+			remaining[name] = attr
+		}
 	}
 
 	const maxLocalsIterations = 10000
 
 	for i := 0; len(remaining) > 0 && i < maxLocalsIterations; i++ {
-		progress, err := evaluateLocalsPass(remaining, evaluated, evalCtx)
+		progress, err := evaluateLocalsPass(remaining, evaluated, evalCtx, strict)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if !progress {
-			return localsEvalCycleError(remaining)
+			if strict {
+				return nil, localsEvalCycleError(remaining)
+			}
+
+			break
 		}
 
 		evalCtx.Variables[varLocal] = localObject(evaluated)
 	}
 
-	if len(remaining) > 0 {
-		return LocalsMaxIterError{MaxIterations: maxLocalsIterations, Remaining: len(remaining)}
+	if len(remaining) > 0 && strict {
+		return nil, LocalsMaxIterError{MaxIterations: maxLocalsIterations, Remaining: len(remaining)}
 	}
 
 	evalCtx.Variables[varLocal] = localObject(evaluated)
 
-	return nil
+	return evaluated, nil
 }
 
 // evaluateLocalsPass evaluates every ready local once. Refreshes evalCtx.Variables[varLocal] after each successful evaluation so locals iterated later in the same pass see locals resolved earlier (defeats map-iteration randomness).
-func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map[string]cty.Value, evalCtx *hcl.EvalContext) (bool, error) {
+func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map[string]cty.Value, evalCtx *hcl.EvalContext, strict bool) (bool, error) {
 	progress := false
 
 	evalCtx.Variables[varLocal] = localObject(evaluated)
@@ -335,7 +378,11 @@ func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map
 
 		val, diags := attr.Expr.Value(evalCtx)
 		if diags.HasErrors() {
-			return false, LocalEvalError{Name: name, Detail: diags.Error()}
+			if strict {
+				return false, LocalEvalError{Name: name, Detail: diags.Error(), Err: diags}
+			}
+
+			continue
 		}
 
 		evaluated[name] = val
@@ -347,6 +394,94 @@ func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map
 	}
 
 	return progress, nil
+}
+
+// reusableLocals returns locals that were evaluated before includes and are safe to keep after include refs are refreshed.
+func reusableLocals(body hcl.Body, evaluated map[string]cty.Value) map[string]cty.Value {
+	if len(evaluated) == 0 {
+		return nil
+	}
+
+	sensitive := includeSensitiveLocals(body)
+	reusable := make(map[string]cty.Value, len(evaluated))
+
+	for name, val := range evaluated {
+		if !sensitive[name] {
+			reusable[name] = val
+		}
+	}
+
+	return reusable
+}
+
+// includeSensitiveLocals returns local names that directly or transitively depend on unit.* or stack.* refs.
+func includeSensitiveLocals(body hcl.Body) map[string]bool {
+	syntaxBody, ok := body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	direct := make(map[string]bool, len(syntaxBody.Attributes))
+	localDeps := make(map[string][]string, len(syntaxBody.Attributes))
+
+	for name, attr := range syntaxBody.Attributes {
+		for _, traversal := range attr.Expr.Variables() {
+			switch traversal.RootName() {
+			case varUnit, varStack:
+				direct[name] = true
+			case varLocal:
+				split := traversal.SimpleSplit()
+				if len(split.Rel) == 0 {
+					continue
+				}
+
+				step, ok := split.Rel[0].(hcl.TraverseAttr)
+				if ok {
+					localDeps[name] = append(localDeps[name], step.Name)
+				}
+			default:
+				continue
+			}
+		}
+	}
+
+	sensitive := make(map[string]bool, len(syntaxBody.Attributes))
+	visiting := map[string]bool{}
+
+	for name := range syntaxBody.Attributes {
+		markIncludeSensitiveLocal(name, direct, localDeps, sensitive, visiting)
+	}
+
+	return sensitive
+}
+
+func markIncludeSensitiveLocal(name string, direct map[string]bool, localDeps map[string][]string, sensitive, visiting map[string]bool) bool {
+	if sensitive[name] {
+		return true
+	}
+
+	if direct[name] {
+		sensitive[name] = true
+
+		return true
+	}
+
+	if visiting[name] {
+		return false
+	}
+
+	visiting[name] = true
+	defer delete(visiting, name)
+
+	for _, dep := range localDeps[name] {
+		if markIncludeSensitiveLocal(dep, direct, localDeps, sensitive, visiting) {
+			sensitive[name] = true
+
+			return true
+		}
+	}
+
+	return false
 }
 
 // localObject builds a cty.Value for the `local` namespace from the map of evaluated locals. cty.ObjectVal panics on an empty map, so an empty input returns cty.EmptyObjectVal.
@@ -501,7 +636,7 @@ func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, s
 
 	included := &StackFileHCL{}
 	if decodeDiags := gohcl.DecodeBody(incFile.Body, nil, included); decodeDiags.HasErrors() {
-		return FileDecodeError{Name: inc.Name, Detail: decodeDiags.Error()}
+		return FileDecodeError{Name: inc.Name, Detail: decodeDiags.Error(), Err: decodeDiags}
 	}
 
 	if included.Locals != nil {
