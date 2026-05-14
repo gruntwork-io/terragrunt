@@ -1018,6 +1018,7 @@ func GetUnitDir(dir string, unit *Unit) string {
 	return filepath.Join(dir, StackDir, unit.Path)
 }
 
+// stackConfigHasAutoInclude reports whether any unit or stack in the include-merged stack config declares an autoinclude block.
 func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
 	if stackFile == nil {
 		return false
@@ -1038,6 +1039,7 @@ func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
 	return false
 }
 
+// bodyHasBlock reports whether body contains a top-level block of the given type. Works on both native HCL and JSON-format bodies via the schema-driven PartialContent API. On diagnostic errors we fail open and return true so the autoinclude parser still runs and surfaces the canonical error instead of silently skipping generation.
 func bodyHasBlock(body hcl.Body, blockType string) bool {
 	if body == nil {
 		return false

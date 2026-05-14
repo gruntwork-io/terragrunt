@@ -158,6 +158,7 @@ func decodeStackFile(input *ParseStackFileInput) (*StackFileHCL, error) {
 	return stackFile, nil
 }
 
+// validateRequiredBlockAttrs returns a FileDecodeError when any unit or stack block is missing the required `source` or `path` attribute. Run before gohcl decoding so the diagnostic names the offending block instead of surfacing gohcl's generic "argument required".
 func validateRequiredBlockAttrs(body hcl.Body) error {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {
@@ -180,6 +181,7 @@ func validateRequiredBlockAttrs(body hcl.Body) error {
 	return nil
 }
 
+// blockName returns a printable identifier for a block ("unit \"x\"" or the bare block type for an unlabeled block) for use in error messages.
 func blockName(block *hclsyntax.Block) string {
 	if len(block.Labels) == 0 {
 		return block.Type
@@ -282,7 +284,7 @@ func EvalString(expr hcl.Expression, ctx *hcl.EvalContext, attrName string) (str
 	return val.AsString(), nil
 }
 
-// evaluateLocals iteratively evaluates root locals against evalCtx in dependency order. Returns an error on eval failure, dependency cycle, or iteration overflow. Locals are evaluated before include processing so include paths and other attributes can reference local.X; locals therefore cannot reference unit.X.path / stack.X.path (refs are not bound yet).
+// evaluateLocals iteratively evaluates root locals against evalCtx in dependency order. Returns an error on eval failure, dependency cycle, or iteration overflow. Locals are evaluated before include processing so include paths and other attributes can reference local.X. Locals may reference unit.X.path / stack.X.path for blocks declared in the root file (already bound by buildParseEvalContext); refs contributed by included files are not yet merged at this point.
 func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {

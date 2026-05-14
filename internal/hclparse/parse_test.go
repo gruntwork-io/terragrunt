@@ -1434,7 +1434,7 @@ unit "app" {
 	assert.Equal(t, filepath.Join("/test", ".terragrunt-stack", "extra"), resolved.Dependencies[0].ConfigPath)
 }
 
-func TestParseStackFile_LocalEvaluatedOnceWhenBestEffortSucceeds(t *testing.T) {
+func TestParseStackFile_LocalEvaluatedOnce(t *testing.T) {
 	t.Parallel()
 
 	var calls int32
