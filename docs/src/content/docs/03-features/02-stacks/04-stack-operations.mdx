@@ -1,6 +1,6 @@
 ---
 title: Stack Operations
-description: Work with dependencies, visualize the DAG, control parallelism, and manage stack runs.
+description: Pass outputs between units, declare dependencies, test units locally, and structure nested stacks.
 slug: features/stacks/stack-operations
 sidebar:
   order: 4
@@ -373,28 +373,6 @@ This is because Terragrunt knows that once resources in a dependency are destroy
 For example, if `destroy` was called on the `Valkey` unit, you'd be asked for confirmation, as the `backend-app` depends on `Valkey`. You can suppress the prompt by using the `--non-interactive` flag.
 </Aside>
 
-## Visualizing the DAG
-
-To visualize the dependency graph you can use the `dag graph` command (similar to the `tofu/terraform graph` command), or its equivalent `list --format=dot --dependencies --external` command.
-
-The graph is output in DOT format. The typical program used to render this file format is GraphViz, but many web services are available that can do this as well.
-
-```bash
-terragrunt dag graph | dot -Tsvg > graph.svg
-# Or equivalently:
-terragrunt list --format=dot --dependencies --external | dot -Tsvg > graph.svg
-```
-
-The example above generates the following graph:
-
-![terragrunt dag graph](../../../../assets/img/collections/documentation/graph.png)
-
-Note that this graph shows the dependency relationship in the direction of the arrow, with the tip pointing to the dependency (e.g. `frontend-app` depends on `backend-app`).
-
-For plans and applies, Terragrunt will run units in the opposite direction, however (e.g. `backend-app` would be applied before `frontend-app`).
-
-The exception to this rule is during the `destroy` (and `plan/apply -destroy`) commands, where Terragrunt will run in the direction of the arrow (e.g. `frontend-app` would be destroyed before `backend-app`).
-
 ## Testing multiple units locally
 
 If you are using Terragrunt to download [remote OpenTofu/Terraform modules](/features/units/#remote-opentofuterraform-modules) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--source` parameter to override that value:
@@ -428,113 +406,6 @@ terragrunt run --all --source /source/infrastructure-modules -- apply
 ```
 
 Will result in a unit with the configuration for the source above being resolved to `/source/infrastructure-modules//networking/vpc`.
-
-## Limiting run parallelism
-
-By default, Terragrunt will not impose a limit on the number of units it executes when it traverses the dependency graph,
-meaning that if it finds 5 units without dependencies, it'll run OpenTofu/Terraform 5 times in parallel, once in each unit.
-
-Sometimes, this can create a problem if there are a lot of units in the dependency graph, like hitting a rate limit on a
-cloud provider.
-
-To limit the maximum number of unit executions at any given time use the `--parallelism [number]` flag
-
-```sh
-terragrunt run --all --parallelism 4 -- apply
-```
-
-## Saving OpenTofu/Terraform plan output
-
-A powerful feature of OpenTofu/Terraform is the ability to save the result of a plan as a binary file using the [-out flag](https://opentofu.org/docs/cli/commands/plan/).
-
-Terragrunt provides special tooling in `run --all` execution to ensure that the saved plan for a `run --all` against a stack has
-a corresponding entry for each unit in the stack in a directory structure that mirrors the stack structure.
-
-To save every plan generated when running a stack, use the `--out-dir` flag (or `TG_OUT_DIR` environment variable) as demonstrated below:
-
-```bash
-$ terragrunt run --all --out-dir /tmp/tfplan -- plan
-```
-
-<FileTree>
-
-- app1
-  - tfplan.tfplan
-- app2
-  - tfplan.tfplan
-- app3
-  - tfplan.tfplan
-- project-2
-  - project-2-app1
-    - tfplan.tfplan
-
-</FileTree>
-
-This integration also exists for the `apply` command, where the generated plan will be used when performing the apply.
-
-```bash
-$ terragrunt run --all --out-dir /tmp/tfplan -- apply
-```
-
-For planning a destroy operation, use the following commands:
-
-```bash
-terragrunt run --all --out-dir /tmp/tfplan -- plan -destroy
-terragrunt run --all --out-dir /tmp/tfplan -- apply
-```
-
-<Aside type="caution">
-
-If you are leveraging [mock outputs](#unapplied-dependency-and-mock-outputs) in your stack, you may get unexpected results when applying saved plans, as the plans will have mock outputs in them.
-
-There's a workaround documented [here](https://github.com/gruntwork-io/terragrunt/issues/2178#issuecomment-2615842856), but no first-class feature in Terragrunt to address this issue, currently.
-
-If you would like Terragrunt to have first-class support for a solution to this, please [create an RFC](https://github.com/gruntwork-io/terragrunt/issues/new?template=03-rfc.yml) to propose it.
-
-</Aside>
-
-To save plans in json format use the `--json-out-dir` flag:
-
-```bash
-terragrunt run --all --json-out-dir /tmp/json -- plan
-```
-
-<FileTree>
-
-- app1
-  - tfplan.json
-- app2
-  - tfplan.json
-- app3
-  - tfplan.json
-- project-2
-  - project-2-app1
-    - tfplan.json
-
-</FileTree>
-
-
-```bash
-terragrunt run --all --out-dir /tmp/all --json-out-dir /tmp/all -- plan
-```
-
-<FileTree>
-
-- app1
-  - tfplan.json
-  - tfplan.tfplan
-- app2
-  - tfplan.json
-  - tfplan.tfplan
-- app3
-  - tfplan.json
-  - tfplan.tfplan
-- project-2
-  - project-2-app1
-    - tfplan.json
-    - tfplan.tfplan
-
-</FileTree>
 
 ## Nested Stacks
 
