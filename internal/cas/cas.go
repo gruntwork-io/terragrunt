@@ -691,7 +691,15 @@ func (c *CAS) ensureBlob(ctx context.Context, runner *git.GitRunner, hash string
 		return err
 	}
 
-	if err = c.fs.Chmod(content.getPath(hash), gitPerm.Perm()&^WriteBitMask); err != nil {
+	// Symlink entries (git mode 120000) have no permission bits, but the blob
+	// stores the link target string and must stay readable so linkTree can
+	// resolve the symlink at materialization time.
+	storedPerm := gitPerm.Perm() &^ WriteBitMask
+	if storedPerm == 0 {
+		storedPerm = StoredFilePerms
+	}
+
+	if err = c.fs.Chmod(content.getPath(hash), storedPerm); err != nil {
 		return err
 	}
 
