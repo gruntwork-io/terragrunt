@@ -1376,12 +1376,12 @@ unit "app" {
 func TestParseStackFile_LocalEvaluatedOnce(t *testing.T) {
 	t.Parallel()
 
-	var calls int32
+	var calls atomic.Int32
 
 	onceFn := function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.String),
 		Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
-			atomic.AddInt32(&calls, 1)
+			calls.Add(1)
 			return cty.StringVal("/includes/extra.stack.hcl"), nil
 		},
 	})
@@ -1419,7 +1419,7 @@ unit "app" {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
+	assert.Equal(t, int32(1), calls.Load())
 }
 
 func TestParseStackFile_MissingRequiredSourceOrPathReturnsError(t *testing.T) {

@@ -5,6 +5,7 @@ package hclparse
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -164,18 +165,9 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 		Variables: map[string]cty.Value{},
 	}
 
-	for name, fn := range input.Functions {
-		evalCtx.Functions[name] = fn
-	}
-
-	for name, value := range input.Variables {
-		switch name {
-		case varLocal, varUnit, varStack, varValues:
-			continue
-		default:
-			evalCtx.Variables[name] = value
-		}
-	}
+	maps.Copy(evalCtx.Functions, input.Functions)
+	maps.Copy(evalCtx.Variables, input.Variables)
+	maps.DeleteFunc(evalCtx.Variables, isReservedVarName)
 
 	if input.Values != nil {
 		evalCtx.Variables[varValues] = *input.Values
@@ -439,10 +431,8 @@ func (s *topoState) visit(name string, path []string) []string {
 
 // cycleSegment returns the path slice that forms a dependency cycle.
 func cycleSegment(path []string, name string) []string {
-	for i, p := range path {
-		if p == name {
-			return path[i:]
-		}
+	if i := slices.Index(path, name); i >= 0 {
+		return path[i:]
 	}
 
 	return path
@@ -459,14 +449,7 @@ func localObject(evaluated map[string]cty.Value) cty.Value {
 
 // sortedKeys returns keys in deterministic order.
 func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-
-	slices.Sort(keys)
-
-	return keys
+	return slices.Sorted(maps.Keys(m))
 }
 
 // mergeIncludes resolves include paths and merges included Remain bodies.
