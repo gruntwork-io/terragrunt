@@ -106,30 +106,28 @@ func StackOutput(
 	outputs := xsync.NewMap[string, map[string]cty.Value]()
 	declaredStacks := make(map[string]string)
 	declaredUnits := make(map[string]*config.Unit)
-
-	// save parsed stacks
 	parsedStackFiles := make(map[string]*config.StackConfig, len(foundFiles))
 
 	stackOutputParallelism := opts.Parallelism
 	if stackOutputParallelism == options.DefaultParallelism {
-		stackOutputParallelism = runtime.GOMAXPROCS(0)
+		stackOutputParallelism = runtime.NumCPU()
 	}
 
-	// Use the shared worker pool so stack output honors --parallelism like *-all commands;
-	// errgroup alone would still need a semaphore to bound concurrent child processes.
+	// reuse the project worker pool so error aggregation matches other concurrent commands
 	wp := worker.NewWorkerPool(stackOutputParallelism)
 	defer wp.Stop()
 
 	waitWorkerErrors := func(mainErr error) error {
-		if workerErr := wp.Wait(); workerErr != nil {
-			if mainErr == nil {
-				return workerErr
-			}
-
-			return errors.Errorf("%v: %v", mainErr, workerErr)
+		workerErr := wp.Wait()
+		if workerErr == nil {
+			return mainErr
 		}
 
-		return mainErr
+		if mainErr == nil {
+			return workerErr
+		}
+
+		return (&errors.MultiError{}).Append(mainErr, workerErr).ErrorOrNil()
 	}
 
 	for _, path := range foundFiles {

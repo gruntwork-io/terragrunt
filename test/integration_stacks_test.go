@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -623,10 +624,9 @@ func TestStackOutputsJsonFlag(t *testing.T) {
 }
 
 // TestStackOutputsParallelFetchingWithRacing verifies that `terragrunt stack output` reads each
-// unit's outputs concurrently. With 12 units fetched in parallel, the order in which
-// units' tofu invocations log varies between runs because goroutine completion is
-// non-deterministic. If the fetcher regressed to a strict serial loop the order would
-// match across runs. The WithRacing suffix enrolls this test in CI runs with `-race`.
+// unit's outputs concurrently. A strict serial fetcher would always emit unit prefixes in the
+// natural u01..u12 order; concurrent fetching makes the observed order non-ascending in at least
+// one run. The WithRacing suffix enrolls this test in CI runs with `-race`.
 func TestStackOutputsParallelFetchingWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -639,13 +639,12 @@ func TestStackOutputsParallelFetchingWithRacing(t *testing.T) {
 	const (
 		maxAttempts = 10
 		unitCount   = 12
-		serialOrder = "u01,u02,u03,u04,u05,u06,u07,u08,u09,u10,u11,u12"
 	)
 
 	prefixRe := regexp.MustCompile(`prefix=\.terragrunt-stack/(u\d+)`)
 	observedNonSerialOrder := false
 
-	for i := 0; i < maxAttempts; i++ {
+	for i := range maxAttempts {
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 			"terragrunt stack output --parallelism "+strconv.Itoa(unitCount)+" --non-interactive --working-dir "+rootPath)
 		require.NoError(t, err)
@@ -664,17 +663,16 @@ func TestStackOutputsParallelFetchingWithRacing(t *testing.T) {
 		}
 
 		require.Len(t, order, unitCount, "run %d: expected %d distinct units, got %d (%v)", i, unitCount, len(order), order)
-		runOrder := strings.Join(order, ",")
-		t.Logf("run %d order: %s", i, runOrder)
+		t.Logf("run %d order: %s", i, strings.Join(order, ","))
 
-		if runOrder != serialOrder {
+		if !slices.IsSorted(order) {
 			observedNonSerialOrder = true
 			break
 		}
 	}
 
 	require.True(t, observedNonSerialOrder,
-		"expected at least one run to execute unit output fetches out of serial order within %d attempts; all sampled runs were %q", maxAttempts, serialOrder)
+		"expected at least one run to execute unit output fetches out of ascending u01..u12 order within %d attempts; all sampled runs were strictly sorted", maxAttempts)
 }
 
 func TestStacksUnitValues(t *testing.T) {
