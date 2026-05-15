@@ -141,9 +141,9 @@ func TestRemoteStateOptsPropagatesVenv(t *testing.T) {
 		err bytes.Buffer
 	)
 
-	v := Venv{
+	v := &Venv{
 		Env:     map[string]string{"TF_VAR_x": "1"},
-		Writers: writer.Writers{Writer: &out, ErrWriter: &err},
+		Writers: &writer.Writers{Writer: &out, ErrWriter: &err},
 	}
 
 	opts := &Options{
