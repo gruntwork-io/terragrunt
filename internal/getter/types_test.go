@@ -68,7 +68,7 @@ func TestRegistryGetterDetect(t *testing.T) {
 func TestCASProtocolGetterMode(t *testing.T) {
 	t.Parallel()
 
-	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil)
+	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, cas.Venv{})
 
 	mode, err := g.Mode(t.Context(), &url.URL{Scheme: "cas"})
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestCASProtocolGetterMode(t *testing.T) {
 func TestCASProtocolGetterGetFile(t *testing.T) {
 	t.Parallel()
 
-	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil)
+	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, cas.Venv{})
 
 	err := g.GetFile(t.Context(), &getter.Request{})
 	require.ErrorIs(t, err, cas.ErrGetFileNotSupported)

@@ -29,10 +29,12 @@ func WithTFRegistry(g *RegistryGetter) Option {
 }
 
 // WithCAS registers CASGetter, which intercepts git/file sources and routes
-// them through Terragrunt's content-addressable storage.
-func WithCAS(c *cas.CAS, cloneOpts *cas.CloneOptions) Option {
+// them through Terragrunt's content-addressable storage. v supplies the
+// filesystem and git runner used by every CAS operation.
+func WithCAS(c *cas.CAS, v cas.Venv, cloneOpts *cas.CloneOptions) Option {
 	return func(b *builder) {
 		b.casStore = c
+		b.casVenv = v
 		b.casCloneOpts = cloneOpts
 	}
 }
@@ -84,6 +86,7 @@ type builder struct {
 	tfRegistry       *RegistryGetter
 	casStore         *cas.CAS
 	casCloneOpts     *cas.CloneOptions
+	casVenv          cas.Venv
 	httpExtraHeader  http.Header
 	httpsExtraHeader http.Header
 	decompressors    map[string]Decompressor

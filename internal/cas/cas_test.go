@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -19,6 +21,9 @@ func TestCAS_Clone(t *testing.T) {
 	l := logger.CreateLogger()
 	repoURL := startTestServer(t)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	t.Run("clone new repository", func(t *testing.T) {
 		t.Parallel()
 		tempDir := helpers.TmpDirWOSymlinks(t)
@@ -28,7 +33,7 @@ func TestCAS_Clone(t *testing.T) {
 		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, &cas.CloneOptions{
+		err = c.Clone(t.Context(), l, v, &cas.CloneOptions{
 			Dir:   targetPath,
 			Depth: -1,
 		}, repoURL)
@@ -52,7 +57,7 @@ func TestCAS_Clone(t *testing.T) {
 		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, &cas.CloneOptions{
+		err = c.Clone(t.Context(), l, v, &cas.CloneOptions{
 			Dir:    targetPath,
 			Branch: "main",
 			Depth:  -1,
@@ -73,7 +78,7 @@ func TestCAS_Clone(t *testing.T) {
 		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, &cas.CloneOptions{
+		err = c.Clone(t.Context(), l, v, &cas.CloneOptions{
 			Dir:              targetPath,
 			IncludedGitFiles: []string{"HEAD", "config"},
 			Depth:            -1,
@@ -110,7 +115,10 @@ func TestCAS_FallbackWhenGitStoreFails(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), &cas.CloneOptions{
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, &cas.CloneOptions{
 		Dir:   targetPath,
 		Depth: -1,
 	}, repoURL)
@@ -148,7 +156,10 @@ func TestCAS_CloneRepoWithSymlink(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), &cas.CloneOptions{
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, &cas.CloneOptions{
 		Dir:   targetPath,
 		Depth: -1,
 	}, repoURL)
@@ -173,13 +184,25 @@ func TestCAS_CloneRepoWithSymlink(t *testing.T) {
 	assert.Equal(t, []byte("hello"), data)
 }
 
-// TestCASRejectsNonOSFilesystem pins the early OS-filesystem gate
-// in [cas.New]: a non-OS backing must fail at construction.
+// TestCASRejectsNonOSFilesystem pins the early OS-filesystem gate when a
+// non-OS-backed Venv reaches CAS operations: ensureStorePaths refuses to
+// continue rather than producing surprising behavior against an in-memory FS.
 func TestCASRejectsNonOSFilesystem(t *testing.T) {
 	t.Parallel()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 
-	_, err := cas.New(cas.WithFS(vfs.NewMemMapFS()), cas.WithStorePath(storePath))
+	c, err := cas.New(cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	v := cas.Venv{FS: vfs.NewMemMapFS(), Git: runner}
+
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, &cas.CloneOptions{
+		Dir:   filepath.Join(helpers.TmpDirWOSymlinks(t), "repo"),
+		Depth: -1,
+	}, "https://example.com/repo.git")
 	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
 }

@@ -46,9 +46,9 @@ func startTestServer(t *testing.T) string {
 //
 // The repo layout is:
 //
-//	stacks/my-stack/terragrunt.stack.hcl   — stack file with update_source_with_cas
-//	units/my-service/terragrunt.hcl        — unit file with update_source_with_cas
-//	modules/vpc/main.tf                    — plain Terraform module
+//	stacks/my-stack/terragrunt.stack.hcl   stack file with update_source_with_cas
+//	units/my-service/terragrunt.hcl        unit file with update_source_with_cas
+//	modules/vpc/main.tf                    plain Terraform module
 func startStackTestServer(t *testing.T) string {
 	t.Helper()
 
@@ -81,7 +81,7 @@ unit "plain" {
 `)
 	require.NoError(t, srv.CommitFile("units/my-service/terragrunt.hcl", unitHCL, "add unit file"))
 
-	// Plain unit (no CAS flag) — should remain unchanged after processing.
+	// Plain unit (no CAS flag) should remain unchanged after processing.
 	plainUnitHCL := []byte(`terraform {
   source = "../../modules/vpc"
 }

@@ -16,10 +16,9 @@ import (
 // unixPermMask isolates the user/group/other rwx bits from a git tree mode.
 const unixPermMask = os.FileMode(0o777)
 
-// Git tree entry mode constants. Git stores the entry type in the high bits of
-// a six-digit octal mode; gitTypeMask isolates them so a symlink blob (120000)
-// can be distinguished from a regular blob (100644 / 100755) at materialization
-// time.
+// Git stores the entry type in the high bits of a six-digit octal mode;
+// gitTypeMask isolates them so a symlink blob (120000) can be distinguished
+// from a regular blob (100644 / 100755) at materialization time.
 const (
 	gitTypeMask    = uint64(0o170000)
 	gitTypeSymlink = uint64(0o120000)
@@ -43,6 +42,7 @@ func WithForceCopy() LinkTreeOption {
 // blobStore is used to resolve blob entries, treeStore is used to resolve subtree entries.
 func LinkTree(
 	ctx context.Context,
+	v Venv,
 	blobStore *Store,
 	treeStore *Store,
 	t *git.Tree,
@@ -54,7 +54,7 @@ func LinkTree(
 		opt(&o)
 	}
 
-	return linkTree(ctx, blobStore, treeStore, t, targetDir, targetDir, &o)
+	return linkTree(ctx, v, blobStore, treeStore, t, targetDir, targetDir, &o)
 }
 
 // linkTree is the recursive implementation behind LinkTree. rootDir is the
@@ -64,6 +64,7 @@ func LinkTree(
 // resolve outside the original tree even when the link sits in a subdirectory.
 func linkTree(
 	ctx context.Context,
+	v Venv,
 	blobStore *Store,
 	treeStore *Store,
 	t *git.Tree,
@@ -102,10 +103,9 @@ func linkTree(
 		parentDirPath := filepath.Dir(dirPath)
 		delete(dirsToCreate, parentDirPath)
 
-		// Create work items based on entry type. Git stores symlinks as blobs
-		// whose content is the link target; the entry mode (120000) is the
-		// only signal that distinguishes them from regular files, so dispatch
-		// on the mode here instead of treating every blob as a file to copy.
+		// Git encodes a symlink as a blob whose body is the link target; the
+		// entry mode (120000) is the only signal that distinguishes it from a
+		// regular file, so dispatch on the mode rather than the type.
 		switch entry.Type {
 		case "blob":
 			itemType := "link"
@@ -129,15 +129,12 @@ func linkTree(
 		}
 	}
 
-	fs := blobStore.FS()
-
 	for dirPath := range dirsToCreate {
-		if err := fs.MkdirAll(dirPath, DefaultDirPerms); err != nil {
+		if err := v.FS.MkdirAll(dirPath, DefaultDirPerms); err != nil {
 			return fmt.Errorf("mkdir %s: %w", dirPath, err)
 		}
 	}
 
-	// Use errgroup for concurrent processing
 	g, ctx := errgroup.WithContext(ctx)
 
 	// Use half the available CPUs (at least 1) to avoid saturating I/O during tree materialization.
@@ -145,17 +142,16 @@ func linkTree(
 	maxWorkers := max(1, runtime.GOMAXPROCS(0)/scalingFactor)
 	g.SetLimit(maxWorkers)
 
-	// Process work items concurrently
 	for _, work := range workItems {
 		g.Go(func() error {
 			switch work.itemType {
 			case "link":
-				err := blobContent.Link(ctx, work.entry.Hash, work.path, gitFilePerm(work.entry.Mode), linkOpts...)
+				err := blobContent.Link(ctx, v, work.entry.Hash, work.path, gitFilePerm(work.entry.Mode), linkOpts...)
 				if err != nil {
 					return fmt.Errorf("link blob %s: %w", work.path, err)
 				}
 			case "symlink":
-				target, err := blobContent.Read(work.entry.Hash)
+				target, err := blobContent.Read(v, work.entry.Hash)
 				if err != nil {
 					return fmt.Errorf("read symlink blob %s: %w", work.entry.Hash, err)
 				}
@@ -164,11 +160,11 @@ func linkTree(
 					return err
 				}
 
-				if err := vfs.Symlink(fs, string(target), work.path); err != nil {
+				if err := vfs.Symlink(v.FS, string(target), work.path); err != nil {
 					return fmt.Errorf("symlink %s -> %s: %w", work.path, string(target), err)
 				}
 			case "subtree":
-				treeData, err := treeContent.Read(work.entry.Hash)
+				treeData, err := treeContent.Read(v, work.entry.Hash)
 				if err != nil {
 					return fmt.Errorf("read tree %s: %w", work.entry.Hash, err)
 				}
@@ -178,7 +174,7 @@ func linkTree(
 					return fmt.Errorf("parse tree %s: %w", work.entry.Hash, err)
 				}
 
-				err = linkTree(ctx, blobStore, treeStore, subTree, rootDir, work.path, o)
+				err = linkTree(ctx, v, blobStore, treeStore, subTree, rootDir, work.path, o)
 				if err != nil {
 					return fmt.Errorf("link subtree %s: %w", work.path, err)
 				}
@@ -188,7 +184,6 @@ func linkTree(
 		})
 	}
 
-	// Wait for all goroutines to complete and return first error if any
 	return g.Wait()
 }
 
@@ -209,10 +204,10 @@ func gitFilePerm(mode string) os.FileMode {
 	return os.FileMode(n) & unixPermMask
 }
 
-// gitEntryIsSymlink reports whether the given git tree entry mode is the
-// symlink type (120000). Git tree modes encode the entry type in their high
-// bits, so the permission-only view used by gitFilePerm cannot distinguish a
-// symlink blob from a regular blob.
+// gitEntryIsSymlink reports whether mode encodes the git symlink type
+// (120000). The high bits of a six-digit octal mode carry the entry type;
+// permission-only inspection cannot distinguish a symlink blob from a regular
+// blob.
 func gitEntryIsSymlink(mode string) bool {
 	if mode == "" {
 		return false

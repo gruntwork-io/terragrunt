@@ -64,14 +64,15 @@ func (e *WrappedError) Unwrap() error {
 
 // Git operation errors
 var (
-	ErrCommandSpawn        = errors.New("failed to spawn git command")
-	ErrNoMatchingReference = errors.New("no matching reference")
-	ErrReadTree            = errors.New("failed to read tree")
-	ErrNoWorkDir           = errors.New("working directory not set")
-	ErrGitStorePath        = errors.New("failed to prepare git store path")
-	ErrGitStoreLock        = errors.New("failed to acquire git store lock")
-	ErrGitStoreFSNotOS     = errors.New("git store requires an OS-backed filesystem")
-	ErrFallbackCloneDir    = errors.New("failed to create fallback clone directory")
+	ErrCommandSpawn         = errors.New("failed to spawn git command")
+	ErrNoMatchingReference  = errors.New("no matching reference")
+	ErrReadTree             = errors.New("failed to read tree")
+	ErrNoWorkDir            = errors.New("working directory not set")
+	ErrGitStorePath         = errors.New("failed to prepare git store path")
+	ErrGitStoreLock         = errors.New("failed to acquire git store lock")
+	ErrGitStoreFSNotOS      = errors.New("git store requires an OS-backed filesystem")
+	ErrFallbackCloneDir     = errors.New("failed to create fallback clone directory")
+	ErrFetchClosureRequired = errors.New("fetch closure is required")
 )
 
 // UpdateSourceWithCASRequiresCASError is returned when a block sets

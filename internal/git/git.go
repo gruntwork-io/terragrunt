@@ -74,6 +74,12 @@ func NewGitRunner(e vexec.Exec) (*GitRunner, error) {
 	}, nil
 }
 
+// ExtractRepoName extracts the repository name from a git URL
+func ExtractRepoName(repo string) string {
+	name := filepath.Base(repo)
+	return strings.TrimSuffix(name, ".git")
+}
+
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 	if g == nil {
@@ -141,27 +147,6 @@ func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
 	g.repoRootCached = true
 
 	return root, nil
-}
-
-// runRepoRoot performs the uncached `git rev-parse --show-toplevel`. Use
-// GetRepoRoot for the memoized entry point.
-func (g *GitRunner) runRepoRoot(ctx context.Context) (string, error) {
-	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
-
-	var stdout, stderr bytes.Buffer
-
-	cmd.SetStdout(&stdout)
-	cmd.SetStderr(&stderr)
-
-	if err := cmd.Run(); err != nil {
-		return "", &WrappedError{
-			Op:      "git_rev_parse",
-			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
-		}
-	}
-
-	return strings.TrimSpace(stdout.String()), nil
 }
 
 // LsRemoteResult represents the output of git ls-remote
@@ -468,12 +453,6 @@ func (g *GitRunner) CreateTempDir() (string, func() error, error) {
 	}
 
 	return tempDir, cleanup, nil
-}
-
-// ExtractRepoName extracts the repository name from a git URL
-func ExtractRepoName(repo string) string {
-	name := filepath.Base(repo)
-	return strings.TrimSuffix(name, ".git")
 }
 
 // LsTreeRecursive runs git ls-tree -r and returns all blobs recursively
@@ -881,6 +860,27 @@ func (g *GitRunner) ObjectFormat(ctx context.Context) (string, error) {
 	if err := cmd.Run(); err != nil {
 		// Older Git versions don't support --show-object-format; default to sha1.
 		return "sha1", nil //nolint:nilerr
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+// runRepoRoot performs the uncached `git rev-parse --show-toplevel`. Use
+// GetRepoRoot for the memoized entry point.
+func (g *GitRunner) runRepoRoot(ctx context.Context) (string, error) {
+	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return "", &WrappedError{
+			Op:      "git_rev_parse",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
 	}
 
 	return strings.TrimSpace(stdout.String()), nil

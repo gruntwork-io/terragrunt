@@ -25,7 +25,10 @@ func TestWithCASRegistersCASGetter(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	client := getter.NewClient(getter.WithCAS(c, &cas.CloneOptions{}))
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}))
 
 	assert.True(t, hasGetter[*getter.CASGetter](client.Getters), "WithCAS must register CASGetter")
 	assert.True(t, hasGetter[*getter.CASProtocolGetter](client.Getters), "WithCAS must register CASProtocolGetter")
@@ -41,7 +44,10 @@ func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	client := getter.NewClient(getter.WithCAS(c, &cas.CloneOptions{}))
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}))
 
 	req := &getter.Request{Src: "cas::sha1:0000000000000000000000000000000000000000"}
 
