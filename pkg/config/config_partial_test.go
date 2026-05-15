@@ -944,8 +944,8 @@ func TestPartialParseFeatureFlagDefaultsFromIncludes(t *testing.T) {
 		parentHCL   string
 		childHCL    string
 		cliFlags    map[string]string
-		expected    bool
 		expectedErr string
+		expected    bool
 	}{
 		{
 			name: "parent default visible",
