@@ -43,7 +43,7 @@ type Options struct {
 	EngineConfig                 *engine.EngineConfig
 	EngineOptions                *engine.EngineOptions
 	Errors                       *errorconfig.Config
-	FeatureFlags                 *xsync.MapOf[string, string]
+	FeatureFlags                 *xsync.Map[string, string]
 	Telemetry                    *telemetry.Options
 	SourceMap                    map[string]string
 	Env                          map[string]string

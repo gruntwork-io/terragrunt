@@ -44,7 +44,7 @@ type ParsingContext struct {
 	TrackInclude     *TrackInclude
 	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
-	FeatureFlags     *xsync.MapOf[string, string]
+	FeatureFlags     *xsync.Map[string, string]
 	FilesRead        *[]string
 	Telemetry        *telemetry.Options
 

@@ -671,7 +671,6 @@ func TestStackOutputsParallelFetchingWithRacing(t *testing.T) {
 			observedNonSerialOrder = true
 			break
 		}
-
 	}
 
 	require.True(t, observedNonSerialOrder,

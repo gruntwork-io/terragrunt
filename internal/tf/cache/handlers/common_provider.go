@@ -13,9 +13,9 @@ type CommonProviderHandler struct {
 	logger log.Logger
 
 	// discoveryURLCache stores discovered registry URLs
-	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
+	// We use [xsync.Map](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
 	// instead of standard `sync.Map` since it's faster and has generic types.
-	discoveryURLCache *xsync.MapOf[string, *RegistryURLs]
+	discoveryURLCache *xsync.Map[string, *RegistryURLs]
 
 	// includeProviders and excludeProviders are sets of provider matching patterns that together define which providers are eligible to be potentially installed from the corresponding Source.
 	includeProviders models.Providers
@@ -38,7 +38,7 @@ func NewCommonProviderHandler(logger log.Logger, includes, excludes *[]string) *
 		logger:            logger,
 		includeProviders:  includeProviders,
 		excludeProviders:  excludeProviders,
-		discoveryURLCache: xsync.NewMapOf[string, *RegistryURLs](),
+		discoveryURLCache: xsync.NewMap[string, *RegistryURLs](),
 	}
 }
 

@@ -11,16 +11,16 @@ import (
 var _ Backend = new(CommonBackend)
 
 type CommonBackend struct {
-	bucketLocks   *xsync.MapOf[string, *sync.Mutex]
-	initedConfigs *xsync.MapOf[string, bool]
+	bucketLocks   *xsync.Map[string, *sync.Mutex]
+	initedConfigs *xsync.Map[string, bool]
 	name          string
 }
 
 func NewCommonBackend(name string) *CommonBackend {
 	return &CommonBackend{
 		name:          name,
-		bucketLocks:   xsync.NewMapOf[string, *sync.Mutex](),
-		initedConfigs: xsync.NewMapOf[string, bool](),
+		bucketLocks:   xsync.NewMap[string, *sync.Mutex](),
+		initedConfigs: xsync.NewMap[string, bool](),
 	}
 }
 

@@ -92,7 +92,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 		var (
 			wg      sync.WaitGroup
 			sem     = make(chan struct{}, dr.concurrency)
-			results = xsync.NewMapOf[string, error]()
+			results = xsync.NewMap[string, error]()
 		)
 
 		if dr.runner == nil {
