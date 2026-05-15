@@ -176,7 +176,7 @@ func (runner *UnitRunner) Run(
 		adhocReport := report.NewReport()
 
 		jsonV := *v
-		jsonV.Writers.Writer = &stdout
+		jsonV.Writers = jsonV.Writers.WithWriter(&stdout)
 
 		runOpts := configbridge.NewRunOptions(jsonOptions)
 		if err := run.Run(

@@ -61,7 +61,10 @@ type Platform struct {
 // process-execution, HTTP, SOPS-decryption, environment-variable, platform,
 // and writer handles that every Terragrunt operation needs. Env is shared by
 // reference across the run and mutated in place as provider-cache, hook, and
-// inputs contributions resolve.
+// inputs contributions resolve. Writers is held as a pointer so per-call
+// overrides via [writer.Writers.WithWriter] and [writer.Writers.WithErrWriter]
+// produce fresh pointers without mutating the caller's value; never mutate its
+// fields in place, since shallow-copied Venvs share the pointer.
 type Venv struct {
 	FS       vfs.FS
 	Exec     vexec.Exec
@@ -72,28 +75,18 @@ type Venv struct {
 	Writers  *writer.Writers
 }
 
-// WithWriter returns a copy of v whose primary writer is w.
+// WithWriter returns a copy of v whose primary writer is w. The copy gets
+// a fresh Writers pointer so the caller's venv is untouched.
 func (v Venv) WithWriter(w io.Writer) Venv {
-	writers := writer.Writers{}
-	if v.Writers != nil {
-		writers = *v.Writers
-	}
-
-	writers.Writer = w
-	v.Writers = &writers
+	v.Writers = v.Writers.WithWriter(w)
 
 	return v
 }
 
-// WithErrWriter returns a copy of v whose error writer is w.
+// WithErrWriter returns a copy of v whose error writer is w. The copy gets
+// a fresh Writers pointer so the caller's venv is untouched.
 func (v Venv) WithErrWriter(w io.Writer) Venv {
-	writers := writer.Writers{}
-	if v.Writers != nil {
-		writers = *v.Writers
-	}
-
-	writers.ErrWriter = w
-	v.Writers = &writers
+	v.Writers = v.Writers.WithErrWriter(w)
 
 	return v
 }
@@ -223,7 +216,8 @@ func (v Venv) RequireUserHomeDir() {
 // It returns a *[Venv] so the bundle is threaded by pointer through every
 // downstream call — small parameter, no copying, and shallow-copying a
 // pointed-to [Venv] (via `local := *v`) yields an independent value that
-// callers can mutate without affecting the original.
+// callers can mutate (Env, Writers via [writer.Writers.WithWriter]) without
+// affecting the original.
 func OSVenv() *Venv {
 	return &Venv{
 		FS:   vfs.NewOSFS(),

@@ -14,7 +14,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -78,7 +77,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v *venv.Venv, path string
 	stderr := bytes.Buffer{}
 
 	gitV := *v
-	gitV.Writers = &writer.Writers{Writer: &stdout, ErrWriter: &stderr}
+	gitV.Writers = gitV.Writers.WithWriter(&stdout).WithErrWriter(&stderr)
 
 	gitRunOpts := NewShellOptions().WithWorkingDir(path)
 
@@ -211,7 +210,7 @@ func GitRepoTags(
 	stderr := bytes.Buffer{}
 
 	gitV := *v
-	gitV.Writers = &writer.Writers{Writer: &stdout, ErrWriter: &stderr}
+	gitV.Writers = gitV.Writers.WithWriter(&stdout).WithErrWriter(&stderr)
 
 	gitRunOpts := NewShellOptions().WithWorkingDir(workingDir)
 

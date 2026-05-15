@@ -13,6 +13,26 @@ type Writers struct {
 	ErrWriter io.Writer
 }
 
+// WithWriter copies w, replaces Writer on the copy, and returns a pointer
+// to it. The other fields are preserved so callers that only override
+// stdout never silently drop future additions to [Writers].
+func (w *Writers) WithWriter(out io.Writer) *Writers {
+	c := *w
+	c.Writer = out
+
+	return &c
+}
+
+// WithErrWriter copies w, replaces ErrWriter on the copy, and returns a
+// pointer to it. The other fields are preserved so callers that only
+// override stderr never silently drop future additions to [Writers].
+func (w *Writers) WithErrWriter(err io.Writer) *Writers {
+	c := *w
+	c.ErrWriter = err
+
+	return &c
+}
+
 // writerUnwrapper is any writer that can provide its underlying parent writer.
 // This interface allows extracting the original writer from wrapped writers.
 type writerUnwrapper interface {
