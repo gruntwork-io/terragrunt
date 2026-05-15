@@ -34,30 +34,19 @@ func TestIsFunctionPanic(t *testing.T) {
 		}
 
 		assert.True(t, errors.IsFunctionPanic(err))
+		assert.Equal(t, "cty stack", errors.ErrorStack(err))
 	})
 
-	t.Run("generic function panic by error string and stack", func(t *testing.T) {
+	t.Run("FunctionPanicError from this package", func(t *testing.T) {
 		t.Parallel()
 
-		err := functionPanicLikeError{
-			Recovered: "slice bounds out of range",
-			Stack:     "generic panic stack",
+		err := errors.FunctionPanicError{
+			Recovered: "runtime nil deref",
+			Stack:     "panic-stack",
 		}
 
 		assert.True(t, errors.IsFunctionPanic(err))
-		assert.Equal(t, "generic panic stack", errors.ErrorStack(err))
-	})
-
-	t.Run("typed panic-shaped error with marker message", func(t *testing.T) {
-		t.Parallel()
-
-		err := functionPanicLikeError{
-			Recovered: "slice bounds out of range",
-			Stack:     "typed panic stack",
-		}
-
-		assert.True(t, errors.IsFunctionPanic(err))
-		assert.Equal(t, "typed panic stack", errors.ErrorStack(err))
+		assert.Equal(t, "panic-stack", errors.ErrorStack(err))
 	})
 
 	t.Run("cty function panic wrapped error", func(t *testing.T) {
@@ -90,12 +79,17 @@ func TestIsFunctionPanic(t *testing.T) {
 		assert.True(t, errors.IsFunctionPanic(fmt.Errorf("wrapped: %w", err)))
 	})
 
-	t.Run("wrapped error message that contains panic", func(t *testing.T) {
+	// Regression test: previously isFunctionPanic returned true for any
+	// errors.New(...)-wrapped error because go-errors auto-attaches a stack
+	// and the heuristic treated any present stack as evidence of a panic.
+	// Plain wrapped errors must NOT be classified as panics or every error
+	// will route through the crash-report UX.
+	t.Run("plain wrapped error is not a function panic", func(t *testing.T) {
 		t.Parallel()
 
-		err := errors.New("panic: function call failed: runtime error")
-
-		assert.True(t, errors.IsFunctionPanic(err))
+		assert.False(t, errors.IsFunctionPanic(errors.New("a regular failure")))
+		assert.False(t, errors.IsFunctionPanic(errors.Errorf("formatted: %d", 42)))
+		assert.False(t, errors.IsFunctionPanic(errors.New("panic: this string mentions panic but is not one")))
 	})
 
 	t.Run("non panic error", func(t *testing.T) {
@@ -158,6 +152,30 @@ func TestErrorStackForFunctionPanic(t *testing.T) {
 		crashOutput := errors.ErrorStack(err)
 		assert.Contains(t, crashOutput, panicStack)
 	})
+
+	// Regression test: ErrorStack used to invoke both the marker-interface
+	// branch and a reflection-based field walker, appending the same stack
+	// twice for any go-errors wrapped error.
+	t.Run("does not duplicate stacks for wrapped errors", func(t *testing.T) {
+		t.Parallel()
+
+		err := errors.New("wrapped err")
+		stack := errors.ErrorStack(err)
+
+		require.NotEmpty(t, stack)
+		// "main.main" or "testing.tRunner" appears in any goroutine stack;
+		// a duplicated stack contains exactly one repetition of any frame.
+		count := 0
+		needle := "errors_test.TestErrorStackForFunctionPanic"
+
+		for i := 0; i+len(needle) <= len(stack); i++ {
+			if stack[i:i+len(needle)] == needle {
+				count++
+			}
+		}
+		// Duplicated stack would push the count past 1.
+		assert.LessOrEqual(t, count, 1, "ErrorStack should not duplicate frames; got %d copies", count)
+	})
 }
 
 func TestRecoverWrapsPanic(t *testing.T) {
@@ -178,14 +196,14 @@ func TestRecoverWrapsPanic(t *testing.T) {
 
 		require.Error(t, recovered)
 		assert.True(t, errors.IsFunctionPanic(recovered))
-		assert.Contains(t, recovered.Error(), "panic:")
+		assert.Contains(t, recovered.Error(), "panic")
 		assert.NotEmpty(t, errors.ErrorStack(recovered))
 	})
 
 	t.Run("preserves function panic error from recover", func(t *testing.T) {
 		t.Parallel()
 
-		panicErr := functionPanicLikeError{
+		panicErr := errors.FunctionPanicError{
 			Recovered: "runtime error",
 			Stack:     "existing function panic stack",
 		}
@@ -201,16 +219,11 @@ func TestRecoverWrapsPanic(t *testing.T) {
 		}()
 
 		assert.True(t, errors.IsFunctionPanic(recovered))
-		assert.NotEmpty(t, errors.ErrorStack(recovered))
+		assert.Equal(t, "existing function panic stack", errors.ErrorStack(recovered))
 	})
 
-	t.Run("preserves function panic-like shape from recover", func(t *testing.T) {
+	t.Run("wraps error-typed panic value as function panic", func(t *testing.T) {
 		t.Parallel()
-
-		recoveredErr := functionPanicLikeError{
-			Recovered: "runtime error",
-			Stack:     "typed recover stack",
-		}
 
 		var recovered error
 
@@ -219,12 +232,56 @@ func TestRecoverWrapsPanic(t *testing.T) {
 				recovered = err
 			})
 
-			panic(recoveredErr)
+			panic(fmt.Errorf("boom"))
 		}()
 
+		require.Error(t, recovered)
 		assert.True(t, errors.IsFunctionPanic(recovered))
-		assert.NotEmpty(t, errors.ErrorStack(recovered))
 	})
+
+	// Regression test: invoking errors.Recover indirectly through another
+	// deferred closure makes its internal recover() return nil. The handler
+	// must run when called as `defer errors.Recover(...)`.
+	t.Run("handler is invoked when used as defer errors.Recover", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+
+		func() {
+			defer errors.Recover(func(error) {
+				called = true
+			})
+
+			panic("trigger")
+		}()
+
+		assert.True(t, called, "the handler must run for direct defer errors.Recover")
+	})
+
+	t.Run("handler does not run when no panic", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+
+		func() {
+			defer errors.Recover(func(error) {
+				called = true
+			})
+		}()
+
+		assert.False(t, called)
+	})
+}
+
+func TestNewFunctionPanicErrorCapturesStack(t *testing.T) {
+	t.Parallel()
+
+	err := errors.NewFunctionPanicError("oops")
+
+	assert.True(t, err.IsFunctionPanic())
+	assert.Equal(t, "oops", err.Recovered)
+	assert.NotEmpty(t, err.Stack)
+	assert.Contains(t, err.Error(), "panic in function implementation")
 }
 
 type fakeFunctionCallDiagExtra struct {
@@ -246,6 +303,10 @@ type functionPanicLikeError struct {
 
 func (err functionPanicLikeError) Error() string {
 	return fmt.Sprintf("panic in function: %v", err.Recovered)
+}
+
+func (err functionPanicLikeError) ErrorStack() string {
+	return err.Stack
 }
 
 func (err functionPanicLikeError) IsFunctionPanic() bool {
