@@ -470,7 +470,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v *run.Venv, stackOpts
 			//
 			// The obtain_creds span is emitted by externalcmd.Provider.GetCredentials
 			// only when an auth provider is configured, so no conditional is needed here.
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitV.ToRoot(), unitOpts.AuthProviderCmd, unitV.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitV.ToRoot(), unitOpts.AuthProviderCmd, unitV.Env, configbridge.ShellRunOptsFromOpts(unitV.Env, unitOpts))
 			if err != nil {
 				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
 

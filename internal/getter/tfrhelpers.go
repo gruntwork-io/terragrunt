@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -69,15 +68,19 @@ func (e RegistryAPIErr) Error() string {
 // service-discovery protocol against `domain` and returns the base path
 // under which modules are hosted.
 //
+// env supplies the shell environment used to resolve the
+// TG_TF_REGISTRY_TOKEN bearer token; pass the venv-mediated map rather
+// than relying on the process environment.
+//
 // See https://www.terraform.io/docs/internals/remote-service-discovery.html.
-func GetModuleRegistryURLBasePath(ctx context.Context, l log.Logger, httpClient vhttp.Client, domain string) (string, error) {
+func GetModuleRegistryURLBasePath(ctx context.Context, l log.Logger, httpClient vhttp.Client, env map[string]string, domain string) (string, error) {
 	sdURL := url.URL{
 		Scheme: "https",
 		Host:   domain,
 		Path:   serviceDiscoveryPath,
 	}
 
-	bodyData, _, err := httpGETAndGetResponse(ctx, l, httpClient, &sdURL)
+	bodyData, _, err := httpGETAndGetResponse(ctx, l, httpClient, env, &sdURL)
 	if err != nil {
 		return "", err
 	}
@@ -96,8 +99,12 @@ func GetModuleRegistryURLBasePath(ctx context.Context, l log.Logger, httpClient 
 
 // GetTerraformGetHeader makes a GET against `url` and returns the value of
 // the X-Terraform-Get header (or the body's `location` field as a fallback).
-func GetTerraformGetHeader(ctx context.Context, l log.Logger, httpClient vhttp.Client, url *url.URL) (string, error) {
-	body, header, err := httpGETAndGetResponse(ctx, l, httpClient, url)
+//
+// env supplies the shell environment used to resolve the
+// TG_TF_REGISTRY_TOKEN bearer token; pass the venv-mediated map rather
+// than relying on the process environment.
+func GetTerraformGetHeader(ctx context.Context, l log.Logger, httpClient vhttp.Client, env map[string]string, url *url.URL) (string, error) {
+	body, header, err := httpGETAndGetResponse(ctx, l, httpClient, env, url)
 	if err != nil {
 		return "", errors.New(ModuleDownloadErr{sourceURL: url.String(), details: "error receiving HTTP data"})
 	}
@@ -163,18 +170,22 @@ func BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, version
 
 // applyHostToken adds an Authorization header to req based on the user's
 // OpenTofu/Terraform CLI config or the TG_TF_REGISTRY_TOKEN env var.
-func applyHostToken(req *http.Request) (*http.Request, error) {
+//
+// env is the venv-mediated shell environment; the function reads
+// TG_TF_REGISTRY_TOKEN from it rather than from the process environment
+// so test substitution at the venv boundary covers registry auth.
+func applyHostToken(req *http.Request, env map[string]string) (*http.Request, error) {
 	cliCfg, err := cliconfig.LoadUserConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	if creds := cliCfg.CredentialsSource().ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
+	if creds := cliCfg.CredentialsSource(env).ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
 		creds.PrepareRequest(req)
 		return req, nil
 	}
 
-	if authToken := os.Getenv(authTokenEnvName); authToken != "" {
+	if authToken := env[authTokenEnvName]; authToken != "" {
 		req.Header.Add("Authorization", "Bearer "+authToken)
 	}
 
@@ -182,7 +193,7 @@ func applyHostToken(req *http.Request) (*http.Request, error) {
 }
 
 // httpGETAndGetResponse performs a GET against getURL and returns its body and headers.
-func httpGETAndGetResponse(ctx context.Context, l log.Logger, httpClient vhttp.Client, getURL *url.URL) ([]byte, *http.Header, error) {
+func httpGETAndGetResponse(ctx context.Context, l log.Logger, httpClient vhttp.Client, env map[string]string, getURL *url.URL) ([]byte, *http.Header, error) {
 	if httpClient == nil {
 		httpClient = vhttp.NewOSClient()
 	}
@@ -196,7 +207,7 @@ func httpGETAndGetResponse(ctx context.Context, l log.Logger, httpClient vhttp.C
 		return nil, nil, fmt.Errorf("building registry HTTP request for %s: %w", getURL, err)
 	}
 
-	req, err = applyHostToken(req)
+	req, err = applyHostToken(req, env)
 	if err != nil {
 		return nil, nil, fmt.Errorf("applying registry auth token for %s: %w", getURL, err)
 	}

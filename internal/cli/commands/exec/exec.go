@@ -88,7 +88,7 @@ func runTargetCommand(
 
 	return run.RunActionWithHooks(ctx, l, rv, command, runOpts, cfg, r, func(ctx context.Context) error {
 		_, err := shell.RunCommandWithOutput(
-			ctx, l, v, configbridge.ShellRunOptsFromOpts(opts), dir, false, false, command, cmdArgs...,
+			ctx, l, v, configbridge.ShellRunOptsFromOpts(v.Env, opts), dir, false, false, command, cmdArgs...,
 		)
 		if err != nil {
 			return errors.Errorf("failed to run command in directory %s: %w", dir, err)

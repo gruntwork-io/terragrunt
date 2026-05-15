@@ -531,7 +531,7 @@ func createConfig(
 		t.Context(), l, versionV,
 		opts.WorkingDir,
 		opts.VersionManagerFileName,
-		configbridge.TFRunOptsFromOpts(opts),
+		configbridge.TFRunOptsFromOpts(versionV.Env, opts),
 	)
 	require.NoError(t, err)
 

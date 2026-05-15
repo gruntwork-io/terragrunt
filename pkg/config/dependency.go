@@ -1521,9 +1521,10 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 // shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
 // Shell environment and writers travel separately via pctx.Venv at the
-// invocation site.
+// invocation site; the venv's Env seeds trace-context propagation onto the
+// constructed options.
 func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
-	return shell.NewShellOptions().
+	return shell.NewShellOptions(pctx.Venv.Env).
 		WithWorkingDir(pctx.WorkingDir).
 		WithTelemetry(pctx.Telemetry).
 		WithEngine(pctx.EngineConfig, pctx.EngineOptions).

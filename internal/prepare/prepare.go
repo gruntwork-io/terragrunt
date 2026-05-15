@@ -41,7 +41,7 @@ func PrepareConfig(ctx context.Context, l log.Logger, v *run.Venv, opts *options
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
 	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
-	provider := externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts))
+	provider := externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(v.Env, opts))
 
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.ToRoot(), v.Env, provider); err != nil {
 		return nil, err

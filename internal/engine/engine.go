@@ -257,7 +257,7 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		// Create download client and download assets
 		downloadClient := github.NewGitHubReleasesDownloadClient(github.WithLogger(l))
 
-		result, err := downloadClient.DownloadReleaseAssets(ctx, assets)
+		result, err := downloadClient.DownloadReleaseAssets(ctx, execOptions.Env, assets)
 		if err != nil {
 			return errors.Errorf("failed to download engine assets: %w", err)
 		}
@@ -300,7 +300,7 @@ func lastReleaseVersion(ctx context.Context, opts *ExecutionOptions) (string, er
 		return val, nil
 	}
 
-	githubClient := github.NewGitHubAPIClient(github.WithGithubComDefaultAuth())
+	githubClient := github.NewGitHubAPIClient(github.WithGithubComDefaultAuth(opts.Env))
 
 	tag, err := githubClient.GetLatestReleaseTag(ctx, repository)
 	if err != nil {

@@ -81,7 +81,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 	credsGetter := creds.NewGetter()
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, rv.ToRoot(),
 		rv.Env,
-		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts)),
+		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(rv.Env, opts)),
 	); err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 	}
 
-	return tf.RunCommand(ctx, l, v, configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
+	return tf.RunCommand(ctx, l, v, configbridge.TFRunOptsFromOpts(v.Env, opts), opts.TerraformCliArgs.Slice()...)
 }
 
 func getTFPathFromConfig(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) (string, error) {
@@ -201,7 +201,7 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		ctx, l, v,
 		opts.WorkingDir,
 		opts.VersionManagerFileName,
-		configbridge.TFRunOptsFromOpts(opts),
+		configbridge.TFRunOptsFromOpts(v.Env, opts),
 	)
 	if err != nil {
 		return l, err

@@ -37,7 +37,9 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	cmdPath := "testdata/test_sigint_wait.sh"
 
 	go func() {
-		_, err := shell.RunCommandWithOutput(ctx, l, venv.OSVenv(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "", false, false, cmdPath, strconv.Itoa(expectedWait))
+		v := venv.OSVenv()
+
+		_, err := shell.RunCommandWithOutput(ctx, l, v, configbridge.ShellRunOptsFromOpts(v.Env, terragruntOptions), "", false, false, cmdPath, strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 

@@ -90,7 +90,7 @@ func TestNestedModuleCredentials(t *testing.T) {
 			{Name: "127.0.0.1", Token: realUserToken},
 		},
 	}
-	credsSource := cliCfg.CredentialsSource()
+	credsSource := cliCfg.CredentialsSource(map[string]string{})
 
 	// The fake discoverer returns the upstream's full URL as modules.v1, so the
 	// proxy targets the httptest server (HTTP, not HTTPS) without DNS lookups.

@@ -231,6 +231,11 @@ func (flag *flag) Parse(args Args) error {
 
 func (flag *flag) LookupEnv(envVar string) []string {
 	if flag.LookupEnvFunc == nil {
+		// clihelper is a generic CLI library that does not import the venv
+		// package; the os.LookupEnv default fires only when the embedding
+		// application (Terragrunt) does not wire a venv-backed override
+		// onto LookupEnvFunc. Production CLI construction is expected to
+		// supply that override.
 		flag.LookupEnvFunc = func(key string) []string {
 			if val, ok := os.LookupEnv(key); ok {
 				return []string{val}

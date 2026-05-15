@@ -34,8 +34,9 @@ type ProviderHandlers []ProviderHandler
 // NewProviderHandlers constructs the slice of [ProviderHandler]s described by
 // cliCfg's provider_installation block. httpClient is threaded into every
 // handler that issues outbound HTTP (direct, network mirror, proxy, and the
-// service-discovery cache shared by all of them).
-func NewProviderHandlers(cliCfg *cliconfig.Config, l log.Logger, httpClient vhttp.Client, registryNames []string) (ProviderHandlers, error) {
+// service-discovery cache shared by all of them). env is the venv-mediated
+// shell environment used to resolve TF_TOKEN_<host> credentials.
+func NewProviderHandlers(cliCfg *cliconfig.Config, l log.Logger, httpClient vhttp.Client, env map[string]string, registryNames []string) (ProviderHandlers, error) {
 	var (
 		providerHandlers = make([]ProviderHandler, 0, len(cliCfg.ProviderInstallation.Methods))
 		excludeAddrs     = make([]string, 0, len(cliCfg.ProviderInstallation.Methods))
@@ -51,14 +52,14 @@ func NewProviderHandlers(cliCfg *cliconfig.Config, l log.Logger, httpClient vhtt
 		case *cliconfig.ProviderInstallationFilesystemMirror:
 			providerHandlers = append(providerHandlers, NewFilesystemMirrorProviderHandler(l, httpClient, method))
 		case *cliconfig.ProviderInstallationNetworkMirror:
-			networkMirrorHandler, err := NewNetworkMirrorProviderHandler(l, httpClient, method, cliCfg.CredentialsSource())
+			networkMirrorHandler, err := NewNetworkMirrorProviderHandler(l, httpClient, method, cliCfg.CredentialsSource(env))
 			if err != nil {
 				return nil, err
 			}
 
 			providerHandlers = append(providerHandlers, networkMirrorHandler)
 		case *cliconfig.ProviderInstallationDirect:
-			providerHandlers = append(providerHandlers, NewDirectProviderHandler(l, httpClient, method, cliCfg.CredentialsSource()))
+			providerHandlers = append(providerHandlers, NewDirectProviderHandler(l, httpClient, method, cliCfg.CredentialsSource(env)))
 			directIsDefined = true
 		}
 
@@ -67,7 +68,7 @@ func NewProviderHandlers(cliCfg *cliconfig.Config, l log.Logger, httpClient vhtt
 
 	if !directIsDefined {
 		// In a case if none of direct provider installation methods `cliCfg.ProviderInstallation.Methods` are specified.
-		providerHandlers = append(providerHandlers, NewDirectProviderHandler(l, httpClient, new(cliconfig.ProviderInstallationDirect), cliCfg.CredentialsSource()))
+		providerHandlers = append(providerHandlers, NewDirectProviderHandler(l, httpClient, new(cliconfig.ProviderInstallationDirect), cliCfg.CredentialsSource(env)))
 	}
 
 	return providerHandlers, nil
