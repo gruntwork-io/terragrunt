@@ -1,6 +1,6 @@
 ---
 name: parallelism
-description: Parallelism for --all commands and stack output fetches.
+description: Parallelism for --all commands.
 type: integer
 env:
   - TG_PARALLELISM
@@ -8,7 +8,7 @@ env:
 
 import { Aside } from '@astrojs/starlight/components';
 
-Sets the maximum number of concurrent operations when running commands with `--all`, and caps concurrent per-unit output reads for `terragrunt stack output`. This helps control resource usage and API rate limits when working with multiple units.
+Sets the maximum number of concurrent operations when running commands with `--all`. This helps control resource usage and API rate limits when working with multiple units.
 
 <Aside type="caution">
 When using `--parallelism` with provider caching, `terraform init` is always executed sequentially if OpenTofu/Terraform provider plugin cache is configured.

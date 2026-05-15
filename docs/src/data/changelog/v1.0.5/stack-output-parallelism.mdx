@@ -5,10 +5,10 @@ category: "performance-improvements"
 
 #### `stack output` fetches unit outputs in parallel
 
-`terragrunt stack output` previously read outputs from each unit sequentially, which became slow on large stacks because every read blocks on a `tofu output` child process. Outputs are now fetched concurrently across units and can be bounded with `--parallelism` (`TG_PARALLELISM`), defaulting to the number of logical CPUs when omitted.
+`terragrunt stack output` previously read outputs from each unit sequentially, which became slow on large stacks because every read blocks on a `tofu output` child process. Outputs are now fetched concurrently across units, bounded by the `--parallelism` flag (default unbounded, env `TG_PARALLELISM`).
 
 ```bash
 terragrunt stack output --parallelism 4
 ```
 
-Use a higher `--parallelism` when you want more concurrent `tofu output` processes than CPU count; use a lower value to reduce file-descriptor pressure or cloud-provider rate limiting.
+Set `--parallelism` to cap concurrency on machines where unbounded fetches would exhaust file descriptors or hit cloud-provider rate limits.
