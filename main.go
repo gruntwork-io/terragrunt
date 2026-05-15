@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	stdErrors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
@@ -29,14 +32,9 @@ const (
 
 	// crashLogPrefix names the crash log file. The full filename is
 	// "<prefix>-<RFC3339-seconds>-<pid>.log" so concurrent runs don't collide.
-	crashLogPrefix = "terragrunt-crash"
-	// crashLogFileTimeLayout uses second precision — nanoseconds add no value
-	// and make filenames unwieldy.
+	crashLogPrefix         = "terragrunt-crash"
 	crashLogFileTimeLayout = "20060102T150405Z"
 
-	// crashFileMode is u=rw because the crash log may surface env hints, cwd,
-	// and command-line arguments. Adjust upward only if a CI artifact uploader
-	// runs as a different user than the runner.
 	crashFileMode os.FileMode = 0o600
 
 	// panicExitCode mirrors OpenTofu's choice of 11 — distinct from
@@ -45,7 +43,6 @@ const (
 	panicExitCode = 11
 
 	// allGoroutineStackBufSize caps the buffer used for runtime.Stack(_, true).
-	// 1 MiB is enough for thousands of goroutines without runaway allocation.
 	allGoroutineStackBufSize = 1 << 20
 
 	panicOutput = `
@@ -88,6 +85,17 @@ All goroutines:
 %s
 `
 )
+
+// runtimePanicFrames are stack-frame substrings emitted by runtime/debug.Stack
+// only when the goroutine is unwinding from a real Go panic. The runtime panic
+// dispatcher always shows up as `panic({` and `runtime/panic.go` in the trace,
+// regardless of whether the panic originated from `panic(...)` or sigpanic
+// (nil deref, divide-by-zero, etc.). Used to detect panic-origin errors that
+// surface as values returned from cty/HCL evaluation.
+var runtimePanicFrames = []string{
+	"runtime/panic.go",
+	"panic({",
+}
 
 // terragruntApp groups the side-effecting hooks the panic path depends on so
 // they can be stubbed in tests without process-level state.
@@ -159,7 +167,7 @@ func (app *terragruntApp) checkForErrorsAndExit(l log.Logger, exitCode int, opts
 			os.Exit(exitCode)
 		}
 
-		if errors.IsFunctionPanic(err) {
+		if isPanicError(err) {
 			app.reportPanic(l, err, opts)
 			os.Exit(panicExitCode)
 		}
@@ -181,6 +189,43 @@ func (app *terragruntApp) checkForErrorsAndExit(l log.Logger, exitCode int, opts
 
 		os.Exit(exitCoder)
 	}
+}
+
+// isPanicError reports whether err originated from a recovered panic. Detection
+// is type-driven first (cty's function.PanicError, returned when an HCL
+// function implementation panics) and falls back to scanning the unwrap chain
+// and message for a runtime panic frame (runtime.gopanic / sigpanic / panicmem)
+// — the same signature a Go stack trace exhibits whenever the goroutine is
+// unwinding through a panic.
+func isPanicError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var ctyPanic function.PanicError
+	if stdErrors.As(err, &ctyPanic) {
+		return true
+	}
+
+	if hasPanicFrame(errors.ErrorStack(err)) {
+		return true
+	}
+
+	return hasPanicFrame(err.Error())
+}
+
+func hasPanicFrame(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	for _, frame := range runtimePanicFrames {
+		if strings.Contains(s, frame) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (app *terragruntApp) reportPanic(l log.Logger, err error, opts *options.TerragruntOptions) {

@@ -91,9 +91,7 @@ func wrapStringSliceToStringAsFuncImpl(
 				return cty.StringVal(""), err
 			}
 
-			out, err := callWithPanicProtection(func() (string, error) {
-				return toWrap(ctx, pctx, l, params)
-			})
+			out, err := toWrap(ctx, pctx, l, params)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -118,9 +116,7 @@ func wrapStringSliceToNumberAsFuncImpl(
 				return cty.NumberIntVal(0), err
 			}
 
-			out, err := callWithPanicProtection(func() (int64, error) {
-				return toWrap(ctx, pctx, l, params)
-			})
+			out, err := toWrap(ctx, pctx, l, params)
 			if err != nil {
 				return cty.NumberIntVal(0), err
 			}
@@ -144,9 +140,7 @@ func wrapStringSliceToBoolAsFuncImpl(
 				return cty.BoolVal(false), err
 			}
 
-			out, err := callWithPanicProtection(func() (bool, error) {
-				return toWrap(ctx, pctx, params)
-			})
+			out, err := toWrap(ctx, pctx, params)
 			if err != nil {
 				return cty.BoolVal(false), err
 			}
@@ -165,9 +159,7 @@ func wrapVoidToStringAsFuncImpl(
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			out, err := callWithPanicProtection(func() (string, error) {
-				return toWrap(ctx, pctx, l)
-			})
+			out, err := toWrap(ctx, pctx, l)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -195,9 +187,7 @@ func wrapVoidToStringSliceAsFuncImpl(
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.List(cty.String)),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			outVals, err := callWithPanicProtection(func() ([]string, error) {
-				return toWrap(ctx, pctx, l)
-			})
+			outVals, err := toWrap(ctx, pctx, l)
 			if err != nil {
 				return cty.ListValEmpty(cty.String), err
 			}
@@ -231,9 +221,7 @@ func wrapStringSliceToStringSliceAsFuncImpl(
 				return cty.ListValEmpty(cty.String), err
 			}
 
-			outVals, err := callWithPanicProtection(func() ([]string, error) {
-				return toWrap(ctx, pctx, l, params)
-			})
+			outVals, err := toWrap(ctx, pctx, l, params)
 			if err != nil {
 				return cty.ListValEmpty(cty.String), err
 			}
@@ -388,14 +376,4 @@ func includeConfigAsCtyVal(ctx context.Context, pctx *ParsingContext, l log.Logg
 	}
 
 	return parsedIncludedCty, nil
-}
-
-func callWithPanicProtection[T any](f func() (T, error)) (out T, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = errors.NewFunctionPanicError(recovered)
-		}
-	}()
-
-	return f()
 }
