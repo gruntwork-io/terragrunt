@@ -1,4 +1,4 @@
-// Package hclparse provides phased HCL parsing for terragrunt.stack.hcl files: slurp → DAG locals → include merge → eager unit/stack decode → autoinclude resolution, sharing one progressively-populated eval context.
+// Package hclparse provides phased HCL parsing for terragrunt.stack.hcl files: capture skeleton => DAG locals => include merge => eager unit/stack decode => autoinclude resolution, sharing one progressively-populated eval context.
 //
 // Locals are evaluated in phase 2, before include merge and before unit/stack blocks are decoded. A locals block must not reference unit.* or stack.* paths; those variables are seeded as empty objects until phase 4 completes and are only populated for autoinclude resolution afterward.
 package hclparse
@@ -64,17 +64,17 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	result := &ParseResult{AutoIncludes: map[string]*AutoIncludeResolved{}}
 
-	// Phase 1: slurp.
-	slurp, err := slurpStackFile(input.Src, input.Filename)
+	// Phase 1 captures the stack parse skeleton: parse the raw bytes into the top-level include and locals declarations and leave unit/stack blocks for later phases.
+	parsedStackFile, err := parseStackFileRoot(input.Src, input.Filename)
 	if err != nil {
 		return result, err
 	}
 
 	evalCtx := buildBaseEvalContext(input)
 
-	// Phase 2: locals.
-	if slurp.Locals != nil {
-		if err := evaluateLocals(slurp.Locals.Remain, evalCtx); err != nil {
+	// Phase 2 evaluates deferred local values in DAG order using only the bootstrap evaluation context, so local expressions that depend on known caller-provided functions/variables are resolved before include merge and unit/stack decoding.
+	if parsedStackFile.Locals != nil {
+		if err := evaluateLocals(parsedStackFile.Locals.Remain, evalCtx); err != nil {
 			return result, err
 		}
 	}
@@ -82,13 +82,13 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	// srcByFilename maps each source file (root + each included file) to its bytes so the autoinclude generator can slice expression byte ranges from the right file.
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
-	// Phase 3: includes.
-	mergedRemain, err := mergeIncludes(fs, slurp, input.StackDir, evalCtx, srcByFilename)
+	// Phase 3 resolves include blocks, reads and validates included files, and merges their remaining bodies into a combined body used for the next decode phase.
+	mergedRemain, err := mergeIncludes(fs, parsedStackFile, input.StackDir, evalCtx, srcByFilename)
 	if err != nil {
 		return result, err
 	}
 
-	// Phase 4: eager decode of unit/stack blocks.
+	// Phase 4 performs eager decoding of unit and stack blocks against the fully prepared context, then collects autoincludes using the generated names and paths for downstream dependency resolution.
 	decoded := &unitsAndStacksHCL{}
 	if diags := decodeRemain(mergedRemain, evalCtx, decoded); diags != nil {
 		// Populate partial results: any successfully-decoded blocks survive in `decoded` even when other attributes diagnosed errors.
@@ -143,8 +143,8 @@ func validateParseStackFileInput(fs vfs.FS, input *ParseStackFileInput) {
 	}
 }
 
-// slurpStackFile parses the bytes with hclsyntax and decodes only the top-level locals/include blocks plus Remain. Unit/stack blocks fall through to Remain and are not evaluated here.
-func slurpStackFile(src []byte, filename string) (*StackFileHCL, error) {
+// parseStackFileRoot parses the bytes with hclsyntax and decodes only the top-level locals/include blocks plus Remain. Unit/stack blocks fall through to Remain and are not evaluated here.
+func parseStackFileRoot(src []byte, filename string) (*StackFileHCL, error) {
 	file, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return nil, FileParseError{FilePath: filename, Detail: diags.Error()}
@@ -471,10 +471,10 @@ func sortedKeys[V any](m map[string]V) []string {
 }
 
 // mergeIncludes evaluates each include block's path expression, parses the included file, and merges its Remain into the parent's. Included files must not declare locals or nested includes. Returns the merged Remain that Phase 4 decodes. srcByFilename is updated with the included file's bytes keyed by filename.
-func mergeIncludes(fs vfs.FS, slurp *StackFileHCL, stackDir string, evalCtx *hcl.EvalContext, srcByFilename map[string][]byte) (hcl.Body, error) {
-	bodies := []hcl.Body{slurp.Remain}
+func mergeIncludes(fs vfs.FS, parsedFile *StackFileHCL, stackDir string, evalCtx *hcl.EvalContext, srcByFilename map[string][]byte) (hcl.Body, error) {
+	bodies := []hcl.Body{parsedFile.Remain}
 
-	for _, inc := range slurp.Includes {
+	for _, inc := range parsedFile.Includes {
 		includedRemain, includedSrc, includedPath, err := mergeOneInclude(fs, inc, stackDir, evalCtx)
 		if err != nil {
 			return nil, err
@@ -492,7 +492,7 @@ func mergeIncludes(fs vfs.FS, slurp *StackFileHCL, stackDir string, evalCtx *hcl
 	return hcl.MergeBodies(bodies), nil
 }
 
-// mergeOneInclude reads and slurps a single included file. Returns (includedRemain, includedSrc, includedPath, err) where includedPath is the absolute filename used for HCL diagnostics.
+// mergeOneInclude reads and parses a single included file. Returns (includedRemain, includedSrc, includedPath, err) where includedPath is the absolute filename used for HCL diagnostics.
 func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *hcl.EvalContext) (hcl.Body, []byte, string, error) {
 	pathVal, diags := inc.Path.Value(evalCtx)
 	if diags.HasErrors() {
@@ -522,7 +522,7 @@ func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *
 		return nil, nil, "", FileReadError{FilePath: includePath, Err: err}
 	}
 
-	included, err := slurpStackFile(data, includePath)
+	included, err := parseStackFileRoot(data, includePath)
 	if err != nil {
 		return nil, nil, "", err
 	}

@@ -16,14 +16,14 @@ import (
 // StackFileName is the canonical filename of a Terragrunt stack file.
 const StackFileName = "terragrunt.stack.hcl"
 
-// StackFileHCL is the Phase 1 slurp of a terragrunt.stack.hcl file. Only the locals block, include blocks, and the rest of the body (Remain) are captured at this stage. Unit/stack blocks live inside Remain and are decoded later against a populated eval context.
+// StackFileHCL is the parsed skeleton of a terragrunt.stack.hcl file. Only the locals block, include blocks, and the rest of the body (Remain) are captured at this stage. Unit/stack blocks live inside Remain and are decoded later against a populated eval context.
 type StackFileHCL struct {
 	Remain   hcl.Body           `hcl:",remain"`
 	Locals   *LocalsHCL         `hcl:"locals,block"`
 	Includes []*StackIncludeHCL `hcl:"include,block"`
 }
 
-// LocalsHCL is the slurp of a locals block; its body is decoded later by the DAG-based locals evaluator.
+// LocalsHCL is the locals block skeleton; its body is decoded later by the DAG-based locals evaluator.
 type LocalsHCL struct {
 	Remain hcl.Body `hcl:",remain"`
 }
@@ -34,7 +34,7 @@ type StackIncludeHCL struct {
 	Name string         `hcl:",label"`
 }
 
-// unitsAndStacksHCL is the Phase 3 decode of Remain. Unit/stack fields are eager Go types because the eval context is populated (functions, variables, locals) before this decode runs.
+// unitsAndStacksHCL is the phase 3 decode of Remain. Unit/stack fields are eager Go types because the eval context is populated (functions, variables, locals) before this decode runs.
 type unitsAndStacksHCL struct {
 	Remain hcl.Body         `hcl:",remain"`
 	Stacks []*StackBlockHCL `hcl:"stack,block"`
@@ -122,7 +122,7 @@ type stackPathOnlyHCL struct {
 	Name    string   `hcl:",label"`
 }
 
-// discoveryDecode is the discovery slurp container for unit/stack blocks under Remain.
+// discoveryDecode is the discovery parse container for unit/stack blocks under Remain.
 type discoveryDecode struct {
 	Remain hcl.Body            `hcl:",remain"`
 	Stacks []*stackPathOnlyHCL `hcl:"stack,block"`
@@ -259,7 +259,7 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 	return refs
 }
 
-// decodeDiscovery slurps the stack file, evaluates locals, merges includes (same order as ParseStackFile), then decodes unit/stack blocks into path-only shapes. Returns (nil, nil, nil) when the stack file does not exist.
+// decodeDiscovery parses the stack file, evaluates locals, merges includes (same order as ParseStackFile), then decodes unit/stack blocks into path-only shapes. Returns (nil, nil, nil) when the stack file does not exist.
 func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
@@ -270,22 +270,22 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL,
 		return nil, nil, FileReadError{FilePath: stackFile, Err: err}
 	}
 
-	slurp, err := slurpStackFile(data, stackFile)
+	parsedFile, err := parseStackFileRoot(data, stackFile)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	evalCtx := stdlibEvalContext(stackDir)
 
-	if slurp.Locals != nil {
-		if err := evaluateLocals(slurp.Locals.Remain, evalCtx); err != nil {
+	if parsedFile.Locals != nil {
+		if err := evaluateLocals(parsedFile.Locals.Remain, evalCtx); err != nil {
 			return nil, nil, err
 		}
 	}
 
 	srcByFilename := map[string][]byte{stackFile: data}
 
-	mergedRemain, err := mergeIncludes(fs, slurp, stackDir, evalCtx, srcByFilename)
+	mergedRemain, err := mergeIncludes(fs, parsedFile, stackDir, evalCtx, srcByFilename)
 	if err != nil {
 		return nil, nil, err
 	}

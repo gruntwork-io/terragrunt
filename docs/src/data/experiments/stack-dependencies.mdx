@@ -115,22 +115,13 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 
 ### `stack-dependencies` - Implementation roadmap
 
-<Before version="1.0.2">
+<Since version="1.0.5">
 
-- [ ] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
-- [ ] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
-- [ ] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
-- [ ] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
-- [ ] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
-- [ ] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
-- [ ] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
-- [ ] Add integration tests and test fixtures for end-to-end validation
-- [ ] E2E validation with `stack run apply` and `stack run destroy`
-- [ ] Community feedback on `autoinclude` syntax and merge behavior
-- [ ] Integration with CAS for generated files
-- [ ] Performance validation at scale
+- [x] Phased parser for `terragrunt.stack.hcl`: first parse the file body, then evaluate locals and other production-context values, then apply include merges, then decode unit/stack blocks and run autoinclude resolution. This allows unit/stack blocks to use `local.*`, `values.*`, and Terragrunt functions from the production eval context.
+- [x] `terragrunt run --all` discovery walks generated nested stack files via a path-only decode shape that does not require the unit `source` to be evaluable
+- [x] Unify strict and permissive parser into a single code path
 
-</Before>
+</Since>
 
 <Since version="1.0.2">
 
@@ -149,10 +140,19 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 
 </Since>
 
-<Since version="1.0.5">
+<Before version="1.0.2">
 
-- [x] Phased parser: locals evaluate before include merge before unit/stack decode before autoinclude resolution, so any attribute that the production eval context can resolve (including `local.*`, `values.*`, terragrunt functions) works on unit/stack blocks
-- [x] `terragrunt run --all` discovery walks generated nested stack files via a path-only decode shape that does not require the unit `source` to be evaluable
-- [x] Unify strict and permissive parser into a single code path
+- [ ] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
+- [ ] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
+- [ ] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
+- [ ] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
+- [ ] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
+- [ ] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
+- [ ] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
+- [ ] Add integration tests and test fixtures for end-to-end validation
+- [ ] E2E validation with `stack run apply` and `stack run destroy`
+- [ ] Community feedback on `autoinclude` syntax and merge behavior
+- [ ] Integration with CAS for generated files
+- [ ] Performance validation at scale
 
 </Since>
