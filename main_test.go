@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -21,11 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var panicTestsMu sync.Mutex
-
 func TestFormatCrashLog(t *testing.T) {
 	t.Parallel()
 
+	app := &terragruntApp{}
 	terragruntVersion := version.Must(version.NewVersion("1.7.9"))
 	opts := &options.TerragruntOptions{
 		TerragruntVersion: terragruntVersion,
@@ -33,7 +31,7 @@ func TestFormatCrashLog(t *testing.T) {
 	when := time.Now().UTC()
 	workDir := filepath.Join(os.TempDir(), "terragrunt-test-workdir")
 
-	output := formatCrashLog(stdErrors.New("boom"), opts, []string{"terragrunt", "run", "all"}, when, workDir, 999)
+	output := app.formatCrashLog(stdErrors.New("boom"), opts, []string{"terragrunt", "run", "all"}, when, workDir, 999)
 
 	assert.Contains(t, output, "Terragrunt panic report")
 	assert.Contains(t, output, "Timestamp: "+when.Format(time.RFC3339Nano))
@@ -48,37 +46,29 @@ func TestFormatCrashLog(t *testing.T) {
 func TestFormatCrashLogUsesEmptyCommandLineFallback(t *testing.T) {
 	t.Parallel()
 
+	app := &terragruntApp{}
 	when := time.Now().UTC()
-	output := formatCrashLog(stdErrors.New("boom"), &options.TerragruntOptions{}, []string{}, when, filepath.Join(os.TempDir(), "terragrunt-test-workdir"), 999)
+	output := app.formatCrashLog(stdErrors.New("boom"), &options.TerragruntOptions{}, []string{}, when, filepath.Join(os.TempDir(), "terragrunt-test-workdir"), 999)
 
 	assert.Contains(t, output, "Command line: (empty command line)")
 }
 
 func TestWriteCrashLogCreatesFile(t *testing.T) {
 	t.Parallel()
-	panicTestsMu.Lock()
-	t.Cleanup(panicTestsMu.Unlock)
 
 	tmp := t.TempDir()
-	preservedGetwd := panicGetwd
-	preservedNow := panicNow
-	preservedGetPID := panicGetPID
-
-	t.Cleanup(func() {
-		panicGetwd = preservedGetwd
-		panicNow = preservedNow
-		panicGetPID = preservedGetPID
-	})
-
-	panicGetwd = func() (string, error) {
-		return tmp, nil
-	}
 	panicWhen := time.Now().UTC()
-	panicNow = func() time.Time {
-		return panicWhen
-	}
-	panicGetPID = func() int {
-		return 2026
+	app := &terragruntApp{
+		getwd: func() (string, error) {
+			return tmp, nil
+		},
+		now: func() time.Time {
+			return panicWhen
+		},
+		getPID: func() int {
+			return 2026
+		},
+		writeLog: os.WriteFile,
 	}
 
 	err := errors.New("boom")
@@ -86,10 +76,10 @@ func TestWriteCrashLogCreatesFile(t *testing.T) {
 		TerragruntVersion: version.Must(version.NewVersion("1.7.9")),
 	}
 
-	logPath, logContent, writeErr := writeCrashLog(err, opts, []string{"terragrunt", "plan"})
+	logPath, logContent, writeErr := app.writeCrashLog(err, opts, []string{"terragrunt", "plan"})
 	require.NoError(t, writeErr)
 	require.NotEmpty(t, logContent)
-	assert.Equal(t, filepath.Join(tmp, formatCrashLogPath(panicWhen, 2026)), logPath)
+	assert.Equal(t, filepath.Join(tmp, app.formatCrashLogPath(panicWhen, 2026)), logPath)
 
 	body, readErr := os.ReadFile(logPath)
 	require.NoError(t, readErr)
@@ -102,56 +92,44 @@ func TestWriteCrashLogCreatesFile(t *testing.T) {
 
 func TestWriteCrashLogFallsBackToTempDirWhenGetwdFails(t *testing.T) {
 	t.Parallel()
-	panicTestsMu.Lock()
-	t.Cleanup(panicTestsMu.Unlock)
 
-	preservedGetwd := panicGetwd
-	preservedNow := panicNow
-	preservedGetPID := panicGetPID
-
-	t.Cleanup(func() {
-		panicGetwd = preservedGetwd
-		panicNow = preservedNow
-		panicGetPID = preservedGetPID
-	})
-
-	panicGetwd = func() (string, error) {
-		return "", stdErrors.New("boom")
-	}
 	panicWhen := time.Now().UTC()
-	panicNow = func() time.Time {
-		return panicWhen
-	}
-	panicGetPID = func() int {
-		return 1010
+	app := &terragruntApp{
+		getwd: func() (string, error) {
+			return "", stdErrors.New("boom")
+		},
+		now: func() time.Time {
+			return panicWhen
+		},
+		getPID: func() int {
+			return 1010
+		},
+		writeLog: os.WriteFile,
 	}
 
-	assert.Equal(t, os.TempDir(), panicReportWorkingDir())
+	assert.Equal(t, os.TempDir(), app.panicReportWorkingDir())
 
-	logPath, _, writeErr := writeCrashLog(stdErrors.New("boom"), &options.TerragruntOptions{}, []string{})
+	logPath, _, writeErr := app.writeCrashLog(stdErrors.New("boom"), &options.TerragruntOptions{}, []string{})
 	require.NoError(t, writeErr)
 	assert.Equal(t, os.TempDir(), filepath.Dir(logPath))
 }
 
 func TestReportPanicFallsBackIfCrashLogCannotBeWritten(t *testing.T) {
 	t.Parallel()
-	panicTestsMu.Lock()
-	t.Cleanup(panicTestsMu.Unlock)
 
-	preservedWriteLog := panicWriteLog
-
-	t.Cleanup(func() {
-		panicWriteLog = preservedWriteLog
-	})
-
-	panicWriteLog = func(string, []byte, os.FileMode) error {
-		return stdErrors.New("disk full")
+	app := &terragruntApp{
+		now:    time.Now,
+		getwd:  os.Getwd,
+		getPID: os.Getpid,
+		writeLog: func(string, []byte, os.FileMode) error {
+			return stdErrors.New("disk full")
+		},
 	}
 
 	logger, output := newTestLogger()
 	err := errors.New("unable to write crash log")
 
-	reportPanic(logger, err, &options.TerragruntOptions{
+	app.reportPanic(logger, err, &options.TerragruntOptions{
 		TerragruntVersion: version.Must(version.NewVersion("1.7.9")),
 	})
 
@@ -167,39 +145,30 @@ func TestReportPanicFallsBackIfCrashLogCannotBeWritten(t *testing.T) {
 
 func TestReportPanicWritesHelpfulMessage(t *testing.T) {
 	t.Parallel()
-	panicTestsMu.Lock()
-	t.Cleanup(panicTestsMu.Unlock)
 
 	tmp := t.TempDir()
-	preservedGetwd := panicGetwd
-	preservedNow := panicNow
-	preservedGetPID := panicGetPID
-
-	t.Cleanup(func() {
-		panicGetwd = preservedGetwd
-		panicNow = preservedNow
-		panicGetPID = preservedGetPID
-	})
-
-	panicGetwd = func() (string, error) {
-		return tmp, nil
-	}
 	panicWhen := time.Now().UTC()
-	panicNow = func() time.Time {
-		return panicWhen
-	}
-	panicGetPID = func() int {
-		return 8080
+	app := &terragruntApp{
+		getwd: func() (string, error) {
+			return tmp, nil
+		},
+		now: func() time.Time {
+			return panicWhen
+		},
+		getPID: func() int {
+			return 8080
+		},
+		writeLog: os.WriteFile,
 	}
 
 	logger, output := newTestLogger()
 	err := errors.New("capture message")
 
-	reportPanic(logger, err, &options.TerragruntOptions{
+	app.reportPanic(logger, err, &options.TerragruntOptions{
 		TerragruntVersion: version.Must(version.NewVersion("1.7.9")),
 	})
 
-	expectedPath := filepath.Join(tmp, formatCrashLogPath(panicWhen, 8080))
+	expectedPath := filepath.Join(tmp, app.formatCrashLogPath(panicWhen, 8080))
 	logOutput := output.String()
 
 	assert.Contains(t, logOutput, "A panic report has been saved to: "+expectedPath)
@@ -208,6 +177,8 @@ func TestReportPanicWritesHelpfulMessage(t *testing.T) {
 	assert.NotContains(t, logOutput, "Unable to write crash report")
 	assert.Contains(t, logOutput, "TERRAGRUNT CRASH")
 }
+
+// Private helper functions
 
 func newTestLogger() (log.Logger, *bytes.Buffer) {
 	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})

@@ -56,17 +56,22 @@ Stack trace:
 `
 )
 
-var (
-	panicNow      = time.Now
-	panicGetwd    = os.Getwd
-	panicGetPID   = os.Getpid
-	panicWriteLog = os.WriteFile
-)
+type terragruntApp struct {
+	now      func() time.Time
+	getwd    func() (string, error)
+	getPID   func() int
+	writeLog func(string, []byte, os.FileMode) error
+}
 
-// The main entrypoint for Terragrunt
 func main() {
-	exitCode := tf.NewDetailedExitCodeMap()
+	app := &terragruntApp{
+		now:      time.Now,
+		getwd:    os.Getwd,
+		getPID:   os.Getpid,
+		writeLog: os.WriteFile,
+	}
 
+	exitCode := tf.NewDetailedExitCodeMap()
 	opts := options.NewTerragruntOptions()
 
 	l := log.New(
@@ -75,37 +80,35 @@ func main() {
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
 
-	// Immediately parse the `TG_LOG_LEVEL` environment variable, e.g. to set the TRACE level.
 	if err := global.NewLogLevelFlag(l, opts, nil).Parse(os.Args); err != nil {
 		l.Errorf("An error has occurred: %v", err)
 		os.Exit(1)
 	}
 
 	defer func() {
+		finalExitCode := exitCode.GetFinalExitCode()
 		if opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode) {
-			errors.Recover(checkForPanicAndExit(l, exitCode.GetFinalDetailedExitCode(), opts))
-			return
+			finalExitCode = exitCode.GetFinalDetailedExitCode()
 		}
 
-		errors.Recover(checkForPanicAndExit(l, exitCode.GetFinalExitCode(), opts))
+		errors.Recover(app.checkForPanicAndExit(l, finalExitCode, opts))
 	}()
 
-	app := cli.NewApp(l, opts)
-
+	cliApp := cli.NewApp(l, opts)
 	ctx := setupContext(l, exitCode)
-	err := app.RunContext(ctx, os.Args)
+	err := cliApp.RunContext(ctx, os.Args)
 
+	finalExitCode := exitCode.GetFinalExitCode()
 	if opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode) {
-		checkForErrorsAndExit(l, exitCode.GetFinalDetailedExitCode(), opts)(err)
-
-		return
+		finalExitCode = exitCode.GetFinalDetailedExitCode()
 	}
 
-	checkForErrorsAndExit(l, exitCode.GetFinalExitCode(), opts)(err)
+	app.checkForErrorsAndExit(l, finalExitCode, opts)(err)
 }
 
-// If there is an error, display it in the console and exit with a non-zero exit code. Otherwise, exit 0.
-func checkForErrorsAndExit(l log.Logger, exitCode int, opts *options.TerragruntOptions) func(error) {
+// Private helper functions
+
+func (app *terragruntApp) checkForErrorsAndExit(l log.Logger, exitCode int, opts *options.TerragruntOptions) func(error) {
 	return func(err error) {
 		if err == nil {
 			os.Exit(exitCode)
@@ -117,7 +120,7 @@ func checkForErrorsAndExit(l log.Logger, exitCode int, opts *options.TerragruntO
 		}
 
 		if errors.IsFunctionPanic(err) {
-			reportPanic(l, err, opts)
+			app.reportPanic(l, err, opts)
 			os.Exit(exitCoder)
 		}
 
@@ -135,13 +138,12 @@ func checkForErrorsAndExit(l log.Logger, exitCode int, opts *options.TerragruntO
 	}
 }
 
-// checkForPanicAndExit handles a captured panic, writes a crash report, and exits.
-func checkForPanicAndExit(l log.Logger, exitCode int, opts *options.TerragruntOptions) func(error) {
-	return checkForErrorsAndExit(l, exitCode, opts)
+func (app *terragruntApp) checkForPanicAndExit(l log.Logger, exitCode int, opts *options.TerragruntOptions) func(error) {
+	return app.checkForErrorsAndExit(l, exitCode, opts)
 }
 
-func reportPanic(l log.Logger, err error, opts *options.TerragruntOptions) {
-	crashLogPath, crashLog, writeErr := writeCrashLog(err, opts, os.Args)
+func (app *terragruntApp) reportPanic(l log.Logger, err error, opts *options.TerragruntOptions) {
+	crashLogPath, crashLog, writeErr := app.writeCrashLog(err, opts, os.Args)
 
 	l.Error(fmt.Sprintf(panicOutput, terragruntIssueURL))
 
@@ -150,7 +152,7 @@ func reportPanic(l log.Logger, err error, opts *options.TerragruntOptions) {
 	}
 
 	if writeErr != nil {
-		reportPanicWriteFailure(l, writeErr, crashLog)
+		app.reportPanicWriteFailure(l, writeErr, crashLog)
 		return
 	}
 
@@ -158,28 +160,28 @@ func reportPanic(l log.Logger, err error, opts *options.TerragruntOptions) {
 	l.Errorf("Please report this issue at %s and attach the panic report.", terragruntIssueURL)
 }
 
-func reportPanicWriteFailure(l log.Logger, writeErr error, crashLog string) {
+func (app *terragruntApp) reportPanicWriteFailure(l log.Logger, writeErr error, crashLog string) {
 	l.Errorf("Unable to write crash report: %v", writeErr)
 	l.Errorf("Please report this issue at %s and include the crash report output below.", terragruntIssueURL)
 	l.Error(crashLog)
 }
 
-func writeCrashLog(err error, opts *options.TerragruntOptions, commandLine []string) (string, string, error) {
-	now := panicNow()
-	pid := panicGetPID()
-	workingDir := panicReportWorkingDir()
-	crashLogPath := filepath.Join(workingDir, formatCrashLogPath(now, pid))
+func (app *terragruntApp) writeCrashLog(err error, opts *options.TerragruntOptions, commandLine []string) (string, string, error) {
+	now := app.now()
+	pid := app.getPID()
+	workingDir := app.panicReportWorkingDir()
+	crashLogPath := filepath.Join(workingDir, app.formatCrashLogPath(now, pid))
 
-	content := formatCrashLog(err, opts, commandLine, now, workingDir, pid)
-	if err := panicWriteLog(crashLogPath, []byte(content), crashFileMode); err != nil {
+	content := app.formatCrashLog(err, opts, commandLine, now, workingDir, pid)
+	if err := app.writeLog(crashLogPath, []byte(content), crashFileMode); err != nil {
 		return "", content, err
 	}
 
 	return crashLogPath, content, nil
 }
 
-func panicReportWorkingDir() string {
-	workingDir, err := panicGetwd()
+func (app *terragruntApp) panicReportWorkingDir() string {
+	workingDir, err := app.getwd()
 	if err == nil {
 		return workingDir
 	}
@@ -187,7 +189,7 @@ func panicReportWorkingDir() string {
 	return os.TempDir()
 }
 
-func formatCrashLog(err error, opts *options.TerragruntOptions, commandLine []string, when time.Time, workingDir string, pid int) string {
+func (app *terragruntApp) formatCrashLog(err error, opts *options.TerragruntOptions, commandLine []string, when time.Time, workingDir string, pid int) string {
 	terragruntVersion := "unknown"
 	if opts != nil && opts.TerragruntVersion != nil {
 		terragruntVersion = opts.TerragruntVersion.String()
@@ -218,7 +220,7 @@ func formatCrashLog(err error, opts *options.TerragruntOptions, commandLine []st
 	)
 }
 
-func formatCrashLogPath(when time.Time, pid int) string {
+func (app *terragruntApp) formatCrashLogPath(when time.Time, pid int) string {
 	return crashLogPrefix + "-" + when.Format("20060102T150405.000000000") + "-" + strconv.Itoa(pid) + ".log"
 }
 

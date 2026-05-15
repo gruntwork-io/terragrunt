@@ -15,7 +15,7 @@ import (
 )
 
 // ErrorStack returns an stack trace if available.
-func ErrorStack(err error) string {
+func ErrorStack(err error) (stack string) {
 	var errStacks []string
 
 	for _, err := range UnwrapMultiErrors(err) {
@@ -38,7 +38,6 @@ func ErrorStack(err error) string {
 }
 
 // ContainsStackTrace returns true if the given error contain the stack trace.
-// Useful to avoid creating a nested stack trace.
 func ContainsStackTrace(err error) bool {
 	for _, err := range UnwrapMultiErrors(err) {
 		for {
@@ -46,7 +45,8 @@ func ContainsStackTrace(err error) bool {
 				return true
 			}
 
-			if err = errors.Unwrap(err); err == nil {
+			err = errors.Unwrap(err)
+			if err == nil {
 				break
 			}
 		}
@@ -55,7 +55,7 @@ func ContainsStackTrace(err error) bool {
 	return false
 }
 
-// IsContextCanceled returns `true` if error has occurred by event `context.Canceled` which is not really an error.
+// IsContextCanceled returns `true` if error has occurred by event `context.Canceled`.
 func IsContextCanceled(err error) bool {
 	return errors.Is(err, context.Canceled)
 }
@@ -82,28 +82,28 @@ func IsFunctionPanic(err error) bool {
 }
 
 // IsError returns true if actual is the same type of error as expected.
-// This method unwraps the given error objects (if they are wrapped in
-// objects with a stacktrace) and then does a simple equality check on them.
 func IsError(actual error, expected error) bool {
 	return goerrors.Is(actual, expected)
 }
 
-// Recover tries to recover from panics, and if it succeeds, calls the given onPanic function with an error that
-// explains the cause of the panic. This function should only be called from a defer statement.
+// Recover tries to recover from panics and calls the given onPanic function.
 func Recover(onPanic func(cause error)) {
-	if rec := recover(); rec != nil {
-		if err, isError := rec.(error); isError {
-			onPanic(New(err))
-			return
-		}
-
-		onPanic(New(fmt.Errorf("panic: %v", rec)))
+	rec := recover()
+	if rec == nil {
+		return
 	}
+
+	if err, isError := rec.(error); isError {
+		onPanic(New(err))
+		return
+	}
+
+	onPanic(New(fmt.Errorf("panic: %v", rec)))
 }
 
 // UnwrapMultiErrors unwraps all nested multierrors into error slice.
-func UnwrapMultiErrors(err error) []error {
-	errs := []error{err}
+func UnwrapMultiErrors(err error) (errs []error) {
+	errs = []error{err}
 
 	for index := 0; index < len(errs); index++ {
 		err := errs[index]
@@ -118,7 +118,8 @@ func UnwrapMultiErrors(err error) []error {
 				break
 			}
 
-			if err = errors.Unwrap(err); err == nil {
+			err = errors.Unwrap(err)
+			if err == nil {
 				break
 			}
 		}
@@ -127,14 +128,14 @@ func UnwrapMultiErrors(err error) []error {
 	return errs
 }
 
-// UnwrapErrors unwraps all nested multierrors, and errors that were wrapped with `fmt.Errorf("%w", err)`.
-func UnwrapErrors(err error) []error {
-	var errs []error
-
+// UnwrapErrors unwraps all nested multierrors, and errors that were wrapped with fmt.Errorf.
+func UnwrapErrors(err error) (errs []error) {
 	for _, err := range UnwrapMultiErrors(err) {
 		for {
 			errs = append(errs, err)
-			if err = errors.Unwrap(err); err == nil {
+
+			err = errors.Unwrap(err)
+			if err == nil {
 				break
 			}
 		}
@@ -142,6 +143,8 @@ func UnwrapErrors(err error) []error {
 
 	return errs
 }
+
+// Private helper functions
 
 func functionPanicStack(err error) string {
 	if panicErr, ok := err.(interface{ ErrorStack() string }); ok {
@@ -150,11 +153,7 @@ func functionPanicStack(err error) string {
 		}
 	}
 
-	if stack := legacyPanicStack(err); stack != "" {
-		return stack
-	}
-
-	return ""
+	return legacyPanicStack(err)
 }
 
 func legacyPanicStack(err error) string {
