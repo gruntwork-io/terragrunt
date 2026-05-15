@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -291,7 +292,7 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL,
 	}
 
 	decoded := &discoveryDecode{}
-	if diags := decodeRemain(mergedRemain, evalCtx, decoded); diags != nil {
+	if diags := gohcl.DecodeBody(mergedRemain, evalCtx, decoded); diags.HasErrors() {
 		return nil, nil, FileDecodeError{Name: stackFile, Detail: diags.Error(), Err: diags}
 	}
 

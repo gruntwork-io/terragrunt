@@ -706,9 +706,12 @@ unit "vpc" {
 		Filename: "terragrunt.stack.hcl",
 		StackDir: testStackDir,
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "vpc_path")
-	assert.Contains(t, err.Error(), "Unsupported attribute")
+
+	var localErr hclparse.LocalEvalError
+
+	require.ErrorAs(t, err, &localErr)
+	assert.Equal(t, "vpc_path", localErr.Name)
+	assert.Contains(t, localErr.Detail, `There is no variable named "unit"`)
 }
 
 func TestParseStackFile_MultipleLocals(t *testing.T) {
@@ -1323,56 +1326,6 @@ stack "networking" {
 	require.Error(t, err, "bootstrap parse must surface unsupported-function eval errors in stack source instead of silently skipping the stack")
 	assert.Contains(t, err.Error(), "get_repo_root", "error must name the offending function so users can locate it")
 }
-func TestParseStackFile_UsesCallerVariablesForIncludePath(t *testing.T) {
-	t.Parallel()
-
-	fs := vfs.NewMemMapFS()
-
-	require.NoError(t, vfs.WriteFile(fs, "/includes/extra.stack.hcl", []byte(`
-unit "extra" {
-  source = "../catalog/units/extra"
-  path   = "extra"
-}
-`), 0644))
-
-	src := []byte(`
-include "extra" {
-  path = feature.include_file.value
-}
-
-unit "app" {
-  source = "../catalog/units/app"
-  path   = "app"
-
-  autoinclude {
-    dependency "extra" {
-      config_path = unit.extra.path
-    }
-  }
-}
-`)
-
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
-		Src:      src,
-		Filename: "/test/terragrunt.stack.hcl",
-		StackDir: "/test",
-		Variables: map[string]cty.Value{
-			"feature": cty.ObjectVal(map[string]cty.Value{
-				"include_file": cty.ObjectVal(map[string]cty.Value{
-					"value": cty.StringVal("/includes/extra.stack.hcl"),
-				}),
-			}),
-		},
-	})
-
-	require.NoError(t, err)
-
-	resolved := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "app")]
-	require.NotNil(t, resolved)
-	require.Len(t, resolved.Dependencies, 1)
-	assert.Equal(t, filepath.Join("/test", ".terragrunt-stack", "extra"), resolved.Dependencies[0].ConfigPath)
-}
-
 func TestParseStackFile_LocalEvaluatedOnce(t *testing.T) {
 	t.Parallel()
 

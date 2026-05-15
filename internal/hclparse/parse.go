@@ -90,7 +90,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	// Phase 4 decodes unit/stack blocks and resolves autoincludes.
 	decoded := &unitsAndStacksHCL{}
-	if diags := decodeRemain(mergedRemain, evalCtx, decoded); diags != nil {
+	if diags := gohcl.DecodeBody(mergedRemain, evalCtx, decoded); diags.HasErrors() {
 		// Keep successful results when other attributes fail.
 		result.Units = decoded.Units
 		result.Stacks = decoded.Stacks
@@ -183,26 +183,7 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 		evalCtx.Variables[varValues] = *input.Values
 	}
 
-	// Seed unit/stack with empty objects until refs are available.
-	if _, ok := evalCtx.Variables[varUnit]; !ok {
-		evalCtx.Variables[varUnit] = cty.EmptyObjectVal
-	}
-
-	if _, ok := evalCtx.Variables[varStack]; !ok {
-		evalCtx.Variables[varStack] = cty.EmptyObjectVal
-	}
-
 	return evalCtx
-}
-
-// decodeRemain decodes into target and returns error diagnostics when present.
-func decodeRemain(body hcl.Body, evalCtx *hcl.EvalContext, target any) hcl.Diagnostics {
-	diags := gohcl.DecodeBody(body, evalCtx, target)
-	if diags.HasErrors() {
-		return diags
-	}
-
-	return nil
 }
 
 // validateUniqueNames reports duplicate unit and stack names.
