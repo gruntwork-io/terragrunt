@@ -3,7 +3,7 @@ include "root" {
 }
 
 terraform {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/dirs?ref=v0.99.1"
+  source = "git::__MIRROR_URL__//test/fixtures/dirs?ref=v0.99.1"
 }
 
 dependency "common" {

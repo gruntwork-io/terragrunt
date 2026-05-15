@@ -1,3 +1,3 @@
 catalog {
-  default_template = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template/template"
+  default_template = "git::__MIRROR_SSH_URL__//test/fixtures/scaffold/external-template/template"
 }

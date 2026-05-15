@@ -138,6 +138,12 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 		),
 	)
 
+	// If the copied tree references the local git mirror via placeholder
+	// (e.g., fixtures under `fixtures/download/` include `hello-world`,
+	// whose main.tf has a `__MIRROR_URL__` source), substitute against
+	// the live mirror so terraform/tofu can resolve the URL.
+	applyMirrorSubst(t, tmpDir)
+
 	return tmpDir
 }
 

@@ -81,7 +81,8 @@ func TestMain(m *testing.M) {
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 	t.Parallel()
 
-	rootPath := CopyEnvironmentWithTflint(t, testFixtureDownloadPath)
+	mirror := helpers.StartTerragruntMirror(t)
+	rootPath := mirror.RenderFixture(t, testFixtureDownloadPath)
 	modulePath := filepath.Join(rootPath, testFixtureLocalRelativeArgsWindowsDownloadPath)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s", modulePath))
