@@ -1,10 +1,13 @@
 // Package hclparse provides phased HCL parsing for terragrunt.stack.hcl files: slurp → DAG locals → include merge → eager unit/stack decode → autoinclude resolution, sharing one progressively-populated eval context.
+//
+// Locals are evaluated in phase 2, before include merge and before unit/stack blocks are decoded. A locals block must not reference unit.* or stack.* paths; those variables are seeded as empty objects until phase 4 completes and are only populated for autoinclude resolution afterward.
 package hclparse
 
 import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -22,7 +25,6 @@ const (
 	// HCL block type and attribute names.
 	blockDependency = "dependency"
 	attrConfigPath  = "config_path"
-	attrPath        = "path"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"
@@ -272,7 +274,12 @@ func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir
 // localStackSourceDir returns the absolute filesystem directory for a stack.Source when it is local. Returns ("", false) for go-getter-style remote sources (git::, https://, s3://, registry shorthand, ...) so the caller skips child-unit discovery instead of mangling the source with filepath.Join.
 func localStackSourceDir(source, stackDir string) (string, bool) {
 	if strings.HasPrefix(source, "file://") {
-		return strings.TrimPrefix(source, "file://"), true
+		p := strings.TrimPrefix(source, "file://")
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(stackDir, p)
+		}
+
+		return filepath.Clean(p), true
 	}
 
 	if strings.Contains(source, "://") {
@@ -284,10 +291,10 @@ func localStackSourceDir(source, stackDir string) (string, bool) {
 	}
 
 	if filepath.IsAbs(source) {
-		return source, true
+		return filepath.Clean(source), true
 	}
 
-	return filepath.Join(stackDir, source), true
+	return filepath.Clean(filepath.Join(stackDir, source)), true
 }
 
 // evaluateLocals resolves locals in DAG order: build a graph of local.X references, evaluate in topological order. Each local is evaluated exactly once. Cycles are detected structurally (no iteration cap).
@@ -458,11 +465,7 @@ func sortedKeys[V any](m map[string]V) []string {
 		keys = append(keys, k)
 	}
 
-	for i := 1; i < len(keys); i++ {
-		for j := i; j > 0 && keys[j-1] > keys[j]; j-- {
-			keys[j-1], keys[j] = keys[j], keys[j-1]
-		}
-	}
+	slices.Sort(keys)
 
 	return keys
 }
@@ -496,8 +499,13 @@ func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *
 		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "could not evaluate include path: " + diags.Error()}
 	}
 
-	if pathVal.IsNull() || !pathVal.IsKnown() || pathVal.Type() != cty.String {
-		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "include path must evaluate to a non-empty string"}
+	switch {
+	case pathVal.IsNull():
+		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "include path must not be null"}
+	case !pathVal.IsKnown():
+		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "include path is unknown"}
+	case pathVal.Type() != cty.String:
+		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "include path must be a string, got " + pathVal.Type().FriendlyName()}
 	}
 
 	includePath := pathVal.AsString()

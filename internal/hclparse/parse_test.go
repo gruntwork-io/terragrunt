@@ -687,6 +687,30 @@ unit "vpc" {
 	assert.Len(t, cycleErr.Names, 2)
 }
 
+func TestParseStackFile_LocalsCannotReferenceUnit(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  vpc_path = unit.vpc.path
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "vpc_path")
+	assert.Contains(t, err.Error(), "Unsupported attribute")
+}
+
 func TestParseStackFile_MultipleLocals(t *testing.T) {
 	t.Parallel()
 

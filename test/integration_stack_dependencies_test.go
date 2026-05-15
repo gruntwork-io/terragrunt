@@ -588,7 +588,7 @@ unit "vpc" {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+stackDir)
-	require.NoError(t, err, "stack generate must succeed without autoinclude even if the two-pass parser cannot decode source/path expressions")
+	require.NoError(t, err, "stack generate must succeed without autoinclude even if production-only expressions appear in source/path attributes")
 
 	require.DirExists(t, filepath.Join(stackDir, inthclparse.StackDir, "vpc"))
 	require.NoFileExists(t, filepath.Join(stackDir, inthclparse.StackDir, "vpc", "terragrunt.autoinclude.hcl"))
@@ -1115,4 +1115,14 @@ func TestStackDepsRunAllWithFunctionsInNestedStack(t *testing.T) {
 	}
 
 	require.True(t, foundNestedVPC, "generated nested stack unit vpc must be present in find output")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
+
+	nestedVPCGen := filepath.Join(rootPath, inthclparse.StackDir, "networking", inthclparse.StackDir, "vpc")
+	vpcOutput, _, outputErr := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt output -json vpc_id --experiment stack-dependencies --working-dir "+nestedVPCGen)
+	require.NoError(t, outputErr, "nested vpc unit must be applied by run --all discovery")
+	assert.Contains(t, vpcOutput, "vpc-from-nested-stack")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
 }

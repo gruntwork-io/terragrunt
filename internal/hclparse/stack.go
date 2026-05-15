@@ -243,22 +243,23 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 			nestedGenPath = filepath.Join(stackGenDir, s.Path)
 		}
 
-		nestedSourceDir := s.Source
-		if !filepath.IsAbs(nestedSourceDir) {
-			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
+		var childRefs []ComponentRef
+
+		if nestedSourceDir, ok := localStackSourceDir(s.Source, stackSourceDir); ok {
+			childRefs = discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1)
 		}
 
 		refs = append(refs, ComponentRef{
 			Name:      s.Name,
 			Path:      nestedGenPath,
-			ChildRefs: discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1),
+			ChildRefs: childRefs,
 		})
 	}
 
 	return refs
 }
 
-// decodeDiscovery slurps the stack file, evaluates locals against terraform stdlib, then decodes unit/stack blocks into path-only shapes. Returns (nil, nil, nil) when the stack file does not exist.
+// decodeDiscovery slurps the stack file, evaluates locals, merges includes (same order as ParseStackFile), then decodes unit/stack blocks into path-only shapes. Returns (nil, nil, nil) when the stack file does not exist.
 func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
@@ -282,8 +283,15 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL,
 		}
 	}
 
+	srcByFilename := map[string][]byte{stackFile: data}
+
+	mergedRemain, err := mergeIncludes(fs, slurp, stackDir, evalCtx, srcByFilename)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	decoded := &discoveryDecode{}
-	if diags := decodeRemain(slurp.Remain, evalCtx, decoded); diags != nil {
+	if diags := decodeRemain(mergedRemain, evalCtx, decoded); diags != nil {
 		return nil, nil, FileDecodeError{Name: stackFile, Detail: diags.Error(), Err: diags}
 	}
 

@@ -245,6 +245,29 @@ unit "db" {
 	assert.Contains(t, paths[1], ".terragrunt-stack")
 }
 
+func TestUnitPathsFromStackDir_WithIncludedUnits(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test/includes", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/includes/units.hcl", []byte(`
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "vpc"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
+include "units" {
+  path = "./includes/units.hcl"
+}
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+	assert.Contains(t, paths[0], filepath.Join(hclparse.StackDir, "vpc"))
+}
+
 func TestUnitPathsFromStackDir_PathWithUnsupportedFunctionReturnsError(t *testing.T) {
 	t.Parallel()
 
