@@ -77,7 +77,7 @@ func main() {
 
 	// Immediately parse the `TG_LOG_LEVEL` environment variable, e.g. to set the TRACE level.
 	if err := global.NewLogLevelFlag(l, opts, nil).Parse(os.Args); err != nil {
-		l.Error(err.Error())
+		l.Errorf("An error has occurred: %v", err)
 		os.Exit(1)
 	}
 
