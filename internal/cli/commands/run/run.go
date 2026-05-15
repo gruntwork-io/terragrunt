@@ -185,7 +185,6 @@ func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.Terrag
 // Note that as a side effect this will set the following settings on terragruntOptions:
 // - TerraformPath
 // - TerraformVersion
-// - FeatureFlags
 // TODO: Look into a way to refactor this function to avoid the side effect.
 func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (log.Logger, error) {
 	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, opts)
@@ -218,22 +217,6 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
 		if err := run.CheckTerragruntVersionMeetsConstraint(opts.TerragruntVersion, partialTerragruntConfig.TerragruntVersionConstraint); err != nil {
 			return l, err
-		}
-	}
-
-	if partialTerragruntConfig.FeatureFlags != nil {
-		// update feature flags for evaluation
-		for _, flag := range partialTerragruntConfig.FeatureFlags {
-			flagName := flag.Name
-
-			defaultValue, err := flag.DefaultAsString()
-			if err != nil {
-				return l, err
-			}
-
-			if _, exists := opts.FeatureFlags.Load(flagName); !exists {
-				opts.FeatureFlags.Store(flagName, defaultValue)
-			}
 		}
 	}
 

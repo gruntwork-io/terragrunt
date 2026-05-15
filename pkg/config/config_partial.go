@@ -163,7 +163,15 @@ func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, f
 		errs = errs.Append(flagErrs)
 	}
 
-	flagsAsCtyVal, err := flagsAsCty(pctx, tgFlags.FeatureFlags)
+	// Feature defaults from includes must be visible while decoding base blocks like
+	// locals and exclude, but they must remain local to this parse instead of being
+	// stored in shared command options.
+	mergedFeatureFlags, err := mergeIncludedFeatureFlags(ctx, pctx, l, trackInclude, tgFlags.FeatureFlags)
+	if err != nil {
+		errs = errs.Append(err)
+	}
+
+	flagsAsCtyVal, err := flagsAsCty(pctx, mergedFeatureFlags)
 	if err != nil {
 		errs = errs.Append(err)
 	}
@@ -187,6 +195,72 @@ func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, f
 	}, errs.ErrorOrNil()
 }
 
+// mergeIncludedFeatureFlags merges feature defaults from included configs into the current parse.
+func mergeIncludedFeatureFlags(ctx context.Context, pctx *ParsingContext, l log.Logger, trackInclude *TrackInclude, childFlags FeatureFlags) (FeatureFlags, error) {
+	if trackInclude == nil || len(trackInclude.CurrentList) == 0 {
+		return childFlags, nil
+	}
+
+	baseConfig := &TerragruntConfig{FeatureFlags: childFlags}
+	includePctx := pctx.WithTrackInclude(trackInclude).WithDecodeList(FeatureFlagsBlock)
+
+	for i := len(trackInclude.CurrentList) - 1; i >= 0; i-- {
+		includeConfig := trackInclude.CurrentList[i]
+
+		mergeStrategy, err := includeConfig.GetMergeStrategy()
+		if err != nil {
+			return childFlags, err
+		}
+
+		if mergeStrategy == NoMerge {
+			continue
+		}
+
+		parsedIncludeConfig, err := partialParseIncludedConfig(ctx, includePctx, l, &includeConfig)
+		if err != nil {
+			return childFlags, err
+		}
+
+		mergedConfig, err := mergeFeatureFlagConfig(l, mergeStrategy, baseConfig, parsedIncludeConfig.FeatureFlags)
+		if err != nil {
+			return childFlags, err
+		}
+
+		baseConfig = mergedConfig
+	}
+
+	return baseConfig.FeatureFlags, nil
+}
+
+// mergeFeatureFlagConfig applies an include merge strategy to feature defaults only.
+func mergeFeatureFlagConfig(l log.Logger, mergeStrategy MergeStrategyType, baseConfig *TerragruntConfig, includeFlags FeatureFlags) (*TerragruntConfig, error) {
+	includeOnlyConfig := &TerragruntConfig{FeatureFlags: includeFlags}
+
+	// TODO: Remove lint suppression
+	switch mergeStrategy { //nolint:exhaustive
+	case ShallowMerge:
+		if err := includeOnlyConfig.Merge(l, baseConfig); err != nil {
+			return nil, err
+		}
+	case DeepMerge:
+		if err := includeOnlyConfig.DeepMerge(l, baseConfig); err != nil {
+			return nil, err
+		}
+	case DeepMergeMapOnly:
+		mergedFlags, err := deepMergeMapOnlyFeatureBlocks(includeOnlyConfig.FeatureFlags, baseConfig.FeatureFlags)
+		if err != nil {
+			return nil, err
+		}
+
+		includeOnlyConfig.FeatureFlags = mergedFlags
+	default:
+		return nil, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
+	}
+
+	return includeOnlyConfig, nil
+}
+
+// flagsAsCty converts feature flag defaults and CLI overrides into the evaluation context value.
 func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	// extract all flags in map by name
 	flagByName := map[string]*FeatureFlag{}
@@ -265,6 +339,7 @@ func cliFlagsToCty(ctx *ParsingContext, flagByName map[string]*FeatureFlag) (map
 	return evaluatedFlags, nil
 }
 
+// PartialParseConfigFile partially parses the Terragrunt config file at the given path.
 func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Logger, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 
@@ -378,6 +453,7 @@ func PartialParseConfigString(ctx context.Context, pctx *ParsingContext, l log.L
 	return PartialParseConfig(ctx, pctx, l, file, include)
 }
 
+// PartialParseConfig partially parses the requested sections from a parsed Terragrunt config file.
 func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	errs := &errors.MultiError{}
 
@@ -662,6 +738,7 @@ func processExcludes(ctx context.Context, pctx *ParsingContext, l log.Logger, co
 	return config, nil
 }
 
+// partialParseIncludedConfig partially parses an included Terragrunt config.
 func partialParseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, errors.New(IncludedConfigMissingPathError(pctx.TerragruntConfigPath))
@@ -689,8 +766,8 @@ func partialParseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log
 	return config, nil
 }
 
-// This decodes only the `include` blocks of a terragrunt config, so its value can be used while decoding the rest of
-// the config.
+// decodeAsTerragruntInclude decodes only the include blocks of a Terragrunt config, so its value can be used while
+// decoding the rest of the config.
 // For consistency, `include` in the call to `file.Decode` is always assumed to be nil. Either it really is nil (parsing
 // the child config), or it shouldn't be used anyway (the parent config shouldn't have an include block).
 func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.EvalContext) (IncludeConfigs, error) {
@@ -708,6 +785,7 @@ type InvalidPartialBlockName struct {
 	sectionCode PartialDecodeSectionType
 }
 
+// Error returns a formatted invalid partial block error message.
 func (err InvalidPartialBlockName) Error() string {
 	return fmt.Sprintf("Unrecognized partial block code %d. This is most likely an error in terragrunt. Please file a bug report on the project repository.", err.sectionCode)
 }

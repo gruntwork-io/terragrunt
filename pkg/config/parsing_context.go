@@ -44,9 +44,10 @@ type ParsingContext struct {
 	TrackInclude     *TrackInclude
 	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
-	FeatureFlags     *xsync.MapOf[string, string]
-	FilesRead        *[]string
-	Telemetry        *telemetry.Options
+	// FeatureFlags contains explicit feature flag overrides supplied by the user.
+	FeatureFlags *xsync.MapOf[string, string]
+	FilesRead    *[]string
+	Telemetry    *telemetry.Options
 
 	DecodedDependencies *cty.Value
 	Values              *cty.Value
