@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"io"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -349,7 +350,11 @@ func parseComponent(
 		parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
+		// Clone v.Env so concurrent parseComponent goroutines launched by
+		// ParsePhase and RelationshipPhase don't race on the shared map when
+		// ObtainCredsForParsing writes auth-provider-cmd output into it.
 		parseV := v
+		parseV.Env = maps.Clone(v.Env)
 		parseV.Writers.Writer = io.Discard
 		parseV.Writers.ErrWriter = io.Discard
 
