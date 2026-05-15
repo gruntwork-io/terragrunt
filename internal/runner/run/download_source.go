@@ -3,7 +3,6 @@ package run
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -20,8 +19,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
+
+// ErrNonOSFilesystem is returned by DownloadTerraformSource when Options.FS
+// is not OS-backed. See the doc comment on Options.FS for why this is
+// required.
+var ErrNonOSFilesystem = errors.New("download requires an OS-backed filesystem; see run.Options.FS")
 
 // ModuleManifestName is the manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl).
 const (
@@ -51,6 +56,10 @@ func DownloadTerraformSource(
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) (*Options, error) {
+	if !vfs.IsOSFS(opts.FS) {
+		return nil, ErrNonOSFilesystem
+	}
+
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.StrictControls)
@@ -136,6 +145,9 @@ func DownloadTerraformSource(
 
 // DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been
 // downloaded. It returns true if a download was performed, or false if the existing cache was up to date.
+//
+// opts.FS must be the OS-backed filesystem from [vfs.NewOSFS]; see [Options.FS]
+// for why. Returns [ErrNonOSFilesystem] otherwise.
 func DownloadTerraformSourceIfNecessary(
 	ctx context.Context,
 	l log.Logger,
@@ -144,10 +156,14 @@ func DownloadTerraformSourceIfNecessary(
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) (bool, error) {
+	if !vfs.IsOSFS(opts.FS) {
+		return false, ErrNonOSFilesystem
+	}
+
 	if opts.SourceUpdate {
 		l.Debugf("The --source-update flag is set, so deleting the temporary folder %s before downloading source.", terraformSource.DownloadDir)
 
-		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
+		if err := opts.FS.RemoveAll(terraformSource.DownloadDir); err != nil {
 			return false, errors.New(err)
 		}
 	} else {
@@ -239,12 +255,14 @@ func DownloadTerraformSourceIfNecessary(
 
 		initFile := filepath.Join(terraformSource.WorkingDir, ModuleInitRequiredFile)
 
-		f, createErr := os.Create(initFile)
+		f, createErr := opts.FS.Create(initFile)
 		if createErr != nil {
 			return false, createErr
 		}
 
-		defer f.Close()
+		if err := f.Close(); err != nil {
+			return false, err
+		}
 	}
 
 	return true, nil
@@ -344,9 +362,12 @@ func downloadSource(
 	}
 
 	return opts.RunWithErrorHandling(ctx, l, r, func() error {
-		client := BuildDownloadClient(l, opts, cfg)
+		client, err := BuildDownloadClient(l, opts, cfg)
+		if err != nil {
+			return err
+		}
 
-		_, err := client.Get(ctx, &getter.Request{
+		_, err = client.Get(ctx, &getter.Request{
 			Src:     src.CanonicalSourceURL.String(),
 			Dst:     src.DownloadDir,
 			GetMode: getter.ModeAny,
@@ -373,7 +394,7 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 		return false, err
 	}
 
-	c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth))
+	c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth), cas.WithFS(opts.FS))
 	if err != nil {
 		l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
 		return false, nil
@@ -409,7 +430,7 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 		// Clear any partial CAS output before the fallback runs; mixing
 		// leftover CAS files with the standard getter's output leaves the
 		// module dir in an inconsistent state.
-		if removeErr := os.RemoveAll(src.DownloadDir); removeErr != nil {
+		if removeErr := opts.FS.RemoveAll(src.DownloadDir); removeErr != nil {
 			l.Warnf("Failed to clean partial CAS output at %s: %v", src.DownloadDir, removeErr)
 		}
 
@@ -426,18 +447,28 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 // protocol set are: FileCopyGetter (copies local sources instead of
 // symlinking) and RegistryGetter (resolves tfr:// sources).
 //
+// opts.FS must be the OS-backed filesystem from [vfs.NewOSFS]; the returned
+// client shells out to go-getter and other libraries that bypass the vfs
+// abstraction. Returns [ErrNonOSFilesystem] otherwise.
+//
 // Exported so tests can assert the protocol set directly.
-func BuildDownloadClient(l log.Logger, opts *Options, cfg *runcfg.RunConfig) *getter.Client {
+func BuildDownloadClient(l log.Logger, opts *Options, cfg *runcfg.RunConfig) (*getter.Client, error) {
+	if !vfs.IsOSFS(opts.FS) {
+		return nil, ErrNonOSFilesystem
+	}
+
 	return getter.NewClient(
 		getter.WithLogger(l),
 		getter.WithFileCopy(getter.NewFileCopyGetter().
 			WithLogger(l).
+			WithFS(opts.FS).
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l).
+			WithFS(opts.FS).
 			WithTofuImplementation(opts.TofuImplementation)),
-	)
+	), nil
 }
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory
