@@ -1,0 +1,23 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### `--filter` combined with a negation no longer parses excluded units
+
+When a positive path filter was combined with a negated one, Terragrunt classified any unit that matched neither expression as requiring defensive parsing before exclusion instead of being excluded early. 
+
+e.g.
+
+```bash
+$ terragrunt run --all --filter './foo' --filter '!./baz'
+# If `./bar` existed on disk, it would be parsed before being excluded. This is no longer the case.
+```
+
+Any positive filepath filter now consistently results in units that cannot be discovered during Terragrunt discovery being excluded from parsing for evaluating candidacy of inclusion. When a sufficiently complex filter is present, like the following:
+
+```bash
+$ terragrunt run --all --filter './foo' --filter '!./baz' --filter 'reading=root.hcl'
+# If `./bar` existed on disk, it will still be parsed before being excluded to determine if it reads `root.hcl`.
+```
+

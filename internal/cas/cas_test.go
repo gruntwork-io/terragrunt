@@ -126,6 +126,53 @@ func TestCAS_FallbackWhenGitStoreFails(t *testing.T) {
 	assert.False(t, info.IsDir(), "fallback should not have replaced the blocking file")
 }
 
+// TestCAS_CloneRepoWithSymlink pins the fix for the stored-blob permission
+// bug: a git symlink entry (mode 120000) has no unix permission bits, so the
+// permission-only view masks to 0. Without a fallback, the blob holding the
+// symlink target was chmodded unreadable, and materializing the symlink later
+// failed because linkTree could not read the target string.
+func TestCAS_CloneRepoWithSymlink(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile("real.txt", []byte("hello"), "add real.txt"))
+	require.NoError(t, srv.CommitSymlink("link.txt", "real.txt", "add symlink"))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	storePath := filepath.Join(tempDir, "store")
+	targetPath := filepath.Join(tempDir, "repo")
+
+	c, err := cas.New(cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	err = c.Clone(t.Context(), logger.CreateLogger(), &cas.CloneOptions{
+		Dir:   targetPath,
+		Depth: -1,
+	}, repoURL)
+	require.NoError(t, err)
+
+	linkPath := filepath.Join(targetPath, "link.txt")
+
+	info, err := os.Lstat(linkPath)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&os.ModeSymlink, "link.txt is not a symlink (mode=%s)", info.Mode())
+
+	target, err := os.Readlink(linkPath)
+	require.NoError(t, err)
+	assert.Equal(t, "real.txt", target)
+
+	// Reading through the symlink exercises the stored-blob readability that
+	// the fix preserves: the target file is hard-linked from the CAS, and the
+	// symlink resolution had to read the symlink-blob's contents (the target
+	// string) from a stored blob whose permission bits derived from gitPerm=0.
+	data, err := os.ReadFile(linkPath)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("hello"), data)
+}
+
 // TestCASRejectsNonOSFilesystem pins the early OS-filesystem gate
 // in [cas.New]: a non-OS backing must fail at construction.
 func TestCASRejectsNonOSFilesystem(t *testing.T) {

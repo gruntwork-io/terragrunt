@@ -443,6 +443,14 @@ To limit the maximum number of unit executions at any given time use the `--para
 terragrunt run --all --parallelism 4 -- apply
 ```
 
+## Limiting stack output parallelism
+
+`terragrunt stack output` fetches outputs from every unit concurrently. Each fetch spawns a `tofu output` child process, so very large stacks may need a cap to avoid file-descriptor exhaustion or hitting cloud-provider rate limits. The same `--parallelism` flag bounds the number of concurrent unit fetches:
+
+```sh
+terragrunt stack output --parallelism 4
+```
+
 ## Saving OpenTofu/Terraform plan output
 
 A powerful feature of OpenTofu/Terraform is the ability to save the result of a plan as a binary file using the [-out flag](https://opentofu.org/docs/cli/commands/plan/).
