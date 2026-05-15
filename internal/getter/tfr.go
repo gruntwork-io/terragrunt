@@ -37,28 +37,32 @@ const versionQueryKey = "version"
 // stale *Client field around.
 //
 // Authentication uses environment variables: TG_TF_REGISTRY_TOKEN supplies a
-// bearer token. See [tfimpl.DefaultRegistryDomain] and
+// bearer token. The Env field carries the venv-mediated shell environment
+// from which the token is read, so test substitution at the venv boundary
+// covers registry auth. See [tfimpl.DefaultRegistryDomain] and
 // [github.com/gruntwork-io/terragrunt/internal/tf/cliconfig] for the rest.
 type RegistryGetter struct {
 	HTTPClient         vhttp.Client
 	Logger             log.Logger
 	FS                 vfs.FS
+	Env                map[string]string
 	TofuImplementation tfimpl.Type
 }
 
 // NewRegistryGetter returns a [RegistryGetter] configured with sensible
 // defaults: a [vhttp.NewOSClient] for registry-protocol requests, the
 // supplied logger for diagnostic output, the supplied filesystem for
-// archive expansion, and [tfimpl.OpenTofu] as the default implementation.
-// A logger is required because this package does not consistently guard
-// against a nil logger, so requiring one at construction time prevents
-// nil-pointer panics at call time. Use the With* methods to customize
-// other behavior.
+// archive expansion, an empty env map, and [tfimpl.OpenTofu] as the
+// default implementation. A logger is required because this package does
+// not consistently guard against a nil logger, so requiring one at
+// construction time prevents nil-pointer panics at call time. Use the
+// With* methods to customize other behavior.
 func NewRegistryGetter(l log.Logger, fs vfs.FS) *RegistryGetter {
 	return &RegistryGetter{
 		HTTPClient:         vhttp.NewOSClient(),
 		Logger:             l,
 		FS:                 fs,
+		Env:                map[string]string{},
 		TofuImplementation: tfimpl.OpenTofu,
 	}
 }
@@ -68,6 +72,15 @@ func NewRegistryGetter(l log.Logger, fs vfs.FS) *RegistryGetter {
 // or for callers that need custom transport configuration.
 func (r *RegistryGetter) WithHTTPClient(c vhttp.Client) *RegistryGetter {
 	r.HTTPClient = c
+	return r
+}
+
+// WithEnv sets the shell environment used to resolve the registry bearer
+// token. Production callers thread the venv's Env map here so the registry
+// auth path uses the same environment substitution as the rest of the
+// run.
+func (r *RegistryGetter) WithEnv(env map[string]string) *RegistryGetter {
+	r.Env = env
 	return r
 }
 
@@ -106,7 +119,7 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 
 	registryDomain := srcURL.Host
 	if registryDomain == "" {
-		registryDomain = tfimpl.DefaultRegistryDomain(r.TofuImplementation)
+		registryDomain = tfimpl.DefaultRegistryDomain(r.Env, r.TofuImplementation)
 	}
 
 	queryValues := srcURL.Query()
@@ -123,7 +136,7 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 
 	version := versionList[0]
 
-	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, r.Logger, r.HTTPClient, registryDomain)
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, r.Logger, r.HTTPClient, r.Env, registryDomain)
 	if err != nil {
 		return err
 	}
@@ -133,7 +146,7 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
-	terraformGet, err := GetTerraformGetHeader(ctx, r.Logger, r.HTTPClient, moduleURL)
+	terraformGet, err := GetTerraformGetHeader(ctx, r.Logger, r.HTTPClient, r.Env, moduleURL)
 	if err != nil {
 		return err
 	}

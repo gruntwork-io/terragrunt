@@ -184,9 +184,10 @@ func (o *Options) DataDir(env map[string]string) string {
 
 // shellRunOptions builds a *shell.ShellOptions from this Options. The shell
 // environment and writers travel separately via the venv passed at the
-// invocation site.
-func (o *Options) shellRunOptions() *shell.ShellOptions {
-	s := shell.NewShellOptions().
+// invocation site; env seeds trace-context propagation onto the
+// constructed options.
+func (o *Options) shellRunOptions(env map[string]string) *shell.ShellOptions {
+	s := shell.NewShellOptions(env).
 		WithWorkingDir(o.WorkingDir).
 		WithTelemetry(o.Telemetry).
 		WithEngine(o.EngineConfig, o.EngineOptions).
@@ -201,15 +202,16 @@ func (o *Options) shellRunOptions() *shell.ShellOptions {
 	return s
 }
 
-// tfRunOptions builds a *tf.TFOptions from this Options.
-func (o *Options) tfRunOptions() *tf.TFOptions {
+// tfRunOptions builds a *tf.TFOptions from this Options. The env map seeds
+// trace-context propagation onto the nested [shell.ShellOptions].
+func (o *Options) tfRunOptions(env map[string]string) *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                o.JSONLogFormat,
 		OriginalTerragruntConfigPath: o.OriginalTerragruntConfigPath,
 		TerragruntConfigPath:         o.TerragruntConfigPath,
 		TofuImplementation:           o.TofuImplementation,
 		TerraformCliArgs:             o.TerraformCliArgs,
-		ShellOptions:                 o.shellRunOptions(),
+		ShellOptions:                 o.shellRunOptions(env),
 	}
 }
 
@@ -226,17 +228,18 @@ func (o *Options) remoteStateOpts(v *Venv) *remotestate.Options {
 			NonInteractive:               o.NonInteractive,
 			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
 		},
-		TFRunOpts:           o.tfRunOptions(),
+		TFRunOpts:           o.tfRunOptions(v.Env),
 		DisableBucketUpdate: o.DisableBucketUpdate,
 	}
 }
 
 // tflintRunOptions builds a *tflint.TFLintOptions from this Options. Shell
 // environment and writers travel separately via the venv at the invocation
-// site.
-func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
+// site; env seeds trace-context propagation onto the constructed shell
+// options.
+func (o *Options) tflintRunOptions(env map[string]string) *tflint.TFLintOptions {
 	return &tflint.TFLintOptions{
-		ShellOptions:         o.shellRunOptions(),
+		ShellOptions:         o.shellRunOptions(env),
 		WorkingDir:           o.WorkingDir,
 		RootWorkingDir:       o.RootWorkingDir,
 		TerragruntConfigPath: o.TerragruntConfigPath,

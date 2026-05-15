@@ -150,7 +150,7 @@ func TestProviderCommandShellwordsParsing(t *testing.T) {
 }
 
 func newRunOpts() *shell.ShellOptions {
-	return shell.NewShellOptions()
+	return shell.NewShellOptions(map[string]string{})
 }
 
 func newMemVenv(h vexec.Handler) *venv.Venv {

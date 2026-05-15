@@ -209,8 +209,12 @@ func (cfg *Config) Save(configPath string) error {
 	return nil
 }
 
-// CredentialsSource creates and returns a service credentials source whose behavior depends on which "credentials" if are present in the receiving config.
-func (cfg *Config) CredentialsSource() *CredentialsSource {
+// CredentialsSource creates and returns a service credentials source whose
+// behavior depends on which "credentials" blocks are present in the
+// receiving config and on the supplied env map. Production callers pass
+// [github.com/gruntwork-io/terragrunt/internal/venv.Venv.Env] so
+// TF_TOKEN_<host> resolution goes through the venv boundary.
+func (cfg *Config) CredentialsSource(env map[string]string) *CredentialsSource {
 	configured := make(map[svchost.Hostname]string)
 
 	for _, creds := range cfg.Credentials {
@@ -225,5 +229,6 @@ func (cfg *Config) CredentialsSource() *CredentialsSource {
 
 	return &CredentialsSource{
 		configured: configured,
+		env:        env,
 	}
 }

@@ -65,7 +65,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 					// prepare the viewport
 					var content string
 
-					tagsStyle := resolveTagsDetailStyle()
+					tagsStyle := resolveTagsDetailStyle(m.venv.Env)
 					tags := selectedComponent.Tags()
 
 					if selectedComponent.IsMarkDown() {

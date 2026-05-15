@@ -283,7 +283,7 @@ func runTerragruntWithConfig(
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
 		out, runTerraformError := tf.RunCommandWithOutput(
 			childCtx, l, v.ToRoot(),
-			opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...,
+			opts.tfRunOptions(v.Env), opts.TerraformCliArgs.Slice()...,
 		)
 
 		var lockFileError error

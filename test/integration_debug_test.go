@@ -62,7 +62,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 			t.Context(),
 			l,
 			venv.OSVenv(),
-			configbridge.TFRunOptsFromOpts(mockOptions),
+			configbridge.TFRunOptsFromOpts(map[string]string{}, mockOptions),
 			"apply", "-auto-approve", "-var-file", debugFile,
 		),
 	)

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -54,14 +53,18 @@ type ShellOptions struct {
 }
 
 // NewShellOptions creates ShellOptions with sensible defaults. Telemetry is
-// always non-nil; TRACEPARENT is read from the environment when set. Use the
-// With* methods to override any field.
-func NewShellOptions() *ShellOptions {
+// always non-nil; TRACEPARENT is seeded from env when present. Use the With*
+// methods to override any field.
+//
+// env carries the venv-mediated shell environment; callers pass
+// [github.com/gruntwork-io/terragrunt/internal/venv.Venv.Env] so trace context
+// propagation stays consistent with the rest of the venv-mediated I/O.
+func NewShellOptions(env map[string]string) *ShellOptions {
 	opts := &ShellOptions{
 		Telemetry: &telemetry.Options{},
 	}
 
-	if tp := os.Getenv(telemetry.TraceParentEnv); tp != "" {
+	if tp := env[telemetry.TraceParentEnv]; tp != "" {
 		opts.Telemetry.TraceParent = tp
 	}
 
