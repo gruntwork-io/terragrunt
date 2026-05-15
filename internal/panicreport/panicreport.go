@@ -12,7 +12,7 @@
 //
 //	if panicreport.IsPanic(err) {
 //		reporter.ReportPanic(logger, err.Error(), nil, os.Args)
-//		os.Exit(panicreport.ExitCode)
+//		os.Exit(1)
 //	}
 package panicreport
 
@@ -32,11 +32,6 @@ import (
 
 // IssueURL is the canonical bug-report destination shown in the crash banner.
 const IssueURL = "https://github.com/gruntwork-io/terragrunt/issues"
-
-// ExitCode mirrors OpenTofu's choice of 11 — distinct from Terraform's
-// detailed exit codes (0/1/2) and matches SIGSEGV's signal number, which is
-// the closest analogue to most runtime panics.
-const ExitCode = 11
 
 const (
 	crashLogPrefix         = "terragrunt-crash"
@@ -123,7 +118,7 @@ func New(version string) *Reporter {
 }
 
 // PanicHandler catches a panic from the deferred call site, writes a crash
-// report, prints the banner via l, and exits with ExitCode. Must be invoked
+// report, prints the banner via l, and exits with code 1. Must be invoked
 // as `defer r.PanicHandler(...)` — wrapping it inside another deferred
 // closure makes the internal recover() return nil and silently swallow the
 // panic. Mirrors OpenTofu's logging.PanicHandler.
@@ -134,7 +129,7 @@ func (r *Reporter) PanicHandler(l Logger, args []string) {
 	}
 
 	r.ReportPanic(l, fmt.Sprintf("%v", rec), debug.Stack(), args)
-	os.Exit(ExitCode)
+	os.Exit(1)
 }
 
 // ReportPanic writes a crash log and a friendly banner for an

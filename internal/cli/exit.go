@@ -34,24 +34,20 @@ func (app *App) RunAndExit(args []string, em *tf.DetailedExitCodeMap, reporter *
 //
 //   - nil err returns success.
 //   - Panics surfaced as returned errors (e.g. cty function.PanicError) are
-//     routed through reporter and produce panicreport.ExitCode.
-//   - Otherwise the underlying exit-coder code (or 1) is returned, and the
-//     error message, stack, and shell-error suggestions are logged.
+//     routed through reporter to produce the crash banner + log file in
+//     place of the raw error message.
+//   - All other errors are logged with the message, the stack at trace
+//     level, and any shell-error suggestions.
+//
+// In every error case, suggested fixes from shell.ExplainError are still
+// shown (panics in user-supplied scripts may have explainable causes too)
+// and the underlying exit-coder code is returned, defaulting to 1.
 func ExitCodeFor(l log.Logger, args []string, err error, success int, reporter *panicreport.Reporter) int {
 	if err == nil {
 		return success
 	}
 
-	if panicreport.IsPanic(err) {
-		reporter.ReportPanic(l, err.Error(), nil, args)
-		return panicreport.ExitCode
-	}
-
-	l.Error(err.Error())
-
-	if errStack := errors.ErrorStack(err); errStack != "" {
-		l.Trace(errStack)
-	}
+	logRunError(l, args, err, reporter)
 
 	if explain := shell.ExplainError(err); len(explain) > 0 {
 		l.Errorf("Suggested fixes: \n%s", explain)
@@ -63,4 +59,20 @@ func ExitCodeFor(l log.Logger, args []string, err error, success int, reporter *
 	}
 
 	return code
+}
+
+// logRunError emits the user-facing error output for a non-nil run error:
+// the crash banner + log file for panic-shaped errors, or the standard
+// message + trace stack otherwise.
+func logRunError(l log.Logger, args []string, err error, reporter *panicreport.Reporter) {
+	if panicreport.IsPanic(err) {
+		reporter.ReportPanic(l, err.Error(), nil, args)
+		return
+	}
+
+	l.Error(err.Error())
+
+	if errStack := errors.ErrorStack(err); errStack != "" {
+		l.Trace(errStack)
+	}
 }
