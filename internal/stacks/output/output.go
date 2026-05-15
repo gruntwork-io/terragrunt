@@ -168,21 +168,13 @@ func StackOutput(
 			key := filepath.Join(targetDir, unit.Path)
 			declaredUnits[key] = unit
 
-			// Capture loop variables explicitly so this closure remains safe and
-			// clear to future refactors even if Go's loop-variable behavior changes.
-			taskCtx := ctx
-			taskPctx := pctx
-			taskUnit := unit
-			taskUnitDir := unitDir
-			taskKey := key
-
 			wp.Submit(func() error {
-				out, err := readUnitOutput(taskCtx, l, taskPctx, taskUnit, taskUnitDir)
+				out, err := readUnitOutput(ctx, l, pctx, unit, unitDir)
 				if err != nil {
 					return err
 				}
 
-				outputs.Store(taskKey, out)
+				outputs.Store(key, out)
 
 				return nil
 			})
