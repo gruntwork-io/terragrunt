@@ -7,8 +7,21 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestVersionString(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, (*options.TerragruntOptions)(nil).VersionString())
+	assert.Empty(t, (&options.TerragruntOptions{}).VersionString())
+
+	opts := &options.TerragruntOptions{
+		TerragruntVersion: version.Must(version.NewVersion("1.7.9")),
+	}
+	assert.Equal(t, "1.7.9", opts.VersionString())
+}
 
 func TestInsertTerraformCliArgsSubcommandReplacement(t *testing.T) {
 	t.Parallel()

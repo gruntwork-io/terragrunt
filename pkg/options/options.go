@@ -292,6 +292,16 @@ type TerragruntOptions struct {
 	NoFiltersFile bool
 }
 
+// VersionString returns the configured Terragrunt version, or "" if unset.
+// Safe to call on a nil receiver.
+func (opts *TerragruntOptions) VersionString() string {
+	if opts == nil || opts.TerragruntVersion == nil {
+		return ""
+	}
+
+	return opts.TerragruntVersion.String()
+}
+
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
 type TerragruntOptionsFunc func(*TerragruntOptions)
 
