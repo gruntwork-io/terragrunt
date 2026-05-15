@@ -24,8 +24,8 @@ func ErrorStack(err error) string {
 				errStacks = append(errStacks, errWithStack.ErrorStack())
 			}
 
-			if ctyStack := ctyFunctionPanicStack(unwrappedErr); ctyStack != "" {
-				errStacks = append(errStacks, ctyStack)
+			if panicStack := functionPanicStack(unwrappedErr); panicStack != "" {
+				errStacks = append(errStacks, panicStack)
 			}
 
 			for _, functionCallErr := range functionCallErrors(unwrappedErr) {
@@ -60,13 +60,21 @@ func IsContextCanceled(err error) bool {
 	return errors.Is(err, context.Canceled)
 }
 
-const ctyFunctionPanicPackage = "github.com/zclconf/go-cty/cty/function"
-
 // IsFunctionPanic reports whether an error (or one of its wrapped errors) is a function panic.
 func IsFunctionPanic(err error) bool {
 	for _, unwrappedErr := range UnwrapErrors(err) {
+		if unwrappedErr == nil {
+			continue
+		}
+
 		if isFunctionPanic(unwrappedErr) {
 			return true
+		}
+
+		for _, functionCallErr := range functionCallErrors(unwrappedErr) {
+			if IsFunctionPanic(functionCallErr) {
+				return true
+			}
 		}
 	}
 
@@ -84,12 +92,12 @@ func IsError(actual error, expected error) bool {
 // explains the cause of the panic. This function should only be called from a defer statement.
 func Recover(onPanic func(cause error)) {
 	if rec := recover(); rec != nil {
-		err, isError := rec.(error)
-		if !isError {
-			err = fmt.Errorf("%v", rec) //nolint:err113
+		if err, isError := rec.(error); isError {
+			onPanic(New(err))
+			return
 		}
 
-		onPanic(New(err))
+		onPanic(New(fmt.Errorf("panic: %v", rec)))
 	}
 }
 
@@ -135,11 +143,21 @@ func UnwrapErrors(err error) []error {
 	return errs
 }
 
-func ctyFunctionPanicStack(err error) string {
-	if !isCTYFunctionPanicError(err) {
-		return ""
+func functionPanicStack(err error) string {
+	if panicErr, ok := err.(interface{ ErrorStack() string }); ok {
+		if errStack := strings.TrimSpace(panicErr.ErrorStack()); errStack != "" {
+			return errStack
+		}
 	}
 
+	if stack := legacyPanicStack(err); stack != "" {
+		return stack
+	}
+
+	return ""
+}
+
+func legacyPanicStack(err error) string {
 	recoveryErr := reflect.ValueOf(err)
 	if !recoveryErr.IsValid() {
 		return ""
@@ -164,30 +182,12 @@ func ctyFunctionPanicStack(err error) string {
 
 	switch stackField.Type() {
 	case reflect.TypeOf([]byte{}):
-		return string(stackField.Interface().([]byte))
+		return strings.TrimSpace(string(stackField.Interface().([]byte)))
 	case reflect.TypeOf(""):
-		return stackField.Interface().(string)
+		return strings.TrimSpace(stackField.Interface().(string))
 	}
 
 	return ""
-}
-
-func isCTYFunctionPanicError(err error) bool {
-	errType := reflect.TypeOf(err)
-	for errType != nil {
-		if errType.PkgPath() == ctyFunctionPanicPackage && errType.Name() == "PanicError" {
-			return true
-		}
-
-		if errType.Kind() == reflect.Pointer {
-			errType = errType.Elem()
-			continue
-		}
-
-		return false
-	}
-
-	return false
 }
 
 func functionCallErrors(err error) []error {
@@ -233,19 +233,22 @@ func functionCallErrorsFromDiagnostic(diag *hcl.Diagnostic) []error {
 }
 
 func isFunctionPanic(err error) bool {
+	if err == nil {
+		return false
+	}
+
 	if panicErr, ok := err.(interface{ IsFunctionPanic() bool }); ok && panicErr.IsFunctionPanic() {
 		return true
 	}
 
-	if isCTYFunctionPanicError(err) {
-		return true
+	if err.Error() == "" {
+		return false
 	}
 
-	for _, functionCallErr := range functionCallErrors(err) {
-		if IsFunctionPanic(functionCallErr) {
-			return true
-		}
+	errMsg := strings.ToLower(strings.TrimSpace(err.Error()))
+	if !strings.Contains(errMsg, "panic") {
+		return false
 	}
 
-	return false
+	return functionPanicStack(err) != ""
 }
