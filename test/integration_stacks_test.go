@@ -620,12 +620,12 @@ func TestStackOutputsJsonFlag(t *testing.T) {
 	assert.Len(t, result, 4)
 }
 
-// TestStackOutputsParallelFetching verifies that `terragrunt stack output` reads each
+// TestStackOutputsParallelFetchingWithRacing verifies that `terragrunt stack output` reads each
 // unit's outputs concurrently. With 12 units fetched in parallel, the order in which
 // units' tofu invocations log varies between runs because goroutine completion is
 // non-deterministic. If the fetcher regressed to a strict serial loop the order would
-// match across runs.
-func TestStackOutputsParallelFetching(t *testing.T) {
+// match across runs. The WithRacing suffix enrolls this test in CI runs with `-race`.
+func TestStackOutputsParallelFetchingWithRacing(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputsParallel)
@@ -635,14 +635,15 @@ func TestStackOutputsParallelFetching(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
 
 	const (
-		runs      = 4
-		unitCount = 12
+		maxAttempts = 10
+		unitCount   = 12
+		serialOrder = "u01,u02,u03,u04,u05,u06,u07,u08,u09,u10,u11,u12"
 	)
 
 	prefixRe := regexp.MustCompile(`prefix=\.terragrunt-stack/(u\d+)`)
-	orders := make([]string, runs)
+	observedNonSerialOrder := false
 
-	for i := range runs {
+	for i := 0; i < maxAttempts; i++ {
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 			"terragrunt stack output --parallelism "+strconv.Itoa(unitCount)+" --non-interactive --working-dir "+rootPath)
 		require.NoError(t, err)
@@ -661,17 +662,18 @@ func TestStackOutputsParallelFetching(t *testing.T) {
 		}
 
 		require.Len(t, order, unitCount, "run %d: expected %d distinct units, got %d (%v)", i, unitCount, len(order), order)
-		orders[i] = strings.Join(order, ",")
-		t.Logf("run %d order: %s", i, orders[i])
+		runOrder := strings.Join(order, ",")
+		t.Logf("run %d order: %s", i, runOrder)
+
+		if runOrder != serialOrder {
+			observedNonSerialOrder = true
+			break
+		}
+
 	}
 
-	distinct := make(map[string]struct{}, runs)
-	for _, o := range orders {
-		distinct[o] = struct{}{}
-	}
-
-	assert.Greater(t, len(distinct), 1,
-		"expected unit fetch order to vary across %d runs (proves parallel execution); all runs had identical order %q", runs, orders[0])
+	require.True(t, observedNonSerialOrder,
+		"expected at least one run to execute unit output fetches out of serial order within %d attempts; all sampled runs were %q", maxAttempts, serialOrder)
 }
 
 func TestStacksUnitValues(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 )
 
 var _ Backend = new(CommonBackend)
@@ -74,8 +74,8 @@ func (backend *CommonBackend) GetTFInitArgs(config Config) map[string]any {
 }
 
 func (backend *CommonBackend) GetBucketMutex(bucketName string) *sync.Mutex {
-	mu, _ := backend.bucketLocks.LoadOrCompute(bucketName, func() *sync.Mutex {
-		return new(sync.Mutex)
+	mu, _ := backend.bucketLocks.LoadOrCompute(bucketName, func() (*sync.Mutex, bool) {
+		return new(sync.Mutex), false
 	})
 
 	return mu

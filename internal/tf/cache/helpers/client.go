@@ -9,7 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	svchost "github.com/hashicorp/terraform-svchost"
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 )
 
 // Client is an HTTP client.

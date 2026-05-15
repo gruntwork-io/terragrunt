@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
@@ -17,7 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -101,15 +102,34 @@ func StackOutput(
 		return cty.NilVal, nil
 	}
 
-	outputs := xsync.NewMapOf[string, map[string]cty.Value]()
+	outputs := xsync.NewMap[string, map[string]cty.Value]()
 	declaredStacks := make(map[string]string)
 	declaredUnits := make(map[string]*config.Unit)
 
 	// save parsed stacks
 	parsedStackFiles := make(map[string]*config.StackConfig, len(foundFiles))
 
-	wp := worker.NewWorkerPool(opts.Parallelism)
+	stackOutputParallelism := opts.Parallelism
+	if stackOutputParallelism == options.DefaultParallelism {
+		stackOutputParallelism = runtime.GOMAXPROCS(0)
+	}
+
+	// Use the shared worker pool so stack output honors --parallelism like *-all commands;
+	// errgroup alone would still need a semaphore to bound concurrent child processes.
+	wp := worker.NewWorkerPool(stackOutputParallelism)
 	defer wp.Stop()
+
+	waitWorkerErrors := func(mainErr error) error {
+		if workerErr := wp.Wait(); workerErr != nil {
+			if mainErr == nil {
+				return workerErr
+			}
+
+			return errors.Errorf("%v: %v", mainErr, workerErr)
+		}
+
+		return mainErr
+	}
 
 	for _, path := range foundFiles {
 		dir := filepath.Dir(path)
@@ -118,12 +138,12 @@ func StackOutput(
 
 		values, valuesErr := config.ReadValues(ctx, pctx, l, dir)
 		if valuesErr != nil {
-			return cty.NilVal, errors.Errorf("Failed to read values from %s: %w", dir, valuesErr)
+			return cty.NilVal, waitWorkerErrors(errors.Errorf("Failed to read values from %s: %w", dir, valuesErr))
 		}
 
 		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, pctx, path, values)
 		if stackErr != nil {
-			return cty.NilVal, errors.Errorf("Failed to read stack file %s: %w", path, stackErr)
+			return cty.NilVal, waitWorkerErrors(errors.Errorf("Failed to read stack file %s: %w", path, stackErr))
 		}
 
 		parsedStackFiles[path] = stackFile
@@ -147,20 +167,28 @@ func StackOutput(
 			key := filepath.Join(targetDir, unit.Path)
 			declaredUnits[key] = unit
 
+			// Capture loop variables explicitly so this closure remains safe and
+			// clear to future refactors even if Go's loop-variable behavior changes.
+			taskCtx := ctx
+			taskPctx := pctx
+			taskUnit := unit
+			taskUnitDir := unitDir
+			taskKey := key
+
 			wp.Submit(func() error {
-				out, err := readUnitOutput(ctx, l, pctx, unit, unitDir)
+				out, err := readUnitOutput(taskCtx, l, taskPctx, taskUnit, taskUnitDir)
 				if err != nil {
 					return err
 				}
 
-				outputs.Store(key, out)
+				outputs.Store(taskKey, out)
 
 				return nil
 			})
 		}
 	}
 
-	if err := wp.Wait(); err != nil {
+	if err := waitWorkerErrors(nil); err != nil {
 		return cty.NilVal, err
 	}
 
