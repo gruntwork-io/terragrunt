@@ -73,24 +73,6 @@ func IsFunctionPanic(err error) bool {
 	return false
 }
 
-func isFunctionPanic(err error) bool {
-	if panicErr, ok := err.(interface{ IsFunctionPanic() bool }); ok && panicErr.IsFunctionPanic() {
-		return true
-	}
-
-	if isCTYFunctionPanicError(err) {
-		return true
-	}
-
-	for _, functionCallErr := range functionCallErrors(err) {
-		if IsFunctionPanic(functionCallErr) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // IsError returns true if actual is the same type of error as expected.
 // This method unwraps the given error objects (if they are wrapped in
 // objects with a stacktrace) and then does a simple equality check on them.
@@ -248,4 +230,22 @@ func functionCallErrorsFromDiagnostic(diag *hcl.Diagnostic) []error {
 	}
 
 	return UnwrapErrors(functionCallErr)
+}
+
+func isFunctionPanic(err error) bool {
+	if panicErr, ok := err.(interface{ IsFunctionPanic() bool }); ok && panicErr.IsFunctionPanic() {
+		return true
+	}
+
+	if isCTYFunctionPanicError(err) {
+		return true
+	}
+
+	for _, functionCallErr := range functionCallErrors(err) {
+		if IsFunctionPanic(functionCallErr) {
+			return true
+		}
+	}
+
+	return false
 }
