@@ -111,25 +111,24 @@ func checkForErrorsAndExit(l log.Logger, exitCode int, opts *options.TerragruntO
 			os.Exit(exitCode)
 		}
 
-		if errors.IsFunctionPanic(err) {
-			reportPanic(l, err, opts)
-		} else {
-			l.Error(err.Error())
-
-			if errStack := errors.ErrorStack(err); errStack != "" {
-				l.Trace(errStack)
-			}
-
-			// exit with the underlying error code
-			if explain := shell.ExplainError(err); len(explain) > 0 {
-				l.Errorf("Suggested fixes: \n%s", explain)
-			}
-		}
-
-		// exit with the underlying error code
 		exitCoder, exitCodeErr := util.GetExitCode(err)
 		if exitCodeErr != nil {
 			exitCoder = 1
+		}
+
+		if errors.IsFunctionPanic(err) {
+			reportPanic(l, err, opts)
+			os.Exit(exitCoder)
+		}
+
+		l.Error(err.Error())
+
+		if errStack := errors.ErrorStack(err); errStack != "" {
+			l.Trace(errStack)
+		}
+
+		if explain := shell.ExplainError(err); len(explain) > 0 {
+			l.Errorf("Suggested fixes: \n%s", explain)
 		}
 
 		os.Exit(exitCoder)
