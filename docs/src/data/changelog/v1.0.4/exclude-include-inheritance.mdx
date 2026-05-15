@@ -1,0 +1,12 @@
+---
+version: "v1.0.4"
+category: "bug-fixes"
+---
+
+#### Fixed `exclude` block being dropped when defined only in an included parent
+
+A unit that pulled in an `exclude` block from an include that did not declare its own `exclude` block saw the include's `exclude` configurations ignored.
+
+Included `exclude` blocks now get properly merged into unit configurations.
+
+Reported in [#5089](https://github.com/gruntwork-io/terragrunt/issues/5089). Thanks to [@HeikoNeblung](https://github.com/HeikoNeblung) for contributing this fix!

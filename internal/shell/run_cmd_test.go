@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -26,10 +27,10 @@ func TestRunShellCommand(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
-	cmd = shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "not-a-real-command")
+	cmd = shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "not-a-real-command")
 	require.Error(t, cmd)
 }
 
@@ -48,7 +49,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stdout.String(), "OpenTofu", "Output directed to stdout")
@@ -61,7 +62,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writers.Writer = stderr
 	terragruntOptions.Writers.ErrWriter = stderr
 
-	cmd = shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd = shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stderr.String(), "OpenTofu", "Output directed to stderr")

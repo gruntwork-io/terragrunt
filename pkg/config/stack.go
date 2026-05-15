@@ -10,15 +10,16 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
-
-	"github.com/hashicorp/go-getter/v2"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -65,6 +66,7 @@ type StackConfig struct {
 type Unit struct {
 	Remain              hcl.Body   `hcl:",remain"`
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
+	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
 	NoValidation        *bool      `hcl:"no_validation,attr"`
 	Values              *cty.Value `hcl:"values,attr"`
@@ -77,6 +79,7 @@ type Unit struct {
 type Stack struct {
 	Remain              hcl.Body   `hcl:",remain"`
 	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
+	Mutable             *bool      `hcl:"mutable,attr"`
 	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
 	NoValidation        *bool      `hcl:"no_validation,attr"`
 	Values              *cty.Value `hcl:"values,attr"`
@@ -120,10 +123,12 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
-			// Log at debug for stacks that don't use autoinclude (expected failure
-			// when HCL functions are present in source/path). The production parser
-			// handles these correctly.
-			l.Debugf("Autoinclude parse skipped for %s: %v", stackFilePath, parseErr)
+			// Detect autoinclude on the include-merged stackFile so the check works for include paths that use HCL functions/locals/values, where a raw-HCL nil-eval re-scan would fail.
+			if stackConfigHasAutoInclude(stackFile) {
+				return errors.Errorf("failed to parse autoinclude block(s) in %s: %w", stackFilePath, parseErr)
+			}
+
+			l.Tracef("Autoinclude parse skipped for %s: %v", stackFilePath, parseErr)
 		}
 
 		if parseErr == nil {
@@ -167,6 +172,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		stackSrcBytes:   stackSrcBytes,
 		casEnabled:      casEnabled,
 		casInstance:     casInstance,
+		strictControls:  pctx.StrictControls,
 	}
 
 	if err := generateUnits(ctx, l, &genOpts, pool, stackFile.Units); err != nil {
@@ -217,6 +223,7 @@ type generateOpts struct {
 	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
 	casInstance     *cas.CAS
 	sourceMap       map[string]string
+	strictControls  strict.Controls
 	rootWorkingDir  string
 	stackConfigPath string
 	sourceFile      string
@@ -243,6 +250,7 @@ func generateUnits(ctx context.Context, l log.Logger, opts *generateOpts, pool *
 				values:       unit.Values,
 				noStack:      unit.NoStack != nil && *unit.NoStack,
 				noValidation: unit.NoValidation != nil && *unit.NoValidation,
+				mutable:      unit.Mutable != nil && *unit.Mutable,
 				kind:         unitKind,
 			}
 
@@ -275,6 +283,7 @@ func generateStacks(ctx context.Context, l log.Logger, opts *generateOpts, pool 
 				source:       stack.Source,
 				noStack:      stack.NoStack != nil && *stack.NoStack,
 				noValidation: stack.NoValidation != nil && *stack.NoValidation,
+				mutable:      stack.Mutable != nil && *stack.Mutable,
 				values:       stack.Values,
 				kind:         stackKind,
 			}
@@ -314,6 +323,7 @@ type componentToGenerate struct {
 	source       string
 	noStack      bool
 	noValidation bool
+	mutable      bool
 	kind         componentKind
 }
 
@@ -384,20 +394,20 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 		return nil
 	}
 
-	kindStr := "unit"
+	kind := inthclparse.KindUnit
 	if cmp.kind == stackKind {
-		kindStr = "stack"
+		kind = inthclparse.KindStack
 	}
 
-	resolved, ok := opts.autoIncludes[inthclparse.AutoIncludeKey(kindStr, cmp.name)]
+	resolved, ok := opts.autoIncludes[inthclparse.AutoIncludeKey(kind, cmp.name)]
 	if !ok {
 		return nil
 	}
 
-	l.Infof("Generating %s for %s %s", inthclparse.AutoIncludeFile, kindStr, cmp.name)
+	l.Infof("Generating %s for %s %s", inthclparse.AutoIncludeFileNameForKind(kind), kind, cmp.name)
 
-	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, opts.stackSrcBytes, resolved.EvalCtx); err != nil {
-		return errors.Errorf("failed to write autoinclude for %s %s: %w", kindStr, cmp.name, err)
+	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, resolved.SourceBytes, resolved.EvalCtx); err != nil {
+		return errors.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
 	}
 
 	return nil
@@ -460,6 +470,8 @@ func fetchComponentSource(
 	cmp *componentToGenerate,
 	kindStr, source, dest string,
 ) error {
+	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.strictControls)
+
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
 			return errors.Errorf("cas:: source on %s %q requires the 'cas' experiment to be enabled", kindStr, cmp.name)
@@ -477,7 +489,12 @@ func fetchComponentSource(
 			return errors.Errorf("Failed to parse CAS reference for %s %s: %w", kindStr, cmp.name, err)
 		}
 
-		if err := opts.casInstance.MaterializeTree(ctx, l, hash, dest); err != nil {
+		var matOpts []cas.LinkTreeOption
+		if cmp.mutable {
+			matOpts = append(matOpts, cas.WithForceCopy())
+		}
+
+		if err := opts.casInstance.MaterializeTree(ctx, l, hash, dest, matOpts...); err != nil {
 			return errors.Errorf("Failed to materialize CAS tree for %s %s: %w", kindStr, cmp.name, err)
 		}
 
@@ -618,36 +635,21 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 
 // isLocal determines if a given source path is local or remote.
 //
-// It checks if the provided source file exists locally. If not, it checks if
-// the path is relative to the working directory. If that also fails, the function
-// attempts to detect the source's getter type and recognizes if it is a file URL.
-func isLocal(l log.Logger, workingDir, src string) bool {
-	// check initially if the source is a local file
+// It checks if the provided source file exists locally, or relative to the
+// working directory, or carries an explicit file:// scheme. A source that
+// looks like an absolute path but does not exist is treated as remote so the
+// caller can produce a meaningful fetch error rather than silently copying
+// from an empty directory.
+func isLocal(_ log.Logger, workingDir, src string) bool {
 	if util.FileExists(src) {
 		return true
 	}
 
-	src = filepath.Join(workingDir, src)
-	if util.FileExists(src) {
+	if util.FileExists(filepath.Join(workingDir, src)) {
 		return true
 	}
-	// check path through getters
-	req := &getter.Request{
-		Src: src,
-	}
-	for _, g := range getter.Getters {
-		recognized, err := getter.Detect(req, g)
-		if err != nil {
-			l.Debugf("Error detecting getter for %s: %v", src, err)
-			continue
-		}
 
-		if recognized {
-			break
-		}
-	}
-
-	return strings.HasPrefix(req.Src, "file://")
+	return strings.HasPrefix(src, "file://")
 }
 
 // ReadOutputs retrieves the OpenTofu/Terraform output JSON for this unit, converts it into a map of cty.Values,
@@ -759,10 +761,10 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 	return stackConfig, nil
 }
 
-// processStackConfigIncludes resolves include blocks in the production stack parsing path.
-// It reads each included file, parses it with the same eval context, and merges its
-// units and stacks into the main config. This ensures the production path generates
-// all components, not just those in the root file.
+// processStackConfigIncludes resolves include blocks during stack file parsing.
+// It reads each included file, parses it with the same eval context, and merges
+// its units and stacks into the main config so generation sees all components,
+// not just those in the root file.
 func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
 	for _, inc := range config.Includes {
 		includePath := inc.Path
@@ -997,4 +999,41 @@ func GetUnitDir(dir string, unit *Unit) string {
 	}
 
 	return filepath.Join(dir, StackDir, unit.Path)
+}
+
+// stackConfigHasAutoInclude reports whether any unit or stack in the include-merged stack config declares an autoinclude block.
+func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
+	if stackFile == nil {
+		return false
+	}
+
+	for _, u := range stackFile.Units {
+		if u != nil && hasAutoIncludeInBody(u.Remain) {
+			return true
+		}
+	}
+
+	for _, s := range stackFile.Stacks {
+		if s != nil && hasAutoIncludeInBody(s.Remain) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasAutoIncludeInBody reports whether the given remain body contains a top-level autoinclude block. Only native HCL syntax bodies (*hclsyntax.Body) are inspected; JSON-format stack files return false because autoinclude blocks are only supported in native HCL.
+func hasAutoIncludeInBody(body hcl.Body) bool {
+	syntaxBody, ok := body.(*hclsyntax.Body)
+	if !ok {
+		return false
+	}
+
+	for _, block := range syntaxBody.Blocks {
+		if block.Type == "autoinclude" {
+			return true
+		}
+	}
+
+	return false
 }

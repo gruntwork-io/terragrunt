@@ -1,0 +1,12 @@
+---
+version: "v1.0.4"
+category: "bug-fixes"
+---
+
+#### Tolerate non-JSON warnings in `tofu/terraform output -json`
+
+Resolving `dependency` outputs no longer fails when the underlying `tofu/terraform output -json` invocation prints a deprecation warning to stdout alongside the JSON payload. Terraform 1.15.0 introduced a backend deprecation warning for the S3 `dynamodb_table` parameter that is emitted on stdout *after* the JSON object, which broke parsing with errors like `invalid character 'W' after top-level value` and the misleading downstream message `There is no variable named "dependency"`.
+
+Terragrunt now isolates the first JSON object in the captured stdout, so leading log lines (for example, the long-standing AWS Client Side Monitoring `Enabling CSM` line) and trailing warning blocks are both ignored when reading dependency outputs.
+
+Resolves [#6001](https://github.com/gruntwork-io/terragrunt/issues/6001). Thanks to [@jpke](https://github.com/jpke) for contributing this fix!

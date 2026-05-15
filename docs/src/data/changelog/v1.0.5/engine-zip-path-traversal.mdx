@@ -1,0 +1,12 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### Engine archive extraction rejects path-traversal entries
+
+When Terragrunt extracted an engine archive while the `engine` experiment was active, entries whose target path resolved outside the extraction directory were not rejected correctly. Such an entry could overwrite files anywhere the Terragrunt process could write.
+
+These entries are now rejected early with a descriptive error before any bytes are written. Engine archives produced by Gruntwork were never affected; the gap only mattered for a tampered or untrusted archive.
+
+Thanks to [@jackiesre721](https://github.com/jackiesre721) for reporting this!

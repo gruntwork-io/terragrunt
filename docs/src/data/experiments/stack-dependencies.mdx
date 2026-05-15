@@ -11,7 +11,12 @@ import { Aside } from '@astrojs/starlight/components';
 Support for the `autoinclude` block in `terragrunt.stack.hcl` files, enabling dependency relationships and configuration overrides during stack generation.
 
 ### `stack-dependencies` - What it does
-When enabled, this experiment adds support for the `autoinclude` block nested inside `unit` and `stack` blocks in `terragrunt.stack.hcl` files. The `autoinclude` block allows users to define `dependency` blocks and arbitrary configuration that gets generated into a `terragrunt.autoinclude.hcl` file during stack generation. This file is automatically merged into the unit/stack configuration when parsed.
+When enabled, this experiment adds support for the `autoinclude` block nested inside `unit` and `stack` blocks in `terragrunt.stack.hcl` files. The `autoinclude` block allows users to define `dependency` blocks and arbitrary configuration that gets generated into an autoinclude file during stack generation. This file is automatically merged into the unit/stack configuration when parsed.
+
+The generated filename depends on the component kind:
+
+- **Unit autoincludes** are written as `terragrunt.autoinclude.hcl` next to the unit's `terragrunt.hcl`.
+- **Stack autoincludes** are written as `terragrunt.autoinclude.stack.hcl` next to the nested stack's `terragrunt.stack.hcl`. The `.stack.hcl` suffix mirrors `terragrunt.stack.hcl` so tooling (LSP, `read_terragrunt_config()`, indexers) can identify the file's purpose from its name alone.
 
 This experiment enables:
 
@@ -157,6 +162,7 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 - [x] E2E validation with `stack run apply` and `stack run destroy`
 - [x] Resolve `stack.<name>.<nested_stack>.path` at arbitrary nesting depth
 - [x] Surface autoinclude dependencies in `terragrunt find` and `terragrunt list` (JSON, tree, and long formats)
+- [x] Use distinct filenames for unit (`terragrunt.autoinclude.hcl`) and stack (`terragrunt.autoinclude.stack.hcl`) autoincludes
 - [ ] Community feedback on `autoinclude` syntax and merge behavior
 - [ ] Integration with CAS for generated files
 - [ ] Performance validation at scale

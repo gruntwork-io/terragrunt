@@ -1,0 +1,24 @@
+---
+version: "v1.0.4"
+category: "experiments-updated"
+---
+
+#### `catalog-redesign` — Units and stacks, scaffolded values, and key-binding cleanup
+
+The redesigned `terragrunt catalog` TUI gains two new component kinds, a guided scaffolding flow for placing them, and a small key-binding cleanup.
+
+**Units and stacks join modules and templates**
+
+Catalog discovery now classifies units (directories containing a `terragrunt.hcl`) and stacks (directories containing a `terragrunt.stack.hcl`) as first-class component kinds, alongside OpenTofu/Terraform modules and boilerplate templates. The list view picks them up automatically and they appear under their own tabs; press `tab` and `shift+tab` to cycle.
+
+When more than one classification could apply to the same directory (for example, a stack directory that also contains a unit), Terragrunt resolves it to a single kind under a fixed precedence: template, stack, unit, module.
+
+**Copy and scaffolded values**
+
+Selecting a unit or stack from the catalog now offers a copy action that materializes the component into your working directory. Terragrunt walks the copied component for `values.<name>` references and, if it finds any, writes a sibling `terragrunt.values.hcl` stub. Names referenced outside a `try(...)` are listed as required with a `"TODO"` placeholder; names referenced through a `try(...)` are listed as optional, pre-populated with the literal default from the fallback. An existing `terragrunt.values.hcl` is left alone.
+
+After the TUI exits, Terragrunt prints a short callout pointing at the directory it wrote to and any follow-up command you need to run, instead of leaving you to find the new directory yourself.
+
+**Catalog key bindings**
+
+The `ctrl+j` binding on the catalog list has been removed in favor of `enter` alone for choosing a focused entry, and dropped from the navigation set used while filtering. The mini help footer is updated to match.

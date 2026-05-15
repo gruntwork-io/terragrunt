@@ -28,6 +28,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -276,7 +277,7 @@ func runTerragruntWithConfig(
 
 	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(childCtx context.Context) error {
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...)
+		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, vexec.NewOSExec(), opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, &cfg.Terraform) {
@@ -482,11 +483,6 @@ func modulesNeedInit(opts *Options) (bool, error) {
 		return false, nil
 	}
 
-	moduleNeedInit := filepath.Join(opts.WorkingDir, ModuleInitRequiredFile)
-	if util.FileExists(moduleNeedInit) {
-		return true, nil
-	}
-
 	// Check for module definitions in .tf and .tofu files using WalkDir
 	hasModuleDefinition, err := util.RegexFoundInTFFiles(opts.WorkingDir, ModuleRegex)
 	if err != nil {
@@ -658,6 +654,12 @@ func PrepareNonInitCommand(
 func needsInitRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runcfg.RunConfig) (bool, error) {
 	if slices.Contains(TerraformCommandsThatDoNotNeedInit, opts.TerraformCliArgs.First()) {
 		return false, nil
+	}
+
+	// Marker check lives here, not in modulesNeedInit, so a populated .terraform/modules/
+	// can't short-circuit past it. Refs: #1921, #6058.
+	if util.FileExists(filepath.Join(opts.WorkingDir, ModuleInitRequiredFile)) {
+		return true, nil
 	}
 
 	if providersNeedInit(opts) {

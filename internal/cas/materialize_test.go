@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -205,7 +205,7 @@ func TestCASProtocolGetterGet(t *testing.T) {
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	g := cas.NewCASProtocolGetter(l, c)
+	g := getter.NewCASProtocolGetter(l, c)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
 
@@ -222,6 +222,66 @@ func TestCASProtocolGetterGet(t *testing.T) {
 	assert.Equal(t, fileContent, result)
 }
 
+// TestCASProtocolGetterGet_Mutable verifies that setting Mutable=true on the
+// protocol getter forces blob copies (independent inodes) instead of hardlinks
+// from the CAS store.
+func TestCASProtocolGetterGet_Mutable(t *testing.T) {
+	t.Parallel()
+
+	storeDir := helpers.TmpDirWOSymlinks(t)
+
+	blobStore := cas.NewStore(filepath.Join(storeDir, "blobs"))
+	synthStore := cas.NewStore(filepath.Join(storeDir, "synth", "trees"))
+
+	for _, s := range []*cas.Store{
+		blobStore,
+		cas.NewStore(filepath.Join(storeDir, "trees")),
+		synthStore,
+	} {
+		require.NoError(t, os.MkdirAll(s.Path(), 0755))
+	}
+
+	fileContent := []byte("resource {}\n")
+	fileHash := "filemut1"
+
+	blobContent := cas.NewContent(blobStore)
+	require.NoError(t, blobContent.Store(nil, fileHash, fileContent))
+
+	treeHash := "treemut1"
+	treeData := []byte("100644 blob filemut1\tmain.tf\n")
+
+	synthContent := cas.NewContent(synthStore)
+	require.NoError(t, synthContent.Store(nil, treeHash, treeData))
+
+	c, err := cas.New(cas.WithStorePath(storeDir))
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	g := getter.NewCASProtocolGetter(l, c)
+	g.Mutable = true
+
+	destDir := helpers.TmpDirWOSymlinks(t)
+
+	req := &getter.Request{
+		Src: "sha1:" + treeHash,
+		Dst: destDir,
+	}
+
+	require.NoError(t, g.Get(t.Context(), req))
+
+	sourcePath := filepath.Join(blobStore.Path(), fileHash[:2], fileHash)
+	targetPath := filepath.Join(destDir, "main.tf")
+
+	sourceInfo, err := os.Stat(sourcePath)
+	require.NoError(t, err)
+
+	targetInfo, err := os.Stat(targetPath)
+	require.NoError(t, err)
+
+	assert.False(t, os.SameFile(sourceInfo, targetInfo),
+		"Mutable=true must produce an independent inode (copy, not hard link)")
+}
+
 func TestCASProtocolGetterGet_InvalidRef(t *testing.T) {
 	t.Parallel()
 
@@ -231,7 +291,7 @@ func TestCASProtocolGetterGet_InvalidRef(t *testing.T) {
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	g := cas.NewCASProtocolGetter(l, c)
+	g := getter.NewCASProtocolGetter(l, c)
 
 	req := &getter.Request{
 		Src: "badprefix:abc123",

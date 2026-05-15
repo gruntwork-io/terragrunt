@@ -65,6 +65,9 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 					// prepare the viewport
 					var content string
 
+					tagsStyle := resolveTagsDetailStyle()
+					tags := selectedComponent.Tags()
+
 					if selectedComponent.IsMarkDown() {
 						var (
 							renderer *glamour.TermRenderer
@@ -76,14 +79,29 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 							return m, rendererErrCmd(err)
 						}
 
-						md, err := renderer.Render(selectedComponent.Content(false))
+						body := selectedComponent.Content(false)
+						if tagsStyle == tagsDetailStyleSection {
+							body += tagsMarkdownSection(tags)
+						}
+
+						md, err := renderer.Render(body)
 						if err != nil {
 							return m, rendererErrCmd(err)
+						}
+
+						if tagsStyle == tagsDetailStylePills {
+							if pills := renderDetailTagPills(tags); pills != "" {
+								md = lipgloss.NewStyle().PaddingLeft(glamourDocumentMargin).Render(pills) + "\n\n" + md
+							}
 						}
 
 						content = md
 					} else {
 						content = selectedComponent.Content(true)
+
+						if pills := renderDetailTagPills(tags); pills != "" {
+							content = pills + "\n\n" + content
+						}
 					}
 
 					m.viewport.SetContent(content)

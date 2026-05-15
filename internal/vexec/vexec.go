@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // Sentinel errors returned by the in-memory backend for misuse of the Cmd
@@ -55,6 +56,9 @@ type Cmd interface {
 	SetStderr(w io.Writer)
 	SetEnv(env []string)
 	SetDir(dir string)
+	// SetWaitDelay bounds the time Wait blocks after the context is canceled,
+	// mirroring exec.Cmd.WaitDelay. The in-memory backend ignores it.
+	SetWaitDelay(d time.Duration)
 
 	Run() error
 	Start() error
@@ -146,6 +150,8 @@ func (c *osCmd) SetStdout(w io.Writer) { c.cmd.Stdout = w }
 func (c *osCmd) SetStderr(w io.Writer) { c.cmd.Stderr = w }
 func (c *osCmd) SetEnv(env []string)   { c.cmd.Env = env }
 func (c *osCmd) SetDir(dir string)     { c.cmd.Dir = dir }
+
+func (c *osCmd) SetWaitDelay(d time.Duration) { c.cmd.WaitDelay = d }
 
 func (c *osCmd) SetCancel(fn func() error) { c.cmd.Cancel = fn }
 
@@ -274,6 +280,8 @@ func (c *memCmd) SetStdout(w io.Writer) { c.stdout = w }
 func (c *memCmd) SetStderr(w io.Writer) { c.stderr = w }
 func (c *memCmd) SetEnv(env []string)   { c.env = env }
 func (c *memCmd) SetDir(dir string)     { c.dir = dir }
+
+func (c *memCmd) SetWaitDelay(time.Duration) {}
 
 func (c *memCmd) ProcessState() *os.ProcessState { return nil }
 

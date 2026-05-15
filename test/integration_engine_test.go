@@ -5,14 +5,13 @@ package test_test
 import (
 	"fmt"
 
-	"github.com/hashicorp/go-getter/v2"
-
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"

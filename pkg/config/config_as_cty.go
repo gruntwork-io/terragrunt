@@ -548,6 +548,10 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 		val = ctyObjectAddField(val, "update_source_with_cas", goboolToCty(*config.UpdateSourceWithCAS))
 	}
 
+	if config.Mutable != nil {
+		val = ctyObjectAddField(val, "mutable", goboolToCty(*config.Mutable))
+	}
+
 	return val, nil
 }
 

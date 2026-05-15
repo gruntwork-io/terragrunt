@@ -28,22 +28,17 @@ const (
 	templatePillBgS = "#3A2D55"
 	templatePillFgS = "#DDC4FA"
 
-	// Shared white foreground for the unit and stack pills, whose darker
-	// backgrounds always read against pure white in both selected and
-	// unselected states.
-	pillFgWhite = "#FFFFFF"
+	// Unit type pill (blue).
+	unitPillBg  = "#1E2840"
+	unitPillFg  = "#89B4FA"
+	unitPillBgS = "#2A3855"
+	unitPillFgS = "#ABCAFF"
 
-	// Unit type pill (blue, matching the `list` / `find` command color).
-	unitPillBg  = "#1B46DD"
-	unitPillFg  = pillFgWhite
-	unitPillBgS = "#2E5BEA"
-	unitPillFgS = pillFgWhite
-
-	// Stack type pill (green, matching the `list` / `find` command color).
-	stackPillBg  = "#2E8B57"
-	stackPillFg  = pillFgWhite
-	stackPillBgS = "#3CA068"
-	stackPillFgS = pillFgWhite
+	// Stack type pill (green).
+	stackPillBg  = "#1F2D20"
+	stackPillFg  = "#A6E3A1"
+	stackPillBgS = "#2C402D"
+	stackPillFgS = "#C5EBC1"
 
 	// Version pill (neutral).
 	versionBg  = "#313244"
@@ -51,40 +46,56 @@ const (
 	versionBgS = "#45475A"
 	versionFgS = "#CDD6F4"
 
+	// Neutral tag pill (tertiary; reads dimmer than the description so the
+	// tag row recedes behind the title and description).
+	tagBg  = "#21252F"
+	tagFg  = "#6C7388"
+	tagBgS = "#2A2E3B"
+	tagFgS = "#828A9E"
+
 	// Source URL (neutral gray, matching the help/controls bar tone).
 	sourceColor  = "#4A4A4A"
 	sourceColorS = "#5A5A5A"
 
-	// Description (muted blue-gray, readable but secondary to title).
-	descForegroundColor = "#8393A7"
+	// Description (blue-gray; bold titles carry the hierarchy so this can read
+	// brighter than a typical "secondary" color without competing).
+	descForegroundColor = "#B0BFD0"
 
 	metaMuted = "#6C7086"
 
 	// delegateHeight is the number of lines per catalog item (title + desc + meta).
 	delegateHeight = 3
+	// delegateHeightWithTagsRow is the height when tags occupy their own line.
+	delegateHeightWithTagsRow = 4
 )
 
 // catalogDelegate renders catalog modules with a color-coded metadata row
 // (type pill, source, version pill) below the title and description.
 type catalogDelegate struct {
-	styles    list.DefaultItemStyles
-	keys      *tui.DelegateKeyMap
-	shortHelp func() []key.Binding
-	fullHelp  func() [][]key.Binding
+	styles     list.DefaultItemStyles
+	keys       *tui.DelegateKeyMap
+	shortHelp  func() []key.Binding
+	fullHelp   func() [][]key.Binding
+	tagsLayout tagsListLayout
 }
 
 func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
 	// Use the same default item styles as the production delegate, with our color overrides.
 	styles := list.NewDefaultItemStyles(true)
 
+	styles.NormalTitle = styles.NormalTitle.Bold(true)
+
 	styles.SelectedTitle = styles.SelectedTitle.
+		Bold(true).
 		Foreground(lipgloss.Color(selectedTitleForegroundColorDark)).
+		BorderStyle(lipgloss.ThickBorder()).
 		BorderForeground(lipgloss.Color(selectedTitleBorderForegroundColorDark))
 
 	styles.NormalDesc = styles.NormalDesc.
 		Foreground(lipgloss.Color(descForegroundColor))
 
 	styles.SelectedDesc = styles.SelectedTitle.
+		Bold(false).
 		Foreground(lipgloss.Color(selectedDescForegroundColorDark)).
 		BorderForeground(lipgloss.Color(selectedDescBorderForegroundColorDark))
 
@@ -99,11 +110,18 @@ func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
 		fullHelp: func() [][]key.Binding {
 			return [][]key.Binding{help}
 		},
+		tagsLayout: resolveTagsListLayout(),
 	}
 }
 
-// Height returns the delegate's preferred height (title + desc + meta + spacing).
+// Height returns the delegate's preferred height. In the default meta layout
+// each item is title + desc + meta (3 lines); in the row layout tags get
+// their own fourth line.
 func (d catalogDelegate) Height() int {
+	if d.tagsLayout == tagsListLayoutRow {
+		return delegateHeightWithTagsRow
+	}
+
 	return delegateHeight
 }
 
@@ -165,11 +183,25 @@ func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.
 	title, desc = styleTitleDesc(s, title, desc, selected, emptyFilter, isFiltered, matchedRunes)
 
 	metaInnerWidth := max(1, m.Width()-padL-padR)
-	colors := metaPalette(entry.Kind(), selected, emptyFilter)
-	metaContent := buildMetaRow(entry, metaInnerWidth, &colors)
+
+	includeTagsInMeta := d.tagsLayout == tagsListLayoutMeta && !emptyFilter
+	metaContent := BuildMetaRow(entry, metaInnerWidth, includeTagsInMeta, selected, emptyFilter)
 	metaLine := styleMetaLine(s, metaContent, selected, padL, padR)
 
-	fmt.Fprintf(w, "%s\n%s\n%s", title, desc, metaLine) //nolint:errcheck,gosec
+	if d.tagsLayout != tagsListLayoutRow {
+		fmt.Fprintf(w, "%s\n%s\n%s", title, desc, metaLine) //nolint:errcheck,gosec
+
+		return
+	}
+
+	tagsContent := ""
+	if !emptyFilter {
+		tagsContent = renderTagPills(entry.Tags(), metaInnerWidth, selected)
+	}
+
+	tagsLine := styleMetaLine(s, tagsContent, selected, padL, padR)
+
+	fmt.Fprintf(w, "%s\n%s\n%s\n%s", title, desc, metaLine, tagsLine) //nolint:errcheck,gosec
 }
 
 // truncateFirstLine returns only the first line of s, truncated to maxWidth.
@@ -303,6 +335,6 @@ const (
 	selectedTitleForegroundColorDark       = "#63C5DA"
 	selectedTitleBorderForegroundColorDark = "#63C5DA"
 
-	selectedDescForegroundColorDark       = "#59788E"
+	selectedDescForegroundColorDark       = "#8AA3B5"
 	selectedDescBorderForegroundColorDark = "#63C5DA"
 )

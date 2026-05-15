@@ -4,8 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/hashicorp/go-getter"
-
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"

@@ -15,13 +15,12 @@ import (
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	gitpkg "github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-getter/v2"
-	urlhelper "github.com/hashicorp/go-getter/v2/helper/url"
 	"gopkg.in/ini.v1"
 )
 
@@ -60,6 +59,7 @@ type Repo struct {
 	walkWithSymlinks bool
 	allowCAS         bool
 	slowReporting    bool
+	isLocal          bool
 }
 
 // RepoOpts contains parameters for NewRepo.
@@ -234,8 +234,14 @@ func (repo *Repo) CloneURL() string {
 
 // ResolveLatestTag looks up the latest semver release tag from the remote.
 // The result is stored in LatestTag. If the lookup fails or the repo has no
-// semver tags, LatestTag is left empty.
+// semver tags, LatestTag is left empty. Local catalog sources skip the
+// lookup entirely so a stale or unreachable origin URL in a local working
+// copy can't stall discovery.
 func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger) {
+	if repo.isLocal {
+		return
+	}
+
 	remote := repo.remoteForTagLookup()
 	if remote == "" {
 		return
@@ -301,6 +307,8 @@ func (repo *Repo) resolveCloneURL() string {
 }
 
 func (repo *Repo) handleLocalDir(l log.Logger, repoPath string) error {
+	repo.isLocal = true
+
 	if !filepath.IsAbs(repoPath) {
 		absRepoPath := filepath.Join(repo.rootWorkingDir, repoPath)
 		l.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
@@ -354,7 +362,7 @@ func (repo *Repo) cloneCompleted(fsys vfs.FS) bool {
 }
 
 func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, opts *CloneOptions) error {
-	client := getter.DefaultClient
+	var clientOpts []getter.Option
 
 	if repo.allowCAS {
 		cloneDepth := repo.casCloneDepth
@@ -376,8 +384,10 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, o
 			IncludedGitFiles: includedGitFiles,
 		}
 
-		client.Getters = append([]getter.Getter{cas.NewCASGetter(l, c, &cloneOpts)}, client.Getters...)
+		clientOpts = append(clientOpts, getter.WithCAS(c, &cloneOpts))
 	}
+
+	client := getter.NewClient(clientOpts...)
 
 	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
 	if err != nil {
@@ -527,7 +537,7 @@ func (repo *Repo) remoteForTagLookup() string {
 	u, _ = getter.SourceDirSubdir(u)
 
 	// Parse the URL so we can cleanly remove query parameters (e.g. "?ref=HEAD").
-	parsed, err := urlhelper.Parse(u)
+	parsed, err := getter.URLParse(u)
 	if err != nil {
 		return u
 	}

@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/go-commons/env"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
@@ -154,7 +155,7 @@ func WrapWithTelemetry(
 				return err
 			}
 
-			if err := runAction(childCtx, cliCtx, l, opts, action); err != nil {
+			if err := RunAction(childCtx, cliCtx, l, opts, action); err != nil {
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
 				return err
 			}
@@ -238,7 +239,9 @@ func GiveWindowsSymlinksTip(
 	tip.Evaluate(l)
 }
 
-func runAction(
+// RunAction wires up cancellation, run-scoped caches, and (when enabled)
+// the provider cache server, then invokes action with the resulting context.
+func RunAction(
 	ctx context.Context,
 	cliCtx *clihelper.Context,
 	l log.Logger,
@@ -274,8 +277,10 @@ func runAction(
 		l.Formatter().SetDisabledColors(true)
 	}
 
-	// actionCtx is the context passed to the action, which may be wrapped with hooks
-	actionCtx := ctx
+	// Install run-scoped caches on actionCtx so memoized helpers like
+	// [github.com/gruntwork-io/terragrunt/internal/shell.GitTopLevelDir] share
+	// state across the whole action.
+	actionCtx := cache.ContextWithCache(ctx)
 
 	// Run provider cache server
 	if opts.ProviderCacheOptions.Enabled {
@@ -284,16 +289,16 @@ func runAction(
 			return err
 		}
 
-		ln, err := server.Listen(ctx)
+		ln, err := server.Listen(actionCtx)
 		if err != nil {
 			return err
 		}
 		defer ln.Close() //nolint:errcheck
 
-		actionCtx = tf.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
+		actionCtx = tf.ContextWithTerraformCommandHook(actionCtx, server.TerraformCommandHook)
 
 		errGroup.Go(func() error {
-			return server.Run(ctx, ln)
+			return server.Run(actionCtx, ln)
 		})
 	}
 

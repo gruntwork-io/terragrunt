@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
@@ -41,10 +42,10 @@ func (handler *DirectProviderHandler) GetVersions(ctx context.Context, provider 
 		return nil, err
 	}
 
-	reqURL := &url.URL{
-		Scheme: "https",
-		Host:   provider.RegistryName,
-		Path:   path.Join(apiURLs.ProvidersV1, provider.Namespace, provider.Name, "versions"),
+	reqURL, err := ResolveProviderURL(apiURLs.ProvidersV1, provider.RegistryName,
+		provider.Namespace, provider.Name, "versions")
+	if err != nil {
+		return nil, err
 	}
 
 	versions := struct {
@@ -65,10 +66,10 @@ func (handler *DirectProviderHandler) GetPlatform(ctx context.Context, provider 
 		return nil, err
 	}
 
-	platformURL := &url.URL{
-		Scheme: "https",
-		Host:   provider.RegistryName,
-		Path:   path.Join(apiURLs.ProvidersV1, provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch),
+	platformURL, err := ResolveProviderURL(apiURLs.ProvidersV1, provider.RegistryName,
+		provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch)
+	if err != nil {
+		return nil, err
 	}
 
 	var resp = new(models.ResponseBody)
@@ -80,4 +81,35 @@ func (handler *DirectProviderHandler) GetPlatform(ctx context.Context, provider 
 	resp = resp.ResolveRelativeReferences(platformURL)
 
 	return resp, nil
+}
+
+// ResolveProviderURL builds a provider API URL. If providersV1 is an absolute URL
+// (starts with http:// or https://), it is used as the base. Otherwise, it is
+// treated as a relative path on the registry host.
+func ResolveProviderURL(providersV1, registryName string, pathParts ...string) (*url.URL, error) {
+	subPath := path.Join(pathParts...)
+
+	if strings.HasPrefix(providersV1, "http://") || strings.HasPrefix(providersV1, "https://") {
+		// Absolute URL from host block — append path parts directly
+		base := strings.TrimRight(providersV1, "/")
+		raw := base
+
+		if subPath != "" {
+			raw = base + "/" + subPath
+		}
+
+		u, err := url.Parse(raw)
+		if err != nil {
+			return nil, err
+		}
+
+		return u, nil
+	}
+
+	// Relative path — build URL with registry host
+	return &url.URL{
+		Scheme: "https",
+		Host:   registryName,
+		Path:   path.Join(providersV1, subPath),
+	}, nil
 }

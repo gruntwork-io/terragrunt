@@ -5,16 +5,20 @@ package vfs
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/charlievieth/fastwalk"
 	"github.com/gofrs/flock"
@@ -48,15 +52,41 @@ type Locker interface {
 	TryLock(name string) (Unlocker, bool, error)
 }
 
+// symlinkEvaluator lets filesystem implementations provide native symlink resolution.
+type symlinkEvaluator interface {
+	EvalSymlinksIfPossible(name string) (string, bool, error)
+}
+
+// ContextLocker is an optional interface for filesystems whose locks can be
+// acquired with a context. Implementations should poll/retry until the lock
+// is acquired or ctx is canceled. On ctx cancellation, the returned error
+// wraps ctx.Err(). Implementations also impose a hard upper bound on the
+// total wait (see [maxLockWait]), so a never-canceled ctx will still return
+// after that bound elapses.
+type ContextLocker interface {
+	LockContext(ctx context.Context, name string) (Unlocker, error)
+}
+
 // ErrNoHardLink is returned when a filesystem does not support hard links.
 var ErrNoHardLink = errors.New("hard link not supported")
 
 // ErrNoLock is returned when a filesystem does not support locking.
 var ErrNoLock = errors.New("locking not supported")
 
+const maxSymlinkEvaluations = 255
+
 // NewOSFS returns a filesystem backed by the real operating system filesystem.
 func NewOSFS() FS {
 	return &osFS{afero.NewOsFs()}
+}
+
+// IsOSFS reports whether fs is the OS-backed filesystem from [NewOSFS].
+// Callers that shell out to processes which only see the real disk (e.g.
+// `git`) should reject other filesystems up front rather than failing
+// inside the subprocess.
+func IsOSFS(fs FS) bool {
+	_, ok := fs.(*osFS)
+	return ok
 }
 
 // NewMemMapFS returns an in-memory filesystem for testing purposes.
@@ -85,6 +115,17 @@ func FileExists(vfs FS, path string) (bool, error) {
 	return false, err
 }
 
+// Lstat returns the FileInfo for the named path without following symlinks.
+// Filesystems that do not implement afero.Lstater fall back to Stat.
+func Lstat(fsys FS, path string) (os.FileInfo, error) {
+	if lstater, ok := fsys.(afero.Lstater); ok {
+		info, _, err := lstater.LstatIfPossible(path)
+		return info, err
+	}
+
+	return fsys.Stat(path)
+}
+
 // WriteFile writes data to a file on the given filesystem.
 func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(filename)
@@ -98,6 +139,53 @@ func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
 // ReadFile reads the contents of a file from the given filesystem.
 func ReadFile(fs FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fs, filename)
+}
+
+// EvalSymlinks returns path after evaluating symlinks using the supplied filesystem.
+func EvalSymlinks(fsys FS, path string) (string, error) {
+	if evaluator, ok := fsys.(symlinkEvaluator); ok {
+		resolved, supported, err := evaluator.EvalSymlinksIfPossible(path)
+		if supported {
+			return resolved, err
+		}
+	}
+
+	return walkSymlinks(fsys, path)
+}
+
+// ParentPathHasSymlink reports whether rel cannot be safely traversed under rootDir.
+// It returns true when rel is empty, ".", absolute, escapes rootDir with "..", or has a symlink in a parent component.
+// The final path component is not checked, so callers can safely remove a leaf symlink.
+func ParentPathHasSymlink(fsys FS, rootDir, rel string) (bool, error) {
+	rel = filepath.Clean(rel)
+	if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return true, nil
+	}
+
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) > 0 {
+		parts = parts[:len(parts)-1]
+	}
+
+	current := filepath.Clean(rootDir)
+	for _, part := range parts {
+		current = filepath.Join(current, part)
+
+		info, err := Lstat(fsys, current)
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+
+		if err != nil {
+			return false, err
+		}
+
+		if info.Mode()&os.ModeSymlink != 0 {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // MkdirTemp creates a temporary directory on the given filesystem.
@@ -157,6 +245,23 @@ func TryLock(fs FS, name string) (Unlocker, bool, error) {
 	}
 
 	return locker.TryLock(name)
+}
+
+// LockContext acquires a lock for the given name, blocking until it is
+// available or ctx is canceled. Filesystems that implement ContextLocker
+// use their native context-aware path; otherwise the call falls back to a
+// blocking Lock without context support.
+//
+// ContextLocker implementations cap the total wait at [maxLockWait], so the
+// call returns after that bound elapses even when ctx is never canceled.
+// Callers that want a shorter deadline should pass a ctx with their own
+// timeout.
+func LockContext(ctx context.Context, fs FS, name string) (Unlocker, error) {
+	if cl, ok := fs.(ContextLocker); ok {
+		return cl.LockContext(ctx, name)
+	}
+
+	return Lock(fs, name)
 }
 
 // WalkDirParallelOption configures a [WalkDirParallel] call.
@@ -264,6 +369,12 @@ func (fs *osFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	return info, true, err
 }
 
+func (*osFS) EvalSymlinksIfPossible(name string) (string, bool, error) {
+	resolved, err := filepath.EvalSymlinks(name)
+
+	return resolved, true, err
+}
+
 func (fs *osFS) Lock(name string) (Unlocker, error) {
 	l := flock.New(name)
 	if err := l.Lock(); err != nil {
@@ -286,6 +397,43 @@ func (fs *osFS) TryLock(name string) (Unlocker, bool, error) {
 	}
 
 	return l, true, nil
+}
+
+const (
+	// osFlockRetryDelay is how often osFS.LockContext polls for the flock
+	// when the lock is held by another process. gofrs/flock uses a syscall
+	// per attempt, so the tick is coarse enough to limit churn while still
+	// reacting quickly when the holder releases.
+	osFlockRetryDelay = 50 * time.Millisecond
+
+	// memMapLockRetryDelay is how often memMapFS.LockContext retries its
+	// in-process sync.Mutex TryLock. The retry is essentially free, so the
+	// tick is tighter than [osFlockRetryDelay] to keep tests snappy.
+	memMapLockRetryDelay = 10 * time.Millisecond
+
+	// maxLockWait is the hard upper bound on any LockContext call regardless
+	// of the caller's context. It guarantees the retry loop terminates even
+	// if a caller passes a never-canceled context and the lock is permanently
+	// held by another process.
+	maxLockWait = 30 * time.Minute
+)
+
+func (fs *osFS) LockContext(ctx context.Context, name string) (Unlocker, error) {
+	ctx, cancel := context.WithTimeout(ctx, maxLockWait)
+	defer cancel()
+
+	l := flock.New(name)
+
+	acquired, err := l.TryLockContext(ctx, osFlockRetryDelay)
+	if err != nil {
+		return nil, err
+	}
+
+	if !acquired {
+		return nil, ctx.Err()
+	}
+
+	return l, nil
 }
 
 // memMapFS wraps afero.MemMapFs with in-memory symlink support.
@@ -335,15 +483,49 @@ func (fs *memMapFS) ReadlinkIfPossible(name string) (string, error) {
 
 func (fs *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	if _, ok := fs.symlinks[name]; ok {
-		info, err := fs.Fs.Stat(name)
-
-		return info, true, err
+		return symlinkFileInfo{name: filepath.Base(name)}, true, nil
 	}
 
 	info, err := fs.Fs.Stat(name)
 
 	return info, false, err
 }
+
+// Remove deletes the file or symlink at name. Symlinks live in a side table
+// that the embedded afero.MemMapFs does not see, so they are handled here
+// before delegating to the underlying filesystem.
+func (fs *memMapFS) Remove(name string) error {
+	if _, ok := fs.symlinks[name]; ok {
+		delete(fs.symlinks, name)
+		return nil
+	}
+
+	return fs.Fs.Remove(name)
+}
+
+// RemoveAll deletes path and any children it contains. Symlinks live in a
+// side table that the embedded afero.MemMapFs does not see, so they are
+// handled here before delegating to the underlying filesystem.
+func (fs *memMapFS) RemoveAll(path string) error {
+	if _, ok := fs.symlinks[path]; ok {
+		delete(fs.symlinks, path)
+		return nil
+	}
+
+	return fs.Fs.RemoveAll(path)
+}
+
+// symlinkFileInfo reports symlink metadata for links stored in memMapFS's side table.
+type symlinkFileInfo struct {
+	name string
+}
+
+func (info symlinkFileInfo) Name() string       { return info.name }
+func (info symlinkFileInfo) Size() int64        { return 0 }
+func (info symlinkFileInfo) Mode() os.FileMode  { return os.ModeSymlink | os.ModePerm }
+func (info symlinkFileInfo) ModTime() time.Time { return time.Time{} }
+func (info symlinkFileInfo) IsDir() bool        { return false }
+func (info symlinkFileInfo) Sys() any           { return nil }
 
 func (fs *memMapFS) Lock(name string) (Unlocker, error) {
 	l := fs.getOrCreateLock(name)
@@ -360,6 +542,25 @@ func (fs *memMapFS) TryLock(name string) (Unlocker, bool, error) {
 	}
 
 	return l, true, nil
+}
+
+func (fs *memMapFS) LockContext(ctx context.Context, name string) (Unlocker, error) {
+	ctx, cancel := context.WithTimeout(ctx, maxLockWait)
+	defer cancel()
+
+	l := fs.getOrCreateLock(name)
+
+	for {
+		if l.mu.TryLock() {
+			return l, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(memMapLockRetryDelay):
+		}
+	}
 }
 
 func (fs *memMapFS) getOrCreateLock(name string) *memLock {
@@ -617,6 +818,202 @@ func lstatIfPossible(fsys FS, path string) (os.FileInfo, error) {
 	return fsys.Stat(path)
 }
 
+// symlinkWalkState tracks progress while resolving symlinks without using the OS filesystem.
+type symlinkWalkState struct {
+	path        string
+	vol         string
+	dest        string
+	volLen      int
+	start       int
+	linksWalked int
+}
+
+func newSymlinkWalkState(path string) *symlinkWalkState {
+	volLen := len(filepath.VolumeName(path))
+	if volLen < len(path) && os.IsPathSeparator(path[volLen]) {
+		volLen++
+	}
+
+	vol := path[:volLen]
+
+	return &symlinkWalkState{
+		path:   path,
+		vol:    vol,
+		dest:   vol,
+		volLen: volLen,
+		start:  volLen,
+	}
+}
+
+func walkSymlinks(fsys FS, path string) (string, error) {
+	state := newSymlinkWalkState(path)
+
+	for state.start < len(state.path) {
+		part, end, ok := state.nextComponent()
+		if !ok {
+			break
+		}
+
+		keepWalking, err := state.processComponent(fsys, part, end)
+		if err != nil {
+			return "", err
+		}
+
+		if !keepWalking {
+			break
+		}
+	}
+
+	return filepath.Clean(state.dest), nil
+}
+
+func (state *symlinkWalkState) nextComponent() (string, int, bool) {
+	start := state.start
+	for start < len(state.path) && os.IsPathSeparator(state.path[start]) {
+		start++
+	}
+
+	end := start
+	for end < len(state.path) && !os.IsPathSeparator(state.path[end]) {
+		end++
+	}
+
+	if end == start {
+		return "", end, false
+	}
+
+	return state.path[start:end], end, true
+}
+
+func (state *symlinkWalkState) processComponent(fsys FS, part string, end int) (bool, error) {
+	isWindowsDot := runtime.GOOS == "windows" && state.path[len(filepath.VolumeName(state.path)):] == "."
+	if part == "." && !isWindowsDot {
+		state.start = end
+
+		return true, nil
+	}
+
+	if part == ".." {
+		state.dest = walkSymlinksParent(state.dest, state.volLen, string(os.PathSeparator))
+		state.start = end
+
+		return true, nil
+	}
+
+	state.appendPart(part)
+
+	info, err := Lstat(fsys, state.dest)
+	if err != nil {
+		return false, err
+	}
+
+	if info.Mode()&fs.ModeSymlink == 0 {
+		return state.processRegularComponent(info, end)
+	}
+
+	return state.processSymlinkComponent(fsys, end, isWindowsDot)
+}
+
+func (state *symlinkWalkState) appendPart(part string) {
+	if len(state.dest) > len(filepath.VolumeName(state.dest)) && !os.IsPathSeparator(state.dest[len(state.dest)-1]) {
+		state.dest += string(os.PathSeparator)
+	}
+
+	state.dest += part
+}
+
+func (state *symlinkWalkState) processRegularComponent(info os.FileInfo, end int) (bool, error) {
+	if !info.Mode().IsDir() && end < len(state.path) {
+		return false, syscall.ENOTDIR
+	}
+
+	state.start = end
+
+	return true, nil
+}
+
+func (state *symlinkWalkState) processSymlinkComponent(fsys FS, end int, isWindowsDot bool) (bool, error) {
+	state.linksWalked++
+	if state.linksWalked > maxSymlinkEvaluations {
+		return false, errors.New("EvalSymlinks: too many links")
+	}
+
+	link, err := Readlink(fsys, state.dest)
+	if err != nil {
+		return false, err
+	}
+
+	if isWindowsDot && !filepath.IsAbs(link) {
+		return false, nil
+	}
+
+	state.path = link + state.path[end:]
+	state.applyLink(link)
+
+	return true, nil
+}
+
+func (state *symlinkWalkState) applyLink(link string) {
+	linkVolLen := len(filepath.VolumeName(link))
+	switch {
+	case linkVolLen > 0:
+		state.applyVolumeLink(link, linkVolLen)
+	case len(link) > 0 && os.IsPathSeparator(link[0]):
+		state.dest = link[:1]
+		state.start = 1
+		state.vol = link[:1]
+		state.volLen = 1
+	default:
+		state.dest = walkSymlinksLinkParent(state.dest, state.vol, state.volLen)
+		state.start = 0
+	}
+}
+
+func (state *symlinkWalkState) applyVolumeLink(link string, linkVolLen int) {
+	if linkVolLen < len(link) && os.IsPathSeparator(link[linkVolLen]) {
+		linkVolLen++
+	}
+
+	state.vol = link[:linkVolLen]
+	state.dest = state.vol
+	state.start = len(state.vol)
+	state.volLen = linkVolLen
+}
+
+func walkSymlinksParent(dest string, volLen int, pathSeparator string) string {
+	var idx int
+	for idx = len(dest) - 1; idx >= volLen; idx-- {
+		if os.IsPathSeparator(dest[idx]) {
+			break
+		}
+	}
+
+	if idx < volLen || dest[idx+1:] == ".." {
+		if len(dest) > volLen {
+			dest += pathSeparator
+		}
+
+		return dest + ".."
+	}
+
+	return dest[:idx]
+}
+
+func walkSymlinksLinkParent(dest string, vol string, volLen int) string {
+	var idx int
+	for idx = len(dest) - 1; idx >= volLen; idx-- {
+		if os.IsPathSeparator(dest[idx]) {
+			break
+		}
+	}
+
+	if idx < volLen {
+		return vol
+	}
+
+	return dest[:idx]
+}
+
 // walkDir recursively descends path, calling walkDirFn.
 // Adapted from https://go.dev/src/path/filepath/path.go
 func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) error {
@@ -724,8 +1121,12 @@ func sanitizeZipPath(dst, name string) (string, error) {
 	return destPath, nil
 }
 
-// validateSymlinkTarget validates that a symlink target doesn't escape the destination directory.
-func validateSymlinkTarget(dst, linkPath, target string) error {
+// ValidateSymlinkTarget reports whether a symbolic link whose path is linkPath
+// and whose stored target is target would resolve inside dst. Both absolute and
+// dot-dot targets that climb above dst are rejected so callers can safely
+// materialize symlinks from untrusted sources (zip archives, git trees) without
+// letting them escape the destination directory.
+func ValidateSymlinkTarget(dst, linkPath, target string) error {
 	// Resolve the target relative to the link's directory
 	absTarget := target
 	if !filepath.IsAbs(target) {
@@ -764,7 +1165,7 @@ func extractSymlink(l log.Logger, fs FS, dst, destPath string, zipFile *zip.File
 	target := string(targetBytes)
 
 	// Validate symlink target doesn't escape destination
-	if err := validateSymlinkTarget(dst, destPath, target); err != nil {
+	if err := ValidateSymlinkTarget(dst, destPath, target); err != nil {
 		return err
 	}
 

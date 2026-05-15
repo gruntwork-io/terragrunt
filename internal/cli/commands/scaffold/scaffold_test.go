@@ -22,7 +22,11 @@ import (
 )
 
 // newTestBoilerplateOptions creates a BoilerplateOptions for testing
-func newTestBoilerplateOptions(templateFolder, outputFolder string, vars map[string]any, noShell, noHooks bool) *boilerplateoptions.BoilerplateOptions {
+func newTestBoilerplateOptions(
+	templateFolder, outputFolder string,
+	vars map[string]any,
+	noShell, noHooks bool,
+) *boilerplateoptions.BoilerplateOptions {
 	return &boilerplateoptions.BoilerplateOptions{
 		TemplateFolder:          templateFolder,
 		OutputFolder:            outputFolder,
@@ -107,7 +111,9 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	assert.Len(t, cfg.Inputs, 1)
 	_, found := cfg.Inputs["required_var_1"]
 	require.True(t, found)
-	require.Equal(t, "git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8", *cfg.Terraform.Source)
+	require.Equal(t,
+		"git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8",
+		*cfg.Terraform.Source)
 }
 
 func TestCatalogConfigApplication(t *testing.T) {

@@ -49,7 +49,7 @@ func (m Model) View() tea.View {
 }
 
 func (m Model) listView() string {
-	bar := renderTabBar(m.activeTab, m.loading)
+	bar := RenderTabBar(m.activeTab, m.loading)
 	active := m.lists[m.activeTab]
 
 	return lipgloss.JoinVertical(lipgloss.Left, bar, "", active.View())

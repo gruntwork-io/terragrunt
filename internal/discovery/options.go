@@ -1,11 +1,20 @@
 package discovery
 
 import (
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
+
+// addParseReason is idempotent so repeated option calls don't duplicate.
+func (d *Discovery) addParseReason(r parseReason) {
+	if !slices.Contains(d.parseReasons, r) {
+		d.parseReasons = append(d.parseReasons, r)
+	}
+}
 
 // WithDiscoveryContext sets the discovery context.
 func (d *Discovery) WithDiscoveryContext(ctx *component.DiscoveryContext) *Discovery {
@@ -42,7 +51,7 @@ func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 
 	// Check if filters require parsing
 	if _, ok := d.filters.RequiresParse(); ok {
-		d.requiresParse = true
+		d.addParseReason(parseReasonFiltersRequireParse)
 	}
 
 	// Collect Git expressions
@@ -74,14 +83,14 @@ func (d *Discovery) WithNoHidden() *Discovery {
 
 // WithRequiresParse enables parsing of Terragrunt configurations.
 func (d *Discovery) WithRequiresParse() *Discovery {
-	d.requiresParse = true
+	d.addParseReason(parseReasonExplicit)
 	return d
 }
 
 // WithParseExclude enables parsing of exclude configurations.
 func (d *Discovery) WithParseExclude() *Discovery {
 	d.parseExclude = true
-	d.requiresParse = true
+	d.addParseReason(parseReasonParseExclude)
 
 	return d
 }
@@ -89,7 +98,7 @@ func (d *Discovery) WithParseExclude() *Discovery {
 // WithParseIncludes enables parsing for include configurations.
 func (d *Discovery) WithParseIncludes() *Discovery {
 	d.parseIncludes = true
-	d.requiresParse = true
+	d.addParseReason(parseReasonParseIncludes)
 
 	return d
 }
@@ -97,7 +106,7 @@ func (d *Discovery) WithParseIncludes() *Discovery {
 // WithReadFiles enables parsing for file reading information.
 func (d *Discovery) WithReadFiles() *Discovery {
 	d.readFiles = true
-	d.requiresParse = true
+	d.addParseReason(parseReasonReadFiles)
 
 	return d
 }
