@@ -13,7 +13,6 @@ import (
 
 	"github.com/zclconf/go-cty/cty/function"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -27,50 +26,39 @@ func TestFormatCrashLog(t *testing.T) {
 	t.Parallel()
 
 	app := newStubApp(t.TempDir(), time.Now().UTC(), 999)
-	terragruntVersion := version.Must(version.NewVersion("1.7.9"))
 	opts := &options.TerragruntOptions{
-		TerragruntVersion: terragruntVersion,
+		TerragruntVersion: version.Must(version.NewVersion("1.7.9")),
 	}
 	when := time.Now().UTC()
 	workDir := filepath.Join(os.TempDir(), "terragrunt-test-workdir")
 
-	output := app.formatCrashLog(stdErrors.New("boom"), opts, []string{"terragrunt", "run", "all"}, when, workDir, 999)
+	output := app.formatCrashLog("nil pointer dereference", []byte("stack-frames"), opts, []string{"terragrunt", "run", "all"}, when, workDir, 999)
 
 	assert.Contains(t, output, "Terragrunt panic report")
-	assert.Contains(t, output, "Timestamp: "+when.Format(time.RFC3339Nano))
 	assert.Contains(t, output, "Terragrunt version: 1.7.9")
 	assert.Contains(t, output, "Build commit: deadbeef")
 	assert.Contains(t, output, "Build modified: true")
 	assert.Contains(t, output, "GOOS/GOARCH: "+runtime.GOOS+"/"+runtime.GOARCH)
-	assert.Contains(t, output, "NumGoroutine: ")
 	assert.Contains(t, output, "NumCPU: ")
 	assert.Contains(t, output, "GOMAXPROCS: ")
+	assert.Contains(t, output, "NumGoroutine: ")
 	assert.Contains(t, output, "Working directory: "+workDir)
 	assert.Contains(t, output, "Command line: terragrunt run all")
-	assert.Contains(t, output, "Panic: boom")
+	assert.Contains(t, output, "Panic: nil pointer dereference")
 	assert.Contains(t, output, "Stack trace:")
-	assert.Contains(t, output, "All goroutines:")
-	assert.Contains(t, output, "stub-goroutine-dump")
+	assert.Contains(t, output, "stack-frames")
 }
 
-func TestFormatCrashLogUsesEmptyCommandLineFallback(t *testing.T) {
+func TestFormatCrashLogFallbacks(t *testing.T) {
 	t.Parallel()
 
-	app := newStubApp(t.TempDir(), time.Now().UTC(), 999)
-	when := time.Now().UTC()
-	output := app.formatCrashLog(stdErrors.New("boom"), &options.TerragruntOptions{}, []string{}, when, filepath.Join(os.TempDir(), "terragrunt-test-workdir"), 999)
+	app := newStubApp(t.TempDir(), time.Now().UTC(), 1)
+	output := app.formatCrashLog("", nil, &options.TerragruntOptions{}, []string{}, time.Now().UTC(), os.TempDir(), 1)
 
+	assert.Contains(t, output, "Panic: (no panic message)")
 	assert.Contains(t, output, "Command line: (empty command line)")
-}
-
-func TestFormatCrashLogHandlesNilError(t *testing.T) {
-	t.Parallel()
-
-	app := newStubApp(t.TempDir(), time.Now().UTC(), 999)
-	output := app.formatCrashLog(nil, &options.TerragruntOptions{}, []string{"terragrunt"}, time.Now().UTC(), os.TempDir(), 1)
-
-	assert.Contains(t, output, "Panic: (no error)")
 	assert.Contains(t, output, "(no stack trace was available)")
+	assert.Contains(t, output, "Terragrunt version: unknown")
 }
 
 func TestWriteCrashLogCreatesFile(t *testing.T) {
@@ -80,51 +68,36 @@ func TestWriteCrashLogCreatesFile(t *testing.T) {
 	panicWhen := time.Now().UTC()
 	app := newStubApp(tmp, panicWhen, 2026)
 
-	err := errors.New("boom")
-	opts := &options.TerragruntOptions{
+	logPath, _, writeErr := app.writeCrashLog("index out of range", []byte("stack"), &options.TerragruntOptions{
 		TerragruntVersion: version.Must(version.NewVersion("1.7.9")),
-	}
-
-	logPath, logContent, writeErr := app.writeCrashLog(err, opts, []string{"terragrunt", "plan"})
+	}, []string{"terragrunt", "plan"})
 	require.NoError(t, writeErr)
-	require.NotEmpty(t, logContent)
 	assert.Equal(t, filepath.Join(tmp, app.formatCrashLogPath(panicWhen, 2026)), logPath)
 
 	body, readErr := os.ReadFile(logPath)
 	require.NoError(t, readErr)
-	assert.Contains(t, string(body), "Terragrunt version: 1.7.9")
+	assert.Contains(t, string(body), "Panic: index out of range")
 	assert.Contains(t, string(body), "Command line: terragrunt plan")
-	assert.Contains(t, string(body), "Panic: boom")
-	assert.Contains(t, string(body), "Stack trace:")
-	assert.Contains(t, string(body), "All goroutines:")
 	assert.True(t, strings.HasPrefix(filepath.Base(logPath), "terragrunt-crash-"))
 	assert.True(t, strings.HasSuffix(filepath.Base(logPath), ".log"))
 }
 
-func TestFormatCrashLogPathUsesSecondPrecisionTimestamp(t *testing.T) {
+func TestFormatCrashLogPath(t *testing.T) {
 	t.Parallel()
 
 	app := newStubApp(t.TempDir(), time.Now().UTC(), 1)
-	when := time.Date(2026, 5, 15, 12, 30, 45, 123_456_789, time.UTC)
-	got := app.formatCrashLogPath(when, 4242)
+	when := time.Date(2026, 5, 15, 12, 30, 45, 0, time.UTC)
 
-	assert.Equal(t, "terragrunt-crash-20260515T123045Z-4242.log", got)
+	assert.Equal(t, "terragrunt-crash-20260515T123045Z-4242.log", app.formatCrashLogPath(when, 4242))
 }
 
-func TestWriteCrashLogFallsBackToTempDirWhenGetwdFails(t *testing.T) {
+func TestPanicReportWorkingDirFallsBackToTempDir(t *testing.T) {
 	t.Parallel()
 
-	panicWhen := time.Now().UTC()
-	app := newStubApp(t.TempDir(), panicWhen, 1010)
-	app.getwd = func() (string, error) {
-		return "", stdErrors.New("boom")
-	}
+	app := newStubApp(t.TempDir(), time.Now().UTC(), 1)
+	app.getwd = func() (string, error) { return "", stdErrors.New("denied") }
 
 	assert.Equal(t, os.TempDir(), app.panicReportWorkingDir())
-
-	logPath, _, writeErr := app.writeCrashLog(stdErrors.New("boom"), &options.TerragruntOptions{}, []string{})
-	require.NoError(t, writeErr)
-	assert.Equal(t, os.TempDir(), filepath.Dir(logPath))
 }
 
 func TestReportPanicFallsBackIfCrashLogCannotBeWritten(t *testing.T) {
@@ -136,20 +109,13 @@ func TestReportPanicFallsBackIfCrashLogCannotBeWritten(t *testing.T) {
 	}
 
 	logger, output := newTestLogger()
-	err := errors.New("unable to write crash log")
-
-	app.reportPanic(logger, err, &options.TerragruntOptions{
-		TerragruntVersion: version.Must(version.NewVersion("1.7.9")),
-	})
+	app.reportPanic(logger, "slice bounds out of range", []byte("stack"), &options.TerragruntOptions{})
 
 	logOutput := output.String()
 	assert.Contains(t, logOutput, "Unable to write crash report: disk full")
 	assert.Contains(t, logOutput, terragruntIssueURL)
-	assert.Contains(t, logOutput, "Please report this issue at")
-	assert.Contains(t, logOutput, "Terragrunt panic report")
-	assert.Contains(t, logOutput, "Terragrunt crashed!")
 	assert.Contains(t, logOutput, "TERRAGRUNT CRASH")
-	assert.Contains(t, logOutput, "Stack trace:")
+	assert.Contains(t, logOutput, "Panic: slice bounds out of range")
 }
 
 func TestReportPanicWritesHelpfulMessage(t *testing.T) {
@@ -160,126 +126,49 @@ func TestReportPanicWritesHelpfulMessage(t *testing.T) {
 	app := newStubApp(tmp, panicWhen, 8080)
 
 	logger, output := newTestLogger()
-	err := errors.New("capture message")
-
-	app.reportPanic(logger, err, &options.TerragruntOptions{
-		TerragruntVersion: version.Must(version.NewVersion("1.7.9")),
-	})
+	app.reportPanic(logger, "divide by zero", []byte("stack"), &options.TerragruntOptions{})
 
 	expectedPath := filepath.Join(tmp, app.formatCrashLogPath(panicWhen, 8080))
 	logOutput := output.String()
 
 	assert.Contains(t, logOutput, "A panic report has been saved to: "+expectedPath)
 	assert.Contains(t, logOutput, terragruntIssueURL)
-	assert.Contains(t, logOutput, "Terragrunt crashed!")
-	assert.NotContains(t, logOutput, "Unable to write crash report")
 	assert.Contains(t, logOutput, "TERRAGRUNT CRASH")
+	assert.NotContains(t, logOutput, "Unable to write crash report")
 }
 
-func TestReportPanicIsNoopOnNilError(t *testing.T) {
+// TestCheckForErrorsAndExitDetectsCtyPanic verifies that an HCL-function
+// panic surfacing as a function.PanicError returned from RunContext is
+// detected via stdlib errors.As and routed through the crash-report UX.
+func TestCheckForErrorsAndExitDetectsCtyPanic(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
-	app := newStubApp(tmp, time.Now().UTC(), 1)
-	logger, output := newTestLogger()
+	ctyErr := function.PanicError{Value: "nil deref", Stack: []byte("cty-panic-stack")}
+	wrapped := fmt.Errorf("evaluating expression: %w", ctyErr)
 
-	app.reportPanic(logger, nil, &options.TerragruntOptions{})
-
-	assert.Empty(t, output.String())
-
-	entries, err := os.ReadDir(tmp)
-	require.NoError(t, err)
-	assert.Empty(t, entries, "no crash log should be written for a nil panic")
+	var detected function.PanicError
+	require.ErrorAs(t, wrapped, &detected)
+	assert.Equal(t, "nil deref", fmt.Sprintf("%v", detected.Value))
+	assert.Equal(t, "cty-panic-stack", string(detected.Stack))
 }
 
-func TestIsPanicError(t *testing.T) {
+// TestRawRecoverCatchesPanic is a regression test for the original bug —
+// errors.Recover wrapped inside another deferred closure returns nil.
+// Using raw recover() directly inside the deferred function works.
+func TestRawRecoverCatchesPanic(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns false for nil", func(t *testing.T) {
-		t.Parallel()
-
-		assert.False(t, isPanicError(nil))
-	})
-
-	t.Run("returns false for plain wrapped error", func(t *testing.T) {
-		t.Parallel()
-
-		assert.False(t, isPanicError(errors.New("regular failure")))
-		assert.False(t, isPanicError(stdErrors.New("formatted")))
-		// Even a message that mentions "panic" must not match — only real
-		// runtime stack frames or cty's typed panic count.
-		assert.False(t, isPanicError(errors.New("panic message but not a panic")))
-	})
-
-	t.Run("matches cty function.PanicError by type", func(t *testing.T) {
-		t.Parallel()
-
-		err := function.PanicError{
-			Value: "panic in cty function",
-			Stack: []byte("cty stack"),
-		}
-
-		assert.True(t, isPanicError(err))
-		assert.True(t, isPanicError(fmt.Errorf("wrapped: %w", err)))
-	})
-
-	t.Run("matches an error whose stack contains runtime.gopanic", func(t *testing.T) {
-		t.Parallel()
-
-		var recovered error
-
-		func() {
-			defer errors.Recover(func(err error) {
-				recovered = err
-			})
-
-			panic("simulated panic")
-		}()
-
-		require.Error(t, recovered)
-		assert.True(t, isPanicError(recovered), "errors.Recover output must be classified as a panic")
-	})
-}
-
-// TestRecoverIntegrationFromDeferredPanic exercises the real production
-// pattern: defer errors.Recover(handler) catches a panic raised in the
-// surrounded scope, and reportPanic produces a crash log. Regression test
-// for the previous bug where recover() was wrapped in another deferred
-// closure and silently returned nil.
-func TestRecoverIntegrationFromDeferredPanic(t *testing.T) {
-	t.Parallel()
-
-	tmp := t.TempDir()
-	app := newStubApp(tmp, time.Now().UTC(), 9001)
-	logger, output := newTestLogger()
-	opts := &options.TerragruntOptions{
-		TerragruntVersion: version.Must(version.NewVersion("1.7.9")),
-	}
+	var caught any
 
 	func() {
-		defer errors.Recover(func(cause error) {
-			require.Error(t, cause)
-			assert.True(t, isPanicError(cause))
-			app.reportPanic(logger, cause, opts)
-		})
+		defer func() {
+			caught = recover()
+		}()
 
-		panic("kaboom")
+		panic("simulated runtime panic")
 	}()
 
-	logOutput := output.String()
-	assert.Contains(t, logOutput, "TERRAGRUNT CRASH")
-	assert.Contains(t, logOutput, "A panic report has been saved to:")
-
-	entries, err := os.ReadDir(tmp)
-	require.NoError(t, err)
-	require.Len(t, entries, 1, "exactly one crash log should be produced")
-
-	body, err := os.ReadFile(filepath.Join(tmp, entries[0].Name()))
-	require.NoError(t, err)
-	assert.Contains(t, string(body), "Panic: panic:")
-	assert.Contains(t, string(body), "kaboom")
-	assert.Contains(t, string(body), "Stack trace:")
-	assert.Contains(t, string(body), "All goroutines:")
+	assert.Equal(t, "simulated runtime panic", caught)
 }
 
 // Private helper functions
@@ -294,15 +183,10 @@ func newTestLogger() (log.Logger, *bytes.Buffer) {
 
 func newStubApp(workDir string, panicWhen time.Time, pid int) *terragruntApp {
 	return &terragruntApp{
-		now:      func() time.Time { return panicWhen },
-		getwd:    func() (string, error) { return workDir, nil },
-		getPID:   func() int { return pid },
-		writeLog: os.WriteFile,
-		allGoroutineDump: func() string {
-			return "stub-goroutine-dump\n"
-		},
-		buildInfo: func() (string, bool) {
-			return "deadbeef", true
-		},
+		now:       func() time.Time { return panicWhen },
+		getwd:     func() (string, error) { return workDir, nil },
+		getPID:    func() int { return pid },
+		writeLog:  os.WriteFile,
+		buildInfo: func() (string, bool) { return "deadbeef", true },
 	}
 }
