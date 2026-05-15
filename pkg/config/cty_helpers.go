@@ -4,6 +4,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"runtime/debug"
 
 	"dario.cat/mergo"
 	"github.com/zclconf/go-cty/cty"
@@ -36,7 +37,9 @@ func wrapStringSliceToStringAsFuncImpl(
 				return cty.StringVal(""), err
 			}
 
-			out, err := toWrap(ctx, pctx, l, params)
+			out, err := callWithPanicProtection(func() (string, error) {
+				return toWrap(ctx, pctx, l, params)
+			})
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -44,6 +47,19 @@ func wrapStringSliceToStringAsFuncImpl(
 			return cty.StringVal(out), nil
 		},
 	})
+}
+
+func callWithPanicProtection[T any](f func() (T, error)) (out T, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = errors.New(errors.FunctionPanicError{
+				Recovered: recovered,
+				Stack:     string(debug.Stack()),
+			})
+		}
+	}()
+
+	return f()
 }
 
 func wrapStringSliceToNumberAsFuncImpl(
