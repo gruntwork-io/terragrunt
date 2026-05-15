@@ -132,8 +132,8 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 - [x] Phased parser for `terragrunt.stack.hcl`: first parse the file body, then evaluate locals and other production-context values, then apply include merges, then decode unit/stack blocks and run autoinclude resolution. This allows unit/stack blocks to use `local.*`, `values.*`, and Terragrunt functions from the production eval context.
 - [x] `terragrunt run --all` discovery walks generated nested stack files via a path-only decode shape that does not require the unit `source` to be evaluable
 - [x] Unify strict and permissive parser into a single code path
-- [ ] Add integration tests and test fixtures for end-to-end validation
-- [ ] Add E2E validation with `stack run apply` and `stack run destroy`
+- [x] Add integration tests and test fixtures for end-to-end validation
+- [x] Add E2E validation with `stack run apply` and `stack run destroy`
 - [ ] Community feedback on `autoinclude` syntax and merge behavior
 - [ ] Integrate with CAS for generated files
 - [ ] Validate performance at scale
