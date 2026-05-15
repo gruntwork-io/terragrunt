@@ -5,6 +5,7 @@ package vfs
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -56,6 +57,16 @@ type symlinkEvaluator interface {
 	EvalSymlinksIfPossible(name string) (string, bool, error)
 }
 
+// ContextLocker is an optional interface for filesystems whose locks can be
+// acquired with a context. Implementations should poll/retry until the lock
+// is acquired or ctx is canceled. On ctx cancellation, the returned error
+// wraps ctx.Err(). Implementations also impose a hard upper bound on the
+// total wait (see [maxLockWait]), so a never-canceled ctx will still return
+// after that bound elapses.
+type ContextLocker interface {
+	LockContext(ctx context.Context, name string) (Unlocker, error)
+}
+
 // ErrNoHardLink is returned when a filesystem does not support hard links.
 var ErrNoHardLink = errors.New("hard link not supported")
 
@@ -67,6 +78,15 @@ const maxSymlinkEvaluations = 255
 // NewOSFS returns a filesystem backed by the real operating system filesystem.
 func NewOSFS() FS {
 	return &osFS{afero.NewOsFs()}
+}
+
+// IsOSFS reports whether fs is the OS-backed filesystem from [NewOSFS].
+// Callers that shell out to processes which only see the real disk (e.g.
+// `git`) should reject other filesystems up front rather than failing
+// inside the subprocess.
+func IsOSFS(fs FS) bool {
+	_, ok := fs.(*osFS)
+	return ok
 }
 
 // NewMemMapFS returns an in-memory filesystem for testing purposes.
@@ -227,6 +247,23 @@ func TryLock(fs FS, name string) (Unlocker, bool, error) {
 	return locker.TryLock(name)
 }
 
+// LockContext acquires a lock for the given name, blocking until it is
+// available or ctx is canceled. Filesystems that implement ContextLocker
+// use their native context-aware path; otherwise the call falls back to a
+// blocking Lock without context support.
+//
+// ContextLocker implementations cap the total wait at [maxLockWait], so the
+// call returns after that bound elapses even when ctx is never canceled.
+// Callers that want a shorter deadline should pass a ctx with their own
+// timeout.
+func LockContext(ctx context.Context, fs FS, name string) (Unlocker, error) {
+	if cl, ok := fs.(ContextLocker); ok {
+		return cl.LockContext(ctx, name)
+	}
+
+	return Lock(fs, name)
+}
+
 // WalkDirParallelOption configures a [WalkDirParallel] call.
 type WalkDirParallelOption func(*walkDirParallelConfig)
 
@@ -362,6 +399,43 @@ func (fs *osFS) TryLock(name string) (Unlocker, bool, error) {
 	return l, true, nil
 }
 
+const (
+	// osFlockRetryDelay is how often osFS.LockContext polls for the flock
+	// when the lock is held by another process. gofrs/flock uses a syscall
+	// per attempt, so the tick is coarse enough to limit churn while still
+	// reacting quickly when the holder releases.
+	osFlockRetryDelay = 50 * time.Millisecond
+
+	// memMapLockRetryDelay is how often memMapFS.LockContext retries its
+	// in-process sync.Mutex TryLock. The retry is essentially free, so the
+	// tick is tighter than [osFlockRetryDelay] to keep tests snappy.
+	memMapLockRetryDelay = 10 * time.Millisecond
+
+	// maxLockWait is the hard upper bound on any LockContext call regardless
+	// of the caller's context. It guarantees the retry loop terminates even
+	// if a caller passes a never-canceled context and the lock is permanently
+	// held by another process.
+	maxLockWait = 30 * time.Minute
+)
+
+func (fs *osFS) LockContext(ctx context.Context, name string) (Unlocker, error) {
+	ctx, cancel := context.WithTimeout(ctx, maxLockWait)
+	defer cancel()
+
+	l := flock.New(name)
+
+	acquired, err := l.TryLockContext(ctx, osFlockRetryDelay)
+	if err != nil {
+		return nil, err
+	}
+
+	if !acquired {
+		return nil, ctx.Err()
+	}
+
+	return l, nil
+}
+
 // memMapFS wraps afero.MemMapFs with in-memory symlink support.
 type memMapFS struct {
 	afero.Fs
@@ -468,6 +542,25 @@ func (fs *memMapFS) TryLock(name string) (Unlocker, bool, error) {
 	}
 
 	return l, true, nil
+}
+
+func (fs *memMapFS) LockContext(ctx context.Context, name string) (Unlocker, error) {
+	ctx, cancel := context.WithTimeout(ctx, maxLockWait)
+	defer cancel()
+
+	l := fs.getOrCreateLock(name)
+
+	for {
+		if l.mu.TryLock() {
+			return l, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(memMapLockRetryDelay):
+		}
+	}
 }
 
 func (fs *memMapFS) getOrCreateLock(name string) *memLock {
@@ -1028,8 +1121,12 @@ func sanitizeZipPath(dst, name string) (string, error) {
 	return destPath, nil
 }
 
-// validateSymlinkTarget validates that a symlink target doesn't escape the destination directory.
-func validateSymlinkTarget(dst, linkPath, target string) error {
+// ValidateSymlinkTarget reports whether a symbolic link whose path is linkPath
+// and whose stored target is target would resolve inside dst. Both absolute and
+// dot-dot targets that climb above dst are rejected so callers can safely
+// materialize symlinks from untrusted sources (zip archives, git trees) without
+// letting them escape the destination directory.
+func ValidateSymlinkTarget(dst, linkPath, target string) error {
 	// Resolve the target relative to the link's directory
 	absTarget := target
 	if !filepath.IsAbs(target) {
@@ -1068,7 +1165,7 @@ func extractSymlink(l log.Logger, fs FS, dst, destPath string, zipFile *zip.File
 	target := string(targetBytes)
 
 	// Validate symlink target doesn't escape destination
-	if err := validateSymlinkTarget(dst, destPath, target); err != nil {
+	if err := ValidateSymlinkTarget(dst, destPath, target); err != nil {
 		return err
 	}
 

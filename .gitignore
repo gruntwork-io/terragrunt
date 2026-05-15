@@ -16,6 +16,7 @@ terragrunt
 .terragrunt-stack
 .devcontainer.json
 .cursor/
+.claude/
 .env
 .licensei.cache
 bin

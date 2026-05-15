@@ -1731,6 +1731,7 @@ locals {
 terraform {
 	source = "git::git@github.com:org/repo.git//modules/test?ref=v0.1.0"
 	update_source_with_cas = true
+	mutable = true
 
 	extra_arguments "secrets" {
 		commands = ["plan", "apply"]
@@ -1897,6 +1898,7 @@ inputs = {
 	assert.Equal(t, terragruntConfig.Locals, rereadConfig.Locals)
 	assert.Equal(t, terragruntConfig.Terraform.Source, rereadConfig.Terraform.Source)
 	assert.Equal(t, terragruntConfig.Terraform.UpdateSourceWithCAS, rereadConfig.Terraform.UpdateSourceWithCAS)
+	assert.Equal(t, terragruntConfig.Terraform.Mutable, rereadConfig.Terraform.Mutable)
 	assert.Equal(t, terragruntConfig.Terraform.ExtraArgs, rereadConfig.Terraform.ExtraArgs)
 	assert.Equal(t, terragruntConfig.Terraform.BeforeHooks, rereadConfig.Terraform.BeforeHooks)
 	assert.Equal(t, terragruntConfig.Terraform.AfterHooks, rereadConfig.Terraform.AfterHooks)

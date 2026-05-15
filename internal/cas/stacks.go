@@ -17,6 +17,41 @@ import (
 	"github.com/hashicorp/go-getter/v2"
 )
 
+// RemoteSourceDetectors is the go-getter detector chain CAS applies to
+// shorthand remote sources (e.g. "github.com/org/repo") so they can be
+// rewritten into URLs git understands. Used by ProcessStackComponent to
+// canonicalize sources before resolving refs and dispatching to the
+// central git store.
+var RemoteSourceDetectors = []getter.Detector{
+	new(getter.GitHubDetector),
+	new(getter.GitDetector),
+	new(getter.BitBucketDetector),
+	new(getter.GitLabDetector),
+}
+
+// DetectRemoteSource runs the shorthand-rewriting detectors against src and
+// returns the rewritten URL. Sources already prefixed with "git::" are
+// returned unchanged. If no detector recognizes src, it is returned as-is so
+// the caller can decide whether to treat that as an error.
+func DetectRemoteSource(src string) (string, error) {
+	if strings.HasPrefix(src, "git::") {
+		return src, nil
+	}
+
+	for _, d := range RemoteSourceDetectors {
+		out, ok, err := d.Detect(src, "")
+		if err != nil {
+			return "", err
+		}
+
+		if ok {
+			return out, nil
+		}
+	}
+
+	return src, nil
+}
+
 // StackCASResult holds the results of CAS processing for a stack component.
 type StackCASResult struct {
 	// Cleanup removes the temporary directory when called.
@@ -41,9 +76,14 @@ func (c *CAS) ProcessStackComponent(ctx context.Context, l log.Logger, source, k
 		return c.processLocalStackComponent(ctx, l, repoURL, subdir)
 	}
 
-	parsedURL, err := url.Parse(repoURL)
+	detectedURL, err := DetectRemoteSource(repoURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse source URL %q: %w", repoURL, err)
+		return nil, fmt.Errorf("failed to detect source URL %q: %w", repoURL, err)
+	}
+
+	parsedURL, err := url.Parse(detectedURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse source URL %q: %w", detectedURL, err)
 	}
 
 	ref := parsedURL.Query().Get("ref")
@@ -55,11 +95,18 @@ func (c *CAS) ProcessStackComponent(ctx context.Context, l log.Logger, source, k
 
 	cleanURL := strings.TrimPrefix(parsedURL.String(), "git::")
 
-	// Resolve ref to commit hash
-	refHash, err := c.resolveReference(ctx, cleanURL, ref)
+	// Stack processing derives deterministic CAS keys from refHash, so
+	// abbreviated SHAs would produce keys that depend on the input
+	// shape. Full SHAs are the supported form for commit refs in
+	// stacks; CommitHash returns the user input as-is for the
+	// commit-ref path, and the canonical hash for the symbolic-ref
+	// path.
+	resolved, err := c.resolveReference(ctx, cleanURL, ref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve reference %q: %w", ref, err)
 	}
+
+	refHash := resolved.CommitHash()
 
 	// Create temp dir for the clone
 	tempDir, err := os.MkdirTemp("", "terragrunt-cas-stack-*")

@@ -57,8 +57,9 @@ const (
 	sourceColor  = "#4A4A4A"
 	sourceColorS = "#5A5A5A"
 
-	// Description (muted blue-gray, readable but secondary to title).
-	descForegroundColor = "#8393A7"
+	// Description (blue-gray; bold titles carry the hierarchy so this can read
+	// brighter than a typical "secondary" color without competing).
+	descForegroundColor = "#B0BFD0"
 
 	metaMuted = "#6C7086"
 
@@ -81,6 +82,8 @@ type catalogDelegate struct {
 func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
 	// Use the same default item styles as the production delegate, with our color overrides.
 	styles := list.NewDefaultItemStyles(true)
+
+	styles.NormalTitle = styles.NormalTitle.Bold(true)
 
 	styles.SelectedTitle = styles.SelectedTitle.
 		Bold(true).
@@ -332,6 +335,6 @@ const (
 	selectedTitleForegroundColorDark       = "#63C5DA"
 	selectedTitleBorderForegroundColorDark = "#63C5DA"
 
-	selectedDescForegroundColorDark       = "#59788E"
+	selectedDescForegroundColorDark       = "#8AA3B5"
 	selectedDescBorderForegroundColorDark = "#63C5DA"
 )

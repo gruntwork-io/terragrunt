@@ -1,3 +1,3 @@
 terraform {
-  source = ".//module"
+  source = "./module"
 }

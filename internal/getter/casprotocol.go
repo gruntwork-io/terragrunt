@@ -14,8 +14,9 @@ import (
 // CASProtocolGetter resolves cas::<algorithm>:<hash> references by
 // materializing the referenced tree from the CAS store.
 type CASProtocolGetter struct {
-	CAS    *cas.CAS
-	Logger log.Logger
+	CAS     *cas.CAS
+	Logger  log.Logger
+	Mutable bool
 }
 
 // NewCASProtocolGetter creates a new CASProtocolGetter.
@@ -35,7 +36,12 @@ func (g *CASProtocolGetter) Get(ctx context.Context, req *getter.Request) error 
 		return fmt.Errorf("failed to parse CAS reference %q: %w", req.Src, err)
 	}
 
-	return g.CAS.MaterializeTree(ctx, g.Logger, hash, req.Dst)
+	var linkOpts []cas.LinkTreeOption
+	if g.Mutable {
+		linkOpts = append(linkOpts, cas.WithForceCopy())
+	}
+
+	return g.CAS.MaterializeTree(ctx, g.Logger, hash, req.Dst, linkOpts...)
 }
 
 // GetFile is not supported for the CAS protocol getter.
