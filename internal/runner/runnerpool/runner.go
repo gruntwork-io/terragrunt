@@ -331,7 +331,7 @@ func UnitsWithDependents(q *queue.Queue) map[string]bool {
 
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
-func (rnr *Runner) Run(ctx context.Context, l log.Logger, v venv.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
+func (rnr *Runner) Run(ctx context.Context, l log.Logger, v *venv.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
@@ -486,7 +486,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v venv.Venv, stackOpts
 			//
 			// The obtain_creds span is emitted by externalcmd.Provider.GetCredentials
 			// only when an auth provider is configured, so no conditional is needed here.
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitV, unitOpts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(unitOpts))
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, &unitV, unitOpts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(unitOpts))
 			if err != nil {
 				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
 
@@ -501,7 +501,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v venv.Venv, stackOpts
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 			}, func(readCtx context.Context, unitLogger log.Logger) error {
 				parseCtx, pctx := configbridge.NewParsingContext(readCtx, unitLogger, unitOpts)
-				pctx = pctx.WithVenv(unitV)
+				pctx = pctx.WithVenv(&unitV)
 
 				var readErr error
 
@@ -534,7 +534,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v venv.Venv, stackOpts
 				return unitRunner.Run(
 					runCtx,
 					unitLogger,
-					unitV,
+					&unitV,
 					unitOpts,
 					r,
 					runCfg,

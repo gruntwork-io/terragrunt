@@ -72,7 +72,7 @@ const (
 
 // New returns the set of Terragrunt commands, grouped into categories.
 // Categories are ordered in increments of 10 for easy insertion of new categories.
-func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.Commands {
+func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Commands {
 	mainCommands := clihelper.Commands{
 		runcmd.NewCommand(l, opts, v),  // run
 		stack.NewCommand(l, opts, v),   // stack
@@ -145,7 +145,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 func WrapWithTelemetry(
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	v venv.Venv,
+	v *venv.Venv,
 ) func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
 	return func(
 		ctx context.Context,
@@ -278,7 +278,7 @@ func RunAction(
 	cliCtx *clihelper.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	v venv.Venv,
+	v *venv.Venv,
 	action clihelper.ActionFunc,
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -317,7 +317,7 @@ func RunAction(
 
 	// Run provider cache server
 	if opts.ProviderCacheOptions.Enabled {
-		server, err := providercache.InitServer(l, &opts.ProviderCacheOptions, opts.RootWorkingDir)
+		server, err := providercache.InitServer(l, v.HTTP, &opts.ProviderCacheOptions, opts.RootWorkingDir)
 		if err != nil {
 			return err
 		}
@@ -361,7 +361,7 @@ const minTofuVersionForAutoProviderCacheDir = "1.10.0"
 // Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
 //
 // Panics if v.Env is nil, as it mutates it.
-func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
+func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) error {
 	if v.Env == nil {
 		panic("setupAutoProviderCacheDir: venv environment map is nil")
 	}

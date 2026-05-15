@@ -18,7 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)
 	}
@@ -26,7 +26,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	return runBootstrap(ctx, l, v, opts)
 }
 
-func runBootstrap(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runBootstrap(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "backend_bootstrap", map[string]any{
 		"working_dir":            opts.WorkingDir,
 		"terragrunt_config_path": opts.TerragruntConfigPath,
@@ -39,11 +39,11 @@ func runBootstrap(ctx context.Context, l log.Logger, v venv.Venv, opts *options.
 			return err
 		}
 
-		return remoteState.Bootstrap(ctx, l, v, configbridge.RemoteStateOptsFromOpts(opts))
+		return remoteState.Bootstrap(ctx, l, *v, configbridge.RemoteStateOptsFromOpts(opts))
 	})
 }
 
-func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runAll(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
 	components, err := d.Discover(ctx, l, v, opts)
@@ -74,7 +74,8 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terrag
 
 			// Parsing can write obtained credentials into the env, so each
 			// unit gets its own clone to keep them from leaking to siblings.
-			if err := runBootstrap(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
+			unitV := v.WithEnvCloned()
+			if err := runBootstrap(ctx, l, &unitV, unitOpts); err != nil {
 				if opts.FailFast {
 					return err
 				}

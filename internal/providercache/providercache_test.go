@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -116,8 +117,8 @@ func TestProviderCache(t *testing.T) {
 			l := logger.CreateLogger()
 
 			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
-			providerHandler := handlers.NewDirectProviderHandler(l, new(cliconfig.ProviderInstallationDirect), nil)
-			proxyProviderHandler := handlers.NewProxyProviderHandler(l, nil)
+			providerHandler := handlers.NewDirectProviderHandler(l, vhttp.NewOSClient(), new(cliconfig.ProviderInstallationDirect), nil)
+			proxyProviderHandler := handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil)
 
 			tc.opts = append(tc.opts,
 				cache.WithProviderService(providerService),
@@ -188,7 +189,7 @@ func TestProviderCacheHomeless(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", "")
 	require.NoError(t, os.Unsetenv("XDG_CACHE_HOME"))
 
-	_, err := providercache.InitServer(logger.CreateLogger(), &pcoptions.ProviderCacheOptions{
+	_, err := providercache.InitServer(logger.CreateLogger(), vhttp.NewOSClient(), &pcoptions.ProviderCacheOptions{
 		Dir: cacheDir,
 	}, "")
 	require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")

@@ -159,7 +159,7 @@ func (o *ShellOptions) NoEngine() bool {
 // [vexec.NewMemExec] so external binaries like tofu/terraform are never forked.
 //
 // Requires a non-nil v.Env.
-func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *ShellOptions, command string, args ...string) error {
+func RunCommand(ctx context.Context, l log.Logger, v *venv.Venv, runOpts *ShellOptions, command string, args ...string) error {
 	_, err := RunCommandWithOutput(ctx, l, v, runOpts, "", false, false, command, args...)
 
 	return err
@@ -177,7 +177,7 @@ func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *ShellOp
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOpts *ShellOptions,
 	workingDir string,
 	suppressStdout bool,
@@ -250,7 +250,7 @@ type RunCommandOptions struct {
 func runCommand(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOpts *ShellOptions,
 	cmdOpts RunCommandOptions,
 ) error {

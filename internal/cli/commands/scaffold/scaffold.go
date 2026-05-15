@@ -180,7 +180,7 @@ func (p *Plan) Cleanup() {
 func Prepare(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleURL, templateURL string,
 ) (*Plan, error) {
@@ -295,7 +295,7 @@ func Prepare(
 func (p *Plan) Generate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	values map[string]string,
 ) error {
@@ -389,7 +389,7 @@ func applyUserValues(vars []*config.ParsedVariable, values map[string]string) {
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleURL, templateURL string,
 ) error {
@@ -459,7 +459,7 @@ func splitURLQuery(rawURL string) (string, string) {
 
 // applyCatalogConfigToScaffold applies catalog configuration settings to scaffold options.
 // CLI flags take precedence over config file settings.
-func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) {
+func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 	pctx = pctx.WithVenv(v)
 
@@ -522,7 +522,7 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 func downloadTemplate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	templateURL,
 	tempDir string,
@@ -589,7 +589,7 @@ func downloadTemplate(
 func prepareBoilerplateFiles(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	templateURL,
 	tempDir string,
@@ -677,7 +677,7 @@ func parseVariables(
 func parseModuleURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	vars map[string]any,
 	moduleURL string,
@@ -761,7 +761,7 @@ func rewriteModuleURL(
 func rewriteTemplateURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	parsedTemplateURL *url.URL,
 ) (*url.URL, error) {
@@ -798,7 +798,7 @@ func rewriteTemplateURL(
 func addRefToModuleURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	parsedModuleURL *url.URL,
 	vars map[string]any,

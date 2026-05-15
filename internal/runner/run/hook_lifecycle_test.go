@@ -32,7 +32,7 @@ func TestProcessHooks_FiresHooksInDeclarationOrder(t *testing.T) {
 		{Name: "third", Commands: []string{"plan"}, Execute: []string{"step", "3"}, If: true},
 	}
 
-	require.NoError(t, run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+	require.NoError(t, run.ProcessHooks(t.Context(), l, &v, run.ProcessHooksParams{
 		Hooks: hooks,
 		Opts:  newHookOpts(),
 		Cfg:   &runcfg.RunConfig{},
@@ -75,7 +75,7 @@ func TestProcessHooks_AccumulatesErrorsAcrossHooks(t *testing.T) {
 		{Name: "third", Commands: []string{"plan"}, Execute: []string{"third-cmd"}, If: true, RunOnError: true},
 	}
 
-	err := run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+	err := run.ProcessHooks(t.Context(), l, &v, run.ProcessHooksParams{
 		Hooks: hooks,
 		Opts:  newHookOpts(),
 		Cfg:   &runcfg.RunConfig{},
@@ -121,7 +121,7 @@ func TestProcessHooks_PropagatesWorkingDir(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+	require.NoError(t, run.ProcessHooks(t.Context(), l, &v, run.ProcessHooksParams{
 		Hooks: hooks,
 		Opts:  opts,
 		Cfg:   &runcfg.RunConfig{},
@@ -170,7 +170,7 @@ func TestProcessErrorHooks_FiresAllMatchingHooks(t *testing.T) {
 		run.ProcessErrorHooks(
 			t.Context(),
 			l,
-			venvtest.New().WithExec(exec),
+			new(venvtest.New().WithExec(exec)),
 			hooks,
 			&runcfg.RunConfig{},
 			newHookOpts(),
@@ -212,7 +212,7 @@ func TestProcessErrorHooks_AccumulatesFailures(t *testing.T) {
 	err := run.ProcessErrorHooks(
 		t.Context(),
 		l,
-		venvtest.New().WithExec(exec),
+		new(venvtest.New().WithExec(exec)),
 		hooks,
 		&runcfg.RunConfig{},
 		newHookOpts(),

@@ -54,7 +54,7 @@ type TFOptions struct {
 // RunCommand runs the given Terraform command using the supplied venv.
 // Pass a venv whose Exec is a [vexec.NewMemExec] from tests and fuzzers to
 // intercept invocations so tofu/terraform are never forked.
-func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *TFOptions, args ...string) error {
+func RunCommand(ctx context.Context, l log.Logger, v *venv.Venv, runOpts *TFOptions, args ...string) error {
 	_, err := RunCommandWithOutput(ctx, l, v, runOpts, args...)
 
 	return err
@@ -63,7 +63,13 @@ func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *TFOptio
 // RunCommandWithOutput runs the given Terraform command using the supplied
 // venv, writing its stdout/stderr to the terminal AND returning
 // stdout/stderr to this method's caller.
-func RunCommandWithOutput(ctx context.Context, l log.Logger, v venv.Venv, runOpts *TFOptions, args ...string) (*util.CmdOutput, error) {
+func RunCommandWithOutput(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	runOpts *TFOptions,
+	args ...string,
+) (*util.CmdOutput, error) {
 	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
@@ -77,7 +83,9 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, v venv.Venv, runOpt
 
 	if !runOpts.ShellOptions.ForwardTFStdout {
 		outWriter, errWriter := logTFOutput(l, *v.Writers, runOpts, args)
-		v = v.WithWriter(outWriter).WithErrWriter(errWriter)
+
+		localV := v.WithWriter(outWriter).WithErrWriter(errWriter)
+		v = &localV
 	}
 
 	output, err := shell.RunCommandWithOutput(ctx, l, v, runOpts.ShellOptions, "", false, needsPTY, runOpts.ShellOptions.TFPath, args...)

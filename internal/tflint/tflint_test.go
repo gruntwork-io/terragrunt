@@ -475,7 +475,7 @@ func runWithOpts(
 		MaxFoldersToCheck: 5,
 	}
 
-	venv := venv.Venv{
+	v := venv.Venv{
 		Exec:    exec,
 		FS:      fs,
 		Env:     map[string]string{},
@@ -484,7 +484,7 @@ func runWithOpts(
 
 	l := logger.CreateLogger()
 
-	return tflint.RunTflintWithOpts(t.Context(), l, venv, opts, cfg, hook)
+	return tflint.RunTflintWithOpts(t.Context(), l, &v, opts, cfg, hook)
 }
 
 func cloneInvocation(inv *vexec.Invocation) vexec.Invocation {

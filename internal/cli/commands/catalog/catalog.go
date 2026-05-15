@@ -30,7 +30,7 @@ const urlChannelBufferSize = 10
 // loaded; otherwise source discovery walks the configuration to find catalog
 // and source URLs. As components are found, the TUI transitions to the
 // component list, or shows a welcome screen when nothing is discovered.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, repoURL string) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions, repoURL string) error {
 	// Fail fast with a clear error when there is no terminal to attach the
 	// TUI to, instead of surfacing bubbletea's raw TTY failure.
 	if err := tui.EnsureOSTTY(l); err != nil {
@@ -58,7 +58,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 // discoverAndLoad runs the two concurrent URL discoverers and loads each
 // distinct repo URL they surface into componentCh, bounded by parallelism.
 func discoverAndLoad(
-	ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions,
+	ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions,
 	tempDirs *tui.TempDirTracker,
 	status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 ) error {

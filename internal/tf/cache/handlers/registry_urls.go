@@ -9,6 +9,8 @@ import (
 	"net/url"
 
 	"errors"
+
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
 const (
@@ -36,7 +38,9 @@ func (urls *RegistryURLs) String() string {
 	return fmt.Sprintf("%v, %v", urls.ModulesV1, urls.ProvidersV1)
 }
 
-func DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, error) {
+// DiscoveryURL performs Terraform service discovery against registryName
+// over client, parsing the well-known terraform.json document.
+func DiscoveryURL(ctx context.Context, client vhttp.Client, registryName string) (*RegistryURLs, error) {
 	url := fmt.Sprintf("https://%s/%s", registryName, wellKnownURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -44,7 +48,7 @@ func DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, erro
 		return nil, err
 	}
 
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/github"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -94,24 +95,20 @@ func TestNewClientWithOptions(t *testing.T) {
 func TestGetLatestRelease(t *testing.T) {
 	t.Parallel()
 
-	// Create a mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	httpClient := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
+		assert.Equal(t, "/repos/owner/repo/releases/latest", req.URL.Path)
+		assert.Equal(t, "application/vnd.github.v3+json", req.Header.Get("Accept"))
 
-		assert.Equal(t, "/repos/owner/repo/releases/latest", r.URL.Path)
-		assert.Equal(t, "application/vnd.github.v3+json", r.Header.Get("Accept"))
-
-		w.Header().Set("Content-Type", "application/json")
-		response := `{
+		body := []byte(`{
 			"tag_name": "v1.2.3",
 			"name": "Release v1.2.3",
 			"html_url": "https://github.com/owner/repo/releases/tag/v1.2.3"
-		}`
-		_, err := fmt.Fprint(w, response)
-		assert.NoError(t, err)
-	}))
-	defer server.Close()
+		}`)
 
-	client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL))
+		return vhttp.Respond(http.StatusOK, body, http.Header{"Content-Type": {"application/json"}}), nil
+	})
+
+	client := github.NewGitHubAPIClient(github.WithHTTPClient(httpClient))
 
 	release, err := client.GetLatestRelease(t.Context(), "owner/repo")
 	require.NoError(t, err)

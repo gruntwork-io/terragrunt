@@ -66,7 +66,7 @@ func TestRunPipelineEndToEndPlan(t *testing.T) {
 	cfg := &runcfg.RunConfig{}
 	credsGetter := creds.NewGetter()
 
-	err := run.Run(t.Context(), l, v, opts, report.NewReport(), cfg, credsGetter)
+	err := run.Run(t.Context(), l, &v, opts, report.NewReport(), cfg, credsGetter)
 	require.NoError(t, err, "run.Run must succeed when the mem backend returns a clean plan")
 
 	assert.Equal(t, int32(1), planCalls.Load(), "exactly one tofu plan call expected")
@@ -101,7 +101,7 @@ func TestRunPipelineEndToEndPropagatesPlanFailure(t *testing.T) {
 	opts := newRunE2EOpts(t, s, "plan")
 	opts.AutoRetry = false
 
-	err := run.Run(t.Context(), l, v, opts, report.NewReport(), &runcfg.RunConfig{}, creds.NewGetter())
+	err := run.Run(t.Context(), l, &v, opts, report.NewReport(), &runcfg.RunConfig{}, creds.NewGetter())
 	require.Error(t, err, "non-zero terraform exit must surface from run.Run")
 }
 
@@ -150,7 +150,7 @@ func TestRunPipelineEndToEndFiresHooks(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.Run(t.Context(), l, v, opts, report.NewReport(), cfg, creds.NewGetter()))
+	require.NoError(t, run.Run(t.Context(), l, &v, opts, report.NewReport(), cfg, creds.NewGetter()))
 
 	mu.Lock()
 	defer mu.Unlock()

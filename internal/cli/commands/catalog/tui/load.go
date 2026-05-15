@@ -30,7 +30,7 @@ func CreateCatalogTempPath(fsys vfs.FS, repoURL string) (string, error) {
 func LoadURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	tempDirs *TempDirTracker,
 	repoURL string,

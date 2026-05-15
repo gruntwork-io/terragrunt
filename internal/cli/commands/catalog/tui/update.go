@@ -632,7 +632,7 @@ func enterFormState(m Model, c *Component, priorState sessionState) (tea.Model, 
 // the source HCL and walking it via CollectValuesReferences. ctx is the
 // model's cancellable context so a Ctrl+C during discovery aborts the
 // download instead of running it to completion.
-func discoverFormCmd(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, c *Component) tea.Cmd {
+func discoverFormCmd(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions, c *Component) tea.Cmd {
 	return func() tea.Msg {
 		if c.Kind.IsCopyable() {
 			return discoverValuesFields(c)
@@ -652,7 +652,7 @@ func discoverFormCmd(ctx context.Context, l log.Logger, v venv.Venv, opts *optio
 // is discarded. Real failures still surface: they come back as errors and
 // turn into a formDiscoveryErrMsg, which the outer Update renders as a
 // styled exit message after tea tears down.
-func discoverModuleFields(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, c *Component) tea.Msg {
+func discoverModuleFields(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions, c *Component) tea.Msg {
 	quiet := l.WithOptions(log.WithOutput(io.Discard))
 
 	plan, err := scaffold.Prepare(ctx, quiet, v, opts, c.TerraformSourcePath(), "")

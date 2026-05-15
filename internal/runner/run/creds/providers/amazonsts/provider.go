@@ -41,7 +41,7 @@ func (provider *Provider) Name() string {
 func (provider *Provider) GetCredentials(
 	ctx context.Context,
 	l log.Logger,
-	_ venv.Venv,
+	_ *venv.Venv,
 ) (*providers.Credentials, error) {
 	iamRoleOpts := provider.iamRoleOpts
 	if iamRoleOpts.RoleARN == "" {

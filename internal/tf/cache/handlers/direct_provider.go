@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -21,10 +22,10 @@ type DirectProviderHandler struct {
 	client *helpers.Client
 }
 
-func NewDirectProviderHandler(logger log.Logger, method *cliconfig.ProviderInstallationDirect, credsSource *cliconfig.CredentialsSource) *DirectProviderHandler {
+func NewDirectProviderHandler(l log.Logger, httpClient vhttp.Client, method *cliconfig.ProviderInstallationDirect, credsSource *cliconfig.CredentialsSource) *DirectProviderHandler {
 	return &DirectProviderHandler{
-		CommonProviderHandler: NewCommonProviderHandler(logger, method.Include, method.Exclude),
-		client:                helpers.NewClient(credsSource),
+		CommonProviderHandler: NewCommonProviderHandler(l, httpClient, method.Include, method.Exclude),
+		client:                helpers.NewClient(httpClient, credsSource),
 	}
 }
 

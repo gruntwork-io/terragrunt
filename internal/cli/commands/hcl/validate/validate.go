@@ -40,7 +40,7 @@ import (
 
 const splitCount = 2
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return fmt.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputsFlagName)
@@ -60,7 +60,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	return RunValidate(ctx, l, v, opts)
 }
 
-func RunValidate(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func RunValidate(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	var diags diagnostic.Diagnostics
 
 	// Diagnostics handler to collect validation errors
@@ -138,7 +138,7 @@ func RunValidate(ctx context.Context, l log.Logger, v venv.Venv, opts *options.T
 			parseOpts.TerragruntConfigPath = stackFilePath
 
 			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parser = parser.WithVenv(componentV)
+			parser = parser.WithVenv(&componentV)
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
@@ -182,7 +182,7 @@ func RunValidate(ctx context.Context, l log.Logger, v venv.Venv, opts *options.T
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
 		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
-		pctx = pctx.WithVenv(componentV)
+		pctx = pctx.WithVenv(&componentV)
 
 		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
 			parseErrs = append(parseErrs, err)
@@ -197,7 +197,7 @@ func RunValidate(ctx context.Context, l log.Logger, v venv.Venv, opts *options.T
 	return processDiagnostics(l, v, opts, diags, combinedErr)
 }
 
-func processDiagnostics(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
+func processDiagnostics(l log.Logger, v *venv.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
 	if len(diags) == 0 {
 		return callErr
 	}
@@ -232,7 +232,7 @@ func processDiagnostics(l log.Logger, v venv.Venv, opts *options.TerragruntOptio
 	return errors.Join(callErr, diagError)
 }
 
-func writeDiagnostics(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
+func writeDiagnostics(l log.Logger, v *venv.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
 	render := view.NewHumanRender(l.Formatter().DisabledColors())
 	if opts.HCLValidateJSONOutput {
 		render = view.NewJSONRender()
@@ -247,7 +247,7 @@ func writeDiagnostics(l log.Logger, v venv.Venv, opts *options.TerragruntOptions
 	return writer.Diagnostics(diags)
 }
 
-func RunValidateInputs(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func RunValidateInputs(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	opts = opts.Clone()
 
 	opts.SkipOutput = true
@@ -310,21 +310,21 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v venv.Venv, opts *opt
 		// missing inputs in the next.
 		unitV := v.WithEnvCloned()
 
-		prepared, err := prepare.PrepareConfig(ctx, l, unitV, unitOpts)
+		prepared, err := prepare.PrepareConfig(ctx, l, &unitV, unitOpts)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Download source
-		updatedOpts, err := prepare.PrepareSource(ctx, l, unitV, prepared.Opts, prepared.Cfg, r)
+		updatedOpts, err := prepare.PrepareSource(ctx, l, &unitV, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Generate config
-		if err := prepare.PrepareGenerate(l, unitV, updatedOpts, prepared.Cfg.ToRunConfig(l)); err != nil {
+		if err := prepare.PrepareGenerate(l, &unitV, updatedOpts, prepared.Cfg.ToRunConfig(l)); err != nil {
 			errs = append(errs, err)
 			continue
 		}

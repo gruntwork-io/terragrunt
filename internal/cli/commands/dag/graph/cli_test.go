@@ -65,7 +65,7 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 			b.ResetTimer()
 			b.StartTimer()
 
-			err = graph.Run(b.Context(), logger.CreateLogger(), venv.OSVenv().WithWriter(io.Discard), terragruntOptions)
+			err = graph.Run(b.Context(), logger.CreateLogger(), new(venv.OSVenv().WithWriter(io.Discard)), terragruntOptions)
 
 			b.StopTimer()
 			require.NoError(b, err)

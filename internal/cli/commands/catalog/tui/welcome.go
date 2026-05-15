@@ -76,7 +76,7 @@ var (
 // discovery runs in the background, then either transitions to the component
 // list TUI or settles into a "no sources found" help screen.
 type WelcomeModel struct {
-	venv             venv.Venv
+	venv             *venv.Venv
 	ctx              context.Context
 	logger           log.Logger
 	lastDiscoveryErr error
@@ -102,7 +102,7 @@ func ComponentMsg(entry *ComponentEntry) tea.Msg {
 func NewWelcomeModel(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	loadFunc LoadFunc,
 ) WelcomeModel {
@@ -130,7 +130,7 @@ func NewWelcomeModel(
 // while discovery runs in the background, then transitions to the component
 // list if components are found. Post-exit messages are written to errWriter
 // after the tea program restores the main terminal.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, errWriter io.Writer, loadFunc LoadFunc) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions, errWriter io.Writer, loadFunc LoadFunc) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

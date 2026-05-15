@@ -217,7 +217,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	// First call mirrors what setupAutoProviderCacheDir does before
 	// terraform_binary is read from HCL: TFPath is still the auto-detected
 	// "tofu", and the OpenTofu version gets resolved and cached.
-	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(ctx, l, venvtest.New().WithExec(e), run.PopulateTFVersionInput{
+	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(ctx, l, new(venvtest.New().WithExec(e)), run.PopulateTFVersionInput{
 		TFOpts: tfOpts("tofu"),
 	})
 	require.NoError(t, err)
@@ -231,7 +231,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	_, terraformVer, terraformImpl, err := run.PopulateTFVersion(
 		ctx,
 		l,
-		venvtest.New().WithExec(e),
+		new(venvtest.New().WithExec(e)),
 		run.PopulateTFVersionInput{
 			TFOpts: tfOpts("terraform"),
 		},

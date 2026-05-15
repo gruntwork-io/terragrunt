@@ -26,7 +26,7 @@ import (
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	srcPath, dstPath string,
 	opts *options.TerragruntOptions,
 ) error {
@@ -79,7 +79,7 @@ func Run(
 	dstV := v.WithEnvCloned()
 
 	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
-	srcPctx = srcPctx.WithVenv(srcV)
+	srcPctx = srcPctx.WithVenv(&srcV)
 
 	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
 	if err != nil {
@@ -96,7 +96,7 @@ func Run(
 	srcOpts.WorkingDir = srcPctx.WorkingDir
 
 	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstOpts)
-	dstPctx = dstPctx.WithVenv(dstV)
+	dstPctx = dstPctx.WithVenv(&dstV)
 
 	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
 	if err != nil {

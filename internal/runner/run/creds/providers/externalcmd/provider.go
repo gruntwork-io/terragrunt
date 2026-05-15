@@ -44,7 +44,7 @@ func (provider *Provider) Name() string {
 func (provider *Provider) GetCredentials(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 ) (*providers.Credentials, error) {
 	if provider.authProviderCmd == "" {
 		return nil, nil
@@ -72,7 +72,7 @@ func (provider *Provider) GetCredentials(
 func (provider *Provider) fetchCredentials(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 ) (*providers.Credentials, error) {
 	parser := shellwords.NewParser()
 
@@ -170,7 +170,7 @@ type AWSRole struct {
 func (role *AWSRole) Envs(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	authProviderCmd string,
 ) map[string]string {
 	if role.RoleARN == "" {

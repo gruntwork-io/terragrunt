@@ -53,7 +53,7 @@ const (
 func DownloadTerraformSource(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	source string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -243,7 +243,7 @@ func (e SourceVersionConstraintErr) Error() string {
 func DownloadTerraformSourceIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	terraformSource *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -450,7 +450,7 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 func downloadSource(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	src *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -628,7 +628,7 @@ func tryCASDownload(
 // Exported so tests can assert the protocol set directly.
 func BuildDownloadClient(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 ) (*getter.Client, error) {

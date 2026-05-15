@@ -79,7 +79,7 @@ func testCommandOutput(
 	out, err := shell.RunCommandWithOutput(
 		t.Context(),
 		l,
-		v,
+		&v,
 		configbridge.ShellRunOptsFromOpts(terragruntOptions),
 		"",
 		!allocateStdout,

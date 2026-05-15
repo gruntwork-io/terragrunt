@@ -48,7 +48,7 @@ var runAllDisabledCommands = map[string]string{
 // Run executes the configured terraform command across every unit in the
 // stack. v is the virtualized environment threaded through the runner pool
 // into each unit's run pipeline.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (err error) {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) (err error) {
 	// --filter sets RunAll, so the CLI layer dispatches here without going
 	// through the single-unit run path. Emit the tip here as well; the
 	// underlying sync.Once dedupes if both paths fire.
@@ -195,7 +195,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 func RunAllOnStack(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	rnr common.StackRunner,
 	r *report.Report,

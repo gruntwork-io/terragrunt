@@ -82,7 +82,7 @@ var sourceChangeLocks = sync.Map{}
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -232,7 +232,7 @@ func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfi
 func runTerragruntWithConfig(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -356,7 +356,7 @@ func ShouldCopyLockFile(args *iacargs.IacArgs, terraformConfig *runcfg.Terraform
 func RunActionWithHooks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	description string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -539,7 +539,7 @@ func modulesNeedInit(opts *Options, env map[string]string) (bool, error) {
 func remoteStateNeedsInit(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	remoteState *remotestate.RemoteState,
 	opts *Options,
 ) (bool, error) {
@@ -556,7 +556,7 @@ func remoteStateNeedsInit(
 		return false, nil
 	}
 
-	if ok, err := remoteState.NeedsBootstrap(ctx, l, v, opts.remoteStateOpts()); err != nil || !ok {
+	if ok, err := remoteState.NeedsBootstrap(ctx, l, *v, opts.remoteStateOpts()); err != nil || !ok {
 		return false, err
 	}
 
@@ -645,7 +645,7 @@ func filterTerraformEnvVarsFromExtraArgsRunCfg(opts *Options, cfg *runcfg.RunCon
 }
 
 // prepareInitCommandRunCfg prepares for terraform init using runcfg types.
-func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, v venv.Venv, opts *Options, cfg *runcfg.RunConfig) error {
+func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options, cfg *runcfg.RunConfig) error {
 	if cfg.RemoteState.Config == nil {
 		return nil
 	}
@@ -659,7 +659,7 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, v venv.Venv, op
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, v, opts.remoteStateOpts()); err != nil {
+	if err := cfg.RemoteState.Bootstrap(ctx, l, *v, opts.remoteStateOpts()); err != nil {
 		return err
 	}
 
@@ -670,7 +670,7 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, v venv.Venv, op
 func PrepareNonInitCommand(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -691,7 +691,7 @@ func PrepareNonInitCommand(
 }
 
 // needsInitRunCfg determines if terraform init is needed using runcfg types.
-func needsInitRunCfg(ctx context.Context, l log.Logger, v venv.Venv, opts *Options, cfg *runcfg.RunConfig) (bool, error) {
+func needsInitRunCfg(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options, cfg *runcfg.RunConfig) (bool, error) {
 	if slices.Contains(TerraformCommandsThatDoNotNeedInit, opts.TerraformCliArgs.First()) {
 		return false, nil
 	}
@@ -726,7 +726,7 @@ func needsInitRunCfg(ctx context.Context, l log.Logger, v venv.Venv, opts *Optio
 func runTerraformInitRunCfg(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -742,12 +742,12 @@ func runTerraformInitRunCfg(
 		return err
 	}
 
-	initV := v
+	initV := *v
 	if suppressInitStdout {
 		initV = initV.WithWriter(io.Discard)
 	}
 
-	if err := runTerragruntWithConfig(ctx, l, initV, originalOpts, initOptions, cfg, r); err != nil {
+	if err := runTerragruntWithConfig(ctx, l, &initV, originalOpts, initOptions, cfg, r); err != nil {
 		return err
 	}
 

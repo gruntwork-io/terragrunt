@@ -244,7 +244,7 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			pctx := &ParsingContext{Venv: venv.OSVenv().WithEnv(tc.initial)}
+			pctx := &ParsingContext{Venv: new(venv.OSVenv().WithEnv(tc.initial))}
 			applyExtraArgsEnvVarsForOutput(pctx, tc.terraform)
 			assert.Equal(t, tc.want, pctx.Venv.Env)
 		})

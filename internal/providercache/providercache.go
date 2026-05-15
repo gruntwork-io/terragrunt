@@ -32,6 +32,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -88,13 +89,15 @@ type ProviderCache struct {
 	cliCfg          *cliconfig.Config
 	providerService *services.ProviderService
 	fs              vfs.FS
+	httpClient      vhttp.Client
 }
 
 // NewProviderCache creates a new ProviderCache with sensible defaults.
 // Use builder methods like WithFS() to customize the configuration.
 func NewProviderCache() *ProviderCache {
 	return &ProviderCache{
-		fs: vfs.NewOSFS(),
+		fs:         vfs.NewOSFS(),
+		httpClient: vhttp.NewOSClient(),
 	}
 }
 
@@ -105,9 +108,21 @@ func (pc *ProviderCache) WithFS(fs vfs.FS) *ProviderCache {
 	return pc
 }
 
+// WithHTTPClient sets the HTTP client used for upstream provider and registry
+// requests. If not called, defaults to [vhttp.NewOSClient].
+func (pc *ProviderCache) WithHTTPClient(c vhttp.Client) *ProviderCache {
+	pc.httpClient = c
+	return pc
+}
+
 // FS returns the configured filesystem.
 func (pc *ProviderCache) FS() vfs.FS {
 	return pc.fs
+}
+
+// HTTPClient returns the configured HTTP client.
+func (pc *ProviderCache) HTTPClient() vhttp.Client {
+	return pc.httpClient
 }
 
 // Init initializes the ProviderCache with the given logger and options.
@@ -151,15 +166,15 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 		return err
 	}
 
-	providerService := services.NewProviderService(pcOpts.Dir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(pc.FS()))
-	proxyProviderHandler := handlers.NewProxyProviderHandler(l, cliCfg.CredentialsSource())
+	providerService := services.NewProviderService(pcOpts.Dir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(pc.FS()), services.WithHTTPClient(pc.HTTPClient()))
+	proxyProviderHandler := handlers.NewProxyProviderHandler(l, pc.HTTPClient(), cliCfg.CredentialsSource())
 
 	// Custom hosts need handlers, but must not pollute pcOpts.RegistryNames — FilterRegistriesByImplementation
 	// relies on that slice containing only the standard registries to detect impl-based filtering.
 	// See: https://github.com/gruntwork-io/terragrunt/issues/5916
 	registryNamesForHandlers := AppendCustomHostRegistries(cliCfg.Hosts, pcOpts.RegistryNames)
 
-	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, registryNamesForHandlers)
+	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, pc.HTTPClient(), registryNamesForHandlers)
 	if err != nil {
 		return fmt.Errorf("creating provider handlers failed: %w", err)
 	}
@@ -189,10 +204,11 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	return nil
 }
 
-// InitServer creates and initializes a new ProviderCache with the given logger and options.
-// This is a convenience function that combines NewProviderCache() and Init().
-func InitServer(l log.Logger, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) (*ProviderCache, error) {
-	pc := NewProviderCache()
+// InitServer creates and initializes a new ProviderCache with the given logger,
+// HTTP client, and options. This is a convenience function that combines
+// NewProviderCache(), WithHTTPClient, and Init().
+func InitServer(l log.Logger, httpClient vhttp.Client, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) (*ProviderCache, error) {
+	pc := NewProviderCache().WithHTTPClient(httpClient)
 	if err := pc.Init(l, pcOpts, rootWorkingDir); err != nil {
 		return nil, err
 	}
@@ -207,7 +223,7 @@ func InitServer(l log.Logger, pcOpts *pcoptions.ProviderCacheOptions, rootWorkin
 func (pc *ProviderCache) TerraformCommandHook(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	tfOpts *tf.TFOptions,
 	args clihelper.Args,
 ) (*util.CmdOutput, error) {
@@ -240,7 +256,8 @@ func (pc *ProviderCache) TerraformCommandHook(
 		return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
 	}
 
-	v = v.WithEnv(pc.providerCacheEnvironment(v.Env, tfOpts.TofuImplementation, cliConfigFilename))
+	cacheEnvV := v.WithEnv(pc.providerCacheEnvironment(v.Env, tfOpts.TofuImplementation, cliConfigFilename))
+	v = &cacheEnvV
 
 	lockfileReadonly := LockfileReadonlyRequested(args, v.Env)
 
@@ -258,7 +275,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 func (pc *ProviderCache) warmUpCache(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	tfOpts *tf.TFOptions,
 	cliConfigFilename string,
 	args clihelper.Args,
@@ -352,7 +369,7 @@ func (pc *ProviderCache) warmUpCache(
 func (pc *ProviderCache) runTerraformWithCache(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	tfOpts *tf.TFOptions,
 	cliConfigFilename string,
 	args clihelper.Args,
@@ -554,7 +571,7 @@ func isRegistryTimeoutError(output []byte) bool {
 	})
 }
 
-func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, v venv.Venv, tfOpts *tf.TFOptions, args []string) (*util.CmdOutput, error) {
+func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, v *venv.Venv, tfOpts *tf.TFOptions, args []string) (*util.CmdOutput, error) {
 	// add -no-color flag to args if it was set in Terragrunt arguments
 	if tfOpts.TerraformCliArgs != nil && tfOpts.TerraformCliArgs.Contains(tf.FlagNameNoColor) &&
 		!slices.Contains(args, tf.FlagNameNoColor) {
@@ -588,7 +605,7 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 
 			cmdV := v.WithWriter(io.Discard).WithErrWriter(errWriter)
 
-			output, cmdErr := tf.RunCommandWithOutput(ctx, l, cmdV, newTFOpts, newCliArgs.Slice()...)
+			output, cmdErr := tf.RunCommandWithOutput(ctx, l, &cmdV, newTFOpts, newCliArgs.Slice()...)
 			finalOutput = output
 
 			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),

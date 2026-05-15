@@ -25,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	svchost "github.com/hashicorp/terraform-svchost"
 	"golang.org/x/sync/errgroup"
@@ -271,7 +272,7 @@ func (cache *ProviderCache) setDocumentSHA256Sums(ctx context.Context) ([]byte, 
 		return nil, err
 	}
 
-	if err := helpers.Fetch(ctx, req, documentSHA256Sums); err != nil {
+	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, documentSHA256Sums); err != nil {
 		return nil, fmt.Errorf("failed to retrieve authentication checksums for provider %q: %w", cache.Provider, err)
 	}
 
@@ -302,7 +303,7 @@ func (cache *ProviderCache) setSignature(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	if err := helpers.Fetch(ctx, req, signature); err != nil {
+	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, signature); err != nil {
 		return nil, fmt.Errorf("failed to retrieve authentication signature for provider %q: %w", cache.Provider, err)
 	}
 
@@ -374,7 +375,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 				return err
 			}
 
-			return helpers.FetchToFile(ctx, req, cache.archivePath)
+			return helpers.FetchToFile(ctx, cache.HTTPClient(), req, cache.archivePath)
 		}); err != nil {
 			return err
 		}
@@ -508,6 +509,14 @@ func WithFS(fs vfs.FS) ProviderServiceOption {
 	}
 }
 
+// WithHTTPClient sets the HTTP client used for upstream provider fetches.
+// If not set, defaults to [vhttp.NewOSClient].
+func WithHTTPClient(c vhttp.Client) ProviderServiceOption {
+	return func(ps *ProviderService) {
+		ps.httpClient = c
+	}
+}
+
 type ProviderService struct {
 	logger                log.Logger
 	providerCacheWarmUpCh chan *ProviderCache
@@ -515,6 +524,9 @@ type ProviderService struct {
 
 	// fs is the filesystem for file operations.
 	fs vfs.FS
+
+	// httpClient performs upstream registry and provider fetches.
+	httpClient vhttp.Client
 
 	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
 	cacheDir string
@@ -534,6 +546,11 @@ func (service *ProviderService) FS() vfs.FS {
 	return service.fs
 }
 
+// HTTPClient returns the configured HTTP client.
+func (service *ProviderService) HTTPClient() vhttp.Client {
+	return service.httpClient
+}
+
 func NewProviderService(
 	cacheDir,
 	userCacheDir string,
@@ -548,6 +565,7 @@ func NewProviderService(
 		credsSource:           credsSource,
 		logger:                l,
 		fs:                    vfs.NewOSFS(),
+		httpClient:            vhttp.NewOSClient(),
 	}
 
 	for _, opt := range opts {

@@ -26,7 +26,7 @@ import (
 )
 
 // Run runs the find command.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,

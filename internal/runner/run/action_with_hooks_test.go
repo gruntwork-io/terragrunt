@@ -52,7 +52,7 @@ func TestRunActionWithHooks_FiresBeforeActionAfterInOrder(t *testing.T) {
 	}
 
 	require.NoError(t, run.RunActionWithHooks(
-		t.Context(), l, v, "plan", newHookOpts(), cfg, report.NewReport(), action,
+		t.Context(), l, &v, "plan", newHookOpts(), cfg, report.NewReport(), action,
 	))
 
 	assert.True(t, actionFired)
@@ -104,7 +104,7 @@ func TestRunActionWithHooks_BeforeHookFailureSkipsAction(t *testing.T) {
 		return nil
 	}
 
-	err := run.RunActionWithHooks(t.Context(), l, v, "plan", newHookOpts(), cfg, report.NewReport(), action)
+	err := run.RunActionWithHooks(t.Context(), l, &v, "plan", newHookOpts(), cfg, report.NewReport(), action)
 	require.Error(t, err, "before-hook failure must propagate")
 	assert.False(t, actionFired, "action must be skipped when before_hooks fail")
 
@@ -154,7 +154,7 @@ func TestRunActionWithHooks_ActionFailureTriggersErrorHook(t *testing.T) {
 		return errors.New("Failed to acquire state lock on bucket")
 	}
 
-	err := run.RunActionWithHooks(t.Context(), l, v, "plan", newHookOpts(), cfg, report.NewReport(), action)
+	err := run.RunActionWithHooks(t.Context(), l, &v, "plan", newHookOpts(), cfg, report.NewReport(), action)
 	require.Error(t, err, "action failure must propagate")
 
 	require.Len(t, errorHookCalls, 1, "only the matching error_hook must fire")
@@ -197,7 +197,7 @@ func TestRunActionWithHooks_AfterHooksSkipOnActionFailure(t *testing.T) {
 		return errors.New("action exploded")
 	}
 
-	err := run.RunActionWithHooks(t.Context(), l, v, "plan", newHookOpts(), cfg, report.NewReport(), action)
+	err := run.RunActionWithHooks(t.Context(), l, &v, "plan", newHookOpts(), cfg, report.NewReport(), action)
 	require.Error(t, err)
 
 	// normal-after is suppressed by the action failure; roe-after fires because RunOnError=true.
@@ -226,7 +226,7 @@ func TestRunActionWithHooks_NoHooksRunsActionDirectly(t *testing.T) {
 	}
 
 	require.NoError(t, run.RunActionWithHooks(
-		t.Context(), l, v, "plan", newHookOpts(), &runcfg.RunConfig{}, report.NewReport(), action,
+		t.Context(), l, &v, "plan", newHookOpts(), &runcfg.RunConfig{}, report.NewReport(), action,
 	))
 
 	assert.Equal(t, 1, actionFired, "action must fire exactly once")

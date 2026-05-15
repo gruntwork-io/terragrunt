@@ -42,7 +42,7 @@ func (p *FilesystemPhase) Kind() PhaseKind {
 func (p *FilesystemPhase) Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()

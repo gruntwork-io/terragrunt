@@ -18,7 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)
 	}
@@ -26,7 +26,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	return runDelete(ctx, l, v, opts)
 }
 
-func runDelete(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runDelete(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 	pctx = pctx.WithVenv(v)
 
@@ -36,7 +36,7 @@ func runDelete(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Ter
 	}
 
 	if !opts.ForceBackendDelete {
-		enabled, err := remoteState.IsVersionControlEnabled(ctx, l, v, configbridge.RemoteStateOptsFromOpts(opts))
+		enabled, err := remoteState.IsVersionControlEnabled(ctx, l, *v, configbridge.RemoteStateOptsFromOpts(opts))
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -54,10 +54,10 @@ func runDelete(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Ter
 		return fmt.Errorf("flag -%s is not supported yet", BucketFlagName)
 	}
 
-	return remoteState.Delete(ctx, l, v, configbridge.RemoteStateOptsFromOpts(opts))
+	return remoteState.Delete(ctx, l, *v, configbridge.RemoteStateOptsFromOpts(opts))
 }
 
-func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runAll(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
 	components, err := d.Discover(ctx, l, v, opts)
@@ -82,7 +82,8 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terrag
 
 		// Parsing can write obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
-		if err := runDelete(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
+		unitV := v.WithEnvCloned()
+		if err := runDelete(ctx, l, &unitV, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}

@@ -131,7 +131,7 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 
 	opts.AuthProviderCmd = "fake-auth-provider"
 
-	err = validate.RunValidateInputs(t.Context(), l, v, opts)
+	err = validate.RunValidateInputs(t.Context(), l, &v, opts)
 	require.Error(t, err, "unit-b never sets region, so validation must fail even after unit-a merged TF_VAR_region into its own env")
 
 	assert.NotContains(t, v.Env, "TF_VAR_region")
@@ -153,6 +153,6 @@ func TestRunValidateInputsPassesWhenInputsDefined(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	err = validate.RunValidateInputs(t.Context(), l, v, opts)
+	err = validate.RunValidateInputs(t.Context(), l, &v, opts)
 	require.NoError(t, err)
 }
