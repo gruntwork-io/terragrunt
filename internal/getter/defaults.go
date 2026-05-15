@@ -3,6 +3,8 @@ package getter
 import (
 	"net/http"
 
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	gcs "github.com/hashicorp/go-getter/gcs/v2"
 	s3 "github.com/hashicorp/go-getter/s3/v2"
 	getter "github.com/hashicorp/go-getter/v2"
@@ -19,14 +21,18 @@ const (
 	SchemeHTTPS = "https"
 	SchemeHg    = "hg"
 	SchemeSMB   = "smb"
+	SchemeTFR   = "tfr"
 )
 
-// GenericFetcherOption configures DefaultGenericFetchers.
+// GenericFetcherOption configures the generic-dispatch defaults consumed
+// by DefaultGenericFetchers and DefaultSourceResolvers.
 type GenericFetcherOption func(*genericFetcherConfig)
 
 type genericFetcherConfig struct {
 	httpExtra  http.Header
 	httpsExtra http.Header
+	tfrLogger  log.Logger
+	tfrImpl    tfimpl.Type
 }
 
 // WithHTTPExtraHeaders attaches header to the bare http getter so
@@ -42,6 +48,18 @@ func WithHTTPSExtraHeaders(header http.Header) GenericFetcherOption {
 	return func(c *genericFetcherConfig) { c.httpsExtra = header }
 }
 
+// WithTFRConfig registers the dependencies the tfr:// fetcher and
+// resolver need. When unset, tfr is omitted from the generic-dispatch
+// maps so [CASGetter] cannot route tfr:// through CAS. The standard
+// (non-CAS) client registers its own [RegistryGetter] via
+// [WithTFRegistry] and is unaffected.
+func WithTFRConfig(l log.Logger, impl tfimpl.Type) GenericFetcherOption {
+	return func(c *genericFetcherConfig) {
+		c.tfrLogger = l
+		c.tfrImpl = impl
+	}
+}
+
 // DefaultGenericFetchers returns the per-scheme bare getters CASGetter
 // uses on a cache miss. Exported so callers that build dedicated
 // CAS-only clients (the CAS-experiment path in
@@ -52,7 +70,7 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 		opt(&cfg)
 	}
 
-	return map[string]getter.Getter{
+	m := map[string]getter.Getter{
 		SchemeS3:    new(s3.Getter),
 		SchemeGCS:   new(gcs.Getter),
 		SchemeHTTP:  &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpExtra), Scheme: SchemeHTTP},
@@ -60,6 +78,12 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 		SchemeHg:    new(getter.HgGetter),
 		SchemeSMB:   new(getter.SmbClientGetter),
 	}
+
+	if cfg.tfrLogger != nil {
+		m[SchemeTFR] = NewRegistryGetter(cfg.tfrLogger).WithTofuImplementation(cfg.tfrImpl)
+	}
+
+	return m
 }
 
 // buildGetters realizes the option set into the ordered Getter slice
@@ -116,11 +140,18 @@ func buildGetters(b *builder) []Getter {
 			SchemeSMB:   smbClientGetter,
 		}
 
+		resolverOpts := []GenericFetcherOption(nil)
+
+		if b.tfRegistry != nil {
+			fetchers[SchemeTFR] = b.tfRegistry
+			resolverOpts = append(resolverOpts, WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation))
+		}
+
 		out = append(out,
 			NewCASProtocolGetter(b.logger, b.casStore, b.casVenv),
 			NewCASGetter(b.logger, b.casStore, b.casVenv, b.casCloneOpts,
 				WithGenericFetchers(fetchers),
-				WithGenericResolvers(DefaultSourceResolvers()),
+				WithGenericResolvers(DefaultSourceResolvers(resolverOpts...)),
 			),
 		)
 	}

@@ -1,0 +1,10 @@
+---
+version: "v1.0.5"
+category: "experiments-updated"
+---
+
+#### `cas` — Terraform/OpenTofu registry sources
+
+Module sources of the form `tfr://...` are now content-addressed in CAS. Repeat runs against the same pinned registry version reuse the cached module instead of re-downloading the archive from the registry.
+
+CAS resolves a `tfr://` source by asking the registry where the underlying archive lives and uses that resolved URL as the cache key. Two runs that pin the same version share one entry; a republish under the same version pins to a new entry, so a stale cache cannot serve outdated bytes.

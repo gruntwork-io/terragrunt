@@ -401,7 +401,9 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 	client := &getter.Client{
 		Getters: []getter.Getter{
 			casProtocol,
-			getter.NewCASGetter(l, c, venv, &cloneOpts, getter.WithDefaultGenericDispatch()),
+			getter.NewCASGetter(l, c, venv, &cloneOpts, getter.WithDefaultGenericDispatch(
+				getter.WithTFRConfig(l, opts.TofuImplementation),
+			)),
 		},
 	}
 
