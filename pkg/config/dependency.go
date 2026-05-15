@@ -1278,7 +1278,7 @@ func getTerragruntOutputJSONFromInitFolder(
 
 	// Discard streamed stdout; the JSON is read from the returned CmdOutput.
 	discardV := *pctx.Venv
-	discardV.Writers.Writer = io.Discard
+	discardV.Writers = discardV.Writers.WithWriter(io.Discard)
 
 	out, err := tf.RunCommandWithOutput(bareCtx, l, &discardV, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
@@ -1401,7 +1401,7 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Clone pctx and discard init stdout so it doesn't leak into the caller's output buffer.
 	initPctx := pctx.Clone()
-	initPctx.Venv.Writers.Writer = io.Discard // Clone deep-copied Venv above so this stays local.
+	initPctx.Venv.Writers = initPctx.Venv.Writers.WithWriter(io.Discard)
 
 	// First run init to setup the backend configuration so that we can run output.
 	runTerraformInitForDependencyOutput(ctx, initPctx, l, tempWorkDir)
@@ -1411,7 +1411,7 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Discard streamed stdout; the JSON is read from the returned CmdOutput.
 	discardV := *pctx.Venv
-	discardV.Writers.Writer = io.Discard
+	discardV.Writers = discardV.Writers.WithWriter(io.Discard)
 
 	out, err := tf.RunCommandWithOutput(bareCtx, l, &discardV, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
@@ -1519,7 +1519,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	pctx = pctx.Clone()
 	pctx.ForwardTFStdout = false
 	pctx.JSONLogFormat = false
-	pctx.Venv.Writers.Writer = stdoutBufferWriter // Clone deep-copied Venv.Writers so this stays local.
+	pctx.Venv.Writers = pctx.Venv.Writers.WithWriter(stdoutBufferWriter)
 
 	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
@@ -1580,7 +1580,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	runOpts.CASCloneDepth = pctx.CASCloneDepth
 
 	runV := *pctx.Venv
-	runV.Writers.Writer = stdoutBufferWriter
+	runV.Writers = runV.Writers.WithWriter(stdoutBufferWriter)
 
 	err = run.Run(ctx, l, &runV, runOpts, report.NewReport(), runCfg, credsGetter)
 	if err != nil {
@@ -1676,7 +1676,7 @@ func runTerraformInitForDependencyOutput(ctx context.Context, pctx *ParsingConte
 	initRunOpts.ShellOptions.WorkingDir = workingDir
 
 	initV := *pctx.Venv
-	initV.Writers.ErrWriter = &stderr
+	initV.Writers = initV.Writers.WithErrWriter(&stderr)
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
