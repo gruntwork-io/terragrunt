@@ -5,7 +5,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
-	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -25,8 +24,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	reporter := panicreport.New(opts.VersionString())
-	defer reporter.PanicHandler(l, os.Args)
+	reporter := log.NewPanicReporter()
+	defer reporter.PanicHandler(l, opts.VersionString, os.Args)
 
 	cli.NewApp(l, opts).RunAndExit(os.Args, tf.NewDetailedExitCodeMap(), reporter)
 }
