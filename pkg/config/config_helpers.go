@@ -784,6 +784,16 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	// Track that this file was read during parsing
 	trackFileRead(pctx.FilesRead, path)
 
+	l.Debugf("read_terragrunt_config target=%s caller=%s original=%s workingDir=%s skipOutput=%t skipOutputsResolution=%t decodedDeps=%t",
+		targetConfig,
+		pctx.TerragruntConfigPath,
+		pctx.OriginalTerragruntConfigPath,
+		pctx.WorkingDir,
+		pctx.SkipOutput,
+		pctx.SkipOutputsResolution,
+		pctx.DecodedDependencies != nil,
+	)
+
 	// We update the ctx of terragruntOptions to the config being read in.
 	l, pctx, err := pctx.WithConfigPath(l, targetConfig)
 	if err != nil {
@@ -831,6 +841,9 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 		return cty.NilVal, err
 	}
 
+	// Surface the target config's dependencies so discovery's DAG sees them (issue #5993).
+	recordDependenciesFromRead(pctx, config, targetConfig)
+
 	// We have to set the rendered outputs here because ParseConfigFile will not do so on the TerragruntConfig. The
 	// outputs are stored in a special map that is used only for rendering and thus is not available when we try to
 	// serialize the config for consumption.
@@ -844,6 +857,96 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	}
 
 	return TerragruntConfigAsCty(config)
+}
+
+type dependenciesFromReadCollector struct {
+	paths []string
+	mu    sync.Mutex
+}
+
+func (collector *dependenciesFromReadCollector) appendUniqueResolvedPath(baseDir, rawPath string) {
+	if collector == nil || rawPath == "" {
+		return
+	}
+
+	resolved := rawPath
+	if !filepath.IsAbs(resolved) {
+		resolved = filepath.Join(baseDir, resolved)
+	}
+
+	resolved = filepath.Clean(resolved)
+
+	collector.mu.Lock()
+	defer collector.mu.Unlock()
+
+	if slices.Contains(collector.paths, resolved) {
+		return
+	}
+
+	collector.paths = append(collector.paths, resolved)
+}
+
+func (collector *dependenciesFromReadCollector) snapshot() []string {
+	if collector == nil {
+		return nil
+	}
+
+	collector.mu.Lock()
+	defer collector.mu.Unlock()
+
+	return slices.Clone(collector.paths)
+}
+
+// recordDependenciesFromRead appends `config`'s dependency paths to pctx.dependenciesFromReads.
+func recordDependenciesFromRead(pctx *ParsingContext, config *TerragruntConfig, targetConfig string) {
+	if pctx == nil || pctx.dependenciesFromReads == nil || config == nil {
+		return
+	}
+
+	for i := range config.TerragruntDependencies {
+		dep := &config.TerragruntDependencies[i]
+		if dep.isDisabled() || !IsValidConfigPath(dep.ConfigPath) {
+			continue
+		}
+
+		pctx.dependenciesFromReads.appendUniqueResolvedPath(
+			dependencyBlockSourceDir(config, dep, targetConfig),
+			dep.ConfigPath.AsString(),
+		)
+	}
+
+	if config.Dependencies != nil {
+		for _, path := range config.Dependencies.Paths {
+			pctx.dependenciesFromReads.appendUniqueResolvedPath(
+				dependencySourceDir(config, MetadataDependencies, path, targetConfig),
+				path,
+			)
+		}
+	}
+}
+
+func dependencyBlockSourceDir(config *TerragruntConfig, dep *Dependency, fallbackConfig string) string {
+	depPath := dep.ConfigPath.AsString()
+
+	if config.Dependencies != nil {
+		for _, path := range config.Dependencies.Paths {
+			if path == depPath {
+				return dependencySourceDir(config, MetadataDependencies, path, fallbackConfig)
+			}
+		}
+	}
+
+	return dependencySourceDir(config, MetadataDependency, dep.Name, fallbackConfig)
+}
+
+func dependencySourceDir(config *TerragruntConfig, fieldType, fieldName, fallbackConfig string) string {
+	if metadata, found := config.GetMapFieldMetadata(fieldType, fieldName); found {
+		if foundInFile := metadata[FoundInFile]; foundInFile != "" {
+			return filepath.Dir(foundInFile)
+		}
+	}
+
+	return filepath.Dir(fallbackConfig)
 }
 
 // Create a cty Function that can be used to for calling read_terragrunt_config.

@@ -1390,7 +1390,10 @@ func ParseConfig(
 	}
 
 	if terragruntConfigFile == nil {
-		return nil, errors.New(CouldNotResolveTerragruntConfigInFileError(file.ConfigPath))
+		// Surface the eval / decode errors accumulated above alongside the wrapper
+		// so callers see the actual cause and not just "Could not find ...".
+		errs = errs.Append(errors.New(CouldNotResolveTerragruntConfigInFileError(file.ConfigPath)))
+		return nil, errs.ErrorOrNil()
 	}
 
 	config, err := convertToTerragruntConfig(ctx, pctx, file.ConfigPath, terragruntConfigFile)

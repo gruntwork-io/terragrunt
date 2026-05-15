@@ -332,6 +332,10 @@ func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	configPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "partial-parse", "partial-inheritance", "child", config.DefaultTerragruntConfigPath))
 	require.NoError(t, err)
 
+	// The `dependencies` block lives in the included root.hcl, so its relative path resolves against root.hcl's dir (issue #5993).
+	expectedDepPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "partial-parse", "app1"))
+	require.NoError(t, err)
+
 	l := logger.CreateLogger()
 
 	ctx, pctx := newTestParsingContext(t, configPath)
@@ -343,7 +347,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 
 	assert.NotNil(t, terragruntConfig.Dependencies)
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
-	assert.Equal(t, "../app1", terragruntConfig.Dependencies.Paths[0])
+	assert.Equal(t, expectedDepPath, terragruntConfig.Dependencies.Paths[0])
 
 	assert.Nil(t, terragruntConfig.PreventDestroy)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -843,6 +847,89 @@ func TestPartialParseConfigCacheDifferentCallers(t *testing.T) {
 	// Both should return valid results.
 	assert.Equal(t, []string{"../app1"}, configA.Dependencies.Paths)
 	assert.Equal(t, []string{"../app1"}, configB.Dependencies.Paths)
+}
+
+func TestPartialParseReadTerragruntConfigDependenciesUsesSourceMetadata(t *testing.T) {
+	t.Parallel()
+
+	appConfigPath, expectedDepPaths, wrongDepPaths := createReadTerragruntConfigIncludeDependencyFixture(t)
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, appConfigPath)
+	pctx.SkipOutput = true
+	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.DependencyBlock)
+
+	terragruntConfig, err := config.PartialParseConfigFile(ctx, pctx, l, appConfigPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, terragruntConfig.Dependencies)
+
+	for _, expectedDepPath := range expectedDepPaths {
+		assert.Contains(t, terragruntConfig.Dependencies.Paths, expectedDepPath)
+	}
+
+	for _, wrongDepPath := range wrongDepPaths {
+		assert.NotContains(t, terragruntConfig.Dependencies.Paths, wrongDepPath)
+	}
+}
+
+func TestPartialParseReadTerragruntConfigDependenciesOnlyMergeWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	appConfigPath, _, _ := createReadTerragruntConfigIncludeDependencyFixture(t)
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, appConfigPath)
+	pctx.SkipOutput = true
+	pctx = pctx.WithDecodeList(config.TerragruntVersionConstraints)
+
+	terragruntConfig, err := config.PartialParseConfigFile(ctx, pctx, l, appConfigPath, nil)
+	require.NoError(t, err)
+	assert.Nil(t, terragruntConfig.Dependencies)
+}
+
+func createReadTerragruntConfigIncludeDependencyFixture(t *testing.T) (string, []string, []string) {
+	t.Helper()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	depPath := filepath.Join(tmpDir, "dep")
+	legacyPath := filepath.Join(tmpDir, "legacy")
+	sharedDir := filepath.Join(tmpDir, "shared")
+	appDir := filepath.Join(tmpDir, "live", "app")
+
+	require.NoError(t, os.MkdirAll(depPath, 0755))
+	require.NoError(t, os.MkdirAll(legacyPath, 0755))
+	require.NoError(t, os.MkdirAll(sharedDir, 0755))
+	require.NoError(t, os.MkdirAll(appDir, 0755))
+
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "root.hcl"), []byte(`
+dependency "dep" {
+  config_path = "../dep"
+}
+
+dependencies {
+  paths = ["../legacy"]
+}
+`), 0644))
+
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "common.hcl"), []byte(`
+include "root" {
+  path = "../../shared/root.hcl"
+}
+`), 0644))
+
+	appConfigPath := filepath.Join(appDir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(appConfigPath, []byte(`
+locals {
+  common = read_terragrunt_config("common.hcl")
+}
+`), 0644))
+
+	expectedDepPath := filepath.Clean(filepath.Join(sharedDir, "../dep"))
+	expectedLegacyPath := filepath.Clean(filepath.Join(sharedDir, "../legacy"))
+	wrongDepPath := filepath.Clean(filepath.Join(appDir, "../dep"))
+	wrongLegacyPath := filepath.Clean(filepath.Join(appDir, "../legacy"))
+
+	return appConfigPath, []string{expectedDepPath, expectedLegacyPath}, []string{wrongDepPath, wrongLegacyPath}
 }
 
 // TestPartialParseFeatureFlagDefaultInExcludeBlock tests that feature flag default values
