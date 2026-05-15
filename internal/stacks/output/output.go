@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"runtime"
 	"strings"
 
@@ -131,6 +132,8 @@ func StackOutput(
 		return mainErr
 	}
 
+	wp := worker.NewWorkerPool(stackOutputParallelism)
+	defer wp.Stop()
 	for _, path := range foundFiles {
 		dir := filepath.Dir(path)
 
@@ -214,22 +217,15 @@ func StackOutput(
 			}
 		}
 
-		// Sort stackNames based on the length of stackPath to ensure correct order
-		stackNamesSorted := make([]string, len(stackNames))
-		copy(stackNamesSorted, stackNames)
-
-		for i := range stackNamesSorted {
-			for j := i + 1; j < len(stackNamesSorted); j++ {
-				// Compare lengths of the actual paths from the nameToPath map, not the declaredStacks lookup
-				if len(nameToPath[stackNamesSorted[i]]) < len(nameToPath[stackNamesSorted[j]]) {
-					stackNamesSorted[i], stackNamesSorted[j] = stackNamesSorted[j], stackNamesSorted[i]
-				}
-			}
-		}
+		// Sort by stack path length so the outermost stack (shortest path) comes
+		// first; this preserves the parent.child nesting order in the joined key.
+		slices.SortFunc(stackNames, func(a, b string) int {
+			return len(nameToPath[a]) - len(nameToPath[b])
+		})
 
 		stackKey := unit.Name
-		if len(stackNamesSorted) > 0 {
-			stackKey = strings.Join(stackNamesSorted, ".") + "." + unit.Name
+		if len(stackNames) > 0 {
+			stackKey = strings.Join(stackNames, ".") + "." + unit.Name
 		}
 
 		unitOutputs[stackKey] = output
