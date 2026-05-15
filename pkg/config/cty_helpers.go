@@ -4,7 +4,7 @@ package config
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"runtime/debug"
 
 	"dario.cat/mergo"
 	"github.com/zclconf/go-cty/cty"
@@ -47,16 +47,6 @@ func wrapStringSliceToStringAsFuncImpl(
 			return cty.StringVal(out), nil
 		},
 	})
-}
-
-func callWithPanicProtection[T any](f func() (T, error)) (out T, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = errors.New(fmt.Sprintf("panic in function implementation: %v", recovered))
-		}
-	}()
-
-	return f()
 }
 
 func wrapStringSliceToNumberAsFuncImpl(
@@ -419,4 +409,17 @@ func GetFirstKey(m map[string]cty.Value) string {
 	}
 
 	return ""
+}
+
+func callWithPanicProtection[T any](f func() (T, error)) (out T, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = errors.New(errors.FunctionPanicError{
+				Recovered: recovered,
+				Stack:     string(debug.Stack()),
+			})
+		}
+	}()
+
+	return f()
 }

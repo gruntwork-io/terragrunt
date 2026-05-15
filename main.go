@@ -135,8 +135,7 @@ func checkForErrorsAndExit(l log.Logger, exitCode int, opts *options.TerragruntO
 	}
 }
 
-// checkForPanicAndExit handles a captured panic, writes a crash report if possible,
-// and then exits with the normal Terragrunt error handling path.
+// checkForPanicAndExit handles a captured panic, writes a crash report, and exits.
 func checkForPanicAndExit(l log.Logger, exitCode int, opts *options.TerragruntOptions) func(error) {
 	return checkForErrorsAndExit(l, exitCode, opts)
 }
