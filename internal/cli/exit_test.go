@@ -39,7 +39,7 @@ func TestExitCodeFor(t *testing.T) {
 		assert.Contains(t, buf.String(), "regular failure")
 	})
 
-	t.Run("cty function panic routes to reporter and returns panicreport.ExitCode", func(t *testing.T) {
+	t.Run("cty function panic routes to reporter and returns 1", func(t *testing.T) {
 		t.Parallel()
 
 		l, buf := newTestLogger()
@@ -48,7 +48,7 @@ func TestExitCodeFor(t *testing.T) {
 
 		code := cli.ExitCodeFor(l, []string{"terragrunt"}, wrapped, 0, newReporter(t))
 
-		assert.Equal(t, panicreport.ExitCode, code)
+		assert.Equal(t, 1, code)
 		assert.Contains(t, buf.String(), "TERRAGRUNT CRASH")
 	})
 }
