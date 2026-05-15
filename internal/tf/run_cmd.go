@@ -57,7 +57,7 @@ type TFOptions struct {
 func RunCommand(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOpts *TFOptions,
 	args ...string,
 ) error {
@@ -72,7 +72,7 @@ func RunCommand(
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOpts *TFOptions,
 	args ...string,
 ) (*util.CmdOutput, error) {
@@ -89,7 +89,9 @@ func RunCommandWithOutput(
 
 	if !runOpts.ShellOptions.ForwardTFStdout {
 		outWriter, errWriter := logTFOutput(l, *v.Writers, runOpts, args)
-		v = v.WithWriter(outWriter).WithErrWriter(errWriter)
+
+		localV := v.WithWriter(outWriter).WithErrWriter(errWriter)
+		v = &localV
 	}
 
 	output, err := shell.RunCommandWithOutput(

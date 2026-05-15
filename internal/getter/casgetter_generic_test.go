@@ -96,7 +96,7 @@ func TestCASGetter_HTTPArchiveCachesSecondRun(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -163,7 +163,7 @@ func TestCASGetter_HTTPArchiveFalseSkipsExtraction(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -217,7 +217,7 @@ func TestCASGetter_HTTPMissingETagFallsBackToContentHash(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	l := logger.CreateLogger()
 

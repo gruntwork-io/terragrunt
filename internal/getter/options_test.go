@@ -28,7 +28,7 @@ func TestWithCASRegistersCASGetter(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}))
 
@@ -50,7 +50,7 @@ func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}))
 

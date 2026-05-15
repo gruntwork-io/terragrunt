@@ -35,13 +35,13 @@ type ProxyModuleHandler struct {
 // are rejected with 404 so a leaked cache-server token can't be used to proxy
 // authenticated requests to arbitrary upstream hosts.
 func NewProxyModuleHandler(
-	logger log.Logger,
+	l log.Logger,
 	credsSource *cliconfig.CredentialsSource,
 	discoverer RegistryURLDiscoverer,
 	registryNames []string,
 ) *ProxyModuleHandler {
 	return &ProxyModuleHandler{
-		ReverseProxy:  &helpers.ReverseProxy{CredsSource: credsSource, Logger: logger},
+		ReverseProxy:  &helpers.ReverseProxy{CredsSource: credsSource, Logger: l},
 		discoverer:    discoverer,
 		registryNames: slices.Clone(registryNames),
 	}

@@ -16,8 +16,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-cleanhttp"
 	goversion "github.com/hashicorp/go-version"
 	svchost "github.com/hashicorp/terraform-svchost"
 	"golang.org/x/sync/singleflight"
@@ -108,7 +108,7 @@ func (e NoMatchingVersionErr) Error() string {
 func GetModuleRegistryURLBasePath(
 	ctx context.Context,
 	l log.Logger,
-	httpClient *http.Client,
+	httpClient vhttp.Client,
 	domain string,
 ) (string, error) {
 	sdURL := url.URL{
@@ -141,7 +141,7 @@ func GetModuleRegistryURLBasePath(
 func GetTerraformGetHeader(
 	ctx context.Context,
 	l log.Logger,
-	httpClient *http.Client,
+	httpClient vhttp.Client,
 	url *url.URL,
 ) (string, error) {
 	body, header, err := httpGETAndGetResponse(ctx, l, httpClient, url)
@@ -384,26 +384,26 @@ func SourceHasVersionConstraint(source string) bool {
 // use; construct one with NewVersionResolver and share it for the lifetime of
 // a run.
 type VersionResolver struct {
-	httpClient *http.Client
+	httpClient vhttp.Client
 	cache      map[string]string
 	flight     singleflight.Group
 	mu         sync.Mutex
 }
 
 // NewVersionResolver returns a VersionResolver with an empty cache and a
-// [github.com/hashicorp/go-cleanhttp.DefaultClient] for registry-protocol
-// requests.
+// [github.com/gruntwork-io/terragrunt/internal/vhttp.NewOSClient] for
+// registry-protocol requests.
 func NewVersionResolver() *VersionResolver {
 	return &VersionResolver{
-		httpClient: cleanhttp.DefaultClient(),
+		httpClient: vhttp.NewOSClient(),
 		cache:      make(map[string]string),
 	}
 }
 
 // WithHTTPClient overrides the HTTP client used for registry-protocol
-// requests. Intended for tests routing through a
-// [net/http/httptest.Server].
-func (r *VersionResolver) WithHTTPClient(c *http.Client) *VersionResolver {
+// requests. Intended for tests routing through an in-memory
+// [github.com/gruntwork-io/terragrunt/internal/vhttp.Client].
+func (r *VersionResolver) WithHTTPClient(c vhttp.Client) *VersionResolver {
 	r.httpClient = c
 	return r
 }
@@ -572,11 +572,11 @@ func applyHostToken(req *http.Request) (*http.Request, error) {
 func httpGETAndGetResponse(
 	ctx context.Context,
 	l log.Logger,
-	httpClient *http.Client,
+	httpClient vhttp.Client,
 	getURL *url.URL,
 ) ([]byte, *http.Header, error) {
 	if httpClient == nil {
-		httpClient = cleanhttp.DefaultClient()
+		httpClient = vhttp.NewOSClient()
 	}
 
 	if getURL == nil {

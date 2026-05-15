@@ -29,7 +29,7 @@ func TestCASGetterGetWithRacing(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	opts := &cas.CloneOptions{
 		Depth: -1,
@@ -85,7 +85,7 @@ func TestProcessStackComponentLocalSourceConcurrentWithRacing(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	const workers = 4
 
@@ -145,7 +145,7 @@ func TestContentLinkConcurrentSameTargetWithRacing(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	storeDir := t.TempDir()
 	store := cas.NewStore(storeDir)

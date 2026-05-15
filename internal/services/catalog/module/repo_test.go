@@ -70,7 +70,7 @@ func TestFindModules(t *testing.T) {
 			repo, err := module.NewRepo(
 				ctx,
 				logger.CreateLogger(),
-				venv.OSVenv(),
+				*venv.OSVenv(),
 				&module.RepoOpts{CloneURL: tc.repoPath},
 			)
 			require.NoError(t, err)

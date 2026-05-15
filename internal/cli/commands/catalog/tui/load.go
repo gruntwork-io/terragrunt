@@ -30,7 +30,7 @@ func CreateCatalogTempPath(fsys vfs.FS, repoURL string) (string, error) {
 func LoadURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	tempDirs *TempDirTracker,
 	repoURL string,
@@ -74,7 +74,7 @@ func LoadURL(
 
 	l.Debugf("Processing repository %s in temporary path %s", repoURL, tempPath)
 
-	repo, err := module.NewRepo(ctx, l, v, &module.RepoOpts{
+	repo, err := module.NewRepo(ctx, l, *v, &module.RepoOpts{
 		CloneURL:         repoURL,
 		Path:             tempPath,
 		WalkWithSymlinks: walkWithSymlinks,

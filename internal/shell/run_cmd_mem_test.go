@@ -45,13 +45,13 @@ func TestRunCommandMemBackendWithRacing(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	require.NoError(t, shell.RunCommand(t.Context(), l, v, opts, "tofu", "plan"))
+	require.NoError(t, shell.RunCommand(t.Context(), l, &v, opts, "tofu", "plan"))
 	assert.Contains(t, stdout.String(), "Plan: 0 to add")
 
 	stdout.Reset()
 	stderr.Reset()
 
-	err := shell.RunCommand(t.Context(), l, v, opts, "terraform", "apply")
+	err := shell.RunCommand(t.Context(), l, &v, opts, "terraform", "apply")
 	require.Error(t, err)
 	assert.Contains(t, stderr.String(), "boom")
 
@@ -81,7 +81,7 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 
 	v := venvtest.New().WithExec(e).WithWriter(stdout).WithErrWriter(stderr)
 
-	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), v, opts, "tool"))
+	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), &v, opts, "tool"))
 	assert.Contains(t, stdout.String(), "out-line", "subprocess stdout must reach Writer")
 	assert.Contains(t, stderr.String(), "err-line", "subprocess stderr must reach ErrWriter")
 	assert.NotContains(
@@ -101,7 +101,7 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 	merged := &bytes.Buffer{}
 	mergedV := venvtest.New().WithExec(e).WithWriter(merged).WithErrWriter(merged)
 
-	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), mergedV, opts, "tool"))
+	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), &mergedV, opts, "tool"))
 	assert.Contains(t, merged.String(), "out-line")
 	assert.Contains(t, merged.String(), "err-line")
 }

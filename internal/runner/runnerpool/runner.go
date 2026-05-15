@@ -362,7 +362,7 @@ func UnitsWithDependents(q *queue.Queue) map[string]bool {
 func (rnr *Runner) Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	stackOpts *options.TerragruntOptions,
 	r *report.Report,
 ) error {
@@ -528,7 +528,7 @@ func (rnr *Runner) Run(
 				credsGetter, err := creds.ObtainCredsForParsing(
 					childCtx,
 					unitLogger,
-					unitV,
+					&unitV,
 					unitOpts.AuthProviderCmd,
 					configbridge.ShellRunOptsFromOpts(unitOpts),
 				)
@@ -551,7 +551,7 @@ func (rnr *Runner) Run(
 							unitLogger,
 							unitOpts,
 						)
-						pctx = pctx.WithVenv(unitV)
+						pctx = pctx.WithVenv(&unitV)
 
 						var readErr error
 
@@ -585,7 +585,7 @@ func (rnr *Runner) Run(
 						return unitRunner.Run(
 							runCtx,
 							unitLogger,
-							unitV,
+							&unitV,
 							unitOpts,
 							r,
 							runCfg,
@@ -1169,7 +1169,6 @@ func logTaskOutcome(ctx context.Context, l log.Logger, unitPath, command string,
 			outcome,
 			err,
 		)
-
 		return
 	}
 

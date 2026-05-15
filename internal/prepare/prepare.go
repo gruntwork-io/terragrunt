@@ -41,7 +41,7 @@ type Config struct {
 func PrepareConfig(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (*Config, error) {
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
@@ -76,7 +76,7 @@ func PrepareConfig(
 func PrepareSource(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 	r *report.Report,
@@ -172,7 +172,6 @@ func PrepareSource(
 				runCfg,
 				r,
 			)
-
 			return err
 		})
 	if err != nil {
@@ -195,7 +194,7 @@ func PrepareSource(
 // It requires PrepareSource to have been called first.
 func PrepareGenerate(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
 ) error {
@@ -206,7 +205,7 @@ func PrepareGenerate(
 // It requires PrepareGenerate to have been called first.
 func PrepareInputsAsEnvVars(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
 ) error {
@@ -225,7 +224,7 @@ func PrepareInputsAsEnvVars(
 func PrepareInit(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	originalOpts, opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
 	r *report.Report,

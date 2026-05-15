@@ -54,7 +54,7 @@ const (
 func DownloadTerraformSource(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	source string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -255,7 +255,7 @@ func (e SourceVersionConstraintErr) Error() string {
 func DownloadTerraformSourceIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	terraformSource *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -470,7 +470,7 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 func downloadSource(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	src *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -498,7 +498,7 @@ func downloadSource(
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
-		done, err := tryCASDownload(ctx, l, v, src, opts, cfg.Terraform.Mutable)
+		done, err := tryCASDownload(ctx, l, *v, src, opts, cfg.Terraform.Mutable)
 		if err != nil {
 			return err
 		}
@@ -660,7 +660,7 @@ func tryCASDownload(
 // Exported so tests can assert the protocol set directly.
 func BuildDownloadClient(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 ) (*getter.Client, error) {
@@ -681,7 +681,7 @@ func BuildDownloadClient(
 
 	if opts.Experiments.Evaluate(experiment.OCI) {
 		clientOpts = append(clientOpts, getter.WithOCI(&getter.OCIGetter{
-			NewStore: getter.NewOCIRepositoryStore(l, v),
+			NewStore: getter.NewOCIRepositoryStore(l, *v),
 			Logger:   l,
 			FS:       v.FS,
 		}))

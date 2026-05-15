@@ -52,7 +52,7 @@ func TestCASGetter_TFRRoutesThroughCAS(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	// Inner client builder injects a TLS-trusting HttpGetter so the
 	// RegistryGetter's delegated archive download trusts the
@@ -131,7 +131,7 @@ func TestCASGetter_TFRBareSchemeIsClaimed(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{},
 		getter.WithGenericFetchers(map[string]gogetter.Getter{

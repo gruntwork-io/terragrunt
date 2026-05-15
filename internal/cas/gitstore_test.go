@@ -224,7 +224,7 @@ func newTestGitStore(t *testing.T) (*cas.GitStore, venv.Venv, string) {
 
 	root := filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore")
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	store := cas.NewGitStore(root)
 

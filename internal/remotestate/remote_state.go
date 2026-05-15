@@ -141,7 +141,7 @@ func (remote *RemoteState) Migrate(
 		)
 	}
 
-	stateFile, err := remote.pullState(ctx, l, srcV, opts.TFRunOpts)
+	stateFile, err := remote.pullState(ctx, l, &srcV, opts.TFRunOpts)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func (remote *RemoteState) Migrate(
 		}
 	}()
 
-	return dstRemote.pushState(ctx, l, dstV, dstOpts.TFRunOpts, stateFile)
+	return dstRemote.pushState(ctx, l, &dstV, dstOpts.TFRunOpts, stateFile)
 }
 
 // NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:
@@ -227,7 +227,7 @@ func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, workingDir string)
 func (remote *RemoteState) pullState(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	tfOpts *tf.TFOptions,
 ) (string, error) {
 	l.Debugf("Pulling state from %s backend", remote.BackendName)
@@ -260,7 +260,7 @@ func (remote *RemoteState) pullState(
 func (remote *RemoteState) pushState(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	tfOpts *tf.TFOptions,
 	stateFile string,
 ) error {

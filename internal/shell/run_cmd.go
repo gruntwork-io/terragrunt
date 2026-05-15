@@ -165,7 +165,7 @@ func (o *ShellOptions) NoEngine() bool {
 func RunCommand(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOpts *ShellOptions,
 	command string,
 	args ...string,
@@ -187,7 +187,7 @@ func RunCommand(
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOpts *ShellOptions,
 	workingDir string,
 	suppressStdout bool,
@@ -261,7 +261,7 @@ type RunCommandOptions struct {
 func runCommand(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOpts *ShellOptions,
 	cmdOpts RunCommandOptions,
 ) error {
@@ -349,7 +349,9 @@ func runCommand(
 	savedConsole := exec.SaveConsoleState()
 	defer savedConsole.Restore()
 
-	if err := cmd.Start(l); err != nil { //nolint:contextcheck // ctx already in exec.Command
+	if err := cmd.Start(
+		l,
+	); err != nil { //nolint:contextcheck // context already passed to exec.Command
 		err = util.ProcessExecutionError{
 			Err:             err,
 			Args:            cmdOpts.Args,

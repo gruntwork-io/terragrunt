@@ -7,21 +7,26 @@ import (
 	"net/http"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	svchost "github.com/hashicorp/terraform-svchost"
 	"github.com/puzpuzpuz/xsync/v4"
 )
 
-// Client is an HTTP client.
+// Client is the cache server's outbound HTTP client. It wraps a
+// [vhttp.Client] with registry credential injection and a per-URL response
+// cache.
 type Client struct {
-	*http.Client
+	httpClient vhttp.Client
 
 	credsSource *cliconfig.CredentialsSource
 	cache       *xsync.Map[string, []byte]
 }
 
-func NewClient(credsSource *cliconfig.CredentialsSource) *Client {
+// NewClient returns a [Client] that dispatches requests through httpClient.
+// Pass [vhttp.NewOSClient] in production or a [vhttp.NewMemClient] in tests.
+func NewClient(httpClient vhttp.Client, credsSource *cliconfig.CredentialsSource) *Client {
 	return &Client{
-		Client:      &http.Client{},
+		httpClient:  httpClient,
 		credsSource: credsSource,
 		cache:       xsync.NewMap[string, []byte](),
 	}
@@ -45,7 +50,7 @@ func (client *Client) Do(ctx context.Context, method, reqURL string, value any) 
 		}
 	}
 
-	resp, err := client.Client.Do(req)
+	resp, err := client.httpClient.Do(req)
 	if err != nil {
 		return err
 	}

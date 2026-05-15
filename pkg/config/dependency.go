@@ -284,7 +284,13 @@ func decodeAndRetrieveOutputs(
 		}
 	}
 
-	if err := checkForDependencyBlockCycles(ctx, pctx, l, pctx.TerragruntConfigPath, decodedDependency); err != nil {
+	if err := checkForDependencyBlockCycles(
+		ctx,
+		pctx,
+		l,
+		pctx.TerragruntConfigPath,
+		decodedDependency,
+	); err != nil {
 		return nil, err
 	}
 
@@ -459,7 +465,6 @@ func dependencyBlocksToModuleDependencies(
 				"Skipping dependency %q: ConfigPath is not a valid known string value",
 				decodedDependencyBlock.Name,
 			)
-
 			continue
 		}
 
@@ -506,7 +511,14 @@ func checkForDependencyBlockCycles(
 			return err
 		}
 
-		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, &visitedPaths, &currentTraversalPaths); err != nil {
+		if err := checkForDependencyBlockCyclesUsingDFS(
+			ctx,
+			dependencyContext,
+			l,
+			dependencyPath,
+			&visitedPaths,
+			&currentTraversalPaths,
+		); err != nil {
 			return err
 		}
 	}
@@ -554,7 +566,14 @@ func checkForDependencyBlockCyclesUsingDFS(
 			return err
 		}
 
-		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, visitedPaths, currentTraversalPaths); err != nil {
+		if err := checkForDependencyBlockCyclesUsingDFS(
+			ctx,
+			dependencyContext,
+			l,
+			dependencyPath,
+			visitedPaths,
+			currentTraversalPaths,
+		); err != nil {
 			return err
 		}
 	}
@@ -645,7 +664,10 @@ func dependencyBlocksToCtyValue(
 				// During hcl validate, output resolution is skipped. Use cty.DynamicVal so that
 				// attribute access on dependency outputs (e.g. dependency.x.outputs.y) evaluates
 				// to unknown rather than producing an "Unsupported attribute" error.
-				l.Debugf("Setting outputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+				l.Debugf(
+					"Setting outputs for dependency %s to DynamicVal (output resolution skipped)",
+					dependencyConfig.Name,
+				)
 
 				dependencyEncodingMap["outputs"] = cty.DynamicVal
 			}
@@ -653,7 +675,10 @@ func dependencyBlocksToCtyValue(
 			if dependencyConfig.Inputs != nil {
 				dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
 			} else if pctx.SkipOutput {
-				l.Debugf("Setting inputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+				l.Debugf(
+					"Setting inputs for dependency %s to DynamicVal (output resolution skipped)",
+					dependencyConfig.Name,
+				)
 
 				dependencyEncodingMap["inputs"] = cty.DynamicVal
 			}
@@ -1440,12 +1465,13 @@ func getTerragruntOutputJSONFromInitFolder(
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	// Discard streamed stdout; the JSON is read from the returned CmdOutput.
-	discardV := pctx.Venv.WithWriter(io.Discard)
+	discardV := *pctx.Venv
+	discardV.Writers.Writer = io.Discard
 
 	out, err := tf.RunCommandWithOutput(
 		bareCtx,
 		l,
-		discardV,
+		&discardV,
 		tfRunOpts,
 		tf.CommandNameOutput,
 		"-json",
@@ -1572,7 +1598,13 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
 	terragruntDir := filepath.Dir(pctx.TerragruntConfigPath)
-	if err := CopyLockFile(l, pctx.RootWorkingDir, pctx.LogShowAbsPaths, terragruntDir, tempWorkDir); err != nil {
+	if err := CopyLockFile(
+		l,
+		pctx.RootWorkingDir,
+		pctx.LogShowAbsPaths,
+		terragruntDir,
+		tempWorkDir,
+	); err != nil {
 		return nil, err
 	}
 
@@ -1580,7 +1612,7 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Clone pctx and discard init stdout so it doesn't leak into the caller's output buffer.
 	initPctx := pctx.Clone()
-	initPctx.Venv = initPctx.Venv.WithWriter(io.Discard)
+	initPctx.Venv.Writers.Writer = io.Discard // Clone deep-copied Venv above so this stays local.
 
 	// First run init to setup the backend configuration so that we can run output.
 	runTerraformInitForDependencyOutput(ctx, initPctx, l, tempWorkDir)
@@ -1589,12 +1621,13 @@ func getTerragruntOutputJSONFromRemoteState(
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	// Discard streamed stdout; the JSON is read from the returned CmdOutput.
-	discardV := pctx.Venv.WithWriter(io.Discard)
+	discardV := *pctx.Venv
+	discardV.Writers.Writer = io.Discard
 
 	out, err := tf.RunCommandWithOutput(
 		bareCtx,
 		l,
-		discardV,
+		&discardV,
 		tfRunOpts,
 		tf.CommandNameOutput,
 		"-json",
@@ -1731,7 +1764,7 @@ func runTerragruntOutputJSON(
 	pctx = pctx.Clone()
 	pctx.ForwardTFStdout = false
 	pctx.JSONLogFormat = false
-	pctx.Venv = pctx.Venv.WithWriter(stdoutBufferWriter)
+	pctx.Venv.Writers.Writer = stdoutBufferWriter // Clone deep-copied Venv.Writers so this stays local.
 
 	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
@@ -1791,7 +1824,10 @@ func runTerragruntOutputJSON(
 	runOpts.AuthProviderCmd = pctx.AuthProviderCmd
 	runOpts.CASCloneDepth = pctx.CASCloneDepth
 
-	err = run.Run(ctx, l, pctx.Venv, runOpts, report.NewReport(), runCfg, credsGetter)
+	runV := *pctx.Venv
+	runV.Writers.Writer = stdoutBufferWriter
+
+	err = run.Run(ctx, l, &runV, runOpts, report.NewReport(), runCfg, credsGetter)
 	if err != nil {
 		return nil, err
 	}
@@ -1892,11 +1928,19 @@ func runTerraformInitForDependencyOutput(
 	initRunOpts := tfRunOptsFromPctx(pctx)
 	initRunOpts.ShellOptions.WorkingDir = workingDir
 
-	initV := pctx.Venv.WithErrWriter(&stderr)
+	initV := *pctx.Venv
+	initV.Writers.ErrWriter = &stderr
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	if err := tf.RunCommand(bareCtx, l, initV, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
+	if err := tf.RunCommand(
+		bareCtx,
+		l,
+		&initV,
+		initRunOpts,
+		tf.CommandNameInit,
+		"-get=false",
+	); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf("%s", stderr.String())

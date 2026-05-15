@@ -235,7 +235,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(
 		ctx,
 		l,
-		venvtest.New().WithExec(e),
+		new(venvtest.New().WithExec(e)),
 		run.PopulateTFVersionInput{
 			TFOpts: tfOpts("tofu"),
 		},
@@ -251,7 +251,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	_, terraformVer, terraformImpl, err := run.PopulateTFVersion(
 		ctx,
 		l,
-		venvtest.New().WithExec(e),
+		new(venvtest.New().WithExec(e)),
 		run.PopulateTFVersionInput{
 			TFOpts: tfOpts("terraform"),
 		},

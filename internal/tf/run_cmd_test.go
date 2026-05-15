@@ -94,7 +94,7 @@ func testCommandOutput(
 	out, err := tf.RunCommandWithOutput(
 		t.Context(),
 		l,
-		v,
+		&v,
 		configbridge.TFRunOptsFromOpts(terragruntOptions),
 		"same",
 	)

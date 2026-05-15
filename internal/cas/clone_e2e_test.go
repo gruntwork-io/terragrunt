@@ -26,7 +26,7 @@ func TestCASClone_E2E_SymbolicRefSecondRunReusesCache(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -67,7 +67,7 @@ func TestCASClone_E2E_CommitFormRefRoundTrip(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -96,7 +96,7 @@ func TestCASClone_E2E_ThroughCASGetter(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -143,7 +143,7 @@ func TestCASClone_E2E_RemainsOfflineAfterFirstClone(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	l := logger.CreateLogger()
 
@@ -181,7 +181,7 @@ func TestCASClone_E2E_MutableSetCopiesBlobs(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	l := logger.CreateLogger()
 

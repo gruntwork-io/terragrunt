@@ -24,7 +24,7 @@ import (
 func NewStackRunner(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	runnerOpts ...common.Option,
 ) (common.StackRunner, error) {
@@ -47,7 +47,7 @@ func BuildUnitOpts(
 func FindDependentUnits(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []*component.Unit {
@@ -79,7 +79,7 @@ func FindDependentUnits(
 func discoverPathsToCheck(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	terragruntConfig *config.TerragruntConfig,
 ) []string {
@@ -105,7 +105,7 @@ func discoverPathsToCheck(
 func findMatchingUnitsInPath(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	dir string,
 	opts *options.TerragruntOptions,
 ) map[string]*component.Unit {

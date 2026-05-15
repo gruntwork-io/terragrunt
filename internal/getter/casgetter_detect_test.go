@@ -350,7 +350,7 @@ func TestCASGetterDetect_SchemeNotInRegistryFallsThrough(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	// No generic dispatch wired: only the git+file paths are active.
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
@@ -473,7 +473,7 @@ func newCASGetterForDetect(t *testing.T) *getter.CASGetter {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	return getter.NewCASGetter(
 		logger.CreateLogger(),

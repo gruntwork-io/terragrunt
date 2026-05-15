@@ -52,7 +52,10 @@ func (e *NestedGitScanDepthExceededError) Error() string {
 // ancestor keeps the answer correct when a nested repository sits below an
 // already-cached outer root. Concurrent misses for the same repo collapse to
 // a single fork via the cache's resolve lock and a re-check after acquiring it.
-func GitTopLevelDir(ctx context.Context, l log.Logger, v venv.Venv, path string) (string, error) {
+//
+// The git invocation runs with v.Exec and v.Env; its stdout and stderr are
+// captured to local buffers, so v.Writers is overridden for this call.
+func GitTopLevelDir(ctx context.Context, l log.Logger, v *venv.Venv, path string) (string, error) {
 	repoRoots := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
 	normalized := normalizeRepoPath(path)
 
@@ -74,7 +77,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v venv.Venv, path string)
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitV := v
+	gitV := *v
 	gitV.Writers = &writer.Writers{Writer: &stdout, ErrWriter: &stderr}
 
 	gitRunOpts := NewShellOptions().WithWorkingDir(path)
@@ -82,7 +85,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v venv.Venv, path string)
 	cmd, err := RunCommandWithOutput(
 		ctx,
 		l,
-		gitV,
+		&gitV,
 		gitRunOpts,
 		path,
 		true,
@@ -196,7 +199,7 @@ func normalizeRepoPath(path string) string {
 func GitRepoTags(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	workingDir string,
 	gitRepo *url.URL,
 ) ([]string, error) {
@@ -207,7 +210,7 @@ func GitRepoTags(
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitV := v
+	gitV := *v
 	gitV.Writers = &writer.Writers{Writer: &stdout, ErrWriter: &stderr}
 
 	gitRunOpts := NewShellOptions().WithWorkingDir(workingDir)
@@ -215,7 +218,7 @@ func GitRepoTags(
 	output, err := RunCommandWithOutput(
 		ctx,
 		l,
-		gitV,
+		&gitV,
 		gitRunOpts,
 		workingDir,
 		true,
@@ -247,7 +250,7 @@ func GitRepoTags(
 func GitLastReleaseTag(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	workingDir string,
 	gitRepo *url.URL,
 ) (string, error) {

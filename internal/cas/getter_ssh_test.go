@@ -53,7 +53,7 @@ func TestSSHCASGetterGet(t *testing.T) {
 			c, err := cas.New(cas.WithStorePath(storePath))
 			require.NoError(t, err)
 
-			v := venv.OSVenv()
+			v := *venv.OSVenv()
 
 			opts := &cas.CloneOptions{
 				Branch: "main",

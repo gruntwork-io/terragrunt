@@ -151,7 +151,7 @@ func GenerateStackFile(
 		return err
 	}
 
-	cs, err := setupCAS(l, pctx.Venv, casEnabled, pctx.CASCloneDepth)
+	cs, err := setupCAS(l, *pctx.Venv, casEnabled, pctx.CASCloneDepth)
 	if err != nil {
 		return err
 	}
@@ -172,11 +172,11 @@ func GenerateStackFile(
 		strictControls:  pctx.StrictControls,
 	}
 
-	if err := generateUnits(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Units); err != nil {
+	if err := generateUnits(ctx, l, *pctx.Venv, &genOpts, pool, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, l, *pctx.Venv, &genOpts, pool, stackFile.Stacks); err != nil {
 		return err
 	}
 

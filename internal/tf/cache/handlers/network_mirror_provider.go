@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -25,7 +26,8 @@ type NetworkMirrorProviderHandler struct {
 }
 
 func NewNetworkMirrorProviderHandler(
-	logger log.Logger,
+	l log.Logger,
+	httpClient vhttp.Client,
 	networkMirror *cliconfig.ProviderInstallationNetworkMirror,
 	credsSource *cliconfig.CredentialsSource,
 ) (*NetworkMirrorProviderHandler, error) {
@@ -36,11 +38,12 @@ func NewNetworkMirrorProviderHandler(
 
 	return &NetworkMirrorProviderHandler{
 		CommonProviderHandler: NewCommonProviderHandler(
-			logger,
+			l,
+			httpClient,
 			networkMirror.Include,
 			networkMirror.Exclude,
 		),
-		client:           helpers.NewClient(credsSource),
+		client:           helpers.NewClient(httpClient, credsSource),
 		networkMirrorURL: networkMirrorURL,
 	}, nil
 }

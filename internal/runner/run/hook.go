@@ -65,7 +65,7 @@ type ProcessHooksParams struct {
 }
 
 // ProcessHooks processes a list of hooks, executing each one that matches the current command.
-func ProcessHooks(ctx context.Context, l log.Logger, v venv.Venv, p ProcessHooksParams) error {
+func ProcessHooks(ctx context.Context, l log.Logger, v *venv.Venv, p ProcessHooksParams) error {
 	if len(p.Hooks) == 0 {
 		return nil
 	}
@@ -112,7 +112,7 @@ func ProcessHooks(ctx context.Context, l log.Logger, v venv.Venv, p ProcessHooks
 func ProcessErrorHooks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	hooks []runcfg.ErrorHook,
 	cfg *runcfg.RunConfig,
 	opts *Options,
@@ -172,7 +172,7 @@ func ProcessErrorHooks(
 					_, possibleError := shell.RunCommandWithOutput(
 						ctx,
 						l,
-						hookV,
+						&hookV,
 						opts.shellRunOptions(),
 						curHook.WorkingDir,
 						curHook.SuppressStdout,
@@ -252,7 +252,7 @@ func shouldRunHook(
 func runHook(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,
@@ -280,7 +280,7 @@ func runHook(
 	_, possibleError := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		hookV,
+		&hookV,
 		opts.shellRunOptions(),
 		workingDir,
 		suppressStdout,
@@ -297,7 +297,7 @@ func runHook(
 func executeTFLint(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,

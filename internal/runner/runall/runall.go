@@ -51,7 +51,7 @@ var runAllDisabledCommands = map[string]string{
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (err error) {
 	// --filter sets RunAll, so the CLI layer dispatches here without going
@@ -159,7 +159,6 @@ func Run(
 						"Running stack clean for %s, as part of generate command",
 						opts.WorkingDir,
 					)
-
 					return clean.CleanStacks(l, opts)
 				})
 			if errClean != nil {
@@ -209,7 +208,7 @@ func Run(
 func RunAllOnStack(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	rnr common.StackRunner,
 	r *report.Report,
@@ -217,7 +216,12 @@ func RunAllOnStack(
 	l.Debugf("%s", rnr.GetStack().String())
 
 	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
-	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.LogShowAbsPaths, opts.Experiments); err != nil {
+	if err := rnr.LogUnitDeployOrder(
+		l,
+		isDestroy,
+		opts.LogShowAbsPaths,
+		opts.Experiments,
+	); err != nil {
 		return err
 	}
 

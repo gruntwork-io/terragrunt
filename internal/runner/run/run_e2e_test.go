@@ -66,7 +66,7 @@ func TestRunPipelineEndToEndPlan(t *testing.T) {
 	cfg := &runcfg.RunConfig{}
 	credsGetter := creds.NewGetter()
 
-	err := run.Run(t.Context(), l, v, opts, report.NewReport(), cfg, credsGetter)
+	err := run.Run(t.Context(), l, &v, opts, report.NewReport(), cfg, credsGetter)
 	require.NoError(t, err, "run.Run must succeed when the mem backend returns a clean plan")
 
 	assert.Equal(t, int32(1), planCalls.Load(), "exactly one tofu plan call expected")
@@ -107,7 +107,7 @@ func TestRunPipelineEndToEndPropagatesPlanFailure(t *testing.T) {
 	err := run.Run(
 		t.Context(),
 		l,
-		v,
+		&v,
 		opts,
 		report.NewReport(),
 		&runcfg.RunConfig{},
@@ -171,7 +171,10 @@ func TestRunPipelineEndToEndFiresHooks(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.Run(t.Context(), l, v, opts, report.NewReport(), cfg, creds.NewGetter()))
+	require.NoError(
+		t,
+		run.Run(t.Context(), l, &v, opts, report.NewReport(), cfg, creds.NewGetter()),
+	)
 
 	mu.Lock()
 	defer mu.Unlock()

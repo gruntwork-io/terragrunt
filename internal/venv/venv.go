@@ -3,11 +3,11 @@
 //
 // A [Venv] bundles the side-effect handles every layer below the CLI needs
 // to do its work: [vfs.FS] for filesystem reads and writes, [vexec.Exec]
-// for spawning subprocesses, [vsops.Decrypter] for SOPS decryption, the
-// shell environment variables and platform handles read at startup, and
-// the stdout/stderr writers. Production code
-// constructs the real bundle once at the top via [OSVenv]; tests construct
-// an in-memory bundle and drive the full CLI through it.
+// for spawning subprocesses, [vhttp.Client] for outbound HTTP,
+// [vsops.Decrypter] for SOPS decryption, the shell environment variables and
+// platform handles read at startup, and the stdout/stderr writers. Production
+// code constructs the real bundle once at the top via [OSVenv]; tests
+// construct an in-memory bundle and drive the full CLI through it.
 //
 // This is the one Venv type threaded through the codebase. A package may
 // define its own local Venv only when its handle set genuinely differs
@@ -24,6 +24,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 )
@@ -57,13 +58,14 @@ type Platform struct {
 }
 
 // Venv is the root virtualized environment. It carries the filesystem,
-// process-execution, SOPS-decryption, environment-variable, platform, and
-// writer handles that every Terragrunt operation needs. Env is shared by
+// process-execution, HTTP, SOPS-decryption, environment-variable, platform,
+// and writer handles that every Terragrunt operation needs. Env is shared by
 // reference across the run and mutated in place as provider-cache, hook, and
 // inputs contributions resolve.
 type Venv struct {
 	FS       vfs.FS
 	Exec     vexec.Exec
+	HTTP     vhttp.Client
 	Sops     vsops.Decrypter
 	Env      map[string]string
 	Platform *Platform
@@ -213,12 +215,20 @@ func (v Venv) RequireUserHomeDir() {
 	}
 }
 
-// OSVenv builds the production [Venv]: the real OS filesystem, process executor,
-// platform handles, a snapshot of the OS environment, and real stdout/stderr.
-func OSVenv() Venv {
-	return Venv{
+// OSVenv builds the production [Venv]: the real OS filesystem, the real OS
+// process executor, the real outbound HTTP client, platform handles, a
+// snapshot of the OS environment, and stdout/stderr wired to the real OS
+// streams.
+//
+// It returns a *[Venv] so the bundle is threaded by pointer through every
+// downstream call — small parameter, no copying, and shallow-copying a
+// pointed-to [Venv] (via `local := *v`) yields an independent value that
+// callers can mutate without affecting the original.
+func OSVenv() *Venv {
+	return &Venv{
 		FS:   vfs.NewOSFS(),
 		Exec: vexec.NewOSExec(),
+		HTTP: vhttp.NewOSClient(),
 		Sops: vsops.NewOSDecrypter(),
 		Env:  ParseEnviron(os.Environ()),
 		Platform: &Platform{

@@ -31,7 +31,7 @@ func TestProcessStackComponent_LocalSource_RewritesStackSources(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	source := root + "//stacks/my-stack"
 
@@ -73,7 +73,7 @@ func TestProcessStackComponent_LocalSource_RewritesUnitSources(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	source := root + "//stacks/my-stack"
 
@@ -121,7 +121,7 @@ func TestProcessStackComponent_LocalSource_DoesNotMutateInput(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	source := root + "//stacks/my-stack"
 
@@ -140,7 +140,7 @@ func TestProcessStackComponent_LocalSource_DeterministicOutput(t *testing.T) {
 	root := buildLocalStackFixture(t)
 	l := logger.CreateLogger()
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	readStackFile := func() string {
 		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
@@ -190,7 +190,7 @@ func TestProcessStackComponent_LocalSource_ContentAddressedCacheKey(t *testing.T
 
 	l := logger.CreateLogger()
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	runAndExtractServiceRef := func(root string) string {
 		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
@@ -369,7 +369,7 @@ func TestProcessStackComponent_GitForcerRoutesRemote(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	source := "git::" + repoURL + "//stacks/my-stack?ref=main"
 
@@ -430,7 +430,7 @@ func TestProcessStackComponent_LocalSource_MaterializeSynthTree(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	source := root + "//stacks/my-stack"
 
@@ -674,7 +674,7 @@ func TestProcessStackComponent_LocalSource_SharedUnitTemplate(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	source := root + "//stacks/my-stack"
 
@@ -726,7 +726,7 @@ func TestProcessStackComponent_LocalSource_SharedNestedStack(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	source := root + "//stacks/parent"
 

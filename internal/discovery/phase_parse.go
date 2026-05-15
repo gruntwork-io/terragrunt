@@ -103,7 +103,7 @@ func parseDepthFromContext(ctx context.Context) int {
 func ensureParsed(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -160,7 +160,7 @@ func (p *ParsePhase) Kind() PhaseKind {
 func (p *ParsePhase) Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()
@@ -247,7 +247,7 @@ func (p *ParsePhase) Run(
 func (p *ParsePhase) parseAndReclassify(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
 	candidate DiscoveryResult,
@@ -312,7 +312,7 @@ func (p *ParsePhase) parseAndReclassify(
 func parseComponent(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -368,7 +368,7 @@ func parseComponent(
 
 			if parseOpts.DiscoveryAuthProviderCmd {
 				if _, err := creds.ObtainCredsForParsing(
-					ctx, l, parseV, parseOpts.AuthProviderCmd, shellOpts,
+					ctx, l, &parseV, parseOpts.AuthProviderCmd, shellOpts,
 				); err != nil {
 					return fmt.Errorf(
 						"obtaining auth provider credentials for %s: %w",
@@ -379,7 +379,7 @@ func parseComponent(
 			}
 
 			ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parsingCtx = parsingCtx.WithVenv(parseV).WithDecodeList(
+			parsingCtx = parsingCtx.WithVenv(&parseV).WithDecodeList(
 				config.TerraformSource,
 				config.DependenciesBlock,
 				config.DependencyBlock,
@@ -422,7 +422,6 @@ func parseComponent(
 							"Skipping missing config during discovery: %s",
 							parseOpts.TerragruntConfigPath,
 						)
-
 						return nil
 					}
 				}

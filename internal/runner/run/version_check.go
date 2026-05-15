@@ -51,7 +51,7 @@ type PopulateTFVersionInput struct {
 func PopulateTFVersion(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	in PopulateTFVersionInput,
 ) (log.Logger, *version.Version, tfimpl.Type, error) {
 	versionCache := GetRunVersionCache(ctx)
@@ -135,7 +135,7 @@ func parseVersionFromCache(cachedData string) (tfimpl.Type, *version.Version, er
 func GetTFVersion(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	tfOpts *tf.TFOptions,
 ) (log.Logger, *version.Version, tfimpl.Type, error) {
 	// Clone to avoid mutating the caller's options.
@@ -156,7 +156,7 @@ func GetTFVersion(
 
 	versionV.Env = envCopy
 
-	output, err := tf.RunCommandWithOutput(ctx, l, versionV, &optsCopy, tf.FlagNameVersion)
+	output, err := tf.RunCommandWithOutput(ctx, l, &versionV, &optsCopy, tf.FlagNameVersion)
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}

@@ -682,7 +682,7 @@ func createConfig(
 	})
 
 	versionV := venvtest.New().WithExec(versionExec).WithEnv(venv.OSVenv().Env)
-	_, ver, impl, err := run.PopulateTFVersion(t.Context(), l, versionV, run.PopulateTFVersionInput{
+	_, ver, impl, err := run.PopulateTFVersion(t.Context(), l, &versionV, run.PopulateTFVersionInput{
 		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
 		WorkingDir:   opts.WorkingDir,
 		VersionFiles: opts.VersionManagerFileName,
@@ -1554,7 +1554,7 @@ func TestBuildDownloadClientPassesVenvToOCIStore(t *testing.T) {
 	})
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
-		v,
+		&v,
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)

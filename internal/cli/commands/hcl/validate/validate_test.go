@@ -134,7 +134,7 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 
 	opts.AuthProviderCmd = "fake-auth-provider"
 
-	err = validate.RunValidateInputs(t.Context(), l, v, opts)
+	err = validate.RunValidateInputs(t.Context(), l, &v, opts)
 	require.Error(
 		t,
 		err,
@@ -160,6 +160,6 @@ func TestRunValidateInputsPassesWhenInputsDefined(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	err = validate.RunValidateInputs(t.Context(), l, v, opts)
+	err = validate.RunValidateInputs(t.Context(), l, &v, opts)
 	require.NoError(t, err)
 }

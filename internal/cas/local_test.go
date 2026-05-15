@@ -295,7 +295,7 @@ func newCAS(t *testing.T) (*cas.CAS, venv.Venv) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	return c, v
 }

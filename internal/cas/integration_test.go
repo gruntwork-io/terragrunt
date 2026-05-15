@@ -22,7 +22,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 	l := logger.CreateLogger()
 	repoURL := startTestServer(t)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	t.Run("clone same repo twice uses store", func(t *testing.T) {
 		t.Parallel()
@@ -99,7 +99,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 	l := logger.CreateLogger()
 	repoURL := startTestServer(t)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
 	t.Run("stores tree objects", func(t *testing.T) {
 		t.Parallel()
