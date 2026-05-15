@@ -8,7 +8,6 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
@@ -231,7 +230,7 @@ func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef 
 	return refs
 }
 
-// buildStackRefs builds component refs for stack blocks.
+// buildStackRefs builds component refs for stack blocks. ChildRefs are populated by best-effort discovery: discoverStackChildUnitsWithDepth reads the nested stack file via the supplied fs, so go-getter-style remote sources (git::, https://, s3://, …) silently yield no child refs because the file read fails.
 func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
@@ -241,42 +240,19 @@ func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir
 			stackGenPath = filepath.Join(filepath.Dir(stackTargetDir), s.Path)
 		}
 
-		ref := ComponentRef{Name: s.Name, Path: stackGenPath}
-
-		if sourceDir, ok := localStackSourceDir(s.Source, stackDir); ok {
-			ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, 0)
+		sourceDir := s.Source
+		if !filepath.IsAbs(sourceDir) {
+			sourceDir = filepath.Join(stackDir, sourceDir)
 		}
 
-		refs = append(refs, ref)
+		refs = append(refs, ComponentRef{
+			Name:      s.Name,
+			Path:      stackGenPath,
+			ChildRefs: discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, 0),
+		})
 	}
 
 	return refs
-}
-
-// localStackSourceDir returns local stack source directories and skips remote sources.
-func localStackSourceDir(source, stackDir string) (string, bool) {
-	if strings.HasPrefix(source, "file://") {
-		p := strings.TrimPrefix(source, "file://")
-		if !filepath.IsAbs(p) {
-			p = filepath.Join(stackDir, p)
-		}
-
-		return filepath.Clean(p), true
-	}
-
-	if strings.Contains(source, "://") {
-		return "", false
-	}
-
-	if strings.Contains(source, "::") {
-		return "", false
-	}
-
-	if filepath.IsAbs(source) {
-		return filepath.Clean(source), true
-	}
-
-	return filepath.Clean(filepath.Join(stackDir, source)), true
 }
 
 // evaluateLocals resolves locals in dependency order and catches cycles.
@@ -366,7 +342,7 @@ func evaluateLocalsInOrder(attrs map[string]*hclsyntax.Attribute, order []string
 func topoSortLocals(deps map[string]map[string]struct{}) ([]string, []string) {
 	s := newTopoState(deps)
 
-	for _, name := range sortedKeys(deps) {
+	for _, name := range slices.Sorted(maps.Keys(deps)) {
 		if cycle := s.visit(name, nil); cycle != nil {
 			return nil, cycle
 		}
@@ -375,13 +351,16 @@ func topoSortLocals(deps map[string]map[string]struct{}) ([]string, []string) {
 	return s.order, nil
 }
 
+// topoState runs Tarjan-style three-color DFS over the locals dependency graph to produce a topological order and detect cycles.
+// `deps[name]` is the set of locals `name` depends on. `color[name]` tracks DFS state: white = unvisited, gray = on the current
+// DFS path (revisiting a gray node means a cycle), black = fully processed and emitted to `order`. `order` is the post-order
+// traversal, which is the evaluation order for locals (dependencies first).
 const (
-	topoColorWhite = 0 // unvisited
-	topoColorGray  = 1 // in current DFS path
-	topoColorBlack = 2 // fully processed
+	topoColorWhite = 0
+	topoColorGray  = 1
+	topoColorBlack = 2
 )
 
-// topoState stores DFS state and evaluation order.
 type topoState struct {
 	deps  map[string]map[string]struct{}
 	color map[string]int
@@ -438,9 +417,11 @@ func localObject(evaluated map[string]cty.Value) cty.Value {
 	return cty.ObjectVal(evaluated)
 }
 
-// sortedKeys returns keys in deterministic order.
-func sortedKeys[V any](m map[string]V) []string {
-	return slices.Sorted(maps.Keys(m))
+// resolvedInclude is the result of parsing one include block: the included file's Remain body, its raw source bytes, and the absolute path used in HCL diagnostics.
+type resolvedInclude struct {
+	Remain hcl.Body
+	Path   string
+	Src    []byte
 }
 
 // mergeIncludes resolves include paths and merges included Remain bodies.
@@ -448,14 +429,14 @@ func mergeIncludes(fs vfs.FS, parsedFile *StackFileHCL, stackDir string, evalCtx
 	bodies := []hcl.Body{parsedFile.Remain}
 
 	for _, inc := range parsedFile.Includes {
-		includedRemain, includedSrc, includedPath, err := mergeOneInclude(fs, inc, stackDir, evalCtx)
+		resolved, err := mergeOneInclude(fs, inc, stackDir, evalCtx)
 		if err != nil {
 			return nil, err
 		}
 
-		srcByFilename[includedPath] = includedSrc
+		srcByFilename[resolved.Path] = resolved.Src
 
-		bodies = append(bodies, includedRemain)
+		bodies = append(bodies, resolved.Remain)
 	}
 
 	if len(bodies) == 1 {
@@ -466,10 +447,10 @@ func mergeIncludes(fs vfs.FS, parsedFile *StackFileHCL, stackDir string, evalCtx
 }
 
 // mergeOneInclude reads and parses one included file.
-func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *hcl.EvalContext) (hcl.Body, []byte, string, error) {
+func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *hcl.EvalContext) (resolvedInclude, error) {
 	pathVal, diags := inc.Path.Value(evalCtx)
 	if diags.HasErrors() {
-		return nil, nil, "", IncludeValidationError{
+		return resolvedInclude{}, IncludeValidationError{
 			IncludeName: inc.Name,
 			Reason:      "could not evaluate include path: " + diags.Error(),
 			Err:         diags,
@@ -478,16 +459,16 @@ func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *
 
 	switch {
 	case pathVal.IsNull():
-		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "include path must not be null"}
+		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path must not be null"}
 	case !pathVal.IsKnown():
-		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "include path is unknown"}
+		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path is unknown"}
 	case pathVal.Type() != cty.String:
-		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "include path must be a string, got " + pathVal.Type().FriendlyName()}
+		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path must be a string, got " + pathVal.Type().FriendlyName()}
 	}
 
 	includePath := pathVal.AsString()
 	if includePath == "" {
-		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "include path must evaluate to a non-empty string"}
+		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path must evaluate to a non-empty string"}
 	}
 
 	if !filepath.IsAbs(includePath) {
@@ -496,23 +477,23 @@ func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *
 
 	data, err := vfs.ReadFile(fs, includePath)
 	if err != nil {
-		return nil, nil, "", FileReadError{FilePath: includePath, Err: err}
+		return resolvedInclude{}, FileReadError{FilePath: includePath, Err: err}
 	}
 
 	included, err := parseStackFileRoot(data, includePath)
 	if err != nil {
-		return nil, nil, "", err
+		return resolvedInclude{}, err
 	}
 
 	if included.Locals != nil {
-		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "must not define locals"}
+		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "must not define locals"}
 	}
 
 	if len(included.Includes) > 0 {
-		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "must not define nested includes"}
+		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "must not define nested includes"}
 	}
 
-	return included.Remain, data, includePath, nil
+	return resolvedInclude{Remain: included.Remain, Src: data, Path: includePath}, nil
 }
 
 // autoIncludeSourceBytes returns the source bytes of the file an AutoIncludeHCL originated from. The mapping is by filename (each hcl.Body knows its file via Range().Filename), so the same map serves both the root and any included files.

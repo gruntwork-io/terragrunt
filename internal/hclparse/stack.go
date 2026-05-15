@@ -244,16 +244,15 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 			nestedGenPath = filepath.Join(stackGenDir, s.Path)
 		}
 
-		var childRefs []ComponentRef
-
-		if nestedSourceDir, ok := localStackSourceDir(s.Source, stackSourceDir); ok {
-			childRefs = discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1)
+		nestedSourceDir := s.Source
+		if !filepath.IsAbs(nestedSourceDir) {
+			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
 		}
 
 		refs = append(refs, ComponentRef{
 			Name:      s.Name,
 			Path:      nestedGenPath,
-			ChildRefs: childRefs,
+			ChildRefs: discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1),
 		})
 	}
 
