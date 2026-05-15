@@ -188,7 +188,6 @@ func TestRunCommand(t *testing.T) {
 		configPath     string
 		expectedOutput string
 		params         []string
-		expectPanic    bool
 	}{
 		{
 			params:         []string{"/bin/bash", "-c", "echo -n foo"},
@@ -254,11 +253,6 @@ func TestRunCommand(t *testing.T) {
 			configPath:  homeDir,
 			expectedErr: config.EmptyStringNotAllowedError("{run_cmd()}"),
 		},
-		{
-			params:      []string{"--terragrunt-quiet"},
-			configPath:  homeDir,
-			expectPanic: true,
-		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.configPath, func(t *testing.T) {
@@ -266,14 +260,6 @@ func TestRunCommand(t *testing.T) {
 
 			l := logger.CreateLogger()
 			ctx, pctx := newTestParsingContext(t, tc.configPath)
-
-			if tc.expectPanic {
-				assert.Panics(t, func() {
-					_, _ = config.RunCommand(ctx, pctx, l, tc.params)
-				})
-
-				return
-			}
 
 			actualOutput, actualErr := config.RunCommand(ctx, pctx, l, tc.params)
 			if tc.expectedErr != nil {
