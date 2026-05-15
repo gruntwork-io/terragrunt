@@ -108,13 +108,10 @@ func StackOutput(
 	declaredUnits := make(map[string]*config.Unit)
 	parsedStackFiles := make(map[string]*config.StackConfig, len(foundFiles))
 
-	stackOutputParallelism := opts.Parallelism
-	if stackOutputParallelism == options.DefaultParallelism {
-		stackOutputParallelism = runtime.NumCPU()
-	}
+	maxWorkers := max(1, min(opts.Parallelism, runtime.GOMAXPROCS(0)))
 
 	// reuse the project worker pool so error aggregation matches other concurrent commands
-	wp := worker.NewWorkerPool(stackOutputParallelism)
+	wp := worker.NewWorkerPool(maxWorkers)
 	defer wp.Stop()
 
 	waitWorkerErrors := func(mainErr error) error {

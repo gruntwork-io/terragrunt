@@ -445,7 +445,7 @@ terragrunt run --all --parallelism 4 -- apply
 
 ## Limiting stack output parallelism
 
-`terragrunt stack output` fetches outputs from every unit concurrently, capped by default at the number of CPU cores. Each fetch spawns a `tofu output` child process, so very large stacks may need a different cap to avoid file-descriptor exhaustion or hitting cloud-provider rate limits. The same `--parallelism` flag bounds the number of concurrent unit fetches:
+`terragrunt stack output` reads unit outputs in parallel. Use the same `--parallelism` flag to lower concurrency if a large stack hits resource limits (for example, file descriptors or cloud-provider rate limits):
 
 ```sh
 terragrunt stack output --parallelism 4
