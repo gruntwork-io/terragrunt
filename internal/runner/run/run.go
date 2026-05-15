@@ -251,7 +251,7 @@ func runTerragruntWithConfig(
 	}
 
 	if opts.TerraformCliArgs.First() == tf.CommandNameInit {
-		if err := prepareInitCommandRunCfg(ctx, l, opts, cfg); err != nil {
+		if err := prepareInitCommandRunCfg(ctx, l, v, opts, cfg); err != nil {
 			return err
 		}
 	} else {
@@ -519,7 +519,6 @@ func remoteStateNeedsInit(
 	remoteState *remotestate.RemoteState,
 	opts *Options,
 ) (bool, error) {
-	_ = v // venv is reserved for future use as backend bootstrapping moves to it.
 	// If backend bootstrap is disabled, we don't need to initialize remote state
 	if !opts.BackendBootstrap {
 		return false, nil
@@ -533,7 +532,7 @@ func remoteStateNeedsInit(
 		return false, nil
 	}
 
-	if ok, err := remoteState.NeedsBootstrap(ctx, l, opts.remoteStateOpts()); err != nil || !ok {
+	if ok, err := remoteState.NeedsBootstrap(ctx, l, opts.remoteStateOpts(v)); err != nil || !ok {
 		return false, err
 	}
 
@@ -622,7 +621,7 @@ func filterTerraformEnvVarsFromExtraArgsRunCfg(opts *Options, cfg *runcfg.RunCon
 }
 
 // prepareInitCommandRunCfg prepares for terraform init using runcfg types.
-func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
+func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, v Venv, opts *Options, cfg *runcfg.RunConfig) error {
 	if cfg.RemoteState.Config == nil {
 		return nil
 	}
@@ -636,7 +635,7 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *Options, 
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, opts.remoteStateOpts()); err != nil {
+	if err := cfg.RemoteState.Bootstrap(ctx, l, opts.remoteStateOpts(v)); err != nil {
 		return err
 	}
 
