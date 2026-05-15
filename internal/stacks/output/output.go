@@ -6,8 +6,8 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
@@ -132,8 +132,6 @@ func StackOutput(
 		return mainErr
 	}
 
-	wp := worker.NewWorkerPool(stackOutputParallelism)
-	defer wp.Stop()
 	for _, path := range foundFiles {
 		dir := filepath.Dir(path)
 
