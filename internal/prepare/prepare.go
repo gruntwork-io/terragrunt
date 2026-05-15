@@ -43,7 +43,7 @@ func PrepareConfig(ctx context.Context, l log.Logger, v run.Venv, opts *options.
 	credsGetter := creds.NewGetter()
 	provider := externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts))
 
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.Exec, opts.Env, provider); err != nil {
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.ToRoot(), v.Env, provider); err != nil {
 		return nil, err
 	}
 
@@ -117,9 +117,8 @@ func PrepareSource(
 	credsGetter := creds.NewGetter()
 
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return credsGetter.ObtainAndUpdateEnvIfNecessary(
-			ctx, l, v.Exec, opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env),
-		)
+		provider := amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env)
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.ToRoot(), v.Env, provider)
 	}); err != nil {
 		return nil, err
 	}
@@ -173,7 +172,7 @@ func PrepareGenerate(l log.Logger, v run.Venv, opts *options.TerragruntOptions, 
 
 // PrepareInputsAsEnvVars sets terragrunt inputs as environment variables.
 // It requires PrepareGenerate to have been called first.
-func PrepareInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
+func PrepareInputsAsEnvVars(l log.Logger, v run.Venv, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
 	runOpts := configbridge.NewRunOptions(opts)
 
 	// Check for terraform code
@@ -181,7 +180,7 @@ func PrepareInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *
 		return err
 	}
 
-	return run.SetTerragruntInputsAsEnvVars(l, runOpts, cfg)
+	return run.SetTerragruntInputsAsEnvVars(l, v.Env, cfg)
 }
 
 // PrepareInit runs terraform init if needed. This is the final preparation stage.
@@ -201,7 +200,7 @@ func PrepareInit(
 		return err
 	}
 
-	if err := run.SetTerragruntInputsAsEnvVars(l, runOpts, cfg); err != nil {
+	if err := run.SetTerragruntInputsAsEnvVars(l, v.Env, cfg); err != nil {
 		return err
 	}
 

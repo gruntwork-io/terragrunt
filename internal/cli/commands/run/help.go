@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -36,7 +36,7 @@ See also:
 `
 
 // ShowTFHelp prints TF help for the given `cliCtx.Command` command.
-func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions) clihelper.HelpFunc {
+func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.HelpFunc {
 	return func(ctx context.Context, cliCtx *clihelper.Context) error {
 		if err := shared.NewTFPathFlag(opts).Parse(cliCtx.Args()); err != nil {
 			return err
@@ -47,7 +47,7 @@ func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions) clihelper.HelpFun
 				return isTerraformPath(opts)
 			},
 			"runTFHelp": func() string {
-				return runTFHelp(ctx, cliCtx, l, opts)
+				return runTFHelp(ctx, cliCtx, l, v, opts)
 			},
 			"tfCommand": func() string {
 				return cliCtx.Command.Name
@@ -58,13 +58,13 @@ func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions) clihelper.HelpFun
 	}
 }
 
-func runTFHelp(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opts *options.TerragruntOptions) string {
-	opts = opts.Clone()
-	opts.Writers.Writer = io.Discard
+func runTFHelp(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) string {
+	helpV := v
+	helpV.Writers.Writer = io.Discard
 
 	terraformHelpCmd := []string{tf.FlagNameHelpLong, cliCtx.Command.Name}
 
-	out, err := tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), configbridge.TFRunOptsFromOpts(opts), terraformHelpCmd...)
+	out, err := tf.RunCommandWithOutput(ctx, l, helpV, configbridge.TFRunOptsFromOpts(opts), terraformHelpCmd...)
 	if err != nil {
 		var processError util.ProcessExecutionError
 		if ok := errors.As(err, &processError); ok {

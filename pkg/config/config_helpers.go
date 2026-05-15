@@ -277,12 +277,12 @@ func getPlatform(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 
 // Return the repository root as an absolute path
 func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	return shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
+	return shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
 }
 
 // Return the path from the repository root
 func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -297,7 +297,7 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 // Return the path to the repository root
 func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -426,14 +426,14 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 			// This is needed because the command may have first run during discovery phase
 			// with io.Discard writers, so we need to replay the output during execution phase.
 			// We only call Do() when we have a real writer, so it won't fire during discovery.
-			if pctx.Writers.Writer != io.Discard {
+			if w := pctx.Venv.Writers.Writer; w != nil && w != io.Discard {
 				cachedEntry.replayOnce.Do(func() {
 					if !suppressOutput && cachedEntry.Stdout != "" {
-						_, _ = pctx.Writers.Writer.Write([]byte(cachedEntry.Stdout))
+						_, _ = w.Write([]byte(cachedEntry.Stdout))
 					}
 
-					if cachedEntry.Stderr != "" {
-						_, _ = pctx.Writers.ErrWriter.Write([]byte(cachedEntry.Stderr))
+					if cachedEntry.Stderr != "" && pctx.Venv.Writers.ErrWriter != nil {
+						_, _ = pctx.Venv.Writers.ErrWriter.Write([]byte(cachedEntry.Stderr))
 					}
 				})
 			}
@@ -451,7 +451,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	cmdOutput, err := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		pctx.Venv.Exec,
+		pctx.Venv,
 		shellRunOptsFromPctx(pctx),
 		currentPath,
 		true,
@@ -476,14 +476,14 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		Stderr: cmdOutput.Stderr.String(),
 	}
 
-	if pctx.Writers.Writer != io.Discard {
+	if w := pctx.Venv.Writers.Writer; w != nil && w != io.Discard {
 		entry.replayOnce.Do(func() {
 			if !suppressOutput && entry.Stdout != "" {
-				_, _ = pctx.Writers.Writer.Write([]byte(entry.Stdout))
+				_, _ = w.Write([]byte(entry.Stdout))
 			}
 
-			if entry.Stderr != "" {
-				_, _ = pctx.Writers.ErrWriter.Write([]byte(entry.Stderr))
+			if entry.Stderr != "" && pctx.Venv.Writers.ErrWriter != nil {
+				_, _ = pctx.Venv.Writers.ErrWriter.Write([]byte(entry.Stderr))
 			}
 		})
 	}
@@ -501,7 +501,7 @@ func getEnvironmentVariable(ctx context.Context, pctx *ParsingContext, l log.Log
 		return "", fmt.Errorf("parsing get_env parameters: %w", err)
 	}
 
-	envValue, exists := pctx.Env[parameterMap.Name]
+	envValue, exists := pctx.Venv.Env[parameterMap.Name]
 	if !exists {
 		if parameterMap.IsRequired {
 			return "", errors.New(EnvVarNotFoundError{EnvVar: parameterMap.Name})
@@ -721,7 +721,7 @@ func getDefaultRetryableErrors(ctx context.Context, pctx *ParsingContext, l log.
 // It builds an AWS config from the parsing context, then calls fetchFn to get the value.
 func getAWSField(ctx context.Context, pctx *ParsingContext, l log.Logger, fetchFn func(context.Context, *aws.Config) (string, error)) (string, error) {
 	awsConfig, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(pctx.Env).
+		WithEnv(pctx.Venv.Env).
 		WithIAMRoleOptions(pctx.IAMRoleOptions).
 		Build(ctx, l)
 	if err != nil {
@@ -1029,7 +1029,7 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 	// in process env yet — SOPS needs them for KMS auth.
 	// Existing process env vars are preserved to avoid overriding real
 	// credentials with empty auth-provider values.
-	env := pctx.Env
+	env := pctx.Venv.Env
 
 	setKeys := make([]string, 0, len(env))
 

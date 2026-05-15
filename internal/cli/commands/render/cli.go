@@ -141,7 +141,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 			clonedOpts := renderOpts.Clone()
 			clonedOpts.TerragruntOptions = tgOpts
 
-			return Run(ctx, l, run.FromRoot(v), clonedOpts)
+			return Run(ctx, l, run.FromRoot(v), v.Writers.Writer, clonedOpts)
 		},
 	}
 

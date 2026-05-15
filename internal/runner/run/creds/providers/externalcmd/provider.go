@@ -15,7 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-shellwords"
 )
@@ -45,7 +45,7 @@ func (provider *Provider) Name() string {
 func (provider *Provider) GetCredentials(
 	ctx context.Context,
 	l log.Logger,
-	exec vexec.Exec,
+	v venv.Venv,
 ) (*providers.Credentials, error) {
 	if provider.authProviderCmd == "" {
 		return nil, nil
@@ -59,7 +59,7 @@ func (provider *Provider) GetCredentials(
 	}, func(credsCtx context.Context) error {
 		var fetchErr error
 
-		creds, fetchErr = provider.fetchCredentials(credsCtx, l, exec)
+		creds, fetchErr = provider.fetchCredentials(credsCtx, l, v)
 
 		return fetchErr
 	})
@@ -73,7 +73,7 @@ func (provider *Provider) GetCredentials(
 func (provider *Provider) fetchCredentials(
 	ctx context.Context,
 	l log.Logger,
-	exec vexec.Exec,
+	v venv.Venv,
 ) (*providers.Credentials, error) {
 	parser := shellwords.NewParser()
 
@@ -91,7 +91,7 @@ func (provider *Provider) fetchCredentials(
 	}
 
 	output, err := shell.RunCommandWithOutput(
-		ctx, l, exec, provider.runOpts,
+		ctx, l, v, provider.runOpts,
 		"", true, false, command, args...,
 	)
 	if err != nil {
@@ -126,7 +126,7 @@ func (provider *Provider) fetchCredentials(
 	}
 
 	if resp.AWSRole != nil {
-		if envs := resp.AWSRole.Envs(ctx, l, exec, provider.authProviderCmd); envs != nil {
+		if envs := resp.AWSRole.Envs(ctx, l, v, provider.authProviderCmd); envs != nil {
 			l.Debugf("Assuming AWS role %s using the %s.", resp.AWSRole.RoleARN, provider.Name())
 			maps.Copy(creds.Envs, envs)
 		}
@@ -172,7 +172,7 @@ type AWSRole struct {
 func (role *AWSRole) Envs(
 	ctx context.Context,
 	l log.Logger,
-	exec vexec.Exec,
+	v venv.Venv,
 	authProviderCmd string,
 ) map[string]string {
 	if role.RoleARN == "" {
@@ -204,7 +204,7 @@ func (role *AWSRole) Envs(
 
 	provider := amazonsts.NewProvider(l, iamRoleOpts, nil)
 
-	creds, err := provider.GetCredentials(ctx, l, exec)
+	creds, err := provider.GetCredentials(ctx, l, v)
 	if err != nil {
 		l.Warnf("Failed to assume role %s: %v", role.RoleARN, err)
 		return nil

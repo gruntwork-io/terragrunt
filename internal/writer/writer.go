@@ -3,17 +3,14 @@ package writer
 
 import "io"
 
-// Writers groups the writer-related fields that travel together across
-// TerragruntOptions, ParsingContext, shell.RunOptions and engine.ExecutionOptions.
+// Writers groups the stdout/stderr handles that travel together with the
+// venv. Display-config flags (e.g. LogShowAbsPaths) live on
+// options.TerragruntOptions, not here.
 type Writers struct {
 	// Writer is the primary output writer (defaults to os.Stdout).
 	Writer io.Writer
 	// ErrWriter is the error output writer (defaults to os.Stderr).
 	ErrWriter io.Writer
-	// LogShowAbsPaths disables replacing full paths in logs with short relative paths.
-	LogShowAbsPaths bool
-	// LogDisableErrorSummary is a flag to skip the error summary.
-	LogDisableErrorSummary bool
 }
 
 // writerUnwrapper is any writer that can provide its underlying parent writer.

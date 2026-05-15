@@ -6,7 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -110,12 +110,9 @@ type PhaseInput struct {
 
 // Phase defines the interface for a discovery phase.
 type Phase interface {
-	// Name returns the human-readable name of the phase.
 	Name() string
-	// Kind returns the PhaseKind identifier.
 	Kind() PhaseKind
-	// Run executes the phase with the given input and returns the result and any error.
-	Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error)
+	Run(ctx context.Context, l log.Logger, v venv.Venv, input *PhaseInput) (*PhaseResults, error)
 }
 
 // Discovery is the main configuration for discovery.
@@ -125,12 +122,6 @@ type Discovery struct {
 
 	// worktrees is the worktrees created for Git-based filters.
 	worktrees *worktrees.Worktrees
-
-	// exec is the process-execution handle used by the git top-level probe
-	// and the auth-provider-command credentials fetch. It defaults to the
-	// OS-backed handle and is overridden via [Discovery.WithExec] when a
-	// caller has the threaded root virtualized environment.
-	exec vexec.Exec
 
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string

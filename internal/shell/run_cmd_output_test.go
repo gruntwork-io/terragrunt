@@ -12,7 +12,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/assert"
@@ -60,16 +62,19 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// order
 	var allOutputBuffer BufferWithLocking
 
-	terragruntOptions.Writers.Writer = &allOutputBuffer
-	terragruntOptions.Writers.ErrWriter = &allOutputBuffer
-
 	terragruntOptions.TerraformCliArgs.AppendArgument("same")
 
 	withOptions(terragruntOptions)
 
 	l := logger.CreateLogger()
 
-	out, err := shell.RunCommandWithOutput(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
+	v := venv.Venv{
+		Exec:    vexec.NewOSExec(),
+		Env:     map[string]string{},
+		Writers: writer.Writers{Writer: &allOutputBuffer, ErrWriter: &allOutputBuffer},
+	}
+
+	out, err := shell.RunCommandWithOutput(t.Context(), l, v, configbridge.ShellRunOptsFromOpts(terragruntOptions), "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

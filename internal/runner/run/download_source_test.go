@@ -33,7 +33,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -82,30 +84,34 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
 	t.Parallel()
 
-	fixturePath := absPath(t, "../../../test/fixtures/download-source/hello-world-local-hash-failed")
-	canonicalURL := "file://" + fixturePath
+	// Stage the fixture in a temp directory and chmod *that copy* to 0000.
+	// Mutating the tracked fixture in place would leave it unreadable on
+	// disk if the test crashes between chmod-to-zero and chmod-back, which
+	// historically broke `git add` for every subsequent operation.
+	const srcFixture = "../../../test/fixtures/download-source/hello-world-local-hash-failed"
+
+	stagedFixture := helpers.TmpDirWOSymlinks(t)
+	copyFolder(t, srcFixture, stagedFixture)
+
+	canonicalURL := "file://" + stagedFixture
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
-	defer os.Remove(downloadDir)
+	copyFolder(t, srcFixture, downloadDir)
 
-	copyFolder(t, "../../../test/fixtures/download-source/hello-world-local-hash-failed", downloadDir)
+	// Restore staged fixture mode so the surrounding t.TempDir cleanup
+	// can RemoveAll it. t.Cleanup runs LIFO so this fires before TempDir's
+	// own remover.
+	t.Cleanup(func() {
+		if chmodErr := os.Chmod(stagedFixture, 0o755); chmodErr != nil {
+			t.Logf("failed to restore staged fixture mode for %s: %v", stagedFixture, chmodErr)
+		}
+	})
 
-	fileInfo, err := os.Stat(fixturePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = os.Chmod(fixturePath, 0000)
-	if err != nil {
+	if err := os.Chmod(stagedFixture, 0o000); err != nil {
 		t.Fatal(err)
 	}
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
-
-	err = os.Chmod(fixturePath, fileInfo.Mode())
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
@@ -501,7 +507,6 @@ func createConfig(
 	require.NoError(t, err)
 
 	opts.SourceUpdate = sourceUpdate
-	opts.Env = env.Parse(os.Environ())
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -509,17 +514,21 @@ func createConfig(
 		},
 	}
 
-	// Mem-backed exec: this helper only needs PopulateTFVersion to
+	// Mem-backed venv: this helper only needs PopulateTFVersion to
 	// populate opts.TerraformVersion / TofuImplementation; the version
 	// probe behavior itself is covered by TestGetTFVersion* in
 	// version_check_mem_test.go. Forking real tofu here would make every
 	// download_source test depend on tofu being installed.
-	versionExec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
-	})
+	versionV := venv.Venv{
+		Exec: vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+			return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
+		}),
+		Env:     env.Parse(os.Environ()),
+		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+	}
 
 	_, ver, impl, err := run.PopulateTFVersion(
-		t.Context(), l, versionExec,
+		t.Context(), l, versionV,
 		opts.WorkingDir,
 		opts.VersionManagerFileName,
 		configbridge.TFRunOptsFromOpts(opts),
@@ -1000,8 +1009,6 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
-
-	opts.Env = env.Parse(os.Environ())
 
 	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()

@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -29,7 +30,7 @@ func NewFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	return sharedFlags
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
 	cmdFlags := NewFlags(opts)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewFailFastFlag(opts))
 
@@ -38,7 +39,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 		Usage: "Bootstrap OpenTofu/Terraform backend infrastructure.",
 		Flags: cmdFlags,
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, opts.OptionsFromContext(ctx))
+			return Run(ctx, l, v, opts.OptionsFromContext(ctx))
 		},
 	}
 

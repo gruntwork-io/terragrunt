@@ -22,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -38,10 +37,9 @@ const (
 // Using `ParsingContext` makes the code more readable.
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	Writers writer.Writers
-
 	// Venv is the virtualized environment used by HCL helper functions
 	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
+	// It also carries the shell environment and stdout/stderr writers.
 	// Defaults to the OS-backed environment when [NewParsingContext] is
 	// called; callers with a threaded root Venv override via [WithVenv].
 	Venv venv.Venv
@@ -59,7 +57,6 @@ type ParsingContext struct {
 	Features            *cty.Value
 	Locals              *cty.Value
 
-	Env                 map[string]string
 	SourceMap           map[string]string
 	PredefinedFunctions map[string]function.Function
 
@@ -93,15 +90,17 @@ type ParsingContext struct {
 	ParseDepth        int
 	CASCloneDepth     int
 
-	TFPathExplicitlySet bool
-	SkipOutput          bool
-	ForwardTFStdout     bool
-	JSONLogFormat       bool
-	Debug               bool
-	AutoInit            bool
-	Headless            bool
-	BackendBootstrap    bool
-	CheckDependentUnits bool
+	TFPathExplicitlySet    bool
+	SkipOutput             bool
+	ForwardTFStdout        bool
+	JSONLogFormat          bool
+	Debug                  bool
+	AutoInit               bool
+	Headless               bool
+	BackendBootstrap       bool
+	CheckDependentUnits    bool
+	LogShowAbsPaths        bool
+	LogDisableErrorSummary bool
 
 	NoDependencyFetchOutputFromState bool
 	UsePartialParseConfigCache       bool
@@ -129,13 +128,13 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (conte
 }
 
 // Clone returns a copy of the ParsingContext.
-// Maps are deep-copied so that mutations (e.g. credential injection into Env)
-// on a clone do not affect the original or other clones.
+// Maps are deep-copied so that mutations (e.g. credential injection into the
+// shell environment) on a clone do not affect the original or other clones.
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
 
-	if ctx.Env != nil {
-		clone.Env = maps.Clone(ctx.Env)
+	if ctx.Venv.Env != nil {
+		clone.Venv.Env = maps.Clone(ctx.Venv.Env)
 	}
 
 	if ctx.SourceMap != nil {

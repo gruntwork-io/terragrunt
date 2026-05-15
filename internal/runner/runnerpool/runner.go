@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -61,7 +62,7 @@ func CloneUnitOptions(
 
 	// Override logger prefix with display path (relative to discovery context) for cleaner logs
 	// unless --log-show-abs-paths is set
-	if !stackOpts.Writers.LogShowAbsPaths {
+	if !stackOpts.LogShowAbsPaths {
 		clonedLogger = clonedLogger.WithField(placeholders.WorkDirKeyName, unit.DisplayPath())
 	}
 
@@ -423,10 +424,13 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 			syncUnitCliArgs(l, stackOpts, unitOpts, u)
 		}
 
-		// Wrap ErrWriter with plan error buffer for plan commands
+		// Wrap ErrWriter with plan error buffer for plan commands. The
+		// wrapped writer is materialized on the per-unit venv below.
+		var unitErrWriterWrap io.Writer
+
 		if isPlan {
 			if buf := planErrorBuffers[u.Path()]; buf != nil {
-				unitOpts.Writers.ErrWriter = io.MultiWriter(buf, unitOpts.Writers.ErrWriter)
+				unitErrWriterWrap = io.MultiWriter(buf, v.Writers.ErrWriter)
 			}
 		}
 
@@ -443,19 +447,30 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 		}, func(childCtx context.Context) error {
 			l.Debugf("Runner Pool Task: starting unit=%s command=%s", unitPath, unitOpts.TerraformCommand)
 
-			// Wrap the writer to buffer unit-scoped output
-			unitWriter := NewUnitWriter(unitOpts.Writers.Writer)
-			unitOpts.Writers.Writer = unitWriter
+			// Wrap the writer to buffer unit-scoped output. Build a per-unit
+			// venv so the wrapped writers flow through tf and shell calls.
+			unitWriter := NewUnitWriter(v.Writers.Writer)
+
+			// Clone v.Env so per-unit mutations (e.g. SetTerragruntInputsAsEnvVars
+			// writing TF_VAR_* in run.go) don't leak across concurrent units.
+			unitV := v
+			unitV.Env = maps.Clone(v.Env)
+			unitV.Writers.Writer = unitWriter
+
+			if unitErrWriterWrap != nil {
+				unitV.Writers.ErrWriter = unitErrWriterWrap
+			}
+
 			unitRunner := common.NewUnitRunner(u)
 
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
 			// get_aws_account_id() in locals need auth-provider credentials
-			// available in opts.Env during HCL evaluation.
+			// available in v.Env during HCL evaluation.
 			// See https://github.com/gruntwork-io/terragrunt/issues/5515
 			//
 			// The obtain_creds span is emitted by externalcmd.Provider.GetCredentials
 			// only when an auth provider is configured, so no conditional is needed here.
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, v.Exec, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitV.ToRoot(), unitOpts.AuthProviderCmd, unitV.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
 			if err != nil {
 				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
 
@@ -470,7 +485,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 			}, func(readCtx context.Context) error {
 				parseCtx, pctx := configbridge.NewParsingContext(readCtx, unitLogger, unitOpts)
-				pctx.Venv = v.ToRoot()
+				pctx.Venv = unitV.ToRoot()
 
 				var readErr error
 
@@ -499,7 +514,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 				return unitRunner.Run(
 					runCtx,
 					unitLogger,
-					v,
+					unitV,
 					unitOpts,
 					r,
 					runCfg,

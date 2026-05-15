@@ -281,7 +281,7 @@ func Run(
 
 	l.Debugf("Running fmt on generated code %s", outputDir)
 
-	if err := format.RunForFiles(ctx, l, opts, outputDir, allFiles); err != nil {
+	if err := format.RunForFiles(ctx, l, v, opts, outputDir, allFiles); err != nil {
 		return errors.New(err)
 	}
 
@@ -666,7 +666,7 @@ func rewriteTemplateURL(
 			return updatedTemplateURL, nil
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, v.Exec, opts.Env, opts.WorkingDir, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for URL %s, so will not add a ref param to the URL", rootSourceURL)
 		} else {
@@ -707,7 +707,7 @@ func addRefToModuleURL(
 			return nil, errors.New(err)
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, v.Exec, opts.Env, opts.WorkingDir, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for %s", rootSourceURL)
 		} else {

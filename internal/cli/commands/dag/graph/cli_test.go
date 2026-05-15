@@ -1,10 +1,12 @@
 package graph_test
 
 import (
+	"io"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
@@ -63,7 +65,7 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 			b.ResetTimer()
 			b.StartTimer()
 
-			err = graph.Run(b.Context(), logger.CreateLogger(), terragruntOptions)
+			err = graph.Run(b.Context(), logger.CreateLogger(), venv.OSVenv(), io.Discard, terragruntOptions)
 
 			b.StopTimer()
 			require.NoError(b, err)

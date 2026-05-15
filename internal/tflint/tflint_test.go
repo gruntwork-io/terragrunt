@@ -469,17 +469,18 @@ func runWithOpts(
 	t.Helper()
 
 	opts := &tflint.TFLintOptions{
-		ShellOptions: shell.NewShellOptions().WithWriters(writer.Writers{
-			Writer:    io.Discard,
-			ErrWriter: io.Discard,
-		}),
-		Writers:           writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		ShellOptions:      shell.NewShellOptions(),
 		WorkingDir:        "/work/unit",
 		RootWorkingDir:    "/work",
 		MaxFoldersToCheck: 5,
 	}
 
-	venv := tflint.Venv{Exec: exec, FS: fs}
+	venv := tflint.Venv{
+		Exec:    exec,
+		FS:      fs,
+		Env:     map[string]string{},
+		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+	}
 
 	l := logger.CreateLogger()
 

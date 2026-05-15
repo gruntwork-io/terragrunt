@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -20,13 +19,15 @@ import (
 )
 
 // TFLintOptions contains the subset of configuration needed by tflint execution.
+// The shell environment and stdout/stderr writers travel separately via the
+// tflint.Venv passed to operations.
 type TFLintOptions struct {
 	ShellOptions         *shell.ShellOptions
-	Writers              writer.Writers
 	WorkingDir           string
 	RootWorkingDir       string
 	TerragruntConfigPath string
 	MaxFoldersToCheck    int
+	LogShowAbsPaths      bool
 }
 
 const (
@@ -58,7 +59,7 @@ func RunTflintWithOpts(
 	}
 
 	l.Debugf("Using .tflint.hcl file in %s",
-		util.RelPathForLog(opts.RootWorkingDir, configFile, opts.Writers.LogShowAbsPaths))
+		util.RelPathForLog(opts.RootWorkingDir, configFile, opts.LogShowAbsPaths))
 
 	variables, err := InputsToTflintVar(cfg.Inputs)
 	if err != nil {
@@ -72,19 +73,19 @@ func RunTflintWithOpts(
 
 	l.Debugf(
 		"Initializing tflint in directory %s",
-		util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.Writers.LogShowAbsPaths),
+		util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.LogShowAbsPaths),
 	)
 
 	tflintArgs := hookExecute[1:]
 
-	configFileRel := util.RelPathForLog(opts.WorkingDir, configFile, opts.Writers.LogShowAbsPaths)
-	chdirRel := util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.Writers.LogShowAbsPaths)
+	configFileRel := util.RelPathForLog(opts.WorkingDir, configFile, opts.LogShowAbsPaths)
+	chdirRel := util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.LogShowAbsPaths)
 
 	// tflint init
 	initArgs := []string{"tflint", "--init", "--config", configFileRel, "--chdir", chdirRel}
 	l.Debugf("Running external tflint init with args %v", initArgs)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, v.Exec, opts.ShellOptions, opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, v.ToRoot(), opts.ShellOptions, opts.RootWorkingDir, false, false,
 		initArgs[0], initArgs[1:]...)
 	if err != nil {
 		return errors.New(ErrorRunningTflint{Args: initArgs, Err: err})
@@ -103,7 +104,7 @@ func RunTflintWithOpts(
 
 	l.Debugf("Running external tflint with args %v", args)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, v.Exec, opts.ShellOptions, opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, v.ToRoot(), opts.ShellOptions, opts.RootWorkingDir, false, false,
 		args[0], args[1:]...)
 	if err != nil {
 		return errors.New(ErrorRunningTflint{Args: args, Err: err})
@@ -267,8 +268,8 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 	for range opts.MaxFoldersToCheck {
 		currentDir := filepath.Dir(previousDir)
 		l.Debugf("Finding .tflint.hcl file from %s and going to %s",
-			util.RelPathForLog(opts.RootWorkingDir, previousDir, opts.Writers.LogShowAbsPaths),
-			util.RelPathForLog(opts.RootWorkingDir, currentDir, opts.Writers.LogShowAbsPaths))
+			util.RelPathForLog(opts.RootWorkingDir, previousDir, opts.LogShowAbsPaths),
+			util.RelPathForLog(opts.RootWorkingDir, currentDir, opts.LogShowAbsPaths))
 
 		if currentDir == previousDir {
 			return "", errors.New(ConfigNotFound{cause: "Traversed all the day to the root"})
@@ -283,7 +284,7 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 
 		if exists {
 			l.Debugf("Found .tflint.hcl in %s",
-				util.RelPathForLog(opts.RootWorkingDir, fileToFind, opts.Writers.LogShowAbsPaths))
+				util.RelPathForLog(opts.RootWorkingDir, fileToFind, opts.LogShowAbsPaths))
 
 			return fileToFind, nil
 		}

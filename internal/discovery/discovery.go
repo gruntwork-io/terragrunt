@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -20,10 +21,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Discover performs the full discovery process.
+// Discover performs the full discovery process. The supplied [venv.Venv]
+// supplies the process executor for the git top-level probe and the
+// auth-provider-command credentials fetch during the parse phase.
 func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
 	d.classifier = filter.NewClassifier(d.filters)
@@ -45,7 +49,7 @@ func (d *Discovery) Discover(
 	}, func(childCtx context.Context) error {
 		var phaseErr error
 
-		results, phaseErr = d.runFilesystemPhase(childCtx, l, opts)
+		results, phaseErr = d.runFilesystemPhase(childCtx, l, v, opts)
 
 		return phaseErr
 	})
@@ -82,7 +86,7 @@ func (d *Discovery) Discover(
 		}, func(childCtx context.Context) error {
 			var phaseErr error
 
-			results, phaseErr = d.runParsePhase(childCtx, l, opts, discovered, candidates)
+			results, phaseErr = d.runParsePhase(childCtx, l, v, opts, discovered, candidates)
 
 			return phaseErr
 		})
@@ -98,7 +102,7 @@ func (d *Discovery) Discover(
 
 	if d.classifier.HasGraphFilters() {
 		if d.classifier.HasDependentFilters() && d.gitRoot == "" {
-			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, d.exec, opts.Env, d.workingDir); gitErr == nil {
+			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, v, d.workingDir); gitErr == nil {
 				d.gitRoot = gitRootPath
 				l.Debugf("Set gitRoot for dependent discovery: %s", d.gitRoot)
 			}
@@ -116,7 +120,7 @@ func (d *Discovery) Discover(
 		}, func(childCtx context.Context) error {
 			var phaseErr error
 
-			results, phaseErr = d.runGraphPhase(childCtx, l, opts, discovered, candidates)
+			results, phaseErr = d.runGraphPhase(childCtx, l, v, opts, discovered, candidates)
 
 			return phaseErr
 		})
@@ -143,7 +147,7 @@ func (d *Discovery) Discover(
 		}, func(childCtx context.Context) error {
 			var phaseErr error
 
-			components, phaseErr = d.runRelationshipPhase(childCtx, l, opts, components)
+			components, phaseErr = d.runRelationshipPhase(childCtx, l, v, opts, components)
 
 			return phaseErr
 		})
@@ -217,6 +221,7 @@ func logPhaseComplete(l log.Logger, name string, results *PhaseResults, err erro
 func (d *Discovery) runFilesystemPhase(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 ) (*PhaseResults, error) {
 	var (
@@ -246,7 +251,7 @@ func (d *Discovery) runFilesystemPhase(
 
 			var phaseErr error
 
-			result, phaseErr = phase.Run(childCtx, l, &PhaseInput{
+			result, phaseErr = phase.Run(childCtx, l, v, &PhaseInput{
 				Opts:       opts,
 				Classifier: d.classifier,
 				Discovery:  d,
@@ -287,7 +292,7 @@ func (d *Discovery) runFilesystemPhase(
 
 				var phaseErr error
 
-				result, phaseErr = phase.Run(childCtx, l, &PhaseInput{
+				result, phaseErr = phase.Run(childCtx, l, v, &PhaseInput{
 					Opts:       opts,
 					Classifier: d.classifier,
 					Discovery:  d,
@@ -340,12 +345,13 @@ func (d *Discovery) runFilesystemPhase(
 func (d *Discovery) runParsePhase(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	discovered []DiscoveryResult,
 	candidates []DiscoveryResult,
 ) (*PhaseResults, error) {
 	phase := NewParsePhase(d.numWorkers)
-	result, err := phase.Run(ctx, l, &PhaseInput{
+	result, err := phase.Run(ctx, l, v, &PhaseInput{
 		Opts:       opts,
 		Components: resultsToComponents(discovered),
 		Candidates: candidates,
@@ -375,6 +381,7 @@ func (d *Discovery) runParsePhase(
 func (d *Discovery) runGraphPhase(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	discovered []DiscoveryResult,
 	candidates []DiscoveryResult,
@@ -388,7 +395,7 @@ func (d *Discovery) runGraphPhase(
 		telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
 			ctx, "discover_dependents", map[string]any{},
 			func(childCtx context.Context) error {
-				buildErrs = d.buildDependencyGraph(childCtx, l, opts, allComponents)
+				buildErrs = d.buildDependencyGraph(childCtx, l, v, opts, allComponents)
 				return errors.Join(buildErrs...)
 			})
 
@@ -410,7 +417,7 @@ func (d *Discovery) runGraphPhase(
 	telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
 		ctx, "discover_dependencies", map[string]any{},
 		func(childCtx context.Context) error {
-			result, err = phase.Run(childCtx, l, &PhaseInput{
+			result, err = phase.Run(childCtx, l, v, &PhaseInput{
 				Opts:       opts,
 				Components: resultsToComponents(discovered),
 				Candidates: candidates,
@@ -443,11 +450,12 @@ func (d *Discovery) runGraphPhase(
 func (d *Discovery) runRelationshipPhase(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	components component.Components,
 ) (component.Components, error) {
 	phase := NewRelationshipPhase(d.numWorkers, d.maxDependencyDepth)
-	_, err := phase.Run(ctx, l, &PhaseInput{
+	_, err := phase.Run(ctx, l, v, &PhaseInput{
 		Opts:       opts,
 		Components: components,
 		Discovery:  d,
@@ -462,6 +470,7 @@ func (d *Discovery) runRelationshipPhase(
 func (d *Discovery) buildDependencyGraph(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	allComponents component.Components,
 ) []error {
@@ -477,7 +486,7 @@ func (d *Discovery) buildDependencyGraph(
 
 	for _, c := range allComponents {
 		g.Go(func() error {
-			err := d.buildComponentDependencies(ctx, l, opts, c, threadSafeComponents)
+			err := d.buildComponentDependencies(ctx, l, v, opts, c, threadSafeComponents)
 			if err != nil {
 				mu.Lock()
 
@@ -502,6 +511,7 @@ func (d *Discovery) buildDependencyGraph(
 func (d *Discovery) buildComponentDependencies(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	c component.Component,
 	threadSafeComponents *component.ThreadSafeComponents,
@@ -513,7 +523,7 @@ func (d *Discovery) buildComponentDependencies(
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagDependencyGraph)
 
-	if err := ensureParsed(ctx, l, c, opts, d); err != nil {
+	if err := ensureParsed(ctx, l, v, c, opts, d); err != nil {
 		if d.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
 			return nil

@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	gcsbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -467,7 +468,7 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(t.Context(), extGCSCfg, configbridge.BackendOptsFromOpts(opts))
+	gcsClient, err := gcsbackend.NewClient(t.Context(), extGCSCfg, configbridge.BackendOptsFromOpts(venv.OSVenv(), opts))
 	require.NoError(t, err, "Error creating GCS client")
 
 	// verify the bucket exists
@@ -498,7 +499,7 @@ func doesGCSBucketObjectExist(t *testing.T, bucketName, prefix string) bool {
 
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(opts))
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(venv.OSVenv(), opts))
 	require.NoError(t, err, "Error creating GCS client")
 
 	defer gcsClient.Close()
@@ -534,7 +535,7 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(opts))
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(venv.OSVenv(), opts))
 	require.NoError(t, err, "Error creating GCS client")
 
 	bucket := gcsClient.Bucket(bucketName)
@@ -577,7 +578,7 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(opts))
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(venv.OSVenv(), opts))
 	require.NoError(t, err, "Error creating GCS client")
 
 	t.Logf("Creating test GCS bucket %s in project %s, location %s", bucketName, projectID, location)
@@ -604,7 +605,7 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(opts))
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(venv.OSVenv(), opts))
 	require.NoError(t, err, "Error creating GCS client")
 
 	t.Logf("Deleting test GCS bucket %s", bucketName)

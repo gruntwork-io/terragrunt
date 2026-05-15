@@ -215,7 +215,7 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 				util.RelPathForLog(
 					pctx.RootWorkingDir,
 					includeConfig.Path,
-					pctx.Writers.LogShowAbsPaths,
+					pctx.LogShowAbsPaths,
 				),
 			)
 		case ShallowMerge:
@@ -224,7 +224,7 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 				util.RelPathForLog(
 					pctx.RootWorkingDir,
 					includeConfig.Path,
-					pctx.Writers.LogShowAbsPaths,
+					pctx.LogShowAbsPaths,
 				),
 			)
 
@@ -236,7 +236,7 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 				util.RelPathForLog(
 					pctx.RootWorkingDir,
 					includeConfig.Path,
-					pctx.Writers.LogShowAbsPaths,
+					pctx.LogShowAbsPaths,
 				),
 			)
 

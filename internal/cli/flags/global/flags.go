@@ -119,7 +119,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        ShowLogAbsPathsFlagName,
 			EnvVars:     tgPrefix.EnvVars(ShowLogAbsPathsFlagName),
-			Destination: &opts.Writers.LogShowAbsPaths,
+			Destination: &opts.LogShowAbsPaths,
 			Usage:       "Show absolute paths in logs.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedShowLogAbsPathsFlagName), terragruntPrefixControl)),

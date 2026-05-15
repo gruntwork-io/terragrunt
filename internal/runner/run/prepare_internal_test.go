@@ -1,6 +1,7 @@
 package run
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,7 +102,7 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 				cfg.RemoteState = *remotestate.New(tc.remoteStateCfg)
 			}
 
-			err := prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), opts, &cfg)
+			err := prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), OSVenv(), opts, &cfg)
 
 			require.NoError(t, err)
 
@@ -124,4 +126,34 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRemoteStateOptsPropagatesVenv pins that remoteStateOpts carries the
+// caller's venv writers and env onto the constructed backend.Options. The
+// S3 backend's CreateS3BucketIfNecessary writes the create-bucket prompt
+// to opts.Writers.ErrWriter; if that field is zero-valued the call site
+// panics inside shell.PromptUserForInput.
+func TestRemoteStateOptsPropagatesVenv(t *testing.T) {
+	t.Parallel()
+
+	var (
+		out bytes.Buffer
+		err bytes.Buffer
+	)
+
+	v := Venv{
+		Env:     map[string]string{"TF_VAR_x": "1"},
+		Writers: writer.Writers{Writer: &out, ErrWriter: &err},
+	}
+
+	opts := &Options{
+		TerraformCliArgs: iacargs.New(),
+	}
+
+	got := opts.remoteStateOpts(v)
+
+	require.NotNil(t, got)
+	assert.Same(t, &out, got.Writers.Writer, "stdout writer must come from the venv")
+	assert.Same(t, &err, got.Writers.ErrWriter, "stderr writer must come from the venv; a nil ErrWriter panics in shell.PromptUserForInput")
+	assert.Equal(t, "1", got.Env["TF_VAR_x"], "env must come from the venv")
 }

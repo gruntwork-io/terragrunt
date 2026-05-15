@@ -52,11 +52,11 @@ func (runner *UnitRunner) runTerragrunt(
 	cfg *runcfg.RunConfig,
 	credsGetter *creds.Getter,
 ) error {
-	l.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.Writers.LogShowAbsPaths))
+	l.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.LogShowAbsPaths))
 
 	defer func() {
 		// Flush buffered output for this unit, if the writer supports it.
-		if err := component.FlushOutput(runner.Unit, opts.Writers.Writer); err != nil {
+		if err := component.FlushOutput(runner.Unit, v.Writers.Writer); err != nil {
 			l.Errorf("Error flushing output for unit %s: %v", runner.Unit.Path(), err)
 		}
 	}()
@@ -162,7 +162,6 @@ func (runner *UnitRunner) Run(
 		stdout := bytes.Buffer{}
 		jsonOptions.ForwardTFStdout = true
 		jsonOptions.JSONLogFormat = false
-		jsonOptions.Writers.Writer = &stdout
 		jsonOptions.TerraformCommand = tf.CommandNameShow
 		planFile := runner.Unit.PlanFile(
 			opts.RootWorkingDir, opts.OutputFolder, opts.JSONOutputFolder, opts.TerraformCommand,
@@ -172,8 +171,11 @@ func (runner *UnitRunner) Run(
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
 
+		jsonV := v
+		jsonV.Writers.Writer = &stdout
+
 		runOpts := configbridge.NewRunOptions(jsonOptions)
-		if err := run.Run(ctx, jsonLogger, v, runOpts, adhocReport, cfg, credsGetter); err != nil {
+		if err := run.Run(ctx, jsonLogger, jsonV, runOpts, adhocReport, cfg, credsGetter); err != nil {
 			return err
 		}
 

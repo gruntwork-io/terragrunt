@@ -126,7 +126,10 @@ func Run(
 	)
 
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.Exec, opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env))
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(
+			ctx, l, v.ToRoot(), v.Env,
+			amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env),
+		)
 	}); err != nil {
 		return err
 	}
@@ -168,7 +171,7 @@ func Run(
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
 	if updatedOpts.Debug {
-		if err := WriteTerragruntDebugFile(l, updatedOpts, cfg); err != nil {
+		if err := WriteTerragruntDebugFile(l, v.Env, updatedOpts, cfg); err != nil {
 			return err
 		}
 	}
@@ -240,15 +243,15 @@ func runTerragruntWithConfig(
 
 		opts.InsertTerraformCliArgs(args...)
 
-		maps.Copy(opts.Env, filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg))
+		maps.Copy(v.Env, filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg))
 	}
 
-	if err := SetTerragruntInputsAsEnvVars(l, opts, cfg); err != nil {
+	if err := SetTerragruntInputsAsEnvVars(l, v.Env, cfg); err != nil {
 		return err
 	}
 
 	if opts.TerraformCliArgs.First() == tf.CommandNameInit {
-		if err := prepareInitCommandRunCfg(ctx, l, opts, cfg); err != nil {
+		if err := prepareInitCommandRunCfg(ctx, l, v, opts, cfg); err != nil {
 			return err
 		}
 	} else {
@@ -278,7 +281,10 @@ func runTerragruntWithConfig(
 
 	return RunActionWithHooks(ctx, l, v, "terraform", opts, cfg, r, func(childCtx context.Context) error {
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, v.Exec, opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...)
+		out, runTerraformError := tf.RunCommandWithOutput(
+			childCtx, l, v.ToRoot(),
+			opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...,
+		)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, &cfg.Terraform) {
@@ -290,7 +296,10 @@ func runTerragruntWithConfig(
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
 			// Use directory from OriginalTerragruntConfigPath to copy locks since WorkingDir point to cache directory
-			lockFileError = runcfg.CopyLockFile(l, opts.RootWorkingDir, opts.Writers.LogShowAbsPaths, opts.WorkingDir, filepath.Dir(opts.OriginalTerragruntConfigPath))
+			lockFileError = runcfg.CopyLockFile(
+				l, opts.RootWorkingDir, opts.LogShowAbsPaths,
+				opts.WorkingDir, filepath.Dir(opts.OriginalTerragruntConfigPath),
+			)
 		}
 
 		// If command failed, log a helpful message
@@ -363,28 +372,25 @@ func RunActionWithHooks(
 	}
 
 	postHookErrors := ProcessHooks(ctx, l, v, cfg.Terraform.AfterHooks, opts, cfg, allErrors, r)
-	errorHookErrors := ProcessErrorHooks(ctx, l, v.Exec, cfg.Terraform.ErrorHooks, opts, allErrors)
+	errorHookErrors := ProcessErrorHooks(ctx, l, v, cfg.Terraform.ErrorHooks, opts, allErrors)
 	allErrors = allErrors.Append(postHookErrors, errorHookErrors)
 
 	return allErrors.ErrorOrNil()
 }
 
-// SetTerragruntInputsAsEnvVars sets the inputs from Terragrunt configurations to TF_VAR_* environment variables for
-// OpenTofu/Terraform.
-func SetTerragruntInputsAsEnvVars(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
+// SetTerragruntInputsAsEnvVars merges the inputs from Terragrunt
+// configurations into env as TF_VAR_* entries, preserving any keys
+// already present.
+func SetTerragruntInputsAsEnvVars(l log.Logger, env map[string]string, cfg *runcfg.RunConfig) error {
 	asEnvVars, err := ToTerraformEnvVars(l, cfg.Inputs)
 	if err != nil {
 		return err
 	}
 
-	if opts.Env == nil {
-		opts.Env = map[string]string{}
-	}
-
 	for key, value := range asEnvVars {
 		// Don't override any env vars the user has already set
-		if _, envVarAlreadySet := opts.Env[key]; !envVarAlreadySet {
-			opts.Env[key] = value
+		if _, envVarAlreadySet := env[key]; !envVarAlreadySet {
+			env[key] = value
 		}
 	}
 
@@ -440,19 +446,22 @@ func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType stri
 }
 
 // Returns true if we need to run `terraform init` to download providers
-func providersNeedInit(opts *Options) bool {
-	pluginsPath := filepath.Join(opts.DataDir(), "plugins")
-	providersPath := filepath.Join(opts.DataDir(), "providers")
+func providersNeedInit(opts *Options, env map[string]string) bool {
+	pluginsPath := filepath.Join(opts.DataDir(env), "plugins")
+	providersPath := filepath.Join(opts.DataDir(env), "providers")
 	terraformLockPath := filepath.Join(opts.WorkingDir, tf.TerraformLockFile)
 
 	return (!util.FileExists(pluginsPath) && !util.FileExists(providersPath)) || !util.FileExists(terraformLockPath)
 }
 
-func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, error) {
+// prepareInitOptions clones opts for a `terraform init` invocation. The
+// caller is responsible for discarding stdout via the venv when running
+// init with a non plan/apply parent command.
+func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, bool, error) {
 	// Need to clone the options, so the TerraformCliArgs can be configured to run the init command
 	l, initOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
-		return l, nil, err
+		return l, nil, false, err
 	}
 
 	initOptions.TerraformCliArgs = iacargs.New().SetCommand(tf.CommandNameInit)
@@ -463,24 +472,22 @@ func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, erro
 	initOutputForCommands := []string{tf.CommandNamePlan, tf.CommandNameApply}
 	terraformCommand := opts.TerraformCliArgs.First()
 
-	if !slices.Contains(initOutputForCommands, terraformCommand) {
-		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
-		initOptions.Writers.Writer = io.Discard
-	}
+	// Some commands return JSON, so init stdout must be suppressed.
+	suppressInitStdout := !slices.Contains(initOutputForCommands, terraformCommand)
 
 	if l.Formatter().DisabledColors() || opts.TerraformCliArgs.Contains(tf.FlagNameNoColor) {
 		initOptions.TerraformCliArgs.AppendFlag(tf.FlagNameNoColor)
 	}
 
-	return l, initOptions, nil
+	return l, initOptions, suppressInitStdout, nil
 }
 
 // Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
 // Note that to keep the logic in this code very simple, this code ONLY detects the case where you haven't downloaded
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
-func modulesNeedInit(opts *Options) (bool, error) {
-	modulesPath := filepath.Join(opts.DataDir(), "modules")
+func modulesNeedInit(opts *Options, env map[string]string) (bool, error) {
+	modulesPath := filepath.Join(opts.DataDir(env), "modules")
 	if util.FileExists(modulesPath) {
 		return false, nil
 	}
@@ -508,6 +515,7 @@ func modulesNeedInit(opts *Options) (bool, error) {
 func remoteStateNeedsInit(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	remoteState *remotestate.RemoteState,
 	opts *Options,
 ) (bool, error) {
@@ -524,7 +532,7 @@ func remoteStateNeedsInit(
 		return false, nil
 	}
 
-	if ok, err := remoteState.NeedsBootstrap(ctx, l, opts.remoteStateOpts()); err != nil || !ok {
+	if ok, err := remoteState.NeedsBootstrap(ctx, l, opts.remoteStateOpts(v)); err != nil || !ok {
 		return false, err
 	}
 
@@ -613,7 +621,7 @@ func filterTerraformEnvVarsFromExtraArgsRunCfg(opts *Options, cfg *runcfg.RunCon
 }
 
 // prepareInitCommandRunCfg prepares for terraform init using runcfg types.
-func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
+func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, v Venv, opts *Options, cfg *runcfg.RunConfig) error {
 	if cfg.RemoteState.Config == nil {
 		return nil
 	}
@@ -627,7 +635,7 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *Options, 
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, opts.remoteStateOpts()); err != nil {
+	if err := cfg.RemoteState.Bootstrap(ctx, l, opts.remoteStateOpts(v)); err != nil {
 		return err
 	}
 
@@ -644,7 +652,7 @@ func PrepareNonInitCommand(
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
-	needsInit, err := needsInitRunCfg(ctx, l, opts, cfg)
+	needsInit, err := needsInitRunCfg(ctx, l, v, opts, cfg)
 	if err != nil {
 		return err
 	}
@@ -659,16 +667,16 @@ func PrepareNonInitCommand(
 }
 
 // needsInitRunCfg determines if terraform init is needed using runcfg types.
-func needsInitRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runcfg.RunConfig) (bool, error) {
+func needsInitRunCfg(ctx context.Context, l log.Logger, v Venv, opts *Options, cfg *runcfg.RunConfig) (bool, error) {
 	if slices.Contains(TerraformCommandsThatDoNotNeedInit, opts.TerraformCliArgs.First()) {
 		return false, nil
 	}
 
-	if providersNeedInit(opts) {
+	if providersNeedInit(opts, v.Env) {
 		return true, nil
 	}
 
-	modulesNeedsInit, err := modulesNeedInit(opts)
+	modulesNeedsInit, err := modulesNeedInit(opts, v.Env)
 	if err != nil {
 		return false, err
 	}
@@ -681,7 +689,7 @@ func needsInitRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runc
 		return false, nil
 	}
 
-	return remoteStateNeedsInit(ctx, l, &cfg.RemoteState, opts)
+	return remoteStateNeedsInit(ctx, l, v, &cfg.RemoteState, opts)
 }
 
 // runTerraformInitRunCfg runs terraform init using runcfg types.
@@ -699,12 +707,17 @@ func runTerraformInitRunCfg(
 		return nil
 	}
 
-	l, initOptions, err := prepareInitOptions(l, opts)
+	l, initOptions, suppressInitStdout, err := prepareInitOptions(l, opts)
 	if err != nil {
 		return err
 	}
 
-	if err := runTerragruntWithConfig(ctx, l, v, originalOpts, initOptions, cfg, r); err != nil {
+	initV := v
+	if suppressInitStdout {
+		initV.Writers.Writer = io.Discard
+	}
+
+	if err := runTerragruntWithConfig(ctx, l, initV, originalOpts, initOptions, cfg, r); err != nil {
 		return err
 	}
 

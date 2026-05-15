@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -36,7 +36,14 @@ const versionParts = 3
 // It uses a cache keyed by workingDir and versionFiles to avoid repeated invocations.
 // Returns the discovered version and implementation type; the caller is responsible
 // for storing them on *options.TerragruntOptions.
-func PopulateTFVersion(ctx context.Context, l log.Logger, exec vexec.Exec, workingDir string, versionFiles []string, tfOpts *tf.TFOptions) (log.Logger, *version.Version, tfimpl.Type, error) {
+func PopulateTFVersion(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	workingDir string,
+	versionFiles []string,
+	tfOpts *tf.TFOptions,
+) (log.Logger, *version.Version, tfimpl.Type, error) {
 	versionCache := GetRunVersionCache(ctx)
 	cacheKey := computeVersionFilesCacheKey(workingDir, versionFiles)
 	l.Debugf("using cache key for version files: %s", cacheKey)
@@ -50,7 +57,7 @@ func PopulateTFVersion(ctx context.Context, l log.Logger, exec vexec.Exec, worki
 		return l, terraformVersion, tfImplementation, nil
 	}
 
-	l, terraformVersion, tfImplementation, err := GetTFVersion(ctx, l, exec, tfOpts)
+	l, terraformVersion, tfImplementation, err := GetTFVersion(ctx, l, v, tfOpts)
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}
@@ -110,29 +117,35 @@ func parseVersionFromCache(cachedData string) (tfimpl.Type, *version.Version, er
 
 // GetTFVersion checks the OpenTofu/Terraform version directly without using cache.
 // It takes pre-built *tf.TFOptions and runs "terraform version", discarding output
-// and stripping TF_CLI_ARGS env vars to avoid interference. exec is the
-// process-execution handle used to spawn the version subprocess.
-func GetTFVersion(ctx context.Context, l log.Logger, exec vexec.Exec, tfOpts *tf.TFOptions) (log.Logger, *version.Version, tfimpl.Type, error) {
+// and stripping TF_CLI_ARGS env vars to avoid interference. v is the
+// virtualized environment that supplies the process executor.
+func GetTFVersion(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	tfOpts *tf.TFOptions,
+) (log.Logger, *version.Version, tfimpl.Type, error) {
 	// Clone to avoid mutating the caller's options.
 	optsCopy := *tfOpts
 	shellCopy := *optsCopy.ShellOptions
 	optsCopy.ShellOptions = &shellCopy
 
-	// Discard output — we only need the parsed version string.
-	optsCopy.ShellOptions.Writers.Writer = io.Discard
-	optsCopy.ShellOptions.Writers.ErrWriter = io.Discard
+	// Override venv for this call: discard output and strip TF_CLI_ARGS* so
+	// they don't interfere with "--version".
+	versionV := v
+	versionV.Writers.Writer = io.Discard
+	versionV.Writers.ErrWriter = io.Discard
 
-	// Remove TF_CLI_ARGS* so they don't interfere with "--version".
-	envCopy := make(map[string]string, len(shellCopy.Env))
-	for key, val := range shellCopy.Env {
+	envCopy := make(map[string]string, len(v.Env))
+	for key, val := range v.Env {
 		if !strings.HasPrefix(key, "TF_CLI_ARGS") {
 			envCopy[key] = val
 		}
 	}
 
-	optsCopy.ShellOptions.Env = envCopy
+	versionV.Env = envCopy
 
-	output, err := tf.RunCommandWithOutput(ctx, l, exec, &optsCopy, tf.FlagNameVersion)
+	output, err := tf.RunCommandWithOutput(ctx, l, versionV, &optsCopy, tf.FlagNameVersion)
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}
