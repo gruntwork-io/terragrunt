@@ -137,7 +137,7 @@ func NewBoilerplateOptions(
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleURL, templateURL string,
 ) error {
@@ -408,7 +408,7 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 func downloadTemplate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	templateURL,
 	tempDir string,
@@ -475,7 +475,7 @@ func downloadTemplate(
 func prepareBoilerplateFiles(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	templateURL,
 	tempDir string,
@@ -561,7 +561,7 @@ func parseVariables(
 func parseModuleURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	vars map[string]any,
 	moduleURL string,
@@ -645,7 +645,7 @@ func rewriteModuleURL(
 func rewriteTemplateURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	parsedTemplateURL *url.URL,
 ) (*url.URL, error) {
@@ -682,7 +682,7 @@ func rewriteTemplateURL(
 func addRefToModuleURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	parsedModuleURL *url.URL,
 	vars map[string]any,

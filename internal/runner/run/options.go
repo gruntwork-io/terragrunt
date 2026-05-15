@@ -217,10 +217,10 @@ func (o *Options) tfRunOptions() *tf.TFOptions {
 // caller's venv. Env and Writers are populated from v so the Backend
 // interface receives the venv data it needs at each invocation; without
 // them, prompts and logging during bootstrap dereference a nil writer.
-func (o *Options) remoteStateOpts(v Venv) *remotestate.Options {
+func (o *Options) remoteStateOpts(v *Venv) *remotestate.Options {
 	return &remotestate.Options{
 		Options: backend.Options{
-			Writers:                      v.Writers,
+			Writers:                      *v.Writers,
 			Env:                          v.Env,
 			IAMRoleOptions:               o.IAMRoleOptions,
 			NonInteractive:               o.NonInteractive,

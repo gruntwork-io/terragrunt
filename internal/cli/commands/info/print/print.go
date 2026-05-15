@@ -22,7 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *run.Venv, opts *options.TerragruntOptions) error {
 	// If --all flag is set, use discovery to find all units and print info for each one
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)
@@ -31,7 +31,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 	return runPrint(ctx, l, v, opts)
 }
 
-func runPrint(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func runPrint(ctx context.Context, l log.Logger, v *run.Venv, opts *options.TerragruntOptions) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
 	if err != nil {
 		// Even on error, try to print what info we have
@@ -60,7 +60,7 @@ func runPrint(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terra
 	return printTerragruntContext(l, v, updatedOpts)
 }
 
-func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func runAll(ctx context.Context, l log.Logger, v *run.Venv, opts *options.TerragruntOptions) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
 	components, err := d.Discover(ctx, l, v.ToRoot(), opts)
@@ -111,7 +111,7 @@ type InfoOutput struct {
 	WorkingDir       string `json:"working_dir"`
 }
 
-func printTerragruntContext(l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func printTerragruntContext(l log.Logger, v *run.Venv, opts *options.TerragruntOptions) error {
 	group := InfoOutput{
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,

@@ -16,7 +16,7 @@ import (
 // Implemented by runnerpool.Runner and any alternate runner implementations.
 type StackRunner interface {
 	// Run executes all units in the stack according to the specified Terraform command and options.
-	Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions, r *report.Report) error
+	Run(ctx context.Context, l log.Logger, v *run.Venv, opts *options.TerragruntOptions, r *report.Report) error
 	// LogUnitDeployOrder logs the order in which units will be deployed.
 	LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths bool, experiments experiment.Experiments) error
 	// JSONUnitDeployOrder returns the deployment order of units as a JSON string.

@@ -21,11 +21,11 @@ import (
 // memVenv builds a venv.Venv around an in-memory exec for git tests. The
 // writers are wired to io.Discard because the git helpers intentionally
 // override v.Writers with local buffers so they can capture command output.
-func memVenv(exec vexec.Exec) venv.Venv {
-	return venv.Venv{
+func memVenv(exec vexec.Exec) *venv.Venv {
+	return &venv.Venv{
 		Exec:    exec,
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }
 

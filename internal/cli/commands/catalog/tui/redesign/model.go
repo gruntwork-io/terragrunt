@@ -47,7 +47,7 @@ var (
 
 type Model struct {
 	lists               [numTabs]list.Model
-	venv                venv.Venv
+	venv                *venv.Venv
 	logger              log.Logger
 	terragruntOptions   *options.TerragruntOptions
 	selectedComponent   *Component
@@ -80,7 +80,7 @@ type Model struct {
 // it can synthesize a DiscoveryCompleteMsg without racing the welcome model.
 func NewModelStreaming(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	initial *ComponentEntry,
 	componentCh chan *ComponentEntry,
@@ -281,7 +281,7 @@ func isDuplicate(items []list.Item, sourcePath string) bool {
 
 func newModelWithItems(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	items []list.Item,
 	componentCh chan *ComponentEntry,

@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -25,15 +26,15 @@ type NetworkMirrorProviderHandler struct {
 	networkMirrorURL *url.URL
 }
 
-func NewNetworkMirrorProviderHandler(logger log.Logger, networkMirror *cliconfig.ProviderInstallationNetworkMirror, credsSource *cliconfig.CredentialsSource) (*NetworkMirrorProviderHandler, error) {
+func NewNetworkMirrorProviderHandler(l log.Logger, httpClient vhttp.Client, networkMirror *cliconfig.ProviderInstallationNetworkMirror, credsSource *cliconfig.CredentialsSource) (*NetworkMirrorProviderHandler, error) {
 	networkMirrorURL, err := url.Parse(networkMirror.URL)
 	if err != nil {
 		return nil, errors.Errorf("failed to parse network mirror URL %q: %w", networkMirror.URL, err)
 	}
 
 	return &NetworkMirrorProviderHandler{
-		CommonProviderHandler: NewCommonProviderHandler(logger, networkMirror.Include, networkMirror.Exclude),
-		client:                helpers.NewClient(credsSource),
+		CommonProviderHandler: NewCommonProviderHandler(l, httpClient, networkMirror.Include, networkMirror.Exclude),
+		client:                helpers.NewClient(httpClient, credsSource),
 		networkMirrorURL:      networkMirrorURL,
 	}, nil
 }

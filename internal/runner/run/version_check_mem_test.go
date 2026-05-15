@@ -129,14 +129,14 @@ func newVersionTFOptions(tfPath string) *tf.TFOptions {
 
 // newVersionVenv builds a venv.Venv around a mem-backed exec for the
 // version probe; env is the shell environment exposed to the subprocess.
-func newVersionVenv(h vexec.Handler, env map[string]string) venv.Venv {
+func newVersionVenv(h vexec.Handler, env map[string]string) *venv.Venv {
 	if env == nil {
 		env = map[string]string{}
 	}
 
-	return venv.Venv{
+	return &venv.Venv{
 		Exec:    vexec.NewMemExec(h),
 		Env:     env,
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }

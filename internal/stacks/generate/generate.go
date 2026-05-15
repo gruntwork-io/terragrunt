@@ -60,7 +60,7 @@ func NewStackNode(filePath string) *StackNode {
 func (g *Generator) GenerateStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
@@ -184,7 +184,7 @@ func generateLevel(
 func discoverAndAddNewNodes(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 	workingDir string,
@@ -328,7 +328,7 @@ func addNewNodesToGraph(
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
@@ -385,7 +385,7 @@ func ListStackFiles(
 func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
@@ -482,7 +482,7 @@ func appendWorktreeStackPaths(
 func worktreeStacksToGenerate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	w *worktrees.Worktrees,
 ) (component.Components, error) {
@@ -649,7 +649,7 @@ func worktreeStacksToGenerate(
 func discoverStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
 	readFiles bool,

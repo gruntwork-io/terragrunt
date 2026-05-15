@@ -14,7 +14,7 @@ import (
 func Build(
 	ctx context.Context,
 	l log.Logger,
-	v run.Venv,
+	v *run.Venv,
 	opts *options.TerragruntOptions,
 	runnerOpts ...common.Option,
 ) (common.StackRunner, error) {

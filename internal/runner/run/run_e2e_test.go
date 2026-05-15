@@ -60,11 +60,11 @@ func TestRunPipelineEndToEndPlan(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.Venv{
+	v := &run.Venv{
 		Exec:    exec,
 		FS:      vfs.NewOSFS(),
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 	l := logger.CreateLogger()
 
@@ -101,11 +101,11 @@ func TestRunPipelineEndToEndPropagatesPlanFailure(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.Venv{
+	v := &run.Venv{
 		Exec:    exec,
 		FS:      vfs.NewOSFS(),
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 	l := logger.CreateLogger()
 
@@ -146,11 +146,11 @@ func TestRunPipelineEndToEndFiresHooks(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.Venv{
+	v := &run.Venv{
 		Exec:    exec,
 		FS:      vfs.NewOSFS(),
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 	l := logger.CreateLogger()
 

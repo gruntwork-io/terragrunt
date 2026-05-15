@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
@@ -30,7 +31,7 @@ func TestHCLGetRepoRoot(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, "/synthetic/repo/root/unit/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 	const hcl = `locals {
   repo = get_repo_root()
@@ -60,7 +61,7 @@ func TestHCLGetPathFromRepoRoot(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, "/repo/services/api/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 	pctx.WorkingDir = "/repo/services/api"
 
 	const hcl = `locals {
@@ -85,7 +86,7 @@ func TestHCLGetPathToRepoRoot(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, "/repo/services/api/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 	pctx.WorkingDir = "/repo/services/api"
 
 	const hcl = `locals {
@@ -110,7 +111,7 @@ func TestHCLGetRepoRootPropagatesGitError(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, "/not/a/repo/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 	const hcl = `locals {
   repo = get_repo_root()
@@ -136,7 +137,7 @@ func TestHCLRunCmd(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir()+"/terragrunt.hcl")
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 	const hcl = `locals {
   account = run_cmd("--terragrunt-quiet", "describe", "--account", "prod")

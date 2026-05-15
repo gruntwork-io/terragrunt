@@ -42,10 +42,10 @@ func TestRunCommandMemBackendWithRacing(t *testing.T) {
 
 	opts := shell.NewShellOptions()
 
-	v := venv.Venv{
+	v := &venv.Venv{
 		Exec:    e,
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: stdout, ErrWriter: stderr},
+		Writers: &writer.Writers{Writer: stdout, ErrWriter: stderr},
 	}
 
 	l := logger.CreateLogger()
@@ -84,10 +84,10 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 
 	opts := shell.NewShellOptions()
 
-	v := venv.Venv{
+	v := &venv.Venv{
 		Exec:    e,
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: stdout, ErrWriter: stderr},
+		Writers: &writer.Writers{Writer: stdout, ErrWriter: stderr},
 	}
 
 	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), v, opts, "tool"))
@@ -98,10 +98,10 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 
 	// Same buffer for both writers: each line still appears, both in the shared buffer.
 	merged := &bytes.Buffer{}
-	mergedV := venv.Venv{
+	mergedV := &venv.Venv{
 		Exec:    e,
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: merged, ErrWriter: merged},
+		Writers: &writer.Writers{Writer: merged, ErrWriter: merged},
 	}
 
 	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), mergedV, opts, "tool"))

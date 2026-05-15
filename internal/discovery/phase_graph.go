@@ -62,7 +62,7 @@ func (p *GraphPhase) Kind() PhaseKind {
 }
 
 // Run executes the graph discovery phase.
-func (p *GraphPhase) Run(ctx context.Context, l log.Logger, v venv.Venv, input *PhaseInput) (*PhaseResults, error) {
+func (p *GraphPhase) Run(ctx context.Context, l log.Logger, v *venv.Venv, input *PhaseInput) (*PhaseResults, error) {
 	results := NewPhaseResults()
 
 	discovery := input.Discovery
@@ -174,7 +174,7 @@ func (p *GraphPhase) Run(ctx context.Context, l log.Logger, v venv.Venv, input *
 func (p *GraphPhase) processGraphTarget(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	state *graphTraversalState,
 	candidate DiscoveryResult,
 	graphExpr *filter.GraphExpressionInfo,
@@ -250,7 +250,7 @@ func (p *GraphPhase) processGraphTarget(
 func (p *GraphPhase) discoverDependencies(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	state *graphTraversalState,
 	c component.Component,
 	depthRemaining int,
@@ -356,7 +356,7 @@ func (p *GraphPhase) discoverDependencies(
 func (p *GraphPhase) discoverDependents(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	state *graphTraversalState,
 	c component.Component,
 	depthRemaining int,
@@ -435,7 +435,7 @@ type upstreamDiscoveryState struct {
 func (p *GraphPhase) discoverDependentsUpstream(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	state *graphTraversalState,
 	target component.Component,
 	visitedDirs *stringSet,
@@ -616,7 +616,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 func (p *GraphPhase) processUpstreamCandidate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	state *upstreamDiscoveryState,
 	candidate component.Component,
 ) component.Component {

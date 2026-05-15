@@ -36,7 +36,7 @@ See also:
 `
 
 // ShowTFHelp prints TF help for the given `cliCtx.Command` command.
-func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.HelpFunc {
+func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.HelpFunc {
 	return func(ctx context.Context, cliCtx *clihelper.Context) error {
 		if err := shared.NewTFPathFlag(opts).Parse(cliCtx.Args()); err != nil {
 			return err
@@ -58,13 +58,13 @@ func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clih
 	}
 }
 
-func runTFHelp(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) string {
-	helpV := v
-	helpV.Writers.Writer = io.Discard
+func runTFHelp(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) string {
+	helpV := *v
+	helpV.Writers = helpV.Writers.WithWriter(io.Discard)
 
 	terraformHelpCmd := []string{tf.FlagNameHelpLong, cliCtx.Command.Name}
 
-	out, err := tf.RunCommandWithOutput(ctx, l, helpV, configbridge.TFRunOptsFromOpts(opts), terraformHelpCmd...)
+	out, err := tf.RunCommandWithOutput(ctx, l, &helpV, configbridge.TFRunOptsFromOpts(opts), terraformHelpCmd...)
 	if err != nil {
 		var processError util.ProcessExecutionError
 		if ok := errors.As(err, &processError); ok {

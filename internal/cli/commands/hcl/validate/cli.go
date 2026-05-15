@@ -82,7 +82,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {
 	return flagSet
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmd := &clihelper.Command{
 		Name:                         CommandName,
 		Usage:                        "Recursively find HashiCorp Configuration Language (HCL) files and validate them.",

@@ -75,7 +75,7 @@ type CatalogService interface {
 // catalogServiceImpl is the concrete implementation of CatalogService.
 // It holds the necessary options and configuration to perform its tasks.
 type catalogServiceImpl struct {
-	venv     venv.Venv
+	venv     *venv.Venv
 	opts     *options.TerragruntOptions
 	newRepo  NewRepoFunc
 	repoURL  string
@@ -88,7 +88,7 @@ type catalogServiceImpl struct {
 // It requires TerragruntOptions, the root virtualized environment, and an
 // optional initial repository URL. Configuration methods like WithNewRepoFunc
 // can be chained to customize the service.
-func NewCatalogService(opts *options.TerragruntOptions, v venv.Venv) *catalogServiceImpl {
+func NewCatalogService(opts *options.TerragruntOptions, v *venv.Venv) *catalogServiceImpl {
 	return &catalogServiceImpl{
 		opts:    opts,
 		newRepo: module.NewRepo,

@@ -29,7 +29,7 @@ const urlChannelBufferSize = 10
 func runRedesign(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	repoURL string,
 ) error {

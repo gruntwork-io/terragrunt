@@ -1205,10 +1205,10 @@ func getTerragruntOutputJSONFromInitFolder(
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	discardV := pctx.Venv
-	discardV.Writers.Writer = io.Discard
+	discardV := *pctx.Venv
+	discardV.Writers = discardV.Writers.WithWriter(io.Discard)
 
-	out, err := tf.RunCommandWithOutput(bareCtx, l, discardV, tfRunOpts, tf.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(bareCtx, l, &discardV, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1327,7 +1327,7 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Clone pctx and discard init stdout so it doesn't leak into the caller's output buffer.
 	initPctx := pctx.Clone()
-	initPctx.Venv.Writers.Writer = io.Discard
+	initPctx.Venv.Writers = initPctx.Venv.Writers.WithWriter(io.Discard)
 
 	// First run init to setup the backend configuration so that we can run output.
 	runTerraformInitForDependencyOutput(ctx, initPctx, l, tempWorkDir)
@@ -1335,10 +1335,10 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Now that the backend is initialized, run terraform output to get the data and return it.
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	discardV := pctx.Venv
-	discardV.Writers.Writer = io.Discard
+	discardV := *pctx.Venv
+	discardV.Writers = discardV.Writers.WithWriter(io.Discard)
 
-	out, err := tf.RunCommandWithOutput(bareCtx, l, discardV, tfRunOpts, tf.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(bareCtx, l, &discardV, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1446,7 +1446,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	pctx = pctx.Clone()
 	pctx.ForwardTFStdout = false
 	pctx.JSONLogFormat = false
-	pctx.Venv.Writers.Writer = stdoutBufferWriter
+	pctx.Venv.Writers = pctx.Venv.Writers.WithWriter(stdoutBufferWriter)
 
 	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
@@ -1497,10 +1497,10 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		CASCloneDepth:                pctx.CASCloneDepth,
 	}
 
-	runV := pctx.Venv
-	runV.Writers.Writer = stdoutBufferWriter
+	runV := *pctx.Venv
+	runV.Writers = runV.Writers.WithWriter(stdoutBufferWriter)
 
-	err = run.Run(ctx, l, run.FromRoot(runV), runOpts, report.NewReport(), runCfg, credsGetter)
+	err = run.Run(ctx, l, run.FromRoot(&runV), runOpts, report.NewReport(), runCfg, credsGetter)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -1591,12 +1591,12 @@ func runTerraformInitForDependencyOutput(ctx context.Context, pctx *ParsingConte
 	initRunOpts := tfRunOptsFromPctx(pctx)
 	initRunOpts.ShellOptions.WorkingDir = workingDir
 
-	initV := pctx.Venv
-	initV.Writers.ErrWriter = &stderr
+	initV := *pctx.Venv
+	initV.Writers = initV.Writers.WithErrWriter(&stderr)
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	if err := tf.RunCommand(bareCtx, l, initV, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
+	if err := tf.RunCommand(bareCtx, l, &initV, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf("%s", stderr.String())

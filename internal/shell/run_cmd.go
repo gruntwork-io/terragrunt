@@ -148,7 +148,7 @@ func (o *ShellOptions) NoEngine() bool {
 // RunCommand runs the given shell command. The shell environment and
 // stdout/stderr writers come from v; tests can substitute a venv whose Exec
 // is a [vexec.NewMemExec] so external binaries are never forked.
-func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *ShellOptions, command string, args ...string) error {
+func RunCommand(ctx context.Context, l log.Logger, v *venv.Venv, runOpts *ShellOptions, command string, args ...string) error {
 	_, err := RunCommandWithOutput(ctx, l, v, runOpts, "", false, false, command, args...)
 
 	return err
@@ -161,7 +161,7 @@ func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *ShellOp
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOpts *ShellOptions,
 	workingDir string,
 	suppressStdout bool,
@@ -233,7 +233,7 @@ type RunCommandOptions struct {
 func runCommand(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOpts *ShellOptions,
 	cmdOpts RunCommandOptions,
 ) error {

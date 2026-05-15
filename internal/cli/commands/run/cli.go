@@ -19,7 +19,7 @@ const (
 	CommandName = "run"
 )
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmdFlags := NewFlags(l, opts, nil)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewGraphFlag(opts, nil))
 
@@ -57,7 +57,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 	return cmd
 }
 
-func NewSubcommands(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.Commands {
+func NewSubcommands(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Commands {
 	var subcommands = make(clihelper.Commands, len(tf.CommandNames))
 
 	for i, name := range tf.CommandNames {
@@ -78,7 +78,7 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) 
 	return subcommands
 }
 
-func Action(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.ActionFunc {
+func Action(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.ActionFunc {
 	return func(ctx context.Context, _ *clihelper.Context) error {
 		return Run(ctx, l, opts, v)
 	}

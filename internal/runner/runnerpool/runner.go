@@ -315,7 +315,7 @@ func filterUnitsToComponents(units []*component.Unit) component.Components {
 
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
-func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
+func (rnr *Runner) Run(ctx context.Context, l log.Logger, v *run.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
@@ -453,12 +453,12 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 
 			// Clone v.Env so per-unit mutations (e.g. SetTerragruntInputsAsEnvVars
 			// writing TF_VAR_* in run.go) don't leak across concurrent units.
-			unitV := v
+			unitV := *v
 			unitV.Env = maps.Clone(v.Env)
-			unitV.Writers.Writer = unitWriter
+			unitV.Writers = unitV.Writers.WithWriter(unitWriter)
 
 			if unitErrWriterWrap != nil {
-				unitV.Writers.ErrWriter = unitErrWriterWrap
+				unitV.Writers = unitV.Writers.WithErrWriter(unitErrWriterWrap)
 			}
 
 			unitRunner := common.NewUnitRunner(u)
@@ -514,7 +514,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 				return unitRunner.Run(
 					runCtx,
 					unitLogger,
-					unitV,
+					&unitV,
 					unitOpts,
 					r,
 					runCfg,

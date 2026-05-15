@@ -519,12 +519,12 @@ func createConfig(
 	// probe behavior itself is covered by TestGetTFVersion* in
 	// version_check_mem_test.go. Forking real tofu here would make every
 	// download_source test depend on tofu being installed.
-	versionV := venv.Venv{
+	versionV := &venv.Venv{
 		Exec: vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 			return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
 		}),
 		Env:     env.Parse(os.Environ()),
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 
 	_, ver, impl, err := run.PopulateTFVersion(

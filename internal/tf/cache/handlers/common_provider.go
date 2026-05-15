@@ -5,12 +5,14 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/puzpuzpuz/xsync/v3"
 )
 
 type CommonProviderHandler struct {
-	logger log.Logger
+	logger     log.Logger
+	httpClient vhttp.Client
 
 	// discoveryURLCache stores discovered registry URLs
 	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
@@ -23,7 +25,9 @@ type CommonProviderHandler struct {
 }
 
 // NewCommonProviderHandler returns a new `CommonProviderHandler` instance with the defined values.
-func NewCommonProviderHandler(logger log.Logger, includes, excludes *[]string) *CommonProviderHandler {
+// httpClient is used for service-discovery requests; pass [vhttp.NewOSClient]
+// in production or a [vhttp.NewMemClient] in tests.
+func NewCommonProviderHandler(l log.Logger, httpClient vhttp.Client, includes, excludes *[]string) *CommonProviderHandler {
 	var includeProviders, excludeProviders models.Providers
 
 	if includes != nil {
@@ -35,7 +39,8 @@ func NewCommonProviderHandler(logger log.Logger, includes, excludes *[]string) *
 	}
 
 	return &CommonProviderHandler{
-		logger:            logger,
+		logger:            l,
+		httpClient:        httpClient,
 		includeProviders:  includeProviders,
 		excludeProviders:  excludeProviders,
 		discoveryURLCache: xsync.NewMapOf[string, *RegistryURLs](),
@@ -65,7 +70,7 @@ func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registry
 		return urls, nil
 	}
 
-	urls, err := DiscoveryURL(ctx, registryName)
+	urls, err := DiscoveryURL(ctx, handler.httpClient, registryName)
 	if err != nil {
 		if !IsOfflineError(err) {
 			return nil, err

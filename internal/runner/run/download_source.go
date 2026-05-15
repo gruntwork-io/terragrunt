@@ -46,7 +46,7 @@ const (
 func DownloadTerraformSource(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v *Venv,
 	source string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -140,7 +140,7 @@ func DownloadTerraformSource(
 func DownloadTerraformSourceIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v *Venv,
 	terraformSource *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -309,7 +309,7 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 func downloadSource(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v *Venv,
 	src *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -433,7 +433,7 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 // Exported so tests can assert the protocol set directly.
 // v supplies the filesystem used by the file-copy getter and the
 // registry getter's archive expansion.
-func BuildDownloadClient(l log.Logger, v Venv, opts *Options, cfg *runcfg.RunConfig) *getter.Client {
+func BuildDownloadClient(l log.Logger, v *Venv, opts *Options, cfg *runcfg.RunConfig) *getter.Client {
 	return getter.NewClient(
 		getter.WithLogger(l),
 		getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).

@@ -68,10 +68,10 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	l := logger.CreateLogger()
 
-	v := venv.Venv{
+	v := &venv.Venv{
 		Exec:    vexec.NewOSExec(),
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: &allOutputBuffer, ErrWriter: &allOutputBuffer},
+		Writers: &writer.Writers{Writer: &allOutputBuffer, ErrWriter: &allOutputBuffer},
 	}
 
 	out, err := shell.RunCommandWithOutput(t.Context(), l, v, configbridge.ShellRunOptsFromOpts(terragruntOptions), "", !allocateStdout, false, "testdata/test_outputs.sh", "same")

@@ -28,7 +28,7 @@ import (
 )
 
 // Run runs the list command.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, w io.Writer, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, w io.Writer, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,

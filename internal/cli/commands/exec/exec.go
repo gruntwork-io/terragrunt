@@ -19,7 +19,7 @@ import (
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cmdOpts *Options,
 	args clihelper.Args,
@@ -66,7 +66,7 @@ func Run(
 func runTargetCommand(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
 	r *report.Report,

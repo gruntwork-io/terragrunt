@@ -40,7 +40,7 @@ import (
 
 const splitCount = 2
 
-func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *run.Venv, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return errors.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputsFlagName)
@@ -60,7 +60,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 	return RunValidate(ctx, l, v, opts)
 }
 
-func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func RunValidate(ctx context.Context, l log.Logger, v *run.Venv, opts *options.TerragruntOptions) error {
 	var diags diagnostic.Diagnostics
 
 	// Diagnostics handler to collect validation errors
@@ -184,7 +184,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 	return processDiagnostics(l, v, opts, diags, combinedErr)
 }
 
-func processDiagnostics(l log.Logger, v run.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
+func processDiagnostics(l log.Logger, v *run.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
 	if len(diags) == 0 {
 		return callErr
 	}
@@ -219,7 +219,7 @@ func processDiagnostics(l log.Logger, v run.Venv, opts *options.TerragruntOption
 	return errors.Join(callErr, diagError)
 }
 
-func writeDiagnostics(l log.Logger, v run.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
+func writeDiagnostics(l log.Logger, v *run.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
 	render := view.NewHumanRender(l.Formatter().DisabledColors())
 	if opts.HCLValidateJSONOutput {
 		render = view.NewJSONRender()
@@ -234,7 +234,7 @@ func writeDiagnostics(l log.Logger, v run.Venv, opts *options.TerragruntOptions,
 	return writer.Diagnostics(diags)
 }
 
-func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func RunValidateInputs(ctx context.Context, l log.Logger, v *run.Venv, opts *options.TerragruntOptions) error {
 	opts = opts.Clone()
 
 	opts.SkipOutput = true

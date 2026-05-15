@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -49,7 +48,7 @@ func (e *NestedGitScanDepthExceededError) Error() string {
 //
 // The git invocation runs with v.Exec and v.Env; its stdout and stderr are
 // captured to local buffers, so v.Writers is overridden for this call.
-func GitTopLevelDir(ctx context.Context, l log.Logger, v venv.Venv, path string) (string, error) {
+func GitTopLevelDir(ctx context.Context, l log.Logger, v *venv.Venv, path string) (string, error) {
 	repoRoots := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
 	normalized := normalizeRepoPath(path)
 
@@ -71,12 +70,12 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v venv.Venv, path string)
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitV := v
-	gitV.Writers = writer.Writers{Writer: &stdout, ErrWriter: &stderr}
+	gitV := *v
+	gitV.Writers = gitV.Writers.WithWriter(&stdout).WithErrWriter(&stderr)
 
 	gitRunOpts := NewShellOptions().WithWorkingDir(path)
 
-	cmd, err := RunCommandWithOutput(ctx, l, gitV, gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
+	cmd, err := RunCommandWithOutput(ctx, l, &gitV, gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
@@ -178,7 +177,7 @@ func normalizeRepoPath(path string) string {
 func GitRepoTags(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	workingDir string,
 	gitRepo *url.URL,
 ) ([]string, error) {
@@ -189,12 +188,12 @@ func GitRepoTags(
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitV := v
-	gitV.Writers = writer.Writers{Writer: &stdout, ErrWriter: &stderr}
+	gitV := *v
+	gitV.Writers = gitV.Writers.WithWriter(&stdout).WithErrWriter(&stderr)
 
 	gitRunOpts := NewShellOptions().WithWorkingDir(workingDir)
 
-	output, err := RunCommandWithOutput(ctx, l, gitV, gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	output, err := RunCommandWithOutput(ctx, l, &gitV, gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -214,7 +213,7 @@ func GitRepoTags(
 }
 
 // GitLastReleaseTag fetches git repository last release tag.
-func GitLastReleaseTag(ctx context.Context, l log.Logger, v venv.Venv, workingDir string, gitRepo *url.URL) (string, error) {
+func GitLastReleaseTag(ctx context.Context, l log.Logger, v *venv.Venv, workingDir string, gitRepo *url.URL) (string, error) {
 	tags, err := GitRepoTags(ctx, l, v, workingDir, gitRepo)
 	if err != nil {
 		return "", err

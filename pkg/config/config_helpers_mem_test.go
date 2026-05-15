@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
@@ -33,7 +34,7 @@ func TestRunCommandMemExec(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 	out, err := config.RunCommand(ctx, pctx, l, []string{"echoer", "hello"})
 	require.NoError(t, err)
@@ -58,7 +59,7 @@ func TestRunCommandCacheHitsCollapseSubprocessForks(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 	args := []string{"expensive-cmd", "--flag"}
 
@@ -86,7 +87,7 @@ func TestRunCommandNoCacheRefuses(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 	for range 3 {
 		_, err := config.RunCommand(ctx, pctx, l, []string{"--terragrunt-no-cache", "cmd"})
@@ -108,7 +109,7 @@ func TestRunCommandSurfacesSubprocessFailure(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 	_, err := config.RunCommand(ctx, pctx, l, []string{"failing-cmd"})
 	require.Error(t, err)
@@ -131,10 +132,10 @@ func TestRunCommandGlobalCacheSharesAcrossWorkingDirs(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctxA := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctxA.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctxA.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 	_, pctxB := newTestParsingContext(t, t.TempDir())
-	pctxB.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctxB.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 	args := []string{"--terragrunt-global-cache", "cmd"}
 
@@ -180,7 +181,7 @@ func TestRunCommandConflictingCacheFlags(t *testing.T) {
 			l := logger.CreateLogger()
 			ctx, pctx := newTestParsingContext(t, t.TempDir())
 			ctx = config.WithConfigValues(ctx)
-			pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+			pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 			_, err := config.RunCommand(ctx, pctx, l, tc.args)
 			require.Error(t, err)
@@ -204,7 +205,7 @@ func TestRunCommandDoesNotMutateCallerArgs(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 	args := []string{"--terragrunt-quiet", "--terragrunt-global-cache", "cmd", "subarg"}
 	want := slices.Clone(args)
@@ -229,7 +230,7 @@ func TestRunCommandEmptyParamsErrors(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 
 	_, err := config.RunCommand(ctx, pctx, l, nil)
 	require.Error(t, err)
@@ -253,7 +254,7 @@ func TestRunCommandReceivesPctxEnv(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = &venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec, Writers: &writer.Writers{}}
 	pctx.Venv.Env = map[string]string{"TG_TEST_TOKEN": "abc123"}
 
 	_, err := config.RunCommand(ctx, pctx, l, []string{"reader"})

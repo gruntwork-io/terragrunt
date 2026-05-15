@@ -71,7 +71,7 @@ func (e UnitOutputError) Unwrap() error {
 func StackOutput(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (cty.Value, error) {
 	l.Debugf("Generating output from %s", opts.WorkingDir)
