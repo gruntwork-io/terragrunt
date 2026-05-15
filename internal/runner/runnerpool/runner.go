@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -450,7 +451,10 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 			// venv so the wrapped writers flow through tf and shell calls.
 			unitWriter := NewUnitWriter(v.Writers.Writer)
 
+			// Clone v.Env so per-unit mutations (e.g. SetTerragruntInputsAsEnvVars
+			// writing TF_VAR_* in run.go) don't leak across concurrent units.
 			unitV := v
+			unitV.Env = maps.Clone(v.Env)
 			unitV.Writers.Writer = unitWriter
 
 			if unitErrWriterWrap != nil {
@@ -481,7 +485,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 			}, func(readCtx context.Context) error {
 				parseCtx, pctx := configbridge.NewParsingContext(readCtx, unitLogger, unitOpts)
-				pctx.Venv = v.ToRoot()
+				pctx.Venv = unitV.ToRoot()
 
 				var readErr error
 
@@ -510,7 +514,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 				return unitRunner.Run(
 					runCtx,
 					unitLogger,
-					v,
+					unitV,
 					unitOpts,
 					r,
 					runCfg,

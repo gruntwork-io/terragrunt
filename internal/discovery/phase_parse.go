@@ -361,6 +361,7 @@ func parseComponent(
 		}
 
 		ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseOpts)
+		parsingCtx.Venv = parseV
 		parsingCtx = parsingCtx.WithDecodeList(
 			config.TerraformSource,
 			config.DependenciesBlock,
