@@ -27,6 +27,16 @@ func newTestLogger() (log.Logger, *bytes.Buffer) {
 	return logger, output
 }
 
+func TestOptOutAuthIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.OptOutAuth)
+	require.NotNil(t, got, "opt-out-auth experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "opt-out-auth must be ongoing")
+	assert.False(t, got.Evaluate(), "opt-out-auth must be disabled by default")
+}
+
 func TestValidateExperiments(t *testing.T) {
 	t.Parallel()
 
