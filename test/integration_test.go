@@ -3456,6 +3456,65 @@ func TestReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) {
 	}
 }
 
+func TestNoDiscoveryAuthProviderCmdRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, defeating the experiment-gate check this test pins")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "run-all-call-count")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-discovery-auth-provider-cmd --working-dir "+rootPath,
+	)
+	require.Error(t, err)
+
+	var requiresExperimentErr shared.NoDiscoveryAuthProviderCmdRequiresExperimentError
+	assert.True(t, errors.As(err, &requiresExperimentErr), "expected NoDiscoveryAuthProviderCmdRequiresExperimentError, got %T: %v", err, err)
+}
+
+func TestNoDiscoveryAuthProviderCmdSkipsDiscoveryAuthWithRacing(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "run-all-call-count")
+	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
+	logPath := filepath.Join(rootPath, "calls.jsonl")
+
+	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all apply --non-interactive "+
+				"--no-discovery-auth-provider-cmd --experiment opt-out-auth "+
+				"--working-dir %s --auth-provider-cmd %s",
+			rootPath,
+			authProviderCmd,
+		),
+	)
+
+	logBytes, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimRight(string(logBytes), "\n"), "\n")
+
+	t.Logf("auth-provider-cmd invocations:\n%s", string(logBytes))
+
+	// Without --no-discovery-auth-provider-cmd this fixture produces five
+	// invocations (see TestReadTerragruntAuthProviderCmdRunAllCallCountWithRacing).
+	// The flag skips the two discovery-relationship-phase invocations, leaving
+	// the three runtime invocations from the runner pool and the dependency
+	// outputs fetch.
+	assert.Len(t, lines, 3)
+}
+
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 	t.Parallel()
 

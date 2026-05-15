@@ -1,0 +1,26 @@
+---
+version: "v1.0.5"
+category: "experiments-added"
+---
+
+#### `opt-out-auth` — Opt out of `--auth-provider-cmd` during discovery
+
+Enable the new `opt-out-auth` experiment to use `--no-discovery-auth-provider-cmd` (env: `TG_NO_DISCOVERY_AUTH_PROVIDER_CMD`), which disables the auth provider command during the discovery phase.
+
+Without the flag, Terragrunt assumes that `--auth-provider-cmd` must be run per parsed component during the discovery phase so that it can reliably resolve HCL functions such as `get_aws_account_id` and `run_cmd`. On large repositories with `run --all --filter='reading='`, this dominates wall-clock time because the auth command runs for every discovered unit rather than only the subset that will run.
+
+The `--no-discovery-auth-provider-cmd` flag turns off auth invocations during discovery. The auth provider command still runs normally when running units.
+
+Units whose discovery-relevant blocks depend on credentials produced by `--auth-provider-cmd` will fail to parse with the flag set. Use it when you know that parsing will resolve successfully without any authentication done beforehand by Terragrunt.
+
+While this flag is experimental, you must also opt-in to the `opt-out-auth` experiment by setting the `TG_EXPERIMENT` environment variable to `opt-out-auth` or by passing the `--experiment=opt-out-auth` flag to `terragrunt run`. This flag might experience breaking changes based on community feedback for the duration of the experiment.
+
+e.g.
+
+```bash
+terragrunt run --all \
+  --experiment=opt-out-auth \
+  --no-discovery-auth-provider-cmd \
+  --queue-include-units-reading=./changed-file.txt \
+  plan
+```

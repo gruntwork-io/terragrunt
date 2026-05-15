@@ -56,6 +56,9 @@ const (
 	// (so reading-based filter expressions detect changes to the module) and
 	// the mark_glob_as_read HCL function.
 	MarkManyAsRead = "mark-many-as-read"
+	// OptOutAuth gates flags that opt out of running --auth-provider-cmd in
+	// specific phases (currently --no-discovery-auth-provider-cmd).
+	OptOutAuth = "opt-out-auth"
 )
 
 const (
@@ -122,6 +125,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: MarkManyAsRead,
+		},
+		{
+			Name: OptOutAuth,
 		},
 	}
 }

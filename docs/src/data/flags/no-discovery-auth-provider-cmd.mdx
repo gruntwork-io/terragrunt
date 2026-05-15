@@ -1,0 +1,22 @@
+---
+name: no-discovery-auth-provider-cmd
+description: Skip running --auth-provider-cmd during the discovery phase. Requires the opt-out-auth experiment.
+lookup: true
+type: boolean
+env:
+  - TG_NO_DISCOVERY_AUTH_PROVIDER_CMD
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`opt-out-auth`](/reference/experiments) experiment. Enable it with `--experiment=opt-out-auth` (or `TG_EXPERIMENT=opt-out-auth`); otherwise setting `--no-discovery-auth-provider-cmd` returns an error. The flag's behavior may change while the experiment is in progress.
+</Aside>
+
+Skip running `--auth-provider-cmd` during the discovery phase.
+
+By default, Terragrunt runs `--auth-provider-cmd` once per parse of a component during the discovery phase so configuration parsing can resolve HCL functions such as `get_aws_account_id` without error. With this flag, those discovery-time invocations are skipped. The auth provider command still executes normally for the units that actually run.
+
+<Aside type="caution">
+Units whose discovery-relevant blocks depend on credentials produced by `--auth-provider-cmd` may fail to parse with this flag set.
+</Aside>
