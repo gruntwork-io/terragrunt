@@ -1,4 +1,4 @@
-package panicreport_test
+package log_test
 
 import (
 	"bytes"
@@ -13,7 +13,9 @@ import (
 
 	"github.com/zclconf/go-cty/cty/function"
 
-	"github.com/gruntwork-io/terragrunt/internal/panicreport"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,17 +25,17 @@ func TestReportPanicWritesCrashLog(t *testing.T) {
 
 	tmp := t.TempDir()
 	when := time.Date(2026, 5, 15, 12, 30, 45, 0, time.UTC)
-	logger, output := newTestLogger()
+	logger, output := newPanicLogger()
 
-	r := newStubReporter(tmp, when, 8080)
-	r.ReportPanic(logger, "nil pointer dereference", []byte("stack-frames\nrunes"), []string{"terragrunt", "plan"})
+	r := newStubPanicReporter(tmp, when, 8080)
+	r.ReportPanic(logger, "1.7.9", "nil pointer dereference", []byte("stack-frames\nrunes"), []string{"terragrunt", "plan"})
 
 	expectedPath := filepath.Join(tmp, "terragrunt-crash-20260515T123045Z-8080.log")
 
 	logOutput := output.String()
 	assert.Contains(t, logOutput, "TERRAGRUNT CRASH")
 	assert.Contains(t, logOutput, "A panic report has been saved to: "+expectedPath)
-	assert.Contains(t, logOutput, panicreport.IssueURL)
+	assert.Contains(t, logOutput, log.PanicIssueURL)
 	assert.NotContains(t, logOutput, "Unable to write crash report")
 
 	body, err := os.ReadFile(expectedPath)
@@ -58,30 +60,29 @@ func TestReportPanicWritesCrashLog(t *testing.T) {
 func TestReportPanicFallsBackWhenWriteFails(t *testing.T) {
 	t.Parallel()
 
-	r := newStubReporter(t.TempDir(), time.Now().UTC(), os.Getpid())
+	r := newStubPanicReporter(t.TempDir(), time.Now().UTC(), os.Getpid())
 	r.WriteFile = func(string, []byte, os.FileMode) error {
 		return stdErrors.New("disk full")
 	}
 
-	logger, output := newTestLogger()
-	r.ReportPanic(logger, "slice bounds out of range", []byte("stack"), []string{"terragrunt"})
+	logger, output := newPanicLogger()
+	r.ReportPanic(logger, "1.7.9", "slice bounds out of range", []byte("stack"), []string{"terragrunt"})
 
 	logOutput := output.String()
 	assert.Contains(t, logOutput, "Unable to write crash report: disk full")
 	assert.Contains(t, logOutput, "Panic: slice bounds out of range")
 	assert.Contains(t, logOutput, "TERRAGRUNT CRASH")
-	assert.Contains(t, logOutput, panicreport.IssueURL)
+	assert.Contains(t, logOutput, log.PanicIssueURL)
 }
 
 func TestReportPanicFallbacksOnEmptyInputs(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
-	r := newStubReporter(tmp, time.Now().UTC(), 1)
-	r.Version = ""
+	r := newStubPanicReporter(tmp, time.Now().UTC(), 1)
 
-	logger, _ := newTestLogger()
-	r.ReportPanic(logger, "", nil, []string{})
+	logger, _ := newPanicLogger()
+	r.ReportPanic(logger, "", "", nil, []string{})
 
 	entries, err := os.ReadDir(tmp)
 	require.NoError(t, err)
@@ -101,11 +102,11 @@ func TestReportPanicFallbacksOnEmptyInputs(t *testing.T) {
 func TestReportPanicFallsBackToTempDirWhenGetwdFails(t *testing.T) {
 	t.Parallel()
 
-	r := newStubReporter(t.TempDir(), time.Now().UTC(), 1)
+	r := newStubPanicReporter(t.TempDir(), time.Now().UTC(), 1)
 	r.Getwd = func() (string, error) { return "", stdErrors.New("denied") }
 
-	logger, _ := newTestLogger()
-	r.ReportPanic(logger, "divide by zero", []byte("stack"), nil)
+	logger, _ := newPanicLogger()
+	r.ReportPanic(logger, "1.7.9", "divide by zero", []byte("stack"), nil)
 
 	entries, err := os.ReadDir(os.TempDir())
 	require.NoError(t, err)
@@ -129,16 +130,14 @@ func TestIsPanic(t *testing.T) {
 	t.Run("nil is not a panic", func(t *testing.T) {
 		t.Parallel()
 
-		assert.False(t, panicreport.IsPanic(nil))
+		assert.False(t, log.IsPanic(nil))
 	})
 
 	t.Run("plain wrapped error is not a panic", func(t *testing.T) {
 		t.Parallel()
 
-		assert.False(t, panicreport.IsPanic(stdErrors.New("regular failure")))
-		// A message that mentions "panic" must not match — only typed panic
-		// errors or real runtime stack frames count.
-		assert.False(t, panicreport.IsPanic(stdErrors.New("panic but not from runtime")))
+		assert.False(t, log.IsPanic(stdErrors.New("regular failure")))
+		assert.False(t, log.IsPanic(stdErrors.New("panic but not from runtime")))
 	})
 
 	t.Run("matches cty function.PanicError by type", func(t *testing.T) {
@@ -149,18 +148,16 @@ func TestIsPanic(t *testing.T) {
 			Stack: []byte("cty stack"),
 		}
 
-		assert.True(t, panicreport.IsPanic(err))
-		assert.True(t, panicreport.IsPanic(fmt.Errorf("wrapped: %w", err)))
+		assert.True(t, log.IsPanic(err))
+		assert.True(t, log.IsPanic(fmt.Errorf("wrapped: %w", err)))
 	})
 
 	t.Run("matches an error whose message contains a runtime panic frame", func(t *testing.T) {
 		t.Parallel()
 
-		// Simulate an error built from a debug.Stack output captured
-		// during panic recovery — contains the "panic({" frame.
 		err := stdErrors.New("panic: simulated\n\ngoroutine 1 [running]:\nruntime/debug.Stack()\npanic({0x...})\n\t/usr/local/go/src/runtime/panic.go:860")
 
-		assert.True(t, panicreport.IsPanic(err))
+		assert.True(t, log.IsPanic(err))
 	})
 
 	t.Run("matches an error whose ErrorStack contains a runtime panic frame", func(t *testing.T) {
@@ -171,7 +168,7 @@ func TestIsPanic(t *testing.T) {
 			stack: "goroutine 1:\nruntime/panic.go:860\npanic({0x...})\n",
 		}
 
-		assert.True(t, panicreport.IsPanic(err))
+		assert.True(t, log.IsPanic(err))
 	})
 }
 
@@ -185,19 +182,15 @@ type stackedError struct {
 func (e stackedError) Error() string      { return e.msg }
 func (e stackedError) ErrorStack() string { return e.stack }
 
-type bufferLogger struct{ buf *bytes.Buffer }
-
-func (l bufferLogger) Error(args ...any)                 { fmt.Fprintln(l.buf, args...) }
-func (l bufferLogger) Errorf(format string, args ...any) { fmt.Fprintf(l.buf, format+"\n", args...) }
-
-func newTestLogger() (panicreport.Logger, *bytes.Buffer) {
+func newPanicLogger() (log.Logger, *bytes.Buffer) {
 	buf := new(bytes.Buffer)
-	return bufferLogger{buf: buf}, buf
+	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
+
+	return log.New(log.WithOutput(buf), log.WithLevel(log.InfoLevel), log.WithFormatter(formatter)), buf
 }
 
-func newStubReporter(workDir string, now time.Time, pid int) *panicreport.Reporter {
-	return &panicreport.Reporter{
-		Version:   "1.7.9",
+func newStubPanicReporter(workDir string, now time.Time, pid int) *log.PanicReporter {
+	return &log.PanicReporter{
 		Now:       func() time.Time { return now },
 		Getwd:     func() (string, error) { return workDir, nil },
 		GetPID:    func() int { return pid },
