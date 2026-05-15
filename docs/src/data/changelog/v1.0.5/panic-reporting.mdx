@@ -1,0 +1,12 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### Friendly panic crash reporting with crash logs
+
+Terragrunt now handles unrecoverable panics with a cleaner operator experience.
+
+When a panic is captured, Terragrunt writes a timestamped `terragrunt-crash-*.log` file containing runtime context, command-line details, Terragrunt version, and the full stack trace. The terminal output now points users to that file and requests they report the issue at:
+
+https://github.com/gruntwork-io/terragrunt/issues
