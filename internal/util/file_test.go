@@ -1358,3 +1358,219 @@ func benchmarkCopyFolderContents(b *testing.B, fastCopy bool) {
 
 func BenchmarkCopyFolderContents_Slow(b *testing.B) { benchmarkCopyFolderContents(b, false) }
 func BenchmarkCopyFolderContents_Fast(b *testing.B) { benchmarkCopyFolderContents(b, true) }
+
+func TestLoadEnvFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("missing file returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		result, err := util.LoadEnvFile(t.TempDir(), ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("simple key=value", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("FOO=bar\nBAZ=qux\n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"FOO": "bar", "BAZ": "qux"}, result)
+	})
+
+	t.Run("comments and blank lines skipped", func(t *testing.T) {
+		t.Parallel()
+
+		content := "# this is a comment\n\nKEY=value\n# another comment\n"
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte(content), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"KEY": "value"}, result)
+	})
+
+	t.Run("line without equals sign ignored", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("NOEQUALSSIGN\nGOOD=yes\n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"GOOD": "yes"}, result)
+	})
+
+	t.Run("value with equals sign preserved", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("KEY=a=b=c\n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"KEY": "a=b=c"}, result)
+	})
+
+	t.Run("whitespace trimmed from key and value", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("  KEY  =  value  \n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"KEY": "value"}, result)
+	})
+
+	t.Run("CRLF line endings parsed correctly", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("FOO=bar\r\nBAZ=qux\r\n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"FOO": "bar", "BAZ": "qux"}, result)
+	})
+
+	t.Run("env var expanded in value", func(t *testing.T) {
+		t.Parallel()
+
+		home, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.NotEmpty(t, home)
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("MYPATH=$HOME/.terraformrc\n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"MYPATH": filepath.Join(home, ".terraformrc")}, result)
+	})
+
+	t.Run("brace-style env var expanded in value", func(t *testing.T) {
+		t.Parallel()
+
+		home, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.NotEmpty(t, home)
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("MYPATH=${HOME}/.terraformrc\n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"MYPATH": filepath.Join(home, ".terraformrc")}, result)
+	})
+
+	t.Run("path with dot-dot segments cleaned", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		content := fmt.Sprintf("TF_CLI_CONFIG_FILE=%s/sub/../.terraformrc\n", dir)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte(content), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"TF_CLI_CONFIG_FILE": filepath.Join(dir, ".terraformrc")}, result)
+	})
+
+	t.Run("relative path resolved against env file dir", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("TF_CLI_CONFIG_FILE=./terraformrc.hcl\n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"TF_CLI_CONFIG_FILE": filepath.Join(dir, "terraformrc.hcl")}, result)
+	})
+
+	t.Run("URL value not mangled by filepath.Clean", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("REGISTRY=https://registry.example.com/v1/providers/\n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"REGISTRY": "https://registry.example.com/v1/providers/"}, result)
+	})
+
+	t.Run("double-quoted value stripped", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte(`TF_TOKEN="abc123"`+"\n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"TF_TOKEN": "abc123"}, result)
+	})
+
+	t.Run("single-quoted value stripped", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("TF_TOKEN='abc123'\n"), 0600))
+
+		result, err := util.LoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"TF_TOKEN": "abc123"}, result)
+	})
+}
+
+func TestFindAndLoadEnvFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("finds file in current dir", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".terragrunt-env"), []byte("KEY=val\n"), 0600))
+
+		result, err := util.FindAndLoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"KEY": "val"}, result)
+	})
+
+	t.Run("finds file in parent dir", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		child := filepath.Join(root, "a", "b", "c")
+		require.NoError(t, os.MkdirAll(child, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(root, ".terragrunt-env"), []byte("ROOT_KEY=root_val\n"), 0600))
+
+		result, err := util.FindAndLoadEnvFile(child, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"ROOT_KEY": "root_val"}, result)
+	})
+
+	t.Run("nearest file wins over parent", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		child := filepath.Join(root, "sub")
+		require.NoError(t, os.MkdirAll(child, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(root, ".terragrunt-env"), []byte("KEY=parent\n"), 0600))
+		require.NoError(t, os.WriteFile(filepath.Join(child, ".terragrunt-env"), []byte("KEY=child\n"), 0600))
+
+		result, err := util.FindAndLoadEnvFile(child, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"KEY": "child"}, result)
+	})
+
+	t.Run("returns nil when no file in tree", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		result, err := util.FindAndLoadEnvFile(dir, ".terragrunt-env")
+		require.NoError(t, err)
+		assert.Nil(t, result)
+	})
+}
