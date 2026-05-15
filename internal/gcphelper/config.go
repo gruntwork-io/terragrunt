@@ -4,6 +4,7 @@ package gcphelper
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 
 	"cloud.google.com/go/storage"
@@ -35,6 +36,7 @@ type GCPSessionConfig struct {
 // GCPConfigBuilder constructs GCP client options using the builder pattern.
 type GCPConfigBuilder struct {
 	sessionConfig *GCPSessionConfig
+	httpClient    *http.Client
 	env           map[string]string
 }
 
@@ -52,6 +54,18 @@ func (b *GCPConfigBuilder) WithSessionConfig(config *GCPSessionConfig) *GCPConfi
 // WithEnv sets the environment variables to use for credential resolution.
 func (b *GCPConfigBuilder) WithEnv(env map[string]string) *GCPConfigBuilder {
 	b.env = env
+	return b
+}
+
+// WithHTTPClient routes GCP traffic through c, the same handle that the rest
+// of Terragrunt threads through [github.com/gruntwork-io/terragrunt/internal/venv.Venv].
+// Tests substitute c with one built by
+// [github.com/gruntwork-io/terragrunt/internal/vhttp.NewMemClient] so GCP
+// SDK calls never reach the network. The JWT branch in
+// [createGCPCredentialsFromGoogleCredentialsEnv] builds its own transport
+// from the parsed service-account key and is intentionally not overridden.
+func (b *GCPConfigBuilder) WithHTTPClient(c *http.Client) *GCPConfigBuilder {
+	b.httpClient = c
 	return b
 }
 
@@ -75,7 +89,10 @@ func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, er
 	gcpCfg := b.sessionConfig
 	env := b.env
 
-	var clientOpts []option.ClientOption
+	var (
+		clientOpts      []option.ClientOption
+		httpClientSetBy string
+	)
 
 	envCreds, err := createGCPCredentialsFromEnv(env)
 	if err != nil {
@@ -85,7 +102,6 @@ func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, er
 	if envCreds != nil {
 		clientOpts = append(clientOpts, envCreds)
 	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
-		// Use credentials file from config
 		credOpt, err := credentialsFileOption(gcpCfg.Credentials)
 		if err != nil {
 			return nil, err
@@ -93,19 +109,16 @@ func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, er
 
 		clientOpts = append(clientOpts, credOpt)
 	} else if gcpCfg != nil && gcpCfg.AccessToken != "" {
-		// Use access token from config
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: gcpCfg.AccessToken,
 		})
 		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
 	} else if oauthAccessToken := env["GOOGLE_OAUTH_ACCESS_TOKEN"]; oauthAccessToken != "" {
-		// Use OAuth access token from environment
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: oauthAccessToken,
 		})
 		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
 	} else if env["GOOGLE_CREDENTIALS"] != "" {
-		// Use GOOGLE_CREDENTIALS from environment (can be file path or JSON content)
 		clientOpt, err := createGCPCredentialsFromGoogleCredentialsEnv(ctx, env)
 		if err != nil {
 			return nil, err
@@ -113,6 +126,9 @@ func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, er
 
 		if clientOpt != nil {
 			clientOpts = append(clientOpts, clientOpt)
+			// The JWT branch installs its own *http.Client from the parsed
+			// service-account key. Honor it and skip our injected one.
+			httpClientSetBy = "GOOGLE_CREDENTIALS"
 		}
 	}
 
@@ -131,6 +147,11 @@ func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, er
 		}
 
 		clientOpts = []option.ClientOption{option.WithTokenSource(ts)}
+		httpClientSetBy = ""
+	}
+
+	if b.httpClient != nil && httpClientSetBy == "" {
+		clientOpts = append(clientOpts, option.WithHTTPClient(b.httpClient))
 	}
 
 	return clientOpts, nil

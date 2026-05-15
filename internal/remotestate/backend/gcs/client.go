@@ -38,6 +38,7 @@ func NewClient(
 	gcsClient, err := gcphelper.NewGCPConfigBuilder().
 		WithSessionConfig(config.GetGCPSessionConfig()).
 		WithEnv(opts.Env).
+		WithHTTPClient(opts.HTTP).
 		BuildGCSClient(ctx)
 	if err != nil {
 		return nil, err

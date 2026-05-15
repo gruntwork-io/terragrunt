@@ -5,16 +5,18 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Options bundles the configuration the Backend interface needs at each
-// call site. Env and Writers are bundled here as the interface is invoked
-// across packages that hold their own per-call data; the configbridge
-// adapter populates them from the venv carried by the caller.
+// call site. Env, Writers, and HTTP are bundled here as the interface is
+// invoked across packages that hold their own per-call data; the
+// configbridge adapter populates them from the venv carried by the caller.
 type Options struct {
 	Writers                      writer.Writers
+	HTTP                         vhttp.Client
 	Env                          map[string]string
 	IAMRoleOptions               iam.RoleOptions
 	NonInteractive               bool

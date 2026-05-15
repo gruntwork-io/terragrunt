@@ -3,10 +3,14 @@
 //
 // A [Venv] bundles the side-effect handles every layer below the CLI needs
 // to do its work: [vfs.FS] for filesystem reads and writes, [vexec.Exec]
-// for spawning subprocesses, [vhttp.Client] for outbound HTTP, the shell
-// environment variables read at startup, and the stdout/stderr writers.
-// Production code constructs the real bundle once at the top via [OSVenv];
-// tests construct an in-memory bundle and drive the full CLI through it.
+// for spawning subprocesses, [vhttp.Client] for outbound HTTP (including
+// the transport handed to AWS and GCP SDK builders via
+// [github.com/gruntwork-io/terragrunt/internal/awshelper.AWSConfigBuilder.WithHTTPClient]
+// and [github.com/gruntwork-io/terragrunt/internal/gcphelper.GCPConfigBuilder.WithHTTPClient]),
+// the shell environment variables read at startup, and the stdout/stderr
+// writers. Production code constructs the real bundle once at the top via
+// [OSVenv]; tests construct an in-memory bundle and drive the full CLI
+// through it.
 //
 // Downstream packages (for example internal/runner/run and internal/tflint)
 // keep their own package-local Venv types so each owns its own contract.
@@ -32,8 +36,10 @@ type Venv struct {
 	// Exec spawns every subprocess: tofu, terraform, git, hooks,
 	// external auth providers, tflint.
 	Exec vexec.Exec
-	// HTTP performs every outbound HTTP request: registry discovery,
-	// module/provider fetches, GitHub release lookups, version checks.
+	// HTTP performs every outbound HTTP request. AWS and GCP SDK builders
+	// receive it via their respective WithHTTPClient methods so test
+	// substitution at the [net/http.RoundTripper] boundary covers cloud
+	// traffic uniformly with plain HTTP traffic.
 	HTTP vhttp.Client
 	// Env holds the shell environment variables read at startup and is
 	// mutated as Terragrunt resolves provider-cache, hook, and inputs

@@ -3,6 +3,7 @@ package awshelper
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -64,6 +65,7 @@ func (f tokenFetcher) FetchToken(_ context.Context) ([]byte, error) {
 // Use NewAwsConfigBuilder to create, chain With* methods for optional parameters, then call Build().
 type AWSConfigBuilder struct {
 	sessionConfig *AwsSessionConfig
+	httpClient    *http.Client
 	env           map[string]string
 	iamRoleOpts   iam.RoleOptions
 }
@@ -93,11 +95,25 @@ func (b *AWSConfigBuilder) WithIAMRoleOptions(opts iam.RoleOptions) *AWSConfigBu
 	return b
 }
 
+// WithHTTPClient routes AWS traffic through c, the same handle that the rest
+// of Terragrunt threads through [github.com/gruntwork-io/terragrunt/internal/venv.Venv].
+// Tests substitute c with one built by
+// [github.com/gruntwork-io/terragrunt/internal/vhttp.NewMemClient] so AWS
+// SDK calls never reach the network.
+func (b *AWSConfigBuilder) WithHTTPClient(c *http.Client) *AWSConfigBuilder {
+	b.httpClient = c
+	return b
+}
+
 // Build creates the AWS config from the builder's configuration.
 func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config, error) {
 	var configOptions []func(*config.LoadOptions) error
 
 	configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
+
+	if b.httpClient != nil {
+		configOptions = append(configOptions, config.WithHTTPClient(b.httpClient))
+	}
 
 	if envCreds := createCredentialsFromEnv(b.env); envCreds != nil {
 		l.Debugf("Using AWS credentials from auth provider command")
@@ -221,8 +237,16 @@ func getExternalID(awsCfg *AwsSessionConfig) string {
 }
 
 // AssumeIamRole assumes an IAM role and returns the credentials.
+//
+// httpClient is the outbound HTTP handle wired into the resolved AWS
+// config so STS traffic shares the same transport as the rest of
+// Terragrunt. Production callers pass [github.com/gruntwork-io/terragrunt/internal/venv.Venv.HTTP];
+// tests pass a [github.com/gruntwork-io/terragrunt/internal/vhttp.NewMemClient]
+// to drive STS hermetically. A nil httpClient falls back to the SDK's
+// default transport.
 func AssumeIamRole(
 	ctx context.Context,
+	httpClient *http.Client,
 	iamRoleOpts iam.RoleOptions,
 	externalID string,
 	env map[string]string,
@@ -240,12 +264,16 @@ func AssumeIamRole(
 		region = "us-east-1"
 	}
 
-	// Set user agent to include terragrunt version
-	cfg, err := config.LoadDefaultConfig(
-		ctx,
+	loadOptions := []func(*config.LoadOptions) error{
 		config.WithRegion(region),
-		config.WithAppID("terragrunt/"+version.GetVersion()),
-	)
+		config.WithAppID("terragrunt/" + version.GetVersion()),
+	}
+
+	if httpClient != nil {
+		loadOptions = append(loadOptions, config.WithHTTPClient(httpClient))
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx, loadOptions...)
 	if err != nil {
 		return nil, errors.Errorf("Error loading AWS config: %w", err)
 	}

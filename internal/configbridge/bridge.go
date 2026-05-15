@@ -51,11 +51,12 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 }
 
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions and v.
-// Env and Writers are populated from v so the Backend interface receives the
-// venv data it needs at each invocation.
+// Env, Writers, and HTTP are populated from v so the Backend interface
+// receives the venv data it needs at each invocation.
 func BackendOptsFromOpts(v *venv.Venv, opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
 		Writers:                      *v.Writers,
+		HTTP:                         v.HTTP,
 		Env:                          v.Env,
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		NonInteractive:               opts.NonInteractive,
