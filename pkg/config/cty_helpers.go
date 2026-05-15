@@ -4,7 +4,7 @@ package config
 import (
 	"context"
 	"encoding/json"
-	"runtime/debug"
+	"fmt"
 
 	"dario.cat/mergo"
 	"github.com/zclconf/go-cty/cty"
@@ -52,10 +52,7 @@ func wrapStringSliceToStringAsFuncImpl(
 func callWithPanicProtection[T any](f func() (T, error)) (out T, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = errors.New(errors.FunctionPanicError{
-				Recovered: recovered,
-				Stack:     string(debug.Stack()),
-			})
+			err = errors.New(fmt.Sprintf("panic in function implementation: %v", recovered))
 		}
 	}()
 

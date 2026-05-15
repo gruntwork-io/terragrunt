@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/function"
 )
 
@@ -22,13 +23,26 @@ func (e fakeFunctionCallDiagExtra) FunctionCallError() error {
 	return e.functionErr
 }
 
+type functionPanicLikeError struct {
+	Recovered any
+	Stack     string
+}
+
+func (err functionPanicLikeError) Error() string {
+	return fmt.Sprintf("panic in function: %v", err.Recovered)
+}
+
+func (err functionPanicLikeError) IsFunctionPanic() bool {
+	return true
+}
+
 func TestIsFunctionPanic(t *testing.T) {
 	t.Parallel()
 
 	t.Run("custom function panic marker", func(t *testing.T) {
 		t.Parallel()
 
-		err := errors.FunctionPanicError{
+		err := functionPanicLikeError{
 			Recovered: "slice bounds out of range",
 			Stack:     "stack one",
 		}
@@ -45,6 +59,30 @@ func TestIsFunctionPanic(t *testing.T) {
 		}
 
 		assert.True(t, errors.IsFunctionPanic(err))
+	})
+
+	t.Run("generic function panic by error string and stack", func(t *testing.T) {
+		t.Parallel()
+
+		err := functionPanicLikeError{
+			Recovered: "slice bounds out of range",
+			Stack:     "generic panic stack",
+		}
+
+		assert.True(t, errors.IsFunctionPanic(err))
+		assert.Equal(t, "generic panic stack", errors.ErrorStack(err))
+	})
+
+	t.Run("typed panic-shaped error with marker message", func(t *testing.T) {
+		t.Parallel()
+
+		err := functionPanicLikeError{
+			Recovered: "slice bounds out of range",
+			Stack:     "typed panic stack",
+		}
+
+		assert.True(t, errors.IsFunctionPanic(err))
+		assert.Equal(t, "typed panic stack", errors.ErrorStack(err))
 	})
 
 	t.Run("cty function panic wrapped error", func(t *testing.T) {
@@ -77,6 +115,14 @@ func TestIsFunctionPanic(t *testing.T) {
 		assert.True(t, errors.IsFunctionPanic(fmt.Errorf("wrapped: %w", err)))
 	})
 
+	t.Run("wrapped error message that contains panic", func(t *testing.T) {
+		t.Parallel()
+
+		err := errors.New("panic: function call failed: runtime error")
+
+		assert.True(t, errors.IsFunctionPanic(err))
+	})
+
 	t.Run("non panic error", func(t *testing.T) {
 		t.Parallel()
 
@@ -90,7 +136,7 @@ func TestErrorStackForFunctionPanic(t *testing.T) {
 	t.Run("includes function panic stack", func(t *testing.T) {
 		t.Parallel()
 
-		err := errors.FunctionPanicError{
+		err := functionPanicLikeError{
 			Recovered: "panic",
 			Stack:     "custom stack",
 		}
@@ -136,5 +182,72 @@ func TestErrorStackForFunctionPanic(t *testing.T) {
 
 		crashOutput := errors.ErrorStack(err)
 		assert.Contains(t, crashOutput, panicStack)
+	})
+}
+
+func TestRecoverWrapsPanic(t *testing.T) {
+	t.Parallel()
+
+	t.Run("recovers non-error panic as function panic", func(t *testing.T) {
+		t.Parallel()
+
+		var recovered error
+
+		func() {
+			defer errors.Recover(func(err error) {
+				recovered = err
+			})
+
+			panic("panic-value")
+		}()
+
+		require.Error(t, recovered)
+		assert.True(t, errors.IsFunctionPanic(recovered))
+		assert.Contains(t, recovered.Error(), "panic:")
+		assert.NotEmpty(t, errors.ErrorStack(recovered))
+	})
+
+	t.Run("preserves function panic error from recover", func(t *testing.T) {
+		t.Parallel()
+
+		panicErr := functionPanicLikeError{
+			Recovered: "runtime error",
+			Stack:     "existing function panic stack",
+		}
+
+		var recovered error
+
+		func() {
+			defer errors.Recover(func(err error) {
+				recovered = err
+			})
+
+			panic(panicErr)
+		}()
+
+		assert.True(t, errors.IsFunctionPanic(recovered))
+		assert.NotEmpty(t, errors.ErrorStack(recovered))
+	})
+
+	t.Run("preserves function panic-like shape from recover", func(t *testing.T) {
+		t.Parallel()
+
+		recoveredErr := functionPanicLikeError{
+			Recovered: "runtime error",
+			Stack:     "typed recover stack",
+		}
+
+		var recovered error
+
+		func() {
+			defer errors.Recover(func(err error) {
+				recovered = err
+			})
+
+			panic(recoveredErr)
+		}()
+
+		assert.True(t, errors.IsFunctionPanic(recovered))
+		assert.NotEmpty(t, errors.ErrorStack(recovered))
 	})
 }
