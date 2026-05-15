@@ -53,7 +53,7 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions and v.
 // Env and Writers are populated from v so the Backend interface receives the
 // venv data it needs at each invocation.
-func BackendOptsFromOpts(v venv.Venv, opts *options.TerragruntOptions) *backend.Options {
+func BackendOptsFromOpts(v *venv.Venv, opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
 		Writers:                      v.Writers,
 		Env:                          v.Env,
@@ -66,7 +66,7 @@ func BackendOptsFromOpts(v venv.Venv, opts *options.TerragruntOptions) *backend.
 }
 
 // RemoteStateOptsFromOpts constructs remotestate.Options from TerragruntOptions.
-func RemoteStateOptsFromOpts(v venv.Venv, opts *options.TerragruntOptions) *remotestate.Options {
+func RemoteStateOptsFromOpts(v *venv.Venv, opts *options.TerragruntOptions) *remotestate.Options {
 	return &remotestate.Options{
 		Options:             *BackendOptsFromOpts(v, opts),
 		DisableBucketUpdate: opts.DisableBucketUpdate,

@@ -194,7 +194,7 @@ dependency "vpc" {
 // `git rev-parse --show-toplevel` with the supplied repoRoot. Any other
 // invocation fails the test so a regression that fires unexpected git
 // subcommands is caught here.
-func memGitTopLevelVenv(t *testing.T, repoRoot string) venv.Venv {
+func memGitTopLevelVenv(t *testing.T, repoRoot string) *venv.Venv {
 	t.Helper()
 
 	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
@@ -207,7 +207,7 @@ func memGitTopLevelVenv(t *testing.T, repoRoot string) venv.Venv {
 		return vexec.Result{ExitCode: 1}
 	})
 
-	return venv.Venv{
+	return &venv.Venv{
 		Exec:    exec,
 		Env:     map[string]string{},
 		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},

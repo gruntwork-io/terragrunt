@@ -76,7 +76,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	l := logger.CreateLogger()
 	l = withLogger(l)
 
-	v := venv.Venv{
+	v := &venv.Venv{
 		Exec:    vexec.NewOSExec(),
 		Env:     map[string]string{},
 		Writers: writer.Writers{Writer: &allOutputBuffer, ErrWriter: &allOutputBuffer},

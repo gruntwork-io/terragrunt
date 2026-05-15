@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/assert"
@@ -79,7 +80,7 @@ func TestRunActionWithHooks_BeforeHookFailureSkipsAction(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.Venv{Exec: exec, FS: vfs.NewMemMapFS()}
+	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: writer.Writers{}}
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -128,7 +129,7 @@ func TestRunActionWithHooks_ActionFailureTriggersErrorHook(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.Venv{Exec: exec, FS: vfs.NewMemMapFS()}
+	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: writer.Writers{}}
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -175,7 +176,7 @@ func TestRunActionWithHooks_AfterHooksSkipOnActionFailure(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.Venv{Exec: exec, FS: vfs.NewMemMapFS()}
+	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: writer.Writers{}}
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -210,7 +211,7 @@ func TestRunActionWithHooks_NoHooksRunsActionDirectly(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.Venv{Exec: exec, FS: vfs.NewMemMapFS()}
+	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: writer.Writers{}}
 	l := logger.CreateLogger()
 
 	actionFired := 0

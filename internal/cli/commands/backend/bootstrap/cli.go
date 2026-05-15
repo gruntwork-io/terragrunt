@@ -30,7 +30,7 @@ func NewFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	return sharedFlags
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmdFlags := NewFlags(opts)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewFailFastFlag(opts))
 

@@ -61,7 +61,7 @@ func (p *RelationshipPhase) Kind() PhaseKind {
 func (p *RelationshipPhase) Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()
@@ -75,7 +75,7 @@ func (p *RelationshipPhase) Run(
 func (p *RelationshipPhase) runRelationshipDiscovery(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	input *PhaseInput,
 	_ *PhaseResults,
 ) error {
@@ -143,7 +143,7 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 func (p *RelationshipPhase) discoverRelationships(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	state *relationshipTraversalState,
 	c component.Component,
 	tracker *terminalTracker,

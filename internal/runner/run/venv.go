@@ -23,34 +23,34 @@ type Venv struct {
 	// Env is the shell environment shared across hook, inputs, and
 	// extra-args contributions during a run.
 	Env map[string]string
-	// Writers carries the stdout/stderr handles and the log-formatting
-	// flags used while rendering hook and run output.
+	// Writers carries the stdout/stderr handles used while rendering hook
+	// and run output.
 	Writers writer.Writers
 }
 
 // OSVenv builds the production [Venv]: real OS process execution, real
 // OS filesystem, an OS environment snapshot, and the real OS streams.
-func OSVenv() Venv {
+func OSVenv() *Venv {
 	return FromRoot(venv.OSVenv())
 }
 
 // FromRoot projects the root [venv.Venv] threaded from the CLI entrypoint
 // into the run package's local Venv. The two carry the same handles but
 // are distinct types so the run package owns its own contract.
-func FromRoot(v venv.Venv) Venv {
-	return Venv{Exec: v.Exec, FS: v.FS, Env: v.Env, Writers: v.Writers}
+func FromRoot(v *venv.Venv) *Venv {
+	return &Venv{Exec: v.Exec, FS: v.FS, Env: v.Env, Writers: v.Writers}
 }
 
 // ToRoot is the inverse of [FromRoot]: it projects a run.Venv back into
 // the root [venv.Venv] for callers (notably config.ParsingContext) that
 // hold the root type.
-func (v Venv) ToRoot() venv.Venv {
-	return venv.Venv{FS: v.FS, Exec: v.Exec, Env: v.Env, Writers: v.Writers}
+func (v *Venv) ToRoot() *venv.Venv {
+	return &venv.Venv{FS: v.FS, Exec: v.Exec, Env: v.Env, Writers: v.Writers}
 }
 
 // tflintVenv translates a run.Venv into the tflint package's Venv. The
 // two carry the same handles but are distinct types so each package owns
 // its own contract.
-func (v Venv) tflintVenv() tflint.Venv {
-	return tflint.Venv{Exec: v.Exec, FS: v.FS, Env: v.Env, Writers: v.Writers}
+func (v *Venv) tflintVenv() *tflint.Venv {
+	return &tflint.Venv{Exec: v.Exec, FS: v.FS, Env: v.Env, Writers: v.Writers}
 }

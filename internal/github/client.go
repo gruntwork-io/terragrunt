@@ -18,13 +18,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // GitHubAPIClient represents a GitHub API client.
 type GitHubAPIClient struct {
 	baseURL        string
-	httpClient     *http.Client
+	httpClient     vhttp.Client
 	cache          *cache.ExpiringCache[string]
 	defaultHeaders http.Header
 }
@@ -40,7 +41,7 @@ type Release struct {
 type GitHubAPIClientOption func(*GitHubAPIClient)
 
 // WithHTTPClient sets the HTTP client for the GitHub client.
-func WithHTTPClient(httpClient *http.Client) GitHubAPIClientOption {
+func WithHTTPClient(httpClient vhttp.Client) GitHubAPIClientOption {
 	return func(c *GitHubAPIClient) {
 		c.httpClient = httpClient
 	}
@@ -90,7 +91,7 @@ func getGithubTokenFromEnv() string {
 func NewGitHubAPIClient(opts ...GitHubAPIClientOption) *GitHubAPIClient {
 	client := &GitHubAPIClient{
 		baseURL:        "https://api.github.com",
-		httpClient:     &http.Client{Timeout: 30 * time.Second},
+		httpClient:     vhttp.NewOSClientWithTimeout(30 * time.Second),
 		cache:          cache.NewExpiringCache[string]("github_api"),
 		defaultHeaders: http.Header{},
 	}
@@ -203,9 +204,9 @@ type DownloadResult struct {
 type GitHubReleasesDownloadClientOption func(*GitHubReleasesDownloadClient)
 
 // WithLogger sets the logger for the download client.
-func WithLogger(logger log.Logger) GitHubReleasesDownloadClientOption {
+func WithLogger(l log.Logger) GitHubReleasesDownloadClientOption {
 	return func(c *GitHubReleasesDownloadClient) {
-		c.logger = logger
+		c.logger = l
 	}
 }
 

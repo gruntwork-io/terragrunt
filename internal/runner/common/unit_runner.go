@@ -46,7 +46,7 @@ func NewUnitRunner(unit *component.Unit) *UnitRunner {
 func (runner *UnitRunner) runTerragrunt(
 	ctx context.Context,
 	l log.Logger,
-	v run.Venv,
+	v *run.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -133,7 +133,7 @@ func (runner *UnitRunner) runTerragrunt(
 func (runner *UnitRunner) Run(
 	ctx context.Context,
 	l log.Logger,
-	v run.Venv,
+	v *run.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -171,11 +171,11 @@ func (runner *UnitRunner) Run(
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
 
-		jsonV := v
+		jsonV := *v
 		jsonV.Writers.Writer = &stdout
 
 		runOpts := configbridge.NewRunOptions(jsonOptions)
-		if err := run.Run(ctx, jsonLogger, jsonV, runOpts, adhocReport, cfg, credsGetter); err != nil {
+		if err := run.Run(ctx, jsonLogger, &jsonV, runOpts, adhocReport, cfg, credsGetter); err != nil {
 			return err
 		}
 

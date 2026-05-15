@@ -77,7 +77,7 @@ var (
 // discovery runs in the background, then either transitions to the component
 // list TUI or settles into a "no sources found" help screen.
 type WelcomeModel struct {
-	venv             venv.Venv
+	venv             *venv.Venv
 	ctx              context.Context
 	logger           log.Logger
 	lastDiscoveryErr error
@@ -119,7 +119,7 @@ func EmitExitMessage(finalModel tea.Model, errWriter io.Writer, l log.Logger) {
 func NewWelcomeModel(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	loadFunc LoadFunc,
 ) WelcomeModel {
@@ -150,7 +150,7 @@ func NewWelcomeModel(
 func RunRedesign(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	errWriter io.Writer,
 	loadFunc LoadFunc,

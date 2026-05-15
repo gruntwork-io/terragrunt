@@ -18,10 +18,10 @@ type scaffoldCmd struct {
 	component *Component
 	opts      *options.TerragruntOptions
 	logger    log.Logger
-	venv      venv.Venv
+	venv      *venv.Venv
 }
 
-func newScaffoldCmd(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, c *Component) *scaffoldCmd {
+func newScaffoldCmd(l log.Logger, v *venv.Venv, opts *options.TerragruntOptions, c *Component) *scaffoldCmd {
 	return &scaffoldCmd{component: c, opts: opts, logger: l, venv: v}
 }
 

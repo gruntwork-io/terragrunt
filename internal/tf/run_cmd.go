@@ -56,7 +56,7 @@ type TFOptions struct {
 // RunCommand runs the given Terraform command using the supplied venv.
 // Pass a venv whose Exec is a [vexec.NewMemExec] from tests and fuzzers to
 // intercept invocations so tofu/terraform are never forked.
-func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *TFOptions, args ...string) error {
+func RunCommand(ctx context.Context, l log.Logger, v *venv.Venv, runOpts *TFOptions, args ...string) error {
 	_, err := RunCommandWithOutput(ctx, l, v, runOpts, args...)
 
 	return err
@@ -68,7 +68,7 @@ func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *TFOptio
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOpts *TFOptions,
 	args ...string,
 ) (*util.CmdOutput, error) {
@@ -85,8 +85,13 @@ func RunCommandWithOutput(
 
 	if !runOpts.ShellOptions.ForwardTFStdout {
 		outWriter, errWriter := logTFOutput(l, v.Writers, runOpts, args)
-		v.Writers.Writer = outWriter
-		v.Writers.ErrWriter = errWriter
+
+		// Build a per-call value copy of the venv so the writer
+		// redirection here does not leak back into the caller's
+		// pointed-to venv.
+		localV := *v
+		localV.Writers = writer.Writers{Writer: outWriter, ErrWriter: errWriter}
+		v = &localV
 	}
 
 	output, err := shell.RunCommandWithOutput(

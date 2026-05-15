@@ -23,7 +23,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-func Run(ctx context.Context, l log.Logger, v run.Venv, out io.Writer, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *run.Venv, out io.Writer, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, out io.Writer, opts *Opt
 	return runRender(l, out, opts, prepared.Cfg)
 }
 
-func runAll(ctx context.Context, l log.Logger, v run.Venv, out io.Writer, opts *Options) error {
+func runAll(ctx context.Context, l log.Logger, v *run.Venv, out io.Writer, opts *Options) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
 	components, err := d.Discover(ctx, l, v.ToRoot(), opts.TerragruntOptions)

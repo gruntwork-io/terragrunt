@@ -202,7 +202,7 @@ func TestProcessHooks_TflintActionRoutesThroughTflint(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fs, "/work/.tflint.hcl", []byte("config {}"), 0o644))
 
-	v := run.Venv{Exec: vexec.NewMemExec(h), FS: fs}
+	v := &run.Venv{Exec: vexec.NewMemExec(h), FS: fs, Writers: writer.Writers{}}
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -313,8 +313,8 @@ func newHookOpts() *run.Options {
 	}
 }
 
-func newHookVenv(h vexec.Handler) run.Venv {
-	return run.Venv{
+func newHookVenv(h vexec.Handler) *run.Venv {
+	return &run.Venv{
 		Exec:    vexec.NewMemExec(h),
 		FS:      vfs.NewMemMapFS(),
 		Env:     map[string]string{},
@@ -324,8 +324,8 @@ func newHookVenv(h vexec.Handler) run.Venv {
 
 // hookVenv wraps an existing exec into a run.Venv for ProcessErrorHooks
 // callers that have constructed the exec independently of the venv helper.
-func hookVenv(exec vexec.Exec) run.Venv {
-	return run.Venv{
+func hookVenv(exec vexec.Exec) *run.Venv {
+	return &run.Venv{
 		Exec:    exec,
 		FS:      vfs.NewMemMapFS(),
 		Env:     map[string]string{},

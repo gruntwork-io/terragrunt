@@ -42,7 +42,7 @@ func TestRunCommandMemBackendWithRacing(t *testing.T) {
 
 	opts := shell.NewShellOptions()
 
-	v := venv.Venv{
+	v := &venv.Venv{
 		Exec:    e,
 		Env:     map[string]string{},
 		Writers: writer.Writers{Writer: stdout, ErrWriter: stderr},
@@ -84,7 +84,7 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 
 	opts := shell.NewShellOptions()
 
-	v := venv.Venv{
+	v := &venv.Venv{
 		Exec:    e,
 		Env:     map[string]string{},
 		Writers: writer.Writers{Writer: stdout, ErrWriter: stderr},
@@ -98,7 +98,7 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 
 	// Same buffer for both writers: each line still appears, both in the shared buffer.
 	merged := &bytes.Buffer{}
-	mergedV := venv.Venv{
+	mergedV := &venv.Venv{
 		Exec:    e,
 		Env:     map[string]string{},
 		Writers: writer.Writers{Writer: merged, ErrWriter: merged},

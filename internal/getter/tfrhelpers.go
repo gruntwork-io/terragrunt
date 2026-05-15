@@ -12,8 +12,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-cleanhttp"
 	svchost "github.com/hashicorp/terraform-svchost"
 )
 
@@ -70,7 +70,7 @@ func (e RegistryAPIErr) Error() string {
 // under which modules are hosted.
 //
 // See https://www.terraform.io/docs/internals/remote-service-discovery.html.
-func GetModuleRegistryURLBasePath(ctx context.Context, l log.Logger, httpClient *http.Client, domain string) (string, error) {
+func GetModuleRegistryURLBasePath(ctx context.Context, l log.Logger, httpClient vhttp.Client, domain string) (string, error) {
 	sdURL := url.URL{
 		Scheme: "https",
 		Host:   domain,
@@ -96,7 +96,7 @@ func GetModuleRegistryURLBasePath(ctx context.Context, l log.Logger, httpClient 
 
 // GetTerraformGetHeader makes a GET against `url` and returns the value of
 // the X-Terraform-Get header (or the body's `location` field as a fallback).
-func GetTerraformGetHeader(ctx context.Context, l log.Logger, httpClient *http.Client, url *url.URL) (string, error) {
+func GetTerraformGetHeader(ctx context.Context, l log.Logger, httpClient vhttp.Client, url *url.URL) (string, error) {
 	body, header, err := httpGETAndGetResponse(ctx, l, httpClient, url)
 	if err != nil {
 		return "", errors.New(ModuleDownloadErr{sourceURL: url.String(), details: "error receiving HTTP data"})
@@ -182,9 +182,9 @@ func applyHostToken(req *http.Request) (*http.Request, error) {
 }
 
 // httpGETAndGetResponse performs a GET against getURL and returns its body and headers.
-func httpGETAndGetResponse(ctx context.Context, l log.Logger, httpClient *http.Client, getURL *url.URL) ([]byte, *http.Header, error) {
+func httpGETAndGetResponse(ctx context.Context, l log.Logger, httpClient vhttp.Client, getURL *url.URL) ([]byte, *http.Header, error) {
 	if httpClient == nil {
-		httpClient = cleanhttp.DefaultClient()
+		httpClient = vhttp.NewOSClient()
 	}
 
 	if getURL == nil {

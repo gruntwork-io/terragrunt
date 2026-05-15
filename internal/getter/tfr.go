@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -13,8 +12,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-cleanhttp"
 	getter "github.com/hashicorp/go-getter/v2"
 	safetemp "github.com/hashicorp/go-safetemp"
 )
@@ -41,23 +40,23 @@ const versionQueryKey = "version"
 // bearer token. See [tfimpl.DefaultRegistryDomain] and
 // [github.com/gruntwork-io/terragrunt/internal/tf/cliconfig] for the rest.
 type RegistryGetter struct {
-	HTTPClient         *http.Client
+	HTTPClient         vhttp.Client
 	Logger             log.Logger
 	FS                 vfs.FS
 	TofuImplementation tfimpl.Type
 }
 
 // NewRegistryGetter returns a [RegistryGetter] configured with sensible
-// defaults: a [github.com/hashicorp/go-cleanhttp.DefaultClient] for
-// registry-protocol requests, the supplied logger for diagnostic output,
-// the supplied filesystem for archive expansion, and [tfimpl.OpenTofu]
-// as the default implementation. A logger is required because this package
-// does not consistently guard against a nil logger, so requiring one at
-// construction time prevents nil-pointer panics at call time. Use the
-// With* methods to customize other behavior.
+// defaults: a [vhttp.NewOSClient] for registry-protocol requests, the
+// supplied logger for diagnostic output, the supplied filesystem for
+// archive expansion, and [tfimpl.OpenTofu] as the default implementation.
+// A logger is required because this package does not consistently guard
+// against a nil logger, so requiring one at construction time prevents
+// nil-pointer panics at call time. Use the With* methods to customize
+// other behavior.
 func NewRegistryGetter(l log.Logger, fs vfs.FS) *RegistryGetter {
 	return &RegistryGetter{
-		HTTPClient:         cleanhttp.DefaultClient(),
+		HTTPClient:         vhttp.NewOSClient(),
 		Logger:             l,
 		FS:                 fs,
 		TofuImplementation: tfimpl.OpenTofu,
@@ -65,10 +64,9 @@ func NewRegistryGetter(l log.Logger, fs vfs.FS) *RegistryGetter {
 }
 
 // WithHTTPClient overrides the HTTP client used for registry-protocol
-// requests. Intended for tests that need to route requests through a
-// [net/http/httptest.Server], or for callers that need custom transport
-// configuration.
-func (r *RegistryGetter) WithHTTPClient(c *http.Client) *RegistryGetter {
+// requests. Intended for tests that swap in a [vhttp.NewMemClient] handler
+// or for callers that need custom transport configuration.
+func (r *RegistryGetter) WithHTTPClient(c vhttp.Client) *RegistryGetter {
 	r.HTTPClient = c
 	return r
 }

@@ -29,7 +29,7 @@ const (
 func ProcessHooks(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v *Venv,
 	hooks []runcfg.Hook,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -73,7 +73,7 @@ func ProcessHooks(
 func ProcessErrorHooks(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v *Venv,
 	hooks []runcfg.ErrorHook,
 	opts *Options,
 	previousExecErrors *errors.MultiError,
@@ -198,7 +198,7 @@ func shouldRunHook(
 func runHook(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v *Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,
@@ -238,7 +238,7 @@ func runHook(
 func executeTFLint(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v *Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,

@@ -92,7 +92,7 @@ func (remote *RemoteState) Bootstrap(ctx context.Context, l log.Logger, opts *Op
 }
 
 // Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
-func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, v venv.Venv, opts, dstOpts *Options, dstRemote *RemoteState) error {
+func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, v *venv.Venv, opts, dstOpts *Options, dstRemote *RemoteState) error {
 	l.Debugf("Migrate remote state for the %s backend", remote.BackendName)
 
 	if remote.BackendName == dstRemote.BackendName {
@@ -177,7 +177,7 @@ func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, workingDir string)
 func (remote *RemoteState) pullState(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	tfOpts *tf.TFOptions,
 ) (string, error) {
 	l.Debugf("Pulling state from %s backend", remote.BackendName)
@@ -210,7 +210,7 @@ func (remote *RemoteState) pullState(
 func (remote *RemoteState) pushState(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	tfOpts *tf.TFOptions,
 	stateFile string,
 ) error {

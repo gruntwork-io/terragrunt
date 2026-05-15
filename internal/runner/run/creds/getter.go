@@ -26,7 +26,7 @@ func NewGetter() *Getter {
 func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	env map[string]string,
 	authProviders ...providers.Provider,
 ) error {
@@ -62,7 +62,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 func ObtainCredsForParsing(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	authProviderCmd string,
 	env map[string]string,
 	shellOpts *shell.ShellOptions,

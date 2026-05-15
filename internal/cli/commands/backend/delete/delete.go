@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)
 	}
@@ -25,7 +25,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	return runDelete(ctx, l, v, opts)
 }
 
-func runDelete(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runDelete(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 
 	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
@@ -56,7 +56,7 @@ func runDelete(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Ter
 	return remoteState.Delete(ctx, l, configbridge.RemoteStateOptsFromOpts(v, opts))
 }
 
-func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runAll(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
 	components, err := d.Discover(ctx, l, v, opts)

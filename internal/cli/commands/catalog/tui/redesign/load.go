@@ -30,7 +30,7 @@ const tempDirFormat = "catalog-%s"
 func LoadURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	repoURL string,
 	componentCh chan<- *ComponentEntry,

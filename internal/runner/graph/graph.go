@@ -26,7 +26,7 @@ import (
 
 // Run executes the configured terraform command against the dependency
 // graph of the unit in the working directory.
-func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *run.Venv, opts *options.TerragruntOptions) error {
 	// Get credentials BEFORE config parsing — sops_decrypt_file() and
 	// get_aws_account_id() in locals need auth-provider credentials
 	// available in opts.Env during HCL evaluation.

@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -102,7 +103,7 @@ func parseDepthFromContext(ctx context.Context) int {
 func ensureParsed(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -154,7 +155,7 @@ func (p *ParsePhase) Kind() PhaseKind {
 }
 
 // Run executes the parse phase.
-func (p *ParsePhase) Run(ctx context.Context, l log.Logger, v venv.Venv, input *PhaseInput) (*PhaseResults, error) {
+func (p *ParsePhase) Run(ctx context.Context, l log.Logger, v *venv.Venv, input *PhaseInput) (*PhaseResults, error) {
 	results := NewPhaseResults()
 	discovery := input.Discovery
 
@@ -239,7 +240,7 @@ func (p *ParsePhase) Run(ctx context.Context, l log.Logger, v venv.Venv, input *
 func (p *ParsePhase) parseAndReclassify(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
 	candidate DiscoveryResult,
@@ -304,7 +305,7 @@ func (p *ParsePhase) parseAndReclassify(
 func parseComponent(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -353,20 +354,19 @@ func parseComponent(
 		// Clone v.Env so concurrent parseComponent goroutines launched by
 		// ParsePhase and RelationshipPhase don't race on the shared map when
 		// ObtainCredsForParsing writes auth-provider-cmd output into it.
-		parseV := v
+		parseV := *v
 		parseV.Env = maps.Clone(v.Env)
-		parseV.Writers.Writer = io.Discard
-		parseV.Writers.ErrWriter = io.Discard
+		parseV.Writers = writer.Writers{Writer: io.Discard, ErrWriter: io.Discard}
 
 		shellOpts := configbridge.ShellRunOptsFromOpts(parseOpts)
 
-		_, err := creds.ObtainCredsForParsing(ctx, l, parseV, parseOpts.AuthProviderCmd, parseV.Env, shellOpts)
+		_, err := creds.ObtainCredsForParsing(ctx, l, &parseV, parseOpts.AuthProviderCmd, parseV.Env, shellOpts)
 		if err != nil {
 			return errors.Errorf("obtaining auth provider credentials for %s: %w", parseOpts.TerragruntConfigPath, err)
 		}
 
 		ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseOpts)
-		parsingCtx.Venv = parseV
+		parsingCtx.Venv = &parseV
 		parsingCtx = parsingCtx.WithDecodeList(
 			config.TerraformSource,
 			config.DependenciesBlock,

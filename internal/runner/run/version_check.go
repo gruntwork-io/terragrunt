@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -39,7 +40,7 @@ const versionParts = 3
 func PopulateTFVersion(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	workingDir string,
 	versionFiles []string,
 	tfOpts *tf.TFOptions,
@@ -122,7 +123,7 @@ func parseVersionFromCache(cachedData string) (tfimpl.Type, *version.Version, er
 func GetTFVersion(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	tfOpts *tf.TFOptions,
 ) (log.Logger, *version.Version, tfimpl.Type, error) {
 	// Clone to avoid mutating the caller's options.
@@ -132,9 +133,8 @@ func GetTFVersion(
 
 	// Override venv for this call: discard output and strip TF_CLI_ARGS* so
 	// they don't interfere with "--version".
-	versionV := v
-	versionV.Writers.Writer = io.Discard
-	versionV.Writers.ErrWriter = io.Discard
+	versionV := *v
+	versionV.Writers = writer.Writers{Writer: io.Discard, ErrWriter: io.Discard}
 
 	envCopy := make(map[string]string, len(v.Env))
 	for key, val := range v.Env {
@@ -145,7 +145,7 @@ func GetTFVersion(
 
 	versionV.Env = envCopy
 
-	output, err := tf.RunCommandWithOutput(ctx, l, versionV, &optsCopy, tf.FlagNameVersion)
+	output, err := tf.RunCommandWithOutput(ctx, l, &versionV, &optsCopy, tf.FlagNameVersion)
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}

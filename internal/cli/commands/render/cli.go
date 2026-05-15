@@ -123,7 +123,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 	}
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	prefix := flags.Prefix{CommandName}
 	renderOpts := NewOptions(opts)
 

@@ -18,7 +18,7 @@ import (
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	repoURL string,
 ) error {
@@ -34,7 +34,7 @@ func Run(
 func runDefault(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	repoURL string,
 ) error {
