@@ -3,38 +3,56 @@ package errors
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
-	"strings"
-
 	"slices"
+	"strings"
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
-// ErrorStack returns an stack trace if available.
-func ErrorStack(err error) (stack string) {
-	var errStacks []string
+// ErrorStack returns a stack trace if available, deduplicating identical
+// frames pulled from different layers of the unwrap chain.
+func ErrorStack(err error) string {
+	var (
+		stacks []string
+		seen   = map[string]struct{}{}
+	)
+
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return
+		}
+
+		if _, ok := seen[s]; ok {
+			return
+		}
+
+		seen[s] = struct{}{}
+		stacks = append(stacks, s)
+	}
 
 	for _, err := range UnwrapMultiErrors(err) {
 		for _, unwrappedErr := range UnwrapErrors(err) {
-			if errWithStack, ok := unwrappedErr.(interface{ ErrorStack() string }); ok {
-				errStacks = append(errStacks, errWithStack.ErrorStack())
+			if unwrappedErr == nil {
+				continue
 			}
 
-			if panicStack := functionPanicStack(unwrappedErr); panicStack != "" {
-				errStacks = append(errStacks, panicStack)
+			if errWithStack, ok := unwrappedErr.(interface{ ErrorStack() string }); ok {
+				add(errWithStack.ErrorStack())
 			}
+
+			add(ctyPanicStack(unwrappedErr))
 
 			for _, functionCallErr := range functionCallErrors(unwrappedErr) {
-				errStacks = append(errStacks, ErrorStack(functionCallErr))
+				add(ErrorStack(functionCallErr))
 			}
 		}
 	}
 
-	return strings.Join(errStacks, "\n")
+	return strings.Join(stacks, "\n")
 }
 
 // ContainsStackTrace returns true if the given error contain the stack trace.
@@ -60,7 +78,10 @@ func IsContextCanceled(err error) bool {
 	return errors.Is(err, context.Canceled)
 }
 
-// IsFunctionPanic reports whether an error (or one of its wrapped errors) is a function panic.
+// IsFunctionPanic reports whether an error (or one of its wrapped errors)
+// represents a recovered panic. Detection is type-driven only — message-string
+// heuristics are intentionally avoided so plain wrapped errors are not
+// misclassified.
 func IsFunctionPanic(err error) bool {
 	for _, unwrappedErr := range UnwrapErrors(err) {
 		if unwrappedErr == nil {
@@ -86,24 +107,26 @@ func IsError(actual error, expected error) bool {
 	return goerrors.Is(actual, expected)
 }
 
-// Recover tries to recover from panics and calls the given onPanic function.
+// Recover recovers from panics and invokes onPanic with a FunctionPanicError
+// wrapping the recovered value. Must be invoked as `defer errors.Recover(...)`
+// — wrapping it inside another deferred closure makes recover() a no-op.
 func Recover(onPanic func(cause error)) {
 	rec := recover()
 	if rec == nil {
 		return
 	}
 
-	if err, isError := rec.(error); isError {
-		onPanic(New(err))
+	if panicErr, ok := rec.(FunctionPanicError); ok {
+		onPanic(panicErr)
 		return
 	}
 
-	onPanic(New(fmt.Errorf("panic: %v", rec)))
+	onPanic(NewFunctionPanicError(rec))
 }
 
 // UnwrapMultiErrors unwraps all nested multierrors into error slice.
-func UnwrapMultiErrors(err error) (errs []error) {
-	errs = []error{err}
+func UnwrapMultiErrors(err error) []error {
+	errs := []error{err}
 
 	for index := 0; index < len(errs); index++ {
 		err := errs[index]
@@ -129,7 +152,9 @@ func UnwrapMultiErrors(err error) (errs []error) {
 }
 
 // UnwrapErrors unwraps all nested multierrors, and errors that were wrapped with fmt.Errorf.
-func UnwrapErrors(err error) (errs []error) {
+func UnwrapErrors(err error) []error {
+	var errs []error
+
 	for _, err := range UnwrapMultiErrors(err) {
 		for {
 			errs = append(errs, err)
@@ -146,44 +171,12 @@ func UnwrapErrors(err error) (errs []error) {
 
 // Private helper functions
 
-func functionPanicStack(err error) string {
-	if panicErr, ok := err.(interface{ ErrorStack() string }); ok {
-		if errStack := strings.TrimSpace(panicErr.ErrorStack()); errStack != "" {
-			return errStack
-		}
-	}
-
-	return legacyPanicStack(err)
-}
-
-func legacyPanicStack(err error) string {
-	recoveryErr := reflect.ValueOf(err)
-	if !recoveryErr.IsValid() {
-		return ""
-	}
-
-	for recoveryErr.Kind() == reflect.Pointer {
-		if recoveryErr.IsNil() {
-			return ""
-		}
-
-		recoveryErr = recoveryErr.Elem()
-	}
-
-	if recoveryErr.Kind() != reflect.Struct {
-		return ""
-	}
-
-	stackField := recoveryErr.FieldByName("Stack")
-	if !stackField.IsValid() {
-		return ""
-	}
-
-	switch stackField.Type() {
-	case reflect.TypeOf([]byte{}):
-		return strings.TrimSpace(string(stackField.Interface().([]byte)))
-	case reflect.TypeOf(""):
-		return strings.TrimSpace(stackField.Interface().(string))
+// ctyPanicStack returns the panic stack carried by github.com/zclconf/go-cty's
+// own function.PanicError. Other panic types should expose ErrorStack().
+func ctyPanicStack(err error) string {
+	var ctyPanic function.PanicError
+	if errors.As(err, &ctyPanic) {
+		return strings.TrimSpace(string(ctyPanic.Stack))
 	}
 
 	return ""
@@ -236,9 +229,11 @@ func isFunctionPanic(err error) bool {
 		return false
 	}
 
-	if panicErr, ok := err.(interface{ IsFunctionPanic() bool }); ok && panicErr.IsFunctionPanic() {
+	if marker, ok := err.(interface{ IsFunctionPanic() bool }); ok && marker.IsFunctionPanic() {
 		return true
 	}
 
-	return functionPanicStack(err) != ""
+	var ctyPanic function.PanicError
+
+	return errors.As(err, &ctyPanic)
 }
