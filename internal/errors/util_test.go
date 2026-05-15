@@ -11,31 +11,6 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 )
 
-type fakeFunctionCallDiagExtra struct {
-	functionErr error
-}
-
-func (e fakeFunctionCallDiagExtra) CalledFunctionName() string {
-	return "run_cmd"
-}
-
-func (e fakeFunctionCallDiagExtra) FunctionCallError() error {
-	return e.functionErr
-}
-
-type functionPanicLikeError struct {
-	Recovered any
-	Stack     string
-}
-
-func (err functionPanicLikeError) Error() string {
-	return fmt.Sprintf("panic in function: %v", err.Recovered)
-}
-
-func (err functionPanicLikeError) IsFunctionPanic() bool {
-	return true
-}
-
 func TestIsFunctionPanic(t *testing.T) {
 	t.Parallel()
 
@@ -250,4 +225,29 @@ func TestRecoverWrapsPanic(t *testing.T) {
 		assert.True(t, errors.IsFunctionPanic(recovered))
 		assert.NotEmpty(t, errors.ErrorStack(recovered))
 	})
+}
+
+type fakeFunctionCallDiagExtra struct {
+	functionErr error
+}
+
+func (e fakeFunctionCallDiagExtra) CalledFunctionName() string {
+	return "run_cmd"
+}
+
+func (e fakeFunctionCallDiagExtra) FunctionCallError() error {
+	return e.functionErr
+}
+
+type functionPanicLikeError struct {
+	Recovered any
+	Stack     string
+}
+
+func (err functionPanicLikeError) Error() string {
+	return fmt.Sprintf("panic in function: %v", err.Recovered)
+}
+
+func (err functionPanicLikeError) IsFunctionPanic() bool {
+	return true
 }

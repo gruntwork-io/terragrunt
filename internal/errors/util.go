@@ -241,14 +241,5 @@ func isFunctionPanic(err error) bool {
 		return true
 	}
 
-	if err.Error() == "" {
-		return false
-	}
-
-	errMsg := strings.ToLower(strings.TrimSpace(err.Error()))
-	if !strings.Contains(errMsg, "panic") {
-		return false
-	}
-
 	return functionPanicStack(err) != ""
 }
