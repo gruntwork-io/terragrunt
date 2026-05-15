@@ -38,6 +38,22 @@ file, and any additional information which may help replicate the issue.
 
 ***************************** TERRAGRUNT CRASH *****************************
 `
+	crashLogTemplate = `Terragrunt panic report
+======================
+
+Timestamp: %s
+Terragrunt version: %s
+Go runtime: %s
+GOOS/GOARCH: %s/%s
+PID: %d
+Working directory: %s
+Command line: %s
+
+Panic: %s
+
+Stack trace:
+%s
+`
 )
 
 var (
@@ -136,14 +152,19 @@ func reportPanic(l log.Logger, err error, opts *options.TerragruntOptions) {
 		l.Error(err)
 	}
 
-	if writeErr == nil {
-		l.Errorf("A panic report has been saved to: %s", crashLogPath)
-		l.Errorf("Please report this issue at %s and attach the panic report.", terragruntIssueURL)
-	} else {
-		l.Errorf("Unable to write crash report: %v", writeErr)
-		l.Errorf("Please report this issue at %s and include the crash report output below.", terragruntIssueURL)
-		l.Error(crashLog)
+	if writeErr != nil {
+		reportPanicWriteFailure(l, writeErr, crashLog)
+		return
 	}
+
+	l.Errorf("A panic report has been saved to: %s", crashLogPath)
+	l.Errorf("Please report this issue at %s and attach the panic report.", terragruntIssueURL)
+}
+
+func reportPanicWriteFailure(l log.Logger, writeErr error, crashLog string) {
+	l.Errorf("Unable to write crash report: %v", writeErr)
+	l.Errorf("Please report this issue at %s and include the crash report output below.", terragruntIssueURL)
+	l.Error(crashLog)
 }
 
 func writeCrashLog(err error, opts *options.TerragruntOptions, commandLine []string) (string, string, error) {
@@ -185,17 +206,19 @@ func formatCrashLog(err error, opts *options.TerragruntOptions, commandLine []st
 		command = "(empty command line)"
 	}
 
-	return "Terragrunt panic report\n" +
-		"======================\n\n" +
-		"Timestamp: " + when.Format(time.RFC3339Nano) + "\n" +
-		"Terragrunt version: " + terragruntVersion + "\n" +
-		"Go runtime: " + runtime.Version() + "\n" +
-		"GOOS/GOARCH: " + runtime.GOOS + "/" + runtime.GOARCH + "\n" +
-		"PID: " + strconv.Itoa(pid) + "\n" +
-		"Working directory: " + workingDir + "\n" +
-		"Command line: " + command + "\n\n" +
-		"Panic: " + err.Error() + "\n\n" +
-		"Stack trace:\n" + errStack + "\n"
+	return fmt.Sprintf(
+		crashLogTemplate,
+		when.Format(time.RFC3339Nano),
+		terragruntVersion,
+		runtime.Version(),
+		runtime.GOOS,
+		runtime.GOARCH,
+		pid,
+		workingDir,
+		command,
+		err.Error(),
+		errStack,
+	)
 }
 
 func formatCrashLogPath(when time.Time, pid int) string {

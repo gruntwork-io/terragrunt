@@ -253,6 +253,11 @@ func TestRunCommand(t *testing.T) {
 			configPath:  homeDir,
 			expectedErr: config.EmptyStringNotAllowedError("{run_cmd()}"),
 		},
+		{
+			params:      []string{"--terragrunt-quiet"},
+			configPath:  homeDir,
+			expectedErr: config.WrongNumberOfParamsError{},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.configPath, func(t *testing.T) {

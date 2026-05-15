@@ -369,6 +369,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	runCommandCache := cache.ContextCache[*RunCmdCacheEntry](ctx, RunCmdCacheContextKey)
+	originalArgCount := len(args)
 
 	if len(args) == 0 {
 		return "", errors.New(EmptyStringNotAllowedError("parameter to the run_cmd function"))
@@ -407,6 +408,10 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		default:
 			checkOptions = false
 		}
+	}
+
+	if len(args) == 0 {
+		return "", errors.New(WrongNumberOfParamsError{Func: FuncNameRunCmd, Expected: "at least 1 argument", Actual: originalArgCount})
 	}
 
 	// To avoid re-run of the same run_cmd command, is used in memory cache for command results, with caching key path + arguments
