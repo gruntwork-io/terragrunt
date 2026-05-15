@@ -1,14 +1,17 @@
 package hclparse_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 const (
@@ -680,7 +683,532 @@ unit "vpc" {
 
 	var cycleErr hclparse.LocalsCycleError
 	require.ErrorAs(t, err, &cycleErr)
-	assert.Len(t, cycleErr.Names, 2)
+	assert.Equal(t, []string{"a", "b"}, cycleErr.Names)
+	assert.Equal(t, map[string][]string{
+		"a": {"b"},
+		"b": {"a"},
+	}, cycleErr.Edges)
+}
+
+// TestParseStackFile_LocalsThreeNodeCycle verifies that cycles longer than two
+// participants are surfaced with every member and edge intact.
+func TestParseStackFile_LocalsThreeNodeCycle(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  a = local.b
+  b = local.c
+  c = local.a
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.Error(t, err)
+
+	var cycleErr hclparse.LocalsCycleError
+	require.ErrorAs(t, err, &cycleErr)
+	assert.Equal(t, []string{"a", "b", "c"}, cycleErr.Names)
+	assert.Equal(t, map[string][]string{
+		"a": {"b"},
+		"b": {"c"},
+		"c": {"a"},
+	}, cycleErr.Edges)
+}
+
+// TestParseStackFile_LocalsSelfReference pins the self-reference behavior: an
+// attribute that depends on itself is a cycle of length 1.
+func TestParseStackFile_LocalsSelfReference(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  a = local.a
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.Error(t, err)
+
+	var cycleErr hclparse.LocalsCycleError
+	require.ErrorAs(t, err, &cycleErr)
+	assert.Equal(t, []string{"a"}, cycleErr.Names)
+	assert.Equal(t, map[string][]string{"a": {"a"}}, cycleErr.Edges)
+}
+
+// TestParseStackFile_LocalsCycleWithUnrelatedSiblings verifies that locals
+// outside the cycle still resolve and only the cycle members are reported.
+func TestParseStackFile_LocalsCycleWithUnrelatedSiblings(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  ok_one  = "value-1"
+  ok_two  = local.ok_one
+  bad_one = local.bad_two
+  bad_two = local.bad_one
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.Error(t, err)
+
+	var cycleErr hclparse.LocalsCycleError
+	require.ErrorAs(t, err, &cycleErr)
+	assert.Equal(t, []string{"bad_one", "bad_two"}, cycleErr.Names)
+	assert.Equal(t, map[string][]string{
+		"bad_one": {"bad_two"},
+		"bad_two": {"bad_one"},
+	}, cycleErr.Edges)
+}
+
+// TestParseStackFile_LocalsUnknownReference checks that referencing an
+// undefined sibling surfaces as a precise HCL evaluation error (via
+// LocalEvalError), not as a cycle.
+func TestParseStackFile_LocalsUnknownReference(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  a = local.does_not_exist
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.Error(t, err)
+
+	var evalErr hclparse.LocalEvalError
+	require.ErrorAs(t, err, &evalErr)
+	assert.Equal(t, "a", evalErr.Name)
+
+	var cycleErr hclparse.LocalsCycleError
+	assert.NotErrorAs(t, err, &cycleErr, "expected eval error, not cycle error")
+}
+
+// TestParseStackFile_LocalsLinearChain exercises deep dependency chains to
+// confirm the topological evaluator handles long paths without the iteration
+// cap the previous implementation relied on. A chain of 200 locals would have
+// stayed well under the cap, but encoding it as a single test makes the
+// expected ordering visible.
+func TestParseStackFile_LocalsLinearChain(t *testing.T) {
+	t.Parallel()
+
+	const depth = 200
+
+	var b strings.Builder
+
+	b.WriteString("locals {\n")
+	b.WriteString("  l0 = 1\n")
+
+	for i := 1; i < depth; i++ {
+		fmt.Fprintf(&b, "  l%d = local.l%d + 1\n", i, i-1)
+	}
+
+	b.WriteString("}\n\n")
+	b.WriteString("unit \"sink\" {\n")
+	b.WriteString("  source = \"../catalog/units/sink\"\n")
+	b.WriteString("  path   = \"sink\"\n\n")
+	b.WriteString("  autoinclude {\n")
+	b.WriteString("    dependency \"foo\" {\n")
+	b.WriteString("      config_path = \"../foo\"\n")
+	b.WriteString("    }\n\n")
+	fmt.Fprintf(&b, "    last_value = local.l%d\n", depth-1)
+	b.WriteString("  }\n}\n")
+
+	srcBytes := []byte(b.String())
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "sink")]
+	require.NotNil(t, resolved)
+
+	sinkDir := filepath.Join(testStackDir, ".terragrunt-stack", "sink")
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, sinkDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(sinkDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	assert.Contains(t, string(generated), fmt.Sprintf("last_value = %d", depth))
+}
+
+// TestParseStackFile_LocalsDiamond verifies that diamond-shaped graphs (A -> B,
+// A -> C, B -> D, C -> D) evaluate cleanly without revisiting nodes.
+func TestParseStackFile_LocalsDiamond(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  base   = "base"
+  left   = "${local.base}-left"
+  right  = "${local.base}-right"
+  merged = "${local.left}+${local.right}"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = "../vpc"
+    }
+
+    merged_tag = local.merged
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.NotNil(t, resolved)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+	assert.Contains(t, string(generated), `"base-left+base-right"`)
+}
+
+// TestParseStackFile_LocalsDuplicateReference verifies that referencing the
+// same sibling more than once in a single expression doesn't inflate the
+// dependency count or affect evaluation.
+func TestParseStackFile_LocalsDuplicateReference(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  base    = "base"
+  doubled = "${local.base}-${local.base}-${local.base}"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = "../vpc"
+    }
+
+    tag = local.doubled
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.NotNil(t, resolved)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+	assert.Contains(t, string(generated), `"base-base-base"`)
+}
+
+// TestParseStackFile_LocalsReferenceValues exercises the caller-injected
+// `values` namespace inside a locals block. It is the closest analogue stack
+// files have today to how `feature.<name>.value` references resolve in the
+// broader Terragrunt locals pipeline: the namespace is supplied externally,
+// the DAG builder ignores it (no graph edge), and HCL reads it from the
+// evaluation context at eval time. The same shape will keep working when
+// feature blocks are extended into terragrunt.stack.hcl — the only change
+// needed is the caller populating evalCtx.Variables["feature"].
+func TestParseStackFile_LocalsReferenceValues(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  env    = values.env
+  region = values.region
+  tag    = "${local.env}-${local.region}"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = "../vpc"
+    }
+
+    name_tag = local.tag
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	values := cty.ObjectVal(map[string]cty.Value{
+		"env":    cty.StringVal("prod"),
+		"region": cty.StringVal("us-west-2"),
+	})
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+		Values:   &values,
+	})
+	require.NoError(t, err)
+
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.NotNil(t, resolved)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+	assert.Contains(t, string(generated), `"prod-us-west-2"`)
+}
+
+// TestParseStackFile_LocalsMissingExternalNamespace verifies that referencing
+// a namespace the caller never populated (the same failure mode users would
+// see for an unwired feature block) surfaces as a LocalEvalError naming the
+// offending local, not as a cycle.
+func TestParseStackFile_LocalsMissingExternalNamespace(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  oops = values.absent
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.Error(t, err)
+
+	var evalErr hclparse.LocalEvalError
+	require.ErrorAs(t, err, &evalErr)
+	assert.Equal(t, "oops", evalErr.Name)
+
+	var cycleErr hclparse.LocalsCycleError
+	assert.NotErrorAs(t, err, &cycleErr, "missing external ref must not be reported as a cycle")
+}
+
+// TestParseStackFile_LocalsReferenceExternalNamespace confirms that locals
+// referencing a different namespace (here, unit.<name>.path) evaluate against
+// the eval context that the caller pre-populated, without being treated as
+// edges in the locals DAG. This is the same path that feature.* references
+// will take once feature blocks are wired into stack files.
+func TestParseStackFile_LocalsReferenceExternalNamespace(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  vpc_path = unit.vpc.path
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = local.vpc_path
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.NotNil(t, resolved)
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "vpc"), resolved.Dependencies[0].ConfigPath)
+}
+
+// TestParseStackFile_LocalsBareLocalRoot pins the broad-dependency rule for
+// bare `local` references: because the graph builder can't tell statically
+// which sibling is being read, it forces the attribute to evaluate after every
+// other sibling so the value observed is the fully-populated local map. This
+// keeps the result independent of Go's randomized map iteration order.
+//
+// The test reads each sibling through the bare-`local` snapshot inside a
+// string interpolation, which the autoinclude generator fully evaluates and
+// emits as a literal. Seeing both values in the output proves both siblings
+// were resolved before the snapshot was taken.
+func TestParseStackFile_LocalsBareLocalRoot(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  a     = "alpha"
+  z     = "zulu"
+  whole = local
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = "../vpc"
+    }
+
+    snapshot = "a=${local.whole.a};z=${local.whole.z}"
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.NotNil(t, resolved)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+	assert.Contains(t, string(generated), `"a=alpha;z=zulu"`)
+}
+
+// TestParseStackFile_LocalsBareLocalCycle confirms the broad-dependency rule
+// surfaces as a cycle when two or more attributes both reference bare `local`
+// (each demands the other be evaluated first).
+func TestParseStackFile_LocalsBareLocalCycle(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  a = local
+  b = local
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.Error(t, err)
+
+	var cycleErr hclparse.LocalsCycleError
+	require.ErrorAs(t, err, &cycleErr)
+	assert.Equal(t, []string{"a", "b"}, cycleErr.Names)
+}
+
+// TestParseStackFile_EmptyLocalsBlock makes sure an empty locals block — which
+// has no attributes to evaluate — is a no-op and not an error.
+func TestParseStackFile_EmptyLocalsBlock(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
 }
 
 func TestParseStackFile_MultipleLocals(t *testing.T) {
