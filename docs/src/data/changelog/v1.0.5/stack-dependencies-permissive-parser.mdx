@@ -5,4 +5,4 @@ category: "experiments-updated"
 
 #### `stack-dependencies`: phased parser for `terragrunt.stack.hcl`
 
-`terragrunt.stack.hcl` is now parsed in four phases (slurp → locals → includes → unit/stack decode), so any attribute that the production eval context can resolve (including `local.*`, `values.*`, terragrunt functions) works on unit/stack blocks; `terragrunt run --all` discovery walks generated nested stack files via a path-only decode shape; the duplicated strict/permissive parser paths were unified.
+`terragrunt.stack.hcl` is now parsed in four phases: parse root -> locals -> includes -> unit/stack decode; it supports `local.*`, `values.*`, and terragrunt functions, and run-all discovery still uses path-only nested traversal while unifying strict and permissive parser logic.

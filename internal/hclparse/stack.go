@@ -16,32 +16,32 @@ import (
 // StackFileName is the canonical filename of a Terragrunt stack file.
 const StackFileName = "terragrunt.stack.hcl"
 
-// StackFileHCL is the parsed skeleton of a terragrunt.stack.hcl file. Only the locals block, include blocks, and the rest of the body (Remain) are captured at this stage. Unit/stack blocks live inside Remain and are decoded later against a populated eval context.
+// StackFileHCL is the parsed skeleton: locals, includes, and Remain.
 type StackFileHCL struct {
 	Remain   hcl.Body           `hcl:",remain"`
 	Locals   *LocalsHCL         `hcl:"locals,block"`
 	Includes []*StackIncludeHCL `hcl:"include,block"`
 }
 
-// LocalsHCL is the locals block skeleton; its body is decoded later by the DAG-based locals evaluator.
+// LocalsHCL is the locals block shell.
 type LocalsHCL struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
-// StackIncludeHCL represents an include block. Path is captured as a lazy expression so it can reference `local.X` defined in the same file; it is evaluated after locals are resolved.
+// StackIncludeHCL stores include path as a lazy expression.
 type StackIncludeHCL struct {
 	Path hcl.Expression `hcl:"path,attr"`
 	Name string         `hcl:",label"`
 }
 
-// unitsAndStacksHCL is the phase 3 decode of Remain. Unit/stack fields are eager Go types because the eval context is populated (functions, variables, locals) before this decode runs.
+// unitsAndStacksHCL is the phase-3 decode target for unit and stack blocks.
 type unitsAndStacksHCL struct {
 	Remain hcl.Body         `hcl:",remain"`
 	Stacks []*StackBlockHCL `hcl:"stack,block"`
 	Units  []*UnitBlockHCL  `hcl:"unit,block"`
 }
 
-// UnitBlockHCL is the eager-decode shape of a unit block. AutoInclude.Remain stays lazy because its body can reference unit.*/stack.*/dependency.* which only resolve in later phases.
+// UnitBlockHCL is the eager unit block shape with deferred autoinclude content.
 type UnitBlockHCL struct {
 	Remain       hcl.Body        `hcl:",remain"`
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
@@ -53,7 +53,7 @@ type UnitBlockHCL struct {
 	Name         string          `hcl:",label"`
 }
 
-// StackBlockHCL is the eager-decode shape of a stack block. See UnitBlockHCL for AutoInclude rationale.
+// StackBlockHCL is the eager stack block shape with deferred autoinclude content.
 type StackBlockHCL struct {
 	Remain       hcl.Body        `hcl:",remain"`
 	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
@@ -65,14 +65,14 @@ type StackBlockHCL struct {
 	Name         string          `hcl:",label"`
 }
 
-// ComponentRef holds the resolved path and name metadata for a unit or stack block. ChildRefs holds nested unit refs for stack components so stack.<name>.<unit>.path works at any nesting depth.
+// ComponentRef holds name, path, and child refs.
 type ComponentRef struct {
 	Name      string
 	Path      string
 	ChildRefs []ComponentRef
 }
 
-// BuildComponentRefMap creates a cty.Value object from a slice of ComponentRef for injection as the `unit` or `stack` HCL variable.
+// BuildComponentRefMap converts component refs into an HCL object.
 func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	if len(refs) == 0 {
 		return cty.EmptyObjectVal
@@ -87,7 +87,7 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	return cty.ObjectVal(refMap)
 }
 
-// buildRefAttrs builds the cty.Value for a single ComponentRef, recursively expanding ChildRefs so stack.A.B.C.path works at any depth. Recursion is bounded by maxDiscoverDepth at construction time.
+// buildRefAttrs converts one ComponentRef and nested refs recursively.
 func buildRefAttrs(ref ComponentRef) cty.Value {
 	attrs := map[string]cty.Value{
 		"path": cty.StringVal(ref.Path),
@@ -105,7 +105,7 @@ func buildRefAttrs(ref ComponentRef) cty.Value {
 	return cty.ObjectVal(attrs)
 }
 
-// unitPathOnlyHCL is the discovery-only decode shape. It captures just the unit name and path; source/no_*/values/autoinclude are absorbed into Remain so generated nested stack files whose source contains terragrunt function calls still decode against a stdlib-only eval context.
+// unitPathOnlyHCL is the discovery shape for unit name and path.
 type unitPathOnlyHCL struct {
 	Remain  hcl.Body `hcl:",remain"`
 	NoStack *bool    `hcl:"no_dot_terragrunt_stack,optional"`
@@ -113,7 +113,7 @@ type unitPathOnlyHCL struct {
 	Name    string   `hcl:",label"`
 }
 
-// stackPathOnlyHCL is the discovery-only decode shape for stack blocks. Source is captured here (unlike unit discovery) because nested-stack discovery needs to descend into the stack's source dir to enumerate its child units.
+// stackPathOnlyHCL is the discovery shape for stack name, path, and source.
 type stackPathOnlyHCL struct {
 	Remain  hcl.Body `hcl:",remain"`
 	NoStack *bool    `hcl:"no_dot_terragrunt_stack,optional"`
@@ -122,14 +122,14 @@ type stackPathOnlyHCL struct {
 	Name    string   `hcl:",label"`
 }
 
-// discoveryDecode is the discovery parse container for unit/stack blocks under Remain.
+// discoveryDecode holds decoded unit and stack blocks for discovery.
 type discoveryDecode struct {
 	Remain hcl.Body            `hcl:",remain"`
 	Stacks []*stackPathOnlyHCL `hcl:"stack,block"`
 	Units  []*unitPathOnlyHCL  `hcl:"unit,block"`
 }
 
-// ParseStackFileFromPath reads stackDir/terragrunt.stack.hcl from disk and performs a full parse for discovery use cases. Returns (nil, nil) when the stack file does not exist.
+// ParseStackFileFromPath parses terragrunt.stack.hcl for stack discovery.
 func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.ParseStackFileFromPath: fs is nil (stackDir=%q)", stackDir))
@@ -158,7 +158,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	})
 }
 
-// UnitPathsFromStackDir parses the stack file in stackDir and returns the absolute generated path of each declared unit. Used by `terragrunt run --all` discovery on generated nested stacks. Discovery uses a path-only decode shape so source attributes that reference terragrunt-only functions do not block path resolution.
+// UnitPathsFromStackDir returns generated unit paths from discovery parsing.
 func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
@@ -196,7 +196,7 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 
 const maxDiscoverDepth = 1000
 
-// DiscoverStackChildUnits parses a stack's source dir for stack.<name>.<unit>.path resolution. Best-effort: nested parse failures yield empty refs, never an error.
+// DiscoverStackChildUnits parses child stack directories with best-effort behavior.
 func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: fs is nil (stackSourceDir=%q, stackGenDir=%q)", stackSourceDir, stackGenDir))
@@ -259,7 +259,7 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 	return refs
 }
 
-// decodeDiscovery parses the stack file, evaluates locals, merges includes (same order as ParseStackFile), then decodes unit/stack blocks into path-only shapes. Returns (nil, nil, nil) when the stack file does not exist.
+// decodeDiscovery parses discovery targets and returns path-only unit and stack data.
 func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
@@ -298,7 +298,7 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL,
 	return decoded.Units, decoded.Stacks, nil
 }
 
-// stdlibEvalContext builds a minimal eval context wired with the terraform stdlib (matching the production parser's tflang.Scope setup in pkg/config/config_helpers.go). Used by discovery where no production eval context is available. Terragrunt path helpers are intentionally not bound here; expressions referencing them surface a clear evaluation error.
+// stdlibEvalContext returns a minimal Terraform stdlib eval context for discovery.
 func stdlibEvalContext(baseDir string) *hcl.EvalContext {
 	tfscope := tflang.Scope{BaseDir: baseDir}
 

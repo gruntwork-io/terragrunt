@@ -1,6 +1,5 @@
-// Package hclparse provides phased HCL parsing for terragrunt.stack.hcl files: capture skeleton => DAG locals => include merge => eager unit/stack decode => autoinclude resolution, sharing one progressively-populated eval context.
-//
-// Locals are evaluated in phase 2, before include merge and before unit/stack blocks are decoded. A locals block must not reference unit.* or stack.* paths; those variables are seeded as empty objects until phase 4 completes and are only populated for autoinclude resolution afterward.
+// Package hclparse parses terragrunt.stack.hcl in phases: skeleton, locals, includes, unit/stack decode, autoincludes.
+// Locals evaluate before include merge, and unit/stack vars become available after phase four.
 package hclparse
 
 import (
@@ -36,35 +35,35 @@ const (
 
 // ParseStackFileInput holds the input for ParseStackFile.
 type ParseStackFileInput struct {
-	// Values is the `values` overlay registered as the `values` HCL variable so unit/stack/include expressions can reference `values.<key>`.
+	// Values is passed as the `values` variable in the parse context.
 	Values *cty.Value
-	// Variables is the caller-provided HCL variable namespace from the production parser. Parser-owned variables (`unit`, `stack`, `local`, and `values`) are overlaid by ParseStackFile so stale caller state cannot shadow the stack file currently being parsed.
+	// Variables come from production parsing and are merged for parse.
 	Variables map[string]cty.Value
-	// Functions is the HCL function set the parser registers on the eval context. Callers should pass the function map built by the production parser (pkg/config.createTerragruntEvalContext) so every Terragrunt function call resolves. May be nil for callers (e.g. tests) that only use literal expressions.
+	// Functions are copied from the production parser eval context.
 	Functions map[string]function.Function
-	// Filename is the path passed to HCL diagnostics for source-location reporting.
+	// Filename is used for parse diagnostics.
 	Filename string
-	// StackDir is the directory of the stack file being parsed; used to resolve include paths relative to the parent file.
+	// StackDir is used to resolve include paths.
 	StackDir string
-	// Src is the raw bytes of the stack file being parsed.
+	// Src is the raw stack file bytes.
 	Src []byte
 }
 
 // ParseResult holds the output of ParseStackFile.
 type ParseResult struct {
-	// AutoIncludes maps a kind-namespaced component key (AutoIncludeKey: "unit:<name>" or "stack:<name>") to its resolved autoinclude. Namespacing prevents same-name unit/stack collisions.
+	// AutoIncludes stores resolved autoincludes by component key.
 	AutoIncludes map[string]*AutoIncludeResolved
 	Units        []*UnitBlockHCL
 	Stacks       []*StackBlockHCL
 }
 
-// ParseStackFile runs the four-phase parse documented at the package level. The eval context is built once and progressively populated as each phase succeeds, so every attribute is its natural Go type (no lazy hcl.Expression on unit/stack blocks). On error, returns both the error and whatever was successfully parsed up to the failure point so LSP/IDE callers can surface partial results.
+// ParseStackFile runs the phase flow and returns partial results when decode partially succeeds.
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
 	validateParseStackFileInput(fs, input)
 
 	result := &ParseResult{AutoIncludes: map[string]*AutoIncludeResolved{}}
 
-	// Phase 1 captures the stack parse skeleton: parse the raw bytes into the top-level include and locals declarations and leave unit/stack blocks for later phases.
+	// Phase 1 parses the skeleton and keeps unit/stack blocks in Remain.
 	parsedStackFile, err := parseStackFileRoot(input.Src, input.Filename)
 	if err != nil {
 		return result, err
@@ -72,26 +71,26 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	evalCtx := buildBaseEvalContext(input)
 
-	// Phase 2 evaluates deferred local values in DAG order using only the bootstrap evaluation context, so local expressions that depend on known caller-provided functions/variables are resolved before include merge and unit/stack decoding.
+	// Phase 2 evaluates locals before includes are merged.
 	if parsedStackFile.Locals != nil {
 		if err := evaluateLocals(parsedStackFile.Locals.Remain, evalCtx); err != nil {
 			return result, err
 		}
 	}
 
-	// srcByFilename maps each source file (root + each included file) to its bytes so the autoinclude generator can slice expression byte ranges from the right file.
+	// srcByFilename tracks source bytes by filename.
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
-	// Phase 3 resolves include blocks, reads and validates included files, and merges their remaining bodies into a combined body used for the next decode phase.
+	// Phase 3 resolves include blocks and merges included Remain bodies.
 	mergedRemain, err := mergeIncludes(fs, parsedStackFile, input.StackDir, evalCtx, srcByFilename)
 	if err != nil {
 		return result, err
 	}
 
-	// Phase 4 performs eager decoding of unit and stack blocks against the fully prepared context, then collects autoincludes using the generated names and paths for downstream dependency resolution.
+	// Phase 4 decodes unit/stack blocks and resolves autoincludes.
 	decoded := &unitsAndStacksHCL{}
 	if diags := decodeRemain(mergedRemain, evalCtx, decoded); diags != nil {
-		// Populate partial results: any successfully-decoded blocks survive in `decoded` even when other attributes diagnosed errors.
+		// Keep successful results when other attributes fail.
 		result.Units = decoded.Units
 		result.Stacks = decoded.Stacks
 
@@ -105,7 +104,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		return result, err
 	}
 
-	// Build unit.*/stack.* refs from the decoded blocks and add them to the eval context for autoinclude resolution.
+	// Build unit/stack refs and inject them into the eval context.
 	stackTargetDir := filepath.Join(input.StackDir, StackDir)
 	unitRefs := buildUnitRefs(decoded.Units, stackTargetDir)
 	stackRefs := buildStackRefs(fs, decoded.Stacks, input.StackDir, stackTargetDir)
@@ -123,7 +122,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	return result, nil
 }
 
-// validateParseStackFileInput panics on programmer errors so callers get a stack trace at the call site rather than a downstream nil-deref.
+// validateParseStackFileInput panics on malformed parser input.
 func validateParseStackFileInput(fs vfs.FS, input *ParseStackFileInput) {
 	if fs == nil {
 		filename := ""
@@ -143,7 +142,7 @@ func validateParseStackFileInput(fs vfs.FS, input *ParseStackFileInput) {
 	}
 }
 
-// parseStackFileRoot parses the bytes with hclsyntax and decodes only the top-level locals/include blocks plus Remain. Unit/stack blocks fall through to Remain and are not evaluated here.
+// parseStackFileRoot parses only locals/include blocks and leaves units/stacks in Remain.
 func parseStackFileRoot(src []byte, filename string) (*StackFileHCL, error) {
 	file, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
@@ -158,7 +157,7 @@ func parseStackFileRoot(src []byte, filename string) (*StackFileHCL, error) {
 	return stackFile, nil
 }
 
-// buildBaseEvalContext composes the eval context used by Phases 2-4: caller-supplied functions and variables (minus parser-owned namespaces), plus the optional `values` overlay.
+// buildBaseEvalContext builds the eval context for phases two to four.
 func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 	evalCtx := &hcl.EvalContext{
 		Functions: map[string]function.Function{},
@@ -182,7 +181,7 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 		evalCtx.Variables[varValues] = *input.Values
 	}
 
-	// Seed unit/stack as empty objects so autoinclude bodies that reference unit.<X>.path before refs are built (Phase 4) get a clear "Unsupported attribute" diagnostic instead of "Unknown variable".
+	// Seed unit/stack with empty objects until refs are available.
 	if _, ok := evalCtx.Variables[varUnit]; !ok {
 		evalCtx.Variables[varUnit] = cty.EmptyObjectVal
 	}
@@ -194,7 +193,7 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 	return evalCtx
 }
 
-// decodeRemain wraps gohcl.DecodeBody and returns a non-nil hcl.Diagnostics only when there are errors.
+// decodeRemain decodes into target and returns error diagnostics when present.
 func decodeRemain(body hcl.Body, evalCtx *hcl.EvalContext, target any) hcl.Diagnostics {
 	diags := gohcl.DecodeBody(body, evalCtx, target)
 	if diags.HasErrors() {
@@ -204,7 +203,7 @@ func decodeRemain(body hcl.Body, evalCtx *hcl.EvalContext, target any) hcl.Diagn
 	return nil
 }
 
-// validateUniqueNames returns a joined error if any unit or stack name is declared more than once after include merging.
+// validateUniqueNames reports duplicate unit and stack names.
 func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 	var errs []error
 
@@ -233,7 +232,7 @@ func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 	return errors.Join(errs...)
 }
 
-// buildUnitRefs builds ComponentRef values for each unit block, with the path resolved to the absolute generated location under .terragrunt-stack/.
+// buildUnitRefs builds component refs for unit blocks.
 func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(units))
 
@@ -249,7 +248,7 @@ func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef 
 	return refs
 }
 
-// buildStackRefs builds ComponentRef values for each stack block. Child unit refs are discovered by recursively parsing the stack's source dir; non-filesystem sources (git::, https://, s3://, ...) are skipped to avoid feeding go-getter URLs into filepath.Join.
+// buildStackRefs builds component refs for stack blocks.
 func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
@@ -271,7 +270,7 @@ func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir
 	return refs
 }
 
-// localStackSourceDir returns the absolute filesystem directory for a stack.Source when it is local. Returns ("", false) for go-getter-style remote sources (git::, https://, s3://, registry shorthand, ...) so the caller skips child-unit discovery instead of mangling the source with filepath.Join.
+// localStackSourceDir returns local stack source directories and skips remote sources.
 func localStackSourceDir(source, stackDir string) (string, bool) {
 	if strings.HasPrefix(source, "file://") {
 		p := strings.TrimPrefix(source, "file://")
@@ -297,7 +296,7 @@ func localStackSourceDir(source, stackDir string) (string, bool) {
 	return filepath.Clean(filepath.Join(stackDir, source)), true
 }
 
-// evaluateLocals resolves locals in DAG order: build a graph of local.X references, evaluate in topological order. Each local is evaluated exactly once. Cycles are detected structurally (no iteration cap).
+// evaluateLocals resolves locals in dependency order and catches cycles.
 func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {
@@ -314,7 +313,7 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	return evaluateLocalsInOrder(syntaxBody.Attributes, order, evalCtx)
 }
 
-// buildLocalsDeps returns the local-to-local dependency graph for the locals block. References to undeclared names are skipped — they will surface as eval errors later.
+// buildLocalsDeps builds local dependencies for topo sorting.
 func buildLocalsDeps(attrs map[string]*hclsyntax.Attribute) map[string]map[string]struct{} {
 	deps := make(map[string]map[string]struct{}, len(attrs))
 
@@ -325,7 +324,7 @@ func buildLocalsDeps(attrs map[string]*hclsyntax.Attribute) map[string]map[strin
 	return deps
 }
 
-// localDependsOn returns the set of declared local names that attr references via local.X.
+// localDependsOn returns locals referenced by an attribute.
 func localDependsOn(attr *hclsyntax.Attribute, declared map[string]*hclsyntax.Attribute) map[string]struct{} {
 	depSet := make(map[string]struct{})
 
@@ -347,7 +346,7 @@ func localDependsOn(attr *hclsyntax.Attribute, declared map[string]*hclsyntax.At
 	return depSet
 }
 
-// firstAttrStep returns the first attribute name a traversal walks into (e.g. "x" for `local.x.y`). Returns ok=false for bare-root traversals or non-attribute steps.
+// firstAttrStep returns the first attribute in a traversal.
 func firstAttrStep(traversal hcl.Traversal) (string, bool) {
 	split := traversal.SimpleSplit()
 	if len(split.Rel) == 0 {
@@ -362,7 +361,7 @@ func firstAttrStep(traversal hcl.Traversal) (string, bool) {
 	return step.Name, true
 }
 
-// evaluateLocalsInOrder evaluates each local in the supplied order, registering the running result as `local.*` in evalCtx after every successful evaluation.
+// evaluateLocalsInOrder evaluates locals and updates evalCtx locals.
 func evaluateLocalsInOrder(attrs map[string]*hclsyntax.Attribute, order []string, evalCtx *hcl.EvalContext) error {
 	evaluated := make(map[string]cty.Value, len(order))
 	evalCtx.Variables[varLocal] = localObject(evaluated)
@@ -380,7 +379,7 @@ func evaluateLocalsInOrder(attrs map[string]*hclsyntax.Attribute, order []string
 	return nil
 }
 
-// topoSortLocals returns the evaluation order for locals (dependencies first). If a cycle is present, returns (nil, cycleNames) where cycleNames are the names involved in the cycle, in DFS-discovery order.
+// topoSortLocals returns local order and cycle information.
 func topoSortLocals(deps map[string]map[string]struct{}) ([]string, []string) {
 	s := newTopoState(deps)
 
@@ -399,7 +398,7 @@ const (
 	topoColorBlack = 2 // fully processed
 )
 
-// topoState carries the DFS color map and emitted order during topoSortLocals.
+// topoState stores DFS state and evaluation order.
 type topoState struct {
 	deps  map[string]map[string]struct{}
 	color map[string]int
@@ -414,7 +413,7 @@ func newTopoState(deps map[string]map[string]struct{}) *topoState {
 	}
 }
 
-// visit performs DFS from name, returning a non-nil slice naming the cycle if a back-edge to a node already on the path is found.
+// visit performs DFS and returns a cycle when one is detected.
 func (s *topoState) visit(name string, path []string) []string {
 	switch s.color[name] {
 	case topoColorGray:
@@ -438,7 +437,7 @@ func (s *topoState) visit(name string, path []string) []string {
 	return nil
 }
 
-// cycleSegment returns the portion of path that starts at name (the back-edge target). Returns path unchanged if name is not in path (shouldn't happen for a valid back-edge, but kept defensive).
+// cycleSegment returns the path slice that forms a dependency cycle.
 func cycleSegment(path []string, name string) []string {
 	for i, p := range path {
 		if p == name {
@@ -449,7 +448,7 @@ func cycleSegment(path []string, name string) []string {
 	return path
 }
 
-// localObject builds a cty.Value for the `local` namespace from the map of evaluated locals. cty.ObjectVal panics on an empty map, so an empty input returns cty.EmptyObjectVal.
+// localObject builds the parsed local namespace value.
 func localObject(evaluated map[string]cty.Value) cty.Value {
 	if len(evaluated) == 0 {
 		return cty.EmptyObjectVal
@@ -458,7 +457,7 @@ func localObject(evaluated map[string]cty.Value) cty.Value {
 	return cty.ObjectVal(evaluated)
 }
 
-// sortedKeys returns the keys of a map[string]X in sorted order. Used to make iteration deterministic for cycle detection and error messages.
+// sortedKeys returns keys in deterministic order.
 func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -470,7 +469,7 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
-// mergeIncludes evaluates each include block's path expression, parses the included file, and merges its Remain into the parent's. Included files must not declare locals or nested includes. Returns the merged Remain that Phase 4 decodes. srcByFilename is updated with the included file's bytes keyed by filename.
+// mergeIncludes resolves include paths and merges included Remain bodies.
 func mergeIncludes(fs vfs.FS, parsedFile *StackFileHCL, stackDir string, evalCtx *hcl.EvalContext, srcByFilename map[string][]byte) (hcl.Body, error) {
 	bodies := []hcl.Body{parsedFile.Remain}
 
@@ -492,7 +491,7 @@ func mergeIncludes(fs vfs.FS, parsedFile *StackFileHCL, stackDir string, evalCtx
 	return hcl.MergeBodies(bodies), nil
 }
 
-// mergeOneInclude reads and parses a single included file. Returns (includedRemain, includedSrc, includedPath, err) where includedPath is the absolute filename used for HCL diagnostics.
+// mergeOneInclude reads and parses one included file.
 func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *hcl.EvalContext) (hcl.Body, []byte, string, error) {
 	pathVal, diags := inc.Path.Value(evalCtx)
 	if diags.HasErrors() {
