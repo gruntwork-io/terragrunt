@@ -17,6 +17,15 @@ import (
 // PanicIssueURL is the canonical bug-report destination shown in the crash banner.
 const PanicIssueURL = "https://github.com/gruntwork-io/terragrunt/issues"
 
+// PanicMessageMarkers are substrings that appear only in messages carrying a
+// recovered Go panic — the cty function.PanicError prefix and the runtime
+// panic dispatcher frames emitted by debug.Stack.
+var PanicMessageMarkers = []string{
+	"panic in function implementation",
+	"runtime/panic.go",
+	"panic({",
+}
+
 const (
 	crashLogPrefix         = "terragrunt-crash"
 	crashLogFileTimeLayout = "20060102T150405Z"
@@ -60,12 +69,6 @@ Stack trace:
 %s
 `
 )
-
-// runtimePanicMarkers are debug.Stack substrings emitted only during real panic unwinding.
-var runtimePanicMarkers = []string{
-	"runtime/panic.go",
-	"panic({",
-}
 
 // VersionFunc returns the Terragrunt version string at the moment a crash is reported.
 type VersionFunc func() string
@@ -123,7 +126,7 @@ func (r *PanicReporter) ReportPanic(l Logger, version, panicMsg string, stack []
 }
 
 // IsPanic reports whether err originated from a recovered panic.
-// Detection is type-driven first (cty's function.PanicError) and falls back to a runtime stack-frame heuristic.
+// Detection is type-driven first (cty's function.PanicError) and falls back to IsPanicMessage on the unwrap chain.
 func IsPanic(err error) bool {
 	if err == nil {
 		return false
@@ -134,12 +137,28 @@ func IsPanic(err error) bool {
 		return true
 	}
 
-	if hasPanicFrame(err.Error()) {
+	if IsPanicMessage(err.Error()) {
 		return true
 	}
 
-	if e, ok := err.(interface{ ErrorStack() string }); ok && hasPanicFrame(e.ErrorStack()) {
+	if e, ok := err.(interface{ ErrorStack() string }); ok && IsPanicMessage(e.ErrorStack()) {
 		return true
+	}
+
+	return false
+}
+
+// IsPanicMessage reports whether s contains any PanicMessageMarkers substring.
+// Used by log writers to suppress noisy panic content that the crash-report path renders separately.
+func IsPanicMessage(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	for _, marker := range PanicMessageMarkers {
+		if strings.Contains(s, marker) {
+			return true
+		}
 	}
 
 	return false
@@ -248,18 +267,4 @@ func (r *PanicReporter) formatLog(version, panicMsg string, stack []byte, args [
 
 func (r *PanicReporter) formatLogPath(when time.Time, pid int) string {
 	return crashLogPrefix + "-" + when.UTC().Format(crashLogFileTimeLayout) + "-" + strconv.Itoa(pid) + ".log"
-}
-
-func hasPanicFrame(s string) bool {
-	if s == "" {
-		return false
-	}
-
-	for _, marker := range runtimePanicMarkers {
-		if strings.Contains(s, marker) {
-			return true
-		}
-	}
-
-	return false
 }
