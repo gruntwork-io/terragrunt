@@ -373,59 +373,73 @@ func evaluateLocalsInOrder(attrs map[string]*hclsyntax.Attribute, order []string
 	return nil
 }
 
-// topoSortLocals returns the evaluation order for locals (dependencies first). If a cycle is present, returns (nil, cycleNames) where cycleNames are sorted names involved in the cycle.
+// topoSortLocals returns the evaluation order for locals (dependencies first). If a cycle is present, returns (nil, cycleNames) where cycleNames are the names involved in the cycle, in DFS-discovery order.
 func topoSortLocals(deps map[string]map[string]struct{}) ([]string, []string) {
-	const (
-		colorWhite = 0 // unvisited
-		colorGray  = 1 // in current DFS path
-		colorBlack = 2 // fully processed
-	)
+	s := newTopoState(deps)
 
-	color := make(map[string]int, len(deps))
-	order := make([]string, 0, len(deps))
-
-	var visit func(name string, path []string) []string
-
-	visit = func(name string, path []string) []string {
-		switch color[name] {
-		case colorGray:
-			// If we found a back-edge to a node already on the path, return only
-			// the cycle segment from that node onward for a precise error.
-			for i, p := range path {
-				if p == name {
-					return path[i:]
-				}
-			}
-
-			return path
-		case colorBlack:
-			return nil
-		}
-
-		color[name] = colorGray
-		path = append(path, name)
-
-		for dep := range deps[name] {
-			if cycle := visit(dep, path); cycle != nil {
-				return cycle
-			}
-		}
-
-		color[name] = colorBlack
-		order = append(order, name)
-
-		return nil
-	}
-
-	names := sortedKeys(deps)
-
-	for _, name := range names {
-		if cycle := visit(name, nil); cycle != nil {
+	for _, name := range sortedKeys(deps) {
+		if cycle := s.visit(name, nil); cycle != nil {
 			return nil, cycle
 		}
 	}
 
-	return order, nil
+	return s.order, nil
+}
+
+const (
+	topoColorWhite = 0 // unvisited
+	topoColorGray  = 1 // in current DFS path
+	topoColorBlack = 2 // fully processed
+)
+
+// topoState carries the DFS color map and emitted order during topoSortLocals.
+type topoState struct {
+	deps  map[string]map[string]struct{}
+	color map[string]int
+	order []string
+}
+
+func newTopoState(deps map[string]map[string]struct{}) *topoState {
+	return &topoState{
+		deps:  deps,
+		color: make(map[string]int, len(deps)),
+		order: make([]string, 0, len(deps)),
+	}
+}
+
+// visit performs DFS from name, returning a non-nil slice naming the cycle if a back-edge to a node already on the path is found.
+func (s *topoState) visit(name string, path []string) []string {
+	switch s.color[name] {
+	case topoColorGray:
+		return cycleSegment(path, name)
+	case topoColorBlack:
+		return nil
+	}
+
+	s.color[name] = topoColorGray
+	path = append(path, name)
+
+	for dep := range s.deps[name] {
+		if cycle := s.visit(dep, path); cycle != nil {
+			return cycle
+		}
+	}
+
+	s.color[name] = topoColorBlack
+	s.order = append(s.order, name)
+
+	return nil
+}
+
+// cycleSegment returns the portion of path that starts at name (the back-edge target). Returns path unchanged if name is not in path (shouldn't happen for a valid back-edge, but kept defensive).
+func cycleSegment(path []string, name string) []string {
+	for i, p := range path {
+		if p == name {
+			return path[i:]
+		}
+	}
+
+	return path
 }
 
 // localObject builds a cty.Value for the `local` namespace from the map of evaluated locals. cty.ObjectVal panics on an empty map, so an empty input returns cty.EmptyObjectVal.
