@@ -3,12 +3,15 @@ package main
 import (
 	"bytes"
 	stdErrors "errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -189,11 +192,60 @@ func TestReportPanicIsNoopOnNilError(t *testing.T) {
 	assert.Empty(t, entries, "no crash log should be written for a nil panic")
 }
 
+func TestIsPanicError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns false for nil", func(t *testing.T) {
+		t.Parallel()
+
+		assert.False(t, isPanicError(nil))
+	})
+
+	t.Run("returns false for plain wrapped error", func(t *testing.T) {
+		t.Parallel()
+
+		assert.False(t, isPanicError(errors.New("regular failure")))
+		assert.False(t, isPanicError(stdErrors.New("formatted")))
+		// Even a message that mentions "panic" must not match — only real
+		// runtime stack frames or cty's typed panic count.
+		assert.False(t, isPanicError(errors.New("panic message but not a panic")))
+	})
+
+	t.Run("matches cty function.PanicError by type", func(t *testing.T) {
+		t.Parallel()
+
+		err := function.PanicError{
+			Value: "panic in cty function",
+			Stack: []byte("cty stack"),
+		}
+
+		assert.True(t, isPanicError(err))
+		assert.True(t, isPanicError(fmt.Errorf("wrapped: %w", err)))
+	})
+
+	t.Run("matches an error whose stack contains runtime.gopanic", func(t *testing.T) {
+		t.Parallel()
+
+		var recovered error
+
+		func() {
+			defer errors.Recover(func(err error) {
+				recovered = err
+			})
+
+			panic("simulated panic")
+		}()
+
+		require.Error(t, recovered)
+		assert.True(t, isPanicError(recovered), "errors.Recover output must be classified as a panic")
+	})
+}
+
 // TestRecoverIntegrationFromDeferredPanic exercises the real production
-// pattern: defer errors.Recover(handler) catches a panic raised during the
-// surrounded scope. It is a regression test for the previous bug where the
-// recover() was wrapped inside another deferred closure and silently
-// returned nil, letting panics bypass the crash-report path entirely.
+// pattern: defer errors.Recover(handler) catches a panic raised in the
+// surrounded scope, and reportPanic produces a crash log. Regression test
+// for the previous bug where recover() was wrapped in another deferred
+// closure and silently returned nil.
 func TestRecoverIntegrationFromDeferredPanic(t *testing.T) {
 	t.Parallel()
 
@@ -206,8 +258,8 @@ func TestRecoverIntegrationFromDeferredPanic(t *testing.T) {
 
 	func() {
 		defer errors.Recover(func(cause error) {
-			require.NotNil(t, cause)
-			assert.True(t, errors.IsFunctionPanic(cause))
+			require.Error(t, cause)
+			assert.True(t, isPanicError(cause))
 			app.reportPanic(logger, cause, opts)
 		})
 
@@ -224,7 +276,8 @@ func TestRecoverIntegrationFromDeferredPanic(t *testing.T) {
 
 	body, err := os.ReadFile(filepath.Join(tmp, entries[0].Name()))
 	require.NoError(t, err)
-	assert.Contains(t, string(body), "Panic: panic in function implementation: kaboom")
+	assert.Contains(t, string(body), "Panic: panic:")
+	assert.Contains(t, string(body), "kaboom")
 	assert.Contains(t, string(body), "Stack trace:")
 	assert.Contains(t, string(body), "All goroutines:")
 }

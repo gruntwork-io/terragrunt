@@ -5,17 +5,4 @@ category: "bug-fixes"
 
 #### Friendly panic crash reporting with crash logs
 
-Terragrunt now produces an OpenTofu/Terraform-style crash report when an unrecoverable panic is hit, instead of dumping a raw Go stack trace into the terminal.
-
-When a panic is captured, Terragrunt writes a timestamped `terragrunt-crash-YYYYMMDDTHHMMSSZ-<pid>.log` file in the working directory (falling back to the system temp dir) containing:
-
-- Terragrunt version and build commit (from VCS metadata)
-- Go runtime version, GOOS/GOARCH, NumCPU, GOMAXPROCS, NumGoroutine
-- PID, working directory, and command line
-- The panic message, the panicking goroutine's stack trace, and a dump of all goroutines
-
-The terminal output is reduced to a friendly banner pointing the user to the crash log file and to:
-
-https://github.com/gruntwork-io/terragrunt/issues
-
-If the crash log cannot be written to disk, Terragrunt falls back to printing the report inline so no debugging context is lost. Panics now exit with code `11`, matching OpenTofu and avoiding collisions with Terraform's detailed exit codes.
+Terragrunt now writes a `terragrunt-crash-*.log` file with full panic context instead of dumping a raw stack trace. The terminal shows a short banner pointing to the file and to https://github.com/gruntwork-io/terragrunt/issues. If the log can't be written, the report is printed inline. Panics exit with code `11`.

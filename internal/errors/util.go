@@ -3,59 +3,49 @@ package errors
 import (
 	"context"
 	"errors"
+	"fmt"
+	"runtime/debug"
 	"slices"
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/zclconf/go-cty/cty/function"
 )
 
-// ErrorStack returns a stack trace if available, deduplicating identical
-// frames pulled from different layers of the unwrap chain.
+// ErrorStack returns a stack trace assembled from any wrapped error that
+// implements ErrorStack() (the convention used by go-errors). Multiple stacks
+// in the unwrap chain are joined with newlines and identical traces are
+// deduplicated.
 func ErrorStack(err error) string {
 	var (
 		stacks []string
 		seen   = map[string]struct{}{}
 	)
 
-	add := func(s string) {
-		s = strings.TrimSpace(s)
-		if s == "" {
-			return
-		}
-
-		if _, ok := seen[s]; ok {
-			return
-		}
-
-		seen[s] = struct{}{}
-		stacks = append(stacks, s)
-	}
-
 	for _, err := range UnwrapMultiErrors(err) {
-		for _, unwrappedErr := range UnwrapErrors(err) {
-			if unwrappedErr == nil {
+		for _, unwrapped := range UnwrapErrors(err) {
+			errWithStack, ok := unwrapped.(interface{ ErrorStack() string })
+			if !ok {
 				continue
 			}
 
-			if errWithStack, ok := unwrappedErr.(interface{ ErrorStack() string }); ok {
-				add(errWithStack.ErrorStack())
+			s := strings.TrimSpace(errWithStack.ErrorStack())
+			if s == "" {
+				continue
 			}
 
-			add(ctyPanicStack(unwrappedErr))
-
-			for _, functionCallErr := range functionCallErrors(unwrappedErr) {
-				add(ErrorStack(functionCallErr))
+			if _, dup := seen[s]; dup {
+				continue
 			}
+
+			seen[s] = struct{}{}
+			stacks = append(stacks, s)
 		}
 	}
 
 	return strings.Join(stacks, "\n")
 }
 
-// ContainsStackTrace returns true if the given error contain the stack trace.
+// ContainsStackTrace returns true if the given error contains a stack trace.
 func ContainsStackTrace(err error) bool {
 	for _, err := range UnwrapMultiErrors(err) {
 		for {
@@ -78,53 +68,35 @@ func IsContextCanceled(err error) bool {
 	return errors.Is(err, context.Canceled)
 }
 
-// IsFunctionPanic reports whether an error (or one of its wrapped errors)
-// represents a recovered panic. Detection is type-driven only — message-string
-// heuristics are intentionally avoided so plain wrapped errors are not
-// misclassified.
-func IsFunctionPanic(err error) bool {
-	for _, unwrappedErr := range UnwrapErrors(err) {
-		if unwrappedErr == nil {
-			continue
-		}
-
-		if isFunctionPanic(unwrappedErr) {
-			return true
-		}
-
-		for _, functionCallErr := range functionCallErrors(unwrappedErr) {
-			if IsFunctionPanic(functionCallErr) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
 // IsError returns true if actual is the same type of error as expected.
 func IsError(actual error, expected error) bool {
 	return goerrors.Is(actual, expected)
 }
 
-// Recover recovers from panics and invokes onPanic with a FunctionPanicError
-// wrapping the recovered value. Must be invoked as `defer errors.Recover(...)`
-// — wrapping it inside another deferred closure makes recover() a no-op.
+// Recover invokes onPanic with an error wrapping the recovered value. The
+// goroutine stack from runtime/debug.Stack is appended to the message so
+// downstream code can detect panic-origin errors by inspecting the stack
+// (e.g. for a runtime.gopanic frame).
+//
+// Must be invoked as `defer errors.Recover(...)` — wrapping it inside
+// another deferred closure makes the internal recover() return nil.
 func Recover(onPanic func(cause error)) {
 	rec := recover()
 	if rec == nil {
 		return
 	}
 
-	if panicErr, ok := rec.(FunctionPanicError); ok {
-		onPanic(panicErr)
+	stack := debug.Stack()
+
+	if err, ok := rec.(error); ok {
+		onPanic(fmt.Errorf("panic: %w\n\n%s", err, stack))
 		return
 	}
 
-	onPanic(NewFunctionPanicError(rec))
+	onPanic(fmt.Errorf("panic: %v\n\n%s", rec, stack))
 }
 
-// UnwrapMultiErrors unwraps all nested multierrors into error slice.
+// UnwrapMultiErrors unwraps all nested multierrors into an error slice.
 func UnwrapMultiErrors(err error) []error {
 	errs := []error{err}
 
@@ -151,7 +123,7 @@ func UnwrapMultiErrors(err error) []error {
 	return errs
 }
 
-// UnwrapErrors unwraps all nested multierrors, and errors that were wrapped with fmt.Errorf.
+// UnwrapErrors unwraps all nested multierrors and errors wrapped with fmt.Errorf.
 func UnwrapErrors(err error) []error {
 	var errs []error
 
@@ -167,73 +139,4 @@ func UnwrapErrors(err error) []error {
 	}
 
 	return errs
-}
-
-// Private helper functions
-
-// ctyPanicStack returns the panic stack carried by github.com/zclconf/go-cty's
-// own function.PanicError. Other panic types should expose ErrorStack().
-func ctyPanicStack(err error) string {
-	var ctyPanic function.PanicError
-	if errors.As(err, &ctyPanic) {
-		return strings.TrimSpace(string(ctyPanic.Stack))
-	}
-
-	return ""
-}
-
-func functionCallErrors(err error) []error {
-	var diags hcl.Diagnostics
-	if errors.As(err, &diags) {
-		return functionCallErrorsFromDiagnostics(diags)
-	}
-
-	var diag *hcl.Diagnostic
-	if errors.As(err, &diag) {
-		return functionCallErrorsFromDiagnostic(diag)
-	}
-
-	return nil
-}
-
-func functionCallErrorsFromDiagnostics(diags hcl.Diagnostics) []error {
-	functionCallErrs := make([]error, 0, len(diags))
-
-	for _, diag := range diags {
-		functionCallErrs = append(functionCallErrs, functionCallErrorsFromDiagnostic(diag)...)
-	}
-
-	return functionCallErrs
-}
-
-func functionCallErrorsFromDiagnostic(diag *hcl.Diagnostic) []error {
-	if diag == nil {
-		return nil
-	}
-
-	functionCallExtra, ok := hcl.DiagnosticExtra[hclsyntax.FunctionCallDiagExtra](diag)
-	if !ok || functionCallExtra == nil {
-		return nil
-	}
-
-	functionCallErr := functionCallExtra.FunctionCallError()
-	if functionCallErr == nil {
-		return nil
-	}
-
-	return UnwrapErrors(functionCallErr)
-}
-
-func isFunctionPanic(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if marker, ok := err.(interface{ IsFunctionPanic() bool }); ok && marker.IsFunctionPanic() {
-		return true
-	}
-
-	var ctyPanic function.PanicError
-
-	return errors.As(err, &ctyPanic)
 }
