@@ -151,6 +151,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 	flags := NewFlags(l, cmdOpts, nil)
 	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
 	flags = append(flags, shared.NewFeatureFlags(opts, nil)...)
+	flags = append(flags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil))
 
 	return &clihelper.Command{
 		Name:    CommandName,
@@ -176,7 +177,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 			}
 
-			return nil
+			return shared.ValidateNoDiscoveryAuthProviderCmd(opts)
 		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
 			return Run(ctx, l, cmdOpts)

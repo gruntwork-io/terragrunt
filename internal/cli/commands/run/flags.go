@@ -368,6 +368,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 
 		shared.NewAuthProviderCmdFlag(opts, prefix, CommandName),
 
+		shared.NewNoDiscoveryAuthProviderCmdFlag(opts, prefix),
+
 		// Terragrunt engine flags.
 
 		flags.NewFlag(&clihelper.BoolFlag{

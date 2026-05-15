@@ -32,6 +32,9 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 		},
 		Flags:       cmdFlags,
 		Subcommands: NewSubcommands(l, opts),
+		Before: func(_ context.Context, _ *clihelper.Context) error {
+			return shared.ValidateNoDiscoveryAuthProviderCmd(opts)
+		},
 		Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
 
