@@ -17,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -356,7 +355,7 @@ func parseComponent(
 		// ObtainCredsForParsing writes auth-provider-cmd output into it.
 		parseV := *v
 		parseV.Env = maps.Clone(v.Env)
-		parseV.Writers = writer.Writers{Writer: io.Discard, ErrWriter: io.Discard}
+		parseV.Writers = parseV.Writers.WithWriter(io.Discard).WithErrWriter(io.Discard)
 
 		shellOpts := configbridge.ShellRunOptsFromOpts(parseOpts)
 

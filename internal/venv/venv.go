@@ -41,8 +41,13 @@ type Venv struct {
 	Env map[string]string
 	// Writers groups the stdout and stderr handles that travel together
 	// through ParsingContext, shell options, backend options, and the
-	// engine.
-	Writers writer.Writers
+	// engine. It is held as a pointer so per-call overrides via
+	// [writer.Writers.WithWriter] and [writer.Writers.WithErrWriter]
+	// produce fresh pointers without mutating the caller's value.
+	// Direct field mutation (e.g. `v.Writers.Writer = …`) is unsafe
+	// because shallow-copying a [Venv] shares this pointer with the
+	// original; always replace via With* helpers instead.
+	Writers *writer.Writers
 }
 
 // OSVenv builds the production [Venv]: the real OS filesystem, the real
@@ -52,14 +57,15 @@ type Venv struct {
 // It returns a *[Venv] so the bundle is threaded by pointer through every
 // downstream call — small parameter, no copying, and shallow-copying a
 // pointed-to [Venv] (via `local := *v`) yields an independent value that
-// callers can mutate without affecting the original.
+// callers can mutate (Env, Writers via [writer.Writers.WithWriter]) without
+// affecting the original.
 func OSVenv() *Venv {
 	return &Venv{
 		FS:      vfs.NewOSFS(),
 		Exec:    vexec.NewOSExec(),
 		HTTP:    vhttp.NewOSClient(),
 		Env:     parseEnviron(os.Environ()),
-		Writers: writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
+		Writers: &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
 	}
 }
 

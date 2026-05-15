@@ -23,8 +23,8 @@ type Venv struct {
 	// Env is the shell environment passed through to tflint invocations.
 	Env map[string]string
 	// Writers carries the stdout/stderr handles read while rendering
-	// tflint output.
-	Writers writer.Writers
+	// tflint output. Mirrors [venv.Venv.Writers].
+	Writers *writer.Writers
 }
 
 // OSVenv builds the production [Venv] from a real-OS [venv.OSVenv].

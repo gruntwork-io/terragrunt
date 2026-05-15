@@ -55,7 +55,7 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 // venv data it needs at each invocation.
 func BackendOptsFromOpts(v *venv.Venv, opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
-		Writers:                      v.Writers,
+		Writers:                      *v.Writers,
 		Env:                          v.Env,
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		NonInteractive:               opts.NonInteractive,

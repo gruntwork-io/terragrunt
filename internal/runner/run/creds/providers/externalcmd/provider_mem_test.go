@@ -157,6 +157,6 @@ func newMemVenv(h vexec.Handler) *venv.Venv {
 	return &venv.Venv{
 		Exec:    vexec.NewMemExec(h),
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }

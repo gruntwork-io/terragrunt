@@ -43,7 +43,7 @@ func BenchmarkFormat(b *testing.B) {
 
 			tgOptions.WorkingDir = tmpBase
 			tgOptions.HclExclude = excludeList
-			v := &venv.Venv{Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard}}
+			v := &venv.Venv{Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard}}
 
 			formatter := logformat.NewFormatter(logformat.NewKeyValueFormatPlaceholders())
 			formatter.SetDisabledColors(true)

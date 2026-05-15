@@ -524,7 +524,7 @@ func createConfig(
 			return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
 		}),
 		Env:     env.Parse(os.Environ()),
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 
 	_, ver, impl, err := run.PopulateTFVersion(

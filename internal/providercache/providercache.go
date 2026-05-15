@@ -32,7 +32,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -550,11 +549,11 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 		func(ctx context.Context) error {
 			errWriter := util.NewTrapWriter(v.Writers.ErrWriter)
 
-			cmdV := v
+			cmdV := *v
 			cmdV.Env = envs
-			cmdV.Writers = writer.Writers{Writer: io.Discard, ErrWriter: errWriter}
+			cmdV.Writers = cmdV.Writers.WithWriter(io.Discard).WithErrWriter(errWriter)
 
-			output, cmdErr := tf.RunCommandWithOutput(ctx, l, cmdV, newTFOpts, newCliArgs.Slice()...)
+			output, cmdErr := tf.RunCommandWithOutput(ctx, l, &cmdV, newTFOpts, newCliArgs.Slice()...)
 			finalOutput = output
 
 			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),

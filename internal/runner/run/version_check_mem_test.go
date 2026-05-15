@@ -137,6 +137,6 @@ func newVersionVenv(h vexec.Handler, env map[string]string) *venv.Venv {
 	return &venv.Venv{
 		Exec:    vexec.NewMemExec(h),
 		Env:     env,
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }

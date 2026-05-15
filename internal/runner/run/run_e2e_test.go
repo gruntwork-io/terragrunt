@@ -64,7 +64,7 @@ func TestRunPipelineEndToEndPlan(t *testing.T) {
 		Exec:    exec,
 		FS:      vfs.NewOSFS(),
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 	l := logger.CreateLogger()
 
@@ -105,7 +105,7 @@ func TestRunPipelineEndToEndPropagatesPlanFailure(t *testing.T) {
 		Exec:    exec,
 		FS:      vfs.NewOSFS(),
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 	l := logger.CreateLogger()
 
@@ -150,7 +150,7 @@ func TestRunPipelineEndToEndFiresHooks(t *testing.T) {
 		Exec:    exec,
 		FS:      vfs.NewOSFS(),
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 	l := logger.CreateLogger()
 

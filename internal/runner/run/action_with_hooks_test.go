@@ -80,7 +80,7 @@ func TestRunActionWithHooks_BeforeHookFailureSkipsAction(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: writer.Writers{}}
+	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: &writer.Writers{}}
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -129,7 +129,7 @@ func TestRunActionWithHooks_ActionFailureTriggersErrorHook(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: writer.Writers{}}
+	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: &writer.Writers{}}
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -176,7 +176,7 @@ func TestRunActionWithHooks_AfterHooksSkipOnActionFailure(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: writer.Writers{}}
+	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: &writer.Writers{}}
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -211,7 +211,7 @@ func TestRunActionWithHooks_NoHooksRunsActionDirectly(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: writer.Writers{}}
+	v := &run.Venv{Exec: exec, FS: vfs.NewMemMapFS(), Writers: &writer.Writers{}}
 	l := logger.CreateLogger()
 
 	actionFired := 0

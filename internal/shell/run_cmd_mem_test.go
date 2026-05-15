@@ -45,7 +45,7 @@ func TestRunCommandMemBackendWithRacing(t *testing.T) {
 	v := &venv.Venv{
 		Exec:    e,
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: stdout, ErrWriter: stderr},
+		Writers: &writer.Writers{Writer: stdout, ErrWriter: stderr},
 	}
 
 	l := logger.CreateLogger()
@@ -87,7 +87,7 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 	v := &venv.Venv{
 		Exec:    e,
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: stdout, ErrWriter: stderr},
+		Writers: &writer.Writers{Writer: stdout, ErrWriter: stderr},
 	}
 
 	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), v, opts, "tool"))
@@ -101,7 +101,7 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 	mergedV := &venv.Venv{
 		Exec:    e,
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: merged, ErrWriter: merged},
+		Writers: &writer.Writers{Writer: merged, ErrWriter: merged},
 	}
 
 	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), mergedV, opts, "tool"))

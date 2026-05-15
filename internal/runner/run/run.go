@@ -714,7 +714,7 @@ func runTerraformInitRunCfg(
 
 	initV := *v
 	if suppressInitStdout {
-		initV.Writers.Writer = io.Discard
+		initV.Writers = initV.Writers.WithWriter(io.Discard)
 	}
 
 	if err := runTerragruntWithConfig(ctx, l, &initV, originalOpts, initOptions, cfg, r); err != nil {

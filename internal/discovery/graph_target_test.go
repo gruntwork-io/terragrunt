@@ -210,7 +210,7 @@ func memGitTopLevelVenv(t *testing.T, repoRoot string) *venv.Venv {
 	return &venv.Venv{
 		Exec:    exec,
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }
 

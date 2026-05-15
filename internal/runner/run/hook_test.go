@@ -202,7 +202,7 @@ func TestProcessHooks_TflintActionRoutesThroughTflint(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fs, "/work/.tflint.hcl", []byte("config {}"), 0o644))
 
-	v := &run.Venv{Exec: vexec.NewMemExec(h), FS: fs, Writers: writer.Writers{}}
+	v := &run.Venv{Exec: vexec.NewMemExec(h), FS: fs, Writers: &writer.Writers{}}
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -318,7 +318,7 @@ func newHookVenv(h vexec.Handler) *run.Venv {
 		Exec:    vexec.NewMemExec(h),
 		FS:      vfs.NewMemMapFS(),
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }
 
@@ -329,7 +329,7 @@ func hookVenv(exec vexec.Exec) *run.Venv {
 		Exec:    exec,
 		FS:      vfs.NewMemMapFS(),
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }
 

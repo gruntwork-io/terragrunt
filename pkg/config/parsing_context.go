@@ -128,9 +128,9 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (conte
 }
 
 // Clone returns a copy of the ParsingContext.
-// Maps and the embedded Venv are deep-copied so that mutations (e.g.
-// credential injection into the shell environment, or writer redirection
-// on a sub-call) on a clone do not affect the original or other clones.
+// Maps and the embedded Venv (including its Writers pointer and Env map)
+// are deep-copied so that mutations on a clone — credential injection,
+// writer redirection, etc. — do not affect the original or other clones.
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
 
@@ -138,6 +138,11 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 		v := *ctx.Venv
 		if v.Env != nil {
 			v.Env = maps.Clone(v.Env)
+		}
+
+		if v.Writers != nil {
+			w := *v.Writers
+			v.Writers = &w
 		}
 
 		clone.Venv = &v

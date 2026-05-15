@@ -24,8 +24,10 @@ type Venv struct {
 	// extra-args contributions during a run.
 	Env map[string]string
 	// Writers carries the stdout/stderr handles used while rendering hook
-	// and run output.
-	Writers writer.Writers
+	// and run output. Mirrors [venv.Venv.Writers]: held as a pointer so
+	// overrides flow through [writer.Writers.WithWriter] without sharing
+	// mutation across shallow-copied Venvs.
+	Writers *writer.Writers
 }
 
 // OSVenv builds the production [Venv]: real OS process execution, real

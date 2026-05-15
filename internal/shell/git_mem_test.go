@@ -25,7 +25,7 @@ func memVenv(exec vexec.Exec) *venv.Venv {
 	return &venv.Venv{
 		Exec:    exec,
 		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }
 

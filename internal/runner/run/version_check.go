@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -134,7 +133,7 @@ func GetTFVersion(
 	// Override venv for this call: discard output and strip TF_CLI_ARGS* so
 	// they don't interfere with "--version".
 	versionV := *v
-	versionV.Writers = writer.Writers{Writer: io.Discard, ErrWriter: io.Discard}
+	versionV.Writers = versionV.Writers.WithWriter(io.Discard).WithErrWriter(io.Discard)
 
 	envCopy := make(map[string]string, len(v.Env))
 	for key, val := range v.Env {
