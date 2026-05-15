@@ -33,14 +33,21 @@ func (e DuplicateStackNameError) Error() string {
 }
 
 // IncludeValidationError indicates that an included stack file violates
-// constraints (e.g. defines locals or nested includes).
+// constraints (e.g. defines locals or nested includes). Err preserves the
+// underlying error (such as hcl.Diagnostics from include-path evaluation)
+// so callers can extract it via errors.As.
 type IncludeValidationError struct {
+	Err         error
 	IncludeName string
 	Reason      string
 }
 
 func (e IncludeValidationError) Error() string {
 	return fmt.Sprintf("included stack file %q: %s", e.IncludeName, e.Reason)
+}
+
+func (e IncludeValidationError) Unwrap() error {
+	return e.Err
 }
 
 // FileReadError indicates a failure to read a file from the filesystem.

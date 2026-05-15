@@ -469,7 +469,11 @@ func mergeIncludes(fs vfs.FS, parsedFile *StackFileHCL, stackDir string, evalCtx
 func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *hcl.EvalContext) (hcl.Body, []byte, string, error) {
 	pathVal, diags := inc.Path.Value(evalCtx)
 	if diags.HasErrors() {
-		return nil, nil, "", IncludeValidationError{IncludeName: inc.Name, Reason: "could not evaluate include path: " + diags.Error()}
+		return nil, nil, "", IncludeValidationError{
+			IncludeName: inc.Name,
+			Reason:      "could not evaluate include path: " + diags.Error(),
+			Err:         diags,
+		}
 	}
 
 	switch {

@@ -197,7 +197,7 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 
 const maxDiscoverDepth = 1000
 
-// DiscoverStackChildUnits parses child stack directories with best-effort behavior.
+// DiscoverStackChildUnits parses child stack directories with best-effort behavior. Discovery enriches a stack ComponentRef with nested unit refs so `stack.<name>.<unit>.path` resolves at autoinclude eval time; it is NOT a source of truth. When a nested stack file cannot be read or parsed, the function returns nil ChildRefs rather than propagating the error. Any user reference to an undiscovered child surfaces later as a clear HCL "Unsupported attribute" diagnostic on the autoinclude expression, which is where the user can act on it.
 func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: fs is nil (stackSourceDir=%q, stackGenDir=%q)", stackSourceDir, stackGenDir))

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -1201,9 +1202,13 @@ stack "s" {
 			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 				Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
 			})
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "`values` is not allowed inside `autoinclude`")
-			assert.Contains(t, err.Error(), "parent unit/stack block")
+
+			var diags hcl.Diagnostics
+
+			require.ErrorAs(t, err, &diags)
+			require.True(t, diags.HasErrors())
+			assert.Equal(t, "`values` is not allowed inside `autoinclude`", diags[0].Summary)
+			assert.Contains(t, diags[0].Detail, "parent unit/stack block")
 		})
 	}
 }
@@ -1434,8 +1439,10 @@ stack "networking" {
 func TestParseStackFile_IncludeMissingRequiredSourceOrPathReturnsError(t *testing.T) {
 	t.Parallel()
 
+	// The include path is resolved relative to the parent stack file's StackDir
+	// (here: `/test`), so the included file must live alongside the parent.
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/includes/extra.stack.hcl", []byte(`
+	require.NoError(t, vfs.WriteFile(fs, "/test/extra.stack.hcl", []byte(`
 unit "extra" {
   source = "../catalog/units/extra"
 }
@@ -1443,7 +1450,7 @@ unit "extra" {
 
 	src := []byte(`
 include "extra" {
-  path = "/includes/extra.stack.hcl"
+  path = "extra.stack.hcl"
 }
 
 unit "app" {
