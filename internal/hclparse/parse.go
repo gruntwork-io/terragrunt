@@ -158,6 +158,16 @@ func parseStackFileRoot(src []byte, filename string) (*StackFileHCL, error) {
 	return stackFile, nil
 }
 
+// isReservedVarName reports whether a caller-supplied variable name collides with a parser-owned namespace and must be skipped when overlaying caller variables on the eval context.
+func isReservedVarName(name string, _ cty.Value) bool {
+	switch name {
+	case varLocal, varUnit, varStack, varValues:
+		return true
+	}
+
+	return false
+}
+
 // buildBaseEvalContext builds the eval context for phases two to four.
 func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 	evalCtx := &hcl.EvalContext{
