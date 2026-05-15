@@ -197,7 +197,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_module", map[string]any{
 		"module_url": moduleURL,
 	}, func(ctx context.Context) error {
-		if _, getErr := getter.GetAny(ctx, tempDir, moduleURL); getErr != nil {
+		if _, getErr := getter.GetAny(ctx, tempDir, moduleURL, getter.WithTFRegistry(getter.NewRegistryGetter(l))); getErr != nil {
 			return fmt.Errorf("downloading scaffold module from %s: %w", moduleURL, getErr)
 		}
 
@@ -292,6 +292,25 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 func BuildSourceURL(originalURL, resolvedURL string, vars map[string]any) string {
 	if value, found := vars[sourceURLTypeVar]; found && fmt.Sprintf("%s", value) == sourceURLTypeGit {
 		return resolvedURL
+	}
+
+	// For tfr:// URLs, version is carried in the ?version= query param rather than ?ref=
+	if strings.HasPrefix(originalURL, "tfr://") {
+		versionVal := ExtractQueryParam(resolvedURL, getter.VersionQueryKey)
+		if versionVal == "" {
+			return originalURL
+		}
+
+		base, rawQuery := splitURLQuery(originalURL)
+
+		params, err := url.ParseQuery(rawQuery)
+		if err != nil || params.Has(getter.VersionQueryKey) {
+			return originalURL
+		}
+
+		params.Set(getter.VersionQueryKey, versionVal)
+
+		return base + "?" + params.Encode()
 	}
 
 	refVal := ExtractQueryParam(resolvedURL, refParam)
@@ -436,7 +455,7 @@ func downloadTemplate(
 	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_template", map[string]any{
 		"template_url": baseURL.String(),
 	}, func(ctx context.Context) error {
-		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
+		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String(), getter.WithTFRegistry(getter.NewRegistryGetter(l))); getErr != nil {
 			return fmt.Errorf("downloading scaffold template from %s: %w", baseURL.String(), getErr)
 		}
 
@@ -562,10 +581,12 @@ func parseModuleURL(
 
 	moduleURL = parsedModuleURL.String()
 
-	// rewrite module url, if required
-	parsedModuleURL, err = rewriteModuleURL(l, opts, vars, moduleURL)
-	if err != nil {
-		return "", errors.New(err)
+	// rewrite module url, if required (tfr:// URLs are passed through unchanged)
+	if parsedModuleURL.Scheme != "tfr" {
+		parsedModuleURL, err = rewriteModuleURL(l, opts, vars, moduleURL)
+		if err != nil {
+			return "", errors.New(err)
+		}
 	}
 
 	// add ref to module url, if required
@@ -685,21 +706,37 @@ func addRefToModuleURL(
 	}
 
 	ref := params.Get(refParam)
+	// For tfr:// URLs, version is passed as ?version= not ?ref=
+	if ref == "" && moduleURL.Scheme == "tfr" {
+		ref = params.Get(getter.VersionQueryKey)
+	}
+
 	if ref == "" {
-		// if ref is not passed, find last release tag
-		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
-		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
 		rootSourceURL, _, err := tf.SplitSourceURL(l, moduleURL)
 		if err != nil {
 			return nil, errors.New(err)
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
-		if err != nil || tag == "" {
-			l.Warnf("Failed to find last release tag for %s", rootSourceURL)
+		// For tfr:// URLs, query the registry API for the latest version instead of git tags
+		if rootSourceURL.Scheme == "tfr" {
+			version, err := getter.LatestRegistryVersion(ctx, l, nil, rootSourceURL)
+			if err != nil || version == "" {
+				l.Warnf("Failed to find last release tag for %s: %v", rootSourceURL, err)
+			} else {
+				params.Set(getter.VersionQueryKey, version)
+				moduleURL.RawQuery = params.Encode()
+			}
 		} else {
-			params.Add(refParam, tag)
-			moduleURL.RawQuery = params.Encode()
+			// if ref is not passed, find last release tag
+			// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
+			// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
+			tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
+			if err != nil || tag == "" {
+				l.Warnf("Failed to find last release tag for %s", rootSourceURL)
+			} else {
+				params.Add(refParam, tag)
+				moduleURL.RawQuery = params.Encode()
+			}
 		}
 	}
 

@@ -21,6 +21,9 @@ import (
 
 const versionQueryKey = "version"
 
+// VersionQueryKey is exported so callers outside this package can reference the version query parameter name.
+const VersionQueryKey = versionQueryKey
+
 // RegistryGetter is the go-getter v2 implementation of the tfr:// protocol.
 //
 // Source URLs take the form:
