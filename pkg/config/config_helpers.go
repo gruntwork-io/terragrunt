@@ -723,6 +723,7 @@ func getAWSField(ctx context.Context, pctx *ParsingContext, l log.Logger, fetchF
 	awsConfig, err := awshelper.NewAWSConfigBuilder().
 		WithEnv(pctx.Venv.Env).
 		WithIAMRoleOptions(pctx.IAMRoleOptions).
+		WithHTTPClient(pctx.Venv.HTTP).
 		Build(ctx, l)
 	if err != nil {
 		return "", err

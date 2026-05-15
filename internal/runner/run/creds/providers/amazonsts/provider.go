@@ -3,6 +3,7 @@ package amazonsts
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -35,13 +36,13 @@ func (provider *Provider) Name() string {
 	return "API calls to Amazon STS"
 }
 
-// GetCredentials implements providers.GetCredentials. v is unused for
-// amazonsts because it talks to AWS via the SDK, not a subprocess; it is
-// accepted to satisfy the providers.Provider interface contract.
+// GetCredentials implements providers.GetCredentials. v supplies the HTTP
+// client that the AWS SDK uses for the sts:AssumeRole call so STS traffic
+// shares the same transport as the rest of Terragrunt.
 func (provider *Provider) GetCredentials(
 	ctx context.Context,
 	l log.Logger,
-	_ *venv.Venv,
+	v *venv.Venv,
 ) (*providers.Credentials, error) {
 	iamRoleOpts := provider.iamRoleOpts
 	if iamRoleOpts.RoleARN == "" {
@@ -58,6 +59,11 @@ func (provider *Provider) GetCredentials(
 
 	var resp *types.Credentials
 
+	var httpClient *http.Client
+	if v != nil {
+		httpClient = v.HTTP
+	}
+
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "creds_assume_role", map[string]any{
 		"role_arn":     iamRoleOpts.RoleARN,
 		"session_name": iamRoleOpts.AssumeRoleSessionName,
@@ -65,7 +71,7 @@ func (provider *Provider) GetCredentials(
 	}, func(ctx context.Context) error {
 		var assumeErr error
 
-		resp, assumeErr = awshelper.AssumeIamRole(ctx, iamRoleOpts, "", provider.env)
+		resp, assumeErr = awshelper.AssumeIamRole(ctx, httpClient, iamRoleOpts, "", provider.env)
 
 		return assumeErr
 	})

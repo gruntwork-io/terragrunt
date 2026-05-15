@@ -1374,6 +1374,7 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 			WithSessionConfig(sessionConfig).
 			WithEnv(pctx.Venv.Env).
 			WithIAMRoleOptions(pctx.IAMRoleOptions).
+			WithHTTPClient(pctx.Venv.HTTP).
 			BuildS3Client(ctx, l)
 		if err != nil {
 			return fmt.Errorf("building s3 client for s3://%s/%s: %w", bucket, key, err)

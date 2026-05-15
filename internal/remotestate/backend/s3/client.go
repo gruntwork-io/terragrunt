@@ -84,7 +84,8 @@ func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateCon
 	builder := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(awsConfig).
 		WithEnv(opts.Env).
-		WithIAMRoleOptions(opts.IAMRoleOptions)
+		WithIAMRoleOptions(opts.IAMRoleOptions).
+		WithHTTPClient(opts.HTTP)
 
 	cfg, err := builder.Build(ctx, l)
 	if err != nil {
