@@ -96,35 +96,40 @@ func main() {
 	err := app.RunContext(ctx, os.Args)
 
 	if opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode) {
-		checkForErrorsAndExit(l, exitCode.GetFinalDetailedExitCode())(err)
+		checkForErrorsAndExit(l, exitCode.GetFinalDetailedExitCode(), opts)(err)
 
 		return
 	}
 
-	checkForErrorsAndExit(l, exitCode.GetFinalExitCode())(err)
+	checkForErrorsAndExit(l, exitCode.GetFinalExitCode(), opts)(err)
 }
 
 // If there is an error, display it in the console and exit with a non-zero exit code. Otherwise, exit 0.
-func checkForErrorsAndExit(l log.Logger, exitCode int) func(error) {
+func checkForErrorsAndExit(l log.Logger, exitCode int, opts *options.TerragruntOptions) func(error) {
 	return func(err error) {
 		if err == nil {
 			os.Exit(exitCode)
 		}
 
-		l.Error(err.Error())
+		if errors.IsFunctionPanic(err) {
+			reportPanic(l, err, opts)
+		} else {
+			l.Error(err.Error())
 
-		if errStack := errors.ErrorStack(err); errStack != "" {
-			l.Trace(errStack)
+			if errStack := errors.ErrorStack(err); errStack != "" {
+				l.Trace(errStack)
+			}
+
+			// exit with the underlying error code
+			if explain := shell.ExplainError(err); len(explain) > 0 {
+				l.Errorf("Suggested fixes: \n%s", explain)
+			}
 		}
 
 		// exit with the underlying error code
 		exitCoder, exitCodeErr := util.GetExitCode(err)
 		if exitCodeErr != nil {
 			exitCoder = 1
-		}
-
-		if explain := shell.ExplainError(err); len(explain) > 0 {
-			l.Errorf("Suggested fixes: \n%s", explain)
 		}
 
 		os.Exit(exitCoder)
@@ -134,13 +139,7 @@ func checkForErrorsAndExit(l log.Logger, exitCode int) func(error) {
 // checkForPanicAndExit handles a captured panic, writes a crash report if possible,
 // and then exits with the normal Terragrunt error handling path.
 func checkForPanicAndExit(l log.Logger, exitCode int, opts *options.TerragruntOptions) func(error) {
-	return func(err error) {
-		if err != nil {
-			reportPanic(l, err, opts)
-		}
-
-		checkForErrorsAndExit(l, exitCode)(err)
-	}
+	return checkForErrorsAndExit(l, exitCode, opts)
 }
 
 func reportPanic(l log.Logger, err error, opts *options.TerragruntOptions) {
