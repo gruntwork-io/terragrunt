@@ -9,7 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	svchost "github.com/hashicorp/terraform-svchost"
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 )
 
 // Client is an HTTP client.
@@ -17,14 +17,14 @@ type Client struct {
 	*http.Client
 
 	credsSource *cliconfig.CredentialsSource
-	cache       *xsync.MapOf[string, []byte]
+	cache       *xsync.Map[string, []byte]
 }
 
 func NewClient(credsSource *cliconfig.CredentialsSource) *Client {
 	return &Client{
 		Client:      &http.Client{},
 		credsSource: credsSource,
-		cache:       xsync.NewMapOf[string, []byte](),
+		cache:       xsync.NewMap[string, []byte](),
 	}
 }
 

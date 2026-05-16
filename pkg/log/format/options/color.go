@@ -10,7 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mgutz/ansi"
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 )
 
 // ColorOptionName is the option name.
@@ -212,9 +212,9 @@ var (
 
 type gradientColor struct {
 	// cache stores unique text with their color code.
-	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
+	// We use [xsync.Map](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
 	// instead of standard `sync.Map` since it's faster and has generic types.
-	cache  *xsync.MapOf[string, ColorValue]
+	cache  *xsync.Map[string, ColorValue]
 	values []ColorValue
 	mu     sync.Mutex
 
@@ -224,7 +224,7 @@ type gradientColor struct {
 
 func newGradientColor() *gradientColor {
 	return &gradientColor{
-		cache:  xsync.NewMapOf[string, ColorValue](),
+		cache:  xsync.NewMap[string, ColorValue](),
 		values: defaultAutoColorValues,
 	}
 }
