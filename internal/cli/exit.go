@@ -11,8 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// RunAndExit runs the Terragrunt CLI and terminates the process with the exit code computed by ExitCodeFor.
-// em and reporter are required; top-level panics must still be caught by a `defer reporter.PanicHandler(...)` in the caller.
+// RunAndExit runs the CLI then os.Exits with ExitCodeFor; top-level panics must be caught by `defer reporter.PanicHandler(...)`.
 func (app *App) RunAndExit(args []string, em *tf.DetailedExitCodeMap, reporter *log.PanicReporter) {
 	ctx := log.ContextWithLogger(context.Background(), app.l)
 	ctx = tf.ContextWithDetailedExitCode(ctx, em)
@@ -23,9 +22,7 @@ func (app *App) RunAndExit(args []string, em *tf.DetailedExitCodeMap, reporter *
 	os.Exit(ExitCodeFor(app.l, args, app.opts.VersionString(), err, em.Final(detailed), reporter))
 }
 
-// ExitCodeFor maps a CLI run result to a process exit code.
-// Panic-shaped errors are routed through reporter; other errors log message + stack + suggestions.
-// Suggested fixes from shell.ExplainError are shown for both branches.
+// ExitCodeFor maps a CLI run result to a process exit code; panic-shaped errors route through reporter.
 func ExitCodeFor(l log.Logger, args []string, version string, err error, success int, reporter *log.PanicReporter) int {
 	if err == nil {
 		return success

@@ -18,9 +18,7 @@ import (
 // PanicIssueURL is the canonical bug-report destination shown in the crash banner.
 const PanicIssueURL = "https://github.com/gruntwork-io/terragrunt/issues"
 
-// PanicMessageMarkers are substrings that appear only in messages carrying a
-// recovered Go panic — the cty function.PanicError prefix and the runtime
-// panic dispatcher frames emitted by debug.Stack.
+// PanicMessageMarkers are substrings emitted only in cty/runtime panic messages.
 var PanicMessageMarkers = []string{
 	"panic in function implementation",
 	"runtime/panic.go",
@@ -91,9 +89,7 @@ func NewPanicReporter() *PanicReporter {
 	}
 }
 
-// PanicHandler catches a panic from the deferred call site, writes a crash report, and exits with code 1.
-// Must be invoked as `defer r.PanicHandler(...)` so recover() runs in the deferred function directly.
-// version is a getter so callers can supply a value populated lazily by the CLI before-action.
+// PanicHandler must be invoked as `defer r.PanicHandler(...)`; on a recovered panic it writes the crash report and exits 1.
 func (r *PanicReporter) PanicHandler(l Logger, version func() string, args []string) {
 	rec := recover()
 	if rec == nil {
@@ -109,8 +105,7 @@ func (r *PanicReporter) PanicHandler(l Logger, version func() string, args []str
 	os.Exit(1)
 }
 
-// ReportPanic writes the crash log and friendly banner for an already-captured panic.
-// Use this when the panic surfaced as an error returned from another component.
+// ReportPanic writes the crash log and friendly banner for a panic surfaced as a returned error.
 func (r *PanicReporter) ReportPanic(l Logger, version, panicMsg string, stack []byte, args []string) {
 	logPath, logContent, writeErr := r.writeLog(version, panicMsg, stack, args)
 
@@ -128,9 +123,7 @@ func (r *PanicReporter) ReportPanic(l Logger, version, panicMsg string, stack []
 	l.Errorf("Please report this issue at %s and attach the panic report.", PanicIssueURL)
 }
 
-// PanicDetails extracts a clean panic message and stack from err.
-// For cty's function.PanicError it splits the recovered Value from the Stack;
-// for any other panic-shaped error the full err.Error() is returned as the message and stack is nil.
+// PanicDetails returns (Value, Stack) split out of a cty function.PanicError when present; otherwise (err.Error(), nil).
 func PanicDetails(err error) (msg string, stack []byte) {
 	if err == nil {
 		return "", nil
@@ -144,8 +137,7 @@ func PanicDetails(err error) (msg string, stack []byte) {
 	return err.Error(), nil
 }
 
-// IsPanic reports whether err originated from a recovered panic.
-// Detection is type-driven first (cty's function.PanicError) and falls back to IsPanicMessage on the message and on any ErrorStack found while walking the unwrap chain.
+// IsPanic reports whether err originated from a recovered panic (cty function.PanicError or runtime stack marker on the unwrap chain).
 func IsPanic(err error) bool {
 	if err == nil {
 		return false
@@ -169,11 +161,7 @@ func IsPanic(err error) bool {
 	return false
 }
 
-// PanicSuppressingWriter wraps an io.Writer and drops payloads that
-// IsPanicMessage matches. Suppression is per-Write boundary, so callers
-// must emit each panic-bearing message in a single Write to be filtered
-// (HCL's diagnostic writer does this today). The crash-report path
-// surfaces those payloads separately via the crash log file.
+// PanicSuppressingWriter forwards to Inner but drops any Write whose payload IsPanicMessage matches.
 type PanicSuppressingWriter struct {
 	Inner io.Writer
 }
@@ -193,7 +181,6 @@ func (w *PanicSuppressingWriter) Write(p []byte) (int, error) {
 }
 
 // IsPanicMessage reports whether s contains any PanicMessageMarkers substring.
-// Used by PanicSuppressingWriter to suppress noisy panic content that the crash-report path renders separately.
 func IsPanicMessage(s string) bool {
 	if s == "" {
 		return false

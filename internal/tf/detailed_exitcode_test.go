@@ -10,10 +10,7 @@ import (
 func TestDetailedExitCodeMapFinal(t *testing.T) {
 	t.Parallel()
 
-	// Final must dispatch to GetFinalExitCode vs GetFinalDetailedExitCode
-	// based on the boolean. With a "changes" + "error" combination the
-	// two strategies disagree (max-wins vs error-precedence) so this is
-	// a clean way to confirm the dispatch.
+	// "changes" + "error" disagree between max-wins and error-precedence, so the dispatch is observable.
 	em := tf.NewDetailedExitCodeMap()
 	em.Set("a", tf.DetailedExitCodeChanges) // 2
 	em.Set("b", tf.DetailedExitCodeError)   // 1
