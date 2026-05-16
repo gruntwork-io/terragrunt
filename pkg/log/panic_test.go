@@ -202,6 +202,7 @@ func TestIsPanic(t *testing.T) {
 
 		assert.False(t, log.IsPanic(stdErrors.New("regular failure")))
 		assert.False(t, log.IsPanic(stdErrors.New("panic but not from runtime")))
+		assert.False(t, log.IsPanic(stdErrors.New("user requested panic shutdown")))
 	})
 
 	t.Run("matches cty function.PanicError by type", func(t *testing.T) {

@@ -18,7 +18,6 @@ func TestDetailedExitCodeMapFinal(t *testing.T) {
 	em.Set("a", tf.DetailedExitCodeChanges) // 2
 	em.Set("b", tf.DetailedExitCodeError)   // 1
 
-	assert.Equal(t, em.GetFinalExitCode(), em.Final(false))
-	assert.Equal(t, em.GetFinalDetailedExitCode(), em.Final(true))
-	assert.NotEqual(t, em.Final(false), em.Final(true), "max-wins and error-precedence must give different results here")
+	assert.Equal(t, tf.DetailedExitCodeChanges, em.Final(false), "non-detailed mode returns the max code (2 wins over 1)")
+	assert.Equal(t, tf.DetailedExitCodeError, em.Final(true), "detailed mode gives error precedence over changes")
 }
