@@ -1,0 +1,8 @@
+---
+version: "v1.0.5"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: phased parser for `terragrunt.stack.hcl`
+
+`terragrunt.stack.hcl` is now parsed in four phases: parse root, then locals, then includes, then unit/stack decode. Expressions can reference `local.*`, `values.*`, and Terragrunt functions. Run-all discovery uses path-only nested traversal, unifying the strict and permissive parser paths.

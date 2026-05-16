@@ -109,37 +109,6 @@ func TestBuildComponentRefMap_MultiLevelChildRefs(t *testing.T) {
 	assert.Equal(t, "db", dbVal.GetAttr("name").AsString())
 }
 
-func TestExtractUnitRefs(t *testing.T) {
-	t.Parallel()
-
-	units := []*hclparse.UnitBlockHCL{
-		{Name: "vpc", Path: "vpc", Source: "../modules/vpc"},
-		{Name: "app", Path: "app-service", Source: "../modules/app"},
-	}
-
-	refs := hclparse.ExtractUnitRefs(units)
-
-	require.Len(t, refs, 2)
-	assert.Equal(t, "vpc", refs[0].Name)
-	assert.Equal(t, "vpc", refs[0].Path)
-	assert.Equal(t, "app", refs[1].Name)
-	assert.Equal(t, "app-service", refs[1].Path)
-}
-
-func TestExtractStackRefs(t *testing.T) {
-	t.Parallel()
-
-	stacks := []*hclparse.StackBlockHCL{
-		{Name: "networking", Path: "networking", Source: "../stacks/networking"},
-	}
-
-	refs := hclparse.ExtractStackRefs(stacks)
-
-	require.Len(t, refs, 1)
-	assert.Equal(t, "networking", refs[0].Name)
-	assert.Equal(t, "networking", refs[0].Path)
-}
-
 func TestBuildAutoIncludeEvalContext(t *testing.T) {
 	t.Parallel()
 
@@ -164,6 +133,32 @@ func TestBuildAutoIncludeEvalContext(t *testing.T) {
 
 	stackVar := evalCtx.Variables["stack"]
 	assert.Equal(t, "infra-stack", stackVar.GetAttr("infra").GetAttr("path").AsString())
+}
+
+func TestBuildAutoIncludeEvalContext_WithChildRefs(t *testing.T) {
+	t.Parallel()
+
+	stackRefs := []hclparse.ComponentRef{
+		{
+			Name: "stack_w_outputs",
+			Path: "/project/.terragrunt-stack/stack-w-outputs",
+			ChildRefs: []hclparse.ComponentRef{
+				{Name: "unit_w_outputs", Path: "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs"},
+			},
+		},
+	}
+
+	evalCtx := hclparse.BuildAutoIncludeEvalContext(nil, stackRefs)
+
+	stackVar := evalCtx.Variables["stack"]
+	stackRef := stackVar.GetAttr("stack_w_outputs")
+
+	// stack.stack_w_outputs.path works
+	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs", stackRef.GetAttr("path").AsString())
+
+	// stack.stack_w_outputs.unit_w_outputs.path works
+	unitRef := stackRef.GetAttr("unit_w_outputs")
+	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs", unitRef.GetAttr("path").AsString())
 }
 
 func TestDiscoverStackChildUnits(t *testing.T) {
@@ -226,32 +221,6 @@ func TestDiscoverStackChildUnits_NoStackFile(t *testing.T) {
 	assert.Nil(t, refs)
 }
 
-func TestBuildAutoIncludeEvalContext_WithChildRefs(t *testing.T) {
-	t.Parallel()
-
-	stackRefs := []hclparse.ComponentRef{
-		{
-			Name: "stack_w_outputs",
-			Path: "/project/.terragrunt-stack/stack-w-outputs",
-			ChildRefs: []hclparse.ComponentRef{
-				{Name: "unit_w_outputs", Path: "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs"},
-			},
-		},
-	}
-
-	evalCtx := hclparse.BuildAutoIncludeEvalContext(nil, stackRefs)
-
-	stackVar := evalCtx.Variables["stack"]
-	stackRef := stackVar.GetAttr("stack_w_outputs")
-
-	// stack.stack_w_outputs.path works
-	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs", stackRef.GetAttr("path").AsString())
-
-	// stack.stack_w_outputs.unit_w_outputs.path works
-	unitRef := stackRef.GetAttr("unit_w_outputs")
-	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs", unitRef.GetAttr("path").AsString())
-}
-
 func TestUnitPathsFromStackDir(t *testing.T) {
 	t.Parallel()
 
@@ -274,6 +243,46 @@ unit "db" {
 	require.Len(t, paths, 2)
 	assert.Contains(t, paths[0], ".terragrunt-stack")
 	assert.Contains(t, paths[1], ".terragrunt-stack")
+}
+
+func TestUnitPathsFromStackDir_WithIncludedUnits(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test/includes", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/includes/units.hcl", []byte(`
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "vpc"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
+include "units" {
+  path = "./includes/units.hcl"
+}
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+	assert.Contains(t, paths[0], filepath.Join(hclparse.StackDir, "vpc"))
+}
+
+func TestUnitPathsFromStackDir_PathWithUnsupportedFunctionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
+unit "vpc" {
+  source = "../units/vpc"
+  path   = get_repo_root()
+}
+`), 0644))
+
+	_, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get_repo_root")
 }
 
 func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {

@@ -95,10 +95,18 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 		return &AutoIncludeResolved{EvalCtx: evalCtx, RawBody: a.Remain}, nil
 	}
 
-	var (
-		deps  []AutoIncludeDependency
-		diags hcl.Diagnostics
-	)
+	if valuesAttr, hasValues := body.Attributes["values"]; hasValues {
+		return nil, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "`values` is not allowed inside `autoinclude`",
+			Detail:   "did you mean to declare `values = {...}` on the parent unit/stack block (next to `source`/`path`) instead of inside the `autoinclude` block?",
+			Subject:  valuesAttr.Range().Ptr(),
+		}}
+	}
+
+	deps := make([]AutoIncludeDependency, 0, len(body.Blocks))
+
+	var diags hcl.Diagnostics
 
 	for _, block := range body.Blocks {
 		if block.Type != blockDependency {

@@ -32,6 +32,8 @@ const (
 	testFixtureStackDepsAutoIncViaInclude        = "fixtures/stacks/stack-deps-autoinclude-via-include"
 	testFixtureStackDepsAutoIncViaDynInclude     = "fixtures/stacks/stack-deps-autoinclude-via-dyn-include"
 	testFixtureStackDepsAutoIncViaIncludeSuccess = "fixtures/stacks/stack-deps-autoinclude-via-include-success"
+	testFixtureStackDepsAutoIncComplexSiblings   = "fixtures/stacks/stack-deps-autoinclude-complex-siblings"
+	testFixtureStackDepsRunAllFuncsInNestedStack = "fixtures/stacks/stack-deps-runall-funcs-in-nested-stack"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -485,20 +487,85 @@ func TestStackDepsDocExample_NestedStackPath(t *testing.T) {
 	assert.Equal(t, expectedPath, depPaths[0])
 }
 
-// Stack file declares autoinclude AND uses format() in path which the simplified parser cannot decode. Hard error required.
-func TestStackDepsAutoIncludeLoudFailOnParserLimit(t *testing.T) {
+// Regression: a non-literal expression (here, format()) in an unrelated unit must not block autoinclude resolution. Generation succeeds and the autoinclude file is produced for the unit that declares it.
+func TestStackDepsAutoIncludeWithFormatInOtherUnit(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncParserLimit)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncParserLimit)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncParserLimit, "live")
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
-	require.Error(t, err, "stack generate must return an error when autoinclude is declared and the two-pass parser cannot decode the stack file")
-	assert.Contains(t, err.Error()+"\n"+stdout+stderr, "failed to parse autoinclude block")
-	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
+	require.NoError(t, err, "non-literal expressions in unrelated units must not block autoinclude generation")
+	require.FileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
+}
+
+// Regression: a unit using `values.X` references in a sibling unit must not block autoinclude generation on a different unit.
+func TestStackDepsAutoIncludeWithValuesRefInOtherUnit(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	stackDir := filepath.Join(tmpDir, "live")
+	require.NoError(t, os.MkdirAll(stackDir, 0755))
+
+	for _, unitName := range []string{"account", "idp", "roles"} {
+		unitDir := filepath.Join(tmpDir, "catalog", "units", unitName)
+		require.NoError(t, os.MkdirAll(unitDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte("inputs = {}\n"), 0644))
+	}
+
+	valuesPath := filepath.Join(stackDir, "terragrunt.values.hcl")
+	require.NoError(t, os.WriteFile(valuesPath, []byte(`
+account = "acme"
+region  = "us-east-1"
+idps    = ["okta"]
+roles   = ["admin"]
+`), 0644))
+
+	stackHCL := `
+unit "account" {
+  source = "../catalog/units/account"
+  path   = "account_hcl"
+  values = {
+    account = values.account
+    region  = values.region
+  }
+}
+
+unit "idps" {
+  source = "../catalog/units/idp"
+  path   = "idps_hcl"
+  values = {
+    identityProviders = values.idps
+    region            = values.region
+  }
+}
+
+unit "roles" {
+  source = "../catalog/units/roles"
+  path   = "roles_hcl"
+  values = {
+    roles  = values.roles
+    region = values.region
+  }
+  autoinclude {
+    dependency "account" {
+      config_path = unit.account.path
+    }
+  }
+}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(stackHCL), 0644))
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+stackDir)
+	require.NoError(t, err, "values references in unrelated units must not block autoinclude generation on roles unit")
+
+	require.FileExists(t, filepath.Join(stackDir, inthclparse.StackDir, "roles_hcl", inthclparse.AutoIncludeFile))
+	require.NoFileExists(t, filepath.Join(stackDir, inthclparse.StackDir, "account_hcl", inthclparse.AutoIncludeFile))
+	require.NoFileExists(t, filepath.Join(stackDir, inthclparse.StackDir, "idps_hcl", inthclparse.AutoIncludeFile))
 }
 
 // Companion contract: parser-incompatible HCL without an autoinclude block still generates successfully (silent skip is allowed only when the user has nothing to lose).
@@ -521,42 +588,40 @@ unit "vpc" {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+stackDir)
-	require.NoError(t, err, "stack generate must succeed without autoinclude even if the two-pass parser cannot decode source/path expressions")
+	require.NoError(t, err, "stack generate must succeed without autoinclude even if production-only expressions appear in source/path attributes")
 
 	require.DirExists(t, filepath.Join(stackDir, inthclparse.StackDir, "vpc"))
 	require.NoFileExists(t, filepath.Join(stackDir, inthclparse.StackDir, "vpc", "terragrunt.autoinclude.hcl"))
 }
 
-// Root has only an `include` block (literal path); autoinclude lives in the included file along with parser-incompatible HCL.
-func TestStackDepsAutoIncludeLoudFailViaInclude(t *testing.T) {
+// Root has only an `include` block (literal path); autoinclude lives in the included file along with non-literal HCL expressions in unrelated units. Generation must succeed.
+func TestStackDepsAutoIncludePassesViaInclude(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncViaInclude)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncViaInclude)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncViaInclude, "live")
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
-	require.Error(t, err, "stack generate must return an error when autoinclude is declared in an included stack file")
-	assert.Contains(t, err.Error()+"\n"+stdout+stderr, "failed to parse autoinclude block")
-	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
+	require.NoError(t, err, "autoinclude in an included file must succeed even when the included file contains non-literal expressions in other units")
+	require.FileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }
 
-// Root's include.path is an HCL expression (format()) the simplified parser cannot decode; production parser still resolves it and the included file declares autoinclude.
-func TestStackDepsAutoIncludeLoudFailViaDynamicInclude(t *testing.T) {
+// Root's include.path is an HCL expression (format()) that the stack-dependencies parser must resolve with the production function context. The included file declares autoinclude, so generation must succeed.
+func TestStackDepsAutoIncludePassesViaDynamicInclude(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncViaDynInclude)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncViaDynInclude)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncViaDynInclude, "live")
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
-	require.Error(t, err, "stack generate must return an error when autoinclude is reachable via an expression-based include path")
-	assert.Contains(t, err.Error()+"\n"+stdout+stderr, "failed to parse autoinclude block")
-	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
+	require.NoError(t, err, "autoinclude reachable via an expression-based include path must succeed")
+	require.FileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }
 
 // Root has only an `include`; the included file declares parser-compatible autoinclude. Generation must use the included file's bytes when slicing expressions, otherwise mock_outputs/inputs come out garbled or empty.
@@ -918,4 +983,146 @@ func TestStackDepsE2ETree(t *testing.T) {
 	// Destroy must remove the marker files produced by apply.
 	assert.NoFileExists(t, markerA)
 	assert.NoFileExists(t, markerB)
+}
+
+// TestStackDepsAutoIncludeWithLocalRefInOtherUnit pins that local.* references in unrelated units do not block autoinclude generation.
+func TestStackDepsAutoIncludeWithLocalRefInOtherUnit(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	stackDir := filepath.Join(tmpDir, "live")
+	require.NoError(t, os.MkdirAll(stackDir, 0755))
+
+	for _, unitName := range []string{"a", "b"} {
+		unitDir := filepath.Join(tmpDir, "catalog", "units", unitName)
+		require.NoError(t, os.MkdirAll(unitDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte("inputs = {}\n"), 0644))
+	}
+
+	stackHCL := `
+locals {
+  region = "us-east-1"
+}
+
+unit "a" {
+  source = "../catalog/units/a"
+  path   = "a"
+  values = {
+    region = local.region
+  }
+}
+
+unit "b" {
+  source = "../catalog/units/b"
+  path   = "b"
+  autoinclude {
+    dependency "a" {
+      config_path = unit.a.path
+    }
+  }
+}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(stackHCL), 0644))
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+stackDir)
+	require.NoError(t, err, "local.* references in unrelated units must not block autoinclude generation")
+
+	require.FileExists(t, filepath.Join(stackDir, inthclparse.StackDir, "b", inthclparse.AutoIncludeFile))
+}
+
+// TestStackDepsAutoIncludeWithFunctionInSource pins that terragrunt function calls (e.g. get_terragrunt_dir()) in the source attribute of an unrelated unit do not block autoinclude generation.
+func TestStackDepsAutoIncludeWithFunctionInSource(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncComplexSiblings)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncComplexSiblings)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncComplexSiblings, "live")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err, "get_terragrunt_dir() in source plus local.* and values.* references in unrelated units must not block autoinclude generation")
+
+	// Autoinclude must be generated only on the unit that declared it.
+	require.FileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "roles", inthclparse.AutoIncludeFile))
+	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "account", inthclparse.AutoIncludeFile))
+	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "idps", inthclparse.AutoIncludeFile))
+}
+
+// TestStackDepsE2EAutoIncludeWithComplexSiblings is the end-to-end regression for stacks whose unrelated units use every HCL feature class that previously broke the simplified parser; the roles unit must observe the account unit's output through the generated autoinclude.
+func TestStackDepsE2EAutoIncludeWithComplexSiblings(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncComplexSiblings)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncComplexSiblings)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncComplexSiblings, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	autoIncludePath := filepath.Join(rootPath, inthclparse.StackDir, "roles", inthclparse.AutoIncludeFile)
+	require.FileExists(t, autoIncludePath, "roles unit must have its autoinclude file generated")
+
+	autoIncludeContent, err := os.ReadFile(autoIncludePath)
+	require.NoError(t, err)
+	assert.Contains(t, string(autoIncludeContent), `dependency "account"`)
+	assert.Contains(t, string(autoIncludeContent), "../account")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
+
+	markerPath := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "roles"), "marker.txt")
+
+	markerContent, err := os.ReadFile(markerPath)
+	require.NoError(t, err)
+	assert.Equal(t, "roles-received: account-output", string(markerContent), "roles must receive account's output via the generated autoinclude dependency")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+}
+
+// Regression: `run --all` discovery must walk a generated nested stack file even when its unit `source` attribute contains terragrunt function calls.
+func TestStackDepsRunAllWithFunctionsInNestedStack(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsRunAllFuncsInNestedStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsRunAllFuncsInNestedStack)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsRunAllFuncsInNestedStack, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	_, stderr, runErr := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
+	require.NoError(t, runErr, "run --all must succeed when the generated nested stack file contains terragrunt function calls; stderr=%s", stderr)
+	assert.NotContains(t, stderr, "Function calls not allowed",
+		"discovery must not surface 'Function calls not allowed' on generated nested stack files")
+
+	stdout, _, findErr := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --json --dag --dependencies --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, findErr)
+
+	var components []findComponent
+	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
+
+	foundNestedVPC := false
+
+	for _, c := range components {
+		if c.Type == "unit" && filepath.Base(c.Path) == "vpc" && strings.Contains(c.Path, filepath.Join("networking", inthclparse.StackDir, "vpc")) {
+			foundNestedVPC = true
+			break
+		}
+	}
+
+	require.True(t, foundNestedVPC, "generated nested stack unit vpc must be present in find output")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
+
+	nestedVPCGen := filepath.Join(rootPath, inthclparse.StackDir, "networking", inthclparse.StackDir, "vpc")
+	vpcOutput, _, outputErr := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt output -json vpc_id --experiment stack-dependencies --working-dir "+nestedVPCGen)
+	require.NoError(t, outputErr, "nested vpc unit must be applied by run --all discovery")
+	assert.Contains(t, vpcOutput, "vpc-from-nested-stack")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
 }

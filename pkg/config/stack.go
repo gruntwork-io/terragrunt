@@ -112,28 +112,38 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	var stackSrcBytes []byte
 
-	if pctx.Experiments.Evaluate(experiment.StackDependencies) {
-		// Note: stackSrcBytes is read separately for the two-pass autoinclude parser
-		// which uses a simplified eval context. ReadStackConfigFile does the full parse
-		// with the complete Terragrunt eval context including functions.
+	if pctx.Experiments.Evaluate(experiment.StackDependencies) && stackConfigHasAutoInclude(stackFile) {
+		// stackSrcBytes is read separately for the autoinclude parser, which slices expression byte ranges from the original file when generating terragrunt.autoinclude.hcl.
 		stackSrcBytes, err = os.ReadFile(stackFilePath)
 		if err != nil {
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 		}
 
-		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
+		// Rescope the parsing context to the stack file being parsed so terragrunt functions that resolve paths relative to TerragruntConfigPath (e.g. find_in_parent_folders, get_terragrunt_dir, path_relative_to_include) anchor on the nested stack file's location, not the root caller's terragrunt.hcl.
+		_, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
+		if scopedErr != nil {
+			return errors.Errorf("failed to rescope parsing context for autoinclude parser %s: %w", stackFilePath, scopedErr)
+		}
+
+		// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
+		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, l, stackFilePath)
+		if evalCtxErr != nil {
+			return errors.Errorf("failed to build eval context for autoinclude parser %s: %w", stackFilePath, evalCtxErr)
+		}
+
+		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
+			Src:       stackSrcBytes,
+			Filename:  stackFilePath,
+			StackDir:  stackSourceDir,
+			Values:    values,
+			Variables: prodEvalCtx.Variables,
+			Functions: prodEvalCtx.Functions,
+		})
 		if parseErr != nil {
-			// Detect autoinclude on the include-merged stackFile so the check works for include paths that use HCL functions/locals/values, where a raw-HCL nil-eval re-scan would fail.
-			if stackConfigHasAutoInclude(stackFile) {
-				return errors.Errorf("failed to parse autoinclude block(s) in %s: %w", stackFilePath, parseErr)
-			}
-
-			l.Tracef("Autoinclude parse skipped for %s: %v", stackFilePath, parseErr)
+			return errors.Errorf("failed to parse autoinclude block(s) in %s: %w", stackFilePath, parseErr)
 		}
 
-		if parseErr == nil {
-			autoIncludes = parseResult.AutoIncludes
-		}
+		autoIncludes = parseResult.AutoIncludes
 	}
 
 	casEnabled := pctx.Experiments.Evaluate(experiment.CAS) && !pctx.NoCAS
@@ -442,7 +452,6 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		return err
 	}
 
-	// generate values file
 	if err := writeValues(l, cmp.values, dest); err != nil {
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
 	}
@@ -1007,14 +1016,14 @@ func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
 		return false
 	}
 
-	for _, u := range stackFile.Units {
-		if u != nil && hasAutoIncludeInBody(u.Remain) {
+	for _, unit := range stackFile.Units {
+		if unit != nil && bodyHasBlock(unit.Remain, "autoinclude") {
 			return true
 		}
 	}
 
-	for _, s := range stackFile.Stacks {
-		if s != nil && hasAutoIncludeInBody(s.Remain) {
+	for _, stack := range stackFile.Stacks {
+		if stack != nil && bodyHasBlock(stack.Remain, "autoinclude") {
 			return true
 		}
 	}
@@ -1022,18 +1031,18 @@ func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
 	return false
 }
 
-// hasAutoIncludeInBody reports whether the given remain body contains a top-level autoinclude block. Only native HCL syntax bodies (*hclsyntax.Body) are inspected; JSON-format stack files return false because autoinclude blocks are only supported in native HCL.
-func hasAutoIncludeInBody(body hcl.Body) bool {
-	syntaxBody, ok := body.(*hclsyntax.Body)
-	if !ok {
+// bodyHasBlock reports whether body contains a top-level block of the given type. Works on both native HCL and JSON-format bodies via the schema-driven PartialContent API. On diagnostic errors we fail open and return true so the autoinclude parser still runs and surfaces the canonical error instead of silently skipping generation.
+func bodyHasBlock(body hcl.Body, blockType string) bool {
+	if body == nil {
 		return false
 	}
 
-	for _, block := range syntaxBody.Blocks {
-		if block.Type == "autoinclude" {
-			return true
-		}
+	content, _, diags := body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: blockType}},
+	})
+	if diags.HasErrors() {
+		return true
 	}
 
-	return false
+	return len(content.Blocks) > 0
 }

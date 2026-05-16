@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -89,4 +90,58 @@ func TestExtractFirstJSONObject(t *testing.T) {
 			assert.JSONEq(t, tc.want, string(got))
 		})
 	}
+}
+
+// TestResolveStackFilePath pins resolveStackFilePath across dependency-target shapes (direct stack file, explicit terragrunt config, bare directory).
+func TestResolveStackFilePath(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	wantStack := filepath.Join(tmpDir, DefaultStackFile)
+
+	cases := []struct {
+		name   string
+		raw    string
+		target string
+		want   string // "" means the dep is an explicit unit config, not a stack candidate
+	}{
+		{"stackFileDirectly", filepath.Join(tmpDir, DefaultStackFile), wantStack, wantStack},
+		{"explicitTerragruntHCL", filepath.Join(tmpDir, DefaultTerragruntConfigPath), filepath.Join(tmpDir, DefaultTerragruntConfigPath), ""},
+		{"explicitTerragruntJSON", filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), filepath.Join(tmpDir, DefaultTerragruntJSONConfigPath), ""},
+		{"bareDirectory", tmpDir, filepath.Join(tmpDir, DefaultTerragruntConfigPath), wantStack},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, resolveStackFilePath(tc.raw, tc.target))
+		})
+	}
+}
+
+// FuzzResolveStackFilePath verifies the path-rewrite helper never panics and every handled candidate ends in DefaultStackFile. raw is the user-authored dependency.config_path; target is the post-cleanup absolute path the resolver actually inspects — the two diverge in production (bare-directory raw + cleaned target with appended DefaultTerragruntConfigPath), so fuzz them independently.
+func FuzzResolveStackFilePath(f *testing.F) {
+	seeds := [][2]string{
+		{"/abs/dir/" + DefaultStackFile, "/abs/dir/" + DefaultStackFile},
+		{"/abs/dir", "/abs/dir/" + DefaultTerragruntConfigPath},
+		{"/abs/dir", "/abs/dir/" + DefaultTerragruntJSONConfigPath},
+		{"/abs/dir/" + DefaultTerragruntConfigPath, "/abs/dir/" + DefaultTerragruntConfigPath},
+		{"relative/dir", "relative/dir/" + DefaultTerragruntConfigPath},
+		{"", ""},
+		{".", "./" + DefaultTerragruntConfigPath},
+		{"/", "/" + DefaultTerragruntConfigPath},
+		{"\x00", "\x00"},
+		{"unicode/café", "unicode/café/" + DefaultTerragruntConfigPath},
+	}
+
+	for _, seed := range seeds {
+		f.Add(seed[0], seed[1])
+	}
+
+	f.Fuzz(func(t *testing.T, raw, target string) {
+		got := resolveStackFilePath(raw, target)
+		if got != "" {
+			require.Equal(t, DefaultStackFile, filepath.Base(got), "resolveStackFilePath must return either \"\" or a path whose base is %s (raw=%q target=%q got=%q)", DefaultStackFile, raw, target, got)
+		}
+	})
 }

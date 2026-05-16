@@ -3,6 +3,7 @@ package hclparse
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 
@@ -196,16 +197,9 @@ func CommentTokens(text string) hclwrite.Tokens {
 
 // SortedAttributes returns attributes in a deterministic order by source position.
 func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
-	sorted := make([]*hclsyntax.Attribute, 0, len(attrs))
-	for _, attr := range attrs {
-		sorted = append(sorted, attr)
-	}
-
-	slices.SortFunc(sorted, func(a, b *hclsyntax.Attribute) int {
+	return slices.SortedFunc(maps.Values(attrs), func(a, b *hclsyntax.Attribute) int {
 		return cmp.Compare(a.SrcRange.Start.Byte, b.SrcRange.Start.Byte)
 	})
-
-	return sorted
 }
 
 // writeDependencyBlock writes a single dependency block with resolved config_path.

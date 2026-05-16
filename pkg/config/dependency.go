@@ -789,11 +789,9 @@ func tryGetStackOutput(
 	targetConfigPath string,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
-	// Check if the path is a directory containing a stack file
-	stackFilePath := targetConfigPath
-
-	if filepath.Base(stackFilePath) != DefaultStackFile {
-		stackFilePath = filepath.Join(targetConfigPath, DefaultStackFile)
+	stackFilePath := resolveStackFilePath(dependencyConfig.ConfigPath.AsString(), targetConfigPath)
+	if stackFilePath == "" {
+		return nil, false, nil
 	}
 
 	if !util.FileExists(stackFilePath) {
@@ -826,6 +824,26 @@ func tryGetStackOutput(
 	result := cty.ObjectVal(unitOutputs)
 
 	return &result, true, nil
+}
+
+// resolveStackFilePath returns the candidate terragrunt.stack.hcl path for a dependency target, or "" when the dep explicitly points at a unit config (terragrunt.hcl / terragrunt.hcl.json) and is therefore not a stack candidate. rawConfigPath is the user-supplied dependency.config_path; targetConfigPath is the same path after getCleanedTargetConfigPath has normalized bare-directory deps to <dir>/terragrunt.hcl. Every non-empty return is guaranteed to end in DefaultStackFile so callers can trust the result without re-checking.
+func resolveStackFilePath(rawConfigPath, targetConfigPath string) string {
+	switch filepath.Base(filepath.Clean(rawConfigPath)) {
+	case DefaultStackFile:
+		// Honor the contract even when target is malformed: anchor on target's directory.
+		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile)
+	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
+		return ""
+	}
+
+	switch filepath.Base(targetConfigPath) {
+	case DefaultStackFile:
+		return targetConfigPath
+	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
+		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile)
+	default:
+		return filepath.Join(targetConfigPath, DefaultStackFile)
+	}
 }
 
 func isAwsS3NoSuchKey(err error) bool {

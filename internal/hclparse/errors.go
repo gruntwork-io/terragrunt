@@ -32,15 +32,32 @@ func (e DuplicateStackNameError) Error() string {
 	return fmt.Sprintf("duplicate stack name %q after include merge", e.Name)
 }
 
+// ReservedNameError indicates a unit or stack name collides with a reserved attribute key ("path", "name") in the unit.*/stack.* HCL ref namespace; such a component would be silently invisible to autoinclude expressions like `unit.<name>.path`, so the parser rejects it up front.
+type ReservedNameError struct {
+	Kind string
+	Name string
+}
+
+func (e ReservedNameError) Error() string {
+	return fmt.Sprintf("%s name %q collides with a reserved ref-namespace attribute (path, name); choose a different name", e.Kind, e.Name)
+}
+
 // IncludeValidationError indicates that an included stack file violates
-// constraints (e.g. defines locals or nested includes).
+// constraints (e.g. defines locals or nested includes). Err preserves the
+// underlying error (such as hcl.Diagnostics from include-path evaluation)
+// so callers can extract it via errors.As.
 type IncludeValidationError struct {
+	Err         error
 	IncludeName string
 	Reason      string
 }
 
 func (e IncludeValidationError) Error() string {
 	return fmt.Sprintf("included stack file %q: %s", e.IncludeName, e.Reason)
+}
+
+func (e IncludeValidationError) Unwrap() error {
+	return e.Err
 }
 
 // FileReadError indicates a failure to read a file from the filesystem.
@@ -67,14 +84,19 @@ func (e FileParseError) Error() string {
 	return fmt.Sprintf("failed to parse %s: %s", e.FilePath, e.Detail)
 }
 
-// FileDecodeError indicates a failure to decode an HCL file into a struct.
+// FileDecodeError indicates a failure to decode an HCL file into a struct. Err preserves the underlying error (typically hcl.Diagnostics) so callers can extract it via errors.As.
 type FileDecodeError struct {
+	Err    error
 	Name   string
 	Detail string
 }
 
 func (e FileDecodeError) Error() string {
 	return fmt.Sprintf("failed to decode %q: %s", e.Name, e.Detail)
+}
+
+func (e FileDecodeError) Unwrap() error {
+	return e.Err
 }
 
 // FileWriteError indicates a failure to write a file to the filesystem.
@@ -105,14 +127,19 @@ func (e DirCreateError) Unwrap() error {
 	return e.Err
 }
 
-// LocalEvalError indicates a failure to evaluate a local variable.
+// LocalEvalError indicates a failure to evaluate a local variable. Err preserves the underlying hcl.Diagnostics so callers can extract them via errors.As.
 type LocalEvalError struct {
+	Err    error
 	Name   string
 	Detail string
 }
 
 func (e LocalEvalError) Error() string {
 	return fmt.Sprintf("failed to evaluate local %q: %s", e.Name, e.Detail)
+}
+
+func (e LocalEvalError) Unwrap() error {
+	return e.Err
 }
 
 // LocalsCycleError indicates that locals have circular dependencies.
@@ -122,16 +149,6 @@ type LocalsCycleError struct {
 
 func (e LocalsCycleError) Error() string {
 	return fmt.Sprintf("could not evaluate locals (possible cycle): %v", e.Names)
-}
-
-// LocalsMaxIterError indicates that locals evaluation exceeded the maximum iterations.
-type LocalsMaxIterError struct {
-	MaxIterations int
-	Remaining     int
-}
-
-func (e LocalsMaxIterError) Error() string {
-	return fmt.Sprintf("locals evaluation exceeded %d iterations with %d unresolved locals", e.MaxIterations, e.Remaining)
 }
 
 // MalformedDependencyError indicates a dependency block in an autoinclude file is malformed. Err optionally carries the original HCL diagnostics so callers can extract position info via errors.As/Is.
