@@ -9,7 +9,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -98,8 +100,8 @@ func StackOutput(
 	}
 
 	if len(foundFiles) == 0 {
-		l.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
-		return cty.NilVal, nil
+		l.Debugf("No stack files found in %s; falling back to unit discovery for outputs", opts.WorkingDir)
+		return implicitStackOutput(ctx, l, opts)
 	}
 
 	outputs := xsync.NewMapOf[string, map[string]cty.Value]()
@@ -305,6 +307,101 @@ func readUnitOutput(
 	}
 
 	return output, nil
+}
+
+// implicitStackOutput collects unit outputs when no terragrunt.stack.hcl files are
+// present under opts.WorkingDir. Each discovered unit is keyed by its relative path
+// (e.g. "foo/bar"), preserving the path verbatim so two units never collide.
+func implicitStackOutput(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (cty.Value, error) {
+	d := discovery.NewDiscovery(opts.WorkingDir)
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return cty.NilVal, errors.Errorf("failed to discover units in %s: %w", opts.WorkingDir, err)
+	}
+
+	units := components.Filter(component.UnitKind)
+
+	if len(units) == 0 {
+		l.Warnf("No units found in %s. Nothing to output.", opts.WorkingDir)
+		return cty.NilVal, nil
+	}
+
+	outputs := xsync.NewMapOf[string, map[string]cty.Value]()
+
+	wp := worker.NewWorkerPool(opts.Parallelism)
+	defer wp.Stop()
+
+	for _, c := range units {
+		unitDir := c.Path()
+
+		key, relErr := implicitUnitKey(opts.WorkingDir, unitDir)
+		if relErr != nil {
+			return cty.NilVal, errors.Errorf("failed to determine relative path of unit %s: %w", unitDir, relErr)
+		}
+
+		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+		unit := &config.Unit{Name: key, Path: key}
+
+		wp.Submit(func() error {
+			out, err := readUnitOutput(ctx, l, pctx, unit, unitDir)
+			if err != nil {
+				return err
+			}
+
+			outputs.Store(key, out)
+
+			return nil
+		})
+	}
+
+	if err := wp.Wait(); err != nil {
+		return cty.NilVal, err
+	}
+
+	result := make(map[string]cty.Value)
+
+	var convErr error
+
+	outputs.Range(func(key string, val map[string]cty.Value) bool {
+		ctyVal, err := config.ConvertValuesMapToCtyVal(val)
+		if err != nil {
+			convErr = errors.Errorf("failed to convert unit output to cty value for %s: %w", key, err)
+			return false
+		}
+
+		result[key] = ctyVal
+
+		return true
+	})
+	if convErr != nil {
+		return cty.NilVal, convErr
+	}
+
+	if len(result) == 0 {
+		return cty.NilVal, nil
+	}
+
+	return cty.ObjectVal(result), nil
+}
+
+// implicitUnitKey returns the key used to identify a unit in implicit-stack output:
+// the unit directory's path relative to the working directory, with forward slashes
+// and no "./" prefix. Dropping the prefix keeps the key from colliding with the
+// dot-segment traversal that `FilterOutputs` uses for drill-down, so the user can
+// write `terragrunt stack output vpc.vpc_id` the same way they would for an
+// explicit-stack unit named "vpc".
+func implicitUnitKey(workingDir, unitDir string) (string, error) {
+	rel, err := filepath.Rel(workingDir, unitDir)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.ToSlash(rel), nil
 }
 
 // buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.

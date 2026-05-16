@@ -1,0 +1,33 @@
+---
+version: "v1.0.5"
+category: "new-features"
+---
+
+#### `stack output` works without `terragrunt.stack.hcl` (implicit stacks)
+
+`terragrunt stack output` previously required a `terragrunt.stack.hcl` file to produce aggregated outputs. When run in a directory with only loose units, it warned that no stack files were found and produced nothing.
+
+It now falls back to discovering units directly under the working directory and aggregates their outputs keyed by the unit's directory path (relative to the working directory):
+
+```bash
+$ terragrunt stack output
+db = {
+  endpoint = "db.local"
+  port     = 5432
+}
+vpc = {
+  vpc_id = "vpc-1234567890"
+}
+apps/api = {
+  domain = "api.example.com"
+}
+```
+
+Filtering and drill-down work the same way they do for explicit stacks:
+
+```bash
+$ terragrunt stack output vpc.vpc_id --format raw
+vpc-1234567890
+```
+
+Closes [#4559](https://github.com/gruntwork-io/terragrunt/issues/4559).
