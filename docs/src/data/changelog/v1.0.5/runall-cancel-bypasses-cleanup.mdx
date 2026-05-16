@@ -1,0 +1,10 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### Declining a `run --all` confirmation no longer skips cleanup
+
+When `terragrunt run --all destroy` (or `--all state`, `--all apply`) prompted for confirmation and the user answered "no", Terragrunt terminated the process directly, skipping cleanup the run had registered.
+
+Cleanup now runs before Terragrunt exits.

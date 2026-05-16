@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -61,6 +62,14 @@ func checkForErrorsAndExit(l log.Logger, exitCode int) func(error) {
 	return func(err error) {
 		if err == nil {
 			os.Exit(exitCode)
+		}
+
+		// User declined a destructive run-all prompt. Exit 0 without
+		// printing an error message, since they already declined at
+		// the prompt.
+		var userCancelled runall.UserCancelled
+		if errors.As(err, &userCancelled) {
+			os.Exit(0)
 		}
 
 		l.Error(err.Error())
