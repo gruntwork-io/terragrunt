@@ -18,8 +18,8 @@ import (
 // PanicIssueURL is the canonical bug-report destination shown in the crash banner.
 const PanicIssueURL = "https://github.com/gruntwork-io/terragrunt/issues"
 
-// PanicMessageMarkers are substrings emitted only in cty/runtime panic messages.
-var PanicMessageMarkers = []string{
+// panicMessageMarkers are substrings emitted only in cty/runtime panic messages.
+var panicMessageMarkers = []string{
 	"panic in function implementation",
 	"runtime/panic.go:",
 	"panic({0x",
@@ -41,7 +41,7 @@ When reporting bugs, please include your Terragrunt version and the panic
 report file, and any additional information which may help replicate the
 issue.
 
-[1]: %s
+[1]: ` + PanicIssueURL + `
 
 ***************************** TERRAGRUNT CRASH *****************************
 `
@@ -74,6 +74,7 @@ type PanicReporter struct {
 	Now       func() time.Time
 	Getwd     func() (string, error)
 	GetPID    func() int
+	TempDir   func() string
 	WriteFile func(name string, data []byte, perm os.FileMode) error
 	BuildInfo func() (commit string, modified bool)
 }
@@ -84,6 +85,7 @@ func NewPanicReporter() *PanicReporter {
 		Now:       time.Now,
 		Getwd:     os.Getwd,
 		GetPID:    os.Getpid,
+		TempDir:   os.TempDir,
 		WriteFile: os.WriteFile,
 		BuildInfo: ReadBuildInfo,
 	}
@@ -101,29 +103,15 @@ func (r *PanicReporter) PanicHandler(l Logger, version func() string, args []str
 		v = version()
 	}
 
-	if v == "" {
-		v = mainModuleVersion()
-	}
-
 	r.ReportPanic(l, v, fmt.Sprintf("%v", rec), debug.Stack(), args)
 	os.Exit(1)
-}
-
-// mainModuleVersion falls back to the binary's main module version when no caller-supplied version is available.
-func mainModuleVersion() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok || info.Main.Version == "" {
-		return ""
-	}
-
-	return info.Main.Version
 }
 
 // ReportPanic writes the crash log and friendly banner for a panic surfaced as a returned error.
 func (r *PanicReporter) ReportPanic(l Logger, version, panicMsg string, stack []byte, args []string) {
 	logPath, logContent, writeErr := r.writeLog(version, panicMsg, stack, args)
 
-	l.Error(fmt.Sprintf(panicOutput, PanicIssueURL))
+	l.Error(panicOutput)
 
 	if writeErr != nil {
 		l.Errorf("Unable to write crash report: %v", writeErr)
@@ -185,7 +173,7 @@ func NewPanicSuppressingWriter(inner io.Writer) *PanicSuppressingWriter {
 	return &PanicSuppressingWriter{Inner: inner}
 }
 
-// Write drops the payload when it carries panic content; otherwise it forwards to Inner.
+// Write returns (len(p), nil) on a dropped payload to honor the io.Writer contract; any other return would surface as a short-write error to callers like io.MultiWriter.
 func (w *PanicSuppressingWriter) Write(p []byte) (int, error) {
 	if IsPanicMessage(string(p)) {
 		return len(p), nil
@@ -194,13 +182,13 @@ func (w *PanicSuppressingWriter) Write(p []byte) (int, error) {
 	return w.Inner.Write(p)
 }
 
-// IsPanicMessage reports whether s contains any PanicMessageMarkers substring.
+// IsPanicMessage reports whether s contains a cty or Go-runtime panic marker.
 func IsPanicMessage(s string) bool {
 	if s == "" {
 		return false
 	}
 
-	for _, marker := range PanicMessageMarkers {
+	for _, marker := range panicMessageMarkers {
 		if strings.Contains(s, marker) {
 			return true
 		}
@@ -236,29 +224,72 @@ func ReadBuildInfo() (string, bool) {
 // Private helper functions
 
 func (r *PanicReporter) writeLog(version, panicMsg string, stack []byte, args []string) (string, string, error) {
-	now := r.Now()
-	pid := r.GetPID()
+	now := r.now()
+	pid := r.getPID()
 	workingDir := r.workingDir()
 	logPath := filepath.Join(workingDir, r.formatLogPath(now, pid))
 
 	content := r.formatLog(version, panicMsg, stack, args, now, workingDir, pid)
-	if err := r.WriteFile(logPath, []byte(content), crashFileMode); err != nil {
+	if err := r.writeFile(logPath, []byte(content), crashFileMode); err != nil {
 		return "", content, err
 	}
 
 	return logPath, content, nil
 }
 
+// now returns r.Now() or time.Now if r.Now is nil; safeguards a partial PanicReporter literal in the crash path.
+func (r *PanicReporter) now() time.Time {
+	if r.Now == nil {
+		return time.Now()
+	}
+
+	return r.Now()
+}
+
+// getPID returns r.GetPID() or os.Getpid if r.GetPID is nil.
+func (r *PanicReporter) getPID() int {
+	if r.GetPID == nil {
+		return os.Getpid()
+	}
+
+	return r.GetPID()
+}
+
+// writeFile delegates to r.WriteFile or os.WriteFile when unset.
+func (r *PanicReporter) writeFile(name string, data []byte, perm os.FileMode) error {
+	if r.WriteFile == nil {
+		return os.WriteFile(name, data, perm)
+	}
+
+	return r.WriteFile(name, data, perm)
+}
+
 func (r *PanicReporter) workingDir() string {
-	wd, err := r.Getwd()
-	if err == nil {
+	if r.Getwd != nil {
+		if wd, err := r.Getwd(); err == nil {
+			return wd
+		}
+	} else if wd, err := os.Getwd(); err == nil {
 		return wd
+	}
+
+	if r.TempDir != nil {
+		if td := r.TempDir(); td != "" {
+			return td
+		}
 	}
 
 	return os.TempDir()
 }
 
-func (r *PanicReporter) formatLog(version, panicMsg string, stack []byte, args []string, when time.Time, workingDir string, pid int) string {
+func (r *PanicReporter) formatLog(
+	version, panicMsg string,
+	stack []byte,
+	args []string,
+	when time.Time,
+	workingDir string,
+	pid int,
+) string {
 	commit, modified := "unknown", false
 	if r.BuildInfo != nil {
 		commit, modified = r.BuildInfo()

@@ -13,6 +13,7 @@ import (
 
 // RunAndExit runs the CLI then os.Exits with ExitCodeFor; top-level panics must be caught by `defer reporter.PanicHandler(...)`.
 func (app *App) RunAndExit(args []string, em *tf.DetailedExitCodeMap, reporter *log.PanicReporter) {
+	// Background root since RunAndExit owns the process lifetime; em and logger are injected so internals can resolve them via context.
 	ctx := log.ContextWithLogger(context.Background(), app.l)
 	ctx = tf.ContextWithDetailedExitCode(ctx, em)
 
