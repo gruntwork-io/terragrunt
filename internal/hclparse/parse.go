@@ -1,4 +1,4 @@
-// Package hclparse parses terragrunt.stack.hcl in phases: skeleton, locals, includes, unit/stack decode, autoincludes.
+// Package hclparse parses terragrunt.stack.hcl in four phases — (1) skeleton, (2) locals, (3) includes, (4) unit/stack decode plus autoinclude resolution.
 // Locals evaluate before include merge, and unit/stack vars become available after phase four.
 package hclparse
 
@@ -90,7 +90,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	// Phase 4 decodes unit/stack blocks and resolves autoincludes.
 	decoded := &unitsAndStacksHCL{}
 	if diags := gohcl.DecodeBody(mergedRemain, evalCtx, decoded); diags.HasErrors() {
-		// Keep successful results when other attributes fail.
+		// Surface whatever gohcl was able to decode before the error so LSP/IDE callers can inspect partial Units/Stacks; AutoIncludes is left empty because the autoinclude resolution step of Phase 4 did not run.
 		result.Units = decoded.Units
 		result.Stacks = decoded.Stacks
 
@@ -185,7 +185,7 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 	return evalCtx
 }
 
-// validateUniqueNames reports duplicate unit and stack names.
+// validateUniqueNames reports duplicate unit and stack names, and rejects the reserved names "path"/"name" that collide with the unit.<name>.* / stack.<name>.* ref-namespace attributes (specifically the reserved .path and .name keys).
 func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 	var errs []error
 
@@ -198,6 +198,10 @@ func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 		}
 
 		seenUnits[u.Name] = struct{}{}
+
+		if isReservedRefName(u.Name) {
+			errs = append(errs, ReservedNameError{Kind: "unit", Name: u.Name})
+		}
 	}
 
 	seenStacks := make(map[string]struct{}, len(decoded.Stacks))
@@ -209,9 +213,23 @@ func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 		}
 
 		seenStacks[s.Name] = struct{}{}
+
+		if isReservedRefName(s.Name) {
+			errs = append(errs, ReservedNameError{Kind: "stack", Name: s.Name})
+		}
 	}
 
 	return errors.Join(errs...)
+}
+
+// isReservedRefName reports whether the given unit/stack name would collide with one of the reserved attribute keys ("path", "name") in the unit.*/stack.* HCL ref namespace.
+func isReservedRefName(name string) bool {
+	switch name {
+	case "path", "name":
+		return true
+	}
+
+	return false
 }
 
 // buildUnitRefs builds component refs for unit blocks.

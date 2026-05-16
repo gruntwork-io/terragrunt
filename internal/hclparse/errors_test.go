@@ -29,6 +29,7 @@ func TestTypedErrors_Messages(t *testing.T) {
 		{name: "DirCreateError", err: hclparse.DirCreateError{DirPath: "/tmp/dir", Err: baseErr}, contains: "/tmp/dir"},
 		{name: "LocalEvalError", err: hclparse.LocalEvalError{Name: "env", Detail: "unknown var"}, contains: "env"},
 		{name: "LocalsCycleError", err: hclparse.LocalsCycleError{Names: []string{"a", "b"}}, contains: "[a b]"},
+		{name: "ReservedNameError", err: hclparse.ReservedNameError{Kind: "unit", Name: "path"}, contains: "path"},
 	}
 
 	for _, tt := range tests {

@@ -88,7 +88,7 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	return cty.ObjectVal(refMap)
 }
 
-// buildRefAttrs converts one ComponentRef and nested refs recursively.
+// buildRefAttrs converts one ComponentRef and nested refs recursively. The reserved attribute keys "path" and "name" hold the component's own metadata; a child ref with one of those names cannot be expressed in this namespace and is silently dropped. In practice this only affects nested stack discovery — a child unit or stack literally named "path" or "name" disappears from `stack.<parent>.path` / `.name` resolution. Validation in validateUniqueNames rejects these names at the top-level parse to make the constraint discoverable.
 func buildRefAttrs(ref ComponentRef) cty.Value {
 	attrs := map[string]cty.Value{
 		"path": cty.StringVal(ref.Path),
@@ -114,13 +114,13 @@ type unitPathOnlyHCL struct {
 	Name    string   `hcl:",label"`
 }
 
-// stackPathOnlyHCL is the discovery shape for stack name, path, and source.
+// stackPathOnlyHCL is the discovery shape for stack name, path, and source. Source is a lazy hcl.Expression so a non-literal source (e.g. `${get_terragrunt_dir()}/...`) in a nested stack file does not block decode against the stdlib-only discovery eval context; the source is only evaluated when recursion needs it, and unresolvable sources skip recursion silently (consistent with best-effort discovery). Path is intentionally eager (string) — function calls in path are not exercised by any current fixture; if discovery ever needs to tolerate them, this type should be widened the same way Source was.
 type stackPathOnlyHCL struct {
-	Remain  hcl.Body `hcl:",remain"`
-	NoStack *bool    `hcl:"no_dot_terragrunt_stack,optional"`
-	Path    string   `hcl:"path,attr"`
-	Source  string   `hcl:"source,attr"`
-	Name    string   `hcl:",label"`
+	Remain  hcl.Body       `hcl:",remain"`
+	NoStack *bool          `hcl:"no_dot_terragrunt_stack,optional"`
+	Source  hcl.Expression `hcl:"source,attr"`
+	Path    string         `hcl:"path,attr"`
+	Name    string         `hcl:",label"`
 }
 
 // discoveryDecode holds decoded unit and stack blocks for discovery.
@@ -244,16 +244,17 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 			nestedGenPath = filepath.Join(stackGenDir, s.Path)
 		}
 
-		nestedSourceDir := s.Source
-		if !filepath.IsAbs(nestedSourceDir) {
-			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
+		ref := ComponentRef{Name: s.Name, Path: nestedGenPath}
+
+		if nestedSourceDir, ok := literalString(s.Source); ok {
+			if !filepath.IsAbs(nestedSourceDir) {
+				nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
+			}
+
+			ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1)
 		}
 
-		refs = append(refs, ComponentRef{
-			Name:      s.Name,
-			Path:      nestedGenPath,
-			ChildRefs: discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1),
-		})
+		refs = append(refs, ref)
 	}
 
 	return refs
@@ -296,6 +297,24 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL,
 	}
 
 	return decoded.Units, decoded.Stacks, nil
+}
+
+// literalString returns the string value of expr if expr is a static literal (no function calls, no variable refs), and (val, true) on success. Returns ("", false) for any expression that requires evaluation, so discovery callers can skip recursion into nested stacks whose source is not resolvable against the stdlib-only eval context.
+func literalString(expr hcl.Expression) (string, bool) {
+	if expr == nil {
+		return "", false
+	}
+
+	if len(expr.Variables()) > 0 {
+		return "", false
+	}
+
+	val, diags := expr.Value(nil)
+	if diags.HasErrors() || val.IsNull() || !val.IsKnown() || val.Type() != cty.String {
+		return "", false
+	}
+
+	return val.AsString(), true
 }
 
 // stdlibEvalContext returns a minimal Terraform stdlib eval context for discovery.

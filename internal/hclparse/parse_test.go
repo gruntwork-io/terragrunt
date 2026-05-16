@@ -938,6 +938,48 @@ stack "infra" {
 	assert.Contains(t, err.Error(), "duplicate stack name")
 }
 
+func TestParseStackFile_RejectsReservedUnitName(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "path" {
+  source = "../catalog/units/path"
+  path   = "p"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+
+	var reservedErr hclparse.ReservedNameError
+
+	require.ErrorAs(t, err, &reservedErr)
+	assert.Equal(t, "unit", reservedErr.Kind)
+	assert.Equal(t, "path", reservedErr.Name)
+}
+
+func TestParseStackFile_RejectsReservedStackName(t *testing.T) {
+	t.Parallel()
+
+	src := `
+stack "name" {
+  source = "../catalog/stacks/name"
+  path   = "n"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+
+	var reservedErr hclparse.ReservedNameError
+
+	require.ErrorAs(t, err, &reservedErr)
+	assert.Equal(t, "stack", reservedErr.Kind)
+	assert.Equal(t, "name", reservedErr.Name)
+}
+
 func TestParseStackFile_IncludeWithLocals(t *testing.T) {
 	t.Parallel()
 

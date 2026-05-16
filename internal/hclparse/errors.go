@@ -32,6 +32,16 @@ func (e DuplicateStackNameError) Error() string {
 	return fmt.Sprintf("duplicate stack name %q after include merge", e.Name)
 }
 
+// ReservedNameError indicates a unit or stack name collides with a reserved attribute key ("path", "name") in the unit.*/stack.* HCL ref namespace; such a component would be silently invisible to autoinclude expressions like `unit.<name>.path`, so the parser rejects it up front.
+type ReservedNameError struct {
+	Kind string
+	Name string
+}
+
+func (e ReservedNameError) Error() string {
+	return fmt.Sprintf("%s name %q collides with a reserved ref-namespace attribute (path, name); choose a different name", e.Kind, e.Name)
+}
+
 // IncludeValidationError indicates that an included stack file violates
 // constraints (e.g. defines locals or nested includes). Err preserves the
 // underlying error (such as hcl.Diagnostics from include-path evaluation)
