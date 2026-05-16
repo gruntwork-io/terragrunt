@@ -35,6 +35,7 @@ const (
 	testFixtureStacksRemote                    = "fixtures/stacks/remote"
 	testFixtureStacksInputs                    = "fixtures/stacks/inputs"
 	testFixtureStacksOutputs                   = "fixtures/stacks/outputs"
+	testFixtureStacksOutputsImplicit           = "fixtures/stacks/outputs-implicit"
 	testFixtureStacksUnitValues                = "fixtures/stacks/unit-values"
 	testFixtureStacksLocalsError               = "fixtures/stacks/errors/locals-error"
 	testFixtureStacksUnitEmptyPath             = "fixtures/stacks/errors/unit-empty-path"
@@ -475,6 +476,63 @@ func TestStackOutputs(t *testing.T) {
 
 	attr, _ := hcl.Body.JustAttributes()
 	assert.Len(t, attr, 4)
+}
+
+// TestStackOutputsImplicit verifies that `terragrunt stack output` falls back to
+// unit discovery when no terragrunt.stack.hcl files are present, and keys each
+// unit's outputs by its directory path relative to the working directory.
+func TestStackOutputsImplicit(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputsImplicit)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputsImplicit)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksOutputsImplicit, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
+
+	t.Run("json", func(t *testing.T) {
+		t.Parallel()
+
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --non-interactive --working-dir "+rootPath)
+		require.NoError(t, err)
+
+		var result map[string]map[string]any
+
+		err = json.Unmarshal([]byte(stdout), &result)
+		require.NoError(t, err)
+
+		assert.Len(t, result, 3)
+		assert.Equal(t, "vpc-1234567890", result["vpc"]["vpc_id"])
+		assert.Equal(t, "mysql-1.example.com", result["mysql"]["endpoint"])
+		assert.Equal(t, "serverless-valkey-01.amazonaws.com", result["somefolder/aws"]["endpoint"])
+		// excluded-from-output declares `exclude { actions = ["output"] }` and
+		// must be omitted from the aggregated output, matching explicit-stack
+		// behavior.
+		assert.NotContains(t, result, "excluded-from-output")
+	})
+
+	t.Run("filter by path key", func(t *testing.T) {
+		t.Parallel()
+
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output somefolder/aws --format json --non-interactive --working-dir "+rootPath)
+		require.NoError(t, err)
+
+		var result map[string]map[string]any
+
+		err = json.Unmarshal([]byte(stdout), &result)
+		require.NoError(t, err)
+
+		assert.Len(t, result, 1)
+		assert.Equal(t, "serverless-valkey-01.amazonaws.com", result["somefolder/aws"]["endpoint"])
+	})
+
+	t.Run("drill into a specific attribute", func(t *testing.T) {
+		t.Parallel()
+
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output vpc.vpc_id --format raw --non-interactive --working-dir "+rootPath)
+		require.NoError(t, err)
+		assert.Equal(t, "vpc-1234567890", strings.TrimSpace(stdout))
+	})
 }
 
 func TestStackOutputsRaw(t *testing.T) {

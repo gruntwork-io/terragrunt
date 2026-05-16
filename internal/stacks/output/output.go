@@ -10,7 +10,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -99,8 +101,8 @@ func StackOutput(
 	}
 
 	if len(foundFiles) == 0 {
-		l.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
-		return cty.NilVal, nil
+		l.Debugf("No stack files found in %s; falling back to unit discovery for outputs", opts.WorkingDir)
+		return implicitStackOutput(ctx, l, opts, excludedPaths)
 	}
 
 	outputs := xsync.NewMap[string, map[string]cty.Value]()
@@ -320,6 +322,88 @@ func readUnitOutput(
 	}
 
 	return output, nil
+}
+
+// implicitStackOutput collects unit outputs when no terragrunt.stack.hcl files
+// are present under opts.WorkingDir. Each discovered unit is keyed by its
+// relative path (e.g. "foo/bar"). excludedPaths carries through the upstream
+// discovery's unit-level `exclude` block evaluations against opts.TerraformCommand.
+func implicitStackOutput(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	excludedPaths map[string]struct{},
+) (cty.Value, error) {
+	d := discovery.NewDiscovery(opts.WorkingDir)
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return cty.NilVal, errors.Errorf("failed to discover units in %s: %w", opts.WorkingDir, err)
+	}
+
+	units := components.Filter(component.UnitKind)
+
+	if len(units) == 0 {
+		l.Warnf("No units found in %s. Nothing to output.", opts.WorkingDir)
+		return cty.NilVal, nil
+	}
+
+	outputs := xsync.NewMapOf[string, cty.Value]()
+
+	wp := worker.NewWorkerPool(opts.Parallelism)
+	defer wp.Stop()
+
+	for _, c := range units {
+		unitDir := c.Path()
+
+		if _, excluded := excludedPaths[filepath.Clean(unitDir)]; excluded {
+			l.Debugf("Skipping output for excluded unit in %s", unitDir)
+			continue
+		}
+
+		rel, relErr := filepath.Rel(opts.WorkingDir, unitDir)
+		if relErr != nil {
+			return cty.NilVal, errors.Errorf("failed to determine relative path of unit %s: %w", unitDir, relErr)
+		}
+
+		key := filepath.ToSlash(rel)
+
+		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+		unit := &config.Unit{Name: key}
+
+		wp.Submit(func() error {
+			out, err := readUnitOutput(ctx, l, pctx, unit, unitDir)
+			if err != nil {
+				return err
+			}
+
+			ctyVal, err := config.ConvertValuesMapToCtyVal(out)
+			if err != nil {
+				return errors.Errorf("failed to convert unit output to cty value for %s: %w", key, err)
+			}
+
+			outputs.Store(key, ctyVal)
+
+			return nil
+		})
+	}
+
+	if err := wp.Wait(); err != nil {
+		return cty.NilVal, err
+	}
+
+	result := make(map[string]cty.Value)
+
+	outputs.Range(func(k string, v cty.Value) bool {
+		result[k] = v
+		return true
+	})
+
+	if len(result) == 0 {
+		return cty.NilVal, nil
+	}
+
+	return cty.ObjectVal(result), nil
 }
 
 // buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.
