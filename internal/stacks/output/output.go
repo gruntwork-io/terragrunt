@@ -101,7 +101,7 @@ func StackOutput(
 
 	if len(foundFiles) == 0 {
 		l.Debugf("No stack files found in %s; falling back to unit discovery for outputs", opts.WorkingDir)
-		return implicitStackOutput(ctx, l, opts)
+		return implicitStackOutput(ctx, l, opts, excludedPaths)
 	}
 
 	outputs := xsync.NewMapOf[string, map[string]cty.Value]()
@@ -312,10 +312,15 @@ func readUnitOutput(
 // implicitStackOutput collects unit outputs when no terragrunt.stack.hcl files are
 // present under opts.WorkingDir. Each discovered unit is keyed by its relative path
 // (e.g. "foo/bar"), preserving the path verbatim so two units never collide.
+//
+// excludedPaths carries through unit-level `exclude` block evaluations performed
+// by the upstream discovery walk (against opts.TerraformCommand), keeping implicit
+// and explicit stacks on the same exclusion semantics.
 func implicitStackOutput(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
+	excludedPaths map[string]struct{},
 ) (cty.Value, error) {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
@@ -338,6 +343,11 @@ func implicitStackOutput(
 
 	for _, c := range units {
 		unitDir := c.Path()
+
+		if _, excluded := excludedPaths[filepath.Clean(unitDir)]; excluded {
+			l.Debugf("Skipping output for excluded unit in %s", unitDir)
+			continue
+		}
 
 		key, relErr := implicitUnitKey(opts.WorkingDir, unitDir)
 		if relErr != nil {

@@ -504,6 +504,10 @@ func TestStackOutputsImplicit(t *testing.T) {
 		assert.Equal(t, "vpc-1234567890", result["vpc"]["vpc_id"])
 		assert.Equal(t, "mysql-1.example.com", result["mysql"]["endpoint"])
 		assert.Equal(t, "serverless-valkey-01.amazonaws.com", result["somefolder/aws"]["endpoint"])
+		// excluded-from-output declares `exclude { actions = ["output"] }` and
+		// must be omitted from the aggregated output, matching explicit-stack
+		// behavior.
+		assert.NotContains(t, result, "excluded-from-output")
 	})
 
 	t.Run("filter by path key", func(t *testing.T) {
