@@ -47,12 +47,6 @@ func (writer *Writer) Write(p []byte) (n int, err error) {
 		strs = []string{str}
 	)
 
-	// Suppress the entire payload when it carries recovered-panic content;
-	// the crash-report path surfaces it via the dedicated crash log.
-	if log.IsPanicMessage(str) {
-		return len(p), nil
-	}
-
 	if writer.msgSeparator != "" {
 		strs = strings.Split(str, writer.msgSeparator)
 	}

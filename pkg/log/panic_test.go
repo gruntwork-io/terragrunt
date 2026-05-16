@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
+	"strconv"
 	"testing"
 	"time"
 
@@ -102,26 +102,90 @@ func TestReportPanicFallbacksOnEmptyInputs(t *testing.T) {
 func TestReportPanicFallsBackToTempDirWhenGetwdFails(t *testing.T) {
 	t.Parallel()
 
-	r := newStubPanicReporter(t.TempDir(), time.Now().UTC(), 1)
+	when := time.Now().UTC()
+	pid := os.Getpid()
+	r := newStubPanicReporter(t.TempDir(), when, pid)
 	r.Getwd = func() (string, error) { return "", stdErrors.New("denied") }
+
+	expectedPath := filepath.Join(os.TempDir(), "terragrunt-crash-"+when.Format("20060102T150405Z")+"-"+strconv.Itoa(pid)+".log")
+
+	t.Cleanup(func() { _ = os.Remove(expectedPath) })
 
 	logger, _ := newPanicLogger()
 	r.ReportPanic(logger, "1.7.9", "divide by zero", []byte("stack"), nil)
 
-	entries, err := os.ReadDir(os.TempDir())
-	require.NoError(t, err)
+	_, err := os.Stat(expectedPath)
+	require.NoError(t, err, "expected crash file at %s", expectedPath)
+}
 
-	var found bool
+func TestPanicSuppressingWriter(t *testing.T) {
+	t.Parallel()
 
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), "terragrunt-crash-") {
-			found = true
+	t.Run("forwards regular payloads", func(t *testing.T) {
+		t.Parallel()
 
-			break
-		}
-	}
+		var inner bytes.Buffer
 
-	assert.True(t, found, "expected at least one terragrunt-crash- file under TempDir")
+		w := log.NewPanicSuppressingWriter(&inner)
+		n, err := w.Write([]byte("regular log line\n"))
+		require.NoError(t, err)
+		assert.Equal(t, len("regular log line\n"), n)
+		assert.Equal(t, "regular log line\n", inner.String())
+	})
+
+	t.Run("drops panic-bearing payloads", func(t *testing.T) {
+		t.Parallel()
+
+		var inner bytes.Buffer
+
+		w := log.NewPanicSuppressingWriter(&inner)
+		payload := "Error: Error in function call\nCall to function \"run_cmd\" failed: panic in function implementation: nil deref\n"
+		n, err := w.Write([]byte(payload))
+		require.NoError(t, err)
+		assert.Equal(t, len(payload), n)
+		assert.Empty(t, inner.String())
+	})
+}
+
+func TestPanicDetails(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil returns empty values", func(t *testing.T) {
+		t.Parallel()
+
+		msg, stack := log.PanicDetails(nil)
+		assert.Empty(t, msg)
+		assert.Nil(t, stack)
+	})
+
+	t.Run("cty function.PanicError splits value and stack", func(t *testing.T) {
+		t.Parallel()
+
+		err := function.PanicError{Value: "nil deref", Stack: []byte("cty stack frames")}
+		msg, stack := log.PanicDetails(err)
+
+		assert.Equal(t, "nil deref", msg)
+		assert.Equal(t, []byte("cty stack frames"), stack)
+	})
+
+	t.Run("wrapped cty panic still extracts via errors.As", func(t *testing.T) {
+		t.Parallel()
+
+		inner := function.PanicError{Value: "boom", Stack: []byte("inner stack")}
+		wrapped := fmt.Errorf("evaluating: %w", inner)
+
+		msg, stack := log.PanicDetails(wrapped)
+		assert.Equal(t, "boom", msg)
+		assert.Equal(t, []byte("inner stack"), stack)
+	})
+
+	t.Run("non-cty panic falls back to err.Error", func(t *testing.T) {
+		t.Parallel()
+
+		msg, stack := log.PanicDetails(stdErrors.New("plain panic message"))
+		assert.Equal(t, "plain panic message", msg)
+		assert.Nil(t, stack)
+	})
 }
 
 func TestIsPanic(t *testing.T) {

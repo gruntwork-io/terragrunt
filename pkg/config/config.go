@@ -107,7 +107,7 @@ var (
 
 		parseOpts := make([]hclparse.Option, 0, 3) //nolint:mnd
 		parseOpts = append(parseOpts,
-			hclparse.WithDiagnosticsWriter(writer, l.Formatter().DisabledColors()),
+			hclparse.WithDiagnosticsWriter(log.NewPanicSuppressingWriter(writer), l.Formatter().DisabledColors()),
 			hclparse.WithLogger(l),
 		)
 

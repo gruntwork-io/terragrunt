@@ -3,6 +3,6 @@ version: "v1.0.5"
 category: "bug-fixes"
 ---
 
-#### Friendly panic crash reporting with crash logs
+#### Friendly panic reports
 
-Terragrunt now writes a `terragrunt-crash-*.log` file with full panic context instead of dumping a raw stack trace. The terminal shows a short banner pointing to the file and to https://github.com/gruntwork-io/terragrunt/issues. If the log can't be written, the report is printed inline.
+On a panic, Terragrunt now writes a `terragrunt-crash-<UTC-timestamp>-<pid>.log` file in the working directory (falling back to the system temp directory) with full runtime context, then logs the file path and the bug-report URL: https://github.com/gruntwork-io/terragrunt/issues. The raw stack trace no longer floods the terminal. If the file cannot be written, the same content is printed inline so nothing is lost.
