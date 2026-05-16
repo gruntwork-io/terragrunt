@@ -3,7 +3,6 @@ package runall
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
@@ -44,7 +43,7 @@ var runAllDisabledCommands = map[string]string{
 }
 
 // Run executes the configured terraform command across every unit in the stack.
-func Run(ctx context.Context, l log.Logger, v *run.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *run.Venv, opts *options.TerragruntOptions) (err error) {
 	// --filter sets RunAll, so the CLI layer dispatches here without going
 	// through the single-unit run path. Emit the tip here as well; the
 	// underlying sync.Once dedupes if both paths fire.
@@ -89,21 +88,27 @@ func Run(ctx context.Context, l log.Logger, v *run.Venv, opts *options.Terragrun
 	// Skip summary for programmatic interactions:
 	// - When JSON output is requested (--json or report format is JSON)
 	// - When running 'output' command (typically for programmatic consumption)
+	// - When the user cancelled the run-all confirmation prompt, since
+	//   no units ran.
 	if !opts.SummaryDisable && !shouldSkipSummary(opts) {
 		defer func() {
-			if err := r.WriteSummary(v.Writers.Writer); err != nil {
-				l.Warnf("Failed to write summary: %v", err)
+			var userCancelled UserCancelled
+			if errors.As(err, &userCancelled) {
+				return
+			}
+
+			if writeErr := r.WriteSummary(v.Writers.Writer); writeErr != nil {
+				l.Warnf("Failed to write summary: %v", writeErr)
 			}
 		}()
 	}
 
 	gitFilters := opts.Filters.UniqueGitFilters()
 
-	// Only create worktrees when git filter expressions are present
-	var (
-		wts *worktrees.Worktrees
-		err error
-	)
+	// Only create worktrees when git filter expressions are present.
+	// `err` is the named return; the summary defer reads it to detect
+	// UserCancelled.
+	var wts *worktrees.Worktrees
 	if len(gitFilters) > 0 {
 		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
@@ -207,8 +212,11 @@ func RunAllOnStack(
 		}
 
 		if !shouldRunAll {
-			// We explicitly exit here to avoid running any defers that might be registered, like from the run summary.
-			os.Exit(0)
+			// Return a sentinel so the caller can map the cancellation
+			// to a clean exit. os.Exit here would skip every defer in
+			// the program, including worktree cleanup and telemetry
+			// shutdown.
+			return UserCancelled{}
 		}
 	}
 
