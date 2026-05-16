@@ -76,7 +76,11 @@ func unmarshalBody(data []byte, value any) error {
 
 func decodeResponse(resp *http.Response) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil
+		if resp.StatusCode == http.StatusTooManyRequests {
+			return nil, errors.Errorf("received HTTP 429 Too Many Requests from %s (rate limited by registry)", resp.Request.URL)
+		}
+
+		return nil, errors.Errorf("received HTTP %d %s from %s", resp.StatusCode, http.StatusText(resp.StatusCode), resp.Request.URL)
 	}
 
 	buffer, err := ResponseBuffer(resp)
