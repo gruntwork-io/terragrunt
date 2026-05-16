@@ -71,9 +71,6 @@ Stack trace:
 `
 )
 
-// VersionFunc returns the Terragrunt version string at the moment a crash is reported.
-type VersionFunc func() string
-
 // PanicReporter holds the side-effecting hooks the crash-report path depends on.
 type PanicReporter struct {
 	Now       func() time.Time
@@ -96,14 +93,19 @@ func NewPanicReporter() *PanicReporter {
 
 // PanicHandler catches a panic from the deferred call site, writes a crash report, and exits with code 1.
 // Must be invoked as `defer r.PanicHandler(...)` so recover() runs in the deferred function directly.
-// version is a getter so callers can supply a value populated lazily.
-func (r *PanicReporter) PanicHandler(l Logger, version VersionFunc, args []string) {
+// version is a getter so callers can supply a value populated lazily by the CLI before-action.
+func (r *PanicReporter) PanicHandler(l Logger, version func() string, args []string) {
 	rec := recover()
 	if rec == nil {
 		return
 	}
 
-	r.ReportPanic(l, callVersion(version), fmt.Sprintf("%v", rec), debug.Stack(), args)
+	v := ""
+	if version != nil {
+		v = version()
+	}
+
+	r.ReportPanic(l, v, fmt.Sprintf("%v", rec), debug.Stack(), args)
 	os.Exit(1)
 }
 
@@ -231,14 +233,6 @@ func ReadBuildInfo() (string, bool) {
 }
 
 // Private helper functions
-
-func callVersion(fn VersionFunc) string {
-	if fn == nil {
-		return ""
-	}
-
-	return fn()
-}
 
 func (r *PanicReporter) writeLog(version, panicMsg string, stack []byte, args []string) (string, string, error) {
 	now := r.Now()
