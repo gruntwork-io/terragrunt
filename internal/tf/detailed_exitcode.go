@@ -92,6 +92,15 @@ func (m *DetailedExitCodeMap) GetFinalDetailedExitCode() int {
 	return DetailedExitCodeSuccess
 }
 
+// Final returns the aggregate exit code, using detailed-exitcode rules when detailed is true.
+func (m *DetailedExitCodeMap) Final(detailed bool) int {
+	if detailed {
+		return m.GetFinalDetailedExitCode()
+	}
+
+	return m.GetFinalExitCode()
+}
+
 // GetFinalExitCode computes the final exit code assuming the user hasn't supplied the -detailed-exitcode flag.
 //
 // In this case, we only care about any non-zero exit codes, so we'll return the highest exit code we can find.
