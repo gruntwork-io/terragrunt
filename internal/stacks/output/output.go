@@ -309,13 +309,10 @@ func readUnitOutput(
 	return output, nil
 }
 
-// implicitStackOutput collects unit outputs when no terragrunt.stack.hcl files are
-// present under opts.WorkingDir. Each discovered unit is keyed by its relative path
-// (e.g. "foo/bar"), preserving the path verbatim so two units never collide.
-//
-// excludedPaths carries through unit-level `exclude` block evaluations performed
-// by the upstream discovery walk (against opts.TerraformCommand), keeping implicit
-// and explicit stacks on the same exclusion semantics.
+// implicitStackOutput collects unit outputs when no terragrunt.stack.hcl files
+// are present under opts.WorkingDir. Each discovered unit is keyed by its
+// relative path (e.g. "foo/bar"). excludedPaths carries through the upstream
+// discovery's unit-level `exclude` block evaluations against opts.TerraformCommand.
 func implicitStackOutput(
 	ctx context.Context,
 	l log.Logger,
@@ -336,7 +333,7 @@ func implicitStackOutput(
 		return cty.NilVal, nil
 	}
 
-	outputs := xsync.NewMapOf[string, map[string]cty.Value]()
+	outputs := xsync.NewMapOf[string, cty.Value]()
 
 	wp := worker.NewWorkerPool(opts.Parallelism)
 	defer wp.Stop()
@@ -349,10 +346,6 @@ func implicitStackOutput(
 			continue
 		}
 
-		// Key each unit by its relative path with forward slashes and no "./"
-		// prefix. The bare-path form lets `FilterOutputs` drill into a specific
-		// attribute via dot notation (e.g. "vpc.vpc_id"), the same way it does
-		// for an explicit-stack unit named "vpc".
 		rel, relErr := filepath.Rel(opts.WorkingDir, unitDir)
 		if relErr != nil {
 			return cty.NilVal, errors.Errorf("failed to determine relative path of unit %s: %w", unitDir, relErr)
@@ -361,7 +354,7 @@ func implicitStackOutput(
 		key := filepath.ToSlash(rel)
 
 		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
-		unit := &config.Unit{Name: key, Path: key}
+		unit := &config.Unit{Name: key}
 
 		wp.Submit(func() error {
 			out, err := readUnitOutput(ctx, l, pctx, unit, unitDir)
@@ -369,7 +362,12 @@ func implicitStackOutput(
 				return err
 			}
 
-			outputs.Store(key, out)
+			ctyVal, err := config.ConvertValuesMapToCtyVal(out)
+			if err != nil {
+				return errors.Errorf("failed to convert unit output to cty value for %s: %w", key, err)
+			}
+
+			outputs.Store(key, ctyVal)
 
 			return nil
 		})
@@ -380,23 +378,10 @@ func implicitStackOutput(
 	}
 
 	result := make(map[string]cty.Value)
-
-	var convErr error
-
-	outputs.Range(func(key string, val map[string]cty.Value) bool {
-		ctyVal, err := config.ConvertValuesMapToCtyVal(val)
-		if err != nil {
-			convErr = errors.Errorf("failed to convert unit output to cty value for %s: %w", key, err)
-			return false
-		}
-
-		result[key] = ctyVal
-
+	outputs.Range(func(k string, v cty.Value) bool {
+		result[k] = v
 		return true
 	})
-	if convErr != nil {
-		return cty.NilVal, convErr
-	}
 
 	if len(result) == 0 {
 		return cty.NilVal, nil
