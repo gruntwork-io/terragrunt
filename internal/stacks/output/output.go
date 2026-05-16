@@ -394,6 +394,7 @@ func implicitStackOutput(
 	}
 
 	result := make(map[string]cty.Value)
+
 	outputs.Range(func(k string, v cty.Value) bool {
 		result[k] = v
 		return true
