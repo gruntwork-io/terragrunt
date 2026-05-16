@@ -292,8 +292,7 @@ type TerragruntOptions struct {
 	NoFiltersFile bool
 }
 
-// VersionString returns the configured Terragrunt version, or "" if unset.
-// Safe to call on a nil receiver.
+// VersionString returns the configured Terragrunt version, or "" if unset or receiver is nil.
 func (opts *TerragruntOptions) VersionString() string {
 	if opts == nil || opts.TerragruntVersion == nil {
 		return ""
