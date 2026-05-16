@@ -1478,6 +1478,79 @@ stack "networking" {
 	}
 }
 
+func TestParseStackFile_LocalsCycleIsDeterministic(t *testing.T) {
+	t.Parallel()
+
+	src := []byte(`
+locals {
+  a = local.b
+  b = local.c
+  c = local.a
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`)
+
+	var first []string
+
+	for i := range 5 {
+		_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+		require.Error(t, err)
+
+		var cycleErr hclparse.LocalsCycleError
+		require.ErrorAs(t, err, &cycleErr)
+
+		if i == 0 {
+			first = cycleErr.Names
+			continue
+		}
+
+		assert.Equal(t, first, cycleErr.Names, "cycle path must be deterministic across runs (run %d)", i)
+	}
+}
+
+func TestParseStackFile_IncludePathNullCarriesSourcePosition(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/test/dummy.stack.hcl", []byte(`
+unit "extra" {
+  source = "../catalog/units/extra"
+  path   = "extra"
+}
+`), 0644))
+
+	src := []byte(`
+locals {
+  bad = null
+}
+
+include "extra" {
+  path = local.bad
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+}
+`)
+
+	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: src, Filename: "/test/terragrunt.stack.hcl", StackDir: "/test"})
+	require.Error(t, err)
+
+	var validationErr hclparse.IncludeValidationError
+	require.ErrorAs(t, err, &validationErr)
+
+	var diags hcl.Diagnostics
+	require.ErrorAs(t, err, &diags)
+	require.NotEmpty(t, diags)
+	require.NotNil(t, diags[0].Subject, "include validation diag must carry a source position for editor underlining")
+	assert.Equal(t, "/test/terragrunt.stack.hcl", diags[0].Subject.Filename)
+}
+
 func TestParseStackFile_IncludeMissingRequiredSourceOrPathReturnsError(t *testing.T) {
 	t.Parallel()
 

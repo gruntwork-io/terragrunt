@@ -291,6 +291,35 @@ func TestPartialEval_PreservesFunctionCallsInConditionalCondition(t *testing.T) 
 	assert.Contains(t, result, `danger() ? "yes" : dependency.vpc.outputs.vpc_id`)
 }
 
+func TestPartialEval_ConditionalNullOrUnknownConditionFallsBackToSource(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		flagVal cty.Value
+		name    string
+	}{
+		{name: "null condition", flagVal: cty.NullVal(cty.Bool)},
+		{name: "unknown condition", flagVal: cty.UnknownVal(cty.Bool)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			evalCtx := &hcl.EvalContext{
+				Variables: map[string]cty.Value{
+					"local": cty.ObjectVal(map[string]cty.Value{"flag": tc.flagVal}),
+				},
+			}
+
+			expr, srcBytes := parseFirstAttrExpr(t, `val = local.flag ? "yes" : "no"`)
+			result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred}))
+
+			assert.Contains(t, result, `local.flag ? "yes" : "no"`, "null/unknown condition must fall back to source, not silently pick a branch")
+		})
+	}
+}
+
 func TestPartialEval_FunctionCallArgumentsArePartiallyEvaluated(t *testing.T) {
 	t.Parallel()
 

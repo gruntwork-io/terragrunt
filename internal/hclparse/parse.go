@@ -394,6 +394,7 @@ func newTopoState(deps map[string]map[string]struct{}) *topoState {
 }
 
 // visit performs DFS and returns a cycle when one is detected.
+// path is shared across recursive calls — safe here because we return immediately on cycle and never read path after the recursive call below. Don't add post-recursion logic that reads path without copying first.
 func (s *topoState) visit(name string, path []string) []string {
 	switch s.color[name] {
 	case topoColorGray:
@@ -405,7 +406,8 @@ func (s *topoState) visit(name string, path []string) []string {
 	s.color[name] = topoColorGray
 	path = append(path, name)
 
-	for dep := range s.deps[name] {
+	// Sort deps so cycle reports are deterministic across runs (map iteration order would otherwise rotate the cycle reported in LocalsCycleError).
+	for _, dep := range slices.Sorted(maps.Keys(s.deps[name])) {
 		if cycle := s.visit(dep, path); cycle != nil {
 			return cycle
 		}
@@ -424,6 +426,15 @@ func cycleSegment(path []string, name string) []string {
 	}
 
 	return path
+}
+
+// diagAt builds a single-diagnostic slice anchored at rng so callers using errors.As(err, &hcl.Diagnostics{}) get the offending expression's source position.
+func diagAt(rng hcl.Range, summary string) hcl.Diagnostics {
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  summary,
+		Subject:  rng.Ptr(),
+	}}
 }
 
 // localObject builds the parsed local namespace value.
@@ -475,18 +486,21 @@ func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *
 		}
 	}
 
+	pathRange := inc.Path.Range()
+
 	switch {
 	case pathVal.IsNull():
-		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path must not be null"}
+		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path must not be null", Err: diagAt(pathRange, "include path must not be null")}
 	case !pathVal.IsKnown():
-		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path is unknown"}
+		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path is unknown", Err: diagAt(pathRange, "include path is unknown")}
 	case pathVal.Type() != cty.String:
-		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path must be a string, got " + pathVal.Type().FriendlyName()}
+		reason := "include path must be a string, got " + pathVal.Type().FriendlyName()
+		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: reason, Err: diagAt(pathRange, reason)}
 	}
 
 	includePath := pathVal.AsString()
 	if includePath == "" {
-		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path must evaluate to a non-empty string"}
+		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path must evaluate to a non-empty string", Err: diagAt(pathRange, "include path must evaluate to a non-empty string")}
 	}
 
 	if !filepath.IsAbs(includePath) {

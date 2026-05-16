@@ -33,7 +33,8 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	// Fast path: pure expression with no function calls, evaluate the whole thing (function calls are preserved because Terragrunt functions can have generation-time side effects).
 	if IsPure(expr, args.Deferred) && !containsFunctionCall(expr) {
 		val, diags := expr.Value(args.EvalCtx)
-		if !diags.HasErrors() {
+		// hclwrite.TokensForValue panics on unknown values; fall back to source bytes so the runtime parser sees the original ref.
+		if !diags.HasErrors() && val.IsWhollyKnown() {
 			return ValueToHCLBytes(val)
 		}
 
@@ -80,7 +81,7 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) []byt
 	}
 
 	val, diags := e.Value(args.EvalCtx)
-	if !diags.HasErrors() {
+	if !diags.HasErrors() && val.IsWhollyKnown() {
 		return ValueToHCLBytes(val)
 	}
 
@@ -121,7 +122,8 @@ func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte
 	}
 
 	boolVal, err := convert.Convert(condVal, cty.Bool)
-	if err != nil {
+	// Null condition would let True() silently return false (wrong branch); unknown would panic. Fall back to source bytes so runtime evaluation produces a faithful error.
+	if err != nil || boolVal.IsNull() || !boolVal.IsKnown() {
 		return RangeBytes(args.SrcBytes, e.Range())
 	}
 
@@ -140,7 +142,7 @@ func partialEvalFunctionCall(e *hclsyntax.FunctionCallExpr, args *EvalArgs) []by
 }
 
 func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) []byte {
-	// Pure inner expression evaluates to a literal; parens are unnecessary.
+	// Pure inner expression — parens are redundant around a single expression; emit the inner directly.
 	if IsPure(e.Expression, args.Deferred) {
 		return PartialEval(e.Expression, args)
 	}
@@ -199,9 +201,10 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 
 		if IsPure(part, args.Deferred) && !containsFunctionCall(part) {
 			val, diags := part.Value(args.EvalCtx)
-			if !diags.HasErrors() {
+			if !diags.HasErrors() && val.IsWhollyKnown() {
 				strVal, err := convert.Convert(val, cty.String)
-				if err == nil {
+				// Null can't be stringified; fall through to emit as interpolation so runtime produces a faithful error.
+				if err == nil && !strVal.IsNull() {
 					buf.Write(HCLStringContent(strVal.AsString()))
 
 					continue

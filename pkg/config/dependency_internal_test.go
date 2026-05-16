@@ -119,29 +119,29 @@ func TestResolveStackFilePath(t *testing.T) {
 	}
 }
 
-// FuzzResolveStackFilePath verifies the path-rewrite helper never panics and every handled candidate ends in DefaultStackFile.
+// FuzzResolveStackFilePath verifies the path-rewrite helper never panics and every handled candidate ends in DefaultStackFile. raw is the user-authored dependency.config_path; target is the post-cleanup absolute path the resolver actually inspects — the two diverge in production (bare-directory raw + cleaned target with appended DefaultTerragruntConfigPath), so fuzz them independently.
 func FuzzResolveStackFilePath(f *testing.F) {
-	seeds := []string{
-		"/abs/dir/" + DefaultStackFile,
-		"/abs/dir/" + DefaultTerragruntConfigPath,
-		"/abs/dir/" + DefaultTerragruntJSONConfigPath,
-		"/abs/dir",
-		"relative/dir",
-		"",
-		".",
-		"/",
-		"\x00",
-		"unicode/café",
+	seeds := [][2]string{
+		{"/abs/dir/" + DefaultStackFile, "/abs/dir/" + DefaultStackFile},
+		{"/abs/dir", "/abs/dir/" + DefaultTerragruntConfigPath},
+		{"/abs/dir", "/abs/dir/" + DefaultTerragruntJSONConfigPath},
+		{"/abs/dir/" + DefaultTerragruntConfigPath, "/abs/dir/" + DefaultTerragruntConfigPath},
+		{"relative/dir", "relative/dir/" + DefaultTerragruntConfigPath},
+		{"", ""},
+		{".", "./" + DefaultTerragruntConfigPath},
+		{"/", "/" + DefaultTerragruntConfigPath},
+		{"\x00", "\x00"},
+		{"unicode/café", "unicode/café/" + DefaultTerragruntConfigPath},
 	}
 
 	for _, seed := range seeds {
-		f.Add(seed)
+		f.Add(seed[0], seed[1])
 	}
 
-	f.Fuzz(func(t *testing.T, input string) {
-		got := resolveStackFilePath(input, input)
+	f.Fuzz(func(t *testing.T, raw, target string) {
+		got := resolveStackFilePath(raw, target)
 		if got != "" {
-			require.Equal(t, DefaultStackFile, filepath.Base(got), "resolveStackFilePath must return either \"\" or a path whose base is %s (input=%q got=%q)", DefaultStackFile, input, got)
+			require.Equal(t, DefaultStackFile, filepath.Base(got), "resolveStackFilePath must return either \"\" or a path whose base is %s (raw=%q target=%q got=%q)", DefaultStackFile, raw, target, got)
 		}
 	})
 }

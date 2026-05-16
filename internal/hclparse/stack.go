@@ -299,7 +299,7 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL,
 	return decoded.Units, decoded.Stacks, nil
 }
 
-// literalString returns the string value of expr if expr is a static literal (no function calls, no variable refs), and (val, true) on success. Returns ("", false) for any expression that requires evaluation, so discovery callers can skip recursion into nested stacks whose source is not resolvable against the stdlib-only eval context.
+// literalString returns (val, true) only if expr is a plain string literal — no variable refs, no function calls. Templates and ternaries (even constant-foldable ones) return ("", false) because Value(nil) errors without an eval context; discovery callers then skip recursion into that nested stack.
 func literalString(expr hcl.Expression) (string, bool) {
 	if expr == nil {
 		return "", false
