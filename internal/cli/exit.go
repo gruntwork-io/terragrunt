@@ -12,12 +12,10 @@ import (
 )
 
 // RunAndExit runs the Terragrunt CLI and terminates the process with the exit code computed by ExitCodeFor.
-// Top-level panics must still be caught by a `defer reporter.PanicHandler(...)` in the caller.
+// em and reporter are required; top-level panics must still be caught by a `defer reporter.PanicHandler(...)` in the caller.
 func (app *App) RunAndExit(args []string, em *tf.DetailedExitCodeMap, reporter *log.PanicReporter) {
 	ctx := log.ContextWithLogger(context.Background(), app.l)
-	if em != nil {
-		ctx = tf.ContextWithDetailedExitCode(ctx, em)
-	}
+	ctx = tf.ContextWithDetailedExitCode(ctx, em)
 
 	err := app.RunContext(ctx, args)
 	detailed := app.opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode)
@@ -50,7 +48,9 @@ func ExitCodeFor(l log.Logger, args []string, version string, err error, success
 // logRunError emits the user-facing output for a non-nil run error.
 func logRunError(l log.Logger, args []string, version string, err error, reporter *log.PanicReporter) {
 	if log.IsPanic(err) {
-		reporter.ReportPanic(l, version, err.Error(), nil, args)
+		msg, stack := log.PanicDetails(err)
+		reporter.ReportPanic(l, version, msg, stack, args)
+
 		return
 	}
 

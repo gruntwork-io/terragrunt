@@ -3,6 +3,7 @@ package log
 import (
 	stdErrors "errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -125,8 +126,24 @@ func (r *PanicReporter) ReportPanic(l Logger, version, panicMsg string, stack []
 	l.Errorf("Please report this issue at %s and attach the panic report.", PanicIssueURL)
 }
 
+// PanicDetails extracts a clean panic message and stack from err.
+// For cty's function.PanicError it splits the recovered Value from the Stack;
+// for any other panic-shaped error the full err.Error() is returned as the message and stack is nil.
+func PanicDetails(err error) (msg string, stack []byte) {
+	if err == nil {
+		return "", nil
+	}
+
+	var ctyPanic function.PanicError
+	if stdErrors.As(err, &ctyPanic) {
+		return fmt.Sprintf("%v", ctyPanic.Value), ctyPanic.Stack
+	}
+
+	return err.Error(), nil
+}
+
 // IsPanic reports whether err originated from a recovered panic.
-// Detection is type-driven first (cty's function.PanicError) and falls back to IsPanicMessage on the unwrap chain.
+// Detection is type-driven first (cty's function.PanicError) and falls back to IsPanicMessage on the message and on any ErrorStack found while walking the unwrap chain.
 func IsPanic(err error) bool {
 	if err == nil {
 		return false
@@ -141,15 +158,40 @@ func IsPanic(err error) bool {
 		return true
 	}
 
-	if e, ok := err.(interface{ ErrorStack() string }); ok && IsPanicMessage(e.ErrorStack()) {
-		return true
+	for cur := err; cur != nil; cur = stdErrors.Unwrap(cur) {
+		if e, ok := cur.(interface{ ErrorStack() string }); ok && IsPanicMessage(e.ErrorStack()) {
+			return true
+		}
 	}
 
 	return false
 }
 
+// PanicSuppressingWriter wraps an io.Writer and drops payloads that
+// IsPanicMessage matches. Suppression is per-Write boundary, so callers
+// must emit each panic-bearing message in a single Write to be filtered
+// (HCL's diagnostic writer does this today). The crash-report path
+// surfaces those payloads separately via the crash log file.
+type PanicSuppressingWriter struct {
+	Inner io.Writer
+}
+
+// NewPanicSuppressingWriter wraps inner so that panic-bearing writes are dropped.
+func NewPanicSuppressingWriter(inner io.Writer) *PanicSuppressingWriter {
+	return &PanicSuppressingWriter{Inner: inner}
+}
+
+// Write drops the payload when it carries panic content; otherwise it forwards to Inner.
+func (w *PanicSuppressingWriter) Write(p []byte) (int, error) {
+	if IsPanicMessage(string(p)) {
+		return len(p), nil
+	}
+
+	return w.Inner.Write(p)
+}
+
 // IsPanicMessage reports whether s contains any PanicMessageMarkers substring.
-// Used by log writers to suppress noisy panic content that the crash-report path renders separately.
+// Used by PanicSuppressingWriter to suppress noisy panic content that the crash-report path renders separately.
 func IsPanicMessage(s string) bool {
 	if s == "" {
 		return false
