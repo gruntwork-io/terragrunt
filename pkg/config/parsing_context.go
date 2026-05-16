@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
@@ -44,7 +44,7 @@ type ParsingContext struct {
 	TrackInclude     *TrackInclude
 	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
-	FeatureFlags     *xsync.MapOf[string, string]
+	FeatureFlags     *xsync.Map[string, string]
 	FilesRead        *[]string
 	Telemetry        *telemetry.Options
 

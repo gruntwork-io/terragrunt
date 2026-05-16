@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -18,7 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -102,15 +103,29 @@ func StackOutput(
 		return cty.NilVal, nil
 	}
 
-	outputs := xsync.NewMapOf[string, map[string]cty.Value]()
+	outputs := xsync.NewMap[string, map[string]cty.Value]()
 	declaredStacks := make(map[string]string)
 	declaredUnits := make(map[string]*config.Unit)
-
-	// save parsed stacks
 	parsedStackFiles := make(map[string]*config.StackConfig, len(foundFiles))
 
-	wp := worker.NewWorkerPool(opts.Parallelism)
+	maxWorkers := max(1, min(opts.Parallelism, runtime.GOMAXPROCS(0)))
+
+	// reuse the project worker pool so error aggregation matches other concurrent commands
+	wp := worker.NewWorkerPool(maxWorkers)
 	defer wp.Stop()
+
+	waitWorkerErrors := func(mainErr error) error {
+		workerErr := wp.Wait()
+		if workerErr == nil {
+			return mainErr
+		}
+
+		if mainErr == nil {
+			return workerErr
+		}
+
+		return (&errors.MultiError{}).Append(mainErr, workerErr).ErrorOrNil()
+	}
 
 	for _, path := range foundFiles {
 		dir := filepath.Dir(path)
@@ -119,12 +134,12 @@ func StackOutput(
 
 		values, valuesErr := config.ReadValues(ctx, pctx, l, dir)
 		if valuesErr != nil {
-			return cty.NilVal, errors.Errorf("Failed to read values from %s: %w", dir, valuesErr)
+			return cty.NilVal, waitWorkerErrors(errors.Errorf("Failed to read values from %s: %w", dir, valuesErr))
 		}
 
 		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, pctx, path, values)
 		if stackErr != nil {
-			return cty.NilVal, errors.Errorf("Failed to read stack file %s: %w", path, stackErr)
+			return cty.NilVal, waitWorkerErrors(errors.Errorf("Failed to read stack file %s: %w", path, stackErr))
 		}
 
 		parsedStackFiles[path] = stackFile
@@ -161,7 +176,7 @@ func StackOutput(
 		}
 	}
 
-	if err := wp.Wait(); err != nil {
+	if err := waitWorkerErrors(nil); err != nil {
 		return cty.NilVal, err
 	}
 
