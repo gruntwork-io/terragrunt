@@ -21,8 +21,8 @@ const PanicIssueURL = "https://github.com/gruntwork-io/terragrunt/issues"
 // PanicMessageMarkers are substrings emitted only in cty/runtime panic messages.
 var PanicMessageMarkers = []string{
 	"panic in function implementation",
-	"runtime/panic.go",
-	"panic({",
+	"runtime/panic.go:",
+	"panic({0x",
 }
 
 const (
@@ -101,8 +101,22 @@ func (r *PanicReporter) PanicHandler(l Logger, version func() string, args []str
 		v = version()
 	}
 
+	if v == "" {
+		v = mainModuleVersion()
+	}
+
 	r.ReportPanic(l, v, fmt.Sprintf("%v", rec), debug.Stack(), args)
 	os.Exit(1)
+}
+
+// mainModuleVersion falls back to the binary's main module version when no caller-supplied version is available.
+func mainModuleVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok || info.Main.Version == "" {
+		return ""
+	}
+
+	return info.Main.Version
 }
 
 // ReportPanic writes the crash log and friendly banner for a panic surfaced as a returned error.
