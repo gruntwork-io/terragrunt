@@ -129,3 +129,21 @@ func (file *File) JustAttributes() (Attributes, error) {
 func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
 	return file.handleDiagnostics(file, diags)
 }
+
+// Rebind returns a new File wrapper bound to `parser`, sharing the underlying AST.
+//
+// The `parser` argument is mutated: the file's AST is registered in its file map.
+// This is required because `hcl.NewDiagnosticTextWriter` captures the parser's
+// file map by reference at construction time, so a fresh parser cannot render
+// code snippets for a file it has not seen parsed.
+//
+// The original file wrapper is not modified.
+func (file *File) Rebind(parser *Parser) *File {
+	parser.AddFile(file.ConfigPath, file.File)
+
+	return &File{
+		Parser:     parser,
+		File:       file.File,
+		ConfigPath: file.ConfigPath,
+	}
+}
