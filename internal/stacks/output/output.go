@@ -349,10 +349,16 @@ func implicitStackOutput(
 			continue
 		}
 
-		key, relErr := implicitUnitKey(opts.WorkingDir, unitDir)
+		// Key each unit by its relative path with forward slashes and no "./"
+		// prefix. The bare-path form lets `FilterOutputs` drill into a specific
+		// attribute via dot notation (e.g. "vpc.vpc_id"), the same way it does
+		// for an explicit-stack unit named "vpc".
+		rel, relErr := filepath.Rel(opts.WorkingDir, unitDir)
 		if relErr != nil {
 			return cty.NilVal, errors.Errorf("failed to determine relative path of unit %s: %w", unitDir, relErr)
 		}
+
+		key := filepath.ToSlash(rel)
 
 		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
 		unit := &config.Unit{Name: key, Path: key}
@@ -397,21 +403,6 @@ func implicitStackOutput(
 	}
 
 	return cty.ObjectVal(result), nil
-}
-
-// implicitUnitKey returns the key used to identify a unit in implicit-stack output:
-// the unit directory's path relative to the working directory, with forward slashes
-// and no "./" prefix. Dropping the prefix keeps the key from colliding with the
-// dot-segment traversal that `FilterOutputs` uses for drill-down, so the user can
-// write `terragrunt stack output vpc.vpc_id` the same way they would for an
-// explicit-stack unit named "vpc".
-func implicitUnitKey(workingDir, unitDir string) (string, error) {
-	rel, err := filepath.Rel(workingDir, unitDir)
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.ToSlash(rel), nil
 }
 
 // buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.
