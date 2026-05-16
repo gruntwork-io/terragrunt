@@ -222,7 +222,7 @@ func (o *Options) tfRunOptions(env map[string]string) *tf.TFOptions {
 func (o *Options) remoteStateOpts(v *Venv) *remotestate.Options {
 	return &remotestate.Options{
 		Options: backend.Options{
-			Writers:                      *v.Writers,
+			Writers:                      v.Writers,
 			Env:                          v.Env,
 			IAMRoleOptions:               o.IAMRoleOptions,
 			NonInteractive:               o.NonInteractive,
