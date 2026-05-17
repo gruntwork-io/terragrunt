@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -25,6 +26,21 @@ const (
 // RegistryServicePath is the modules service path returned by service discovery.
 type RegistryServicePath struct {
 	ModulesPath string `json:"modules.v1"`
+}
+
+// ModuleVersionsResponse is the JSON response from the registry's /versions endpoint.
+type ModuleVersionsResponse struct {
+	Modules []ModuleVersionEntry `json:"modules"`
+}
+
+// ModuleVersionEntry is an entry in the module versions response.
+type ModuleVersionEntry struct {
+	Versions []VersionEntry `json:"versions"`
+}
+
+// VersionEntry represents a single version returned by the registry.
+type VersionEntry struct {
+	Version string `json:"version"`
 }
 
 // MalformedRegistryURLErr is returned when the tfr:// URL is malformed.
@@ -222,4 +238,78 @@ func httpGETAndGetResponse(ctx context.Context, l log.Logger, httpClient *http.C
 	}
 
 	return bodyData, &resp.Header, nil
+}
+
+// ResolveTFRVersion queries the registry's /versions endpoint for the given
+// module path and returns the latest (highest semver) version. If versions is
+// empty, it returns an empty string.
+//
+// The modulePath should be in the form "namespace/name/system" (e.g.
+// "terraform-aws-modules/vpc/aws") as it appears in a tfr:// URL.
+func ResolveTFRVersion(ctx context.Context, l log.Logger, httpClient *http.Client, registryDomain, modulePath string) (string, error) {
+	if httpClient == nil {
+		httpClient = cleanhttp.DefaultClient()
+	}
+
+	// Perform service discovery to find the modules API base path.
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, l, httpClient, registryDomain)
+	if err != nil {
+		return "", err
+	}
+
+	// Build the versions endpoint URL:
+	// {basePath}/{namespace}/{name}/{system}/versions
+	modulePath = strings.TrimSuffix(modulePath, "/")
+	modulePath = strings.TrimPrefix(modulePath, "/")
+
+	versionsURL := fmt.Sprintf("%s/%s/versions", strings.TrimSuffix(moduleRegistryBasePath, "/"), modulePath)
+
+	u, err := url.Parse(versionsURL)
+	if err != nil {
+		return "", fmt.Errorf("parsing versions URL: %w", err)
+	}
+
+	if u.Scheme == "" {
+		u = &url.URL{Scheme: "https", Host: registryDomain, Path: versionsURL}
+	}
+
+	body, _, err := httpGETAndGetResponse(ctx, l, httpClient, u)
+	if err != nil {
+		return "", fmt.Errorf("fetching module versions from %s: %w", u.String(), err)
+	}
+
+	var resp ModuleVersionsResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", fmt.Errorf("parsing module versions response: %w", err)
+	}
+
+	if len(resp.Modules) == 0 || len(resp.Modules[0].Versions) == 0 {
+		return "", nil
+	}
+
+	versions := make([]string, len(resp.Modules[0].Versions))
+	for i, v := range resp.Modules[0].Versions {
+		versions[i] = v.Version
+	}
+
+	// Sort in descending semver order and return the top.
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i] > versions[j]
+	})
+
+	return versions[0], nil
+}
+
+// IsTFRSource checks whether the given URL is a tfr:// registry URL.
+func IsTFRSource(rawURL string) bool {
+	if strings.HasPrefix(rawURL, "tfr://") {
+		return true
+	}
+
+	u, err := url.Parse(rawURL)
+	if err == nil && u.Scheme == "tfr" {
+		return true
+	}
+
+	return false
 }
