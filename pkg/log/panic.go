@@ -91,7 +91,7 @@ func NewPanicReporter() *PanicReporter {
 	}
 }
 
-// PanicHandler must be invoked as `defer r.PanicHandler(...)`; on a recovered panic it writes the crash report and exits 1.
+// PanicHandler must be invoked as defer r.PanicHandler(...) to catch panics.
 func (r *PanicReporter) PanicHandler(l Logger, version func() string, args []string) {
 	rec := recover()
 	if rec == nil {
@@ -101,6 +101,10 @@ func (r *PanicReporter) PanicHandler(l Logger, version func() string, args []str
 	v := ""
 	if version != nil {
 		v = version()
+	}
+
+	if v == "" {
+		v = mainModuleVersion()
 	}
 
 	r.ReportPanic(l, v, fmt.Sprintf("%v", rec), debug.Stack(), args)
@@ -125,7 +129,7 @@ func (r *PanicReporter) ReportPanic(l Logger, version, panicMsg string, stack []
 	l.Errorf("Please report this issue at %s and attach the panic report.", PanicIssueURL)
 }
 
-// PanicDetails returns (Value, Stack) split out of a cty function.PanicError when present; otherwise (err.Error(), nil).
+// PanicDetails returns (Value, Stack) split out of a cty function.PanicError.
 func PanicDetails(err error) (msg string, stack []byte) {
 	if err == nil {
 		return "", nil
@@ -139,7 +143,7 @@ func PanicDetails(err error) (msg string, stack []byte) {
 	return err.Error(), nil
 }
 
-// IsPanic reports whether err originated from a recovered panic (cty function.PanicError or runtime stack marker on the unwrap chain).
+// IsPanic reports whether err originated from a recovered panic.
 func IsPanic(err error) bool {
 	if err == nil {
 		return false
@@ -163,7 +167,7 @@ func IsPanic(err error) bool {
 	return false
 }
 
-// PanicSuppressingWriter forwards to Inner but drops any Write whose payload IsPanicMessage matches.
+// PanicSuppressingWriter forwards to Inner but drops any Write whose payload matches markers.
 type PanicSuppressingWriter struct {
 	Inner io.Writer
 }
@@ -173,10 +177,10 @@ func NewPanicSuppressingWriter(inner io.Writer) *PanicSuppressingWriter {
 	return &PanicSuppressingWriter{Inner: inner}
 }
 
-// Write returns (0, nil) on a dropped payload — zero bytes were forwarded to Inner.
+// Write returns len(p) on a dropped payload - zero bytes were forwarded to Inner.
 func (w *PanicSuppressingWriter) Write(p []byte) (int, error) {
 	if IsPanicMessage(string(p)) {
-		return 0, nil
+		return len(p), nil
 	}
 
 	return w.Inner.Write(p)
@@ -197,7 +201,7 @@ func IsPanicMessage(s string) bool {
 	return false
 }
 
-// ReadBuildInfo extracts the VCS commit and dirty flag baked into the binary by `go build`.
+// ReadBuildInfo extracts the VCS commit and dirty flag baked into the binary.
 func ReadBuildInfo() (string, bool) {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -237,40 +241,45 @@ func (r *PanicReporter) writeLog(version, panicMsg string, stack []byte, args []
 	return logPath, content, nil
 }
 
-// now returns r.Now() or time.Now if r.Now is nil; safeguards a partial PanicReporter literal in the crash path.
+// now returns r.Now() or time.Now if r.Now is nil.
 func (r *PanicReporter) now() time.Time {
-	if r.Now == nil {
-		return time.Now()
+	if r.Now != nil {
+		return r.Now()
 	}
 
-	return r.Now()
+	return time.Now()
 }
 
 // getPID returns r.GetPID() or os.Getpid if r.GetPID is nil.
 func (r *PanicReporter) getPID() int {
-	if r.GetPID == nil {
-		return os.Getpid()
+	if r.GetPID != nil {
+		return r.GetPID()
 	}
 
-	return r.GetPID()
+	return os.Getpid()
 }
 
 // writeFile delegates to r.WriteFile or os.WriteFile when unset.
 func (r *PanicReporter) writeFile(name string, data []byte, perm os.FileMode) error {
-	if r.WriteFile == nil {
-		return os.WriteFile(name, data, perm)
+	if r.WriteFile != nil {
+		return r.WriteFile(name, data, perm)
 	}
 
-	return r.WriteFile(name, data, perm)
+	return os.WriteFile(name, data, perm)
 }
 
+// workingDir returns the directory to write the crash log to.
 func (r *PanicReporter) workingDir() string {
 	if r.Getwd != nil {
 		if wd, err := r.Getwd(); err == nil {
 			return wd
 		}
-	} else if wd, err := os.Getwd(); err == nil {
-		return wd
+	}
+
+	if r.Getwd == nil {
+		if wd, err := os.Getwd(); err == nil {
+			return wd
+		}
 	}
 
 	if r.TempDir != nil {
@@ -301,9 +310,6 @@ func (r *PanicReporter) formatLog(
 	}
 
 	command := strings.Join(args, " ")
-	if command == "" {
-		command = "(empty command line)"
-	}
 
 	if panicMsg == "" {
 		panicMsg = "(no panic message)"
@@ -335,4 +341,14 @@ func (r *PanicReporter) formatLog(
 
 func (r *PanicReporter) formatLogPath(when time.Time, pid int) string {
 	return crashLogPrefix + "-" + when.UTC().Format(crashLogFileTimeLayout) + "-" + strconv.Itoa(pid) + ".log"
+}
+
+// mainModuleVersion falls back to the binary's main module version when no caller version is available.
+func mainModuleVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok || info.Main.Version == "" {
+		return ""
+	}
+
+	return info.Main.Version
 }

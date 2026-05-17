@@ -45,7 +45,6 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pkg/errors v0.9.1
 	github.com/posener/complete v1.2.3
-	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/sirupsen/logrus v1.9.4
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v2 v2.27.7
@@ -96,6 +95,7 @@ require (
 	github.com/hashicorp/go-getter/s3/v2 v2.2.3
 	github.com/invopop/jsonschema v0.14.0
 	github.com/mattn/go-shellwords v1.0.13
+	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/rogpeppe/go-internal v1.14.1
 	github.com/spf13/afero v1.15.0
 	github.com/testcontainers/testcontainers-go v0.42.0

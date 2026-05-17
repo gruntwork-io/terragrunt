@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	tlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -84,7 +84,7 @@ func TestReportPanicFallbacksOnEmptyInputs(t *testing.T) {
 	when := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	r := newStubPanicReporter(fs, "/wd", when, 1)
 
-	r.ReportPanic(tlogger.CreateLogger(), "", "", nil, []string{})
+	r.ReportPanic(logger.CreateLogger(), "", "", nil, []string{})
 
 	body, err := vfs.ReadFile(fs, "/wd/"+"terragrunt-crash-20260102T030405Z-1.log")
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestReportPanicFallbacksOnEmptyInputs(t *testing.T) {
 
 	assert.Contains(t, content, "Terragrunt version: unknown")
 	assert.Contains(t, content, "Panic: (no panic message)")
-	assert.Contains(t, content, "Command line: (empty command line)")
+	assert.Contains(t, content, "Command line: \n")
 	assert.Contains(t, content, "(no stack trace was available)")
 }
 
@@ -106,7 +106,7 @@ func TestReportPanicFallsBackToTempDirWhenGetwdFails(t *testing.T) {
 	r := newStubPanicReporter(fs, "/wd", when, pid)
 	r.Getwd = func() (string, error) { return "", errors.New("denied") }
 
-	r.ReportPanic(tlogger.CreateLogger(), "1.7.9", "divide by zero", []byte("stack"), nil)
+	r.ReportPanic(logger.CreateLogger(), "1.7.9", "divide by zero", []byte("stack"), nil)
 
 	expectedPath := filepath.Join("/tmp", "terragrunt-crash-"+when.UTC().Format("20060102T150405Z")+"-"+strconv.Itoa(pid)+".log")
 	_, err := vfs.ReadFile(fs, expectedPath)
@@ -137,7 +137,7 @@ func TestPanicSuppressingWriter(t *testing.T) {
 		payload := "Error: Error in function call\nCall to function \"run_cmd\" failed: panic in function implementation: nil deref\n"
 		n, err := w.Write([]byte(payload))
 		require.NoError(t, err)
-		assert.Equal(t, 0, n)
+		assert.Equal(t, len(payload), n)
 		assert.Empty(t, inner.String())
 	})
 }
