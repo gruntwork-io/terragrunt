@@ -162,17 +162,35 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 		}}
 	}
 
+	pathRange := configPathAttr.Expr.Range().Ptr()
+
 	val, diags := configPathAttr.Expr.Value(evalCtx)
-	if diags.HasErrors() || !val.IsKnown() || val.IsNull() {
+	if diags.HasErrors() {
 		return AutoIncludeDependency{}, diags
 	}
 
-	if val.Type() != cty.String {
+	// Null/unknown evaluate without HCL diagnostics; surface them as typed diags with source position so callers can detect the failure and editors can underline the offending expression.
+	switch {
+	case !val.IsKnown():
+		return AutoIncludeDependency{}, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Unknown config_path",
+			Detail:   "dependency config_path evaluated to an unknown value",
+			Subject:  pathRange,
+		}}
+	case val.IsNull():
+		return AutoIncludeDependency{}, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Null config_path",
+			Detail:   "dependency config_path must not be null",
+			Subject:  pathRange,
+		}}
+	case val.Type() != cty.String:
 		return AutoIncludeDependency{}, hcl.Diagnostics{{
 			Severity: hcl.DiagError,
 			Summary:  "Invalid config_path type",
 			Detail:   "dependency config_path must evaluate to a string",
-			Subject:  configPathAttr.Expr.Range().Ptr(),
+			Subject:  pathRange,
 		}}
 	}
 
@@ -303,7 +321,7 @@ func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (st
 
 	val, valDiags := configPathAttr.Expr.Value(nil)
 	if valDiags.HasErrors() {
-		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path: " + valDiags.Error(), Err: valDiags}
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path evaluation failed", Err: valDiags}
 	}
 
 	if !val.IsKnown() {

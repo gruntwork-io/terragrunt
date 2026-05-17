@@ -61,6 +61,45 @@ dependency "vpc" {
 	assert.NotNil(t, result.RawBody)
 }
 
+// Null or unknown config_path must produce a diagnostic (not a silent zero-value dep) so users see an error and editors get a source position.
+func TestAutoIncludeHCL_Resolve_RejectsNullOrUnknownConfigPath(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		val     cty.Value
+		summary string
+	}{
+		{val: cty.NullVal(cty.String), summary: "Null config_path"},
+		{val: cty.UnknownVal(cty.String), summary: "Unknown config_path"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.summary, func(t *testing.T) {
+			t.Parallel()
+
+			body := parseHCLBody(t, `
+dependency "vpc" {
+  config_path = local.target
+}
+`)
+
+			autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+			evalCtx := &hcl.EvalContext{
+				Variables: map[string]cty.Value{
+					"local": cty.ObjectVal(map[string]cty.Value{"target": tc.val}),
+				},
+			}
+
+			result, diags := autoInclude.Resolve(evalCtx)
+			assert.Nil(t, result, "must not return a partial result containing a zero-value dep")
+			require.True(t, diags.HasErrors(), "%s must surface as a diagnostic", tc.summary)
+			assert.Equal(t, tc.summary, diags[0].Summary)
+			require.NotNil(t, diags[0].Subject, "diagnostic must carry the offending expression's source range")
+		})
+	}
+}
+
 // dependency block with zero labels must be reported as a diagnostic (not silently skipped) so users learn the labelling convention.
 func TestAutoIncludeHCL_Resolve_RejectsZeroLabels(t *testing.T) {
 	t.Parallel()
