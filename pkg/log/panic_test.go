@@ -137,7 +137,7 @@ func TestPanicSuppressingWriter(t *testing.T) {
 		payload := "Error: Error in function call\nCall to function \"run_cmd\" failed: panic in function implementation: nil deref\n"
 		n, err := w.Write([]byte(payload))
 		require.NoError(t, err)
-		assert.Equal(t, len(payload), n)
+		assert.Equal(t, 0, n)
 		assert.Empty(t, inner.String())
 	})
 }

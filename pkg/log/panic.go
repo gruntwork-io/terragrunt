@@ -173,10 +173,10 @@ func NewPanicSuppressingWriter(inner io.Writer) *PanicSuppressingWriter {
 	return &PanicSuppressingWriter{Inner: inner}
 }
 
-// Write returns (len(p), nil) on a dropped payload to honor the io.Writer contract; any other return would surface as a short-write error to callers like io.MultiWriter.
+// Write returns (0, nil) on a dropped payload — zero bytes were forwarded to Inner.
 func (w *PanicSuppressingWriter) Write(p []byte) (int, error) {
 	if IsPanicMessage(string(p)) {
-		return len(p), nil
+		return 0, nil
 	}
 
 	return w.Inner.Write(p)
