@@ -119,14 +119,14 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 		}
 
-		// Rescope the parsing context to the stack file being parsed so terragrunt functions that resolve paths relative to TerragruntConfigPath (e.g. find_in_parent_folders, get_terragrunt_dir, path_relative_to_include) anchor on the nested stack file's location, not the root caller's terragrunt.hcl.
-		_, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
+		// Rescope the parsing context to the stack file so terragrunt functions resolve paths relative to it instead of the root caller.
+		scopedLogger, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
 		if scopedErr != nil {
 			return errors.Errorf("failed to rescope parsing context for autoinclude parser %s: %w", stackFilePath, scopedErr)
 		}
 
 		// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
-		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, l, stackFilePath)
+		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, scopedLogger, stackFilePath)
 		if evalCtxErr != nil {
 			return errors.Errorf("failed to build eval context for autoinclude parser %s: %w", stackFilePath, evalCtxErr)
 		}
