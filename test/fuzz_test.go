@@ -703,6 +703,13 @@ func FuzzFullCLI(f *testing.F) {
 		)
 
 		opts := options.NewTerragruntOptions()
+		// Pin the working directory to the in-memory venv root so that
+		// fuzz-generated invocations without --working-dir cannot fall
+		// through to the test process's real CWD. Without this, Terragrunt
+		// discovers fixtures under test/ on real disk and the run-all
+		// path through copyFiles / go-getter (neither virtualized) chews
+		// through them on every iteration.
+		opts.WorkingDir = fuzzWorkDir
 		app := cli.NewApp(l, opts, v)
 
 		ctx, cancel := context.WithTimeout(t.Context(), fuzzPerRunTimeout)
