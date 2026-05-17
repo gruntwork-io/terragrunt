@@ -56,7 +56,14 @@ import (
 const (
 	// fuzzPerRunTimeout caps real-clock work in a single iteration so
 	// retry/backoff loops do not stall a fuzz worker indefinitely.
-	fuzzPerRunTimeout    = 5 * time.Second
+	fuzzPerRunTimeout = 5 * time.Second
+	// fuzzSlowThreshold is the wall-clock budget for a single RunContext
+	// call. Iterations slower than this are reported as failures so the
+	// fuzz framework can minimize toward a reproducer; otherwise they
+	// exceed the framework's worker timeout and produce opaque EOFs that
+	// minimization can't unwind. The typical seed iteration is under 100ms,
+	// so a 2-second budget leaves ~20x headroom for legitimately slow paths.
+	fuzzSlowThreshold    = 2 * time.Second
 	fuzzWorkDir          = "/work"
 	fuzzMaxFlagsPerCmd   = 4
 	fuzzMaxTFArgs        = 3
@@ -703,7 +710,20 @@ func FuzzFullCLI(f *testing.F) {
 
 		ctx = log.ContextWithLogger(ctx, l)
 
+		start := time.Now()
 		err := app.RunContext(ctx, w.args)
+		elapsed := time.Since(start)
+
+		// Slow-iteration invariant: a single RunContext should finish well
+		// under fuzzSlowThreshold on the in-memory venv. Iterations slower
+		// than that point at code paths that ignore context cancellation
+		// or perform work disproportionate to the input. Report the slowness
+		// as a finding so the fuzz framework minimizes toward a reproducer;
+		// otherwise the same iterations exceed the framework's worker
+		// timeout and produce opaque EOF crashes that can't be minimized.
+		if elapsed > fuzzSlowThreshold {
+			t.Fatalf("iteration took %s (budget %s); ctx.Err()=%v; args=%q", elapsed, fuzzSlowThreshold, ctx.Err(), w.args)
+		}
 
 		// Mirror main.go's post-RunContext error display so the invariant
 		// below checks the user-facing experience, not the internal
