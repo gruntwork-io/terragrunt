@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -323,7 +324,7 @@ func TestFmtGeneratedFile(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			err := codegen.WriteToFile(l, "", &config)
+			err := codegen.WriteToFile(l, vfs.NewOSFS(), "", &config)
 			require.NoError(t, err)
 
 			assert.True(t, util.FileExists(tc.path))
@@ -378,7 +379,7 @@ func TestGenerateDisabling(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			err := codegen.WriteToFile(l, "", &config)
+			err := codegen.WriteToFile(l, vfs.NewOSFS(), "", &config)
 			require.NoError(t, err)
 
 			if tc.disabled {
