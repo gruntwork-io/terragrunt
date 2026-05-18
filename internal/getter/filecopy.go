@@ -78,10 +78,26 @@ func (g *FileCopyGetter) GetFile(ctx context.Context, req *getter.Request) error
 	return nil
 }
 
-// Mode delegates to v2's FileGetter so the directory/file probe matches the
-// stock implementation exactly.
-func (g *FileCopyGetter) Mode(ctx context.Context, u *url.URL) (getter.Mode, error) {
-	return (&getter.FileGetter{}).Mode(ctx, u)
+// Mode reports whether the source path is a directory or file, using the
+// configured filesystem so the probe sees what the venv sees rather than what
+// the real OS happens to have. The logic mirrors v2's [getter.FileGetter.Mode]
+// but routes through g.FS instead of os.Stat.
+func (g *FileCopyGetter) Mode(_ context.Context, u *url.URL) (getter.Mode, error) {
+	path := u.Path
+	if u.RawPath != "" {
+		path = u.RawPath
+	}
+
+	fi, err := g.FS.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+
+	if fi.IsDir() {
+		return getter.ModeDir, nil
+	}
+
+	return getter.ModeFile, nil
 }
 
 // Detect delegates to v2's FileGetter so the URL canonicalization matches the

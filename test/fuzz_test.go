@@ -1020,8 +1020,16 @@ func orDefault(s, fallback string) string {
 // fuzzExecHandler dispatches every in-memory subprocess invocation through
 // c, so the response is fuzz-driven and reproducible for a given input.
 // Concurrent invocations serialize on the consumer's mutex.
+//
+// `tofu --version` and `terraform --version` get a well-formed version
+// string instead of the random slot output so terragrunt's version-output
+// parser can advance past the binary detection step.
 func fuzzExecHandler(c *consumer) vexec.Handler {
-	return func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if (inv.Name == "tofu" || inv.Name == "terraform") && len(inv.Args) > 0 && (inv.Args[0] == "-version" || inv.Args[0] == "--version") {
+			return vexec.Result{Stdout: []byte("OpenTofu v1.8.0\non darwin_arm64\n")}
+		}
+
 		exit := int(c.byteOnce() % 4)
 		if exit == 3 {
 			exit = 0
