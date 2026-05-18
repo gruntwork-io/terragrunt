@@ -73,7 +73,7 @@ type ComponentRef struct {
 	ChildRefs []ComponentRef
 }
 
-// BuildComponentRefMap converts component refs into an HCL object.
+// BuildComponentRefMap converts component refs into an HCL object; empty input returns EmptyObjectVal so typos surface as "Unsupported attribute" diagnostics.
 func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	if len(refs) == 0 {
 		return cty.EmptyObjectVal
@@ -317,7 +317,7 @@ func literalString(expr hcl.Expression) (string, bool) {
 	return val.AsString(), true
 }
 
-// stdlibEvalContext returns a minimal Terraform stdlib eval context for discovery.
+// stdlibEvalContext returns a stdlib-only eval context for discovery; parser-owned namespaces are intentionally out of scope (non-literal source/path is skipped via literalString).
 func stdlibEvalContext(baseDir string) *hcl.EvalContext {
 	tfscope := tflang.Scope{BaseDir: baseDir}
 

@@ -145,9 +145,7 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 	}, nil
 }
 
-// resolveDependencyBlock extracts config_path from a dependency block
-// by evaluating it against the eval context (which has unit/stack paths).
-// The full block is preserved for generation.
+// resolveDependencyBlock extracts config_path from a dependency block; caller must ensure exactly one label.
 func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (AutoIncludeDependency, hcl.Diagnostics) {
 	name := block.Labels[0]
 
@@ -290,7 +288,7 @@ func readAutoIncludeBody(fs vfs.FS, path string) (*hclsyntax.Body, error) {
 
 	file, diags := hclsyntax.ParseConfig(data, path, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, FileParseError{FilePath: path, Detail: diags.Error()}
+		return nil, FileParseError{FilePath: path, Detail: diags.Error(), Err: diags}
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)

@@ -146,7 +146,7 @@ func validateParseStackFileInput(fs vfs.FS, input *ParseStackFileInput) {
 func parseStackFileRoot(src []byte, filename string) (*StackFileHCL, error) {
 	file, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, FileParseError{FilePath: filename, Detail: diags.Error()}
+		return nil, FileParseError{FilePath: filename, Detail: diags.Error(), Err: diags}
 	}
 
 	stackFile := &StackFileHCL{}
@@ -499,7 +499,8 @@ func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *
 
 	includePath := pathVal.AsString()
 	if includePath == "" {
-		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path must evaluate to a non-empty string", Err: diagAt(pathRange, "include path must evaluate to a non-empty string")}
+		reason := "include path must evaluate to a non-empty string"
+		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: reason, Err: diagAt(pathRange, reason)}
 	}
 
 	if !filepath.IsAbs(includePath) {
