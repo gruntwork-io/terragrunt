@@ -248,6 +248,10 @@ func (c *CAS) processStackFile(
 			continue
 		}
 
+		if strings.HasPrefix(block.Source, CASProtocolPrefix) {
+			continue
+		}
+
 		l.Debugf("Processing CAS source rewrite for %s %q with source %q", block.BlockType, block.Name, block.Source)
 
 		targetDir, err := ResolveInRepoSource(repoRoot, dirPath, block.Source)
@@ -300,6 +304,10 @@ func (c *CAS) processUnitFile(l log.Logger, repoRoot, dirPath, unitFile, refHash
 	}
 
 	if !updateWithCAS || source == "" {
+		return nil
+	}
+
+	if strings.HasPrefix(source, CASProtocolPrefix) {
 		return nil
 	}
 
