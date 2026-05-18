@@ -216,11 +216,6 @@ var fuzzBackendFlags = append([]flagTpl{
 	{name: "--force"},
 }, fuzzGlobalFlags...)
 
-var fuzzCatalogFlags = append([]flagTpl{
-	{name: "--no-shell"},
-	{name: "--no-hooks"},
-}, fuzzGlobalFlags...)
-
 // fuzzArgSpecs enumerates the shape of every invocation the fuzz can
 // produce. The grammar guarantees that most iterations parse past CLI
 // validation and reach the subcommand's body; raw random tokens are
@@ -254,7 +249,9 @@ var fuzzArgSpecs = []argSpec{
 	{head: "backend", sub: "bootstrap", flags: fuzzBackendFlags},
 	{head: "backend", sub: "migrate", flags: fuzzBackendFlags},
 	{head: "backend", sub: "delete", flags: fuzzBackendFlags},
-	{head: "catalog", flags: fuzzCatalogFlags},
+	// catalog deliberately omitted: it launches a Bubble Tea TUI that
+	// blocks waiting for terminal IO and clones repos from external git
+	// remotes — neither is a productive fuzz surface.
 }
 
 // fuzzTFPassthroughPool is the alphabet of args sampled after `--` to feed
@@ -1086,7 +1083,6 @@ func FuzzFullCLI(f *testing.F) {
 	f.Add([]byte("backend bootstrap"))
 	f.Add([]byte("backend migrate"))
 	f.Add([]byte("backend delete --force"))
-	f.Add([]byte("catalog --no-shell --no-hooks"))
 	f.Add([]byte("run --all --feature foo=bar -- apply"))
 	f.Add([]byte("run --filter app --parallelism=4 -- plan"))
 	f.Add([]byte("run --provider-cache --auth-provider-cmd=echo"))
