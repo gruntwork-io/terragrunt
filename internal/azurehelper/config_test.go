@@ -4,6 +4,7 @@ package azurehelper_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
@@ -244,7 +245,6 @@ func TestBuild_CloudEnvironmentMapping(t *testing.T) {
 		{env: "USGOVERNMENT", want: cloud.AzureGovernment},
 		{env: "china", want: cloud.AzureChina},
 		{env: "AzureChinaCloud", want: cloud.AzureChina},
-		{env: "unknown", want: cloud.AzurePublic},
 	}
 
 	for _, tc := range tests {
@@ -322,6 +322,46 @@ func TestBuildBlobClient_PropagatesBuildError(t *testing.T) {
 		BuildBlobClient(context.Background(), log.New())
 	if err == nil {
 		t.Fatal("expected error when storage account name missing")
+	}
+}
+
+func TestBuildBlobClient_BindsContainerFromSessionConfig(t *testing.T) {
+	t.Parallel()
+
+	bc, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			StorageAccountName: testAccount,
+			SasToken:           testSASToken,
+			ContainerName:      "state",
+		}).
+		WithEnv(isolatedEnv()).
+		BuildBlobClient(context.Background(), log.New())
+	if err != nil {
+		t.Fatalf("BuildBlobClient: %v", err)
+	}
+
+	if got := bc.Container(); got != "state" {
+		t.Errorf("Container() = %q, want %q", got, "state")
+	}
+}
+
+func TestBuild_RejectsUnknownCloudEnvironment(t *testing.T) {
+	t.Parallel()
+
+	_, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			StorageAccountName: testAccount,
+			SasToken:           testSASToken,
+			CloudEnvironment:   "governmnt", // typo
+		}).
+		WithEnv(isolatedEnv()).
+		Build(context.Background(), log.New())
+	if err == nil {
+		t.Fatal("expected error for unknown cloud environment")
+	}
+
+	if !strings.Contains(err.Error(), "cloud environment") {
+		t.Errorf("error = %q, want it to mention cloud environment", err.Error())
 	}
 }
 
