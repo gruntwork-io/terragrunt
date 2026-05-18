@@ -16,11 +16,15 @@ var deferredRoots = map[string]bool{
 	varDependency: true,
 }
 
+// maxPartialEvalDepth bounds recursion for pathological deeply-nested expressions; past this, fall back to source bytes.
+const maxPartialEvalDepth = 10000
+
 // EvalArgs bundles the shared arguments for partial evaluation functions.
 type EvalArgs struct {
 	EvalCtx  *hcl.EvalContext
 	Deferred map[string]bool
 	SrcBytes []byte
+	depth    int
 }
 
 // PartialEval walks an hclsyntax.Expression tree and returns HCL source text.
@@ -29,6 +33,14 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	if args.EvalCtx == nil {
 		return RangeBytes(args.SrcBytes, expr.Range())
 	}
+
+	if args.depth > maxPartialEvalDepth {
+		return RangeBytes(args.SrcBytes, expr.Range())
+	}
+
+	args.depth++
+
+	defer func() { args.depth-- }()
 
 	// Fast path: pure expression with no function calls, evaluate the whole thing (function calls are preserved because Terragrunt functions can have generation-time side effects).
 	if IsPure(expr, args.Deferred) && !containsFunctionCall(expr) {
@@ -165,6 +177,7 @@ func IsPure(expr hclsyntax.Expression, deferred map[string]bool) bool {
 func containsFunctionCall(expr hclsyntax.Expression) bool {
 	w := &functionCallWalker{}
 
+	// Walk returns hcl.Diagnostics by signature; our walker's Enter/Exit return nil, so the result is always empty and intentionally discarded.
 	_ = hclsyntax.Walk(expr, w)
 
 	return w.found

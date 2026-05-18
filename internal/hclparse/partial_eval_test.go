@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -289,6 +290,20 @@ func TestPartialEval_PreservesFunctionCallsInConditionalCondition(t *testing.T) 
 
 	assert.False(t, called, "partial evaluation must not execute function calls in conditional conditions")
 	assert.Contains(t, result, `danger() ? "yes" : dependency.vpc.outputs.vpc_id`)
+}
+
+// TestPartialEval_DeeplyNestedExpressionDoesNotOverflow constructs 20000 nested parentheses (twice the depth guard) and verifies PartialEval returns without crashing.
+func TestPartialEval_DeeplyNestedExpressionDoesNotOverflow(t *testing.T) {
+	t.Parallel()
+
+	const depth = 20000
+
+	hcl := "val = " + strings.Repeat("(", depth) + "local.env" + strings.Repeat(")", depth)
+	expr, srcBytes := parseFirstAttrExpr(t, hcl)
+
+	result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred}))
+
+	assert.NotEmpty(t, result, "deeply nested input must return source-byte fallback, not panic")
 }
 
 func TestPartialEval_ConditionalNullOrUnknownConditionFallsBackToSource(t *testing.T) {
