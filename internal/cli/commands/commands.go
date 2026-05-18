@@ -286,7 +286,7 @@ func RunAction(
 
 	// Run provider cache server
 	if opts.ProviderCacheOptions.Enabled {
-		server, err := providercache.InitServer(l, v.HTTP, &opts.ProviderCacheOptions, opts.RootWorkingDir)
+		server, err := providercache.InitServer(l, v.HTTP, v.Env, &opts.ProviderCacheOptions, opts.RootWorkingDir)
 		if err != nil {
 			return err
 		}
@@ -338,7 +338,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 		_, ver, impl, err := run.PopulateTFVersion(
 			ctx, l, v, opts.WorkingDir,
 			opts.VersionManagerFileName,
-			configbridge.TFRunOptsFromOpts(opts),
+			configbridge.TFRunOptsFromOpts(v.Env, opts),
 		)
 		if err != nil {
 			return err

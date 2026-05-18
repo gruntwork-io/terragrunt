@@ -198,13 +198,13 @@ func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfi
 	defer actualLock.Unlock()
 
 	for _, genCfg := range cfg.GenerateConfigs {
-		if err := codegen.WriteToFile(l, opts.WorkingDir, &genCfg); err != nil {
+		if err := codegen.WriteToFile(l, fs, opts.WorkingDir, &genCfg); err != nil {
 			return err
 		}
 	}
 
 	if cfg.RemoteState.Config != nil && cfg.RemoteState.Generate != nil {
-		if err := cfg.RemoteState.GenerateOpenTofuCode(l, opts.WorkingDir); err != nil {
+		if err := cfg.RemoteState.GenerateOpenTofuCode(l, fs, opts.WorkingDir); err != nil {
 			return err
 		}
 	} else if cfg.RemoteState.Config != nil {
@@ -283,7 +283,7 @@ func runTerragruntWithConfig(
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
 		out, runTerraformError := tf.RunCommandWithOutput(
 			childCtx, l, v.ToRoot(),
-			opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...,
+			opts.tfRunOptions(v.Env), opts.TerraformCliArgs.Slice()...,
 		)
 
 		var lockFileError error

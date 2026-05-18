@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -168,10 +169,10 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 }
 
 // GenerateOpenTofuCode generates the OpenTofu/Terraform code for configuring remote state backend.
-func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, workingDir string) error {
+func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, fs vfs.FS, workingDir string) error {
 	backendConfig := remote.backend.GetTFInitArgs(remote.BackendConfig)
 
-	return remote.Config.GenerateOpenTofuCode(l, workingDir, backendConfig)
+	return remote.Config.GenerateOpenTofuCode(l, fs, workingDir, backendConfig)
 }
 
 func (remote *RemoteState) pullState(

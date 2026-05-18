@@ -90,14 +90,22 @@ const EnvTagsListLayoutForTest = envTagsListLayout
 const EnvTagsDetailStyleForTest = envTagsDetailStyle
 
 // ResolveTagsListLayoutMetaForTest is the layout value selected when the
-// env var is unset or has the default value.
-var ResolveTagsListLayoutMetaForTest = func() bool { return resolveTagsListLayout() == tagsListLayoutMeta }
+// env map lacks an override.
+var ResolveTagsListLayoutMetaForTest = func(env map[string]string) bool {
+	return resolveTagsListLayout(env) == tagsListLayoutMeta
+}
 
 // ResolveTagsListLayoutRowForTest returns true when the row layout is active.
-var ResolveTagsListLayoutRowForTest = func() bool { return resolveTagsListLayout() == tagsListLayoutRow }
+var ResolveTagsListLayoutRowForTest = func(env map[string]string) bool {
+	return resolveTagsListLayout(env) == tagsListLayoutRow
+}
 
 // ResolveTagsDetailStylePillsForTest returns true when pills detail style is active.
-var ResolveTagsDetailStylePillsForTest = func() bool { return resolveTagsDetailStyle() == tagsDetailStylePills }
+var ResolveTagsDetailStylePillsForTest = func(env map[string]string) bool {
+	return resolveTagsDetailStyle(env) == tagsDetailStylePills
+}
 
 // ResolveTagsDetailStyleSectionForTest returns true when section detail style is active.
-var ResolveTagsDetailStyleSectionForTest = func() bool { return resolveTagsDetailStyle() == tagsDetailStyleSection }
+var ResolveTagsDetailStyleSectionForTest = func(env map[string]string) bool {
+	return resolveTagsDetailStyle(env) == tagsDetailStyleSection
+}

@@ -18,7 +18,7 @@ func TestGetModuleRegistryURLBasePath(t *testing.T) {
 	server := newRegistryTestServer(t)
 
 	basePath, err := getter.GetModuleRegistryURLBasePath(
-		t.Context(), logger.CreateLogger(), server.Client(), server.Listener.Addr().String(),
+		t.Context(), logger.CreateLogger(), server.Client(), map[string]string{}, server.Listener.Addr().String(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "/v1/modules/", basePath)
@@ -35,7 +35,7 @@ func TestGetTerraformGetHeader(t *testing.T) {
 		Path:   "/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
 	}
 
-	header, err := getter.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), server.Client(), &moduleURL)
+	header, err := getter.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), server.Client(), map[string]string{}, &moduleURL)
 	require.NoError(t, err)
 	assert.Contains(t, header, "/download/terraform-aws-vpc.zip")
 }

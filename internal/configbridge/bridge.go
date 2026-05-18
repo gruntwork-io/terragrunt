@@ -33,9 +33,11 @@ func NewParsingContext(
 
 // ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
 // The shell-options struct no longer carries env or writers; callers pass
-// those via the venv at invocation time.
-func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
-	s := shell.NewShellOptions().
+// those via the venv at invocation time. The env map supplies the shell
+// environment used to seed trace-context propagation; production callers
+// pass [github.com/gruntwork-io/terragrunt/internal/venv.Venv.Env].
+func ShellRunOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *shell.ShellOptions {
+	s := shell.NewShellOptions(env).
 		WithWorkingDir(opts.WorkingDir).
 		WithTelemetry(opts.Telemetry).
 		WithEngine(opts.EngineConfig, opts.EngineOptions).
@@ -55,7 +57,7 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 // receives the venv data it needs at each invocation.
 func BackendOptsFromOpts(v *venv.Venv, opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
-		Writers:                      *v.Writers,
+		Writers:                      v.Writers,
 		HTTP:                         v.HTTP,
 		Env:                          v.Env,
 		IAMRoleOptions:               opts.IAMRoleOptions,
@@ -71,19 +73,22 @@ func RemoteStateOptsFromOpts(v *venv.Venv, opts *options.TerragruntOptions) *rem
 	return &remotestate.Options{
 		Options:             *BackendOptsFromOpts(v, opts),
 		DisableBucketUpdate: opts.DisableBucketUpdate,
-		TFRunOpts:           TFRunOptsFromOpts(opts),
+		TFRunOpts:           TFRunOptsFromOpts(v.Env, opts),
 	}
 }
 
-// TFRunOptsFromOpts constructs tf.TFOptions from TerragruntOptions.
-func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
+// TFRunOptsFromOpts constructs tf.TFOptions from TerragruntOptions. The env
+// map supplies the shell environment for trace-context propagation onto the
+// nested [shell.ShellOptions]; production callers pass
+// [github.com/gruntwork-io/terragrunt/internal/venv.Venv.Env].
+func TFRunOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                opts.JSONLogFormat,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
 		TerragruntConfigPath:         opts.TerragruntConfigPath,
 		TofuImplementation:           opts.TofuImplementation,
 		TerraformCliArgs:             opts.TerraformCliArgs,
-		ShellOptions:                 ShellRunOptsFromOpts(opts),
+		ShellOptions:                 ShellRunOptsFromOpts(env, opts),
 	}
 }
 

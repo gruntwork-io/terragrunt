@@ -45,10 +45,8 @@ func TestGithubAuthPickupOrder(t *testing.T) {
 		}))
 		defer server.Close()
 
-		t.Setenv("GH_TOKEN", "goodtoken")
-		t.Setenv("GITHUB_TOKEN", "badtoken")
-
-		client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL), github.WithGithubComDefaultAuth())
+		env := map[string]string{"GH_TOKEN": "goodtoken", "GITHUB_TOKEN": "badtoken"}
+		client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL), github.WithGithubComDefaultAuth(env))
 
 		_, err := client.GetLatestRelease(t.Context(), "owner/repo")
 		require.NoError(t, err)
@@ -69,9 +67,8 @@ func TestGithubAuthPickupOrder(t *testing.T) {
 		}))
 		defer server.Close()
 
-		t.Setenv("GH_TOKEN", "")
-		t.Setenv("GITHUB_TOKEN", "goodtoken")
-		client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL), github.WithGithubComDefaultAuth())
+		env := map[string]string{"GITHUB_TOKEN": "goodtoken"}
+		client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL), github.WithGithubComDefaultAuth(env))
 
 		_, err := client.GetLatestRelease(t.Context(), "owner/repo")
 		require.NoError(t, err)
@@ -272,7 +269,7 @@ func TestDownloadReleaseAssetsValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := client.DownloadReleaseAssets(ctx, tc.assets)
+			_, err := client.DownloadReleaseAssets(ctx, map[string]string{}, tc.assets)
 			require.Error(t, err)
 			assert.ErrorContains(t, err, tc.errorMsg)
 		})
@@ -322,7 +319,7 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result, err := client.DownloadReleaseAssets(ctx, assets)
+	result, err := client.DownloadReleaseAssets(ctx, map[string]string{}, assets)
 	require.NoError(t, err)
 
 	// Verify result
@@ -368,8 +365,7 @@ func TestDownloadReleaseAssetsGitHubReleaseUsesToken(t *testing.T) {
 	client := github.NewGitHubReleasesDownloadClient()
 
 	t.Run("prefer GH_TOKEN", func(t *testing.T) {
-		t.Setenv("GH_TOKEN", "goodtoken")
-		t.Setenv("GITHUB_TOKEN", "badtoken")
+		env := map[string]string{"GH_TOKEN": "goodtoken", "GITHUB_TOKEN": "badtoken"}
 
 		// Create mock server for GitHub releases
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -387,13 +383,12 @@ func TestDownloadReleaseAssetsGitHubReleaseUsesToken(t *testing.T) {
 			// Direct URLs don't use checksum files
 		}
 
-		_, err := client.DownloadReleaseAssets(ctx, assets)
+		_, err := client.DownloadReleaseAssets(ctx, env, assets)
 		require.NoError(t, err)
 	})
 
 	t.Run("use GITHUB_TOKEN", func(t *testing.T) {
-		t.Setenv("GH_TOKEN", "")
-		t.Setenv("GITHUB_TOKEN", "goodtoken")
+		env := map[string]string{"GITHUB_TOKEN": "goodtoken"}
 
 		// Create mock server for GitHub releases
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -410,7 +405,7 @@ func TestDownloadReleaseAssetsGitHubReleaseUsesToken(t *testing.T) {
 			PackageFile: filepath.Join(tempDir, "package.zip"),
 			// Direct URLs don't use checksum files
 		}
-		_, err := client.DownloadReleaseAssets(ctx, assets)
+		_, err := client.DownloadReleaseAssets(ctx, env, assets)
 		require.NoError(t, err)
 	})
 }
@@ -435,7 +430,7 @@ func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 		// Note: No Version, ChecksumFile, or ChecksumSigFile for direct URLs
 	}
 
-	result, err := client.DownloadReleaseAssets(t.Context(), assets)
+	result, err := client.DownloadReleaseAssets(t.Context(), map[string]string{}, assets)
 	require.NoError(t, err)
 
 	// Verify result

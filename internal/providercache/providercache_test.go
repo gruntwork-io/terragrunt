@@ -189,7 +189,7 @@ func TestProviderCacheHomeless(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", "")
 	require.NoError(t, os.Unsetenv("XDG_CACHE_HOME"))
 
-	_, err := providercache.InitServer(logger.CreateLogger(), vhttp.NewOSClient(), &pcoptions.ProviderCacheOptions{
+	_, err := providercache.InitServer(logger.CreateLogger(), vhttp.NewOSClient(), map[string]string{}, &pcoptions.ProviderCacheOptions{
 		Dir: cacheDir,
 	}, "")
 	require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")
@@ -210,6 +210,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		server := providercache.NewProviderCache().WithFS(memFs)
 		err := server.Init(
 			logger.CreateLogger(),
+			map[string]string{},
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,
 			},
@@ -232,6 +233,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		server := providercache.NewProviderCache().WithFS(memFs)
 		err := server.Init(
 			logger.CreateLogger(),
+			map[string]string{},
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,
 			},

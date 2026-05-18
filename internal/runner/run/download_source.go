@@ -3,7 +3,6 @@ package run
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -149,7 +148,7 @@ func DownloadTerraformSourceIfNecessary(
 	if opts.SourceUpdate {
 		l.Debugf("The --source-update flag is set, so deleting the temporary folder %s before downloading source.", terraformSource.DownloadDir)
 
-		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
+		if err := v.FS.RemoveAll(terraformSource.DownloadDir); err != nil {
 			return false, errors.New(err)
 		}
 	} else {
@@ -242,12 +241,16 @@ func DownloadTerraformSourceIfNecessary(
 
 		initFile := filepath.Join(terraformSource.WorkingDir, ModuleInitRequiredFile)
 
-		f, createErr := os.Create(initFile)
+		f, createErr := v.FS.Create(initFile)
 		if createErr != nil {
 			return false, createErr
 		}
 
-		defer f.Close()
+		defer func() {
+			if closeErr := f.Close(); closeErr != nil {
+				l.Warnf("Error closing %s: %v", initFile, closeErr)
+			}
+		}()
 	}
 
 	return true, nil
@@ -337,7 +340,7 @@ func downloadSource(
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
-		done, err := tryCASDownload(ctx, l, src, opts, cfg.Terraform.Mutable)
+		done, err := tryCASDownload(ctx, l, v, src, opts, cfg.Terraform.Mutable)
 		if err != nil {
 			return err
 		}
@@ -368,7 +371,7 @@ func downloadSource(
 // should fall through to the standard getter.
 // Returns (false, err) for fatal misconfiguration the user must fix
 // (e.g. an invalid CASCloneDepth). Caller must propagate the error.
-func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Options, mutable bool) (bool, error) {
+func tryCASDownload(ctx context.Context, l log.Logger, v *Venv, src *tf.Source, opts *Options, mutable bool) (bool, error) {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
 
 	l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
@@ -413,7 +416,7 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 		// Clear any partial CAS output before the fallback runs; mixing
 		// leftover CAS files with the standard getter's output leaves the
 		// module dir in an inconsistent state.
-		if removeErr := os.RemoveAll(src.DownloadDir); removeErr != nil {
+		if removeErr := v.FS.RemoveAll(src.DownloadDir); removeErr != nil {
 			l.Warnf("Failed to clean partial CAS output at %s: %v", src.DownloadDir, removeErr)
 		}
 
@@ -442,6 +445,7 @@ func BuildDownloadClient(l log.Logger, v *Venv, opts *Options, cfg *runcfg.RunCo
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
+			WithEnv(v.Env).
 			WithTofuImplementation(opts.TofuImplementation)),
 	)
 }

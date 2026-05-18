@@ -82,7 +82,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 		Writers: &writer.Writers{Writer: &allOutputBuffer, ErrWriter: &allOutputBuffer},
 	}
 
-	out, err := tf.RunCommandWithOutput(t.Context(), l, v, configbridge.TFRunOptsFromOpts(terragruntOptions), "same")
+	out, err := tf.RunCommandWithOutput(t.Context(), l, v, configbridge.TFRunOptsFromOpts(v.Env, terragruntOptions), "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

@@ -1,7 +1,6 @@
 package redesign
 
 import (
-	"os"
 	"strings"
 )
 
@@ -41,10 +40,11 @@ const envTagsListLayout = "TG_TMP_CATALOG_TAGS_LIST"
 // and is not part of Terragrunt's user-facing configuration surface.
 const envTagsDetailStyle = "TG_TMP_CATALOG_TAGS_DETAIL"
 
-// resolveTagsListLayout reads envTagsListLayout and returns the selected
-// layout. Unknown values fall back silently to the default (meta).
-func resolveTagsListLayout() tagsListLayout {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(envTagsListLayout))) {
+// resolveTagsListLayout reads envTagsListLayout from the venv-mediated env
+// map and returns the selected layout. Unknown values fall back silently to
+// the default (meta).
+func resolveTagsListLayout(env map[string]string) tagsListLayout {
+	switch strings.ToLower(strings.TrimSpace(env[envTagsListLayout])) {
 	case "row":
 		return tagsListLayoutRow
 	default:
@@ -52,10 +52,11 @@ func resolveTagsListLayout() tagsListLayout {
 	}
 }
 
-// resolveTagsDetailStyle reads envTagsDetailStyle and returns the selected
-// style. Unknown values fall back silently to the default (pills).
-func resolveTagsDetailStyle() tagsDetailStyle {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(envTagsDetailStyle))) {
+// resolveTagsDetailStyle reads envTagsDetailStyle from the venv-mediated env
+// map and returns the selected style. Unknown values fall back silently to
+// the default (pills).
+func resolveTagsDetailStyle(env map[string]string) tagsDetailStyle {
+	switch strings.ToLower(strings.TrimSpace(env[envTagsDetailStyle])) {
 	case "section":
 		return tagsDetailStyleSection
 	default:

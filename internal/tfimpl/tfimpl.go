@@ -1,8 +1,6 @@
 // Package tfimpl defines the Terraform implementation type constants.
 package tfimpl
 
-import "os"
-
 // Type represents which Terraform implementation is being used.
 type Type string
 
@@ -19,18 +17,19 @@ const (
 const (
 	defaultRegistryDomain   = "registry.terraform.io"
 	defaultOtRegistryDomain = "registry.opentofu.org"
-	// defaultRegistryEnvName overrides the default registry host at runtime.
-	defaultRegistryEnvName = "TG_TF_DEFAULT_REGISTRY_HOST"
+	// DefaultRegistryEnvName overrides the default registry host at runtime.
+	DefaultRegistryEnvName = "TG_TF_DEFAULT_REGISTRY_HOST"
 )
 
 // DefaultRegistryDomain returns the registry host to use when a tfr://
 // source URL omits its host.
 //
-// The TG_TF_DEFAULT_REGISTRY_HOST env var wins if set; otherwise the choice
-// follows impl: OpenTofu → registry.opentofu.org, anything else →
-// registry.terraform.io.
-func DefaultRegistryDomain(impl Type) string {
-	if v := os.Getenv(defaultRegistryEnvName); v != "" {
+// The TG_TF_DEFAULT_REGISTRY_HOST entry in env wins if set; otherwise the
+// choice follows impl: OpenTofu → registry.opentofu.org, anything else →
+// registry.terraform.io. Production callers pass the venv-mediated env
+// map so test substitution at the venv boundary covers registry routing.
+func DefaultRegistryDomain(env map[string]string, impl Type) string {
+	if v := env[DefaultRegistryEnvName]; v != "" {
 		return v
 	}
 

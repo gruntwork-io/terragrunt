@@ -65,7 +65,7 @@ func TestProviderHandlers_DiscoveryURL_WithNetworkMirrorForBlockedRegistry(t *te
 		},
 	}
 
-	providerHandlers, err := handlers.NewProviderHandlers(cfg, log.New(), vhttp.NewNoNetworkClient(), nil)
+	providerHandlers, err := handlers.NewProviderHandlers(cfg, log.New(), vhttp.NewNoNetworkClient(), map[string]string{}, nil)
 	require.NoError(t, err)
 
 	urls, err := providerHandlers.DiscoveryURL(context.Background(), "blocked-registry.invalid")

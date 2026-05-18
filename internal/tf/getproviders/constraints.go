@@ -18,8 +18,11 @@ import (
 // ProviderConstraints maps provider addresses to their version constraints from required_providers blocks
 type ProviderConstraints map[string]string
 
-// ParseProviderConstraints parses all .tf and .tofu files in the given directory and extracts required_providers constraints
-func ParseProviderConstraints(impl tfimpl.Type, workingDir string) (ProviderConstraints, error) {
+// ParseProviderConstraints parses all .tf and .tofu files in the given directory and extracts required_providers constraints.
+//
+// env supplies the venv-mediated shell environment used to resolve the
+// default registry domain when a required_providers entry omits its host.
+func ParseProviderConstraints(env map[string]string, impl tfimpl.Type, workingDir string) (ProviderConstraints, error) {
 	constraints := make(ProviderConstraints)
 
 	var allFiles []string
@@ -44,7 +47,7 @@ func ParseProviderConstraints(impl tfimpl.Type, workingDir string) (ProviderCons
 	}
 
 	for _, file := range allFiles {
-		fileConstraints, err := parseProviderConstraintsFromFile(impl, file)
+		fileConstraints, err := parseProviderConstraintsFromFile(env, impl, file)
 		if err != nil {
 			// Log parsing errors but continue processing other files
 			// This allows partial success when some files have syntax errors
@@ -59,7 +62,7 @@ func ParseProviderConstraints(impl tfimpl.Type, workingDir string) (ProviderCons
 }
 
 // parseProviderConstraintsFromFile parses a single .tf file and extracts required_providers constraints
-func parseProviderConstraintsFromFile(impl tfimpl.Type, filename string) (ProviderConstraints, error) {
+func parseProviderConstraintsFromFile(env map[string]string, impl tfimpl.Type, filename string) (ProviderConstraints, error) {
 	constraints := make(ProviderConstraints)
 
 	content, err := os.ReadFile(filename)
@@ -91,7 +94,7 @@ func parseProviderConstraintsFromFile(impl tfimpl.Type, filename string) (Provid
 			}
 
 			// Parse each provider in the required_providers block
-			providerConstraints := parseProvidersFromRequiredProvidersBlock(impl, nestedBlock)
+			providerConstraints := parseProvidersFromRequiredProvidersBlock(env, impl, nestedBlock)
 
 			// Merge constraints from this required_providers block
 			maps.Copy(constraints, providerConstraints)
@@ -102,7 +105,7 @@ func parseProviderConstraintsFromFile(impl tfimpl.Type, filename string) (Provid
 }
 
 // parseProvidersFromRequiredProvidersBlock extracts provider constraints from a required_providers block
-func parseProvidersFromRequiredProvidersBlock(impl tfimpl.Type, block *hclsyntax.Block) ProviderConstraints {
+func parseProvidersFromRequiredProvidersBlock(env map[string]string, impl tfimpl.Type, block *hclsyntax.Block) ProviderConstraints {
 	constraints := make(ProviderConstraints)
 
 	// Parse the attributes in the required_providers block
@@ -174,11 +177,11 @@ func parseProvidersFromRequiredProvidersBlock(impl tfimpl.Type, block *hclsyntax
 		// If we have both source and version, create the constraint mapping
 		if source != "" && version != "" {
 			// Normalize the source address to full registry format
-			providerAddr := normalizeProviderAddress(impl, source)
+			providerAddr := normalizeProviderAddress(env, impl, source)
 			constraints[providerAddr] = normalizeVersionConstraint(version)
 		} else if source == "" && version != "" {
 			// If only version is specified, assume it's a hashicorp provider
-			registryDomain := tfimpl.DefaultRegistryDomain(impl)
+			registryDomain := tfimpl.DefaultRegistryDomain(env, impl)
 			providerAddr := fmt.Sprintf("%s/hashicorp/%s", registryDomain, name)
 			constraints[providerAddr] = normalizeVersionConstraint(version)
 		}
@@ -188,9 +191,9 @@ func parseProvidersFromRequiredProvidersBlock(impl tfimpl.Type, block *hclsyntax
 }
 
 // normalizeProviderAddress converts provider source to full registry format
-func normalizeProviderAddress(impl tfimpl.Type, source string) string {
+func normalizeProviderAddress(env map[string]string, impl tfimpl.Type, source string) string {
 	parts := strings.Split(source, "/")
-	registryDomain := tfimpl.DefaultRegistryDomain(impl)
+	registryDomain := tfimpl.DefaultRegistryDomain(env, impl)
 
 	const (
 		singlePart    = 1

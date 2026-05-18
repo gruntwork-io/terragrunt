@@ -469,7 +469,7 @@ func runWithOpts(
 	t.Helper()
 
 	opts := &tflint.TFLintOptions{
-		ShellOptions:      shell.NewShellOptions(),
+		ShellOptions:      shell.NewShellOptions(map[string]string{}),
 		WorkingDir:        "/work/unit",
 		RootWorkingDir:    "/work",
 		MaxFoldersToCheck: 5,

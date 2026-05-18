@@ -14,8 +14,13 @@ import (
 // call site. Env, Writers, and HTTP are bundled here as the interface is
 // invoked across packages that hold their own per-call data; the
 // configbridge adapter populates them from the venv carried by the caller.
+//
+// Writers is held as a pointer so it shares the [writer.Writers] value
+// owned by the venv. Per-call overrides via [writer.Writers.WithWriter]
+// produce fresh pointers; direct field mutation through this pointer is
+// unsafe for the same reason it is unsafe on [venv.Venv.Writers].
 type Options struct {
-	Writers                      writer.Writers
+	Writers                      *writer.Writers
 	HTTP                         vhttp.Client
 	Env                          map[string]string
 	IAMRoleOptions               iam.RoleOptions

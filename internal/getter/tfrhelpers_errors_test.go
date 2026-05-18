@@ -66,7 +66,7 @@ func TestGetTerraformGetHeaderFallsBackToBodyLocation(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	got, err := getter.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), server.Client(), parseURL(t, server.URL))
+	got, err := getter.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), server.Client(), map[string]string{}, parseURL(t, server.URL))
 	require.NoError(t, err)
 	assert.Equal(t, "https://example.com/foo.zip", got)
 }
@@ -83,7 +83,7 @@ func TestGetTerraformGetHeaderMissing(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := getter.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), server.Client(), parseURL(t, server.URL))
+	_, err := getter.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), server.Client(), map[string]string{}, parseURL(t, server.URL))
 	require.Error(t, err)
 
 	var typed getter.ModuleDownloadErr
@@ -103,7 +103,7 @@ func TestGetModuleRegistryURLBasePathMissingModulesV1(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := getter.GetModuleRegistryURLBasePath(t.Context(), logger.CreateLogger(), server.Client(), addrFromURL(t, server.URL))
+	_, err := getter.GetModuleRegistryURLBasePath(t.Context(), logger.CreateLogger(), server.Client(), map[string]string{}, addrFromURL(t, server.URL))
 	require.Error(t, err)
 
 	var typed getter.ServiceDiscoveryErr
@@ -121,7 +121,7 @@ func TestHTTPGETAndGetResponseNonOK(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := getter.GetModuleRegistryURLBasePath(t.Context(), logger.CreateLogger(), server.Client(), addrFromURL(t, server.URL))
+	_, err := getter.GetModuleRegistryURLBasePath(t.Context(), logger.CreateLogger(), server.Client(), map[string]string{}, addrFromURL(t, server.URL))
 	require.Error(t, err)
 
 	var typed getter.RegistryAPIErr
@@ -131,11 +131,14 @@ func TestHTTPGETAndGetResponseNonOK(t *testing.T) {
 
 // TestApplyHostTokenViaEnv pins the env-var fallback path for registry auth.
 // When the OpenTofu/Terraform CLI config doesn't carry credentials for the
-// host, TG_TF_REGISTRY_TOKEN is sent as a bearer token.
+// host, TG_TF_REGISTRY_TOKEN supplied via the venv-mediated env map is sent
+// as a bearer token.
 func TestApplyHostTokenViaEnv(t *testing.T) {
+	t.Parallel()
+
 	const want = "Bearer my-test-token"
 
-	t.Setenv("TG_TF_REGISTRY_TOKEN", "my-test-token")
+	env := map[string]string{"TG_TF_REGISTRY_TOKEN": "my-test-token"}
 
 	var got string
 
@@ -149,7 +152,7 @@ func TestApplyHostTokenViaEnv(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := getter.GetModuleRegistryURLBasePath(t.Context(), logger.CreateLogger(), server.Client(), addrFromURL(t, server.URL))
+	_, err := getter.GetModuleRegistryURLBasePath(t.Context(), logger.CreateLogger(), server.Client(), env, addrFromURL(t, server.URL))
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 }
@@ -167,7 +170,7 @@ func TestHTTPGETAndGetResponseRespectsContextCancellation(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := getter.GetModuleRegistryURLBasePath(ctx, logger.CreateLogger(), server.Client(), addrFromURL(t, server.URL))
+	_, err := getter.GetModuleRegistryURLBasePath(ctx, logger.CreateLogger(), server.Client(), map[string]string{}, addrFromURL(t, server.URL))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
 }

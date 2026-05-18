@@ -219,26 +219,18 @@ func TestTagsMarkdownSection(t *testing.T) {
 }
 
 func TestEnvTagsListLayoutToggle(t *testing.T) {
-	t.Setenv(redesign.EnvTagsListLayoutForTest, "row")
-	assert.True(t, redesign.ResolveTagsListLayoutRowForTest())
+	t.Parallel()
 
-	t.Setenv(redesign.EnvTagsListLayoutForTest, "META")
-	assert.True(t, redesign.ResolveTagsListLayoutMetaForTest())
-
-	t.Setenv(redesign.EnvTagsListLayoutForTest, "")
-	assert.True(t, redesign.ResolveTagsListLayoutMetaForTest())
-
-	t.Setenv(redesign.EnvTagsListLayoutForTest, "garbage")
-	assert.True(t, redesign.ResolveTagsListLayoutMetaForTest())
+	assert.True(t, redesign.ResolveTagsListLayoutRowForTest(map[string]string{redesign.EnvTagsListLayoutForTest: "row"}))
+	assert.True(t, redesign.ResolveTagsListLayoutMetaForTest(map[string]string{redesign.EnvTagsListLayoutForTest: "META"}))
+	assert.True(t, redesign.ResolveTagsListLayoutMetaForTest(map[string]string{redesign.EnvTagsListLayoutForTest: ""}))
+	assert.True(t, redesign.ResolveTagsListLayoutMetaForTest(map[string]string{redesign.EnvTagsListLayoutForTest: "garbage"}))
 }
 
 func TestEnvTagsDetailStyleToggle(t *testing.T) {
-	t.Setenv(redesign.EnvTagsDetailStyleForTest, "section")
-	assert.True(t, redesign.ResolveTagsDetailStyleSectionForTest())
+	t.Parallel()
 
-	t.Setenv(redesign.EnvTagsDetailStyleForTest, "")
-	assert.True(t, redesign.ResolveTagsDetailStylePillsForTest())
-
-	t.Setenv(redesign.EnvTagsDetailStyleForTest, "garbage")
-	assert.True(t, redesign.ResolveTagsDetailStylePillsForTest())
+	assert.True(t, redesign.ResolveTagsDetailStyleSectionForTest(map[string]string{redesign.EnvTagsDetailStyleForTest: "section"}))
+	assert.True(t, redesign.ResolveTagsDetailStylePillsForTest(map[string]string{redesign.EnvTagsDetailStyleForTest: ""}))
+	assert.True(t, redesign.ResolveTagsDetailStylePillsForTest(map[string]string{redesign.EnvTagsDetailStyleForTest: "garbage"}))
 }

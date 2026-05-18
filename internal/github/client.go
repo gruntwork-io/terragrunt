@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -64,23 +63,25 @@ func WithGithubToken(token string) GitHubAPIClientOption {
 // WithGithubComDefaultAuth sets the authentication header based on the assumption
 // we're talking to github.com, and using the same logic as the gh cli:
 // https://cli.github.com/manual/gh_help_environment
-func WithGithubComDefaultAuth() GitHubAPIClientOption {
+//
+// env is the venv-mediated shell environment from which the token is read.
+func WithGithubComDefaultAuth(env map[string]string) GitHubAPIClientOption {
 	return func(c *GitHubAPIClient) {
-		if tok := getGithubTokenFromEnv(); tok != "" {
+		if tok := getGithubTokenFromEnv(env); tok != "" {
 			c.defaultHeaders.Set("Authorization", "Bearer "+tok)
 		}
 	}
 }
 
-// getGithubTokenFromEnv retrieves the GitHub token from environment
-// variables using the same logic as the gh cli:
+// getGithubTokenFromEnv retrieves the GitHub token from the venv-mediated
+// shell environment using the same precedence as the gh cli:
 // https://cli.github.com/manual/gh_help_environment
-func getGithubTokenFromEnv() string {
-	if tok := os.Getenv("GH_TOKEN"); tok != "" {
+func getGithubTokenFromEnv(env map[string]string) string {
+	if tok := env["GH_TOKEN"]; tok != "" {
 		return tok
 	}
 
-	if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
+	if tok := env["GITHUB_TOKEN"]; tok != "" {
 		return tok
 	}
 
@@ -224,8 +225,12 @@ func NewGitHubReleasesDownloadClient(opts ...GitHubReleasesDownloadClientOption)
 // DownloadReleaseAssets downloads the specified release assets from a GitHub repository.
 // It supports downloading from either full URLs (when repository contains "://") or
 // from GitHub releases using the standard GitHub releases URL format.
+//
+// env supplies the venv-mediated shell environment used to resolve the
+// GitHub bearer token for authenticated downloads.
 func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 	ctx context.Context,
+	env map[string]string,
 	assets *ReleaseAssets,
 ) (*DownloadResult, error) {
 	if assets.Repository == "" {
@@ -292,7 +297,7 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 				getter.WithDecompressors(map[string]getter.Decompressor{}),
 			}
 
-			if tok := getGithubTokenFromEnv(); tok != "" {
+			if tok := getGithubTokenFromEnv(env); tok != "" {
 				header := http.Header{"Authorization": {"Bearer " + tok}}
 
 				if strings.HasPrefix(url, "https://") {

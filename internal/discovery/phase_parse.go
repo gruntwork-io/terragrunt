@@ -357,7 +357,7 @@ func parseComponent(
 		parseV.Env = maps.Clone(v.Env)
 		parseV.Writers = parseV.Writers.WithWriter(io.Discard).WithErrWriter(io.Discard)
 
-		shellOpts := configbridge.ShellRunOptsFromOpts(parseOpts)
+		shellOpts := configbridge.ShellRunOptsFromOpts(parseV.Env, parseOpts)
 
 		_, err := creds.ObtainCredsForParsing(ctx, l, &parseV, parseOpts.AuthProviderCmd, parseV.Env, shellOpts)
 		if err != nil {

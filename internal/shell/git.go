@@ -73,7 +73,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v *venv.Venv, path string
 	gitV := *v
 	gitV.Writers = gitV.Writers.WithWriter(&stdout).WithErrWriter(&stderr)
 
-	gitRunOpts := NewShellOptions().WithWorkingDir(path)
+	gitRunOpts := NewShellOptions(v.Env).WithWorkingDir(path)
 
 	cmd, err := RunCommandWithOutput(ctx, l, &gitV, gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
 	if err != nil {
@@ -191,7 +191,7 @@ func GitRepoTags(
 	gitV := *v
 	gitV.Writers = gitV.Writers.WithWriter(&stdout).WithErrWriter(&stderr)
 
-	gitRunOpts := NewShellOptions().WithWorkingDir(workingDir)
+	gitRunOpts := NewShellOptions(v.Env).WithWorkingDir(workingDir)
 
 	output, err := RunCommandWithOutput(ctx, l, &gitV, gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {

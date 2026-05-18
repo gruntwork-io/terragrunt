@@ -253,14 +253,6 @@ func AssumeIamRole(
 ) (*types.Credentials, error) {
 	region := getRegionFromEnv(env)
 	if region == "" {
-		region = os.Getenv("AWS_REGION")
-	}
-
-	if region == "" {
-		region = os.Getenv("AWS_DEFAULT_REGION")
-	}
-
-	if region == "" {
 		region = "us-east-1"
 	}
 

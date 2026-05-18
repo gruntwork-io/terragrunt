@@ -123,7 +123,7 @@ func TestGetTFVersionStripsTFCLIArgs(t *testing.T) {
 func newVersionTFOptions(tfPath string) *tf.TFOptions {
 	return &tf.TFOptions{
 		TerraformCliArgs: iacargs.New(),
-		ShellOptions:     shell.NewShellOptions().WithTFPath(tfPath),
+		ShellOptions:     shell.NewShellOptions(map[string]string{}).WithTFPath(tfPath),
 	}
 }
 

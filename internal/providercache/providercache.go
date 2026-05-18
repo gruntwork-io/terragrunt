@@ -126,7 +126,10 @@ func (pc *ProviderCache) HTTPClient() vhttp.Client {
 
 // Init initializes the ProviderCache with the given logger and options.
 // Call this after configuring the ProviderCache with builder methods.
-func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) error {
+//
+// env supplies the venv-mediated shell environment used to resolve
+// TF_TOKEN_<host> credentials when the cache talks to upstream registries.
+func (pc *ProviderCache) Init(l log.Logger, env map[string]string, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) error {
 	pc.opts = pcOpts
 
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
@@ -165,15 +168,15 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 		return err
 	}
 
-	providerService := services.NewProviderService(pcOpts.Dir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(pc.FS()), services.WithHTTPClient(pc.HTTPClient()))
-	proxyProviderHandler := handlers.NewProxyProviderHandler(l, pc.HTTPClient(), cliCfg.CredentialsSource())
+	providerService := services.NewProviderService(pcOpts.Dir, userProviderDir, cliCfg.CredentialsSource(env), l, services.WithFS(pc.FS()), services.WithHTTPClient(pc.HTTPClient()))
+	proxyProviderHandler := handlers.NewProxyProviderHandler(l, pc.HTTPClient(), cliCfg.CredentialsSource(env))
 
 	// Custom hosts need handlers, but must not pollute pcOpts.RegistryNames — FilterRegistriesByImplementation
 	// relies on that slice containing only the standard registries to detect impl-based filtering.
 	// See: https://github.com/gruntwork-io/terragrunt/issues/5916
 	registryNamesForHandlers := AppendCustomHostRegistries(cliCfg.Hosts, pcOpts.RegistryNames)
 
-	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, pc.HTTPClient(), registryNamesForHandlers)
+	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, pc.HTTPClient(), env, registryNamesForHandlers)
 	if err != nil {
 		return errors.Errorf("creating provider handlers failed: %w", err)
 	}
@@ -182,7 +185,7 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	// This avoids .well-known/terraform.json lookups for registries that don't support it.
 	populateCustomHostDiscoveryCache(cliCfg.Hosts, providerHandlers)
 
-	proxyModuleHandler := handlers.NewProxyModuleHandler(l, cliCfg.CredentialsSource(), providerHandlers, registryNamesForHandlers)
+	proxyModuleHandler := handlers.NewProxyModuleHandler(l, cliCfg.CredentialsSource(env), providerHandlers, registryNamesForHandlers)
 
 	cacheServer := cache.NewServer(
 		cache.WithHostname(pcOpts.Hostname),
@@ -204,11 +207,13 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 }
 
 // InitServer creates and initializes a new ProviderCache with the given logger,
-// HTTP client, and options. This is a convenience function that combines
-// NewProviderCache(), WithHTTPClient, and Init().
-func InitServer(l log.Logger, httpClient vhttp.Client, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) (*ProviderCache, error) {
+// HTTP client, environment, and options. This is a convenience function that
+// combines NewProviderCache(), WithHTTPClient, and Init(). The env is the
+// venv-mediated shell environment used to resolve TF_TOKEN_<host>
+// credentials for upstream registry requests.
+func InitServer(l log.Logger, httpClient vhttp.Client, env map[string]string, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) (*ProviderCache, error) {
 	pc := NewProviderCache().WithHTTPClient(httpClient)
-	if err := pc.Init(l, pcOpts, rootWorkingDir); err != nil {
+	if err := pc.Init(l, env, pcOpts, rootWorkingDir); err != nil {
 		return nil, err
 	}
 
@@ -304,7 +309,7 @@ func (pc *ProviderCache) warmUpCache(
 		return nil, err
 	}
 
-	providerConstraints, err := getproviders.ParseProviderConstraints(tfOpts.TofuImplementation, filepath.Dir(tfOpts.TerragruntConfigPath))
+	providerConstraints, err := getproviders.ParseProviderConstraints(env, tfOpts.TofuImplementation, filepath.Dir(tfOpts.TerragruntConfigPath))
 	if err != nil {
 		l.Debugf("Failed to parse provider constraints from %s: %v", filepath.Dir(tfOpts.TerragruntConfigPath), err)
 
