@@ -147,7 +147,7 @@ func RunValidate(ctx context.Context, l log.Logger, v *run.Venv, opts *options.T
 				parser = parser.WithValues(values)
 			}
 
-			file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(stackFilePath)
+			file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(parser.Venv.FS, stackFilePath)
 			if err != nil {
 				parseErrs = append(parseErrs, errors.New(err))
 				continue

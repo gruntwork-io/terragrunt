@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -39,8 +40,8 @@ func (parser *Parser) withOptions(opts ...Option) *Parser {
 	return parser
 }
 
-func (parser *Parser) ParseFromFile(configPath string) (*File, error) {
-	content, err := os.ReadFile(configPath)
+func (parser *Parser) ParseFromFile(fsys vfs.FS, configPath string) (*File, error) {
+	content, err := vfs.ReadFile(fsys, configPath)
 	if err != nil {
 		parser.logger.Warnf("Error reading file %s: %v", configPath, err)
 
