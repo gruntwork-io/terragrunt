@@ -121,7 +121,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 		}
 
-		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
+		parseResult, parseErr := inthclparse.ParseStackFile(pctx.Venv.FS, &inthclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
 			// Detect autoinclude on the include-merged stackFile so the check works for include paths that use HCL functions/locals/values, where a raw-HCL nil-eval re-scan would fail.
 			if stackConfigHasAutoInclude(stackFile) {
@@ -160,6 +160,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	}
 
 	genOpts := generateOpts{
+		fs:              pctx.Venv.FS,
 		rootWorkingDir:  pctx.RootWorkingDir,
 		logShowAbsPaths: pctx.LogShowAbsPaths,
 		sourceMap:       pctx.SourceMap,
@@ -220,6 +221,7 @@ func validateUpdateSourceWithCAS(stackFile *StackConfig, stackFilePath string, c
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
+	fs              vfs.FS
 	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
 	casInstance     *cas.CAS
 	sourceMap       map[string]string
@@ -406,7 +408,7 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 
 	l.Infof("Generating %s for %s %s", inthclparse.AutoIncludeFileNameForKind(kind), kind, cmp.name)
 
-	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, resolved.SourceBytes, resolved.EvalCtx); err != nil {
+	if err := inthclparse.GenerateAutoIncludeFile(opts.fs, resolved, dest, resolved.SourceBytes, resolved.EvalCtx); err != nil {
 		return errors.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
 	}
 
@@ -510,7 +512,7 @@ func fetchComponentSource(
 		l.Warnf("CAS processing failed for %s %q: %v. Falling back to standard getter.", kindStr, cmp.name, casErr)
 	}
 
-	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
+	if err := copyFiles(ctx, l, opts.fs, cmp.name, cmp.sourceDir, source, dest); err != nil {
 		return errors.Errorf(
 			"Failed to fetch %s %s\n"+
 				"  Source:      %s\n"+
@@ -552,7 +554,7 @@ func fetchViaCAS(
 	// A copy failure can leave partial content in dest, so reset it before
 	// falling through to the standard getter. ProcessStackComponent writes only
 	// to its own temp dir, so failures before this point never touch dest.
-	if copyErr := util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
+	if copyErr := util.CopyFolderContentsWithFilter(l, opts.fs, result.ContentDir, dest, manifestName, func(_ string) bool {
 		return true
 	}); copyErr != nil {
 		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
@@ -602,7 +604,7 @@ func isCASProtocol(source string) bool {
 // The function checks if the source is local or remote. If local, it copies the
 // contents of the source directory to the destination. If remote, it fetches the
 // source and stores it in the destination directory.
-func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, dest string) error {
+func copyFiles(ctx context.Context, l log.Logger, fsys vfs.FS, identifier, sourceDir, src, dest string) error {
 	if isLocal(l, sourceDir, src) {
 		// check if src is absolute path, if not, join with sourceDir
 		var localSrc string
@@ -615,7 +617,7 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 
 		localSrc = filepath.Clean(localSrc)
 
-		if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
+		if err := util.CopyFolderContentsWithFilter(l, fsys, localSrc, dest, manifestName, func(absolutePath string) bool {
 			return true
 		}); err != nil {
 			return errors.Errorf("Failed to copy %s to %s %w", localSrc, dest, err)

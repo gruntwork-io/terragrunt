@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 var (
@@ -96,7 +97,7 @@ func (src Source) String() string {
 // so the same file path (/foo/bar) is always considered the same version. To detect changes the file path will be hashed
 // and returned as version. In case of hash error the default encoded source version will be returned.
 // See also the encodeSourceName and ProcessTerraformSource methods.
-func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
+func (src Source) EncodeSourceVersion(l log.Logger, fsys vfs.FS) (string, error) {
 	if IsLocalSource(src.CanonicalSourceURL) {
 		sourceHash := sha256.New()
 		sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
@@ -105,7 +106,9 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 
 		walkDir := filepath.WalkDir
 		if src.WalkDirWithSymlinks {
-			walkDir = util.WalkDirWithSymlinks
+			walkDir = func(root string, fn fs.WalkDirFunc) error {
+				return vfs.WalkDirWithSymlinks(fsys, root, fn)
+			}
 		}
 
 		err = walkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
@@ -152,8 +155,8 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 // WriteVersionFile writes a file into the DownloadDir that contains
 // the version number of this source code. The version number is
 // calculated using the EncodeSourceVersion method.
-func (src Source) WriteVersionFile(l log.Logger) error {
-	version, err := src.EncodeSourceVersion(l)
+func (src Source) WriteVersionFile(l log.Logger, fsys vfs.FS) error {
+	version, err := src.EncodeSourceVersion(l, fsys)
 	if err != nil {
 		// If we failed to calculate a SHA of the downloaded source, write a SHA of
 		// some random data into the version file.

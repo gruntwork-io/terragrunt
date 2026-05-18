@@ -42,6 +42,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/mitchellh/mapstructure"
 )
@@ -1076,12 +1077,14 @@ func GetDefaultConfigPath(workingDir string) string {
 // FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path.
 //
 // Parameters:
+//   - fsys: filesystem to use for the walk (callers without a venv may pass [vfs.NewOSFS])
 //   - rootPath: the root directory to search
 //   - experiments: experiment flags (for symlink support)
 //   - configPath: the terragrunt config path (to detect non-default config filenames)
 //   - env: environment variables (to resolve TF_DATA_DIR)
 //   - downloadDir: the terragrunt download directory to skip
 func FindConfigFilesInPath(
+	fsys vfs.FS,
 	rootPath string,
 	experiments experiment.Experiments,
 	configPath string,
@@ -1093,7 +1096,9 @@ func FindConfigFilesInPath(
 	walkFunc := filepath.WalkDir
 
 	if experiments.Evaluate(experiment.Symlinks) {
-		walkFunc = util.WalkDirWithSymlinks
+		walkFunc = func(root string, fn fs.WalkDirFunc) error {
+			return vfs.WalkDirWithSymlinks(fsys, root, fn)
+		}
 	}
 
 	tfDataDir := tf.DefaultTFDataDir
@@ -1983,7 +1988,9 @@ func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource str
 
 	walkFunc := filepath.WalkDir
 	if pctx.Experiments.Evaluate(experiment.Symlinks) {
-		walkFunc = util.WalkDirWithSymlinks
+		walkFunc = func(root string, fn fs.WalkDirFunc) error {
+			return vfs.WalkDirWithSymlinks(pctx.Venv.FS, root, fn)
+		}
 	}
 
 	_ = walkFunc(moduleDir, func(path string, d fs.DirEntry, walkErr error) error {

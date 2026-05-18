@@ -367,7 +367,7 @@ func WithFastCopy() CopyOption {
 //
 // Optional behavior is configured through [CopyOption] values such as
 // [WithIncludeInCopy], [WithExcludeFromCopy], and [WithFastCopy].
-func CopyFolderContents(l log.Logger, source, destination, manifestFile string, opts ...CopyOption) error {
+func CopyFolderContents(l log.Logger, fsys vfs.FS, source, destination, manifestFile string, opts ...CopyOption) error {
 	var cfg copyConfig
 	for _, opt := range opts {
 		opt(&cfg)
@@ -378,7 +378,7 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 	destination = filepath.ToSlash(destination)
 
 	if cfg.fastCopy {
-		return copyFolderContentsFast(l, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
+		return copyFolderContentsFast(l, fsys, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
 	}
 
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
@@ -409,7 +409,7 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
 	}
 
-	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
+	return CopyFolderContentsWithFilter(l, fsys, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := filepath.Rel(source, absolutePath)
 		if err != nil {
 			l.Warnf("Failed to compute relative path from %s to %s: %v", source, absolutePath, err)
@@ -438,6 +438,7 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 // [vfs.WalkDirParallel].
 func copyFolderContentsFast(
 	l log.Logger,
+	fsys vfs.FS,
 	source,
 	destination,
 	manifestFile string,
@@ -460,7 +461,7 @@ func copyFolderContentsFast(
 	}
 
 	manifest := NewFileManifest(destination, manifestFile)
-	if err := manifest.Clean(l); err != nil {
+	if err := manifest.Clean(l, fsys); err != nil {
 		return errors.New(err)
 	}
 
@@ -582,7 +583,7 @@ func copyFolderContentsFast(
 		return manifest.AddFile(dest)
 	}
 
-	if err := vfs.WalkDirParallel(vfs.NewOSFS(), source, walkFn, vfs.WithFollowSymlinks()); err != nil {
+	if err := vfs.WalkDirParallel(fsys, source, walkFn, vfs.WithFollowSymlinks()); err != nil {
 		return errors.New(err)
 	}
 
@@ -717,14 +718,14 @@ func compileExcludePattern(patterns []string) (glob.Matcher, error) {
 }
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
-func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+func CopyFolderContentsWithFilter(l log.Logger, fsys vfs.FS, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
 	const ownerReadWriteExecutePerms = 0o700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
 	}
 
 	manifest := NewFileManifest(destination, manifestFile)
-	if err := manifest.Clean(l); err != nil {
+	if err := manifest.Clean(l, fsys); err != nil {
 		return errors.New(err)
 	}
 
@@ -769,7 +770,7 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 				return errors.New(err)
 			}
 
-			if err := CopyFolderContentsWithFilter(l, file, dest, manifestFile, filter); err != nil {
+			if err := CopyFolderContentsWithFilter(l, fsys, file, dest, manifestFile, filter); err != nil {
 				return err
 			}
 
@@ -800,13 +801,13 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 // CopyFolderToTemp creates a temp directory with the given prefix, copies the
 // contents of the source folder into it using the provided filter, and returns
 // the path to the temp directory.
-func CopyFolderToTemp(source string, tempPrefix string, filter func(path string) bool) (string, error) {
+func CopyFolderToTemp(fsys vfs.FS, source string, tempPrefix string, filter func(path string) bool) (string, error) {
 	dest, err := os.MkdirTemp("", tempPrefix)
 	if err != nil {
 		return "", errors.New(err)
 	}
 
-	if err := CopyFolderContentsWithFilter(log.New(), source, dest, ".copymanifest", filter); err != nil {
+	if err := CopyFolderContentsWithFilter(log.New(), fsys, source, dest, ".copymanifest", filter); err != nil {
 		return "", err
 	}
 
@@ -952,10 +953,10 @@ const (
 
 // Clean walks the manifest and any nested manifests it references, removing recorded entries.
 // All operations stay bounded to ManifestFolder.
-func (manifest *fileManifest) Clean(l log.Logger) error {
+func (manifest *fileManifest) Clean(l log.Logger, fsys vfs.FS) error {
 	rootDir := filepath.Clean(manifest.ManifestFolder)
 
-	rootExists, err := manifestRootExistsWithoutSymlinks(vfs.NewOSFS(), rootDir)
+	rootExists, err := manifestRootExistsWithoutSymlinks(fsys, rootDir)
 	if err != nil {
 		return err
 	}
@@ -969,7 +970,7 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 		return errors.Errorf("manifest path %q must stay inside %q", manifest.ManifestFile, rootDir)
 	}
 
-	return manifest.clean(l, vfs.NewOSFS(), rootDir, manifestRelPath)
+	return manifest.clean(l, fsys, rootDir, manifestRelPath)
 }
 
 // clean reads manifests and removes their entries using root-confined vfs operations.

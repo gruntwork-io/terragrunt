@@ -240,5 +240,5 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 		}
 	}(manifestPath)
 
-	return util.CopyFolderContentsWithFilter(l, sourcePath, dstPath, manifestFname, func(string) bool { return true })
+	return util.CopyFolderContentsWithFilter(l, r.FS, sourcePath, dstPath, manifestFname, func(string) bool { return true })
 }

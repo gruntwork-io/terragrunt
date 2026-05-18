@@ -35,6 +35,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -73,7 +74,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = terraformSource.WriteVersionFile(logger.CreateLogger())
+	err = terraformSource.WriteVersionFile(logger.CreateLogger(), vfs.NewOSFS())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -557,7 +558,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	actual, err := run.AlreadyHaveLatestCode(l, terraformSource, configbridge.NewRunOptions(opts))
+	actual, err := run.AlreadyHaveLatestCode(l, vfs.NewOSFS(), terraformSource, configbridge.NewRunOptions(opts))
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }
@@ -608,6 +609,7 @@ func copyFolder(t *testing.T, src string, dest string) {
 
 	err := util.CopyFolderContents(
 		l,
+		vfs.NewOSFS(),
 		filepath.FromSlash(src),
 		filepath.FromSlash(dest),
 		".terragrunt-test",

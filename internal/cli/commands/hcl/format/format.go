@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
@@ -60,7 +61,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 
 		l.Debugf("Formatting hcl file at: %s.", targetFile)
 
-		return formatTgHCL(l, v.Writers.Writer, opts, targetFile)
+		return formatTgHCL(l, v.FS, v.Writers.Writer, opts, targetFile)
 	}
 
 	var (
@@ -74,7 +75,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 	// the discovery package because we want to find non-comps like includes.
 	files := []string{}
 
-	err = filepath.WalkDir(workingDir, func(path string, d fs.DirEntry, err error) error {
+	err = vfs.WalkDir(v.FS, workingDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -129,7 +130,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 
 	for i, c := range components {
 		g.Go(func() error {
-			err := formatTgHCL(l, v.Writers.Writer, opts, c.Path())
+			err := formatTgHCL(l, v.FS, v.Writers.Writer, opts, c.Path())
 			if err != nil {
 				errs[i] = err
 			}
@@ -172,7 +173,7 @@ func RunForFiles(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.
 		}
 
 		g.Go(func() error {
-			if err := formatTgHCL(l, v.Writers.Writer, opts, file); err != nil {
+			if err := formatTgHCL(l, v.FS, v.Writers.Writer, opts, file); err != nil {
 				mu.Lock()
 
 				errs = append(errs, err)
@@ -223,16 +224,16 @@ func formatFromStdin(l log.Logger, out io.Writer) error {
 
 // formatTgHCL uses the hcl2 library to format the hcl file. This will attempt to parse the HCL file first to
 // ensure that there are no syntax errors, before attempting to format it.
-func formatTgHCL(l log.Logger, out io.Writer, opts *options.TerragruntOptions, tgHclFile string) error {
+func formatTgHCL(l log.Logger, fsys vfs.FS, out io.Writer, opts *options.TerragruntOptions, tgHclFile string) error {
 	l.Debugf("Formatting %s", tgHclFile)
 
-	info, err := os.Stat(tgHclFile)
+	info, err := fsys.Stat(tgHclFile)
 	if err != nil {
 		l.Errorf("Error retrieving file info of %s", tgHclFile)
 		return errors.Errorf("failed to get file info for %s: %w", tgHclFile, err)
 	}
 
-	contents, err := os.ReadFile(tgHclFile)
+	contents, err := vfs.ReadFile(fsys, tgHclFile)
 	if err != nil {
 		l.Errorf("Error reading %s", tgHclFile)
 		return errors.Errorf("failed to read %s: %w", tgHclFile, err)
@@ -261,7 +262,7 @@ func formatTgHCL(l log.Logger, out io.Writer, opts *options.TerragruntOptions, t
 
 	if fileUpdated {
 		l.Infof("%s was updated", tgHclFile)
-		return os.WriteFile(tgHclFile, newContents, info.Mode())
+		return vfs.WriteFile(fsys, tgHclFile, newContents, info.Mode())
 	}
 
 	return nil

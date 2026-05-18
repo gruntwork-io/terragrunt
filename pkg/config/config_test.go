@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -1167,7 +1168,7 @@ func TestFindConfigFilesInPathNone(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{}
-	actual, err := config.FindConfigFilesInPath("../../test/fixtures/config-files/none", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), "../../test/fixtures/config-files/none", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -1177,7 +1178,7 @@ func TestFindConfigFilesInPathOneConfig(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{"../../test/fixtures/config-files/one-config/subdir/terragrunt.hcl"}
-	actual, err := config.FindConfigFilesInPath("../../test/fixtures/config-files/one-config", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), "../../test/fixtures/config-files/one-config", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -1187,7 +1188,7 @@ func TestFindConfigFilesInPathOneJsonConfig(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{"../../test/fixtures/config-files/one-json-config/subdir/terragrunt.hcl.json"}
-	actual, err := config.FindConfigFilesInPath("../../test/fixtures/config-files/one-json-config", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), "../../test/fixtures/config-files/one-json-config", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -1201,7 +1202,7 @@ func TestFindConfigFilesInPathMultipleConfigs(t *testing.T) {
 		"../../test/fixtures/config-files/multiple-configs/subdir-2/subdir/terragrunt.hcl",
 		"../../test/fixtures/config-files/multiple-configs/subdir-3/terragrunt.hcl",
 	}
-	actual, err := config.FindConfigFilesInPath("../../test/fixtures/config-files/multiple-configs", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), "../../test/fixtures/config-files/multiple-configs", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.ElementsMatch(t, expected, actual)
@@ -1215,7 +1216,7 @@ func TestFindConfigFilesInPathMultipleJsonConfigs(t *testing.T) {
 		"../../test/fixtures/config-files/multiple-json-configs/subdir-2/subdir/terragrunt.hcl.json",
 		"../../test/fixtures/config-files/multiple-json-configs/subdir-3/terragrunt.hcl.json",
 	}
-	actual, err := config.FindConfigFilesInPath("../../test/fixtures/config-files/multiple-json-configs", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), "../../test/fixtures/config-files/multiple-json-configs", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.ElementsMatch(t, expected, actual)
@@ -1229,7 +1230,7 @@ func TestFindConfigFilesInPathMultipleMixedConfigs(t *testing.T) {
 		"../../test/fixtures/config-files/multiple-mixed-configs/subdir-2/subdir/terragrunt.hcl",
 		"../../test/fixtures/config-files/multiple-mixed-configs/subdir-3/terragrunt.hcl.json",
 	}
-	actual, err := config.FindConfigFilesInPath("../../test/fixtures/config-files/multiple-mixed-configs", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), "../../test/fixtures/config-files/multiple-mixed-configs", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.ElementsMatch(t, expected, actual)
@@ -1241,7 +1242,7 @@ func TestFindConfigFilesIgnoresTerragruntCache(t *testing.T) {
 	expected := []string{
 		"../../test/fixtures/config-files/ignore-cached-config/terragrunt.hcl",
 	}
-	actual, err := config.FindConfigFilesInPath("../../test/fixtures/config-files/ignore-cached-config", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), "../../test/fixtures/config-files/ignore-cached-config", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -1255,7 +1256,7 @@ func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
 		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl",
 	}
-	actual, err := config.FindConfigFilesInPath("../../test/fixtures/config-files/ignore-terraform-data-dir", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), "../../test/fixtures/config-files/ignore-terraform-data-dir", experiment.NewExperiments(), "test", map[string]string{}, testDownloadDir(t, "test"))
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.ElementsMatch(t, expected, actual)
@@ -1268,7 +1269,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
 	}
-	actual, err := config.FindConfigFilesInPath("../../test/fixtures/config-files/ignore-terraform-data-dir", experiment.NewExperiments(), "test", map[string]string{"TF_DATA_DIR": ".tf_data"}, testDownloadDir(t, "test"))
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), "../../test/fixtures/config-files/ignore-terraform-data-dir", experiment.NewExperiments(), "test", map[string]string{"TF_DATA_DIR": ".tf_data"}, testDownloadDir(t, "test"))
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.ElementsMatch(t, expected, actual)
@@ -1282,7 +1283,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
 	}
-	actual, err := config.FindConfigFilesInPath("../../test/fixtures/config-files/ignore-terraform-data-dir", experiment.NewExperiments(), "test", map[string]string{"TF_DATA_DIR": "subdir/.tf_data"}, testDownloadDir(t, "test"))
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), "../../test/fixtures/config-files/ignore-terraform-data-dir", experiment.NewExperiments(), "test", map[string]string{"TF_DATA_DIR": "subdir/.tf_data"}, testDownloadDir(t, "test"))
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.ElementsMatch(t, expected, actual)
@@ -1294,7 +1295,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	workingDir, err := filepath.Abs(filepath.Join("..", "..", "test", "fixtures", "config-files", "ignore-terraform-data-dir"))
 	require.NoError(t, err)
 
-	actual, err := config.FindConfigFilesInPath(workingDir, experiment.NewExperiments(), workingDir, map[string]string{"TF_DATA_DIR": filepath.Join(workingDir, ".tf_data")}, testDownloadDir(t, workingDir))
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), workingDir, experiment.NewExperiments(), workingDir, map[string]string{"TF_DATA_DIR": filepath.Join(workingDir, ".tf_data")}, testDownloadDir(t, workingDir))
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	// Create expected paths using filepath.Join for cross-platform compatibility
@@ -1330,7 +1331,7 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 		"../../test/fixtures/config-files/multiple-configs/terragrunt.hcl",
 		"../../test/fixtures/config-files/multiple-configs/subdir-3/terragrunt.hcl",
 	}
-	actual, err := config.FindConfigFilesInPath("../../test/fixtures/config-files/multiple-configs", experiment.NewExperiments(), "test", map[string]string{}, "../../test/fixtures/config-files/multiple-configs/subdir-2")
+	actual, err := config.FindConfigFilesInPath(vfs.NewOSFS(), "../../test/fixtures/config-files/multiple-configs", experiment.NewExperiments(), "test", map[string]string{}, "../../test/fixtures/config-files/multiple-configs/subdir-2")
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.ElementsMatch(t, expected, actual)

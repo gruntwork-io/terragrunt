@@ -175,7 +175,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 
 		// Initialize the repository. This might involve cloning or updating.
 		// Use the newRepo function stored in the service instance.
-		fsys := vfs.NewOSFS()
+		fsys := s.venv.FS
 
 		repo, err := s.newRepo(ctx, l, fsys, &module.RepoOpts{
 			CloneURL:         currentRepoURL,
@@ -241,7 +241,7 @@ func (s *catalogServiceImpl) LoadStreamingURL(ctx context.Context, l log.Logger,
 
 	l.Debugf("Processing repository %s in temporary path %s", repoURL, tempPath)
 
-	fsys := vfs.NewOSFS()
+	fsys := s.venv.FS
 
 	repo, err := s.newRepo(ctx, l, fsys, &module.RepoOpts{
 		CloneURL:         repoURL,

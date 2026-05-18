@@ -139,7 +139,9 @@ func (repo *Repo) FindModules(ctx context.Context, l log.Logger, fsys vfs.FS) (M
 		}
 
 		if repo.walkWithSymlinks {
-			walkFunc = util.WalkDirWithSymlinks
+			walkFunc = func(root string, fn fs.WalkDirFunc) error {
+				return vfs.WalkDirWithSymlinks(fsys, root, fn)
+			}
 		}
 
 		err = walkFunc(modulesPath,

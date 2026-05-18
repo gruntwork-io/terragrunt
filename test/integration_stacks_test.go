@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -1104,7 +1105,7 @@ func TestStacksSourceMap(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	if err := util.CopyFolderContentsWithFilter(logger.CreateLogger(), filepath.Join(localTmpEnvPath, "fixtures"), localTmpTest, ".terragrunt-test", func(path string) bool {
+	if err := util.CopyFolderContentsWithFilter(logger.CreateLogger(), vfs.NewOSFS(), filepath.Join(localTmpEnvPath, "fixtures"), localTmpTest, ".terragrunt-test", func(path string) bool {
 		return true
 	}); err != nil {
 		assert.NoError(t, err)

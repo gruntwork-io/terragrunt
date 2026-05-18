@@ -50,6 +50,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	writerpkg "github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
@@ -110,6 +111,7 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 		t,
 		util.CopyFolderContents(
 			logger.CreateLogger(),
+			vfs.NewOSFS(),
 			environmentPath,
 			filepath.Join(tmpDir, environmentPath),
 			".terragrunt-test",

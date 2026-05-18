@@ -43,7 +43,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -1315,7 +1314,7 @@ func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		pattern = path.Clean(filepath.ToSlash(pctx.WorkingDir) + "/" + raw)
 	}
 
-	matches, err := glob.Expand(vfs.NewOSFS(), pattern, glob.WithFilesOnly())
+	matches, err := glob.Expand(pctx.Venv.FS, pattern, glob.WithFilesOnly())
 	if err != nil {
 		return nil, errors.New(fmt.Errorf("could not expand glob %q: %w", raw, err))
 	}

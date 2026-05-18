@@ -62,7 +62,7 @@ func (g *FileCopyGetter) Get(_ context.Context, req *getter.Request) error {
 		copyOpts = append(copyOpts, util.WithFastCopy())
 	}
 
-	return util.CopyFolderContents(g.Logger, path, req.Dst, SourceManifestName, copyOpts...)
+	return util.CopyFolderContents(g.Logger, g.FS, path, req.Dst, SourceManifestName, copyOpts...)
 }
 
 // GetFile copies a single file. We delegate to v2's FileGetter with Copy=true

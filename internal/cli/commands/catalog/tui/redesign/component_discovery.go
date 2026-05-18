@@ -91,14 +91,14 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 		fsys = vfs.NewOSFS()
 	}
 
-	// util.WalkDirWithSymlinks is OS-only; when symlink following is on, we
-	// continue using it and leave vfs integration as a future cleanup.
 	walkFunc := func(root string, fn fs.WalkDirFunc) error {
 		return vfs.WalkDir(fsys, root, fn)
 	}
 
 	if cd.walkWithSymlinks {
-		walkFunc = util.WalkDirWithSymlinks
+		walkFunc = func(root string, fn fs.WalkDirFunc) error {
+			return vfs.WalkDirWithSymlinks(fsys, root, fn)
+		}
 	}
 
 	ignoreMatcher, err := ignore.Load(fsys, repoPath)

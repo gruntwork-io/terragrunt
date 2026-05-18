@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -33,7 +32,7 @@ func RunGenerate(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.
 		return nil
 	}
 
-	tips.GiveStackTargetTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
+	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	opts.StackAction = "generate"
 

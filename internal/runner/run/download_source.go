@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -109,7 +110,7 @@ func DownloadTerraformSource(
 			"src":  opts.WorkingDir,
 			"dest": terraformSource.WorkingDir,
 		}, func(_ context.Context) error {
-			return util.CopyFolderContents(l, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
+			return util.CopyFolderContents(l, v.FS, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
 		})
 		if err != nil {
 			return nil, err
@@ -152,7 +153,7 @@ func DownloadTerraformSourceIfNecessary(
 			return false, errors.New(err)
 		}
 	} else {
-		alreadyLatest, err := AlreadyHaveLatestCode(l, terraformSource, opts)
+		alreadyLatest, err := AlreadyHaveLatestCode(l, v.FS, terraformSource, opts)
 		if err != nil {
 			return false, err
 		}
@@ -225,7 +226,7 @@ func DownloadTerraformSourceIfNecessary(
 		return false, DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
 	}
 
-	if err := terraformSource.WriteVersionFile(l); err != nil {
+	if err := terraformSource.WriteVersionFile(l, v.FS); err != nil {
 		return false, err
 	}
 
@@ -233,7 +234,7 @@ func DownloadTerraformSourceIfNecessary(
 		return false, err
 	}
 
-	currentVersion, err := terraformSource.EncodeSourceVersion(l)
+	currentVersion, err := terraformSource.EncodeSourceVersion(l, v.FS)
 	// if source versions are different or calculating version failed, create file to run init
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
 	if (previousVersion != "" && previousVersion != currentVersion) || err != nil {
@@ -259,7 +260,7 @@ func DownloadTerraformSourceIfNecessary(
 // AlreadyHaveLatestCode returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
 // DownloadFolder. This helps avoid downloading the same code multiple times. Note that if the TerraformSource points
 // to a local file path, a hash will be generated from the contents of the source dir. See the ProcessTerraformSource method for more info.
-func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *Options) (bool, error) {
+func AlreadyHaveLatestCode(l log.Logger, fsys vfs.FS, terraformSource *tf.Source, opts *Options) (bool, error) {
 	if !util.FileExists(terraformSource.DownloadDir) ||
 		!util.FileExists(terraformSource.WorkingDir) ||
 		!util.FileExists(terraformSource.VersionFile) {
@@ -276,7 +277,7 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *Optio
 		return false, nil
 	}
 
-	currentVersion, err := terraformSource.EncodeSourceVersion(l)
+	currentVersion, err := terraformSource.EncodeSourceVersion(l, fsys)
 	// If we fail to calculate the source version (e.g. because walking the
 	// directory tree failed) use a random version instead, bypassing the cache.
 	if err != nil {

@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"io/fs"
+	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
