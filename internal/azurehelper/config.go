@@ -141,7 +141,11 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 	resolved := *cfg
 	b.applyEnvFallbacks(&resolved)
 
-	cloudCfg := cloudConfigForEnvironment(resolved.CloudEnvironment)
+	cloudCfg, err := cloudConfigForEnvironment(resolved.CloudEnvironment)
+	if err != nil {
+		return nil, err
+	}
+
 	clientOpts := azcore.ClientOptions{Cloud: cloudCfg}
 
 	out := &AzureConfig{
@@ -243,14 +247,26 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 // BuildBlobClient is a convenience that calls Build and then constructs a
 // BlobClient from the resulting AzureConfig. Most callers — including the
 // PR 3 backend wiring — only need a BlobClient and benefit from a single
-// entry point.
+// entry point. If the session config carries a non-empty ContainerName, it
+// is bound on the returned client so callers can immediately use
+// container-scoped methods (e.g., GetObject, ListBlobsBound) without an
+// extra BindContainer call.
 func (b *AzureConfigBuilder) BuildBlobClient(ctx context.Context, l log.Logger) (*BlobClient, error) {
 	cfg, err := b.Build(ctx, l)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewBlobClient(ctx, cfg, "")
+	client, err := NewBlobClient(ctx, cfg, "")
+	if err != nil {
+		return nil, err
+	}
+
+	if b.sessionConfig != nil && b.sessionConfig.ContainerName != "" {
+		client.BindContainer(b.sessionConfig.ContainerName)
+	}
+
+	return client, nil
 }
 
 // BuildStorageAccountClient is a convenience that calls Build and then
@@ -369,15 +385,20 @@ func parseBool(s string) bool {
 }
 
 // cloudConfigForEnvironment maps a cloud environment alias to an Azure SDK
-// cloud.Configuration.
-func cloudConfigForEnvironment(name string) cloud.Configuration {
+// cloud.Configuration. An empty name resolves to cloud.AzurePublic. Any
+// non-empty value that does not match a known alias is rejected so that a
+// typo (e.g. "governmnt") does not silently route a Government or China
+// deployment at the public Azure endpoints.
+func cloudConfigForEnvironment(name string) (cloud.Configuration, error) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "", "public", "azurepublic", "azurepubliccloud":
+		return cloud.AzurePublic, nil
 	case "government", "usgovernment", "usgov", "azureusgovernment", "azureusgovernmentcloud":
-		return cloud.AzureGovernment
+		return cloud.AzureGovernment, nil
 	case "china", "azurechina", "azurechinacloud":
-		return cloud.AzureChina
+		return cloud.AzureChina, nil
 	default:
-		return cloud.AzurePublic
+		return cloud.Configuration{}, errors.Errorf("unknown cloud environment %q (want one of: public, government, china)", name)
 	}
 }
 
