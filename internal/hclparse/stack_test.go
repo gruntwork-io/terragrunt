@@ -390,7 +390,7 @@ unit "app" {
 	symlinkDir := filepath.Join(tmpDir, "symlinked-stack")
 	require.NoError(t, os.Symlink(realDir, symlinkDir))
 
-	// Parse via the symlink — should work the same as via real path
+	// Parse via the symlink - should work the same as via real path
 	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), symlinkDir)
 	require.NoError(t, err)
 	require.NotNil(t, result)

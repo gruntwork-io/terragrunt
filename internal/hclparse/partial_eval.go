@@ -142,7 +142,7 @@ func partialEvalFunctionCall(e *hclsyntax.FunctionCallExpr, args *EvalArgs) []by
 }
 
 func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) []byte {
-	// Pure inner expression — parens are redundant around a single expression; emit the inner directly.
+	// Pure inner expression - parens are redundant around a single expression; emit the inner directly.
 	if IsPure(e.Expression, args.Deferred) {
 		return PartialEval(e.Expression, args)
 	}

@@ -316,7 +316,7 @@ func FuzzAutoIncludeResolve(f *testing.F) {
 
 // FuzzParseStackFileFromPath_ArgPanics fuzzes stackDir to probe panic paths
 // and inner behavior. Empty strings must panic; any non-empty value must not
-// panic (it may return an error — that's fine).
+// panic (it may return an error - that's fine).
 func FuzzParseStackFileFromPath_ArgPanics(f *testing.F) {
 	f.Add("/project")
 	f.Add("")
@@ -438,7 +438,7 @@ func FuzzDiscoverStackChildUnits_ArgPanics(f *testing.F) {
 }
 
 // FuzzGenerateAutoIncludeFile_ArgPanics fuzzes targetDir.
-// Nil resolved is legitimate — function returns nil without panicking.
+// Nil resolved is legitimate - function returns nil without panicking.
 func FuzzGenerateAutoIncludeFile_ArgPanics(f *testing.F) {
 	f.Add("/target")
 	f.Add("")

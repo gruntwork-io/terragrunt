@@ -420,7 +420,7 @@ func TestAutoIncludeDependencyPaths_MalformedReturnsTypedError(t *testing.T) {
 	}
 }
 
-// Mixed-case fixture: one valid dependency + one malformed. Strict contract: producer returns (nil, err) on any malformed block — no partial paths.
+// Mixed-case fixture: one valid dependency + one malformed. Strict contract: producer returns (nil, err) on any malformed block - no partial paths.
 func TestAutoIncludeDependencyPaths_MixedValidAndMalformed(t *testing.T) {
 	t.Parallel()
 

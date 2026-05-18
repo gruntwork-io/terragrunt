@@ -1,4 +1,4 @@
-// Package hclparse parses terragrunt.stack.hcl in four phases — (1) skeleton, (2) locals, (3) includes, (4) unit/stack decode plus autoinclude resolution.
+// Package hclparse parses terragrunt.stack.hcl in four phases - (1) skeleton, (2) locals, (3) includes, (4) unit/stack decode plus autoinclude resolution.
 // Locals evaluate before include merge, and unit/stack vars become available after phase four.
 package hclparse
 
@@ -227,6 +227,7 @@ func isReservedRefName(name string) bool {
 }
 
 // buildUnitRefs builds component refs for unit blocks.
+// buildUnitRefs builds component refs for unit blocks so autoinclude expressions like `unit.<name>.path` resolve to the generated unit directory; no_dot_terragrunt_stack hoists the unit out of the .terragrunt-stack subdirectory.
 func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(units))
 
@@ -242,7 +243,7 @@ func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef 
 	return refs
 }
 
-// buildStackRefs builds component refs for stack blocks. ChildRefs are populated by best-effort discovery: discoverStackChildUnitsWithDepth reads the nested stack file via the supplied fs, so go-getter-style remote sources (git::, https://, s3://, …) silently yield no child refs because the file read fails.
+// buildStackRefs builds component refs for stack blocks. ChildRefs are populated by best-effort discovery: discoverStackChildUnitsWithDepth reads the nested stack file via the supplied fs, so go-getter-style remote sources (git::, https://, s3://, ...) silently yield no child refs because the file read fails.
 func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
@@ -388,7 +389,7 @@ func newTopoState(deps map[string]map[string]struct{}) *topoState {
 }
 
 // visit performs DFS and returns a cycle when one is detected.
-// path is shared across recursive calls — safe here because we return immediately on cycle and never read path after the recursive call below. Don't add post-recursion logic that reads path without copying first.
+// path is shared across recursive calls - safe here because we return immediately on cycle and never read path after the recursive call below. Don't add post-recursion logic that reads path without copying first.
 func (s *topoState) visit(name string, path []string) []string {
 	switch s.color[name] {
 	case topoColorGray:
