@@ -110,9 +110,20 @@ var fuzzGlobalFlags = []flagTpl{
 	{name: "--log-disable"},
 	{name: "--log-show-abs-paths"},
 	{name: "--strict-mode"},
-	{name: "--strict-control", values: []string{"deprecated-aws-getter", "skip-dependencies-inputs"}},
+	{name: "--strict-control", values: []string{
+		"deprecated-aws-getter", "skip-dependencies-inputs",
+		"deprecated-commands", "deprecated-flags", "deprecated-env-vars",
+		"deprecated-configs", "terragrunt-prefix-flags", "terragrunt-prefix-env-vars",
+		"bare-include", "root-terragrunt-hcl", "legacy-internal-tflint",
+		"deprecated-hidden-flag", "queue-strict-include", "cli-redesign",
+	}},
 	{name: "--experiment-mode"},
-	{name: "--experiment", values: []string{"cli-redesign", "stack", "auto-init"}},
+	{name: "--experiment", values: []string{
+		"cli-redesign", "stack", "auto-init",
+		"symlinks", "cas", "report", "iac-engine",
+		"dependency-fetch-output-from-state", "slow-task-reporting",
+		"dag-queue-display", "stack-dependencies", "catalog-redesign", "runner-pool",
+	}},
 	{name: "--no-tips"},
 	{name: "--working-dir", values: []string{fuzzWorkDir, fuzzWorkDir + "/app", fuzzWorkDir + "/db", fuzzWorkDir + "/units/foo"}},
 }
@@ -123,13 +134,40 @@ var fuzzRunFlags = append([]flagTpl{
 	{name: "--no-auto-init"},
 	{name: "--no-auto-retry"},
 	{name: "--no-auto-approve"},
+	{name: "--source", values: []string{"./mod", fuzzWorkDir + "/mod"}},
 	{name: "--source-update"},
+	{name: "--source-map", values: []string{"github.com/a=github.com/b"}},
 	{name: "--queue-include-external"},
 	{name: "--queue-exclude-external"},
 	{name: "--queue-include-dir", values: []string{fuzzWorkDir + "/app", fuzzWorkDir + "/db"}},
 	{name: "--queue-exclude-dir", values: []string{fuzzWorkDir + "/db"}},
+	{name: "--queue-ignore-errors"},
+	{name: "--queue-ignore-dag-order"},
+	{name: "--queue-construct-as", values: []string{"apply", "plan", "destroy"}},
+	{name: "--queue-include-units-reading", values: []string{fuzzWorkDir + "/root.hcl"}},
 	{name: "--report-format", values: []string{"json", "csv"}},
 	{name: "--report-file", values: []string{fuzzWorkDir + "/report.json"}},
+	{name: "--summary-disable"},
+	{name: "--summary-per-unit"},
+	{name: "--parallelism", values: []string{"1", "4", "16"}},
+	{name: "--fail-fast"},
+	{name: "--tf-forward-stdout"},
+	{name: "--no-destroy-dependencies-check"},
+	{name: "--use-partial-parse-config-cache"},
+	{name: "--feature", values: []string{"name=value", "x=true", "env=dev"}},
+	{name: "--auth-provider-cmd", values: []string{"echo {}"}},
+	{name: "--iam-assume-role", values: []string{"arn:aws:iam::123456789012:role/r"}},
+	{name: "--iam-assume-role-duration", values: []string{"3600"}},
+	{name: "--provider-cache"},
+	{name: "--provider-cache-dir", values: []string{fuzzWorkDir + "/pcache"}},
+	{name: "--provider-cache-port", values: []string{"0"}},
+	{name: "--config", values: []string{fuzzWorkDir + "/terragrunt.hcl"}},
+	{name: "--download-dir", values: []string{fuzzWorkDir + "/.cache"}},
+	{name: "--tf-path", values: []string{"/usr/bin/tofu", "/usr/bin/terraform"}},
+	{name: "--filter", values: []string{"*", "app", "!db"}},
+	{name: "--inputs-debug"},
+	{name: "--out-dir", values: []string{fuzzWorkDir + "/out"}},
+	{name: "--json-out-dir", values: []string{fuzzWorkDir + "/jout"}},
 }, fuzzGlobalFlags...)
 
 var fuzzStackFlags = append([]flagTpl{
@@ -144,6 +182,8 @@ var fuzzFindFlags = append([]flagTpl{
 	{name: "--dependencies"},
 	{name: "--external"},
 	{name: "--sort", values: []string{"alpha", "dag"}},
+	{name: "--queue-construct-as", values: []string{"apply", "plan", "destroy"}},
+	{name: "--filter", values: []string{"*", "app", "!db"}},
 }, fuzzGlobalFlags...)
 
 var fuzzListFlags = append([]flagTpl{
@@ -151,6 +191,9 @@ var fuzzListFlags = append([]flagTpl{
 	{name: "--tree"},
 	{name: "--group-by", values: []string{"type", "dag"}},
 	{name: "--json"},
+	{name: "--sort", values: []string{"alpha", "dag"}},
+	{name: "--queue-construct-as", values: []string{"apply", "plan", "destroy"}},
+	{name: "--filter", values: []string{"*", "app", "!db"}},
 }, fuzzGlobalFlags...)
 
 var fuzzHCLFlags = append([]flagTpl{
@@ -164,6 +207,18 @@ var fuzzRenderFlags = append([]flagTpl{
 	{name: "--format", values: []string{"json", "hcl"}},
 	{name: "--with-metadata"},
 	{name: "--out", values: []string{fuzzWorkDir + "/render.json"}},
+}, fuzzGlobalFlags...)
+
+var fuzzBackendFlags = append([]flagTpl{
+	{name: "--backend-bootstrap"},
+	{name: "--backend-require-bootstrap"},
+	{name: "--disable-bucket-update"},
+	{name: "--force"},
+}, fuzzGlobalFlags...)
+
+var fuzzCatalogFlags = append([]flagTpl{
+	{name: "--no-shell"},
+	{name: "--no-hooks"},
 }, fuzzGlobalFlags...)
 
 // fuzzArgSpecs enumerates the shape of every invocation the fuzz can
@@ -196,6 +251,10 @@ var fuzzArgSpecs = []argSpec{
 	{head: "output", flags: fuzzGlobalFlags},
 	{head: "show", flags: fuzzGlobalFlags},
 	{head: "fmt", flags: fuzzGlobalFlags},
+	{head: "backend", sub: "bootstrap", flags: fuzzBackendFlags},
+	{head: "backend", sub: "migrate", flags: fuzzBackendFlags},
+	{head: "backend", sub: "delete", flags: fuzzBackendFlags},
+	{head: "catalog", flags: fuzzCatalogFlags},
 }
 
 // fuzzTFPassthroughPool is the alphabet of args sampled after `--` to feed
@@ -218,7 +277,19 @@ var fuzzEnvKeyPool = []string{
 	"TG_LOG_LEVEL", "TG_LOG_FORMAT", "TG_NON_INTERACTIVE",
 	"TG_WORKING_DIR", "TG_EXPERIMENT_MODE", "TG_STRICT_MODE",
 	"TG_NO_COLOR", "TG_LOG_DISABLE",
+	"TG_SOURCE", "TG_SOURCE_UPDATE", "TG_SOURCE_MAP",
+	"TG_FEATURE", "TG_AUTH_PROVIDER_CMD",
+	"TG_IAM_ASSUME_ROLE", "TG_IAM_ASSUME_ROLE_DURATION",
+	"TG_PROVIDER_CACHE", "TG_PROVIDER_CACHE_DIR",
+	"TG_FILTER", "TG_PARALLELISM", "TG_FAIL_FAST",
+	"TG_TF_PATH", "TG_DOWNLOAD_DIR", "TG_CONFIG",
+	"TG_USE_PARTIAL_PARSE_CONFIG_CACHE",
+	"TG_QUEUE_IGNORE_ERRORS", "TG_QUEUE_IGNORE_DAG_ORDER",
+	"TG_QUEUE_CONSTRUCT_AS",
+	"TG_INPUTS_DEBUG", "TG_TF_FORWARD_STDOUT",
+	"TG_BACKEND_BOOTSTRAP",
 	"TERRAGRUNT_LOG_LEVEL", "TERRAGRUNT_DEBUG", "TERRAGRUNT_WORKING_DIR",
+	"TERRAGRUNT_SOURCE", "TERRAGRUNT_AUTH_PROVIDER_CMD",
 	"AWS_REGION", "AWS_DEFAULT_REGION", "AWS_PROFILE",
 	"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
 	"GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_PROJECT",
@@ -383,6 +454,16 @@ var fuzzShapes = []fuzzShape{
 	fuzzShapeErrorsBlock,
 	fuzzShapeAutoInclude,
 	fuzzShapeMalformed,
+	fuzzShapeRemoteState,
+	fuzzShapeGenerate,
+	fuzzShapeFeatureFlags,
+	fuzzShapeHooks,
+	fuzzShapeRunCmd,
+	fuzzShapeExclude,
+	fuzzShapeErrorsIgnore,
+	fuzzShapeExtraArgs,
+	fuzzShapeStackNested,
+	fuzzShapeDependenciesPaths,
 }
 
 func buildFuzzFS(c *consumer) []fuzzSeedFile {
@@ -602,6 +683,335 @@ func fuzzShapeMalformed(c *consumer) []fuzzSeedFile {
 	}
 }
 
+// fuzzShapeRemoteState drives the remotestate package and the AWS/GCS
+// backend builders. Backend transport routes through v.HTTP, so calls
+// are bounded by the fuzz HTTP handler rather than real network.
+func fuzzShapeRemoteState(c *consumer) []fuzzSeedFile {
+	backend := c.choose([]string{"s3", "gcs", "local"})
+	bucket := orDefault(c.slot(fuzzMaxFuzzSlotChars), "fuzz-bucket")
+	key := orDefault(c.slot(fuzzMaxFuzzSlotChars), "tfstate")
+	region := orDefault(c.slot(fuzzMaxFuzzSlotChars), "us-east-1")
+	hcl := fmt.Sprintf(`
+remote_state {
+  backend                         = %q
+  disable_init                    = false
+  disable_dependency_optimization = false
+  config = {
+    bucket  = %q
+    key     = %q
+    region  = %q
+    encrypt = true
+  }
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+}
+
+terraform {
+  source = "./mod"
+}
+
+inputs = {
+  region = %q
+}
+`, backend, bucket, key, region, region)
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
+// fuzzShapeGenerate exercises codegen's contents/signature/if_exists/comment
+// preparation. The final os.WriteFile under /work fails fast on macOS/CI
+// (parent missing), so only the pre-write logic is covered.
+func fuzzShapeGenerate(c *consumer) []fuzzSeedFile {
+	name := orDefault(c.slot(fuzzMaxFuzzSlotChars), "provider")
+	contents := orDefault(c.slot(fuzzMaxFuzzSlotChars*4), `provider "null" {}`)
+	ifExists := c.choose([]string{"overwrite", "overwrite_terragrunt", "skip"})
+	commentPrefix := orDefault(c.slot(fuzzMaxFuzzSlotChars), "# ")
+	hcl := fmt.Sprintf(`
+generate %q {
+  path              = "%s.tf"
+  contents          = %q
+  if_exists         = %q
+  comment_prefix    = %q
+  disable_signature = false
+}
+
+generate "backend" {
+  path      = "backend.tf"
+  contents  = "terraform { backend \"local\" {} }"
+  if_exists = "overwrite"
+}
+
+terraform {
+  source = "./mod"
+}
+`, name, name, contents, ifExists, commentPrefix)
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
+// fuzzShapeFeatureFlags drives feature-flag parse and substitution in
+// inputs evaluation.
+func fuzzShapeFeatureFlags(c *consumer) []fuzzSeedFile {
+	feat := orDefault(c.slot(fuzzMaxFuzzSlotChars), "feat")
+	defVal := orDefault(c.slot(fuzzMaxFuzzSlotChars), "default")
+	hcl := fmt.Sprintf(`
+feature %q {
+  default = %q
+}
+
+terraform {
+  source = "./mod"
+}
+
+inputs = {
+  x = feature.%s.value
+}
+`, feat, defVal, feat)
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
+// fuzzShapeHooks routes before/after/error hook execution through v.Exec
+// via shell.RunCommandWithOutput. extra_arguments exercises arg-injection.
+func fuzzShapeHooks(c *consumer) []fuzzSeedFile {
+	cmd := c.choose([]string{"apply", "plan", "destroy", "init"})
+	arg := orDefault(c.slot(fuzzMaxFuzzSlotChars), "fuzz")
+	runOnError := c.boolean()
+	hcl := fmt.Sprintf(`
+terraform {
+  source = "./mod"
+
+  before_hook "pre" {
+    commands = [%q]
+    execute  = ["echo", %q]
+  }
+
+  after_hook "post" {
+    commands     = [%q]
+    execute      = ["echo", "after"]
+    run_on_error = %t
+  }
+
+  error_hook "err" {
+    commands  = [%q]
+    on_errors = [".*"]
+    execute   = ["echo", "err"]
+  }
+
+  extra_arguments "extra" {
+    commands  = [%q]
+    arguments = ["-var", "x=1"]
+    env_vars  = {
+      FUZZ = %q
+    }
+  }
+}
+`, cmd, arg, cmd, runOnError, cmd, cmd, arg)
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
+// fuzzShapeRunCmd exercises the run_cmd HCL function, which routes
+// subprocesses through v.Exec.
+func fuzzShapeRunCmd(c *consumer) []fuzzSeedFile {
+	msg := orDefault(c.slot(fuzzMaxFuzzSlotChars), "hello")
+	hcl := fmt.Sprintf(`
+locals {
+  greeting = run_cmd("--terragrunt-quiet", "echo", %q)
+}
+
+terraform {
+  source = "./mod"
+}
+
+inputs = {
+  message = local.greeting
+}
+`, msg)
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
+// fuzzShapeExclude exercises the exclude block evaluation paths.
+func fuzzShapeExclude(c *consumer) []fuzzSeedFile {
+	action := c.choose([]string{"apply", "plan", "destroy", "all"})
+	noRun := c.boolean()
+	excludeDeps := c.boolean()
+	hcl := fmt.Sprintf(`
+exclude {
+  if                   = true
+  actions              = [%q]
+  no_run               = %t
+  exclude_dependencies = %t
+}
+
+terraform {
+  source = "./mod"
+}
+`, action, noRun, excludeDeps)
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
+// fuzzShapeErrorsIgnore exercises errors { ignore "x" { ... } } alongside
+// the retry variant covered by fuzzShapeErrorsBlock.
+func fuzzShapeErrorsIgnore(c *consumer) []fuzzSeedFile {
+	pattern := orDefault(c.slot(fuzzMaxFuzzSlotChars), "ignored")
+	sigVal := orDefault(c.slot(fuzzMaxFuzzSlotChars), "sigval")
+	msg := orDefault(c.slot(fuzzMaxFuzzSlotChars), "ignored error")
+	hcl := fmt.Sprintf(`
+errors {
+  retry "transient" {
+    retryable_errors   = [".*timeout.*"]
+    max_attempts       = 2
+    sleep_interval_sec = 1
+  }
+  ignore "known" {
+    ignorable_errors = [%q]
+    message          = %q
+    signals = {
+      foo = %q
+    }
+  }
+}
+
+terraform {
+  source = "./mod"
+}
+`, pattern, msg, sigVal)
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
+// fuzzShapeExtraArgs exercises the extra_arguments arg-injection path.
+func fuzzShapeExtraArgs(c *consumer) []fuzzSeedFile {
+	cmd := c.choose([]string{"apply", "plan", "destroy", "init"})
+	val := orDefault(c.slot(fuzzMaxFuzzSlotChars), "v")
+	hcl := fmt.Sprintf(`
+terraform {
+  source = "./mod"
+
+  extra_arguments "vars" {
+    commands  = [%q]
+    arguments = ["-var", "x=%s"]
+    env_vars = {
+      FUZZ = %q
+    }
+    required_var_files = []
+  }
+}
+`, cmd, val, val)
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
+// fuzzShapeStackNested exercises stack-level locals, include, values, and
+// nested stack-of-stacks composition.
+func fuzzShapeStackNested(c *consumer) []fuzzSeedFile {
+	region := orDefault(c.slot(fuzzMaxFuzzSlotChars), "us-east-1")
+	childName := orDefault(c.slot(fuzzMaxFuzzSlotChars), "child")
+	stackHCL := fmt.Sprintf(`
+locals {
+  region = %q
+}
+
+unit "a" {
+  source = "./units/a"
+  path   = "live/a"
+  values = {
+    region = local.region
+  }
+}
+
+stack %q {
+  source = "./stacks/child"
+  path   = "child"
+}
+`, region, childName)
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/root.hcl", data: []byte(`locals { region = "us-east-1" }`)},
+		{path: fuzzWorkDir + "/terragrunt.stack.hcl", data: []byte(stackHCL)},
+		{path: fuzzWorkDir + "/units/a/terragrunt.hcl", data: []byte(`
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "../../mod"
+}
+`)},
+		{path: fuzzWorkDir + "/stacks/child/terragrunt.stack.hcl", data: []byte(`
+unit "leaf" {
+  source = "./units/leaf"
+  path   = "live/leaf"
+}
+`)},
+		{path: fuzzWorkDir + "/stacks/child/units/leaf/terragrunt.hcl", data: []byte(`
+terraform {
+  source = "../../../mod"
+}
+`)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
+// fuzzShapeDependenciesPaths exercises the plural-form `dependencies` block
+// distinct from the singular `dependency "X"` form covered by fuzzShapeWithDep.
+func fuzzShapeDependenciesPaths(c *consumer) []fuzzSeedFile {
+	extra := orDefault(c.slot(fuzzMaxFuzzSlotChars), "other")
+	appHCL := fmt.Sprintf(`
+dependencies {
+  paths = ["../db", "../%s"]
+}
+
+terraform {
+  source = "../mod"
+}
+`, extra)
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/db/terragrunt.hcl", data: []byte(`
+terraform {
+  source = "../mod"
+}
+`)},
+		{path: fuzzWorkDir + "/" + extra + "/terragrunt.hcl", data: []byte(`
+terraform {
+  source = "../mod"
+}
+`)},
+		{path: fuzzWorkDir + "/app/terragrunt.hcl", data: []byte(appHCL)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
 func orDefault(s, fallback string) string {
 	if s == "" {
 		return fallback
@@ -673,6 +1083,19 @@ func FuzzFullCLI(f *testing.F) {
 	f.Add([]byte("apply -- -auto-approve"))
 	f.Add([]byte("plan -- -out=plan.bin"))
 	f.Add([]byte("init"))
+	f.Add([]byte("backend bootstrap"))
+	f.Add([]byte("backend migrate"))
+	f.Add([]byte("backend delete --force"))
+	f.Add([]byte("catalog --no-shell --no-hooks"))
+	f.Add([]byte("run --all --feature foo=bar -- apply"))
+	f.Add([]byte("run --filter app --parallelism=4 -- plan"))
+	f.Add([]byte("run --provider-cache --auth-provider-cmd=echo"))
+	f.Add([]byte("run --iam-assume-role=arn:aws:iam::1:role/r -- plan"))
+	f.Add([]byte("run --queue-ignore-errors --queue-construct-as=destroy"))
+	f.Add([]byte("run --summary-per-unit --tf-forward-stdout"))
+	f.Add([]byte("find --filter '*' --queue-construct-as=plan"))
+	f.Add([]byte("list --filter '!db' --sort=dag"))
+	f.Add([]byte("run --inputs-debug --use-partial-parse-config-cache"))
 	f.Add(bytes.Repeat([]byte{0xab}, 64))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
