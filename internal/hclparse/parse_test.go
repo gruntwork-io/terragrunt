@@ -938,46 +938,57 @@ stack "infra" {
 	assert.Contains(t, err.Error(), "duplicate stack name")
 }
 
-func TestParseStackFile_RejectsReservedUnitName(t *testing.T) {
+// A top-level unit named "path" must parse cleanly and `unit.path.path` must resolve via autoinclude.
+func TestParseStackFile_UnitNamedPathResolvesViaAutoInclude(t *testing.T) {
 	t.Parallel()
 
 	src := `
 unit "path" {
-  source = "../catalog/units/path"
+  source = "../catalog/units/foo"
+  path   = "p"
+}
+
+unit "consumer" {
+  source = "../catalog/units/c"
+  path   = "c"
+
+  autoinclude {
+    dependency "p" {
+      config_path = unit.path.path
+    }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 2)
+
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "consumer")]
+	require.NotNil(t, resolved)
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, filepath.Join(testStackDir, hclparse.StackDir, "p"), resolved.Dependencies[0].ConfigPath)
+}
+
+// A top-level stack named "path" must parse cleanly.
+func TestParseStackFile_StackNamedPathIsAccepted(t *testing.T) {
+	t.Parallel()
+
+	src := `
+stack "path" {
+  source = "../catalog/stacks/path"
   path   = "p"
 }
 `
 
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
 	})
-
-	var reservedErr hclparse.ReservedNameError
-
-	require.ErrorAs(t, err, &reservedErr)
-	assert.Equal(t, "unit", reservedErr.Kind)
-	assert.Equal(t, "path", reservedErr.Name)
-}
-
-func TestParseStackFile_RejectsReservedStackName(t *testing.T) {
-	t.Parallel()
-
-	src := `
-stack "name" {
-  source = "../catalog/stacks/name"
-  path   = "n"
-}
-`
-
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
-	})
-
-	var reservedErr hclparse.ReservedNameError
-
-	require.ErrorAs(t, err, &reservedErr)
-	assert.Equal(t, "stack", reservedErr.Kind)
-	assert.Equal(t, "name", reservedErr.Name)
+	require.NoError(t, err)
+	require.Len(t, result.Stacks, 1)
+	assert.Equal(t, "path", result.Stacks[0].Name)
 }
 
 func TestParseStackFile_IncludeWithLocals(t *testing.T) {

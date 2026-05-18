@@ -179,7 +179,7 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 	return evalCtx
 }
 
-// validateUniqueNames reports duplicate unit and stack names, and rejects the reserved names "path"/"name" that collide with the unit.<name>.* / stack.<name>.* ref-namespace attributes (specifically the reserved .path and .name keys).
+// validateUniqueNames reports duplicate unit and stack names.
 func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 	var errs []error
 
@@ -192,10 +192,6 @@ func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 		}
 
 		seenUnits[u.Name] = struct{}{}
-
-		if isReservedRefName(u.Name) {
-			errs = append(errs, ReservedNameError{Kind: "unit", Name: u.Name})
-		}
 	}
 
 	seenStacks := make(map[string]struct{}, len(decoded.Stacks))
@@ -207,23 +203,9 @@ func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 		}
 
 		seenStacks[s.Name] = struct{}{}
-
-		if isReservedRefName(s.Name) {
-			errs = append(errs, ReservedNameError{Kind: "stack", Name: s.Name})
-		}
 	}
 
 	return errors.Join(errs...)
-}
-
-// isReservedRefName reports whether the given unit/stack name would collide with one of the reserved attribute keys ("path", "name") in the unit.*/stack.* HCL ref namespace.
-func isReservedRefName(name string) bool {
-	switch name {
-	case "path", "name":
-		return true
-	}
-
-	return false
 }
 
 // buildUnitRefs builds component refs for unit blocks.

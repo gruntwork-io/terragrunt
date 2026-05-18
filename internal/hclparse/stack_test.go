@@ -34,12 +34,10 @@ func TestBuildComponentRefMap_WithRefs(t *testing.T) {
 	vpcVal := result.GetAttr("vpc")
 	require.True(t, vpcVal.Type().IsObjectType())
 	assert.Equal(t, "vpc", vpcVal.GetAttr("path").AsString())
-	assert.Equal(t, "vpc", vpcVal.GetAttr("name").AsString())
 
 	appVal := result.GetAttr("app")
 	require.True(t, appVal.Type().IsObjectType())
 	assert.Equal(t, "app-service", appVal.GetAttr("path").AsString())
-	assert.Equal(t, "app", appVal.GetAttr("name").AsString())
 }
 
 func TestBuildComponentRefMap_WithChildRefs(t *testing.T) {
@@ -66,7 +64,6 @@ func TestBuildComponentRefMap_WithChildRefs(t *testing.T) {
 	vpcVal := netVal.GetAttr("vpc")
 	require.True(t, vpcVal.Type().IsObjectType())
 	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/vpc", vpcVal.GetAttr("path").AsString())
-	assert.Equal(t, "vpc", vpcVal.GetAttr("name").AsString())
 
 	subnetsVal := netVal.GetAttr("subnets")
 	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/subnets", subnetsVal.GetAttr("path").AsString())
@@ -106,7 +103,6 @@ func TestBuildComponentRefMap_MultiLevelChildRefs(t *testing.T) {
 	// Level 3: infra.deep.db
 	dbVal := deepVal.GetAttr("db")
 	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db", dbVal.GetAttr("path").AsString())
-	assert.Equal(t, "db", dbVal.GetAttr("name").AsString())
 }
 
 func TestBuildAutoIncludeEvalContext(t *testing.T) {

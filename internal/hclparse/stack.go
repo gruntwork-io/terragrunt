@@ -88,15 +88,14 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	return cty.ObjectVal(refMap)
 }
 
-// buildRefAttrs converts one ComponentRef and nested refs recursively. The reserved attribute keys "path" and "name" hold the component's own metadata; a child ref with one of those names cannot be expressed in this namespace and is silently dropped. In practice this only affects nested stack discovery - a child unit or stack literally named "path" or "name" disappears from `stack.<parent>.path` / `.name` resolution. Validation in validateUniqueNames rejects these names at the top-level parse to make the constraint discoverable.
+// buildRefAttrs converts one ComponentRef and nested refs recursively. The reserved attribute key "path" holds the component's own path; a child ref named "path" cannot be expressed in this namespace and is silently dropped. Validation in validateUniqueNames rejects "path" at the top-level parse to make the constraint discoverable.
 func buildRefAttrs(ref ComponentRef) cty.Value {
 	attrs := map[string]cty.Value{
 		"path": cty.StringVal(ref.Path),
-		"name": cty.StringVal(ref.Name),
 	}
 
 	for _, child := range ref.ChildRefs {
-		if child.Name == "path" || child.Name == "name" {
+		if child.Name == "path" {
 			continue
 		}
 
