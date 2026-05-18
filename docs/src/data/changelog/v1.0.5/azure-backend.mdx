@@ -1,0 +1,14 @@
+---
+version: "v1.0.5"
+category: "experiments-added"
+---
+
+#### `azure-backend` — Native Azure Storage (`azurerm`) remote-state support
+
+The `azure-backend` experiment has been added as the gate for native Terragrunt support of the Azure Storage (`azurerm`) remote-state backend. Once it stabilizes, Terragrunt will bootstrap, delete, and migrate Azure storage accounts and blob containers the same way it already does for S3 and GCS, and read state directly from Azure blobs for `--dependency-fetch-output-from-state`.
+
+In this release the flag is reserved only. Enabling it has no behavioral effect, and `remote_state { backend = "azurerm" }` continues to pass through to the OpenTofu and Terraform native `azurerm` backend.
+
+Track progress and share feedback in [#4307](https://github.com/gruntwork-io/terragrunt/issues/4307). For setup steps, see the [experiment documentation](/reference/experiments/active#azure-backend).
+
+Thanks to [@omattsson](https://github.com/omattsson) for driving this experiment forward!
