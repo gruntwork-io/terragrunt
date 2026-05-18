@@ -175,21 +175,21 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 		return AutoIncludeDependency{}, hcl.Diagnostics{{
 			Severity: hcl.DiagError,
 			Summary:  "Unknown config_path",
-			Detail:   "dependency config_path evaluated to an unknown value",
+			Detail:   fmt.Sprintf("dependency %q config_path evaluated to an unknown value", name),
 			Subject:  pathRange,
 		}}
 	case val.IsNull():
 		return AutoIncludeDependency{}, hcl.Diagnostics{{
 			Severity: hcl.DiagError,
 			Summary:  "Null config_path",
-			Detail:   "dependency config_path must not be null",
+			Detail:   fmt.Sprintf("dependency %q config_path must not be null", name),
 			Subject:  pathRange,
 		}}
 	case val.Type() != cty.String:
 		return AutoIncludeDependency{}, hcl.Diagnostics{{
 			Severity: hcl.DiagError,
 			Summary:  "Invalid config_path type",
-			Detail:   "dependency config_path must evaluate to a string",
+			Detail:   fmt.Sprintf("dependency %q config_path must evaluate to a string", name),
 			Subject:  pathRange,
 		}}
 	}
