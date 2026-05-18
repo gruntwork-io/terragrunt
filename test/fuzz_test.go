@@ -1140,8 +1140,17 @@ func FuzzFullCLI(f *testing.F) {
 
 		ctx = log.ContextWithLogger(ctx, l)
 
+		// Every argSpec head in the fuzz grammar (find, list, version, info
+		// print, backend bootstrap, ...) is part of the cli-redesign command
+		// set. The legacy CLI doesn't recognize them and falls back to
+		// printing the help text, so without these flags ~95% of iterations
+		// bail before reaching discovery/run/etc. Force the experiment on
+		// for every iteration; the grammar can still pick OTHER --experiment
+		// values to layer on top.
+		args := slices.Concat([]string{"--experiment-mode", "--experiment=cli-redesign"}, w.args)
+
 		start := time.Now()
-		err := app.RunContext(ctx, w.args)
+		err := app.RunContext(ctx, args)
 		elapsed := time.Since(start)
 
 		// Slow-iteration invariant: a single RunContext should finish well
@@ -1152,7 +1161,7 @@ func FuzzFullCLI(f *testing.F) {
 		// otherwise the same iterations exceed the framework's worker
 		// timeout and produce opaque EOF crashes that can't be minimized.
 		if elapsed > fuzzSlowThreshold {
-			t.Fatalf("iteration took %s (budget %s); ctx.Err()=%v; args=%q", elapsed, fuzzSlowThreshold, ctx.Err(), w.args)
+			t.Fatalf("iteration took %s (budget %s); ctx.Err()=%v; args=%q", elapsed, fuzzSlowThreshold, ctx.Err(), args)
 		}
 
 		// Mirror main.go's post-RunContext error display so the invariant
@@ -1178,9 +1187,9 @@ func FuzzFullCLI(f *testing.F) {
 		// interaction is debatably a UX bug worth revisiting separately
 		// (the principled fix is to apply the disable only after all
 		// flags have parsed successfully).
-		logDisabled := slices.Contains(w.args, "--log-disable")
+		logDisabled := slices.Contains(args, "--log-disable")
 		if err != nil && errBuf.Len() == 0 && ctx.Err() == nil && !logDisabled {
-			t.Fatalf("RunContext returned %v with empty stderr after logging; args=%q", err, w.args)
+			t.Fatalf("RunContext returned %v with empty stderr after logging; args=%q", err, args)
 		}
 	})
 }
