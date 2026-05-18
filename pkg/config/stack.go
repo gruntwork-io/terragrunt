@@ -122,13 +122,13 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		// Rescope the parsing context to the stack file so terragrunt functions resolve paths relative to it instead of the root caller.
 		scopedLogger, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
 		if scopedErr != nil {
-			return errors.Errorf("failed to rescope parsing context for autoinclude parser %s: %w", stackFilePath, scopedErr)
+			return AutoIncludeParserStageError{Stage: "rescope", File: stackFilePath, Err: scopedErr}
 		}
 
 		// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
 		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, scopedLogger, stackFilePath)
 		if evalCtxErr != nil {
-			return errors.Errorf("failed to build eval context for autoinclude parser %s: %w", stackFilePath, evalCtxErr)
+			return AutoIncludeParserStageError{Stage: "eval-context", File: stackFilePath, Err: evalCtxErr}
 		}
 
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
@@ -140,7 +140,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			Functions: prodEvalCtx.Functions,
 		})
 		if parseErr != nil {
-			return errors.Errorf("failed to parse autoinclude block(s) in %s: %w", stackFilePath, parseErr)
+			return AutoIncludeParserStageError{Stage: "parse", File: stackFilePath, Err: parseErr}
 		}
 
 		autoIncludes = parseResult.AutoIncludes
