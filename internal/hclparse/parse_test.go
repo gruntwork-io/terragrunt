@@ -506,7 +506,7 @@ unit "app" {
 	parentStackFile := filepath.Join(parentStackDir, "terragrunt.stack.hcl")
 	require.NoError(t, os.WriteFile(parentStackFile, []byte(parentSrc), 0644))
 
-	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(parentSrc), Filename: parentStackFile, StackDir: parentStackDir})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(parentSrc), Filename: "terragrunt.stack.hcl", StackDir: parentStackDir})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
@@ -574,7 +574,7 @@ unit "app" {
 
 	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
 		Src:      []byte(parentSrc),
-		Filename: parentStackFile,
+		Filename: "terragrunt.stack.hcl",
 		StackDir: parentStackDir,
 	})
 	require.NoError(t, err)
@@ -643,7 +643,7 @@ unit "app" {
 
 	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
 		Src:      []byte(parentSrc),
-		Filename: parentStackFile,
+		Filename: "terragrunt.stack.hcl",
 		StackDir: parentStackDir,
 	})
 	require.NoError(t, err)
@@ -1411,7 +1411,7 @@ unit "app" {
 
 	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
 		Src:      src,
-		Filename: "/test/terragrunt.stack.hcl",
+		Filename: "terragrunt.stack.hcl",
 		StackDir: "/test",
 		Functions: map[string]function.Function{
 			"once": onceFn,
@@ -1538,7 +1538,7 @@ unit "app" {
 }
 `)
 
-	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: src, Filename: "/test/terragrunt.stack.hcl", StackDir: "/test"})
+	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/test"})
 	require.Error(t, err)
 
 	var validationErr hclparse.IncludeValidationError
@@ -1548,7 +1548,7 @@ unit "app" {
 	require.ErrorAs(t, err, &diags)
 	require.NotEmpty(t, diags)
 	require.NotNil(t, diags[0].Subject, "include validation diag must carry a source position for editor underlining")
-	assert.Equal(t, "/test/terragrunt.stack.hcl", diags[0].Subject.Filename)
+	assert.Equal(t, "terragrunt.stack.hcl", diags[0].Subject.Filename)
 }
 
 func TestParseStackFile_IncludeMissingRequiredSourceOrPathReturnsError(t *testing.T) {
@@ -1576,7 +1576,7 @@ unit "app" {
 
 	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
 		Src:      src,
-		Filename: "/test/terragrunt.stack.hcl",
+		Filename: "terragrunt.stack.hcl",
 		StackDir: "/test",
 	})
 

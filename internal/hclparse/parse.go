@@ -41,7 +41,7 @@ type ParseStackFileInput struct {
 	Variables map[string]cty.Value
 	// Functions are copied from the production parser eval context.
 	Functions map[string]function.Function
-	// Filename is used for parse diagnostics.
+	// Filename is the basename (not full path) used for parse diagnostics.
 	Filename string
 	// StackDir is used to resolve include paths.
 	StackDir string
@@ -318,7 +318,7 @@ func localDependsOn(attr *hclsyntax.Attribute, declared map[string]*hclsyntax.At
 	return depSet
 }
 
-// firstAttrStep returns the first attribute in a traversal.
+// firstAttrStep returns the attribute name immediately following the root of an HCL traversal, e.g. for `local.foo.bar[0].baz` it returns ("foo", true). Used by localDependsOn to extract the referenced local-name from `local.<name>...` traversals when building the dependency graph for topological sort. SimpleSplit separates the root (local) from the rest (Rel); we want Rel[0], which must be a TraverseAttr (dot notation). Returns ("", false) for empty Rel (just `local` alone) or when Rel[0] is an index/splat (`local[0]`, `local[*]`) - neither shape declares a dependency on a specific named local.
 func firstAttrStep(traversal hcl.Traversal) (string, bool) {
 	split := traversal.SimpleSplit()
 	if len(split.Rel) == 0 {

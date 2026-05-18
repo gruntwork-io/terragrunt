@@ -154,7 +154,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 
 	return ParseStackFile(fs, &ParseStackFileInput{
 		Src:      data,
-		Filename: stackFile,
+		Filename: StackFileName,
 		StackDir: stackDir,
 	})
 }

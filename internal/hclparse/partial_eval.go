@@ -88,8 +88,8 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) []byt
 	return RangeBytes(args.SrcBytes, e.Range())
 }
 
-// stitchExpression rebuilds the source bytes of a parent expression with each child replaced by its PartialEval output. Gaps between/around children (operators, brackets, commas, whitespace) come from the source verbatim, so user formatting is preserved and there are no hard-coded separator strings.
-func stitchExpression(args *EvalArgs, parentRange hcl.Range, children []hclsyntax.Expression) []byte {
+// partialEvalChildren rebuilds the source bytes of a parent expression with each child replaced by its PartialEval output. Gaps between/around children (operators, brackets, commas, whitespace) come from the source verbatim, so user formatting is preserved and there are no hard-coded separator strings.
+func partialEvalChildren(args *EvalArgs, parentRange hcl.Range, children []hclsyntax.Expression) []byte {
 	if len(children) == 0 {
 		return RangeBytes(args.SrcBytes, parentRange)
 	}
@@ -113,7 +113,7 @@ func stitchExpression(args *EvalArgs, parentRange hcl.Range, children []hclsynta
 
 func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte {
 	if !IsPure(e.Condition, args.Deferred) || containsFunctionCall(e.Condition) {
-		return stitchExpression(args, e.Range(), []hclsyntax.Expression{e.Condition, e.TrueResult, e.FalseResult})
+		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Condition, e.TrueResult, e.FalseResult})
 	}
 
 	condVal, diags := e.Condition.Value(args.EvalCtx)
@@ -138,7 +138,7 @@ func partialEvalFunctionCall(e *hclsyntax.FunctionCallExpr, args *EvalArgs) []by
 	children := make([]hclsyntax.Expression, len(e.Args))
 	copy(children, e.Args)
 
-	return stitchExpression(args, e.Range(), children)
+	return partialEvalChildren(args, e.Range(), children)
 }
 
 func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) []byte {
@@ -147,7 +147,7 @@ func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) []byte {
 		return PartialEval(e.Expression, args)
 	}
 
-	return stitchExpression(args, e.Range(), []hclsyntax.Expression{e.Expression})
+	return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Expression})
 }
 
 // IsPure returns true if the expression has no references to deferred root names.
@@ -240,14 +240,14 @@ func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) []byte {
 		children[i] = item.ValueExpr
 	}
 
-	return stitchExpression(args, e.Range(), children)
+	return partialEvalChildren(args, e.Range(), children)
 }
 
 func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) []byte {
 	children := make([]hclsyntax.Expression, len(e.Exprs))
 	copy(children, e.Exprs)
 
-	return stitchExpression(args, e.Range(), children)
+	return partialEvalChildren(args, e.Range(), children)
 }
 
 // ValueToHCLBytes converts a cty.Value to HCL source text bytes.
