@@ -104,6 +104,22 @@ func TestProviderEmptyResponseErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "does not contain JSON")
 }
 
+// TestProviderJSONNullResponse pins safe handling of stdout containing the JSON literal `null`.
+func TestProviderJSONNullResponse(t *testing.T) {
+	t.Parallel()
+
+	v := newMemVenv(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		return vexec.Result{Stdout: []byte("null")}
+	})
+
+	p := externalcmd.NewProvider(logger.CreateLogger(), "auth-cmd", newRunOpts())
+
+	creds, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
+	require.NoError(t, err)
+	require.NotNil(t, creds)
+	require.NotNil(t, creds.Envs)
+}
+
 func TestProviderInvalidJSONErrors(t *testing.T) {
 	t.Parallel()
 

@@ -107,7 +107,7 @@ func (provider *Provider) fetchCredentials(
 
 	resp := &Response{Envs: make(map[string]string)}
 
-	if err := json.Unmarshal(output.Stdout.Bytes(), &resp); err != nil {
+	if err := json.Unmarshal(output.Stdout.Bytes(), resp); err != nil {
 		return nil, errors.Errorf("command %s returned a response with invalid JSON format", command)
 	}
 
