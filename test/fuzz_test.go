@@ -1140,14 +1140,11 @@ func FuzzFullCLI(f *testing.F) {
 
 		ctx = log.ContextWithLogger(ctx, l)
 
-		// Every argSpec head in the fuzz grammar (find, list, version, info
-		// print, backend bootstrap, ...) is part of the cli-redesign command
-		// set. The legacy CLI doesn't recognize them and falls back to
-		// printing the help text, so without these flags ~95% of iterations
-		// bail before reaching discovery/run/etc. Force the experiment on
-		// for every iteration; the grammar can still pick OTHER --experiment
-		// values to layer on top.
-		args := slices.Concat([]string{"--experiment-mode", "--experiment=cli-redesign"}, w.args)
+		// cli.App.RunContext expects args[0] to be the program name (the
+		// usual os.Args convention). Without it, args[0] is consumed as the
+		// program identifier and the actual command shifts off the end, so
+		// every dispatch silently falls back to the help text.
+		args := slices.Concat([]string{"terragrunt"}, w.args)
 
 		start := time.Now()
 		err := app.RunContext(ctx, args)
