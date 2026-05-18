@@ -9,7 +9,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -26,39 +25,38 @@ const (
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 )
 
+// ProcessHooksParams groups the configuration and data inputs for ProcessHooks.
+type ProcessHooksParams struct {
+	Opts               *Options
+	Cfg                *runcfg.RunConfig
+	PreviousExecErrors *errors.MultiError
+	Hooks              []runcfg.Hook
+}
+
 // ProcessHooks processes a list of hooks, executing each one that matches the current command.
-func ProcessHooks(
-	ctx context.Context,
-	l log.Logger,
-	v Venv,
-	hooks []runcfg.Hook,
-	opts *Options,
-	cfg *runcfg.RunConfig,
-	previousExecErrors *errors.MultiError,
-	_ *report.Report,
-) error {
-	if len(hooks) == 0 {
+func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParams) error {
+	if len(p.Hooks) == 0 {
 		return nil
 	}
 
 	var errorsOccured *multierror.Error
 
-	l.Debugf("Detected %d Hooks", len(hooks))
+	l.Debugf("Detected %d Hooks", len(p.Hooks))
 
-	for i := range hooks {
-		curHook := &hooks[i]
+	for i := range p.Hooks {
+		curHook := &p.Hooks[i]
 		if !curHook.If {
 			l.Debugf("Skipping hook: %s", curHook.Name)
 			continue
 		}
 
-		allPreviousErrors := previousExecErrors.Append(errorsOccured)
-		if shouldRunHook(curHook, opts, allPreviousErrors) {
+		allPreviousErrors := p.PreviousExecErrors.Append(errorsOccured)
+		if shouldRunHook(curHook, p.Opts, allPreviousErrors) {
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
 			}, func(ctx context.Context) error {
-				return runHook(ctx, l, v, opts, cfg, curHook)
+				return runHook(ctx, l, v, p.Opts, p.Cfg, curHook)
 			})
 			if err != nil {
 				errorsOccured = multierror.Append(errorsOccured, err)

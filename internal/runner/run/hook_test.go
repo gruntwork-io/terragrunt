@@ -42,7 +42,11 @@ func TestProcessHooks_DispatchesCommandsForMatchingTerraformCommand(t *testing.T
 		},
 	}
 
-	err := run.ProcessHooks(t.Context(), l, v, hooks, newHookOpts(), &runcfg.RunConfig{}, nil, nil)
+	err := run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+		Hooks: hooks,
+		Opts:  newHookOpts(),
+		Cfg:   &runcfg.RunConfig{},
+	})
 	require.NoError(t, err)
 
 	calls := rec.snapshot()
@@ -67,7 +71,11 @@ func TestProcessHooks_SkipsHookWhenIfFalse(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessHooks(t.Context(), l, v, hooks, newHookOpts(), &runcfg.RunConfig{}, nil, nil))
+	require.NoError(t, run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+		Hooks: hooks,
+		Opts:  newHookOpts(),
+		Cfg:   &runcfg.RunConfig{},
+	}))
 	assert.Empty(t, rec.snapshot(), "If=false should suppress dispatch")
 }
 
@@ -107,10 +115,12 @@ func TestProcessHooks_RunOnErrorGate(t *testing.T) {
 			v := newHookVenv(rec.handler(vexec.Result{}))
 			l := logger.CreateLogger()
 
-			require.NoError(t, run.ProcessHooks(
-				t.Context(), l, v, []runcfg.Hook{tc.hook},
-				newHookOpts(), &runcfg.RunConfig{}, priorErr, nil,
-			))
+			require.NoError(t, run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+				Hooks:              []runcfg.Hook{tc.hook},
+				Opts:               newHookOpts(),
+				Cfg:                &runcfg.RunConfig{},
+				PreviousExecErrors: priorErr,
+			}))
 
 			invoked := len(rec.snapshot()) == 1
 			assert.Equal(t, tc.wantInvoked, invoked)
@@ -138,9 +148,11 @@ func TestProcessHooks_InjectsHookContextEnv(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessHooks(
-		t.Context(), l, v, hooks, opts, &runcfg.RunConfig{}, nil, nil,
-	))
+	require.NoError(t, run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+		Hooks: hooks,
+		Opts:  opts,
+		Cfg:   &runcfg.RunConfig{},
+	}))
 
 	calls := rec.snapshot()
 	require.Len(t, calls, 1)
@@ -171,7 +183,11 @@ func TestProcessHooks_PropagatesFailures(t *testing.T) {
 		},
 	}
 
-	err := run.ProcessHooks(t.Context(), l, v, hooks, newHookOpts(), &runcfg.RunConfig{}, nil, nil)
+	err := run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+		Hooks: hooks,
+		Opts:  newHookOpts(),
+		Cfg:   &runcfg.RunConfig{},
+	})
 	require.Error(t, err)
 	assert.NotEmpty(t, rec.snapshot())
 }
@@ -213,9 +229,11 @@ func TestProcessHooks_TflintActionRoutesThroughTflint(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessHooks(
-		t.Context(), l, v, hooks, newHookOpts(), &runcfg.RunConfig{}, nil, nil,
-	))
+	require.NoError(t, run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+		Hooks: hooks,
+		Opts:  newHookOpts(),
+		Cfg:   &runcfg.RunConfig{},
+	}))
 
 	assert.Equal(t, int32(1), tflintInitCalls.Load())
 	assert.Equal(t, int32(1), tflintRunCalls.Load())

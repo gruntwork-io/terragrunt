@@ -233,7 +233,8 @@ func TFArgumentsToVar(l log.Logger, fs vfs.FS, hook *runcfg.Hook,
 			for _, file := range util.RemoveDuplicatesKeepLast(arg.OptionalVarFiles) {
 				exists, err := vfs.FileExists(fs, file)
 				if err != nil {
-					return nil, err
+					l.Debugf("Skipping tflint var-file %s: %v", file, err)
+					continue
 				}
 
 				if exists {

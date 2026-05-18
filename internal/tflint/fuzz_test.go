@@ -1,7 +1,6 @@
 package tflint_test
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -16,21 +15,23 @@ import (
 //
 // The corpus encodes the directory layout as a newline-separated list of
 // paths that get seeded onto a fresh MemMapFS, plus the starting WorkingDir
-// and a max-folders bound. The bound is wrapped to [0, 64] so the fuzzer
-// does not chew CPU on absurd values.
+// and a max-folders bound. The bound is clamped to [0, maxFolderBound] so
+// the fuzzer does not chew CPU on absurd values.
 func FuzzFindConfigInProject(f *testing.F) {
-	seeds := []struct {
+	type seed struct {
 		layout     string
 		workingDir string
 		maxFolders int
-	}{
-		{"/work/.tflint.hcl", "/work", 5},
-		{"/work/.tflint.hcl\n/work/a/b/c", "/work/a/b/c", 5},
-		{"/a/b/c/d/e/f/.tflint.hcl", "/", 2},
-		{"", "/", 1},
-		{"/.tflint.hcl", "/", 1},
-		{".tflint.hcl", "relative", 3},
-		{"/work/.tflint.hcl\n/work/.tflint.hcl/nested", "/work/x/y/z", 10},
+	}
+
+	seeds := []seed{
+		{layout: "/work/.tflint.hcl", workingDir: "/work", maxFolders: 5},
+		{layout: "/work/.tflint.hcl\n/work/a/b/c", workingDir: "/work/a/b/c", maxFolders: 5},
+		{layout: "/a/b/c/d/e/f/.tflint.hcl", workingDir: "/", maxFolders: 2},
+		{layout: "", workingDir: "/", maxFolders: 1},
+		{layout: "/.tflint.hcl", workingDir: "/", maxFolders: 1},
+		{layout: ".tflint.hcl", workingDir: "relative", maxFolders: 3},
+		{layout: "/work/.tflint.hcl\n/work/.tflint.hcl/nested", workingDir: "/work/x/y/z", maxFolders: 10},
 	}
 
 	for _, s := range seeds {
@@ -54,31 +55,21 @@ func FuzzFindConfigInProject(f *testing.F) {
 				continue
 			}
 
-			// Skip paths that filepath.Clean rejects with separator-only
-			// names; the goal is shapes the real walker would see.
-			if filepath.Clean(p) == "" {
-				continue
-			}
-
 			// Ignore write errors: pathological filenames are part of the
 			// fuzz domain, but we only care about the walk that follows.
 			_ = vfs.WriteFile(fs, p, []byte{}, 0o644)
 		}
 
-		// Bound the loop count so the fuzzer cannot ask for billions of
-		// iterations of the parent walk.
-		const maxBound = 64
-
-		if maxFolders < 0 {
-			maxFolders = -maxFolders
-		}
-
-		maxFolders %= maxBound + 1
+		// Clamp the loop count so the fuzzer cannot ask for billions of
+		// iterations of the parent walk. Going through min/max avoids the
+		// two's-complement overflow on math.MinInt that bit a prior
+		// mod/negate version of this clamp.
+		const maxFolderBound = 64
 
 		opts := &tflint.TFLintOptions{
 			WorkingDir:        workingDir,
 			RootWorkingDir:    "/",
-			MaxFoldersToCheck: maxFolders,
+			MaxFoldersToCheck: max(0, min(maxFolders, maxFolderBound)),
 		}
 
 		l := logger.CreateLogger()
