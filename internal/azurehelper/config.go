@@ -33,6 +33,10 @@ type AzureSessionConfig struct {
 	MSIResourceID      string
 	SasToken           string
 	AccessKey          string
+	// OIDCTokenFilePath is the path to a federated identity token file used
+	// for OIDC / workload identity authentication. Falls back to
+	// ARM_OIDC_TOKEN_FILE_PATH or AZURE_FEDERATED_TOKEN_FILE.
+	OIDCTokenFilePath string
 	// CloudEnvironment selects a sovereign cloud. Accepted values:
 	// "" / "public" (default), "government" / "usgovernment", "china".
 	CloudEnvironment string
@@ -183,11 +187,14 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 		return out, validate(out, &resolved)
 
 	case resolved.UseOIDC:
-		cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		cred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
 			ClientOptions: clientOpts,
+			TenantID:      resolved.TenantID,
+			ClientID:      resolved.ClientID,
+			TokenFilePath: resolved.OIDCTokenFilePath,
 		})
 		if err != nil {
-			return nil, errors.Errorf("creating OIDC credential: %w", err)
+			return nil, errors.Errorf("creating OIDC workload identity credential: %w", err)
 		}
 
 		out.Method = AuthMethodOIDC
@@ -255,13 +262,21 @@ func (b *AzureConfigBuilder) BuildBlobClient(ctx context.Context, l log.Logger) 
 // cannot reach the ARM control plane; the rejection happens before Build
 // emits any auth-resolution debug logs, keeping the failure mode obvious.
 func (b *AzureConfigBuilder) BuildStorageAccountClient(ctx context.Context, l log.Logger) (*StorageAccountClient, error) {
+	// Pre-flight against env-resolved values as well, not just the explicitly
+	// supplied sessionConfig: ARM_SAS_TOKEN / ARM_ACCESS_KEY would otherwise
+	// reach Build and fail with a less obvious error from the ARM client.
+	preflight := AzureSessionConfig{}
 	if b.sessionConfig != nil {
-		switch {
-		case b.sessionConfig.SasToken != "":
-			return nil, errors.Errorf("storage account management requires a token credential, not a SAS token")
-		case b.sessionConfig.AccessKey != "":
-			return nil, errors.Errorf("storage account management requires a token credential, not an access key")
-		}
+		preflight = *b.sessionConfig
+	}
+
+	b.applyEnvFallbacks(&preflight)
+
+	switch {
+	case preflight.SasToken != "":
+		return nil, errors.Errorf("storage account management requires a token credential, not a SAS token")
+	case preflight.AccessKey != "":
+		return nil, errors.Errorf("storage account management requires a token credential, not an access key")
 	}
 
 	cfg, err := b.Build(ctx, l)
@@ -302,6 +317,10 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 
 	if cfg.AccessKey == "" {
 		cfg.AccessKey = b.firstEnv("ARM_ACCESS_KEY", "AZURE_STORAGE_KEY")
+	}
+
+	if cfg.OIDCTokenFilePath == "" {
+		cfg.OIDCTokenFilePath = b.firstEnv("ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE")
 	}
 
 	if cfg.CloudEnvironment == "" {

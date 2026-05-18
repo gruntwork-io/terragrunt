@@ -3,7 +3,9 @@
 package azurehelper_test
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -58,6 +60,9 @@ func TestIsRetryable(t *testing.T) {
 	}{
 		{nil, "nil", false},
 		{errors.New("dial tcp: timeout"), "non-azure (network)", true},
+		{context.Canceled, "context.Canceled", false},
+		{context.DeadlineExceeded, "context.DeadlineExceeded", false},
+		{fmt.Errorf("wrap: %w", context.Canceled), "wrapped context.Canceled", false},
 		{respErr(http.StatusUnauthorized, ""), "401", false},
 		{respErr(http.StatusNotFound, ""), "404", false},
 		{respErr(http.StatusTooManyRequests, ""), "429", true},

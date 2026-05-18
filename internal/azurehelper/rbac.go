@@ -240,6 +240,11 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 			}
 
 			if _, err := c.client.DeleteByID(ctx, *ra.ID, nil); err != nil {
+				// Concurrent removal raced us to the same assignment - treat as success.
+				if IsNotFound(err) {
+					continue
+				}
+
 				if firstErr == nil {
 					firstErr = WrapError(err, "deleting role assignment "+*ra.ID)
 				}
