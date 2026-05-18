@@ -1,6 +1,7 @@
 package azurehelper
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -66,6 +67,11 @@ func ClassifyError(err error) ErrorClass {
 // an azcore.ResponseError at all (treated as transient).
 func IsRetryable(err error) bool {
 	if err == nil {
+		return false
+	}
+
+	// Context cancellation / deadline are caller-driven; never retry.
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 

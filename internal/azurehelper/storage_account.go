@@ -153,6 +153,9 @@ func (c *StorageAccountClient) Exists(ctx context.Context) (bool, error) {
 // target a different account.
 //
 // The call blocks until ARM reports the create operation as complete.
+// If in.EnableVersioning is true, blob versioning is configured after the
+// account is created; a failure at that step returns an error but leaves
+// the (now-existing) account in place for the caller to retry or clean up.
 func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *StorageAccountConfig) error {
 	if in == nil {
 		return tgerrors.Errorf("StorageAccountConfig is required")
@@ -174,7 +177,11 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 
 	skuName := armstorage.SKUName(in.AccountTier + "_" + in.ReplicationType)
 	kind := armstorage.Kind(in.AccountKind)
-	accessTier := accessTierValue(in.AccessTier)
+
+	accessTier, err := accessTierValue(in.AccessTier)
+	if err != nil {
+		return err
+	}
 
 	params := armstorage.AccountCreateParameters{
 		Kind:     &kind,
@@ -196,6 +203,12 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 
 	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
 		return WrapError(err, fmt.Sprintf("create storage account %q", c.accountName))
+	}
+
+	if in.EnableVersioning {
+		if err := c.EnableVersioning(ctx, l); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -304,7 +317,7 @@ func (c *StorageAccountClient) GetKeys(ctx context.Context) ([]string, error) {
 	keys := make([]string, 0, len(resp.Keys))
 
 	for _, k := range resp.Keys {
-		if k != nil && k.Value != nil {
+		if k != nil && k.Value != nil && *k.Value != "" {
 			keys = append(keys, *k.Value)
 		}
 	}
@@ -348,15 +361,19 @@ func (in *StorageAccountConfig) withDefaults() {
 	in.Tags = tags
 }
 
-// accessTierValue maps a string to the SDK's AccessTier enum.
-func accessTierValue(s string) *armstorage.AccessTier {
+// accessTierValue maps a string to the SDK's AccessTier enum. An empty
+// input yields the package default (Hot); any other unrecognised value
+// returns an error so callers cannot silently land on an unintended tier.
+func accessTierValue(s string) (*armstorage.AccessTier, error) {
 	switch s {
+	case "", "Hot":
+		return to.Ptr(armstorage.AccessTierHot), nil
 	case "Cool":
-		return to.Ptr(armstorage.AccessTierCool)
+		return to.Ptr(armstorage.AccessTierCool), nil
 	case "Premium":
-		return to.Ptr(armstorage.AccessTierPremium)
+		return to.Ptr(armstorage.AccessTierPremium), nil
 	default:
-		return to.Ptr(armstorage.AccessTierHot)
+		return nil, tgerrors.Errorf("unknown access tier %q (want Hot, Cool, or Premium)", s)
 	}
 }
 

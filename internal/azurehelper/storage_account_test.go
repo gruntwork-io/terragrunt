@@ -30,6 +30,17 @@ func jsonBody(body any) []byte {
 	return b
 }
 
+// listKeysBody builds the JSON payload returned by ListKeys, given (name, value)
+// pairs. Keeps the "value" field name in a single place (satisfies goconst).
+func listKeysBody(pairs ...string) []byte {
+	keys := make([]map[string]string, 0, len(pairs)/2)
+	for i := 0; i+1 < len(pairs); i += 2 {
+		keys = append(keys, map[string]string{"keyName": pairs[i], "value": pairs[i+1]})
+	}
+
+	return jsonBody(map[string]any{"keys": keys})
+}
+
 // stubTransport is a policy.Transporter that returns a fresh *http.Response
 // built from a status and body each call, so the azcore pipeline owns and
 // closes the body. Avoids bodyclose lint complaints from sharing a single
@@ -148,12 +159,10 @@ func TestStorageAccount_Exists_False(t *testing.T) {
 func TestStorageAccount_GetKeys(t *testing.T) {
 	t.Parallel()
 
-	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
-		"keys": []map[string]string{
-			{"keyName": "key1", "value": "first-key=="},
-			{"keyName": "key2", "value": "second-key=="},
-		},
-	})}
+	tr := &stubTransport{status: http.StatusOK, body: listKeysBody(
+		"key1", "first-key==",
+		"key2", "second-key==",
+	)}
 
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
 	if err != nil {
@@ -250,6 +259,53 @@ func TestStorageAccount_Create_NilConfig(t *testing.T) {
 
 	if err := sc.Create(context.Background(), log.New(), nil); err == nil {
 		t.Fatal("expected error for nil config")
+	}
+}
+
+func TestStorageAccount_Create_RejectsUnknownAccessTier(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	err = sc.Create(context.Background(), log.New(), &azurehelper.StorageAccountConfig{
+		Name:       testAccount,
+		Location:   "eastus",
+		AccessTier: "Frozen",
+	})
+	if err == nil {
+		t.Fatal("expected error for unknown access tier")
+	}
+
+	if !strings.Contains(err.Error(), "access tier") {
+		t.Errorf("error %q should mention access tier", err)
+	}
+}
+
+func TestStorageAccount_GetKeys_FiltersEmptyValues(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: listKeysBody(
+		"key1", "",
+		"key2", "second-key==",
+	)}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	keys, err := sc.GetKeys(context.Background())
+	if err != nil {
+		t.Fatalf("GetKeys: %v", err)
+	}
+
+	if len(keys) != 1 || keys[0] != "second-key==" {
+		t.Errorf("GetKeys = %v; want [second-key==]", keys)
 	}
 }
 
