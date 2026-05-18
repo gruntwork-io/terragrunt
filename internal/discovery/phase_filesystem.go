@@ -3,13 +3,13 @@ package discovery
 import (
 	"context"
 	"io/fs"
-	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -62,9 +62,14 @@ func (p *FilesystemPhase) Run(
 		filenames = DefaultConfigFilenames
 	}
 
-	walkFn := filepath.WalkDir
+	walkFn := func(root string, fn fs.WalkDirFunc) error {
+		return vfs.WalkDir(v.FS, root, fn)
+	}
+
 	if input.Opts != nil && input.Opts.Experiments.Evaluate(experiment.Symlinks) {
-		walkFn = util.WalkDirWithSymlinks
+		walkFn = func(root string, fn fs.WalkDirFunc) error {
+			return vfs.WalkDirWithSymlinks(v.FS, root, fn)
+		}
 	}
 
 	err := walkFn(discoveryContext.WorkingDir, func(path string, d fs.DirEntry, err error) error {

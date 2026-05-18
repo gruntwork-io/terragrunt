@@ -1042,6 +1042,104 @@ func TestWalkDir_OSFS(t *testing.T) {
 	assert.Equal(t, []string{".", "a.txt", "sub", filepath.Join("sub", "b.txt")}, paths)
 }
 
+func TestWalkDirWithSymlinks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("follows symlinked directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewOSFS()
+		// Canonicalize via EvalSymlinks because t.TempDir on macOS returns /var which symlinks to /private/var.
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "real"), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "real", "leaf.txt"), []byte("leaf"), 0644))
+		require.NoError(t, vfs.Symlink(fsys, filepath.Join(root, "real"), filepath.Join(root, "link")))
+
+		visited := map[string]bool{}
+
+		walkErr := vfs.WalkDirWithSymlinks(fsys, root, func(path string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			rel, relErr := filepath.Rel(root, path)
+			require.NoError(t, relErr)
+
+			visited[rel] = true
+
+			return nil
+		})
+
+		require.NoError(t, walkErr)
+		assert.True(t, visited[filepath.Join("real", "leaf.txt")], "real path must be visited")
+		assert.True(t, visited[filepath.Join("link", "leaf.txt")], "symlinked path must be visited")
+	})
+
+	t.Run("symlink escaping root is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewOSFS()
+
+		outside, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+		require.NoError(t, os.MkdirAll(filepath.Join(outside, "secret"), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(outside, "secret", "password.txt"), []byte("secret"), 0644))
+
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+		require.NoError(t, vfs.Symlink(fsys, outside, filepath.Join(root, "escape")))
+
+		visited := map[string]bool{}
+
+		walkErr := vfs.WalkDirWithSymlinks(fsys, root, func(path string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			rel, relErr := filepath.Rel(root, path)
+			require.NoError(t, relErr)
+
+			visited[rel] = true
+
+			return nil
+		})
+
+		require.ErrorIs(t, walkErr, vfs.ErrSymlinkEscapesRoot)
+		assert.False(t,
+			visited[filepath.Join("escape", "secret", "password.txt")],
+			"must not visit content reached through escaping symlink")
+	})
+
+	t.Run("circular symlinks terminate", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewOSFS()
+		root := t.TempDir()
+
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "a"), 0755))
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "b"), 0755))
+		require.NoError(t, vfs.Symlink(fsys, filepath.Join(root, "b"), filepath.Join(root, "a", "to_b")))
+		require.NoError(t, vfs.Symlink(fsys, filepath.Join(root, "a"), filepath.Join(root, "b", "to_a")))
+
+		var visits int
+
+		err := vfs.WalkDirWithSymlinks(fsys, root, func(_ string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			visits++
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Less(t, visits, 100, "circular symlinks must not produce unbounded visits")
+	})
+}
+
 func TestReadDirEntries(t *testing.T) {
 	t.Parallel()
 

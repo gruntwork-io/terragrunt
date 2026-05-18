@@ -70,6 +70,9 @@ type ContextLocker interface {
 // ErrNoHardLink is returned when a filesystem does not support hard links.
 var ErrNoHardLink = errors.New("hard link not supported")
 
+// ErrSymlinkEscapesRoot is returned when a symlink's target lives outside the walk root.
+var ErrSymlinkEscapesRoot = errors.New("symlink target escapes walk root")
+
 // ErrNoLock is returned when a filesystem does not support locking.
 var ErrNoLock = errors.New("locking not supported")
 
@@ -344,6 +347,98 @@ func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
 	}
 
 	return err
+}
+
+// WalkDirWithSymlinks walks fsys following directory symlinks; rejects escapes via [ErrSymlinkEscapesRoot].
+//
+//nolint:funlen
+func WalkDirWithSymlinks(fsys FS, root string, externalWalkFn fs.WalkDirFunc) error {
+	type pathPair struct {
+		physical string
+		logical  string
+	}
+
+	visited := make(map[string]bool)
+	visitedLogical := make(map[string]bool)
+
+	realRoot, err := EvalSymlinks(fsys, root)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
+	}
+
+	cleanRoot := filepath.Clean(realRoot)
+
+	var walkFn func(pathPair) error
+
+	walkFn = func(pair pathPair) error {
+		return WalkDir(fsys, pair.physical, func(currentPath string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return externalWalkFn(currentPath, d, err)
+			}
+
+			rel, err := filepath.Rel(pair.physical, currentPath)
+			if err != nil {
+				return fmt.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
+			}
+
+			logicalPath := filepath.Join(pair.logical, rel)
+
+			if !visitedLogical[logicalPath] {
+				visitedLogical[logicalPath] = true
+
+				if err := externalWalkFn(logicalPath, d, nil); err != nil {
+					return err
+				}
+			}
+
+			if d.Type()&fs.ModeSymlink != 0 {
+				realPath, isDir, evalErr := evalRealPathForWalkDir(fsys, currentPath)
+				if evalErr != nil {
+					return evalErr
+				}
+
+				cleanTarget := filepath.Clean(realPath)
+				if cleanTarget != cleanRoot && !strings.HasPrefix(cleanTarget, cleanRoot+string(filepath.Separator)) {
+					return fmt.Errorf("%w: %s -> %s (root %s)", ErrSymlinkEscapesRoot, currentPath, realPath, cleanRoot)
+				}
+
+				if visited[realPath+":"+currentPath] {
+					return nil
+				}
+
+				visited[realPath+":"+currentPath] = true
+
+				if isDir {
+					return walkFn(pathPair{
+						physical: realPath,
+						logical:  logicalPath,
+					})
+				}
+			}
+
+			return nil
+		})
+	}
+
+	return walkFn(pathPair{
+		physical: realRoot,
+		logical:  realRoot,
+	})
+}
+
+// evalRealPathForWalkDir resolves symlinks on fsys and reports whether the target is a directory.
+func evalRealPathForWalkDir(fsys FS, currentPath string) (string, bool, error) {
+	realPath, err := EvalSymlinks(fsys, currentPath)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to evaluate symlinks for %s: %w", currentPath, err)
+	}
+
+	realInfo, err := fsys.Stat(realPath)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to describe file %s: %w", realPath, err)
+	}
+
+	return realPath, realInfo.IsDir(), nil
 }
 
 // osFS wraps afero.OsFs with hard link support.

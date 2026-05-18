@@ -282,7 +282,7 @@ func (p *GraphPhase) discoverDependencies(
 	}
 
 	if state.opts.Experiments.Evaluate(experiment.StackDependencies) {
-		depPaths, err = stackDependencyPaths(vfs.NewOSFS(), depPaths, c)
+		depPaths, err = stackDependencyPaths(v.FS, depPaths, c)
 		if err != nil {
 			return err
 		}
@@ -479,9 +479,14 @@ func (p *GraphPhase) discoverDependentsUpstream(
 
 	var candidates []component.Component
 
-	walkFn := filepath.WalkDir
+	walkFn := func(root string, fn fs.WalkDirFunc) error {
+		return vfs.WalkDir(v.FS, root, fn)
+	}
+
 	if state.opts != nil && state.opts.Experiments.Evaluate(experiment.Symlinks) {
-		walkFn = util.WalkDirWithSymlinks
+		walkFn = func(root string, fn fs.WalkDirFunc) error {
+			return vfs.WalkDirWithSymlinks(v.FS, root, fn)
+		}
 	}
 
 	err := walkFn(currentDir, func(path string, d fs.DirEntry, err error) error {
@@ -672,7 +677,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 	if state.graphTraversalState.opts.Experiments.Evaluate(experiment.StackDependencies) {
 		var stackErr error
 
-		deps, stackErr = stackDependencyPaths(vfs.NewOSFS(), deps, candidate)
+		deps, stackErr = stackDependencyPaths(v.FS, deps, candidate)
 		if stackErr != nil {
 			state.errMu.Lock()
 			*state.errs = append(*state.errs, stackErr)
