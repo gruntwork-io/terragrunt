@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,7 @@ import (
 func TestScanVariables(t *testing.T) {
 	t.Parallel()
 
-	inputs, err := config.ParseVariables(logger.CreateLogger(), experiment.NewExperiments(), controls.New(), "../../test/fixtures/inputs")
+	inputs, err := config.ParseVariables(logger.CreateLogger(), vfs.NewOSFS(), experiment.NewExperiments(), controls.New(), "../../test/fixtures/inputs")
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 
@@ -45,7 +46,7 @@ func TestScanVariables(t *testing.T) {
 func TestScanDefaultVariables(t *testing.T) {
 	t.Parallel()
 
-	inputs, err := config.ParseVariables(logger.CreateLogger(), experiment.NewExperiments(), controls.New(), "../../test/fixtures/inputs-defaults")
+	inputs, err := config.ParseVariables(logger.CreateLogger(), vfs.NewOSFS(), experiment.NewExperiments(), controls.New(), "../../test/fixtures/inputs-defaults")
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 

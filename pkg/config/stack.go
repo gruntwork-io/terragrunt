@@ -683,7 +683,7 @@ func ReadStackConfigFile(ctx context.Context, l log.Logger, pctx *ParsingContext
 	stackPctx.TerragruntConfigPath = filePath
 	stackPctx.OriginalTerragruntConfigPath = filePath
 
-	file, err := hclparse.NewParser(stackPctx.ParserOptions...).ParseFromFile(filePath)
+	file, err := hclparse.NewParser(stackPctx.ParserOptions...).ParseFromFile(stackPctx.Venv.FS, filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -734,7 +734,7 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 
 	// Process include blocks when the stack-dependencies experiment is enabled.
 	if parser.Experiments.Evaluate(experiment.StackDependencies) {
-		if err := processStackConfigIncludes(config, filepath.Dir(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
+		if err := processStackConfigIncludes(parser.Venv.FS, config, filepath.Dir(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
 			return nil, err
 		}
 	}
@@ -767,14 +767,14 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 // It reads each included file, parses it with the same eval context, and merges
 // its units and stacks into the main config so generation sees all components,
 // not just those in the root file.
-func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
+func processStackConfigIncludes(fsys vfs.FS, config *StackConfigFile, stackDir string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
 	for _, inc := range config.Includes {
 		includePath := inc.Path
 		if !filepath.IsAbs(includePath) {
 			includePath = filepath.Join(stackDir, includePath)
 		}
 
-		incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(includePath)
+		incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(fsys, includePath)
 		if err != nil {
 			return errors.Errorf("failed to read include %q: %w", inc.Name, err)
 		}
@@ -900,7 +900,7 @@ func ReadValues(ctx context.Context, pctx *ParsingContext, l log.Logger, directo
 
 	l.Debugf("Reading Terragrunt stack values file at %s", filePath)
 
-	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(filePath)
+	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(pctx.Venv.FS, filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
