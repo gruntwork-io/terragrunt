@@ -10,7 +10,7 @@ import (
 func TestDetailedExitCodeMapFinal(t *testing.T) {
 	t.Parallel()
 
-	// "changes" + "error" disagree between max-wins and error-precedence, so the dispatch is observable.
+	// "changes" + "error" disagree between the two strategies (max value vs error precedence), so the dispatch is observable.
 	em := tf.NewDetailedExitCodeMap()
 	em.Set("a", tf.DetailedExitCodeChanges) // 2
 	em.Set("b", tf.DetailedExitCodeError)   // 1

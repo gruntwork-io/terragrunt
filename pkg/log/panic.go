@@ -15,7 +15,7 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 )
 
-// PanicIssueURL is the canonical bug-report destination shown in the crash banner.
+// PanicIssueURL is the canonical bug report URL shown in the crash banner.
 const PanicIssueURL = "https://github.com/gruntwork-io/terragrunt/issues"
 
 // panicMessageMarkers are substrings emitted only in cty/runtime panic messages.
@@ -69,7 +69,7 @@ Stack trace:
 `
 )
 
-// PanicReporter holds the side-effecting hooks the crash-report path depends on.
+// PanicReporter holds hooks used by the crash report path.
 type PanicReporter struct {
 	Now       func() time.Time
 	Getwd     func() (string, error)
@@ -172,21 +172,21 @@ type PanicSuppressingWriter struct {
 	Inner io.Writer
 }
 
-// NewPanicSuppressingWriter wraps inner so that panic-bearing writes are dropped.
+// NewPanicSuppressingWriter wraps inner so that writes carrying panic content are dropped.
 func NewPanicSuppressingWriter(inner io.Writer) *PanicSuppressingWriter {
 	return &PanicSuppressingWriter{Inner: inner}
 }
 
-// Write returns len(p) on a dropped payload - zero bytes were forwarded to Inner.
+// Write returns (0, nil) on a dropped payload; zero bytes are forwarded to Inner.
 func (w *PanicSuppressingWriter) Write(p []byte) (int, error) {
 	if IsPanicMessage(string(p)) {
-		return len(p), nil
+		return 0, nil
 	}
 
 	return w.Inner.Write(p)
 }
 
-// IsPanicMessage reports whether s contains a cty or Go-runtime panic marker.
+// IsPanicMessage reports whether s contains a cty or Go runtime panic marker.
 func IsPanicMessage(s string) bool {
 	if s == "" {
 		return false

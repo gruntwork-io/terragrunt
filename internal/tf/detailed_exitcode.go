@@ -92,7 +92,7 @@ func (m *DetailedExitCodeMap) GetFinalDetailedExitCode() int {
 	return DetailedExitCodeSuccess
 }
 
-// Final returns the aggregate exit code, using detailed-exitcode rules when detailed is true.
+// Final returns the aggregate exit code, using detailed exitcode rules when detailed is true.
 func (m *DetailedExitCodeMap) Final(detailed bool) int {
 	if detailed {
 		return m.GetFinalDetailedExitCode()

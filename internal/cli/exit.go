@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// RunAndExit runs the CLI then os.Exits with ExitCodeFor; top-level panics must be caught by `defer reporter.PanicHandler(...)`.
+// RunAndExit runs the CLI then os.Exits with ExitCodeFor; panics at the top level must be caught by `defer reporter.PanicHandler(...)`.
 func (app *App) RunAndExit(args []string, em *tf.DetailedExitCodeMap, reporter *log.PanicReporter) {
 	// Background root since RunAndExit owns the process lifetime; em and logger are injected so internals can resolve them via context.
 	ctx := log.ContextWithLogger(context.Background(), app.l)
@@ -23,7 +23,7 @@ func (app *App) RunAndExit(args []string, em *tf.DetailedExitCodeMap, reporter *
 	os.Exit(ExitCodeFor(app.l, args, app.opts.VersionString(), err, em.Final(detailed), reporter))
 }
 
-// ExitCodeFor maps a CLI run result to a process exit code; panic-shaped errors route through reporter.
+// ExitCodeFor maps a CLI run result to a process exit code; errors carrying a panic route through reporter.
 func ExitCodeFor(l log.Logger, args []string, version string, err error, success int, reporter *log.PanicReporter) int {
 	if err == nil {
 		return success
@@ -43,7 +43,7 @@ func ExitCodeFor(l log.Logger, args []string, version string, err error, success
 	return code
 }
 
-// logRunError emits the user-facing output for a non-nil run error.
+// logRunError emits the output a user sees when a run error occurs.
 func logRunError(l log.Logger, args []string, version string, err error, reporter *log.PanicReporter) {
 	if log.IsPanic(err) {
 		msg, stack := log.PanicDetails(err)
