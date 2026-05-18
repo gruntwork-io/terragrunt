@@ -373,6 +373,7 @@ func topoSortLocals(deps map[string]map[string]struct{}) ([]string, []string) {
 // `deps[name]` is the set of locals `name` depends on. `color[name]` tracks DFS state: white = unvisited, gray = on the current
 // DFS path (revisiting a gray node means a cycle), black = fully processed and emitted to `order`. `order` is the post-order
 // traversal, which is the evaluation order for locals (dependencies first).
+// See https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
 const (
 	topoColorGray  = 1
 	topoColorBlack = 2
