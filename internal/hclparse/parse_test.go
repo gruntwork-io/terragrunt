@@ -1249,7 +1249,7 @@ stack "s" {
 
 			require.ErrorAs(t, err, &diags)
 			require.True(t, diags.HasErrors())
-			assert.Equal(t, "`values` is not allowed inside `autoinclude`", diags[0].Summary)
+			assert.Equal(t, "values is not allowed inside autoinclude", diags[0].Summary)
 			assert.Contains(t, diags[0].Detail, "parent unit/stack block")
 		})
 	}

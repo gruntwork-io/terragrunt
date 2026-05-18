@@ -98,8 +98,8 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 	if valuesAttr, hasValues := body.Attributes["values"]; hasValues {
 		return nil, hcl.Diagnostics{{
 			Severity: hcl.DiagError,
-			Summary:  "`values` is not allowed inside `autoinclude`",
-			Detail:   "did you mean to declare `values = {...}` on the parent unit/stack block (next to `source`/`path`) instead of inside the `autoinclude` block?",
+			Summary:  "values is not allowed inside autoinclude",
+			Detail:   "Did you mean to declare values = {...} on the parent unit/stack block (next to source/path) instead of inside the autoinclude block?",
 			Subject:  valuesAttr.Range().Ptr(),
 		}}
 	}
