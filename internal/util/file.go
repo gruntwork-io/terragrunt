@@ -456,11 +456,11 @@ func copyFolderContentsFast(
 	}
 
 	const ownerReadWriteExecutePerms = 0o700
-	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
+	if err := fsys.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
 	}
 
-	manifest := NewFileManifest(destination, manifestFile)
+	manifest := NewFileManifest(fsys, destination, manifestFile)
 	if err := manifest.Clean(l, fsys); err != nil {
 		return errors.New(err)
 	}
@@ -503,7 +503,7 @@ func copyFolderContentsFast(
 		// the walkFn treats a directory symlink as a directory and
 		// matches the legacy copy semantics.
 		if !isDir && d.Type()&fs.ModeSymlink != 0 {
-			targetInfo, err := os.Stat(absolutePath)
+			targetInfo, err := fsys.Stat(absolutePath)
 			if err != nil {
 				return errors.New(err)
 			}
@@ -557,11 +557,11 @@ func copyFolderContentsFast(
 			// A sibling file-copy worker may have created `dest`
 			// already with default perms. Chmod forces the source's
 			// mode.
-			if err := os.MkdirAll(dest, info.Mode().Perm()); err != nil {
+			if err := fsys.MkdirAll(dest, info.Mode().Perm()); err != nil {
 				return errors.New(err)
 			}
 
-			if err := os.Chmod(dest, info.Mode().Perm()); err != nil {
+			if err := fsys.Chmod(dest, info.Mode().Perm()); err != nil {
 				return errors.New(err)
 			}
 
@@ -569,11 +569,11 @@ func copyFolderContentsFast(
 		}
 
 		parentDir := filepath.Dir(dest)
-		if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
+		if err := fsys.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
 			return errors.New(err)
 		}
 
-		if err := CopyFile(absolutePath, dest); err != nil {
+		if err := copyFileViaFS(fsys, absolutePath, dest); err != nil {
 			return err
 		}
 
@@ -720,11 +720,11 @@ func compileExcludePattern(patterns []string) (glob.Matcher, error) {
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
 func CopyFolderContentsWithFilter(l log.Logger, fsys vfs.FS, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
 	const ownerReadWriteExecutePerms = 0o700
-	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
+	if err := fsys.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
 	}
 
-	manifest := NewFileManifest(destination, manifestFile)
+	manifest := NewFileManifest(fsys, destination, manifestFile)
 	if err := manifest.Clean(l, fsys); err != nil {
 		return errors.New(err)
 	}
@@ -740,19 +740,19 @@ func CopyFolderContentsWithFilter(l log.Logger, fsys vfs.FS, source, destination
 		}
 	}(manifest)
 
-	// Why use filepath.Glob here? The original implementation used os.ReadDir, but that method calls lstat on all
-	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
-	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
-	files, err := filepath.Glob(source + "/*")
+	// Read the source directory through fsys so the copy honors the venv
+	// filesystem. Lstat per-entry (rather than dirent type) preserves the
+	// historical behavior of distinguishing directory symlinks from regular
+	// directories without relying on the readdir-time type, which can be
+	// inaccurate on some filesystems.
+	entries, err := vfs.ReadDirEntries(fsys, source)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	for _, file := range files {
-		fileRelativePath, err := filepath.Rel(source, file)
-		if err != nil {
-			return fmt.Errorf("relativize %q against source %q: %w", file, source, err)
-		}
+	for _, entry := range entries {
+		file := filepath.Join(source, entry.Name())
+		fileRelativePath := entry.Name()
 
 		if !filter(file) {
 			continue
@@ -760,13 +760,13 @@ func CopyFolderContentsWithFilter(l log.Logger, fsys vfs.FS, source, destination
 
 		dest := filepath.Join(destination, fileRelativePath)
 
-		if IsDir(file) {
-			info, err := os.Lstat(file)
-			if err != nil {
-				return errors.New(err)
-			}
+		info, err := vfs.Lstat(fsys, file)
+		if err != nil {
+			return errors.New(err)
+		}
 
-			if err := os.MkdirAll(dest, info.Mode()); err != nil {
+		if info.IsDir() {
+			if err := fsys.MkdirAll(dest, info.Mode()); err != nil {
 				return errors.New(err)
 			}
 
@@ -781,11 +781,11 @@ func CopyFolderContentsWithFilter(l log.Logger, fsys vfs.FS, source, destination
 			parentDir := filepath.Dir(dest)
 
 			const ownerReadWriteExecutePerms = 0o700
-			if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
+			if err := fsys.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
 				return errors.New(err)
 			}
 
-			if err := CopyFile(file, dest); err != nil {
+			if err := copyFileViaFS(fsys, file, dest); err != nil {
 				return err
 			}
 
@@ -847,6 +847,36 @@ func CopyFile(source string, destination string) error {
 	err = WriteFileWithSamePermissions(source, destination, file)
 
 	return errors.New(errors.Join(err, file.Close()))
+}
+
+// copyFileViaFS copies source to destination through fsys, preserving the
+// source file's mode. Functionally equivalent to [CopyFile] when fsys is
+// backed by the real OS, but routes through vfs so in-memory-backed callers
+// (fuzz, tests) keep all I/O inside the venv filesystem.
+func copyFileViaFS(fsys vfs.FS, source, destination string) error {
+	srcInfo, err := fsys.Stat(source)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	in, err := fsys.Open(source)
+	if err != nil {
+		return errors.New(err)
+	}
+	defer in.Close() //nolint:errcheck
+
+	if err := fsys.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return errors.New(err)
+	}
+
+	out, err := fsys.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcInfo.Mode())
+	if err != nil {
+		return errors.New(err)
+	}
+
+	_, copyErr := io.Copy(out, in)
+
+	return errors.Join(copyErr, out.Close())
 }
 
 // WriteFileWithSamePermissions writes a file to the given destination with the given contents
@@ -929,7 +959,8 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 // subsequent runs.
 type fileManifest struct {
 	encoder        *gob.Encoder
-	fileHandle     *os.File
+	fileHandle     vfs.File
+	fsys           vfs.FS
 	ManifestFolder string
 	ManifestFile   string
 }
@@ -1274,7 +1305,9 @@ func isFileManifestDecodeDone(err error) bool {
 func (manifest *fileManifest) Create() error {
 	const ownerWriteGlobalReadPerms = 0o644
 
-	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
+	manifestPath := filepath.Join(manifest.ManifestFolder, manifest.ManifestFile)
+
+	fileHandle, err := manifest.fsys.OpenFile(manifestPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
 	if err != nil {
 		return err
 	}
@@ -1300,8 +1333,8 @@ func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
 
-func NewFileManifest(manifestFolder string, manifestFile string) *fileManifest {
-	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+func NewFileManifest(fsys vfs.FS, manifestFolder string, manifestFile string) *fileManifest {
+	return &fileManifest{fsys: fsys, ManifestFolder: manifestFolder, ManifestFile: manifestFile}
 }
 
 // Custom errors

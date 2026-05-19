@@ -391,7 +391,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	const cacheDirMode = 0755
 
 	// Create the cache directory if it doesn't exist
-	if err := os.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
+	if err := v.FS.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
 		return errors.Errorf("failed to create provider cache directory: %w", err)
 	}
 

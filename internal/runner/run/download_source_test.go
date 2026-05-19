@@ -333,7 +333,7 @@ func TestInvalidModulePath(t *testing.T) {
 
 	terraformSource.WorkingDir += "/not-existing-path"
 
-	err = run.ValidateWorkingDir(terraformSource)
+	err = run.ValidateWorkingDir(vfs.NewOSFS(), terraformSource)
 	require.Error(t, err)
 
 	var workingDirNotFound run.WorkingDirNotFound
@@ -357,7 +357,7 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 
 	terraformSource.WorkingDir += "/main.tf"
 
-	err = run.ValidateWorkingDir(terraformSource)
+	err = run.ValidateWorkingDir(vfs.NewOSFS(), terraformSource)
 	require.Error(t, err)
 
 	var workingDirNotDir run.WorkingDirNotDir
