@@ -145,7 +145,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
 			Src:       stackSrcBytes,
 			Filename:  filepath.Base(stackFilePath),
-			StackDir:  stackSourceDir,
+			StackDir:  resolveDir,
 			Values:    values,
 			Variables: prodEvalCtx.Variables,
 			Functions: prodEvalCtx.Functions,
