@@ -198,7 +198,12 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		opts.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	l, ver, impl, err := run.PopulateTFVersion(ctx, l, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
+	l, ver, impl, err := run.PopulateTFVersion(
+		ctx, l, vexec.NewOSExec(),
+		opts.WorkingDir,
+		opts.VersionManagerFileName,
+		configbridge.TFRunOptsFromOpts(opts),
+	)
 	if err != nil {
 		return l, err
 	}
@@ -216,7 +221,10 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 	}
 
 	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
-		if err := run.CheckTerragruntVersionMeetsConstraint(opts.TerragruntVersion, partialTerragruntConfig.TerragruntVersionConstraint); err != nil {
+		if err := run.CheckTerragruntVersionMeetsConstraint(
+			opts.TerragruntVersion,
+			partialTerragruntConfig.TerragruntVersionConstraint,
+		); err != nil {
 			return l, err
 		}
 	}
@@ -240,7 +248,11 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 	return l, nil
 }
 
-func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
+func getTerragruntConfig(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (*config.TerragruntConfig, error) {
 	ctx, configCtx := configbridge.NewParsingContext(ctx, l, opts)
 	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints,
