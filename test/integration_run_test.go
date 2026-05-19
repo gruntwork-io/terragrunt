@@ -137,12 +137,12 @@ func TestRunVersionFilesCacheKey(t *testing.T) {
 	}{
 		{
 			name:         "use default",
-			expect:       "r01AJjVD7VSXCQk1ORuh_no_NRY",
+			expect:       "H2PcpB8dh-BE5Dz-LiSD1hykSfk",
 			versionFiles: nil,
 		},
 		{
 			name:   "custom files provided",
-			expect: "XBE-VO9pOnQjPQDmLQCvSCdckSQ",
+			expect: "trAjGOdUv3IcX1lU50dck_mqlUs",
 			versionFiles: []string{
 				".terraform-version",
 				".tool-versions",
