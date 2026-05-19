@@ -27,8 +27,7 @@ type EvalArgs struct {
 	depth    int
 }
 
-// PartialEval walks an hclsyntax.Expression tree and returns HCL source text.
-// Pure expressions (no deferred refs, no function calls) are evaluated to literals; mixed expressions get per-child treatment: evaluable parts become literals, deferred parts keep their original source text.
+// PartialEval walks an hclsyntax.Expression tree and returns HCL source text: pure expressions (no deferred refs, no function calls) are evaluated to literals; mixed expressions get per-child treatment - evaluable parts become literals, deferred parts keep their original source text.
 func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	if args.EvalCtx == nil {
 		return RangeBytes(args.SrcBytes, expr.Range())

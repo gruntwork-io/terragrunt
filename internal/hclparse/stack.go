@@ -297,7 +297,39 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL,
 		return nil, nil, FileDecodeError{Name: stackFile, Detail: diags.Error(), Err: diags}
 	}
 
+	if err := validateDiscoveryUniqueNames(decoded.Units, decoded.Stacks); err != nil {
+		return nil, nil, err
+	}
+
 	return decoded.Units, decoded.Stacks, nil
+}
+
+// validateDiscoveryUniqueNames reports duplicate unit and stack names from the path-only discovery decode. The check is duplicated here (sibling of validateUniqueNames in parse.go) because discovery uses its own decode shape (unitPathOnlyHCL / stackPathOnlyHCL with a lazy hcl.Expression source) that does not satisfy the unitsAndStacksHCL signature; without this guard a duplicate-named stack would silently overwrite the earlier entry in BuildComponentRefMap, masking the conflict from autoinclude eval.
+func validateDiscoveryUniqueNames(units []*unitPathOnlyHCL, stacks []*stackPathOnlyHCL) error {
+	seenUnits := make(map[string]struct{}, len(units))
+	seenStacks := make(map[string]struct{}, len(stacks))
+
+	var errs []error
+
+	for _, unit := range units {
+		if _, ok := seenUnits[unit.Name]; ok {
+			errs = append(errs, DuplicateUnitNameError{Name: unit.Name})
+			continue
+		}
+
+		seenUnits[unit.Name] = struct{}{}
+	}
+
+	for _, stack := range stacks {
+		if _, ok := seenStacks[stack.Name]; ok {
+			errs = append(errs, DuplicateStackNameError{Name: stack.Name})
+			continue
+		}
+
+		seenStacks[stack.Name] = struct{}{}
+	}
+
+	return errors.Join(errs...)
 }
 
 // resolveStackSource returns the source string for nested stack discovery. Accepts plain string literals via literalString, and falls back to evaluating expr against the Terraform stdlib eval context anchored at baseDir so `format(...)`, `replace(...)`, `pathexpand(...)` and similar stdlib-only sources are also enriched. Terragrunt-specific functions (get_terragrunt_dir, find_in_parent_folders, etc.) are NOT available at this early phase, and parser-owned namespaces (local/values/unit/stack) require the full parse context; both cases return ("", false) so discovery silently skips the unresolvable nested stack and the missing ref surfaces later as a clear HCL diagnostic.

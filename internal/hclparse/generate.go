@@ -152,8 +152,7 @@ func (c *Copier) CopyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBy
 	}
 }
 
-// FindBlock finds a block by type and first label in the AST body.
-// Exported for reuse by callers that need to locate specific blocks in parsed HCL bodies.
+// FindBlock finds a block by type and first label in the AST body; exported for reuse by callers that need to locate specific blocks in parsed HCL bodies.
 func FindBlock(body *hclsyntax.Body, blockType, label string) *hclsyntax.Block {
 	for _, block := range body.Blocks {
 		if block.Type == blockType && len(block.Labels) > 0 && block.Labels[0] == label {
@@ -176,8 +175,7 @@ func RangeBytes(src []byte, r hcl.Range) []byte {
 	return src[start:end]
 }
 
-// RawTokens wraps raw bytes as a single hclwrite token. hclwrite.Format
-// will handle the final formatting of the output.
+// RawTokens wraps raw bytes as a single hclwrite token; hclwrite.Format handles the final formatting of the output.
 func RawTokens(b []byte) hclwrite.Tokens {
 	if len(b) == 0 {
 		return nil
@@ -202,9 +200,7 @@ func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
 	})
 }
 
-// writeDependencyBlock writes a single dependency block with resolved config_path.
-// The config_path is converted to a path relative to targetDir. All other
-// attributes are copied from source bytes to preserve original expressions.
+// writeDependencyBlock writes a single dependency block with config_path converted to relative-to-targetDir; all other attributes are copied from source bytes to preserve original expressions.
 func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string) {
 	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
@@ -233,16 +229,7 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 	}
 }
 
-// writeNonDependencyContent writes non-dependency attributes and blocks from
-// the autoinclude body. Each attribute expression is partially evaluated:
-// resolvable parts (locals, pure refs) become literals, while deferred parts
-// (dependency.*) keep their original source text. This enables mixed
-// expressions like "${local.env}-${dependency.vpc.outputs.vpc_id}" to be
-// partially resolved.
-//
-// Non-dependency blocks are copied through Copier:
-//   - evalCtx == nil: verbatim from source bytes
-//   - evalCtx != nil: attributes are partially evaluated
+// writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body; each attribute expression is partially evaluated so resolvable parts (locals, pure refs) become literals while deferred parts (dependency.*) keep their original source text, enabling mixed expressions like "${local.env}-${dependency.vpc.outputs.vpc_id}" to be partially resolved. Non-dependency blocks pass through Copier: evalCtx == nil copies verbatim from source bytes, evalCtx != nil partially evaluates attributes.
 func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) {
 	for _, attr := range SortedAttributes(body.Attributes) {
 		if evalCtx == nil {
@@ -270,11 +257,7 @@ func quotedStringTokens(value string) hclwrite.Tokens {
 	return hclwrite.TokensForValue(cty.StringVal(value))
 }
 
-// resolvedSourceFile extracts the originating HCL filename from a resolved
-// autoinclude, used to enrich panic messages with file context. Reads the
-// SrcRange struct field on the known concrete body type so no interface
-// method is invoked - this keeps the helper panic-safe even when called
-// from inside a panic formatter.
+// resolvedSourceFile extracts the originating HCL filename from a resolved autoinclude to enrich panic messages with file context; reads the SrcRange struct field on the known concrete body type so no interface method is invoked (keeps the helper panic-safe even when called from inside a panic formatter).
 func resolvedSourceFile(resolved *AutoIncludeResolved) string {
 	if resolved == nil {
 		return ""

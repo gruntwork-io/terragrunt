@@ -1,5 +1,4 @@
-// Package hclparse parses terragrunt.stack.hcl in four phases - (1) skeleton, (2) locals, (3) includes, (4) unit/stack decode plus autoinclude resolution.
-// Locals evaluate before include merge, and unit/stack vars become available after phase four.
+// Package hclparse parses terragrunt.stack.hcl in four phases - skeleton, locals, includes, unit/stack decode plus autoinclude resolution - so locals evaluate before include merge and unit/stack vars become available after phase four.
 package hclparse
 
 import (
@@ -208,7 +207,6 @@ func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 	return errors.Join(errs...)
 }
 
-// buildUnitRefs builds component refs for unit blocks.
 // buildUnitRefs builds component refs for unit blocks so autoinclude expressions like `unit.<name>.path` resolve to the generated unit directory; no_dot_terragrunt_stack hoists the unit out of the .terragrunt-stack subdirectory.
 func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(units))
@@ -346,11 +344,7 @@ func topoSortLocals(deps map[string]map[string]struct{}) ([]string, []string) {
 	return s.order, nil
 }
 
-// topoState runs Tarjan-style three-color DFS over the locals dependency graph to produce a topological order and detect cycles.
-// `deps[name]` is the set of locals `name` depends on. `color[name]` tracks DFS state: white = unvisited, gray = on the current
-// DFS path (revisiting a gray node means a cycle), black = fully processed and emitted to `order`. `order` is the post-order
-// traversal, which is the evaluation order for locals (dependencies first).
-// See https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
+// topoState runs Tarjan-style three-color DFS over the locals dependency graph (deps[name] = set of locals name depends on; color[name] tracks DFS state: zero = unvisited, gray = on current path so revisit means cycle, black = finished and emitted to order which is the post-order evaluation list). See https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
 const (
 	topoColorGray  = 1
 	topoColorBlack = 2
@@ -370,8 +364,7 @@ func newTopoState(deps map[string]map[string]struct{}) *topoState {
 	}
 }
 
-// visit performs DFS and returns a cycle when one is detected.
-// path is shared across recursive calls - safe here because we return immediately on cycle and never read path after the recursive call below. Don't add post-recursion logic that reads path without copying first.
+// visit performs DFS and returns a cycle when detected; path is shared across recursive calls (safe because we return immediately on cycle and never read path after the recursive call below - don't add post-recursion logic that reads path without copying first).
 func (s *topoState) visit(name string, path []string) []string {
 	switch s.color[name] {
 	case topoColorGray:
