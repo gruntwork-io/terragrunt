@@ -31,7 +31,11 @@ func TestProcessHooks_FiresHooksInDeclarationOrder(t *testing.T) {
 		{Name: "third", Commands: []string{"plan"}, Execute: []string{"step", "3"}, If: true},
 	}
 
-	require.NoError(t, run.ProcessHooks(t.Context(), l, v, hooks, newHookOpts(), &runcfg.RunConfig{}, nil, nil))
+	require.NoError(t, run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+		Hooks: hooks,
+		Opts:  newHookOpts(),
+		Cfg:   &runcfg.RunConfig{},
+	}))
 
 	calls := rec.snapshot()
 	require.Len(t, calls, 3)
@@ -50,9 +54,7 @@ func TestProcessHooks_AccumulatesErrorsAcrossHooks(t *testing.T) {
 	rec := &recorder{}
 
 	h := func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		rec.mu.Lock()
-		rec.calls = append(rec.calls, vexec.Invocation{Name: inv.Name, Args: append([]string(nil), inv.Args...)})
-		rec.mu.Unlock()
+		rec.record(&inv)
 
 		if inv.Name == "failer" {
 			return vexec.Result{ExitCode: 1, Stderr: []byte("boom")}
@@ -72,7 +74,11 @@ func TestProcessHooks_AccumulatesErrorsAcrossHooks(t *testing.T) {
 		{Name: "third", Commands: []string{"plan"}, Execute: []string{"third-cmd"}, If: true, RunOnError: true},
 	}
 
-	err := run.ProcessHooks(t.Context(), l, v, hooks, newHookOpts(), &runcfg.RunConfig{}, nil, nil)
+	err := run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+		Hooks: hooks,
+		Opts:  newHookOpts(),
+		Cfg:   &runcfg.RunConfig{},
+	})
 	require.Error(t, err, "hook failure must propagate")
 
 	calls := rec.snapshot()
@@ -110,7 +116,11 @@ func TestProcessHooks_PropagatesWorkingDir(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessHooks(t.Context(), l, v, hooks, opts, &runcfg.RunConfig{}, nil, nil))
+	require.NoError(t, run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+		Hooks: hooks,
+		Opts:  opts,
+		Cfg:   &runcfg.RunConfig{},
+	}))
 
 	calls := rec.snapshot()
 	require.Len(t, calls, 1)

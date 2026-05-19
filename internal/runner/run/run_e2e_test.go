@@ -42,7 +42,7 @@ func TestRunPipelineEndToEndPlan(t *testing.T) {
 
 	var planCalls atomic.Int32
 
-	rec := &invocationRecorder{}
+	rec := &recorder{}
 	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		rec.record(&inv)
 
@@ -221,29 +221,4 @@ func newRunE2EOpts(t *testing.T, s runE2EScaffold, command string, extraArgs ...
 		OriginalIAMRoleOptions:       iam.RoleOptions{},
 		IAMRoleOptions:               iam.RoleOptions{},
 	}
-}
-
-// invocationRecorder is a thread-safe accumulator for mem-exec
-// invocations. It records the name and args of each call.
-type invocationRecorder struct {
-	calls []vexec.Invocation
-	mu    sync.Mutex
-}
-
-func (r *invocationRecorder) record(inv *vexec.Invocation) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.calls = append(r.calls, vexec.Invocation{
-		Name: inv.Name,
-		Dir:  inv.Dir,
-		Args: slices.Clone(inv.Args),
-	})
-}
-
-func (r *invocationRecorder) snapshot() []vexec.Invocation {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return slices.Clone(r.calls)
 }

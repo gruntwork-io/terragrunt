@@ -552,8 +552,20 @@ func createConfig(
 	// populate opts.TerraformVersion / TofuImplementation; the version
 	// probe behavior itself is covered by TestGetTFVersion* in
 	// version_check_mem_test.go. Forking real tofu here would make every
-	// download_source test depend on tofu being installed.
-	versionExec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	// download_source test depend on tofu being installed. Any invocation
+	// other than the version probe is a regression: fail loudly rather
+	// than silently absorb it.
+	versionExec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		// DefaultWrappedPath resolves to either tofu or terraform depending
+		// on what's on the host PATH; accept both so the assertion stays
+		// host-independent.
+		if (inv.Name != "tofu" && inv.Name != "terraform") || !slices.Contains(inv.Args, "-version") {
+			assert.Fail(t, "unexpected invocation during PopulateTFVersion",
+				"name=%q args=%v", inv.Name, inv.Args)
+
+			return vexec.Result{ExitCode: 1}
+		}
+
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
 	})
 
