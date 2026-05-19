@@ -27,8 +27,12 @@ func TestStartTerragruntMirror(t *testing.T) {
 	refs := string(out)
 	assert.Contains(t, refs, "refs/heads/main")
 
-	for _, tag := range []string{"v0.53.8", "v0.67.4", "v0.83.2", "v0.93.2", "v0.99.1"} {
+	for _, tag := range helpers.TerragruntMirrorTags {
 		assert.Contains(t, refs, "refs/tags/"+tag, "tag %s missing from refs:\n%s", tag, refs)
+	}
+
+	for _, branch := range helpers.TerragruntMirrorBranches {
+		assert.Contains(t, refs, "refs/heads/"+branch, "branch %s missing from refs:\n%s", branch, refs)
 	}
 
 	assert.Contains(t, refs, m.HeadSHA, "HEAD SHA %s missing from ls-remote output:\n%s", m.HeadSHA, refs)

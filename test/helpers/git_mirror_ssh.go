@@ -1,7 +1,6 @@
 package helpers
 
 import (
-	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -12,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	gliderssh "github.com/gliderlabs/ssh"
 	cryptossh "golang.org/x/crypto/ssh"
@@ -179,8 +177,8 @@ func generateHostSigner() (cryptossh.Signer, error) {
 }
 
 // populateBareRepo writes the fixture tree into a working repo on
-// disk, commits and tags it (using [terragruntMirrorTags] and
-// [terragruntMirrorBranches]), then runs `git push --mirror` into
+// disk, commits and tags it (using [TerragruntMirrorTags] and
+// [TerragruntMirrorBranches]), then runs `git push --mirror` into
 // the empty bare repo at bareDir. The work goes through the real
 // `git` binary, not go-git, because the SSH server execs the real
 // `git-upload-pack`, which only reads on-disk repositories.
@@ -221,13 +219,16 @@ func populateBareRepo(fixturesDir, bareDir, httpURL, sshURL string) error {
 		return err
 	}
 
-	for _, tag := range terragruntMirrorTags {
-		if err := runGit(workDir, "tag", tag); err != nil {
+	for _, tag := range TerragruntMirrorTags {
+		// `-a -m` matches the annotated tags created on the HTTP
+		// mirror via [git.Server.Tag], so both mirrors expose the
+		// same tag object type.
+		if err := runGit(workDir, "tag", "-a", "-m", tag, tag); err != nil {
 			return err
 		}
 	}
 
-	for _, branch := range terragruntMirrorBranches {
+	for _, branch := range TerragruntMirrorBranches {
 		if err := runGit(workDir, "branch", branch); err != nil {
 			return err
 		}
@@ -258,51 +259,13 @@ func runGit(dir string, args ...string) error {
 }
 
 // copyFixturesToDisk mirrors fixturesDir into `<workDir>/test/fixtures/`,
-// substituting placeholders in `*.hcl`, `*.tf`, and `*.tofu` files.
-// Skips the same paths as [commitFixtureTree] (`.terraform`,
-// `.terragrunt-cache`, symlinks, `terraform.tfstate*`, debug files).
+// reusing [walkFixtures] so the skip rules and placeholder
+// substitution stay in lockstep with the HTTP path.
 func copyFixturesToDisk(fixturesDir, workDir, httpURL, sshURL string) error {
-	return filepath.WalkDir(fixturesDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() {
-			if d.Name() == ".terraform" || d.Name() == ".terragrunt-cache" {
-				return filepath.SkipDir
-			}
-
-			return nil
-		}
-
-		if d.Type()&fs.ModeSymlink != 0 {
-			return nil
-		}
-
-		name := d.Name()
-		if name == "terragrunt-debug.tfvars.json" || strings.HasPrefix(name, "terraform.tfstate") {
-			return nil
-		}
-
-		rel, err := filepath.Rel(fixturesDir, path)
-		if err != nil {
-			return err
-		}
-
-		dst := filepath.Join(workDir, "test", "fixtures", rel)
+	return walkFixtures(fixturesDir, httpURL, sshURL, func(rel string, data []byte) error {
+		dst := filepath.Join(workDir, "test", "fixtures", filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(dst), sshDirPerm); err != nil {
 			return err
-		}
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		switch filepath.Ext(name) {
-		case ".hcl", ".tf", ".tofu":
-			data = bytes.ReplaceAll(data, []byte(MirrorURLPlaceholder), []byte(httpURL))
-			data = bytes.ReplaceAll(data, []byte(MirrorSSHURLPlaceholder), []byte(sshURL))
 		}
 
 		return os.WriteFile(dst, data, sshOutputFilePerm)

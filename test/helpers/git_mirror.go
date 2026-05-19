@@ -37,11 +37,11 @@ const (
 	MirrorSHAPlaceholder = "__MIRROR_SHA__"
 )
 
-// terragruntMirrorTags lists the git tag names integration test
+// TerragruntMirrorTags lists the git tag names integration test
 // fixtures pin against. The mirror creates all of them at HEAD; tests
 // don't depend on the historical content of any of these refs, only on
 // the ability to clone the named ref.
-var terragruntMirrorTags = []string{
+var TerragruntMirrorTags = []string{
 	"v0.53.8",
 	"v0.67.4",
 	"v0.78.4",
@@ -53,11 +53,11 @@ var terragruntMirrorTags = []string{
 	"v0.99.1",
 }
 
-// terragruntMirrorBranches lists non-default branches the mirror
+// TerragruntMirrorBranches lists non-default branches the mirror
 // creates at HEAD. Tests that exercise URL-parser tolerance for
 // slash-bearing ref names (e.g., source-map's slash-in-ref behavior)
 // rely on these.
-var terragruntMirrorBranches = []string{
+var TerragruntMirrorBranches = []string{
 	"fixture/test-fixtures",
 }
 
@@ -158,6 +158,93 @@ func (m *TerragruntMirror) RenderFixture(t *testing.T, fixturePath string, inclu
 	return CopyEnvironment(t, fixturePath, includeInCopy...)
 }
 
+// substituteMirrorPlaceholders rewrites [MirrorURLPlaceholder],
+// [MirrorSSHURLPlaceholder], and [MirrorSHAPlaceholder] in data.
+// Empty replacement values are skipped so the literal placeholder
+// remains: this matters when the SSH mirror is unavailable —
+// replacing `__MIRROR_SSH_URL__` with `""` would produce a malformed
+// `git::` URL that fails confusingly downstream, whereas leaving the
+// placeholder yields a clear error if the fixture is actually used
+// (SSH-only tests skip via [TerragruntMirror.RequireSSH] before they
+// reach this code).
+func substituteMirrorPlaceholders(data []byte, httpURL, sshURL, headSHA string) []byte {
+	if httpURL != "" {
+		data = bytes.ReplaceAll(data, []byte(MirrorURLPlaceholder), []byte(httpURL))
+	}
+
+	if sshURL != "" {
+		data = bytes.ReplaceAll(data, []byte(MirrorSSHURLPlaceholder), []byte(sshURL))
+	}
+
+	if headSHA != "" {
+		data = bytes.ReplaceAll(data, []byte(MirrorSHAPlaceholder), []byte(headSHA))
+	}
+
+	return data
+}
+
+// isFixtureSubstFile reports whether ext denotes a file whose
+// contents should be searched for mirror placeholders.
+func isFixtureSubstFile(ext string) bool {
+	switch ext {
+	case ".hcl", ".tf", ".tofu":
+		return true
+	}
+
+	return false
+}
+
+// walkFixtures walks fixturesDir applying the standard skip rules
+// (`.terraform`, `.terragrunt-cache`, symlinks, `terraform.tfstate*`,
+// `terragrunt-debug.tfvars.json`) and, for each remaining file, calls
+// fn with the path relative to fixturesDir (slash-separated) and the
+// file's bytes after [substituteMirrorPlaceholders] has been applied
+// using httpURL and sshURL.
+func walkFixtures(fixturesDir, httpURL, sshURL string, fn func(rel string, data []byte) error) error {
+	return filepath.WalkDir(fixturesDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			if d.Name() == ".terraform" || d.Name() == ".terragrunt-cache" {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		// Skip symlinks (e.g., regression benchmark fixtures point a
+		// dependency-group dir at a template dir). They have no
+		// bearing on the github-mirror tests and following them would
+		// require duplicating the target into the mirror.
+		if d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+
+		name := d.Name()
+		if name == "terragrunt-debug.tfvars.json" || strings.HasPrefix(name, "terraform.tfstate") {
+			return nil
+		}
+
+		rel, err := filepath.Rel(fixturesDir, path)
+		if err != nil {
+			return err
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", path, err)
+		}
+
+		if isFixtureSubstFile(filepath.Ext(name)) {
+			data = substituteMirrorPlaceholders(data, httpURL, sshURL, "")
+		}
+
+		return fn(filepath.ToSlash(rel), data)
+	})
+}
+
 // applyMirrorSubst replaces [MirrorURLPlaceholder],
 // [MirrorSSHURLPlaceholder], and [MirrorSHAPlaceholder] in `*.hcl`,
 // `*.tf`, and `*.tofu` files under root. A first pass scans for any
@@ -178,9 +265,7 @@ func applyMirrorSubst(t *testing.T, root string) {
 			return nil
 		}
 
-		switch filepath.Ext(d.Name()) {
-		case ".hcl", ".tf", ".tofu":
-		default:
+		if !isFixtureSubstFile(filepath.Ext(d.Name())) {
 			return nil
 		}
 
@@ -216,9 +301,7 @@ func applyMirrorSubst(t *testing.T, root string) {
 			return nil
 		}
 
-		switch filepath.Ext(d.Name()) {
-		case ".hcl", ".tf", ".tofu":
-		default:
+		if !isFixtureSubstFile(filepath.Ext(d.Name())) {
 			return nil
 		}
 
@@ -233,9 +316,7 @@ func applyMirrorSubst(t *testing.T, root string) {
 			return nil
 		}
 
-		contents = bytes.ReplaceAll(contents, []byte(MirrorURLPlaceholder), []byte(m.URL))
-		contents = bytes.ReplaceAll(contents, []byte(MirrorSSHURLPlaceholder), []byte(m.SSHURL))
-		contents = bytes.ReplaceAll(contents, []byte(MirrorSHAPlaceholder), []byte(m.HeadSHA))
+		contents = substituteMirrorPlaceholders(contents, m.URL, m.SSHURL, m.HeadSHA)
 
 		return os.WriteFile(path, contents, readWritePermissions)
 	})
@@ -256,10 +337,17 @@ func startTerragruntMirror() (*TerragruntMirror, error) {
 	// upstream github. Concurrent reads against an empty storage are
 	// fine; sync.Once gates external callers until commits+tags are
 	// in place.
-	url, err := srv.Start(context.Background())
+	base, err := srv.Start(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("start: %w", err)
 	}
+
+	// Append `/terragrunt.git` so the HTTP URL is symmetric with
+	// the SSH URL (`ssh://git@HOST:PORT/terragrunt.git`). The
+	// underlying [git.Server] uses a single-repo loader that
+	// ignores the request path, so any path resolves to the same
+	// storer.
+	url := base + "/terragrunt.git"
 
 	fixturesDir, err := locateFixturesDir()
 	if err != nil {
@@ -284,13 +372,13 @@ func startTerragruntMirror() (*TerragruntMirror, error) {
 		return nil, fmt.Errorf("resolve head: %w", err)
 	}
 
-	for _, tag := range terragruntMirrorTags {
+	for _, tag := range TerragruntMirrorTags {
 		if err := srv.Tag(tag); err != nil {
 			return nil, fmt.Errorf("tag %s: %w", tag, err)
 		}
 	}
 
-	for _, branch := range terragruntMirrorBranches {
+	for _, branch := range TerragruntMirrorBranches {
 		if err := srv.Branch(branch); err != nil {
 			return nil, fmt.Errorf("branch %s: %w", branch, err)
 		}
@@ -313,15 +401,9 @@ func locateFixturesDir() (string, error) {
 	return filepath.Join(filepath.Dir(thisFile), "..", "fixtures"), nil
 }
 
-// commitFixtureTree walks fixturesDir on disk, writes every file into
-// srv's worktree at path `test/fixtures/<rel>`, then bulk-stages and
-// creates a single commit. Skipped: `.terraform`, `.terragrunt-cache`,
-// symlinks, `terraform.tfstate*`, `terragrunt-debug.tfvars.json`.
-//
-// For `*.hcl`, `*.tf`, and `*.tofu` files, [MirrorURLPlaceholder] is
-// substituted with mirrorURL before commit so a clone of one fixture
-// that references another fixture via __MIRROR_URL__ stays inside the
-// mirror and never reaches upstream github.
+// commitFixtureTree walks fixturesDir via [walkFixtures], writes every
+// file into srv's worktree at path `test/fixtures/<rel>`, then
+// bulk-stages and creates a single commit.
 //
 // Bulk-staging via [AddOptions.All] is required because per-file
 // `Add()` calls `Status()` on the entire worktree each time, which
@@ -334,49 +416,8 @@ func commitFixtureTree(srv *git.Server, fixturesDir, mirrorURL, mirrorSSHURL str
 		return fmt.Errorf("worktree: %w", err)
 	}
 
-	walkErr := filepath.WalkDir(fixturesDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() {
-			if d.Name() == ".terraform" || d.Name() == ".terragrunt-cache" {
-				return filepath.SkipDir
-			}
-
-			return nil
-		}
-
-		// Skip symlinks (e.g., regression benchmark fixtures point a
-		// dependency-group dir at a template dir). They have no
-		// bearing on the github-mirror tests and following them would
-		// require duplicating the target into the mirror.
-		if d.Type()&fs.ModeSymlink != 0 {
-			return nil
-		}
-
-		name := d.Name()
-		if name == "terragrunt-debug.tfvars.json" || strings.HasPrefix(name, "terraform.tfstate") {
-			return nil
-		}
-
-		rel, err := filepath.Rel(fixturesDir, path)
-		if err != nil {
-			return err
-		}
-
-		repoPath := filepath.ToSlash(filepath.Join("test/fixtures", rel))
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read %s: %w", path, err)
-		}
-
-		switch filepath.Ext(name) {
-		case ".hcl", ".tf", ".tofu":
-			data = bytes.ReplaceAll(data, []byte(MirrorURLPlaceholder), []byte(mirrorURL))
-			data = bytes.ReplaceAll(data, []byte(MirrorSSHURLPlaceholder), []byte(mirrorSSHURL))
-		}
+	walkErr := walkFixtures(fixturesDir, mirrorURL, mirrorSSHURL, func(rel string, data []byte) error {
+		repoPath := "test/fixtures/" + rel
 
 		f, err := w.Filesystem.Create(repoPath)
 		if err != nil {
