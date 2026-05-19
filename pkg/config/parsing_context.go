@@ -45,7 +45,7 @@ type ParsingContext struct {
 	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
 	FeatureFlags     *xsync.Map[string, string]
-	FilesRead        *[]string
+	FilesRead        *FilesRead
 	Telemetry        *telemetry.Options
 
 	DecodedDependencies *cty.Value
@@ -105,11 +105,9 @@ type ParsingContext struct {
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {
-	filesRead := make([]string, 0)
-
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
-		FilesRead:        &filesRead,
+		FilesRead:        NewFilesRead(),
 	}
 
 	for _, opt := range opts {

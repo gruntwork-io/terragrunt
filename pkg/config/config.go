@@ -2005,7 +2005,7 @@ func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource str
 			return nil
 		}
 
-		trackFileRead(pctx.FilesRead, path)
+		pctx.FilesRead.Add(path)
 
 		return nil
 	})
