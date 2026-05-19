@@ -34,6 +34,7 @@ const (
 	testFixtureStackDepsAutoIncViaIncludeSuccess = "fixtures/stacks/stack-deps-autoinclude-via-include-success"
 	testFixtureStackDepsAutoIncComplexSiblings   = "fixtures/stacks/stack-deps-autoinclude-complex-siblings"
 	testFixtureStackDepsRunAllFuncsInNestedStack = "fixtures/stacks/stack-deps-runall-funcs-in-nested-stack"
+	testFixtureStackDepsNestedSameName           = "fixtures/stacks/stack-deps-nested-same-name"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -1123,6 +1124,47 @@ func TestStackDepsRunAllWithFunctionsInNestedStack(t *testing.T) {
 		"terragrunt output -json vpc_id --experiment stack-dependencies --working-dir "+nestedVPCGen)
 	require.NoError(t, outputErr, "nested vpc unit must be applied by run --all discovery")
 	assert.Contains(t, vpcOutput, "vpc-from-nested-stack")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+}
+
+// TestStackDepsNestedSameName covers the same-name edge: a stack named "foo" containing a unit named "foo", with an external sibling unit "bar" depending on `stack.foo.foo.path`. Exercises (a) relative-source resolution after the catalog stack file is copied (origin sidecar), (b) the nested same-name reference in the autoinclude eval context, and (c) end-to-end apply with the mock-able dependency.
+func TestStackDepsNestedSameName(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsNestedSameName)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsNestedSameName)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsNestedSameName, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	nestedFooStackFile := filepath.Join(rootPath, inthclparse.StackDir, "foo", "terragrunt.stack.hcl")
+	require.FileExists(t, nestedFooStackFile)
+	require.FileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "foo", ".terragrunt-stack-origin"))
+
+	nestedFooUnitTfgFile := filepath.Join(rootPath, inthclparse.StackDir, "foo", inthclparse.StackDir, "foo", "terragrunt.hcl")
+	require.FileExists(t, nestedFooUnitTfgFile)
+
+	barAutoInclude := filepath.Join(rootPath, inthclparse.StackDir, "bar", inthclparse.AutoIncludeFile)
+	require.FileExists(t, barAutoInclude)
+
+	content, err := os.ReadFile(barAutoInclude)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `dependency "foo_unit"`)
+
+	expectedRel, err := filepath.Rel(filepath.Dir(barAutoInclude), filepath.Join(rootPath, inthclparse.StackDir, "foo", inthclparse.StackDir, "foo"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), expectedRel)
+	assert.Contains(t, string(content), "dependency.foo_unit.outputs.val")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
+
+	barInputPath := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "bar"), "input.txt")
+	barInputContent, err := os.ReadFile(barInputPath)
+	require.NoError(t, err)
+	assert.Equal(t, "Received: from-stack-foo-unit-foo", string(barInputContent))
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
 }
