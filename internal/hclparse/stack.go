@@ -246,7 +246,8 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 
 		ref := ComponentRef{Name: s.Name, Path: nestedGenPath}
 
-		if nestedSourceDir, ok := literalString(s.Source); ok {
+		// Recursion eligibility: accept either a plain string literal (fast path) or an expression that evaluates against the Terragrunt stdlib eval context (so `${get_terragrunt_dir()}/...` and friends are enriched). Sources that need parser-owned namespaces (local/values/unit/stack) cannot be resolved here and silently skip recursion - the autoinclude/run-all paths surface the missing ref later as an "Unsupported attribute" diagnostic.
+		if nestedSourceDir, ok := resolveStackSource(s.Source, stackSourceDir); ok {
 			if !filepath.IsAbs(nestedSourceDir) {
 				nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
 			}
@@ -297,6 +298,24 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL,
 	}
 
 	return decoded.Units, decoded.Stacks, nil
+}
+
+// resolveStackSource returns the source string for nested stack discovery. Accepts plain string literals via literalString, and falls back to evaluating expr against the Terraform stdlib eval context anchored at baseDir so `format(...)`, `replace(...)`, `pathexpand(...)` and similar stdlib-only sources are also enriched. Terragrunt-specific functions (get_terragrunt_dir, find_in_parent_folders, etc.) are NOT available at this early phase, and parser-owned namespaces (local/values/unit/stack) require the full parse context; both cases return ("", false) so discovery silently skips the unresolvable nested stack and the missing ref surfaces later as a clear HCL diagnostic.
+func resolveStackSource(expr hcl.Expression, baseDir string) (string, bool) {
+	if s, ok := literalString(expr); ok {
+		return s, true
+	}
+
+	if expr == nil {
+		return "", false
+	}
+
+	val, diags := expr.Value(stdlibEvalContext(baseDir))
+	if diags.HasErrors() || val.IsNull() || !val.IsKnown() || val.Type() != cty.String {
+		return "", false
+	}
+
+	return val.AsString(), true
 }
 
 // literalString returns (val, true) only if expr is a plain string literal - no variable refs, no function calls. Templates and ternaries (even constant-foldable ones) return ("", false) because Value(nil) errors without an eval context; discovery callers then skip recursion into that nested stack.

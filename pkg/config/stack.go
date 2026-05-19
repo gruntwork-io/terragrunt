@@ -661,14 +661,29 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 	return nil
 }
 
-// readStackOrigin returns the absolute catalog source dir recorded in the .terragrunt-stack-origin sidecar of stackDir, or "" if absent or malformed.
+// readStackOrigin returns the absolute catalog source dir recorded in the .terragrunt-stack-origin sidecar of stackDir, or "" when absent, malformed, non-absolute, or pointing at a path that is not an existing directory. The strict validation prevents a stale or hand-edited sidecar from redirecting source/include resolution to an arbitrary filesystem location.
 func readStackOrigin(stackDir string) string {
 	data, err := os.ReadFile(filepath.Join(stackDir, stackOriginFile))
 	if err != nil {
 		return ""
 	}
 
-	return strings.TrimSpace(string(data))
+	origin := strings.TrimSpace(string(data))
+	if origin == "" {
+		return ""
+	}
+
+	origin = filepath.Clean(origin)
+	if !filepath.IsAbs(origin) {
+		return ""
+	}
+
+	info, err := os.Stat(origin)
+	if err != nil || !info.IsDir() {
+		return ""
+	}
+
+	return origin
 }
 
 // writeStackOrigin records the absolute catalog source dir of a copied stack file so the nested GenerateStackFile recursion can resolve relative unit/stack sources against the catalog instead of the copy location. Only writes when source resolves locally; remote sources (go-getter, CAS) don't need it because their fetched trees are self-contained.
@@ -1081,7 +1096,7 @@ func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
 	return false
 }
 
-// bodyHasBlock reports whether body contains a top-level block of the given type. Works on both native HCL and JSON-format bodies via the schema-driven PartialContent API. On diagnostic errors we fail open and return true so the autoinclude parser still runs and surfaces the canonical error instead of silently skipping generation.
+// bodyHasBlock reports whether body contains a top-level block of the given type. Works on both native HCL and JSON-format bodies via the schema-driven PartialContent API. Intentional fail-open: on any PartialContent diagnostic we return true so the autoinclude parser still runs and produces the canonical, source-anchored error. Returning false would silently skip autoinclude generation for a structurally-broken stack file and hide the real diagnostic from the user.
 func bodyHasBlock(body hcl.Body, blockType string) bool {
 	if body == nil {
 		return false

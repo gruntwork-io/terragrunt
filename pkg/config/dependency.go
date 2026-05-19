@@ -736,6 +736,7 @@ func getTerragruntOutput(
 
 // collectStackUnitOutputs iterates over stack units, reads their cached
 // terraform outputs, and returns them as a map keyed by unit name.
+// collectStackUnitOutputs aggregates outputs from every unit in a stack into a single map keyed by unit name, for `dependency.<stack>.outputs.<unit>.<key>` resolution. Contract: missing unit-config files are skipped softly (the unit was not generated/applied yet, expected during plan), but any concrete failure to fetch/parse/convert an existing unit's outputs is escalated to an error so the consumer gets a specific source-pointing failure instead of a downstream "Unsupported attribute" diagnostic.
 func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, stackDir string, units []*Unit) (map[string]cty.Value, error) {
 	unitOutputs := make(map[string]cty.Value)
 
