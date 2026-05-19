@@ -56,7 +56,7 @@ func TestProcessHooks_AccumulatesErrorsAcrossHooks(t *testing.T) {
 	h := func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		rec.record(&inv)
 
-		if inv.Name == "failer" {
+		if inv.Name == "failure" {
 			return vexec.Result{ExitCode: 1, Stderr: []byte("boom")}
 		}
 
@@ -67,7 +67,7 @@ func TestProcessHooks_AccumulatesErrorsAcrossHooks(t *testing.T) {
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
-		{Name: "first", Commands: []string{"plan"}, Execute: []string{"failer"}, If: true},
+		{Name: "first", Commands: []string{"plan"}, Execute: []string{"failure"}, If: true},
 		// Default RunOnError=false: should NOT run because first hook failed.
 		{Name: "second", Commands: []string{"plan"}, Execute: []string{"second-cmd"}, If: true},
 		// RunOnError=true: SHOULD run despite the prior failure.
@@ -88,7 +88,7 @@ func TestProcessHooks_AccumulatesErrorsAcrossHooks(t *testing.T) {
 		names = append(names, c.Name)
 	}
 
-	assert.Equal(t, []string{"failer", "third-cmd"}, names,
+	assert.Equal(t, []string{"failure", "third-cmd"}, names,
 		"second-cmd must be skipped after prior failure (default RunOnError=false); third-cmd must run with RunOnError=true")
 }
 
@@ -156,7 +156,7 @@ func TestProcessErrorHooks_FiresAllMatchingHooks(t *testing.T) {
 			Name:     "non-matching",
 			Commands: []string{"plan"},
 			OnErrors: []string{".*throttl.*"},
-			Execute:  []string{"shouldnt", "run"},
+			Execute:  []string{"must-not", "run"},
 		},
 	}
 
