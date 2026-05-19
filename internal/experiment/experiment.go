@@ -61,7 +61,7 @@ const (
 	// and state-management behavior (bootstrap, delete, migrate, dependency output
 	// fetching) will land in follow-up PRs.
 	AzureBackend = "azure-backend"
-  // DeepMerge enables the deep_merge HCL function.
+	// DeepMerge enables the deep_merge HCL function.
 	DeepMerge = "deep-merge"
 )
 
@@ -133,9 +133,9 @@ func NewExperiments() Experiments {
 		{
 			Name: AzureBackend,
 		},
-    {
-      Name: DeepMerge,
-    },
+		{
+			Name: DeepMerge,
+		},
 	}
 }
 
