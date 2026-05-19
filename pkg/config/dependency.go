@@ -789,8 +789,8 @@ func tryGetStackOutput(
 	targetConfigPath string,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
-	stackFilePath := resolveStackFilePath(dependencyConfig.ConfigPath.AsString(), targetConfigPath)
-	if stackFilePath == "" {
+	stackFilePath, isStackCandidate := resolveStackFilePath(dependencyConfig.ConfigPath.AsString(), targetConfigPath)
+	if !isStackCandidate {
 		return nil, false, nil
 	}
 
@@ -826,23 +826,23 @@ func tryGetStackOutput(
 	return &result, true, nil
 }
 
-// resolveStackFilePath returns the candidate terragrunt.stack.hcl path for a dependency target, or "" when the dep explicitly points at a unit config (terragrunt.hcl / terragrunt.hcl.json) and is therefore not a stack candidate. rawConfigPath is the user-supplied dependency.config_path; targetConfigPath is the same path after getCleanedTargetConfigPath has normalized bare-directory deps to <dir>/terragrunt.hcl. Every non-empty return is guaranteed to end in DefaultStackFile so callers can trust the result without re-checking.
-func resolveStackFilePath(rawConfigPath, targetConfigPath string) string {
+// resolveStackFilePath returns the candidate terragrunt.stack.hcl path for a dependency target. ok=false means the dep explicitly points at a unit config (terragrunt.hcl / terragrunt.hcl.json) and is therefore not a stack candidate. rawConfigPath is the user-supplied dependency.config_path; targetConfigPath is the same path after getCleanedTargetConfigPath has normalized bare-directory deps to <dir>/terragrunt.hcl. When ok=true the returned path ends in DefaultStackFile.
+func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool) {
 	switch filepath.Base(filepath.Clean(rawConfigPath)) {
 	case DefaultStackFile:
 		// Honor the contract even when target is malformed: anchor on target's directory.
-		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile)
+		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile), true
 	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
-		return ""
+		return "", false
 	}
 
 	switch filepath.Base(targetConfigPath) {
 	case DefaultStackFile:
-		return targetConfigPath
+		return targetConfigPath, true
 	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
-		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile)
+		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile), true
 	default:
-		return filepath.Join(targetConfigPath, DefaultStackFile)
+		return filepath.Join(targetConfigPath, DefaultStackFile), true
 	}
 }
 
