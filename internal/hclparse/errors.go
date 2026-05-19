@@ -64,15 +64,18 @@ func (e FileReadError) Unwrap() error {
 	return e.Err
 }
 
-// FileParseError indicates a failure to parse an HCL file. Err preserves the underlying error (typically hcl.Diagnostics) so callers can extract it via errors.As.
+// FileParseError indicates a failure to parse an HCL file. Err preserves the underlying error (typically hcl.Diagnostics) so callers can extract it via errors.As; the human-readable Error() string is derived from Err so there is no duplicated detail field.
 type FileParseError struct {
 	Err      error
 	FilePath string
-	Detail   string
 }
 
 func (e FileParseError) Error() string {
-	return fmt.Sprintf("failed to parse %s: %s", e.FilePath, e.Detail)
+	if e.Err == nil {
+		return "failed to parse " + e.FilePath
+	}
+
+	return fmt.Sprintf("failed to parse %s: %s", e.FilePath, e.Err)
 }
 
 func (e FileParseError) Unwrap() error {

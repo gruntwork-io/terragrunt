@@ -145,7 +145,7 @@ func validateParseStackFileInput(fs vfs.FS, input *ParseStackFileInput) {
 func parseStackFileRoot(src []byte, filename string) (*StackFileHCL, error) {
 	file, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, FileParseError{FilePath: filename, Detail: diags.Error(), Err: diags}
+		return nil, FileParseError{FilePath: filename, Err: diags}
 	}
 
 	stackFile := &StackFileHCL{}
@@ -159,17 +159,17 @@ func parseStackFileRoot(src []byte, filename string) (*StackFileHCL, error) {
 // buildBaseEvalContext builds the eval context for phases two to four.
 func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 	evalCtx := &hcl.EvalContext{
-		Functions: map[string]function.Function{},
-		Variables: map[string]cty.Value{},
+		Functions: make(map[string]function.Function, len(input.Functions)),
+		Variables: make(map[string]cty.Value, len(input.Variables)),
 	}
 
 	maps.Copy(evalCtx.Functions, input.Functions)
 	maps.Copy(evalCtx.Variables, input.Variables)
 
-	// Strip parser-owned namespaces so unevaluated references fail with "no variable named X" instead of leaking caller values; phases 2/4 and input.Values populate them when applicable.
-	for _, name := range []string{varLocal, varUnit, varStack, varValues} {
-		delete(evalCtx.Variables, name)
-	}
+	// Strip the four namespaces the phased parser populates itself (local from phase 2, unit/stack from phase 4, values from input.Values below) so unevaluated references fail with "no variable named X" instead of leaking caller values.
+	maps.DeleteFunc(evalCtx.Variables, func(name string, _ cty.Value) bool {
+		return name == varLocal || name == varUnit || name == varStack || name == varValues
+	})
 
 	if input.Values != nil {
 		evalCtx.Variables[varValues] = *input.Values
@@ -233,169 +233,104 @@ func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir
 			stackGenPath = filepath.Join(filepath.Dir(stackTargetDir), s.Path)
 		}
 
-		sourceDir := s.Source
-		if !filepath.IsAbs(sourceDir) {
-			sourceDir = filepath.Join(stackDir, sourceDir)
+		ref := ComponentRef{Name: s.Name, Path: stackGenPath}
+
+		// Only walk into local sources; go-getter URLs (git::, https://, s3://, file://, etc.) are not on disk at this point, so skip child discovery for them.
+		if isLocalStackSource(s.Source) {
+			sourceDir := s.Source
+			if !filepath.IsAbs(sourceDir) {
+				sourceDir = filepath.Join(stackDir, sourceDir)
+			}
+
+			ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, 0)
 		}
 
-		refs = append(refs, ComponentRef{
-			Name:      s.Name,
-			Path:      stackGenPath,
-			ChildRefs: discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, 0),
-		})
+		refs = append(refs, ref)
 	}
 
 	return refs
 }
 
-// evaluateLocals resolves locals in dependency order and catches cycles.
+// maxLocalsIterations bounds the fixed-point loop in evaluateLocals as a safeguard against pathological inputs; mirrors MaxIter in pkg/config/locals.go.
+const maxLocalsIterations = 10000
+
+// evaluateLocals resolves locals via fixed-point iteration, mirroring pkg/config/locals.go::EvaluateLocalsBlock: each pass attempts every remaining local; locals whose dependencies are already evaluated succeed and update the eval context for subsequent locals in the same pass; the loop ends when a pass makes no progress (cycle, undefined ref) or when all locals are evaluated.
 func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
+	// Non-hclsyntax bodies (JSON-format) use their own decoder for locals.
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {
 		return nil
 	}
 
-	deps := buildLocalsDeps(syntaxBody.Attributes)
-
-	order, cycle := topoSortLocals(deps)
-	if cycle != nil {
-		return LocalsCycleError{Names: cycle}
-	}
-
-	return evaluateLocalsInOrder(syntaxBody.Attributes, order, evalCtx)
-}
-
-// buildLocalsDeps builds local dependencies for topo sorting.
-func buildLocalsDeps(attrs map[string]*hclsyntax.Attribute) map[string]map[string]struct{} {
-	deps := make(map[string]map[string]struct{}, len(attrs))
-
-	for name, attr := range attrs {
-		deps[name] = localDependsOn(attr, attrs)
-	}
-
-	return deps
-}
-
-// localDependsOn returns locals referenced by an attribute.
-func localDependsOn(attr *hclsyntax.Attribute, declared map[string]*hclsyntax.Attribute) map[string]struct{} {
-	depSet := make(map[string]struct{})
-
-	for _, traversal := range attr.Expr.Variables() {
-		if traversal.RootName() != varLocal {
-			continue
-		}
-
-		name, ok := firstAttrStep(traversal)
-		if !ok {
-			continue
-		}
-
-		if _, exists := declared[name]; exists {
-			depSet[name] = struct{}{}
-		}
-	}
-
-	return depSet
-}
-
-// firstAttrStep returns the attribute name immediately following the root of an HCL traversal, e.g. for `local.foo.bar[0].baz` it returns ("foo", true). Used by localDependsOn to extract the referenced local-name from `local.<name>...` traversals when building the dependency graph for topological sort. SimpleSplit separates the root (local) from the rest (Rel); we want Rel[0], which must be a TraverseAttr (dot notation). Returns ("", false) for empty Rel (just `local` alone) or when Rel[0] is an index/splat (`local[0]`, `local[*]`) - neither shape declares a dependency on a specific named local.
-func firstAttrStep(traversal hcl.Traversal) (string, bool) {
-	split := traversal.SimpleSplit()
-	if len(split.Rel) == 0 {
-		return "", false
-	}
-
-	step, ok := split.Rel[0].(hcl.TraverseAttr)
-	if !ok {
-		return "", false
-	}
-
-	return step.Name, true
-}
-
-// evaluateLocalsInOrder evaluates locals and updates evalCtx locals.
-func evaluateLocalsInOrder(attrs map[string]*hclsyntax.Attribute, order []string, evalCtx *hcl.EvalContext) error {
-	evaluated := make(map[string]cty.Value, len(order))
+	attrs := syntaxBody.Attributes
+	evaluated := make(map[string]cty.Value, len(attrs))
 	evalCtx.Variables[varLocal] = localObject(evaluated)
 
-	for _, name := range order {
-		val, diags := attrs[name].Expr.Value(evalCtx)
+	remaining := maps.Clone(attrs)
+
+	for range maxLocalsIterations {
+		if !attemptEvaluateLocals(remaining, evaluated, evalCtx) {
+			return reportUnresolvedLocals(remaining, evalCtx)
+		}
+
+		if len(remaining) == 0 {
+			return nil
+		}
+	}
+
+	return LocalsCycleError{Names: slices.Sorted(maps.Keys(remaining))}
+}
+
+// attemptEvaluateLocals runs one fixed-point pass: every local whose expression can be evaluated against the current context succeeds (and is removed from remaining); locals that fail are left for the next pass. Returns true if at least one local was evaluated in this pass.
+func attemptEvaluateLocals(remaining map[string]*hclsyntax.Attribute, evaluated map[string]cty.Value, evalCtx *hcl.EvalContext) bool {
+	progress := false
+
+	for _, name := range slices.Sorted(maps.Keys(remaining)) {
+		val, diags := remaining[name].Expr.Value(evalCtx)
 		if diags.HasErrors() {
-			return LocalEvalError{Name: name, Detail: diags.Error(), Err: diags}
+			continue
 		}
 
 		evaluated[name] = val
 		evalCtx.Variables[varLocal] = localObject(evaluated)
+
+		delete(remaining, name)
+
+		progress = true
 	}
 
-	return nil
+	return progress
 }
 
-// topoSortLocals returns local order and cycle information.
-func topoSortLocals(deps map[string]map[string]struct{}) ([]string, []string) {
-	s := newTopoState(deps)
+// reportUnresolvedLocals classifies a stuck set of locals: if any local's failure references a root other than local.*, that is a hard eval error (e.g. local.x = unit.foo.path); otherwise the unresolved set forms a dependency cycle.
+func reportUnresolvedLocals(remaining map[string]*hclsyntax.Attribute, evalCtx *hcl.EvalContext) error {
+	sortedNames := slices.Sorted(maps.Keys(remaining))
 
-	for _, name := range slices.Sorted(maps.Keys(deps)) {
-		if cycle := s.visit(name, nil); cycle != nil {
-			return nil, cycle
+	for _, name := range sortedNames {
+		_, diags := remaining[name].Expr.Value(evalCtx)
+		if !diagsAreLocalForwardRefOnly(diags) {
+			return LocalEvalError{Name: name, Detail: diags.Error(), Err: diags}
 		}
 	}
 
-	return s.order, nil
+	return LocalsCycleError{Names: sortedNames}
 }
 
-// topoState runs Tarjan-style three-color DFS over the locals dependency graph (deps[name] = set of locals name depends on; color[name] tracks DFS state: zero = unvisited, gray = on current path so revisit means cycle, black = finished and emitted to order which is the post-order evaluation list). See https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
-const (
-	topoColorGray  = 1
-	topoColorBlack = 2
-)
+// diagsAreLocalForwardRefOnly reports whether every diagnostic's offending expression only references the local.* root; if any references a different root (unit, stack, values, custom), the failure is not a within-locals forward reference and must surface as a real eval error.
+func diagsAreLocalForwardRefOnly(diags hcl.Diagnostics) bool {
+	for _, d := range diags {
+		if d.Expression == nil {
+			return false
+		}
 
-type topoState struct {
-	deps  map[string]map[string]struct{}
-	color map[string]int
-	order []string
-}
-
-func newTopoState(deps map[string]map[string]struct{}) *topoState {
-	return &topoState{
-		deps:  deps,
-		color: make(map[string]int, len(deps)),
-		order: make([]string, 0, len(deps)),
-	}
-}
-
-// visit performs DFS and returns a cycle when detected; path is shared across recursive calls (safe because we return immediately on cycle and never read path after the recursive call below - don't add post-recursion logic that reads path without copying first).
-func (s *topoState) visit(name string, path []string) []string {
-	switch s.color[name] {
-	case topoColorGray:
-		return cycleSegment(path, name)
-	case topoColorBlack:
-		return nil
-	}
-
-	s.color[name] = topoColorGray
-	path = append(path, name)
-
-	// Sort deps so cycle reports are deterministic across runs (map iteration order would otherwise rotate the cycle reported in LocalsCycleError).
-	for _, dep := range slices.Sorted(maps.Keys(s.deps[name])) {
-		if cycle := s.visit(dep, path); cycle != nil {
-			return cycle
+		for _, t := range d.Expression.Variables() {
+			if t.RootName() != varLocal {
+				return false
+			}
 		}
 	}
 
-	s.color[name] = topoColorBlack
-	s.order = append(s.order, name)
-
-	return nil
-}
-
-// cycleSegment returns the path slice that forms a dependency cycle.
-func cycleSegment(path []string, name string) []string {
-	if i := slices.Index(path, name); i >= 0 {
-		return path[i:]
-	}
-
-	return path
+	return true
 }
 
 // diagAt builds a single-diagnostic slice anchored at rng so callers using errors.As(err, &hcl.Diagnostics{}) get the offending expression's source position.

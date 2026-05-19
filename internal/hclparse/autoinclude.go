@@ -278,7 +278,7 @@ func readAutoIncludeBody(fs vfs.FS, path string) (*hclsyntax.Body, error) {
 
 	file, diags := hclsyntax.ParseConfig(data, path, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, FileParseError{FilePath: path, Detail: diags.Error(), Err: diags}
+		return nil, FileParseError{FilePath: path, Err: diags}
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)

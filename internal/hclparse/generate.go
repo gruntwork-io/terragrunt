@@ -111,44 +111,24 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	return nil
 }
 
-// Copier copies HCL blocks from AST source to hclwrite output.
-// When an eval context is set, attributes are partially evaluated
-// (local.* resolved, dependency.* preserved). Without it, attributes
-// are copied verbatim from source bytes.
-type Copier struct {
-	evalCtx *hcl.EvalContext
-}
-
-// NewCopier creates a Copier that copies blocks verbatim.
-func NewCopier() *Copier {
-	return &Copier{}
-}
-
-// WithEvalCtx returns the Copier with partial evaluation enabled.
-func (c *Copier) WithEvalCtx(evalCtx *hcl.EvalContext) *Copier {
-	c.evalCtx = evalCtx
-
-	return c
-}
-
-// CopyBlock copies a block from the original AST to hclwrite output.
-func (c *Copier) CopyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte) {
+// copyBlock copies block from the AST to hclwrite output. When evalCtx is non-nil attributes are partially evaluated (local.* resolved, dependency.* preserved); otherwise attributes are copied verbatim from source bytes.
+func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext) {
 	newBlock := outBody.AppendNewBlock(block.Type, block.Labels)
 	blockBody := newBlock.Body()
 
 	for _, attr := range SortedAttributes(block.Body.Attributes) {
-		if c.evalCtx == nil {
+		if evalCtx == nil {
 			blockBody.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
 
 			continue
 		}
 
-		result := PartialEval(attr.Expr, &EvalArgs{EvalCtx: c.evalCtx, Deferred: deferredRoots, SrcBytes: srcBytes})
+		result := PartialEval(attr.Expr, &EvalArgs{EvalCtx: evalCtx, Deferred: deferredRoots, SrcBytes: srcBytes})
 		blockBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
 	for _, nested := range block.Body.Blocks {
-		c.CopyBlock(blockBody, nested, srcBytes)
+		copyBlock(blockBody, nested, srcBytes, evalCtx)
 	}
 }
 
@@ -225,7 +205,7 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 
 	// Copy nested blocks within the dependency (if any).
 	for _, nested := range origBlock.Body.Blocks {
-		NewCopier().CopyBlock(depBody, nested, srcBytes)
+		copyBlock(depBody, nested, srcBytes, nil)
 	}
 }
 
@@ -248,7 +228,7 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 			continue
 		}
 
-		NewCopier().WithEvalCtx(evalCtx).CopyBlock(outBody, block, srcBytes)
+		copyBlock(outBody, block, srcBytes, evalCtx)
 	}
 }
 

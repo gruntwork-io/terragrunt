@@ -172,7 +172,7 @@ func IsPure(expr hclsyntax.Expression, deferred map[string]bool) bool {
 	return true
 }
 
-// containsFunctionCall reports whether expr contains any FunctionCallExpr anywhere in its AST. Uses hclsyntax.Walk so any node type (including ones we don't enumerate) is covered.
+// containsFunctionCall reports whether expr contains any FunctionCallExpr anywhere in its AST. Used as a gate in PartialEval's fast path: an expression with no deferred refs would normally be evaluated to a literal eagerly, but if it contains a function call we instead preserve it verbatim. This matters because Terragrunt-style functions (get_terragrunt_dir, find_in_parent_folders, etc.) need to evaluate in the consumer unit's context, not at generation time. hclsyntax.Walk is used so unknown node types (ForExpr, SplatExpr, BinaryOpExpr, etc.) are also traversed for nested function calls.
 func containsFunctionCall(expr hclsyntax.Expression) bool {
 	w := &functionCallWalker{}
 
