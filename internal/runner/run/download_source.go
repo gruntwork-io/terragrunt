@@ -159,7 +159,7 @@ func DownloadTerraformSourceIfNecessary(
 		}
 
 		if alreadyLatest {
-			if err := ValidateWorkingDir(terraformSource); err != nil {
+			if err := ValidateWorkingDir(v.FS, terraformSource); err != nil {
 				return false, err
 			}
 
@@ -230,7 +230,7 @@ func DownloadTerraformSourceIfNecessary(
 		return false, err
 	}
 
-	if err := ValidateWorkingDir(terraformSource); err != nil {
+	if err := ValidateWorkingDir(v.FS, terraformSource); err != nil {
 		return false, err
 	}
 
@@ -452,14 +452,16 @@ func BuildDownloadClient(l log.Logger, v *Venv, opts *Options, cfg *runcfg.RunCo
 }
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory
-func ValidateWorkingDir(terraformSource *tf.Source) error {
+func ValidateWorkingDir(fsys vfs.FS, terraformSource *tf.Source) error {
 	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
-	if util.IsFile(terraformSource.WorkingDir) {
-		return WorkingDirNotDir{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
+
+	info, err := fsys.Stat(terraformSource.WorkingDir)
+	if err != nil {
+		return WorkingDirNotFound{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
 	}
 
-	if !util.IsDir(terraformSource.WorkingDir) {
-		return WorkingDirNotFound{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
+	if !info.IsDir() {
+		return WorkingDirNotDir{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
 	}
 
 	return nil

@@ -423,6 +423,7 @@ type ctyEngineConfig struct {
 type ctyExclude struct {
 	Actions             []string `cty:"actions"`
 	If                  bool     `cty:"if"`
+	NoRun               bool     `cty:"no_run"`
 	ExcludeDependencies bool     `cty:"exclude_dependencies"`
 }
 
@@ -478,9 +479,15 @@ func excludeConfigAsCty(config *ExcludeConfig) (cty.Value, error) {
 		excludeDependencies = *config.ExcludeDependencies
 	}
 
+	noRun := false
+	if config.NoRun != nil {
+		noRun = *config.NoRun
+	}
+
 	configCty := ctyExclude{
 		If:                  config.If,
 		Actions:             config.Actions,
+		NoRun:               noRun,
 		ExcludeDependencies: excludeDependencies,
 	}
 

@@ -365,6 +365,37 @@ func (c *consumer) slot(maxLen int) string {
 	return string(buf)
 }
 
+// slotIdent returns a slot constrained to the HCL identifier shape:
+// the first character is a letter or underscore, ruling out digit-led
+// tokens that HCL parses as numeric literals (including scientific
+// notation like `1e9999999`, which lands in `big.Float` with that many
+// digits of precision and DoSes any later string conversion). Use this
+// for slots emitted into unquoted positions — block labels in dotted
+// traversals, identifier-like attribute names, etc. Quoted string slots
+// can keep using slot().
+func (c *consumer) slotIdent(maxLen int) string {
+	const head = "abcdefghijklmnopqrstuvwxyz_"
+
+	n := c.intN(maxLen + 1)
+	if n == 0 {
+		return ""
+	}
+
+	buf := make([]byte, n)
+	buf[0] = head[int(c.byteOnce())%len(head)]
+
+	if n > 1 {
+		tail := c.slot(n - 1)
+		copy(buf[1:], tail)
+
+		for i := 1 + len(tail); i < n; i++ {
+			buf[i] = '_'
+		}
+	}
+
+	return string(buf)
+}
+
 func (c *consumer) choose(pool []string) string {
 	if len(pool) == 0 {
 		return ""
@@ -456,6 +487,8 @@ var fuzzShapes = []fuzzShape{
 	fuzzShapeFeatureFlags,
 	fuzzShapeHooks,
 	fuzzShapeRunCmd,
+	fuzzShapeBuiltinFuncs,
+	fuzzShapeMultiUnitRunAll,
 	fuzzShapeExclude,
 	fuzzShapeErrorsIgnore,
 	fuzzShapeExtraArgs,
@@ -757,7 +790,12 @@ terraform {
 // fuzzShapeFeatureFlags drives feature-flag parse and substitution in
 // inputs evaluation.
 func fuzzShapeFeatureFlags(c *consumer) []fuzzSeedFile {
-	feat := orDefault(c.slot(fuzzMaxFuzzSlotChars), "feat")
+	// feat is emitted both as a quoted block label and as an unquoted
+	// traversal step (`feature.<feat>.value`). slotIdent ensures the
+	// unquoted form lexes as an HCL identifier rather than a numeric
+	// literal, which would otherwise allow `1e9999999`-style precision
+	// bombs through cty.
+	feat := orDefault(c.slotIdent(fuzzMaxFuzzSlotChars), "feat")
 	defVal := orDefault(c.slot(fuzzMaxFuzzSlotChars), "default")
 	hcl := fmt.Sprintf(`
 feature %q {
@@ -843,6 +881,167 @@ inputs = {
 	return []fuzzSeedFile{
 		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
+// fuzzShapeBuiltinFuncs drives the long tail of Terragrunt's HCL helper
+// functions registered in pkg/config/config_helpers.go. Most of these are
+// pure (no disk, no network, no AWS metadata) or fail cheaply when their
+// arguments are nonsense, so they're safe to exercise with fuzzed slot
+// strings. The shape leans on `try(...)` so a function whose runtime
+// arguments don't validate (e.g. timecmp on a malformed timestamp)
+// still produces a parseable config — the goal is exercising HCL eval
+// branches, not asserting on results.
+func fuzzShapeBuiltinFuncs(c *consumer) []fuzzSeedFile {
+	a := orDefault(c.slot(fuzzMaxFuzzSlotChars), "a")
+	b := orDefault(c.slot(fuzzMaxFuzzSlotChars), "b")
+	env := orDefault(c.slotIdent(fuzzMaxFuzzSlotChars), "HOME")
+	ts1 := orDefault(c.slot(fuzzMaxFuzzSlotChars), "2025-01-01T00:00:00Z")
+	ts2 := orDefault(c.slot(fuzzMaxFuzzSlotChars), "2025-06-01T00:00:00Z")
+	constraint := orDefault(c.slot(fuzzMaxFuzzSlotChars), ">= 1.0")
+	version := orDefault(c.slot(fuzzMaxFuzzSlotChars), "1.5.0")
+	glob := orDefault(c.slot(fuzzMaxFuzzSlotChars), "*.hcl")
+	hcl := fmt.Sprintf(`
+locals {
+  platform     = get_platform()
+  workdir      = get_working_dir()
+  tg_dir       = get_terragrunt_dir()
+  tg_command   = get_terraform_command()
+  tg_cli       = get_terraform_cli_args()
+  need_vars    = get_terraform_commands_that_need_vars()
+  need_locking = get_terraform_commands_that_need_locking()
+  src_flag     = get_terragrunt_source_cli_flag()
+  retry_errs   = get_default_retryable_errors()
+
+  env_val    = try(get_env(%q, "default"), "fallback")
+  starts     = startswith(%q, %q)
+  ends       = endswith(%q, %q)
+  contains   = strcontains(%q, %q)
+  time_cmp   = try(timecmp(%q, %q), 0)
+  constraint = try(constraint_check(%q, %q), false)
+}
+
+terraform {
+  source = "./mod"
+}
+
+inputs = {
+  platform     = local.platform
+  workdir      = local.workdir
+  tg_dir       = local.tg_dir
+  tg_command   = local.tg_command
+  tg_cli       = local.tg_cli
+  need_vars    = local.need_vars
+  need_locking = local.need_locking
+  src_flag     = local.src_flag
+  retry_errs   = local.retry_errs
+  env_val      = local.env_val
+  starts       = local.starts
+  ends         = local.ends
+  contains     = local.contains
+  time_cmp     = local.time_cmp
+  constraint   = local.constraint
+  marked       = try(mark_as_read(%q), "")
+  marked_glob  = try(mark_glob_as_read(%q), "")
+}
+`, env, a, b, a, b, a, b, ts1, ts2, version, constraint, a, glob)
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
+	}
+}
+
+// fuzzShapeMultiUnitRunAll lays down a small diamond DAG of units so a
+// `run --all` invocation drives the queue construction, dependency
+// resolution, and unit-runner scheduling code paths. Unit B and unit C
+// both depend on unit A; the runner has to order A before {B, C} and
+// surface concurrent execution against the in-memory venv.
+func fuzzShapeMultiUnitRunAll(c *consumer) []fuzzSeedFile {
+	region := orDefault(c.slot(fuzzMaxFuzzSlotChars), "us-east-1")
+	envName := orDefault(c.slot(fuzzMaxFuzzSlotChars), "dev")
+
+	rootHCL := fmt.Sprintf(`
+locals {
+  region = %q
+  env    = %q
+}
+`, region, envName)
+
+	unitA := `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "../mod"
+}
+
+inputs = {
+  name   = "a"
+  region = include.root.locals.region
+}
+`
+
+	unitB := `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+dependency "a" {
+  config_path = "../a"
+
+  mock_outputs = {
+    id = "mock-a-id"
+  }
+  mock_outputs_allowed_terraform_commands = ["plan", "apply", "destroy", "validate", "init"]
+}
+
+terraform {
+  source = "../mod"
+}
+
+inputs = {
+  name        = "b"
+  region      = include.root.locals.region
+  upstream_id = dependency.a.outputs.id
+}
+`
+
+	unitC := `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+dependency "a" {
+  config_path = "../a"
+
+  mock_outputs = {
+    id = "mock-a-id"
+  }
+  mock_outputs_allowed_terraform_commands = ["plan", "apply", "destroy", "validate", "init"]
+}
+
+terraform {
+  source = "../mod"
+}
+
+inputs = {
+  name        = "c"
+  region      = include.root.locals.region
+  upstream_id = dependency.a.outputs.id
+}
+`
+
+	mainTF := `resource "null_resource" "x" {}
+output "id" { value = "stub-id" }`
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/root.hcl", data: []byte(rootHCL)},
+		{path: fuzzWorkDir + "/a/terragrunt.hcl", data: []byte(unitA)},
+		{path: fuzzWorkDir + "/b/terragrunt.hcl", data: []byte(unitB)},
+		{path: fuzzWorkDir + "/c/terragrunt.hcl", data: []byte(unitC)},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(mainTF)},
 	}
 }
 
@@ -1150,9 +1349,30 @@ func FuzzFullCLI(f *testing.F) {
 		// every dispatch silently falls back to the help text.
 		args := slices.Concat([]string{"terragrunt"}, w.args)
 
+		// Watchdog so iterations that ignore context cancellation surface
+		// as a finding the fuzz framework can record. Without this, a hot
+		// path that doesn't check ctx (e.g. cty/big.Float ↔ string
+		// conversion on huge precision) blocks RunContext past the framework's
+		// worker timeout, which then reports an opaque "EOF" instead of a
+		// minimizable failure.
+		done := make(chan error, 1)
 		start := time.Now()
-		err := app.RunContext(ctx, args)
-		elapsed := time.Since(start)
+
+		go func() {
+			done <- app.RunContext(ctx, args)
+		}()
+
+		var (
+			err     error
+			elapsed time.Duration
+		)
+
+		select {
+		case err = <-done:
+			elapsed = time.Since(start)
+		case <-time.After(fuzzPerRunTimeout + time.Second):
+			t.Fatalf("iteration hung past %s without honoring context cancellation; args=%q", fuzzPerRunTimeout+time.Second, args)
+		}
 
 		// Slow-iteration invariant: a single RunContext should finish well
 		// under fuzzSlowThreshold on the in-memory venv. Iterations slower

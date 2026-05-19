@@ -104,7 +104,9 @@ func (src Source) EncodeSourceVersion(l log.Logger, fsys vfs.FS) (string, error)
 
 		var err error
 
-		walkDir := filepath.WalkDir
+		walkDir := func(root string, fn fs.WalkDirFunc) error {
+			return vfs.WalkDir(fsys, root, fn)
+		}
 		if src.WalkDirWithSymlinks {
 			walkDir = func(root string, fn fs.WalkDirFunc) error {
 				return vfs.WalkDirWithSymlinks(fsys, root, fn)
@@ -170,7 +172,7 @@ func (src Source) WriteVersionFile(l log.Logger, fsys vfs.FS) error {
 
 	const ownerReadWriteGroupReadPerms = 0640
 
-	return errors.New(os.WriteFile(src.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
+	return errors.New(vfs.WriteFile(fsys, src.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
 }
 
 // NewSource takes the given source path and create a Source struct from it, including the folder where the source should

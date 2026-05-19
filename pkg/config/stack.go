@@ -116,7 +116,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		// Note: stackSrcBytes is read separately for the two-pass autoinclude parser
 		// which uses a simplified eval context. ReadStackConfigFile does the full parse
 		// with the complete Terragrunt eval context including functions.
-		stackSrcBytes, err = os.ReadFile(stackFilePath)
+		stackSrcBytes, err = vfs.ReadFile(pctx.Venv.FS, stackFilePath)
 		if err != nil {
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 		}
@@ -379,7 +379,7 @@ func validateGeneratedComponent(l log.Logger, cmp *componentToGenerate, opts *ge
 		expectedFile = DefaultStackFile
 	}
 
-	if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
+	if err := validateTargetDir(opts.fs, kindStr, cmp.name, dest, expectedFile); err != nil {
 		if opts.noStackValidate {
 			l.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
 		} else {
@@ -445,7 +445,7 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 	}
 
 	// generate values file
-	if err := writeValues(l, cmp.values, dest); err != nil {
+	if err := writeValues(l, opts.fs, cmp.values, dest); err != nil {
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
@@ -479,7 +479,7 @@ func fetchComponentSource(
 			return errors.Errorf("cas:: source on %s %q requires the 'cas' experiment to be enabled", kindStr, cmp.name)
 		}
 
-		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
+		if err := opts.fs.MkdirAll(dest, os.ModePerm); err != nil {
 			return errors.Errorf("Failed to create directory %s for %s %w", dest, cmp.name, err)
 		}
 
@@ -557,7 +557,7 @@ func fetchViaCAS(
 	if copyErr := util.CopyFolderContentsWithFilter(l, opts.fs, result.ContentDir, dest, manifestName, func(_ string) bool {
 		return true
 	}); copyErr != nil {
-		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+		if cleanupErr := opts.fs.RemoveAll(dest); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
 			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
 		}
 
@@ -623,7 +623,7 @@ func copyFiles(ctx context.Context, l log.Logger, fsys vfs.FS, identifier, sourc
 			return errors.Errorf("Failed to copy %s to %s %w", localSrc, dest, err)
 		}
 	} else {
-		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
+		if err := fsys.MkdirAll(dest, os.ModePerm); err != nil {
 			return errors.Errorf("Failed to create directory %s for %s %w", dest, identifier, err)
 		}
 
@@ -822,7 +822,7 @@ func processStackConfigIncludes(fsys vfs.FS, config *StackConfigFile, stackDir s
 }
 
 // writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
-func writeValues(l log.Logger, values *cty.Value, directory string) error {
+func writeValues(l log.Logger, fsys vfs.FS, values *cty.Value, directory string) error {
 	if values == nil {
 		l.Debugf("No values to write in %s", directory)
 		return nil
@@ -848,7 +848,7 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 		return errors.New("writeValues: unit directory path cannot be empty")
 	}
 
-	if err := os.MkdirAll(directory, unitDirPerm); err != nil {
+	if err := fsys.MkdirAll(directory, unitDirPerm); err != nil {
 		return errors.Errorf("failed to create directory %s: %w", directory, err)
 	}
 
@@ -879,7 +879,7 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 		body.SetAttributeValue(key, valueMap[key])
 	}
 
-	if err := os.WriteFile(filePath, file.Bytes(), valueFilePerm); err != nil {
+	if err := vfs.WriteFile(fsys, filePath, file.Bytes(), valueFilePerm); err != nil {
 		return errors.Errorf("failed to write values file %s: %w", filePath, err)
 	}
 
@@ -979,10 +979,10 @@ func processLocals(ctx context.Context, l log.Logger, parser *ParsingContext, fi
 }
 
 // validateTargetDir target destination directory.
-func validateTargetDir(kind, name, destDir, expectedFile string) error {
+func validateTargetDir(fsys vfs.FS, kind, name, destDir, expectedFile string) error {
 	expectedPath := filepath.Join(destDir, expectedFile)
 
-	info, err := os.Stat(expectedPath)
+	info, err := fsys.Stat(expectedPath)
 	if err != nil {
 		return fmt.Errorf("%s '%s': expected file '%s' not found in target directory '%s': %w", kind, name, expectedFile, destDir, err)
 	}

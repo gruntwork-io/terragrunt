@@ -78,7 +78,7 @@ func parseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger
 	// NOTE: To make the logic easier to implement, we implement the inverse here, where we check whether the included
 	// config has a dependency block, and if we are in the middle of a partial parse, we perform a partial parse of the
 	// included config.
-	hasDependency, err := configFileHasDependencyBlock(includePath)
+	hasDependency, err := configFileHasDependencyBlock(pctx.Venv.FS, includePath)
 	if err != nil {
 		return nil, err
 	}

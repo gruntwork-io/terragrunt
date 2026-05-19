@@ -150,7 +150,7 @@ func Run(
 	// clean all temp dirs
 	defer func() {
 		for _, dir := range dirsToClean {
-			if err := os.RemoveAll(dir); err != nil {
+			if err := v.FS.RemoveAll(dir); err != nil {
 				l.Warnf("Failed to clean up dir %s: %v", dir, err)
 			}
 		}
@@ -378,9 +378,10 @@ func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, opts *optio
 }
 
 // generateDefaultTemplate - write default template to provided dir
-func generateDefaultTemplate(boilerplateDir string) (string, error) {
+func generateDefaultTemplate(fsys vfs.FS, boilerplateDir string) (string, error) {
 	const ownerWriteGlobalReadPerms = 0o644
-	if err := os.WriteFile(
+	if err := vfs.WriteFile(
+		fsys,
 		filepath.Join(
 			boilerplateDir,
 			config.DefaultTerragruntConfigPath,
@@ -391,7 +392,8 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 		return "", errors.New(err)
 	}
 
-	if err := os.WriteFile(
+	if err := vfs.WriteFile(
+		fsys,
 		filepath.Join(
 			boilerplateDir,
 			"boilerplate.yml",
@@ -460,7 +462,7 @@ func downloadTemplate(
 		subFolder = strings.TrimPrefix(subFolder, "/")
 		templateDir = filepath.Join(templateDir, subFolder)
 		// Verify that subfolder exists
-		if _, err := os.Stat(templateDir); errors.Is(err, fs.ErrNotExist) {
+		if _, err := v.FS.Stat(templateDir); errors.Is(err, fs.ErrNotExist) {
 			return "", errors.Errorf(
 				"subfolder \"//%s\" not found in downloaded template from %s",
 				subFolder,
@@ -520,7 +522,7 @@ func prepareBoilerplateFiles(
 
 			boilerplateDir = defaultTempDir
 
-			boilerplateDir, err = generateDefaultTemplate(boilerplateDir)
+			boilerplateDir, err = generateDefaultTemplate(v.FS, boilerplateDir)
 			if err != nil {
 				return "", errors.New(err)
 			}

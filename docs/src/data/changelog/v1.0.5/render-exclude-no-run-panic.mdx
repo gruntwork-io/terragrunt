@@ -1,0 +1,10 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### `terragrunt render` no longer crashes on an `exclude { no_run = ... }` block
+
+Rendering a config that included `exclude { no_run = true }` (or any other value for `no_run`) crashed with a `value has no attribute of that name` panic before any output could be produced.
+
+The `no_run` attribute is now carried through the render pipeline alongside the other `exclude` fields, so the block round-trips cleanly.

@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"maps"
 	"net/url"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -1093,7 +1092,9 @@ func FindConfigFilesInPath(
 ) ([]string, error) {
 	configFiles := []string{}
 
-	walkFunc := filepath.WalkDir
+	walkFunc := func(root string, fn fs.WalkDirFunc) error {
+		return vfs.WalkDir(fsys, root, fn)
+	}
 
 	if experiments.Evaluate(experiment.Symlinks) {
 		walkFunc = func(root string, fn fs.WalkDirFunc) error {
@@ -1986,7 +1987,9 @@ func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource str
 		moduleDir = filepath.Clean(filepath.Join(pctx.WorkingDir, moduleDir))
 	}
 
-	walkFunc := filepath.WalkDir
+	walkFunc := func(root string, fn fs.WalkDirFunc) error {
+		return vfs.WalkDir(pctx.Venv.FS, root, fn)
+	}
 	if pctx.Experiments.Evaluate(experiment.Symlinks) {
 		walkFunc = func(root string, fn fs.WalkDirFunc) error {
 			return vfs.WalkDirWithSymlinks(pctx.Venv.FS, root, fn)
@@ -2083,8 +2086,8 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 // configFileHasDependencyBlock statically checks the terrragrunt config file at the given path and checks if it has any
 // dependency or dependencies blocks defined. Note that this does not do any decoding of the blocks, as it is only meant
 // to check for block presence.
-func configFileHasDependencyBlock(configPath string) (bool, error) {
-	configBytes, err := os.ReadFile(configPath)
+func configFileHasDependencyBlock(fsys vfs.FS, configPath string) (bool, error) {
+	configBytes, err := vfs.ReadFile(fsys, configPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return false, DependencyFileNotFoundError{Path: configPath}
