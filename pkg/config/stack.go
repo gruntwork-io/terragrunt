@@ -34,7 +34,8 @@ import (
 )
 
 const (
-	StackDir = ".terragrunt-stack"
+	// StackDir aliases inthclparse.StackDir so external callers (internal/stacks/output, etc.) keep their existing import path without a second source of truth.
+	StackDir = inthclparse.StackDir
 	// stackOriginFile is the sidecar recording the absolute catalog source dir of a copied stack file, so nested recursion resolves relative unit/stack sources against the original catalog instead of the copy location.
 	stackOriginFile = ".terragrunt-stack-origin"
 	valuesFile      = "terragrunt.values.hcl"

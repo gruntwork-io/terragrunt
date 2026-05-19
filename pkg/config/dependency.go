@@ -736,7 +736,7 @@ func getTerragruntOutput(
 
 // collectStackUnitOutputs iterates over stack units, reads their cached
 // terraform outputs, and returns them as a map keyed by unit name.
-func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, stackDir string, units []*Unit) map[string]cty.Value {
+func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, stackDir string, units []*Unit) (map[string]cty.Value, error) {
 	unitOutputs := make(map[string]cty.Value)
 
 	for _, unit := range units {
@@ -751,31 +751,25 @@ func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
 		if err != nil {
-			l.Warnf("Failed to get output for stack unit %s: %v", unit.Name, err)
-
-			continue
+			return nil, errors.Errorf("stack unit %s output fetch failed: %w", unit.Name, err)
 		}
 
 		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
 		if err != nil {
-			l.Warnf("Failed to parse output for stack unit %s: %v", unit.Name, err)
-
-			continue
+			return nil, errors.Errorf("stack unit %s output parse failed: %w", unit.Name, err)
 		}
 
 		if len(outputMap) > 0 {
 			convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
 			if err != nil {
-				l.Warnf("Failed to convert output map for stack unit %s: %v", unit.Name, err)
-
-				continue
+				return nil, errors.Errorf("stack unit %s output convert failed: %w", unit.Name, err)
 			}
 
 			unitOutputs[unit.Name] = convertedOutput
 		}
 	}
 
-	return unitOutputs
+	return unitOutputs, nil
 }
 
 // tryGetStackOutput checks if targetConfigPath points to a stack directory
@@ -815,7 +809,10 @@ func tryGetStackOutput(
 		return nil, true, errors.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
-	unitOutputs := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
+	unitOutputs, err := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
+	if err != nil {
+		return nil, true, errors.Errorf("failed to collect stack unit outputs for %s: %w", stackFilePath, err)
+	}
 
 	if len(unitOutputs) == 0 {
 		return nil, true, nil

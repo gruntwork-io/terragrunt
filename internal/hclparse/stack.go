@@ -129,7 +129,7 @@ type discoveryDecode struct {
 	Units  []*unitPathOnlyHCL  `hcl:"unit,block"`
 }
 
-// ParseStackFileFromPath parses terragrunt.stack.hcl for stack discovery.
+// ParseStackFileFromPath reads a terragrunt.stack.hcl from disk and runs ParseStackFile against it; returns (nil, nil) if the file does not exist (caller-level discovery uses this signal to skip).
 func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.ParseStackFileFromPath: fs is nil (stackDir=%q)", stackDir))
@@ -194,6 +194,7 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 	return paths, nil
 }
 
+// maxDiscoverDepth bounds recursion when walking nested stack catalogs during best-effort discovery; nested stack ref enrichment beyond this depth returns nil ChildRefs.
 const maxDiscoverDepth = 1000
 
 // DiscoverStackChildUnits parses child stack directories with best-effort behavior. Discovery enriches a stack ComponentRef with nested unit refs so `stack.<name>.<unit>.path` resolves at autoinclude eval time; it is NOT a source of truth. When a nested stack file cannot be read or parsed, the function returns nil ChildRefs rather than propagating the error. Any user reference to an undiscovered child surfaces later as a clear HCL "Unsupported attribute" diagnostic on the autoinclude expression, which is where the user can act on it.
