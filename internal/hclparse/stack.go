@@ -4,6 +4,7 @@ import (
 	"fmt"
 	iofs "io/fs"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -246,8 +247,8 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 
 		ref := ComponentRef{Name: s.Name, Path: nestedGenPath}
 
-		// Recursion eligibility: accept either a plain string literal (fast path) or an expression that evaluates against the Terragrunt stdlib eval context (so `${get_terragrunt_dir()}/...` and friends are enriched). Sources that need parser-owned namespaces (local/values/unit/stack) cannot be resolved here and silently skip recursion - the autoinclude/run-all paths surface the missing ref later as an "Unsupported attribute" diagnostic.
-		if nestedSourceDir, ok := resolveStackSource(s.Source, stackSourceDir); ok {
+		// Recursion eligibility: accept either a plain string literal (fast path) or an expression that evaluates against the Terragrunt stdlib eval context (so `${get_terragrunt_dir()}/...` and friends are enriched). Sources that need parser-owned namespaces (local/values/unit/stack) cannot be resolved here and silently skip recursion - the autoinclude/run-all paths surface the missing ref later as an "Unsupported attribute" diagnostic. Non-local sources (go-getter URLs like `git::`, `https://`, `s3://`, `file://`, etc.) are also skipped because their content is fetched at generation time, not present on the local filesystem at discovery time.
+		if nestedSourceDir, ok := resolveStackSource(s.Source, stackSourceDir); ok && isLocalStackSource(nestedSourceDir) {
 			if !filepath.IsAbs(nestedSourceDir) {
 				nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
 			}
@@ -330,6 +331,25 @@ func validateDiscoveryUniqueNames(units []*unitPathOnlyHCL, stacks []*stackPathO
 	}
 
 	return errors.Join(errs...)
+}
+
+// isLocalStackSource reports whether src looks like a local filesystem path. Returns false for go-getter URLs (git::, https://, s3://, file://, etc.) whose content is not on disk until fetched at generation time; discovery silently skips such sources.
+func isLocalStackSource(src string) bool {
+	if src == "" {
+		return false
+	}
+
+	if strings.Contains(src, "::") {
+		return false
+	}
+
+	for _, prefix := range []string{"http://", "https://", "s3://", "gcs://", "file://", "git@"} {
+		if strings.HasPrefix(src, prefix) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // resolveStackSource returns the source string for nested stack discovery. Accepts plain string literals via literalString, and falls back to evaluating expr against the Terraform stdlib eval context anchored at baseDir so `format(...)`, `replace(...)`, `pathexpand(...)` and similar stdlib-only sources are also enriched. Terragrunt-specific functions (get_terragrunt_dir, find_in_parent_folders, etc.) are NOT available at this early phase, and parser-owned namespaces (local/values/unit/stack) require the full parse context; both cases return ("", false) so discovery silently skips the unresolvable nested stack and the missing ref surfaces later as a clear HCL diagnostic.

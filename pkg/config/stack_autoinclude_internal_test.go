@@ -39,6 +39,33 @@ func TestStackConfigHasAutoInclude(t *testing.T) {
 	}
 }
 
+func TestStackConfigHasAutoIncludeHCL(t *testing.T) {
+	t.Parallel()
+
+	nativeAutoincludeBody := parseStackTestBody(t, "autoinclude {\n}\n")
+	nativePlainBody := parseStackTestBody(t, `source = "x"`)
+	jsonAutoincludeBody := parseStackTestJSONBody(t, `{"autoinclude":[{}]}`)
+
+	cases := []struct {
+		cfg  *StackConfig
+		name string
+		want bool
+	}{
+		{name: "nil config", cfg: nil, want: false},
+		{name: "native unit autoinclude", cfg: &StackConfig{Units: []*Unit{{Remain: nativeAutoincludeBody}}}, want: true},
+		{name: "native stack autoinclude", cfg: &StackConfig{Stacks: []*Stack{{Remain: nativeAutoincludeBody}}}, want: true},
+		{name: "native unit without autoinclude", cfg: &StackConfig{Units: []*Unit{{Remain: nativePlainBody}}}, want: false},
+		{name: "json body with autoinclude", cfg: &StackConfig{Units: []*Unit{{Remain: jsonAutoincludeBody}}}, want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, stackConfigHasAutoIncludeHCL(tc.cfg))
+		})
+	}
+}
+
 func TestBodyHasBlock(t *testing.T) {
 	t.Parallel()
 
@@ -59,7 +86,7 @@ func TestBodyHasBlock(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.want, bodyHasBlock(tc.body, "autoinclude"))
+			assert.Equal(t, tc.want, bodyHasBlock(tc.body))
 		})
 	}
 }

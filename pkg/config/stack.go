@@ -125,6 +125,17 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	var stackSrcBytes []byte
 
 	if pctx.Experiments.Evaluate(experiment.StackDependencies) && stackConfigHasAutoInclude(stackFile) {
+		// The autoinclude phase uses the internal HCL parser, which currently expects
+		// hclsyntax input (not JSON bodies). Preserve explicit failure behavior for JSON
+		// stack files that still declare autoinclude.
+		if !stackConfigHasAutoIncludeHCL(stackFile) {
+			return AutoIncludeParserStageError{
+				Stage: "autoinclude-parser",
+				File:  stackFilePath,
+				Err:   errors.Errorf("stack autoinclude is only supported for HCL stack files, not JSON: %s", stackFilePath),
+			}
+		}
+
 		// stackSrcBytes is read separately for the autoinclude parser, which slices expression byte ranges from the original file when generating terragrunt.autoinclude.hcl.
 		stackSrcBytes, err = os.ReadFile(stackFilePath)
 		if err != nil {
@@ -1082,13 +1093,13 @@ func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
 	}
 
 	for _, unit := range stackFile.Units {
-		if unit != nil && bodyHasBlock(unit.Remain, "autoinclude") {
+		if unit != nil && bodyHasBlock(unit.Remain) {
 			return true
 		}
 	}
 
 	for _, stack := range stackFile.Stacks {
-		if stack != nil && bodyHasBlock(stack.Remain, "autoinclude") {
+		if stack != nil && bodyHasBlock(stack.Remain) {
 			return true
 		}
 	}
@@ -1096,14 +1107,55 @@ func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
 	return false
 }
 
-// bodyHasBlock reports whether body contains a top-level block of the given type. Works on both native HCL and JSON-format bodies via the schema-driven PartialContent API. Intentional fail-open: on any PartialContent diagnostic we return true so the autoinclude parser still runs and produces the canonical, source-anchored error. Returning false would silently skip autoinclude generation for a structurally-broken stack file and hide the real diagnostic from the user.
-func bodyHasBlock(body hcl.Body, blockType string) bool {
+func stackConfigHasAutoIncludeHCL(stackFile *StackConfig) bool {
+	if stackFile == nil {
+		return false
+	}
+
+	for _, unit := range stackFile.Units {
+		if unit == nil {
+			continue
+		}
+
+		syntaxBody, ok := unit.Remain.(*hclsyntax.Body)
+		if !ok {
+			continue
+		}
+
+		if bodyHasBlock(syntaxBody) {
+			return true
+		}
+	}
+
+	for _, stack := range stackFile.Stacks {
+		if stack == nil {
+			continue
+		}
+
+		syntaxBody, ok := stack.Remain.(*hclsyntax.Body)
+		if !ok {
+			continue
+		}
+
+		if bodyHasBlock(syntaxBody) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// bodyHasBlock reports whether body contains a top-level autoinclude block.
+// Works on both native HCL and JSON-format bodies via the schema-driven PartialContent API.
+// Intentional fail-open: on any PartialContent diagnostic we return true so the
+// parser still runs and surfaces the real parse diagnostic.
+func bodyHasBlock(body hcl.Body) bool {
 	if body == nil {
 		return false
 	}
 
 	content, _, diags := body.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: blockType}},
+		Blocks: []hcl.BlockHeaderSchema{{Type: "autoinclude"}},
 	})
 	if diags.HasErrors() {
 		return true
