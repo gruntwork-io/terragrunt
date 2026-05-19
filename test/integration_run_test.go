@@ -130,19 +130,27 @@ func TestRunNoStacksGenerate(t *testing.T) {
 func TestRunVersionFilesCacheKey(t *testing.T) {
 	t.Parallel()
 
+	// The cache key incorporates the resolved binary path, so the expected
+	// hash differs depending on whether tofu or terraform is wrapped.
 	testdata := []struct {
+		expect       map[string]string
 		name         string
-		expect       string
 		versionFiles []string
 	}{
 		{
-			name:         "use default",
-			expect:       "H2PcpB8dh-BE5Dz-LiSD1hykSfk",
+			name: "use default",
+			expect: map[string]string{
+				helpers.TofuBinary:      "H2PcpB8dh-BE5Dz-LiSD1hykSfk",
+				helpers.TerraformBinary: "rdE9RkSvu7WDQly2KzL2HxpcB3Q",
+			},
 			versionFiles: nil,
 		},
 		{
-			name:   "custom files provided",
-			expect: "trAjGOdUv3IcX1lU50dck_mqlUs",
+			name: "custom files provided",
+			expect: map[string]string{
+				helpers.TofuBinary:      "trAjGOdUv3IcX1lU50dck_mqlUs",
+				helpers.TerraformBinary: "kLXlcfwganOp8AOV4_ErIlU3g6o",
+			},
 			versionFiles: []string{
 				".terraform-version",
 				".tool-versions",
@@ -155,6 +163,10 @@ func TestRunVersionFilesCacheKey(t *testing.T) {
 	for _, tt := range testdata {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			wrapped := helpers.WrappedBinary(t.Context())
+			expect, ok := tt.expect[wrapped]
+			require.Truef(t, ok, "no expected cache key recorded for wrapped binary %q", wrapped)
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionFilesCacheKey, tt.versionFiles...)
 			path := filepath.Join(tmpEnvPath, testFixtureVersionFilesCacheKey)
@@ -180,7 +192,7 @@ func TestRunVersionFilesCacheKey(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotEmpty(t, stdout)
 			assert.NotEmpty(t, stderr)
-			assert.Contains(t, stderr, "using cache key for version files: "+tt.expect)
+			assert.Contains(t, stderr, "using cache key for version files: "+expect)
 		})
 	}
 }
