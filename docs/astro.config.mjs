@@ -146,7 +146,14 @@ export default defineConfig({
         forward: ['dataLayer.push'],
       },
     }),
-    sitemap(),
+    sitemap({
+      changefreq: "weekly",
+      priority: 0.7,
+      // lastmod intentionally omitted: a global new Date() stamps every URL
+      // with build time, which Google heuristics discount as noise. Per-page
+      // accuracy would need git log (Vercel's default shallow clone makes this
+      // unreliable) or a populated `lastUpdated` frontmatter field.
+    }),
   ],
   markdown: {
     rehypePlugins: [rehypeChangelogAnchors],
@@ -157,6 +164,8 @@ export default defineConfig({
   // It's faster to have Vercel handle it anyways.
   redirects: {
     // Catch-all redirect from /docs/* to /*
+    // Note: this only fires at depth 0 under the Vercel adapter; deeper paths
+    // are handled by an equivalent rule in vercel.json. Kept here for `astro dev`.
     "/docs/[...slug]": "/[...slug]",
 
     // Root redirects

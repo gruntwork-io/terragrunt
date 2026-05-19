@@ -39,6 +39,7 @@ const (
 	testFixtureChainedDepsExposedInclude         = "fixtures/regressions/chained-deps-exposed-include"
 	testFixtureExposedIncludePartialParseError   = "fixtures/regressions/exposed-include-partial-parse-error"
 	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
+	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -55,6 +56,32 @@ func TestNoAutoInit(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, stderr, "no force apply stderr")
 	require.Error(t, err)
 	assert.Contains(t, stderr.String(), "Required plugins are not installed")
+}
+
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/6058
+func TestAutoInitHonorsMarkerWhenModulesCached(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitMarkerCachedModules)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitMarkerCachedModules)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr)
+	require.NoError(t, err)
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"), "first plan should run init")
+
+	// Bump mtime so EncodeSourceVersion sees a different hash and writes the marker.
+	sourceFile := filepath.Join(rootPath, "src", "main.tf")
+	future := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(sourceFile, future, future))
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr)
+	require.NoError(t, err)
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"), "second plan should re-run init because the source-change marker was written")
+	assert.NotContains(t, stderr.String(), "Required plugins are not installed")
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834

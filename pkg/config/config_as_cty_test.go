@@ -221,6 +221,7 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	// they use omit-when-nil semantics via ctyObjectAddField.
 	omitWhenNilFields := map[string]bool{
 		"UpdateSourceWithCAS": true,
+		"Mutable":             true,
 	}
 
 	terraformConfigStructInfo := structs.New(config.TerraformConfig{})

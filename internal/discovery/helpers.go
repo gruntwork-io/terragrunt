@@ -253,7 +253,11 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 		}
 
 		if !config.IsValidConfigPath(dependency.ConfigPath) {
-			errs = append(errs, errors.Errorf("skipping dependency %q in %q: config_path could not be resolved", dependency.Name, c.Path()))
+			errs = append(errs, errors.Errorf(
+				"skipping dependency %q in %q: "+
+					"config_path could not be resolved",
+				dependency.Name, c.Path()))
+
 			continue
 		}
 
@@ -306,9 +310,12 @@ func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) (
 	expanded := make([]string, 0, len(depPaths))
 
 	for _, depPath := range depPaths {
-		// Stat upfront so a non-directory dep path (e.g. another-name.hcl) is preserved instead of being passed to the parser, which would reject it as ENOTDIR. The duplication of work is intentional.
+		// Stat upfront so a non-directory dep path (e.g. another-name.hcl) is preserved instead of
+		// being passed to the parser, which would reject it as ENOTDIR. The duplication of work is
+		// intentional.
 		info, statErr := fs.Stat(depPath)
-		// Real I/O errors (permission denied, etc.) must surface so a malformed DAG isn't silently produced; only ENOENT is treated as "keep the raw path".
+		// Real I/O errors (permission denied, etc.) must surface so a malformed DAG isn't silently
+		// produced; only ENOENT is treated as "keep the raw path".
 		if statErr != nil && !errors.Is(statErr, iofs.ErrNotExist) {
 			return nil, NewStackDependencyExpansionError(depPath, statErr)
 		}

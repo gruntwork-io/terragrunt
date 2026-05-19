@@ -138,6 +138,37 @@ func TestAwsTableTagging(t *testing.T) {
 	})
 }
 
+// TestAwsCreateLockTableWithTagsAtCreation verifies that
+// DynamoDB lock table tags are applied during the initial
+// CreateTable API request.
+func TestAwsCreateLockTableWithTagsAtCreation(t *testing.T) {
+	t.Parallel()
+
+	client := CreateS3ClientForTest(t)
+	tableName := UniqueTableNameForTest()
+
+	defer CleanupTableForTest(t, tableName, client)
+
+	l := logger.CreateLogger()
+
+	expectedTags := map[string]string{
+		"team": "platform",
+		"env":  "test",
+	}
+
+	err := client.CreateLockTableIfNecessary(
+		t.Context(),
+		l,
+		tableName,
+		expectedTags,
+	)
+
+	require.NoError(t, err)
+
+	// Verify tags are present immediately after creation.
+	assertTags(t, expectedTags, tableName, client)
+}
+
 func assertTags(t *testing.T, expectedTags map[string]string, tableName string, client *s3backend.Client) {
 	t.Helper()
 

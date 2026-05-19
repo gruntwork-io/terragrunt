@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -43,7 +44,7 @@ type ParsingContext struct {
 	TrackInclude     *TrackInclude
 	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
-	FeatureFlags     *xsync.MapOf[string, string]
+	FeatureFlags     *xsync.Map[string, string]
 	FilesRead        *[]string
 	Telemetry        *telemetry.Options
 
@@ -249,6 +250,18 @@ func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.
 	}
 
 	c := ctx.Clone()
+
+	// Keep DownloadDir in sync with TerragruntConfigPath: if the current context was
+	// using the default download dir for the old config, update it to the default for
+	// the new config. This ensures that when read_terragrunt_config() or dependency
+	// processing switches to a different module, DownloadDir reflects the new module's
+	// default rather than an inherited stale default from an ancestor. User-set custom
+	// dirs (which won't match any module's default) are preserved unchanged.
+	_, defaultDir := util.DefaultWorkingAndDownloadDirs(ctx.TerragruntConfigPath)
+	if filepath.Clean(c.DownloadDir) == filepath.Clean(defaultDir) {
+		_, c.DownloadDir = util.DefaultWorkingAndDownloadDirs(configPath)
+	}
+
 	c.TerragruntConfigPath = configPath
 	c.WorkingDir = workingDir
 

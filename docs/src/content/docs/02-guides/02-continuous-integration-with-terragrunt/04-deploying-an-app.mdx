@@ -1,0 +1,311 @@
+---
+title: Deploying an app
+description: Deploy a real application through your Terragrunt Scale pipeline
+slug: guides/ci-with-terragrunt/deploying-an-app
+sidebar:
+  order: 4
+---
+
+import { Code, Tabs, TabItem } from '@astrojs/starlight/components';
+import planPolicy from '../../../../fixtures/continuous-integration-with-terragrunt/plan_iam_policy.json?raw';
+import applyPolicy from '../../../../fixtures/continuous-integration-with-terragrunt/apply_iam_policy.json?raw';
+import permissionsPlanComment from '../../../../assets/img/guides/continuous-integration-with-terragrunt/permissions-pr-plan-comment.png';
+import permissionsApplyComment from '../../../../assets/img/guides/continuous-integration-with-terragrunt/permissions-pr-apply-comment.png';
+import appPlanComment from '../../../../assets/img/guides/continuous-integration-with-terragrunt/app-pr-plan-comment.png';
+import appApplyComment from '../../../../assets/img/guides/continuous-integration-with-terragrunt/app-pr-apply-comment.png';
+import appApplyOutput from '../../../../assets/img/guides/continuous-integration-with-terragrunt/app-apply-output.png';
+import revertPr from '../../../../assets/img/guides/continuous-integration-with-terragrunt/revert-pr.png';
+import cleanupPlan from '../../../../assets/img/guides/continuous-integration-with-terragrunt/cleanup-plan-destroy.png';
+import cleanupApply from '../../../../assets/img/guides/continuous-integration-with-terragrunt/cleanup-apply-destroy.png';
+
+Now that we've explored what onboarding produced, we can drive Pipelines directly from the repo without the Gruntwork developer portal.
+
+We're going to introduce a [Terragrunt Stack](/features/stacks/), open a pull request, let the Pipelines workflow trigger a plan, then merge it to deploy our infrastructure update.
+
+We're going to be modeling the changes you'll make here off the [terragrunt-infrastructure-live-stacks-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example) repository. It's a recommended starting template for how infrastructure can be modeled in a scalable fashion with stacks.
+
+## Cloning the repository
+
+Pipelines is a GitOps product, and all the changes that you're going to drive happen from pull requests created and merged in the GitHub repository you created during Terragrunt Scale onboarding.
+
+Clone your GitHub repository like so (assuming you use SSH for cloning):
+
+```bash
+git clone git@github.com:<your-org>/<your-repo>.git
+```
+
+Or like this if you clone your repos over HTTPS:
+
+```bash
+git clone https://github.com/<your-org>/<your-repo>.git
+```
+
+## Adjusting Permissions
+
+Before we deploy any new infrastructure, we'll want to adjust the permissions used by the IAM roles that were bootstrapped during onboarding. They don't have the requisite permissions we'll need to deploy the app, so we'll have to make a pull request to change that first.
+
+The default permissions created during bootstrapping are enough for most basic infrastructure updates, but they don't include permissions to manage the `my-special-app-db` DynamoDB table we're going to introduce in a bit. To address this, we're going to copy the default policy that ships with the stack, and adjust it to include permissions for managing `my-special-app-db`.
+
+These changes provide sufficient permissions, but they may be more or less permissive than you are comfortable with, or than your organization allows. Always carefully evaluate access control changes and determine if they are right for you and your organization.
+
+Note that these permissions don't just provide the permissions required for deploying your application, but also for managing the infrastructure that was bootstrapped during Terragrunt Scale onboarding. If you want to, you can set up Terragrunt Scale such that the IAM role used to manage your application *doesn't* have permissions to manage the underlying infrastructure provisioned during bootstrapping. To support that, you can learn about the [infrastructure-live-access-control](https://docs.gruntwork.io/2.0/docs/accountfactory/architecture/repository-topology/#infrastructure-live-access-control) pattern.
+
+### Defining the IAM policies
+
+To grant the plan and apply roles the requisite permissions to deploy the app, create the following `plan_iam_policy.json` and `apply_iam_policy.json` files in your `account-name/_global/bootstrap` stack directory.
+
+<Tabs syncKey="iam-policy">
+    <TabItem label="plan_iam_policy.json">
+        <Code title="account-name/_global/bootstrap/plan_iam_policy.json" lang="json" code={planPolicy} />
+    </TabItem>
+    <TabItem label="apply_iam_policy.json">
+        <Code title="account-name/_global/bootstrap/apply_iam_policy.json" lang="json" code={applyPolicy} />
+    </TabItem>
+</Tabs>
+
+### Wiring policies into the bootstrap stack
+
+Now that those two files are in place, we can adjust the `account-name/_global/bootstrap/terragrunt.stack.hcl` file so that it references them. The highlighted lines below are the new ones that wire the policy templates into the bootstrap stack.
+
+```hcl {31-39} title="account-name/_global/bootstrap/terragrunt.stack.hcl"
+// Bootstrap stack: provisions the GitHub OIDC provider and plan/apply IAM roles in this environment.
+// Terragrunt Stacks: https://docs.terragrunt.com/features/stacks/
+
+locals {
+  // Read from parent configurations instead of defining these values locally
+  // so that other stacks and units in this directory can reuse the same configurations.
+  account_hcl = read_terragrunt_config(find_in_parent_folders("account.hcl"))
+}
+
+stack "bootstrap" {
+  // To upgrade: update the ?ref= tag and review https://github.com/gruntwork-io/terragrunt-scale-catalog/releases
+  source = "github.com/gruntwork-io/terragrunt-scale-catalog//stacks/aws/github/pipelines-bootstrap?ref=v1.10.1"
+  path   = "bootstrap"
+
+  values = {
+    // Should match the ?ref= above.
+    terragrunt_scale_catalog_ref = "v1.10.1"
+
+    aws_account_id = "123456789012"
+
+    // Prefix for the IAM roles created: <prefix>-plan and <prefix>-apply.
+    oidc_resource_prefix = "pipelines"
+
+    // Only Actions workflows in this org/repo can assume the IAM roles.
+    github_org_name  = "john-doe"
+    github_repo_name = "acme-infrastructure-live"
+    deploy_branch    = "main"
+
+    state_bucket_name = local.account_hcl.locals.state_bucket_name
+
+    plan_iam_policy = templatefile("${get_terragrunt_dir()}/plan_iam_policy.json", {
+      state_bucket_name = local.account_hcl.locals.state_bucket_name
+      aws_partition     = "aws"
+    })
+
+    apply_iam_policy = templatefile("${get_terragrunt_dir()}/apply_iam_policy.json", {
+      state_bucket_name = local.account_hcl.locals.state_bucket_name
+      aws_partition     = "aws"
+    })
+
+    // =========================================================================
+    // Import Variables
+    //
+    // The following variables are used to import existing AWS resources into
+    // OpenTofu/Terraform state. Once the stack has been applied and resources
+    // have been successfully imported, it is safe to remove this entire section.
+    // =========================================================================
+    oidc_provider_import_arn                    = "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+    plan_iam_role_import_existing               = true
+    plan_iam_policy_import_arn                  = "arn:aws:iam::123456789012:policy/pipelines-plan"
+    plan_iam_role_policy_attachment_import_arn  = "pipelines-plan/arn:aws:iam::123456789012:policy/pipelines-plan"
+    apply_iam_role_import_existing              = true
+    apply_iam_policy_import_arn                 = "arn:aws:iam::123456789012:policy/pipelines-apply"
+    apply_iam_role_policy_attachment_import_arn = "pipelines-apply/arn:aws:iam::123456789012:policy/pipelines-apply"
+    // =========================================================================
+    // End Import Variables
+    // =========================================================================
+  }
+}
+```
+
+This is how the JSON definition of the permissions used for the plan/apply roles get plumbed down to the relevant plan/apply units.
+
+### Submitting the permissions PR
+
+Commit the changes here in a new branch, and push them to your remote repository.
+
+```bash
+git checkout -b chore/adjusting-permissions-for-roles
+git add .
+git commit -m "chore: Adjusting permissions for roles"
+git push -u origin chore/adjusting-permissions-for-roles
+```
+
+You can click the link you get from GitHub in stdout (or use the [`gh` CLI](https://cli.github.com/) if you have it installed) to create the pull request.
+
+```bash
+gh pr create --title 'chore: Adjusting permissions for roles' --body 'Adjusting the permissions for the roles provisioned during Terragrunt Scale baseline.'
+```
+
+If you use the `gh` CLI for this, you can also run the following to load the pull request in your browser.
+
+```bash
+gh pr view -w
+```
+
+You should see a pull request with a comment like the following on GitHub.
+
+<img src={permissionsPlanComment.src} alt="Pipelines plan summary comment on the permissions PR" />
+
+Clicking on those "Plan Summary" and "Plan Output" summaries will disclose more details on the plan of your pull request. Take a look at the changes this pull request is going to result in, then merge the pull request. After a bit, you'll see another comment like the following displaying the permissions updates.
+
+<img src={permissionsApplyComment.src} alt="Pipelines apply comment after merging the permissions PR" />
+
+This is the general flow that you'll go through whenever you interact with Terragrunt Scale products. They're all designed around GitOps principles, and the code is the source of truth for your infrastructure. To change your infrastructure, change the code and open a pull request.
+
+## Deploying the app
+
+Now that we have the requisite permissions to deploy our app, let's go ahead and deploy it.
+
+### Adding the application stack
+
+Switch back to `main`, check out a new branch, and add a new stack adapted from the [infrastructure-live-stacks-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example) repository.
+
+First, run the following in your local repository to prepare your local branch for the new content:
+
+```bash
+git checkout main
+git pull
+git checkout -b feat/adding-my-special-app
+```
+
+Next, you can add the following `terragrunt.stack.hcl` file to a new directory in `account-name/us-east-1/app`:
+
+```hcl title="account-name/us-east-1/app/terragrunt.stack.hcl"
+locals {
+  name = "my-special-app"
+
+  version = "v1.1.1"
+}
+
+unit "lambda_service" {
+  source = "github.com/gruntwork-io/terragrunt-infrastructure-catalog-example//units/js-lambda-stateful-service?ref=${local.version}"
+
+  path = "service"
+
+  values = {
+    version = local.version
+
+    name = local.name
+
+    // Required inputs
+    runtime    = "nodejs22.x"
+    source_dir = "./src"
+    handler    = "index.handler"
+    zip_file   = "handler.zip"
+
+    // Optional inputs
+    memory  = 128
+    timeout = 3
+
+    // Dependency paths
+    role_path           = "../roles/lambda-iam-role-to-dynamodb"
+    dynamodb_table_path = "../db"
+  }
+}
+
+unit "db" {
+  source = "github.com/gruntwork-io/terragrunt-infrastructure-catalog-example//units/dynamodb-table?ref=${local.version}"
+
+  path = "db"
+
+  values = {
+    version = local.version
+
+    name          = "${local.name}-db"
+    hash_key      = "Id"
+    hash_key_type = "S"
+  }
+}
+
+unit "role" {
+  source = "github.com/gruntwork-io/terragrunt-infrastructure-catalog-example//units/lambda-iam-role-to-dynamodb?ref=${local.version}"
+
+  path = "roles/lambda-iam-role-to-dynamodb"
+
+  values = {
+    version = local.version
+
+    name = "${local.name}-role"
+
+    dynamodb_table_path = "../../db"
+  }
+}
+```
+
+### Submitting the deployment PR
+
+Now you can commit this file, push your branch up, and create a pull request to deploy your infrastructure in the same way you adjusted the permissions for the IAM roles earlier.
+
+```bash
+git add .
+git commit -m "feat: Adding my special app"
+git push -u origin feat/adding-my-special-app
+```
+
+And again, you can either click the link that GitHub gives you, or you can use the `gh` CLI to create the merge request.
+
+```bash
+gh pr create --title 'feat: Adding my special app' --body 'Adding my special app.'
+```
+
+Just like before, you'll get a plan with the changes that you're about to deploy that you can review.
+
+<img src={appPlanComment.src} alt="Pipelines plan comment for the new app PR" />
+
+Once you merge, you'll get the comment with the apply update.
+
+<img src={appApplyComment.src} alt="Pipelines apply comment after merging the new app PR" />
+
+If you click "Apply Output for `account-name/us-east-1/app/.terragrunt-stack/service`", you'll get the full apply output, including the URL for the service you just deployed!
+
+<img src={appApplyOutput.src} alt="Apply output showing the deployed Lambda function URL" />
+
+## Testing the app
+
+If you navigate to that link, or use curl locally, you'll be able to see a simple JSON object indicating the number of times the service has received a POST request.
+
+```bash
+$ curl -s 'https://abuncharandomcharacters.lambda-url.us-east-1.on.aws/'
+{"count":0}
+```
+
+You can also send some POST requests to see the value increment up to prove to yourself that it's properly integrated with the database.
+
+```bash
+$ curl -s -XPOST 'https://abuncharandomcharacters.lambda-url.us-east-1.on.aws/'
+{"count":1}
+$ curl -s -XPOST 'https://abuncharandomcharacters.lambda-url.us-east-1.on.aws/'
+{"count":2}
+$ curl -s -XPOST 'https://abuncharandomcharacters.lambda-url.us-east-1.on.aws/'
+{"count":3}
+$ curl -s 'https://abuncharandomcharacters.lambda-url.us-east-1.on.aws/'
+{"count":3}
+```
+
+## Clean-up
+
+Cleanup is simple with GitOps: revert the pull request in the GitHub UI.
+
+<img src={revertPr.src} alt="Reverting the app PR from the GitHub UI" />
+
+Pipelines is pretty smart, and it's able to work out that removing this content in a pull request signals that it needs to run Terragrunt to destroy those resources. You'll get a plan that shows those units in the stack getting `plan -destroy` called on them, and when you merge, you'll be done with your clean-up!
+
+<img src={cleanupPlan.src} alt="Pipelines destroy plan comment on the revert PR" />
+
+Note that the plan lists the units as being deleted, with a count of the resources being destroyed in each unit.
+
+Once you merge the pull request, you'll get a comment like the following:
+
+<img src={cleanupApply.src} alt="Pipelines destroy apply comment after merging the revert PR" />

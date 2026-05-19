@@ -95,7 +95,7 @@ jobs:
 
       - name: Install Cosign
         if: steps.check_secrets.outputs.has_secrets == 'true'
-        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4
 
       - name: Sign SHA256SUMS
         if: steps.check_secrets.outputs.has_secrets == 'true'
@@ -105,7 +105,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: steps.check_secrets.outputs.has_secrets == 'true'
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6
         with:
           role-to-assume: ${{ secrets.TIP_BUILD_ROLE_ARN }}
           aws-region: us-east-1

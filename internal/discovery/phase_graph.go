@@ -438,7 +438,9 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	boundaryRoot string,
 	depthRemaining int,
 ) error {
-	l.Debugf("discoverDependentsUpstream: target=%s currentDir=%s boundary=%s depth=%d", target.Path(), currentDir, boundaryRoot, depthRemaining)
+	l.Debugf("discoverDependentsUpstream: target=%s"+
+		" currentDir=%s boundary=%s depth=%d",
+		target.Path(), currentDir, boundaryRoot, depthRemaining)
 
 	if depthRemaining <= 0 {
 		l.Debugf("discoverDependentsUpstream: depth limit reached")

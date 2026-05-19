@@ -14,11 +14,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-getter"
 )
 
 // DefaultEngineType is the default engine type.
@@ -96,7 +96,7 @@ func AdjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 		return source, nil
 	}
 
-	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
+	// Split the module source string into a valid URL and subdirectory (if // is present).
 	moduleURL, moduleSubdir := getter.SourceDirSubdir(source)
 
 	// if both URL and subdir are missing, something went terribly wrong

@@ -1085,7 +1085,9 @@ dependency "vpc" {
 
 	// Should include vpc (target) and db (direct dependent) and app (transitive dependent)
 	units := components.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{vpcDir, dbDir, appDir}, units, "...vpc should find vpc and all its dependents (db, app)")
+	assert.ElementsMatch(t,
+		[]string{vpcDir, dbDir, appDir}, units,
+		"...vpc should find vpc and all its dependents (db, app)")
 }
 
 // TestDiscovery_DependentDiscovery_ExcludeTarget tests dependent discovery with target exclusion (^...vpc).
@@ -1290,7 +1292,9 @@ dependency "vpc" {
 
 	// Should include: app (dependent), db (target), vpc (dependency)
 	units := components.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{appDir, dbDir, vpcDir}, units, "...db... should find dependents, target, and dependencies")
+	assert.ElementsMatch(t,
+		[]string{appDir, dbDir, vpcDir}, units,
+		"...db... should find dependents, target, and dependencies")
 }
 
 // TestDiscovery_DependentDiscovery_OutsideWorkingDir tests that dependent discovery
@@ -1370,7 +1374,9 @@ dependency "vpc" {
 	units := components.Filter(component.UnitKind).Paths()
 	assert.Contains(t, units, vpcDir, "vpc should be discovered as the target")
 	assert.Contains(t, units, consumerDir, "consumer should be discovered even though it's outside working dir")
-	assert.ElementsMatch(t, []string{vpcDir, consumerDir}, units, "...vpc should find vpc and consumer (outside working dir)")
+	assert.ElementsMatch(t,
+		[]string{vpcDir, consumerDir}, units,
+		"...vpc should find vpc and consumer (outside working dir)")
 }
 
 // TestDiscovery_DependentDiscovery_OutsideWorkingDir_MultipleLevels tests that dependent discovery

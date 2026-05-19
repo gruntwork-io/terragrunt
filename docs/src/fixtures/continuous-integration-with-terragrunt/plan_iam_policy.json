@@ -1,0 +1,124 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3StateBucketAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketVersioning",
+        "s3:GetBucketAcl",
+        "s3:GetBucketLogging",
+        "s3:CreateBucket",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutBucketTagging",
+        "s3:PutBucketPolicy",
+        "s3:PutBucketVersioning",
+        "s3:PutEncryptionConfiguration",
+        "s3:PutBucketAcl",
+        "s3:PutBucketLogging",
+        "s3:GetEncryptionConfiguration",
+        "s3:GetBucketPolicy",
+        "s3:GetBucketPublicAccessBlock",
+        "s3:PutLifecycleConfiguration",
+        "s3:PutBucketOwnershipControls"
+      ],
+      "Resource": "arn:aws:s3:::${state_bucket_name}"
+    },
+    {
+      "Sid": "S3StateBucketObjectAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::${state_bucket_name}/*"
+    },
+    {
+      "Sid": "DynamoDBLocksTableAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DescribeTable",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem"
+      ],
+      "Resource": "arn:${aws_partition}:dynamodb:*:*:table/terraform-locks"
+    },
+    {
+      "Sid": "DynamoDBReadAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DescribeTable",
+        "dynamodb:DescribeContinuousBackups",
+        "dynamodb:DescribeTimeToLive",
+        "dynamodb:ListTagsOfResource"
+      ],
+      "Resource": "arn:${aws_partition}:dynamodb:*:*:table/my-special-app-db"
+    },
+    {
+      "Sid": "LambdaReadAccess",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:GetFunctionCodeSigningConfig",
+        "lambda:GetFunctionUrlConfig",
+        "lambda:GetPolicy",
+        "lambda:ListVersionsByFunction",
+        "lambda:ListTags"
+      ],
+      "Resource": "arn:${aws_partition}:lambda:*:*:function:my-special-app*"
+    },
+    {
+      "Sid": "IAMAppRoleReadAccess",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:ListRoleTags"
+      ],
+      "Resource": "arn:${aws_partition}:iam::*:role/my-special-app*"
+    },
+    {
+      "Sid": "IAMPipelinesRoleReadAccess",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:ListRoleTags"
+      ],
+      "Resource": [
+        "arn:${aws_partition}:iam::*:role/pipelines-plan",
+        "arn:${aws_partition}:iam::*:role/pipelines-apply"
+      ]
+    },
+    {
+      "Sid": "IAMPipelinesPolicyReadAccess",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:ListPolicyVersions"
+      ],
+      "Resource": [
+        "arn:${aws_partition}:iam::*:policy/pipelines-plan",
+        "arn:${aws_partition}:iam::*:policy/pipelines-apply"
+      ]
+    },
+    {
+      "Sid": "OIDCProviderReadAccess",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetOpenIDConnectProvider"
+      ],
+      "Resource": "arn:${aws_partition}:iam::*:oidc-provider/token.actions.githubusercontent.com"
+    }
+  ]
+}

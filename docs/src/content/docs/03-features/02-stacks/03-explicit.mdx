@@ -412,6 +412,20 @@ When `update_source_with_cas = true` is set:
 
 Consumers do not set `update_source_with_cas` themselves. When the `cas` experiment is enabled and the source is remote, Terragrunt uses the CAS path automatically. The attribute only has effect inside catalog files, where it flags nested `source` attributes for rewriting.
 
+<Before version="1.0.5">
+
+<Aside type="tip">
+A `mutable` attribute that opts a `unit` or `stack` block out of CAS hardlinking is coming in v1.0.5.
+</Aside>
+
+</Before>
+
+<Since version="1.0.5">
+
+`unit` and `stack` blocks also accept a `mutable` attribute. When `mutable = true`, the unit's or stack's content under `.terragrunt-stack` is copied from the CAS store and the working tree is editable. The default is `false`: files are materialized read-only so an accidental edit cannot reach back into the shared CAS store.
+
+</Since>
+
 Given the catalog files above, and an ordinary consumer stack like:
 
 ```hcl

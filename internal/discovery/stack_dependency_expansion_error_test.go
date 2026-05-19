@@ -10,7 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Direct typed-error contract test: StackDependencyExpansionError must carry the depPath and unwrap cleanly to the original parser error.
+// Direct typed-error contract test: StackDependencyExpansionError must carry the depPath and
+// unwrap cleanly to the original parser error.
 func TestStackDependencyExpansionError_Unwrap(t *testing.T) {
 	t.Parallel()
 

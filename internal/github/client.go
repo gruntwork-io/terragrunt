@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/go-getter"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -286,38 +285,28 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 				c.logger.Infof("Downloading %s to %s", url, localPath)
 			}
 
-			client := &getter.Client{
-				Ctx:           downloadCtx,
-				Src:           url,
-				Dst:           localPath,
-				Mode:          getter.ClientModeFile,
-				Decompressors: map[string]getter.Decompressor{},
+			opts := []getter.Option{
+				// Disable archive decompression: GitHub release assets are
+				// fetched verbatim, not unpacked.
+				getter.WithDecompressors(map[string]getter.Decompressor{}),
 			}
 
-			// Add GitHub token to HTTP headers if available
 			if tok := getGithubTokenFromEnv(); tok != "" {
-				// use the default getters
-				client.Getters = maps.Clone(getter.Getters)
-				// but override the https getter to inject the github token
-				client.Getters["https"] = &getter.HttpGetter{
-					Netrc: true,
-					Header: http.Header{
-						"Authorization": {"Bearer " + tok},
-					},
+				header := http.Header{"Authorization": {"Bearer " + tok}}
+
+				if strings.HasPrefix(url, "https://") {
+					opts = append(opts, getter.WithHTTPSAuth(header))
 				}
 
-				// test servers don't use https, but we don't usually want to send auth tokens unencrypted
+				// httptest.Server serves over plain HTTP, so tests need the
+				// header on the http getter too. In production we never send
+				// bearer tokens over plain HTTP.
 				if testing.Testing() {
-					client.Getters["http"] = &getter.HttpGetter{
-						Netrc: true,
-						Header: http.Header{
-							"Authorization": {"Bearer " + tok},
-						},
-					}
+					opts = append(opts, getter.WithHTTPAuth(header))
 				}
 			}
 
-			if err := client.Get(); err != nil {
+			if _, err := getter.GetFile(downloadCtx, localPath, url, opts...); err != nil {
 				return errors.Errorf("failed to download %s: %w", url, err)
 			}
 

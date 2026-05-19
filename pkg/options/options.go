@@ -33,7 +33,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/hashicorp/go-version"
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 )
 
 const ContextKey ctxKey = iota
@@ -82,7 +82,7 @@ type TerragruntOptions struct {
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
-	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
+	FeatureFlags *xsync.Map[string, string] `clone:"shadowcopy"`
 	// EngineConfig holds the resolved engine configuration from HCL.
 	EngineConfig *engine.EngineConfig
 	// EngineOptions groups CLI-supplied engine options.
@@ -332,7 +332,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		JSONOut:                DefaultJSONOutName,
 		TofuImplementation:     tfimpl.Unknown,
 		ProviderCacheOptions:   pcoptions.ProviderCacheOptions{RegistryNames: pcoptions.DefaultRegistryNames},
-		FeatureFlags:           xsync.NewMapOf[string, string](),
+		FeatureFlags:           xsync.NewMap[string, string](),
 		Errors:                 defaultErrorsConfig(),
 		StrictControls:         controls.New(),
 		Experiments:            experiment.NewExperiments(),

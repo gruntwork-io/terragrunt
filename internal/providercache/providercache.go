@@ -167,6 +167,8 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	// This avoids .well-known/terraform.json lookups for registries that don't support it.
 	populateCustomHostDiscoveryCache(cliCfg.Hosts, providerHandlers)
 
+	proxyModuleHandler := handlers.NewProxyModuleHandler(l, cliCfg.CredentialsSource(), providerHandlers, registryNamesForHandlers)
+
 	cacheServer := cache.NewServer(
 		cache.WithHostname(pcOpts.Hostname),
 		cache.WithPort(pcOpts.Port),
@@ -174,6 +176,7 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 		cache.WithProviderService(providerService),
 		cache.WithProviderHandlers(providerHandlers...),
 		cache.WithProxyProviderHandler(proxyProviderHandler),
+		cache.WithProxyModuleHandler(proxyModuleHandler),
 		cache.WithCacheProviderHTTPStatusCode(CacheProviderHTTPStatusCode),
 		cache.WithLogger(l),
 	)
@@ -413,8 +416,9 @@ func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementatio
 	return pc.saveCLIConfig(cfg, filename)
 }
 
-// configureRegistryHosts sets up host redirects for each registry, routing provider
-// requests through the cache server. Returns the list of provider installation includes.
+// configureRegistryHosts sets up host redirects for each registry, routing both
+// provider and module requests through the cache server. Returns the list of
+// provider installation includes.
 func (pc *ProviderCache) configureRegistryHosts(
 	ctx context.Context,
 	cfg *cliconfig.Config,
@@ -426,7 +430,7 @@ func (pc *ProviderCache) configureRegistryHosts(
 	for _, registryName := range registryNames {
 		includes = append(includes, registryName+"/*/*")
 
-		modulesURL, err := pc.resolveModulesURL(ctx, registryName)
+		hasModules, err := pc.registrySupportsModules(ctx, registryName)
 		if err != nil {
 			return nil, err
 		}
@@ -435,8 +439,11 @@ func (pc *ProviderCache) configureRegistryHosts(
 			serviceProvidersV1: fmt.Sprintf("%s/%s/%s/", pc.ProviderController.URL(), cacheRequestID, registryName),
 		}
 
-		if modulesURL != "" {
-			hostServices[serviceModulesV1] = modulesURL
+		if hasModules {
+			// Route modules through the cache server so it can swap the cache
+			// server's API key (which TF_TOKEN_<host> is forced to) back out for
+			// the user's real upstream credentials before forwarding upstream.
+			hostServices[serviceModulesV1] = fmt.Sprintf("%s/%s/", pc.ModuleController.URL(), registryName)
 		}
 
 		cfg.AddHost(registryName, hostServices)
@@ -445,21 +452,22 @@ func (pc *ProviderCache) configureRegistryHosts(
 	return includes, nil
 }
 
-// resolveModulesURL returns the modules URL for a registry. For custom hosts, it uses
-// the service URL from the host block directly. For standard registries, it performs discovery.
-func (pc *ProviderCache) resolveModulesURL(ctx context.Context, registryName string) (string, error) {
+// registrySupportsModules reports whether the registry advertises a modules.v1
+// endpoint. For custom hosts it consults the host block; for standard registries
+// it performs discovery (using the populated discovery cache where available).
+func (pc *ProviderCache) registrySupportsModules(ctx context.Context, registryName string) (bool, error) {
 	for _, host := range pc.cliCfg.Hosts {
 		if host.Name == registryName {
-			return host.Services[serviceModulesV1], nil
+			return host.Services[serviceModulesV1] != "", nil
 		}
 	}
 
 	apiURLs, err := pc.DiscoveryURL(ctx, registryName)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 
-	return ResolveModulesURL(registryName, apiURLs.ModulesV1), nil
+	return apiURLs.ModulesV1 != "", nil
 }
 
 // saveCLIConfig writes the CLI config to disk, creating the directory if needed.
@@ -721,15 +729,4 @@ func FilterRegistriesByImplementation(registryNames []string, implementation tfi
 
 	// User explicitly set registry names, return as-is
 	return registryNames
-}
-
-// ResolveModulesURL resolves the modules.v1 URL from registry discovery.
-// If the URL is already absolute (contains "://"), it is returned as-is.
-// Otherwise, it is treated as a relative path and combined with the registry name.
-func ResolveModulesURL(registryName, modulesV1 string) string {
-	if strings.Contains(modulesV1, "://") {
-		return modulesV1
-	}
-
-	return fmt.Sprintf("https://%s%s", registryName, modulesV1)
 }

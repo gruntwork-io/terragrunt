@@ -218,8 +218,49 @@ export function pullRequestsToMarkdown(groups: PullRequestGroup[]): string {
   return `## Pull Requests\n\n${sections.join("\n\n")}`;
 }
 
+// Maps Starlight `<Aside type="...">` values to the closest GitHub Flavored
+// Markdown alert label. GitHub renders these as colored callout boxes in
+// release notes and READMEs.
+const ASIDE_TYPE_TO_GH_ALERT: Record<string, string> = {
+  note: "NOTE",
+  tip: "TIP",
+  caution: "WARNING",
+  danger: "CAUTION",
+};
+
+const ASIDE_BLOCK = /<Aside(?:\s+([^>]*?))?\s*>([\s\S]*?)<\/Aside>/g;
+const ASIDE_TYPE_ATTR = /\btype\s*=\s*"([^"]+)"/;
+const ASIDE_TITLE_ATTR = /\btitle\s*=\s*"([^"]+)"/;
+const MDX_IMPORT_LINE = /^\s*import\s+[^\n]*\s+from\s+['"][^'"]+['"];?\s*$/gm;
+
+function attrValue(attrs: string, pattern: RegExp): string | null {
+  const match = attrs.match(pattern);
+  return match ? match[1] : null;
+}
+
+function transformAsidesToGitHubAlerts(input: string): string {
+  return input.replace(ASIDE_BLOCK, (_match, attrs: string | undefined, content: string) => {
+    const attrString = attrs ?? "";
+    const type = attrValue(attrString, ASIDE_TYPE_ATTR) ?? "note";
+    const title = attrValue(attrString, ASIDE_TITLE_ATTR) ?? "";
+    const alert = ASIDE_TYPE_TO_GH_ALERT[type] ?? "NOTE";
+
+    const titleSection = title ? `**${title}**\n\n` : "";
+    const body = `[!${alert}]\n${titleSection}${content.trim()}`;
+
+    return body
+      .split("\n")
+      .map((line) => (line.length === 0 ? ">" : `> ${line}`))
+      .join("\n");
+  });
+}
+
 export function prepareForGitHub(body: string, siteUrl: string): string {
   let result = body;
+
+  result = result.replace(MDX_IMPORT_LINE, "");
+
+  result = transformAsidesToGitHubAlerts(result);
 
   result = result.replace(/\]\(\//g, `](${siteUrl}/`);
 

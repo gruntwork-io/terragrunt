@@ -23,7 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -758,7 +758,7 @@ func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *
 	pctx.Experiments = experiment.NewExperiments()
 	pctx.Telemetry = new(telemetry.Options)
 	pctx.EngineOptions = new(engine.EngineOptions)
-	pctx.FeatureFlags = xsync.NewMapOf[string, string]()
+	pctx.FeatureFlags = xsync.NewMap[string, string]()
 
 	return ctx, pctx
 }

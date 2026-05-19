@@ -56,7 +56,12 @@ const (
 	// (so reading-based filter expressions detect changes to the module) and
 	// the mark_glob_as_read HCL function.
 	MarkManyAsRead = "mark-many-as-read"
-	// DeepMerge enables the deep_merge HCL function.
+	// AzureBackend reserves the experiment flag for native Azure Storage (azurerm)
+	// remote state support. The backend is stubbed out for now; full Azure helper
+	// and state-management behavior (bootstrap, delete, migrate, dependency output
+	// fetching) will land in follow-up PRs.
+	AzureBackend = "azure-backend"
+  // DeepMerge enables the deep_merge HCL function.
 	DeepMerge = "deep-merge"
 )
 
@@ -126,8 +131,11 @@ func NewExperiments() Experiments {
 			Name: MarkManyAsRead,
 		},
 		{
-			Name: DeepMerge,
+			Name: AzureBackend,
 		},
+    {
+      Name: DeepMerge,
+    },
 	}
 }
 

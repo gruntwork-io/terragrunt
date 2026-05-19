@@ -69,6 +69,106 @@ unit "plain" {
 	return root
 }
 
+// buildSharedTemplateFixture lays out a stack with two unit blocks that point
+// at the same unit-template directory. Reproduces issue #6141: the first
+// block's pass over the shared terragrunt.hcl rewrites terraform.source to a
+// cas:: ref, and the second block's pass over the same file used to treat
+// that ref as a relative path and abort CAS processing.
+func buildSharedTemplateFixture(t *testing.T) string {
+	t.Helper()
+
+	root := helpers.TmpDirWOSymlinks(t)
+
+	write := func(rel, body string) {
+		full := filepath.Join(root, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0o644))
+	}
+
+	write("stacks/my-stack/terragrunt.stack.hcl", `unit "first" {
+  source = "../..//units/shared"
+
+  update_source_with_cas = true
+
+  path = "first"
+}
+
+unit "second" {
+  source = "../..//units/shared"
+
+  update_source_with_cas = true
+
+  path = "second"
+}
+`)
+	write("units/shared/terragrunt.hcl", `terraform {
+  source = "../..//modules/vpc"
+
+  update_source_with_cas = true
+}
+`)
+	write("modules/vpc/main.tf", `resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+}
+`)
+
+	return root
+}
+
+// buildSharedNestedStackFixture lays out a top-level stack with two stack
+// blocks that point at the same nested-stack directory. The same shared-
+// template failure mode applies through the recursive processStackFile path:
+// the second block's recursive call re-reads the nested stack file the
+// first block's pass already rewrote.
+func buildSharedNestedStackFixture(t *testing.T) string {
+	t.Helper()
+
+	root := helpers.TmpDirWOSymlinks(t)
+
+	write := func(rel, body string) {
+		full := filepath.Join(root, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0o644))
+	}
+
+	write("stacks/parent/terragrunt.stack.hcl", `stack "alpha" {
+  source = "../..//stacks/nested"
+
+  update_source_with_cas = true
+
+  path = "alpha"
+}
+
+stack "beta" {
+  source = "../..//stacks/nested"
+
+  update_source_with_cas = true
+
+  path = "beta"
+}
+`)
+	write("stacks/nested/terragrunt.stack.hcl", `unit "service" {
+  source = "../..//units/shared"
+
+  update_source_with_cas = true
+
+  path = "service"
+}
+`)
+	write("units/shared/terragrunt.hcl", `terraform {
+  source = "../..//modules/vpc"
+
+  update_source_with_cas = true
+}
+`)
+	write("modules/vpc/main.tf", `resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+}
+`)
+
+	return root
+}
+
 // snapshotTree reads every regular file under root and returns a sha256 of the
 // (relpath, mode, contents) triples in walk order. Used to prove a run didn't
 // mutate the source tree, including file permissions.
@@ -169,6 +269,90 @@ func TestProcessStackComponent_LocalSource_RewritesUnitSources(t *testing.T) {
 
 	assert.Contains(t, contentStr, "cas::sha256:", "unit terraform source should be rewritten to a SHA-256 CAS ref")
 	assert.NotContains(t, contentStr, "modules/vpc", "module path should not appear in the rewritten source")
+}
+
+// TestProcessStackComponent_LocalSource_SharedUnitTemplate covers issue
+// #6141: two unit blocks pointing at the same unit-template directory must
+// both rewrite cleanly to identical cas:: refs. Before the fix the second
+// block's pass over the shared terragrunt.hcl re-read the already-rewritten
+// file and treated "cas::sha256:..." as a relative path, failing the whole
+// stack.
+func TestProcessStackComponent_LocalSource_SharedUnitTemplate(t *testing.T) {
+	t.Parallel()
+
+	root := buildSharedTemplateFixture(t)
+	l := logger.CreateLogger()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	source := root + "//stacks/my-stack"
+
+	result, err := c.ProcessStackComponent(t.Context(), l, source, "stack")
+	require.NoError(t, err, "shared unit template across two blocks must not fail CAS processing")
+
+	defer result.Cleanup()
+
+	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	blocks, err := cas.ReadStackBlocks(content)
+	require.NoError(t, err)
+
+	sources := map[string]string{}
+	for _, b := range blocks {
+		sources[b.Name] = b.Source
+	}
+
+	require.Contains(t, sources, "first")
+	require.Contains(t, sources, "second")
+	assert.True(t, strings.HasPrefix(sources["first"], "cas::sha256:"), "first unit must be rewritten to cas:: ref")
+	assert.True(t, strings.HasPrefix(sources["second"], "cas::sha256:"), "second unit must be rewritten to cas:: ref")
+	assert.Equal(t, sources["first"], sources["second"],
+		"two blocks sharing one template must resolve to the same synthetic tree")
+}
+
+// TestProcessStackComponent_LocalSource_SharedNestedStack is the stack-block
+// analogue of TestProcessStackComponent_LocalSource_SharedUnitTemplate. Two
+// stack blocks pointing at the same nested-stack directory must both rewrite
+// to the same cas:: ref. Before the fix, the second block's recursive pass
+// over the nested stack file re-read the already-rewritten file and tried to
+// resolve its cas:: block sources as relative paths.
+func TestProcessStackComponent_LocalSource_SharedNestedStack(t *testing.T) {
+	t.Parallel()
+
+	root := buildSharedNestedStackFixture(t)
+	l := logger.CreateLogger()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	source := root + "//stacks/parent"
+
+	result, err := c.ProcessStackComponent(t.Context(), l, source, "stack")
+	require.NoError(t, err, "shared nested stack across two blocks must not fail CAS processing")
+
+	defer result.Cleanup()
+
+	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	blocks, err := cas.ReadStackBlocks(content)
+	require.NoError(t, err)
+
+	sources := map[string]string{}
+	for _, b := range blocks {
+		sources[b.Name] = b.Source
+	}
+
+	require.Contains(t, sources, "alpha")
+	require.Contains(t, sources, "beta")
+	assert.True(t, strings.HasPrefix(sources["alpha"], "cas::sha256:"), "alpha stack must be rewritten to cas:: ref")
+	assert.True(t, strings.HasPrefix(sources["beta"], "cas::sha256:"), "beta stack must be rewritten to cas:: ref")
+	assert.Equal(t, sources["alpha"], sources["beta"],
+		"two stack blocks sharing one nested-stack template must resolve to the same synthetic tree")
 }
 
 func TestProcessStackComponent_LocalSource_DoesNotMutateInput(t *testing.T) {

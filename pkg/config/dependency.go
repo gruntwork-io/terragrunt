@@ -24,7 +24,7 @@ import (
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
-	"github.com/hashicorp/go-getter"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -329,8 +329,6 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			return nil, err
 		}
 
-		depCtx.DownloadDir = filepath.Join(filepath.Dir(depPath), util.TerragruntCacheDir)
-
 		if depCtx.IAMRoleOptions != depCtx.OriginalIAMRoleOptions {
 			depCtx.IAMRoleOptions = iam.RoleOptions{}
 		}
@@ -556,7 +554,10 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 			// the higher order dependency map.
 			dependencyEncodingMapEncoded, err := gocty.ToCtyValue(dependencyEncodingMap, generateTypeFromValuesMap(dependencyEncodingMap))
 			if err != nil {
-				err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
+				lock.Lock()
+				err = TerragruntOutputListEncodingError{Paths: slices.Clone(paths), Err: err}
+				lock.Unlock()
+
 				return err
 			}
 
@@ -990,11 +991,6 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 	pctx.TerraformCommand = "output"
 	pctx.TerraformCliArgs = iacargs.New().SetCommand("output").AppendFlag("-json")
 
-	// DownloadDir needs to be the dependency's default download directory
-	_, downloadDir := util.DefaultWorkingAndDownloadDirs(targetConfig)
-
-	pctx.DownloadDir = downloadDir
-
 	// Clear IAM if changed from original
 	if pctx.IAMRoleOptions != pctx.OriginalIAMRoleOptions {
 		pctx.IAMRoleOptions = iam.RoleOptions{}
@@ -1161,6 +1157,11 @@ func terragruntAlreadyInit(ctx context.Context, l log.Logger, pctx *ParsingConte
 	// sourceURL will always be at least "." (current directory) to ensure cache is always used.
 	// Always compute the cache working directory using NewSource.
 	walkWithSymlinks := pctx.Experiments.Evaluate(experiment.Symlinks)
+	// Apply the rewrite so the .terraform existence check below targets the
+	// same working dir the downloader writes to. Without it, plain
+	// https://www.googleapis.com/storage/... sources force a redundant init
+	// on every run.
+	sourceURL = tf.RewriteLegacyGCSPublicSource(ctx, l, sourceURL, pctx.StrictControls)
 
 	terraformSource, err := tf.NewSource(l, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
 	if err != nil {

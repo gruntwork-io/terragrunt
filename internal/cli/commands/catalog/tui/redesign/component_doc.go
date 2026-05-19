@@ -240,9 +240,8 @@ func (doc *ComponentDoc) parseFrontmatter(key docDataKey) string {
 	return doc.frontmatterCache[key]
 }
 
-// ensureFrontmatter parses the README front-matter block as YAML on first
-// use, populating frontmatterCache (name/description) and frontmatterTags.
-//
+// ensureFrontmatter parses the README front-matter as YAML on first use,
+// populating frontmatterCache (name/description) and frontmatterTags.
 // Unknown keys and parse errors are silently ignored.
 func (doc *ComponentDoc) ensureFrontmatter() {
 	if doc.frontmatterDone {
@@ -256,23 +255,39 @@ func (doc *ComponentDoc) ensureFrontmatter() {
 		return
 	}
 
-	var raw map[string]any
-	if err := yaml.Unmarshal([]byte(doc.frontmatterBody), &raw); err != nil || raw == nil {
+	var root yaml.Node
+	if err := yaml.Unmarshal([]byte(doc.frontmatterBody), &root); err != nil {
 		return
 	}
 
-	for k, v := range raw {
-		switch strings.ToLower(strings.TrimSpace(k)) {
+	if len(root.Content) == 0 {
+		return
+	}
+
+	mapping := root.Content[0]
+	if mapping.Kind != yaml.MappingNode {
+		return
+	}
+
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		keyNode := mapping.Content[i]
+		valNode := mapping.Content[i+1]
+
+		if keyNode.Kind != yaml.ScalarNode {
+			continue
+		}
+
+		switch strings.ToLower(strings.TrimSpace(keyNode.Value)) {
 		case "name":
-			if s, ok := v.(string); ok {
-				doc.frontmatterCache[docTitle] = strings.TrimSpace(s)
+			if s, ok := scalarString(valNode); ok {
+				doc.frontmatterCache[docTitle] = s
 			}
 		case "description":
-			if s, ok := v.(string); ok {
-				doc.frontmatterCache[docDescription] = strings.TrimSpace(s)
+			if s, ok := scalarString(valNode); ok {
+				doc.frontmatterCache[docDescription] = s
 			}
 		case "tags":
-			doc.frontmatterTags = coerceTags(v)
+			doc.frontmatterTags = coerceTags(valNode)
 		}
 	}
 }
@@ -300,22 +315,38 @@ func (doc *ComponentDoc) extractFrontmatter() {
 	}
 }
 
-// coerceTags accepts the YAML-decoded value of the `tags` key and returns a
-// trimmed, non-empty slice of strings. It accepts either a sequence
-// (`["a","b"]` or a `- a` block) or a single string.
-func coerceTags(v any) []string {
-	switch val := v.(type) {
-	case []any:
-		out := make([]string, 0, len(val))
+// scalarString returns the trimmed source text of a scalar YAML node, or
+// false for null, empty, or non-scalar nodes. Reading Value directly rather
+// than decoding into Go types preserves source forms like `no`, `000123`,
+// and `1.0` that would otherwise become `false`, `123`, and `1`.
+func scalarString(node *yaml.Node) (string, bool) {
+	if node == nil || node.Kind != yaml.ScalarNode || node.Tag == "!!null" {
+		return "", false
+	}
 
-		for _, item := range val {
-			s, ok := item.(string)
+	s := strings.TrimSpace(node.Value)
+	if s == "" {
+		return "", false
+	}
+
+	return s, true
+}
+
+// coerceTags returns the tag list from the value node of a `tags` key. The
+// node may be a sequence (`["a","b"]` or a `- a` block) or a single scalar;
+// empty, null, and non-scalar items are skipped.
+func coerceTags(node *yaml.Node) []string {
+	if node == nil {
+		return nil
+	}
+
+	switch node.Kind {
+	case yaml.SequenceNode:
+		out := make([]string, 0, len(node.Content))
+
+		for _, item := range node.Content {
+			s, ok := scalarString(item)
 			if !ok {
-				continue
-			}
-
-			s = strings.TrimSpace(s)
-			if s == "" {
 				continue
 			}
 
@@ -323,13 +354,15 @@ func coerceTags(v any) []string {
 		}
 
 		return out
-	case string:
-		s := strings.TrimSpace(val)
-		if s == "" {
+	case yaml.ScalarNode:
+		s, ok := scalarString(node)
+		if !ok {
 			return nil
 		}
 
 		return []string{s}
+	case yaml.DocumentNode, yaml.MappingNode, yaml.AliasNode:
+		return nil
 	}
 
 	return nil
