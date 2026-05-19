@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro build",
+    "build": "astro build && bun scripts/indexnow-ping.js",
     "preview": "astro preview",
     "astro": "astro",
     "test": "bun test"
