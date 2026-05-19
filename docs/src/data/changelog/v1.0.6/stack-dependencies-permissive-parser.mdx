@@ -3,6 +3,18 @@ version: "v1.0.6"
 category: "experiments-updated"
 ---
 
-#### `stack-dependencies`: phased parser for `terragrunt.stack.hcl`
+#### `stack-dependencies`: richer `terragrunt.stack.hcl` parsing
 
-`terragrunt.stack.hcl` is now parsed in four phases: parse root, then locals, then includes, then unit/stack decode. Expressions can reference `local.*`, `values.*`, and Terragrunt functions. Run-all discovery uses path-only nested traversal, unifying the strict and permissive parser paths.
+The `stack-dependencies` experiment now lets you write `terragrunt.stack.hcl` files closer to how regular `terragrunt.hcl` files work. With `--experiment stack-dependencies`:
+
+- **Use `local.*`, `values.*`, and Terragrunt functions in `source` and `path`.** Expressions like `source = "${get_terragrunt_dir()}/../catalog/units/${values.cloud}-provider"` and `path = "${local.env}-${values.cloud}"` are evaluated during stack generation. Locals can also reference other locals.
+- **Pull shared content into `terragrunt.stack.hcl` via `include` blocks.** Compose a stack file from sibling fragments the same way you do with `terragrunt.hcl`.
+- **Reference units and stacks by name inside `autoinclude` blocks** using `unit.<name>.path`, `stack.<name>.path`, and `stack.<name>.<unit_name>.path`. Stacks named with the same label as a nested unit (`stack "foo" { unit "foo" { ... } }`) resolve cleanly through `stack.foo.foo.path`.
+- **Depend on entire stacks.** A `dependency` block whose `config_path` points at a generated stack directory exposes outputs as `dependency.<stack>.outputs.<unit>.<output_key>`. The DAG blocks the consumer until every unit in the stack finishes.
+- **Bare relative `source` paths in catalog stack files now work.** When a `stack` block copies a catalog into `.terragrunt-stack/<name>/`, units inside that catalog file can keep writing `source = "../../units/foo"` and Terragrunt resolves the path against the original catalog directory. No need to rewrite catalog files with `find_in_parent_folders()` just to satisfy generation.
+- **`terragrunt run --all` sees autoinclude dependencies automatically.** Dependencies declared inside `autoinclude { dependency "..." { ... } }` participate in the DAG without any extra wiring.
+- **`run --all` no longer chokes on nested catalog stacks that use Terragrunt functions in unit `source`.** Function calls inside generated nested stack files are tolerated by discovery.
+- **Clearer error messages with source position.** Invalid `autoinclude` content (null/unknown `config_path`, missing labels, `values` used inside `autoinclude`), include-path failures, and locals cycles now produce diagnostics that point at the exact line and column. Cycle errors list the participating locals in a stable order across runs.
+- **Safer generation on unusual inputs.** Generation no longer crashes on deeply-nested expressions or on unknown/null values flowing through `autoinclude` partial evaluation; affected expressions fall back to their original source text so the runtime parser produces a faithful error.
+
+Behavior outside the experiment is unchanged. Enable with `--experiment stack-dependencies`.
