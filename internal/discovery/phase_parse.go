@@ -403,7 +403,7 @@ func parseComponent(
 		}
 
 		if parsingCtx.FilesRead != nil {
-			readFiles := sanitizeReadFiles(*parsingCtx.FilesRead)
+			readFiles := sanitizeReadFiles(parsingCtx.FilesRead.Paths())
 			c.SetReading(readFiles...)
 		}
 
