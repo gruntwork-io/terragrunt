@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -381,6 +382,9 @@ func PartialParseConfigString(ctx context.Context, pctx *ParsingContext, l log.L
 func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	errs := &errors.MultiError{}
 
+	pctx = pctx.Clone()
+	pctx.dependenciesFromReads = &dependenciesFromReadCollector{}
+
 	// Detect and block deprecated configurations early, before attempting to parse.
 	// This ensures included configs with deprecated syntax get clear error messages
 	// instead of cryptic "Could not find Terragrunt configuration settings" errors.
@@ -626,6 +630,11 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 	}
 
+	if shouldMergeDependenciesFromReads(pctx) {
+		// Fold dep paths recorded by read_terragrunt_config during this parse into output.Dependencies (issue #5993).
+		mergeDependenciesFromReads(pctx, output)
+	}
+
 	if errs.ErrorOrNil() != nil {
 		return output, errs.ErrorOrNil()
 	}
@@ -635,6 +644,33 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	}
 
 	return output, nil
+}
+
+func shouldMergeDependenciesFromReads(pctx *ParsingContext) bool {
+	return slices.Contains(pctx.PartialParseDecodeList, DependenciesBlock) ||
+		slices.Contains(pctx.PartialParseDecodeList, DependencyBlock)
+}
+
+// mergeDependenciesFromReads folds entries appended to pctx.dependenciesFromReads into output.Dependencies.Paths, deduped.
+func mergeDependenciesFromReads(pctx *ParsingContext, output *TerragruntConfig) {
+	if pctx == nil || pctx.dependenciesFromReads == nil || output == nil {
+		return
+	}
+
+	deps := pctx.dependenciesFromReads.snapshot()
+	if len(deps) == 0 {
+		return
+	}
+
+	if output.Dependencies == nil {
+		output.Dependencies = &ModuleDependencies{}
+	}
+
+	for _, p := range deps {
+		if !slices.Contains(output.Dependencies.Paths, p) {
+			output.Dependencies.Paths = append(output.Dependencies.Paths, p)
+		}
+	}
 }
 
 // processExcludes evaluate exclude blocks and merge them into the config.

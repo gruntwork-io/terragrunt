@@ -139,7 +139,12 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 			logPrefix           string
 		)
 
-		trackFileRead(pctx.FilesRead, includeConfig.Path)
+		trackedIncludePath := includeConfig.Path
+		if !filepath.IsAbs(trackedIncludePath) {
+			trackedIncludePath = filepath.Clean(filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), trackedIncludePath))
+		}
+
+		trackFileRead(pctx.FilesRead, trackedIncludePath)
 
 		if isPartial {
 			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, pctx, l, &includeConfig)
@@ -151,6 +156,8 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 		if err != nil {
 			return baseConfig, err
 		}
+
+		resolveIncludedConfigDependencyPaths(parsedIncludeConfig, trackedIncludePath)
 
 		// TODO: Remove lint suppression
 		switch mergeStrategy { //nolint:exhaustive
@@ -207,6 +214,13 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 			return nil, err
 		}
 
+		includePath := includeConfig.Path
+		if !filepath.IsAbs(includePath) {
+			includePath = filepath.Clean(filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includePath))
+		}
+
+		resolveIncludedConfigDependencyPaths(includedPartialParse, includePath)
+
 		// TODO: Remove lint suppression
 		switch mergeStrategy { //nolint:exhaustive
 		case NoMerge:
@@ -257,6 +271,37 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 	}
 
 	return &TerragruntDependency{Dependencies: baseDependencyBlock}, nil
+}
+
+func resolveIncludedConfigDependencyPaths(config *TerragruntConfig, includePath string) {
+	if config == nil {
+		return
+	}
+
+	baseDir := filepath.Dir(includePath)
+
+	if config.Dependencies != nil {
+		for i, dependencyPath := range config.Dependencies.Paths {
+			config.Dependencies.Paths[i] = resolveIncludedDependencyPath(baseDir, dependencyPath)
+		}
+	}
+
+	for i := range config.TerragruntDependencies {
+		dep := &config.TerragruntDependencies[i]
+		if !IsValidConfigPath(dep.ConfigPath) {
+			continue
+		}
+
+		dep.ConfigPath = gostringToCty(resolveIncludedDependencyPath(baseDir, dep.ConfigPath.AsString()))
+	}
+}
+
+func resolveIncludedDependencyPath(baseDir, dependencyPath string) string {
+	if filepath.IsAbs(dependencyPath) {
+		return filepath.Clean(dependencyPath)
+	}
+
+	return filepath.Clean(filepath.Join(baseDir, dependencyPath))
 }
 
 // Merge performs a shallow merge of the given sourceConfig into the targetConfig. sourceConfig will override common

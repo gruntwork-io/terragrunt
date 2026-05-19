@@ -53,6 +53,10 @@ type ParsingContext struct {
 	Features            *cty.Value
 	Locals              *cty.Value
 
+	// dependenciesFromReads is scoped by PartialParseConfig and collects dep paths
+	// surfaced by read_terragrunt_config so discovery can fold them into Dependencies.Paths.
+	dependenciesFromReads *dependenciesFromReadCollector
+
 	Env                 map[string]string
 	SourceMap           map[string]string
 	PredefinedFunctions map[string]function.Function
