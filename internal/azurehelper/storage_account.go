@@ -63,6 +63,9 @@ type StorageAccountConfig struct {
 
 	// AllowBlobPublicAccess controls whether containers may permit anonymous access.
 	AllowBlobPublicAccess bool
+
+	// EnableVersioning enables blob versioning on the storage account after creation.
+	EnableVersioning bool
 }
 
 // StorageAccountClient manages an Azure storage account via the ARM
