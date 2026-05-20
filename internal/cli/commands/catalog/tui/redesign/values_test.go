@@ -12,6 +12,11 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+// unitDir is the shared in-memory test directory the values_test fixtures
+// stage their HCL files under. Hoisted out of the individual tests so
+// goconst doesn't keep flagging the repeat literal.
+const unitDir = "/unit"
+
 // optionalNames returns the names from refs.Optional in their current order.
 // Use in tests that want to assert on presence + ordering of optional entries
 // without caring about the concrete defaults.
@@ -135,7 +140,7 @@ func TestWriteValuesStub_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	dir := "/unit"
+	dir := unitDir
 	require.NoError(t, fsys.MkdirAll(dir, 0o755))
 
 	refs := redesign.ValuesReferences{
@@ -188,7 +193,7 @@ func TestWriteValuesStub_EmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	dir := "/unit"
+	dir := unitDir
 	require.NoError(t, fsys.MkdirAll(dir, 0o755))
 
 	written, err := redesign.WriteValuesStub(fsys, dir, redesign.ValuesReferences{})
@@ -204,7 +209,7 @@ func TestWriteValuesStub_SkipsWhenExists(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	dir := "/unit"
+	dir := unitDir
 	path := filepath.Join(dir, "terragrunt.values.hcl")
 
 	original := []byte("# user-authored content\nfoo = \"existing\"\n")
@@ -219,4 +224,97 @@ func TestWriteValuesStub_SkipsWhenExists(t *testing.T) {
 	got, err := vfs.ReadFile(fsys, path)
 	require.NoError(t, err)
 	assert.Equal(t, original, got, "existing values file should be untouched")
+}
+
+func TestWriteValuesFile_AppliesUserValues(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	dir := unitDir
+	require.NoError(t, fsys.MkdirAll(dir, 0o755))
+
+	refs := redesign.ValuesReferences{
+		Required: []string{"region", "app", "ports"},
+		Optional: []redesign.OptionalValue{
+			{Name: "aws_partition", Default: cty.StringVal("aws")},
+			{Name: "tags", Default: cty.StringVal("default")},
+		},
+	}
+
+	values := map[string]string{
+		"region":        `"us-east-1"`,
+		"ports":         `[80, 443]`,
+		"aws_partition": `"aws-cn"`,
+	}
+
+	written, err := redesign.WriteValuesFile(fsys, dir, refs, values)
+	require.NoError(t, err)
+	assert.True(t, written)
+
+	raw, err := vfs.ReadFile(fsys, filepath.Join(dir, "terragrunt.values.hcl"))
+	require.NoError(t, err)
+
+	out := string(raw)
+
+	// Required entries that were supplied use the raw HCL fragments.
+	assert.Regexp(t, `region\s*=\s*"us-east-1"`, out)
+	assert.Regexp(t, `ports\s*=\s*\[80,\s*443\]`, out)
+
+	// Required entries that weren't supplied fall back to TODO.
+	assert.Regexp(t, `app\s*=\s*"TODO"`, out)
+
+	// Optional entries that were supplied use the user value; ones that
+	// weren't fall back to the try() default.
+	assert.Regexp(t, `aws_partition\s*=\s*"aws-cn"`, out)
+	assert.Regexp(t, `tags\s*=\s*"default"`, out)
+}
+
+func TestWriteValuesFile_InvalidHCLFailsLoud(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	dir := unitDir
+	require.NoError(t, fsys.MkdirAll(dir, 0o755))
+
+	refs := redesign.ValuesReferences{Required: []string{"broken"}}
+
+	_, err := redesign.WriteValuesFile(fsys, dir, refs, map[string]string{
+		"broken": `[1, 2`, // unterminated list
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid HCL value for "broken"`)
+
+	exists, err := vfs.FileExists(fsys, filepath.Join(dir, "terragrunt.values.hcl"))
+	require.NoError(t, err)
+	assert.False(t, exists, "no file should be written on parse failure")
+}
+
+func TestWriteValuesFile_EmptyValuesIsEquivalentToStub(t *testing.T) {
+	t.Parallel()
+
+	stubFS := vfs.NewMemMapFS()
+	fileFS := vfs.NewMemMapFS()
+	dir := unitDir
+	require.NoError(t, stubFS.MkdirAll(dir, 0o755))
+	require.NoError(t, fileFS.MkdirAll(dir, 0o755))
+
+	refs := redesign.ValuesReferences{
+		Required: []string{"region"},
+		Optional: []redesign.OptionalValue{{Name: "env", Default: cty.StringVal("prod")}},
+	}
+
+	_, err := redesign.WriteValuesStub(stubFS, dir, refs)
+	require.NoError(t, err)
+
+	_, err = redesign.WriteValuesFile(fileFS, dir, refs, nil)
+	require.NoError(t, err)
+
+	stubBytes, err := vfs.ReadFile(stubFS, filepath.Join(dir, "terragrunt.values.hcl"))
+	require.NoError(t, err)
+
+	fileBytes, err := vfs.ReadFile(fileFS, filepath.Join(dir, "terragrunt.values.hcl"))
+	require.NoError(t, err)
+
+	assert.Equal(t, string(stubBytes), string(fileBytes))
 }

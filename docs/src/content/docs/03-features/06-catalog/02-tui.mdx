@@ -43,13 +43,18 @@ catalog {
 This will recursively search for OpenTofu/Terraform modules in the root of the repo and the `modules` directory and show a table with all the modules. You can then:
 
 1. Search and filter the table: `/` and start typing.
-1. Select a module in the table: use the arrow keys to go up and down and next/previous page.
-1. See the docs for a selected module: `ENTER`.
-1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` for using the module: `S`.
+1. Select a module in the table: use the arrow keys to go up and down and next/previous page using the left and right arrow keys.
+1. Read the docs for a selected module: `ENTER`.
+1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` for using the module with an interactive form: `s`.
+1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` that leaves every input as a `# TODO` placeholder for you to fill in by hand: `S`.
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Without the experiment, both `s` and `S` produce the same placeholder-style output as `S`.
+</Aside>
 
 ## Scaffolding Flags
 
-The following `catalog` flags control behavior of the underlying `scaffold` command when the `S` key is pressed in a catalog entry:
+The following `catalog` flags control behavior of the underlying `scaffold` command, regardless of whether you launch it with `s` (interactive form) or `S` (placeholder file):
 
 - `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
 - `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.

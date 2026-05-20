@@ -22,6 +22,7 @@ type CopyCmd struct {
 	opts      *options.TerragruntOptions
 	logger    log.Logger
 	fsys      vfs.FS
+	values    map[string]string
 	result    copyResult
 }
 
@@ -42,6 +43,15 @@ func NewCopyCmd(logger log.Logger, opts *options.TerragruntOptions, c *Component
 // When unset, Run uses vfs.NewOSFS().
 func (c *CopyCmd) WithFS(fsys vfs.FS) *CopyCmd {
 	c.fsys = fsys
+	return c
+}
+
+// WithValues threads user-supplied HCL fragments into the generated
+// terragrunt.values.hcl. The interactive scaffold form populates this map
+// keyed by `values.<name>` reference; entries not in the map fall back to
+// the same `"TODO"` / try-fallback behavior as the placeholder flow.
+func (c *CopyCmd) WithValues(values map[string]string) *CopyCmd {
+	c.values = values
 	return c
 }
 
@@ -100,7 +110,7 @@ func (c *CopyCmd) Run() error {
 	if hasRefs {
 		result.references = refs
 
-		written, err := WriteValuesStub(fsys, dst, refs)
+		written, err := WriteValuesFile(fsys, dst, refs, c.values)
 		if err != nil {
 			return err
 		}

@@ -37,6 +37,8 @@ func (m Model) View() tea.View {
 		s = m.listView()
 	case PagerState:
 		s = m.pagerView()
+	case FormState:
+		s = m.formView()
 	case ScaffoldState:
 	default:
 		s = ""
@@ -57,6 +59,17 @@ func (m Model) listView() string {
 
 func (m Model) pagerView() string {
 	return lipgloss.JoinVertical(lipgloss.Left, m.viewport.View(), m.footerView())
+}
+
+// formView renders the interactive value-collection form. Until the
+// discovery goroutine produces a formReadyMsg the form pointer is nil and
+// we render a loading hint so the user knows the TUI is working.
+func (m Model) formView() string {
+	if m.form == nil {
+		return formMetaStyle.Render("Discovering variables…")
+	}
+
+	return m.form.View()
 }
 
 func (m Model) footerView() string {

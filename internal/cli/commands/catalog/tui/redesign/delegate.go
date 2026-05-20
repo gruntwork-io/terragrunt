@@ -99,7 +99,7 @@ func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
 		Foreground(lipgloss.Color(selectedDescForegroundColorDark)).
 		BorderForeground(lipgloss.Color(selectedDescBorderForegroundColorDark))
 
-	help := []key.Binding{keys.Choose, keys.Scaffold}
+	help := []key.Binding{keys.Choose, keys.ScaffoldInteractive, keys.ScaffoldPlaceholder}
 
 	return catalogDelegate{
 		styles: styles,

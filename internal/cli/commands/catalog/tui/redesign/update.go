@@ -1,7 +1,9 @@
 package redesign
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -14,6 +16,9 @@ import (
 	"github.com/pkg/browser"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -56,7 +61,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			m.activeTab = m.activeTab.prev()
 
 			return m, nil
-		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.Scaffold):
+		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.ScaffoldInteractive, m.delegateKeys.ScaffoldPlaceholder):
 			if selectedEntry, ok := m.lists[m.activeTab].SelectedItem().(*ComponentEntry); ok {
 				selectedComponent := selectedEntry.Component
 
@@ -131,7 +136,9 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 					m.State = PagerState
 
 					return m, tea.Batch(cmds...)
-				case key.Matches(msg, m.delegateKeys.Scaffold):
+				case key.Matches(msg, m.delegateKeys.ScaffoldInteractive):
+					return enterFormState(m, selectedComponent, ListState)
+				case key.Matches(msg, m.delegateKeys.ScaffoldPlaceholder):
 					m.State = ScaffoldState
 
 					return m, primaryActionCmd(m.logger, m, selectedComponent)
@@ -182,9 +189,11 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 			switch currentAction {
 			case scaffoldBtn:
-				m.State = ScaffoldState
-
-				return m, primaryActionCmd(m.logger, m, m.selectedComponent)
+				// Enter on the pager's Scaffold button takes the
+				// interactive path (the form), matching `s` from
+				// either the list or the pager. The placeholder flow
+				// stays reachable via `S`.
+				return enterFormState(m, m.selectedComponent, PagerState)
 			case viewSourceBtn:
 				if m.selectedComponent.URL() != "" {
 					if err := browser.OpenURL(m.selectedComponent.URL()); err != nil {
@@ -195,7 +204,9 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 				m.logger.Warnf("Unknown button pressed: %s", currentAction)
 			}
 
-		case key.Matches(msg, m.pagerKeys.Scaffold):
+		case key.Matches(msg, m.pagerKeys.ScaffoldInteractive):
+			return enterFormState(m, m.selectedComponent, PagerState)
+		case key.Matches(msg, m.pagerKeys.ScaffoldPlaceholder):
 			m.State = ScaffoldState
 
 			return m, primaryActionCmd(m.logger, m, m.selectedComponent)
@@ -271,6 +282,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.SetHeight(msg.Height - v - lipgloss.Height(m.footerView()))
 		}
 
+		if m.form != nil {
+			m.form.SetSize(msg.Width-h, msg.Height-v)
+		}
+
+	case formReadyMsg:
+		m.form = msg.form
+		m.scaffoldPlan = msg.plan
+
+		if msg.refs != nil {
+			refs := *msg.refs
+			m.valuesRefs = &refs
+		}
+
+		if m.width > 0 && m.height > 0 {
+			h, v := AppStyle.GetFrameSize()
+			m.form.SetSize(m.width-h, m.height-v)
+		}
+
+		return m, nil
+
+	case formDiscoveryErrMsg:
+		// The discovery goroutine failed before we could open the form.
+		// Surface the failure the same way scaffold/copy errors do.
+		m.exitMessage = formatActionFailure("discovering variables", msg.err)
+
+		return m, tea.Quit
+
+	case FormSubmitMsg:
+		return m.handleFormSubmit(msg.Values)
+
+	case FormCancelMsg:
+		m.abandonForm()
+
+		m.State = m.priorState
+
+		return m, nil
+
 	case scaffoldFinishedMsg:
 		if msg.err != nil {
 			// tea.Printf during alt-screen gets discarded on teardown, so
@@ -284,7 +332,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Same post-exit-message pattern as the copy flow: stash a styled
 		// callout and let RunRedesign print it after the alt screen is
 		// torn down, so it survives into the user's scrollback.
-		m.exitMessage = formatScaffoldMessage(m.terragruntOptions)
+		m.exitMessage = formatScaffoldMessage(m.terragruntOptions, msg.interactive)
 
 		return m, tea.Quit
 
@@ -299,7 +347,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// can emit it to stderr after the alt screen is torn down.
 		// tea.Printf lines emitted during alt-screen get discarded when
 		// the alt buffer is restored on exit.
-		m.exitMessage = formatCopyValuesMessage(msg.result)
+		m.exitMessage = formatCopyValuesMessage(msg.result, msg.interactive)
 
 		return m, tea.Quit
 
@@ -316,6 +364,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return updateList(msg, m)
 	case PagerState:
 		return updatePager(msg, m)
+	case FormState:
+		return updateForm(msg, m)
 	case ScaffoldState:
 		// if we're on the scaffold state, we do nothing and wait for the
 		// scaffoldFinishedMsg message. This prevents further input.
@@ -333,11 +383,15 @@ func rendererErrCmd(err error) tea.Cmd {
 	}
 }
 
-type scaffoldFinishedMsg struct{ err error }
+type scaffoldFinishedMsg struct {
+	err         error
+	interactive bool
+}
 
 type copyFinishedMsg struct {
-	err    error
-	result copyResult
+	err         error
+	result      copyResult
+	interactive bool
 }
 
 // scaffoldComponentCmd returns a tea.Cmd that scaffolds the given component
@@ -345,7 +399,7 @@ type copyFinishedMsg struct {
 // catalog.CatalogService.
 func scaffoldComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd {
 	return tea.Exec(newScaffoldCmd(l, m.terragruntOptions, c), func(err error) tea.Msg {
-		return scaffoldFinishedMsg{err}
+		return scaffoldFinishedMsg{err: err}
 	})
 }
 
@@ -398,8 +452,10 @@ var (
 // formatCopyValuesMessage returns a lipgloss-bordered callout summarizing
 // what happened with the values stub, or "" when there's nothing to say.
 // The caller prints this to stderr after the TUI has torn down its alt
-// screen, so the box lands in the user's scrollback.
-func formatCopyValuesMessage(r copyResult) string {
+// screen, so the box lands in the user's scrollback. interactive controls
+// the body copy: the form path tells the user which lines they still need
+// to revisit, while the placeholder path describes the full TODO flow.
+func formatCopyValuesMessage(r copyResult, interactive bool) string {
 	if r.references.IsEmpty() {
 		return ""
 	}
@@ -413,13 +469,19 @@ func formatCopyValuesMessage(r copyResult) string {
 			Bold(true).
 			Render("terragrunt.values.hcl generated")
 
-		summary := fmt.Sprintf("%d required TODO %s, %d optional %s",
+		summary := fmt.Sprintf("%d required %s, %d optional %s",
 			len(r.references.Required), pluralize("entry", "entries", len(r.references.Required)),
 			len(r.references.Optional), pluralize("default", "defaults", len(r.references.Optional)))
 
 		body := "Open the file and replace each \"TODO\" with a real value.\n" +
 			"Optional defaults are pre-populated; edit or delete lines as needed\n" +
 			"before running terragrunt."
+
+		if interactive {
+			body = "Values you filled in the form are populated.\n" +
+				"Any line still set to \"TODO\" (or any default you want to override)\n" +
+				"needs to be edited before running terragrunt."
+		}
 
 		return renderValuesBox(valuesBoxAccentGreen, heading, path, summary, body)
 
@@ -462,9 +524,10 @@ func renderValuesBox(accent, heading, path, summary, body string) string {
 }
 
 // formatScaffoldMessage returns the post-exit callout for a successful
-// scaffold run, pointing the user at the generated terragrunt.hcl and the
-// `# TODO: fill in value` markers the scaffold template leaves behind.
-func formatScaffoldMessage(opts *options.TerragruntOptions) string {
+// scaffold run, pointing the user at the generated terragrunt.hcl. When
+// interactive is true the user came through the form so any unfilled
+// fields landed as `# TODO` lines; otherwise every input is a TODO.
+func formatScaffoldMessage(opts *options.TerragruntOptions, interactive bool) string {
 	outputDir := opts.ScaffoldOutputFolder
 	if outputDir == "" {
 		outputDir = opts.WorkingDir
@@ -486,6 +549,14 @@ func formatScaffoldMessage(opts *options.TerragruntOptions) string {
 
 	body := "Open the file and replace each TODO placeholder with a real value\n" +
 		"before running terragrunt."
+
+	if interactive {
+		summary = "Values you filled in the form are populated; unfilled inputs are " +
+			"marked with `# TODO: fill in value`."
+
+		body = "Open the file and replace any remaining TODO placeholder with a real\n" +
+			"value before running terragrunt."
+	}
 
 	return renderValuesBox(valuesBoxAccentGreen, heading, path, summary, body)
 }
@@ -537,4 +608,164 @@ func primaryActionCmd(l log.Logger, m Model, c *Component) tea.Cmd {
 	}
 
 	return scaffoldComponentCmd(l, m, c)
+}
+
+// formReadyMsg is delivered once discovery has built a populated FormModel
+// and (for module/template) the prepared scaffold.Plan, or (for unit/stack)
+// the captured ValuesReferences.
+type formReadyMsg struct {
+	form *FormModel
+	plan *scaffold.Plan
+	refs *ValuesReferences
+}
+
+// formDiscoveryErrMsg signals that the pre-form discovery step failed
+// (download error, HCL parse error, etc.). The outer Update treats this
+// like a scaffold or copy failure: stash a styled message and quit.
+type formDiscoveryErrMsg struct{ err error }
+
+// enterFormState transitions the model into FormState and fires the
+// discovery command appropriate for the component's kind. priorState is
+// recorded so a cancel returns the user to wherever they invoked the
+// scaffold from.
+func enterFormState(m Model, c *Component, priorState sessionState) (tea.Model, tea.Cmd) {
+	m.priorState = priorState
+	m.State = FormState
+	m.form = nil
+	m.scaffoldPlan = nil
+	m.valuesRefs = nil
+	m.selectedComponent = c
+
+	return m, discoverFormCmd(m.logger, m.terragruntOptions, c)
+}
+
+// discoverFormCmd runs the kind-appropriate variable discovery off the UI
+// thread. For module/template that means downloading the source and
+// parsing variables via scaffold.Prepare; for unit/stack it means reading
+// the source HCL and walking it via CollectValuesReferences.
+func discoverFormCmd(l log.Logger, opts *options.TerragruntOptions, c *Component) tea.Cmd {
+	return func() tea.Msg {
+		if c.Kind.IsCopyable() {
+			return discoverValuesFields(c)
+		}
+
+		return discoverModuleFields(l, opts, c)
+	}
+}
+
+// discoverModuleFields prepares the scaffold for a module/template and
+// returns either a formReadyMsg (carrying both the form and the prepared
+// plan) or a formDiscoveryErrMsg.
+//
+// The Prepare call runs inside a bubbletea Cmd, which means the alt-screen
+// is still active. Any log writes here go straight to the terminal stderr
+// and shred the form's rendering, so we feed Prepare a logger whose output
+// is discarded. Real failures still surface: they come back as errors and
+// turn into a formDiscoveryErrMsg, which the outer Update renders as a
+// styled exit message after tea tears down.
+func discoverModuleFields(l log.Logger, opts *options.TerragruntOptions, c *Component) tea.Msg {
+	quiet := l.WithOptions(log.WithOutput(io.Discard))
+
+	plan, err := scaffold.Prepare(context.Background(), quiet, opts, c.TerraformSourcePath(), "")
+	if err != nil {
+		return formDiscoveryErrMsg{err: err}
+	}
+
+	fields := FieldsFromParsedVariables(plan.Required, plan.Optional)
+
+	return formReadyMsg{
+		form: NewFormModel(c, fields),
+		plan: plan,
+	}
+}
+
+// discoverValuesFields walks the unit/stack's HCL for `values.*` refs and
+// returns a formReadyMsg. CollectValuesReferences operates on the already
+// cloned local copy, so there's no download.
+func discoverValuesFields(c *Component) tea.Msg {
+	configName := configFileForKind(c.Kind)
+	if configName == "" {
+		return formDiscoveryErrMsg{err: errors.Errorf("component kind %q has no associated HCL file", c.Kind)}
+	}
+
+	refs, err := CollectValuesReferences(vfs.NewOSFS(), filepath.Join(c.Repo.Path(), c.Dir, configName))
+	if err != nil {
+		return formDiscoveryErrMsg{err: err}
+	}
+
+	fields := FieldsFromValuesReferences(refs)
+
+	return formReadyMsg{
+		form: NewFormModel(c, fields),
+		refs: &refs,
+	}
+}
+
+// updateForm routes messages while the form is on screen. It delegates
+// keypresses (and any other input) to the embedded FormModel, which may
+// in turn emit FormSubmitMsg or FormCancelMsg for the outer Update.
+func updateForm(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+	if m.form == nil {
+		// Discovery is still in flight. Swallow input until the
+		// formReadyMsg arrives so the user can't kick off a second action.
+		return m, nil
+	}
+
+	updated, cmd := m.form.Update(msg)
+	m.form = updated
+
+	return m, cmd
+}
+
+// handleFormSubmit transitions the model from FormState to ScaffoldState
+// and fires the kind-appropriate execution command, carrying the user's
+// raw HCL fragments.
+func (m Model) handleFormSubmit(values map[string]string) (tea.Model, tea.Cmd) {
+	m.State = ScaffoldState
+
+	c := m.selectedComponent
+
+	if c.Kind.IsCopyable() {
+		return m, copyComponentWithValuesCmd(m.logger, m, c, values)
+	}
+
+	plan := m.scaffoldPlan
+	m.scaffoldPlan = nil
+
+	return m, scaffoldComponentWithPlanCmd(m.logger, m, c, plan, values)
+}
+
+// abandonForm releases any prepared scaffold.Plan and clears the form
+// pointer. Called when the user esc-cancels the form so we don't leak
+// the temp dir Prepare allocated.
+func (m *Model) abandonForm() {
+	if m.scaffoldPlan != nil {
+		m.scaffoldPlan.Cleanup()
+		m.scaffoldPlan = nil
+	}
+
+	m.form = nil
+	m.valuesRefs = nil
+}
+
+// scaffoldComponentWithPlanCmd schedules the prepared plan's Generate
+// call, threading the user-supplied HCL values. tea.Exec is used so the
+// generation (which formats HCL and writes files) runs outside the
+// bubbletea event loop.
+func scaffoldComponentWithPlanCmd(l log.Logger, m Model, c *Component, plan *scaffold.Plan, values map[string]string) tea.Cmd {
+	cmd := newScaffoldCmd(l, m.terragruntOptions, c).WithPlan(plan, values)
+
+	return tea.Exec(cmd, func(err error) tea.Msg {
+		return scaffoldFinishedMsg{err: err, interactive: true}
+	})
+}
+
+// copyComponentWithValuesCmd schedules the unit/stack copy with the form's
+// collected HCL values threaded through CopyCmd.WithValues.
+func copyComponentWithValuesCmd(l log.Logger, m Model, c *Component, values map[string]string) tea.Cmd {
+	cmd := NewCopyCmd(l, m.terragruntOptions, c).WithValues(values)
+
+	return tea.Exec(cmd, func(err error) tea.Msg {
+		return copyFinishedMsg{err: err, result: cmd.Result(), interactive: true}
+	})
 }

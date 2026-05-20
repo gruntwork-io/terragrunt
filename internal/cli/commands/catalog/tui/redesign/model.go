@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -32,6 +33,7 @@ const (
 const (
 	ListState sessionState = iota
 	PagerState
+	FormState
 	ScaffoldState
 )
 
@@ -54,6 +56,9 @@ type Model struct {
 	componentCh         chan *ComponentEntry
 	errCh               chan error
 	mdRenderer          *glamour.TermRenderer
+	form                *FormModel
+	scaffoldPlan        *scaffold.Plan
+	valuesRefs          *ValuesReferences
 	pagerKeys           tui.PagerKeyMap
 	listKeys            list.KeyMap
 	currentPagerButtons []button
@@ -61,6 +66,7 @@ type Model struct {
 	viewport            viewport.Model
 	activeButton        button
 	State               sessionState
+	priorState          sessionState
 	activeTab           tabKind
 	height              int
 	width               int

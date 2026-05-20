@@ -81,7 +81,11 @@ inputs = {
     {{- end }}
   {{- end }}
   # Type: {{ .Type }}
+  {{- if .UserValue }}
+  {{ .Name }} = {{ .UserValue }}
+  {{- else }}
   {{ .Name }} = {{ .DefaultValuePlaceholder }}  # TODO: fill in value
+  {{- end }}
   {{ end }}
 
   # --------------------------------------------------------------------------------------------------------------------
@@ -98,7 +102,7 @@ inputs = {
     {{- end }}
   {{- end }}
   # Type: {{ .Type }}
-  # {{ .Name }} = {{ .DefaultValue }}
+  {{ if .UserValue }}{{ .Name }} = {{ .UserValue }}{{ else }}# {{ .Name }} = {{ .DefaultValue }}{{ end }}
   {{ end }}
 }
 `
@@ -132,20 +136,50 @@ func NewBoilerplateOptions(
 	}
 }
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, moduleURL, templateURL string) error {
+// Plan captures the state of a scaffold preparation: the source module has
+// been downloaded, its variables parsed, and the boilerplate template
+// located. Generate finishes the render, optionally injecting user-supplied
+// HCL fragments via the values argument, and Cleanup removes the temporary
+// directories Prepare allocated. Callers must invoke Cleanup exactly once,
+// typically via defer.
+//
+//nolint:govet // field order chosen for readability over alignment
+type Plan struct {
+	logger            log.Logger
+	Required          []*config.ParsedVariable
+	Optional          []*config.ParsedVariable
+	tempDirs          []string
+	vars              map[string]any
+	boilerplateDir    string
+	originalModuleURL string
+	resolvedModuleURL string
+	outputDir         string
+}
+
+// Cleanup removes the temporary directories allocated during Prepare.
+// Safe to call more than once; subsequent calls are no-ops.
+func (p *Plan) Cleanup() {
+	for _, dir := range p.tempDirs {
+		if err := os.RemoveAll(dir); err != nil {
+			p.logger.Warnf("Failed to clean up dir %s: %v", dir, err)
+		}
+	}
+
+	p.tempDirs = nil
+}
+
+// Prepare downloads the source module and template, parses the module's
+// variable blocks, and returns a Plan ready for rendering. The caller is
+// responsible for invoking Plan.Cleanup() (typically via defer) once it has
+// either rendered the result via Generate or decided to abandon the work.
+func Prepare(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	moduleURL, templateURL string,
+) (*Plan, error) {
 	// Apply catalog configuration settings, with CLI flags taking precedence
 	applyCatalogConfigToScaffold(ctx, l, opts)
-
-	// download remote repo to local
-	dirsToClean := make([]string, 0, 1)
-	// clean all temp dirs
-	defer func() {
-		for _, dir := range dirsToClean {
-			if err := os.RemoveAll(dir); err != nil {
-				l.Warnf("Failed to clean up dir %s: %v", dir, err)
-			}
-		}
-	}()
 
 	outputDir := opts.ScaffoldOutputFolder
 	if outputDir == "" {
@@ -155,14 +189,14 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	// scaffold only in empty directories
 	if empty, err := util.IsDirectoryEmpty(opts.WorkingDir); !empty || err != nil {
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		l.Warnf("The working directory %s is not empty.", opts.WorkingDir)
 	}
 
 	if moduleURL == "" {
-		return errors.New(NoModuleURLPassed{})
+		return nil, errors.New(NoModuleURLPassed{})
 	}
 
 	moduleURL = tf.RewriteLegacyGCSPublicSource(ctx, l, moduleURL, opts.StrictControls)
@@ -171,65 +205,106 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	// create temporary directory where to download module
 	tempDir, err := os.MkdirTemp("", "scaffold")
 	if err != nil {
-		return errors.New(err)
+		return nil, errors.New(err)
 	}
 
-	dirsToClean = append(dirsToClean, tempDir)
+	plan := &Plan{
+		logger:    l,
+		outputDir: outputDir,
+		tempDirs:  []string{tempDir},
+	}
+
+	// On any error after this point, clean up the temp dir we just created
+	// so a partial Prepare doesn't leak.
+	success := false
+
+	defer func() {
+		if !success {
+			plan.Cleanup()
+		}
+	}()
 
 	// prepare variables
 	vars, err := variables.ParseVars(opts.ScaffoldVars, opts.ScaffoldVarFiles)
 	if err != nil {
-		return errors.New(err)
+		return nil, errors.New(err)
 	}
 
 	// Save the original URL before go-getter transformation so the scaffolded
 	// source attribute matches the catalog config format.
-	originalModuleURL := moduleURL
+	plan.originalModuleURL = moduleURL
 
 	// parse module url (transforms for go-getter download)
-	moduleURL, err = parseModuleURL(ctx, l, opts, vars, moduleURL)
+	resolvedURL, err := parseModuleURL(ctx, l, opts, vars, moduleURL)
 	if err != nil {
-		return errors.New(err)
+		return nil, errors.New(err)
 	}
 
-	l.Debugf("Scaffolding a new Terragrunt module %s to %s", moduleURL, outputDir)
+	plan.resolvedModuleURL = resolvedURL
+
+	l.Debugf("Scaffolding a new Terragrunt module %s to %s", resolvedURL, outputDir)
 
 	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_module", map[string]any{
-		"module_url": moduleURL,
+		"module_url": resolvedURL,
 	}, func(ctx context.Context) error {
-		if _, getErr := getter.GetAny(ctx, tempDir, moduleURL); getErr != nil {
-			return fmt.Errorf("downloading scaffold module from %s: %w", moduleURL, getErr)
+		if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL); getErr != nil {
+			return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
 		}
 
 		return nil
 	}); err != nil {
-		return errors.New(err)
+		return nil, errors.New(err)
 	}
 
 	// extract variables from downloaded module
 	requiredVariables, optionalVariables, err := parseVariables(l, opts, tempDir)
 	if err != nil {
-		return errors.New(err)
+		return nil, errors.New(err)
 	}
+
+	plan.Required = requiredVariables
+	plan.Optional = optionalVariables
 
 	l.Debugf("Parsed %d required variables and %d optional variables", len(requiredVariables), len(optionalVariables))
 
 	// prepare boilerplate files to render Terragrunt files
 	boilerplateDir, err := prepareBoilerplateFiles(ctx, l, opts, templateURL, tempDir)
 	if err != nil {
-		return errors.New(err)
+		return nil, errors.New(err)
 	}
 
+	plan.boilerplateDir = boilerplateDir
+	plan.vars = vars
+
+	success = true
+
+	return plan, nil
+}
+
+// Generate renders the prepared scaffold into the output directory. When
+// values is non-nil, each entry replaces the matching parsed variable's
+// UserValue, so the template emits a real HCL assignment instead of the
+// `# TODO: fill in value` placeholder. Variables not present in values
+// fall through to the placeholder line.
+func (p *Plan) Generate(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	values map[string]string,
+) error {
+	applyUserValues(p.Required, values)
+	applyUserValues(p.Optional, values)
+
 	// add additional variables
-	vars["requiredVariables"] = requiredVariables
-	vars["optionalVariables"] = optionalVariables
+	p.vars["requiredVariables"] = p.Required
+	p.vars["optionalVariables"] = p.Optional
 
 	// Build sourceUrl from the original URL with the ref that parseModuleURL resolved.
-	vars["sourceUrl"] = BuildSourceURL(originalModuleURL, moduleURL, vars)
+	p.vars["sourceUrl"] = BuildSourceURL(p.originalModuleURL, p.resolvedModuleURL, p.vars)
 
 	// Only set these if the `vars` map doesn't already have them set
-	if _, found := vars[enableRootInclude]; !found {
-		vars[enableRootInclude] = !opts.ScaffoldNoIncludeRoot
+	if _, found := p.vars[enableRootInclude]; !found {
+		p.vars[enableRootInclude] = !opts.ScaffoldNoIncludeRoot
 	} else {
 		l.Warnf(
 			"The %s variable is already set in the var flag(s). The --%s flag will be ignored.",
@@ -238,8 +313,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		)
 	}
 
-	if _, found := vars[rootFileName]; !found {
-		vars[rootFileName] = opts.ScaffoldRootFileName
+	if _, found := p.vars[rootFileName]; !found {
+		p.vars[rootFileName] = opts.ScaffoldRootFileName
 	} else {
 		l.Warnf(
 			"The %s variable is already set in the var flag(s). The --%s flag will be ignored.",
@@ -248,8 +323,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		)
 	}
 
-	l.Debugf("Running boilerplate generation to %s", outputDir)
-	boilerplateOpts := NewBoilerplateOptions(boilerplateDir, outputDir, vars, opts)
+	l.Debugf("Running boilerplate generation to %s", p.outputDir)
+	boilerplateOpts := NewBoilerplateOptions(p.boilerplateDir, p.outputDir, p.vars, opts)
 
 	emptyDep := &variables.Dependency{}
 
@@ -271,15 +346,48 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 
 	allFiles = slices.Compact(slices.Sorted(slices.Values(allFiles)))
 
-	l.Debugf("Running fmt on generated code %s", outputDir)
+	l.Debugf("Running fmt on generated code %s", p.outputDir)
 
-	if err := format.RunForFiles(ctx, l, opts, outputDir, allFiles); err != nil {
+	if err := format.RunForFiles(ctx, l, opts, p.outputDir, allFiles); err != nil {
 		return errors.New(err)
 	}
 
 	l.Debug("Scaffolding completed")
 
 	return nil
+}
+
+// applyUserValues copies non-empty entries from values onto the matching
+// ParsedVariable.UserValue, so the template emits the supplied HCL fragment
+// instead of the TODO placeholder line.
+func applyUserValues(vars []*config.ParsedVariable, values map[string]string) {
+	if len(values) == 0 {
+		return
+	}
+
+	for _, v := range vars {
+		val, ok := values[v.Name]
+		if !ok || val == "" {
+			continue
+		}
+
+		v.UserValue = val
+	}
+}
+
+// Run downloads the source module, discovers its variables, and renders a
+// terragrunt.hcl with `# TODO: fill in value` placeholders for every input.
+// It is the non-interactive entry point used by the CLI scaffold command and
+// the catalog TUI's `S` (placeholder) keybind.
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, moduleURL, templateURL string) error {
+	plan, err := Prepare(ctx, l, opts, moduleURL, templateURL)
+	if err != nil {
+		return err
+	}
+
+	defer plan.Cleanup()
+
+	return plan.Generate(ctx, l, opts, nil)
 }
 
 // BuildSourceURL returns the original module URL with the ref query param

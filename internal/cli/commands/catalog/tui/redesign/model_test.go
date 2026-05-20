@@ -160,14 +160,15 @@ func TestModelTabShiftTabCycles(t *testing.T) {
 	})
 }
 
-// TestModelCopyActionTransitionsToScaffoldState asserts that pressing the
-// scaffold key on a copyable component transitions the Model to
-// ScaffoldState, which is what dispatches the copy action.
+// TestModelCopyActionPlaceholderTransitionsToScaffoldState asserts that
+// pressing the placeholder scaffold key (`S`) on a copyable component
+// transitions the Model directly to ScaffoldState, which is what
+// dispatches the copy action with TODO placeholders.
 //
 // The copy itself is exercised end-to-end in copy_test.go; here we only
 // verify the wire-up, because tea.Exec (used by the copy dispatch) only runs
 // the underlying ExecCommand inside a real bubbletea runtime.
-func TestModelCopyActionTransitionsToScaffoldState(t *testing.T) {
+func TestModelCopyActionPlaceholderTransitionsToScaffoldState(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -196,12 +197,112 @@ func TestModelCopyActionTransitionsToScaffoldState(t *testing.T) {
 
 		m := redesign.NewModelStreaming(logger.CreateLogger(), opts, entry, componentCh, nil)
 
-		msgs := []tea.Msg{tea.KeyPressMsg{Code: 's', Text: "s"}}
+		// Capital S = placeholder scaffold flow.
+		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'S', Text: "S"}}
 
 		finalModel := driveModel(t, m, 120, 40, msgs).(redesign.Model)
 
 		assert.Equal(t, redesign.ScaffoldState, finalModel.State,
-			"pressing 's' on a unit should transition to ScaffoldState")
+			"pressing 'S' on a unit should transition to ScaffoldState")
+	})
+}
+
+// TestModelInteractiveScaffoldTransitionsToFormState asserts that pressing
+// the interactive scaffold key (`s`) on a copyable component transitions
+// the Model to FormState. The discovery goroutine runs synchronously via
+// tea.Cmd, so once the form is ready the model has both a form pointer and
+// a captured ValuesReferences.
+func TestModelInteractiveScaffoldTransitionsToFormState(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		fsys := vfs.NewMemMapFS()
+		repoDir := testRepoDir
+
+		unitBody := `locals {
+  region = values.region
+  env    = try(values.env, "prod")
+}
+` + "\n"
+		writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
+
+		repo := newFakeRepo(t, fsys, repoDir)
+
+		components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+		require.NoError(t, err)
+		require.Len(t, components, 1)
+		require.Equal(t, redesign.ComponentKindUnit, components[0].Kind)
+
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		opts.WorkingDir = t.TempDir()
+
+		entry := redesign.NewComponentEntry(components[0]).WithSource("github.com/gruntwork-io/fake-repo")
+
+		componentCh := make(chan *redesign.ComponentEntry)
+		close(componentCh)
+
+		m := redesign.NewModelStreaming(logger.CreateLogger(), opts, entry, componentCh, nil)
+
+		// Lowercase s = interactive scaffold flow.
+		msgs := []tea.Msg{tea.KeyPressMsg{Code: 's', Text: "s"}}
+
+		finalModel := driveModel(t, m, 120, 40, msgs).(redesign.Model)
+
+		assert.Equal(t, redesign.FormState, finalModel.State,
+			"pressing 's' on a unit should transition to FormState")
+	})
+}
+
+// TestModelEnterOnPagerLaunchesInteractiveForm asserts that once the user
+// has opened a component's README (PagerState), pressing enter on the
+// default-focused Scaffold button takes the interactive form path, the
+// same as pressing `s`. The placeholder flow stays reachable via `S`.
+func TestModelEnterOnPagerLaunchesInteractiveForm(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		fsys := vfs.NewMemMapFS()
+		repoDir := testRepoDir
+
+		unitBody := `locals {
+  region = values.region
+  env    = try(values.env, "prod")
+}
+` + "\n"
+		writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
+
+		repo := newFakeRepo(t, fsys, repoDir)
+
+		components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+		require.NoError(t, err)
+		require.Len(t, components, 1)
+		require.Equal(t, redesign.ComponentKindUnit, components[0].Kind)
+
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		opts.WorkingDir = t.TempDir()
+
+		entry := redesign.NewComponentEntry(components[0]).WithSource("github.com/gruntwork-io/fake-repo")
+
+		componentCh := make(chan *redesign.ComponentEntry)
+		close(componentCh)
+
+		m := redesign.NewModelStreaming(logger.CreateLogger(), opts, entry, componentCh, nil)
+
+		// First enter: list → pager (opens the README).
+		// Second enter: pager → form (the new behavior).
+		msgs := []tea.Msg{
+			tea.KeyPressMsg{Code: tea.KeyEnter},
+			tea.KeyPressMsg{Code: tea.KeyEnter},
+		}
+
+		finalModel := driveModel(t, m, 120, 40, msgs).(redesign.Model)
+
+		assert.Equal(t, redesign.FormState, finalModel.State,
+			"enter on the pager's Scaffold button should transition to FormState")
 	})
 }
 
@@ -270,7 +371,7 @@ func TestModelCopyFinishedWritesValuesExitMessage(t *testing.T) {
 	exit := stripANSI(finalModel.ExitMessage())
 	assert.NotEmpty(t, exit, "exit message should be populated after copyFinishedMsg")
 	assert.Contains(t, exit, "terragrunt.values.hcl generated")
-	assert.Contains(t, exit, "2 required TODO entries", "plural 'entries' should render for count != 1")
+	assert.Contains(t, exit, "2 required entries", "plural 'entries' should render for count != 1")
 	assert.Contains(t, exit, "1 optional default", "singular 'default' should render for count == 1")
 	assert.Contains(t, exit, "terragrunt.values.hcl")
 }

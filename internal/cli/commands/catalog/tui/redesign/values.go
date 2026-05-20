@@ -228,15 +228,27 @@ func (c *valuesCollector) result() ValuesReferences {
 	return ValuesReferences{Required: required, Optional: optional}
 }
 
-// WriteValuesStub writes a terragrunt.values.hcl skeleton into dir. The
-// file contains a required section (with "TODO" placeholders) followed by
-// an optional section (with the evaluated try() defaults).
+// WriteValuesStub writes a terragrunt.values.hcl skeleton into dir with
+// `"TODO"` for required entries and the try() fallback for optional ones.
+// It is equivalent to WriteValuesFile with no user-supplied values.
+func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, error) {
+	return WriteValuesFile(fsys, dir, refs, nil)
+}
+
+// WriteValuesFile writes a terragrunt.values.hcl into dir. The file contains
+// a required section followed by an optional section. For each reference,
+// the corresponding entry in values (if present and non-empty) is parsed as
+// the right-hand side of an HCL assignment and emitted verbatim; otherwise
+// required entries default to `"TODO"` and optional entries to the literal
+// try() fallback captured during discovery.
 //
 // If both sections would be empty the file is not written. If a
 // terragrunt.values.hcl already exists in dir it is left untouched.
 //
-// Returns written=true only when a new file was created.
-func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, error) {
+// Returns written=true only when a new file was created. An invalid HCL
+// fragment in values is surfaced as an error. Callers (typically the
+// interactive form) validate user input before reaching this point.
+func WriteValuesFile(fsys vfs.FS, dir string, refs ValuesReferences, values map[string]string) (bool, error) {
 	if refs.IsEmpty() {
 		return false, nil
 	}
@@ -266,8 +278,11 @@ func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, erro
 		sort.Strings(sortedRequired)
 
 		required := hclwrite.NewEmptyFile()
+
 		for _, name := range sortedRequired {
-			required.Body().SetAttributeValue(name, cty.StringVal("TODO"))
+			if err := writeValueAttribute(required.Body(), name, values[name], cty.StringVal("TODO")); err != nil {
+				return false, err
+			}
 		}
 
 		buf.Write(required.Bytes())
@@ -282,8 +297,11 @@ func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, erro
 		})
 
 		optional := hclwrite.NewEmptyFile()
+
 		for _, o := range sortedOptional {
-			optional.Body().SetAttributeValue(o.Name, o.Default)
+			if err := writeValueAttribute(optional.Body(), o.Name, values[o.Name], o.Default); err != nil {
+				return false, err
+			}
 		}
 
 		buf.Write(optional.Bytes())
@@ -294,6 +312,47 @@ func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, erro
 	}
 
 	return true, nil
+}
+
+// writeValueAttribute writes `name = <expr>` into body. When userValue is
+// non-empty it is parsed as an HCL expression and emitted verbatim;
+// otherwise fallback is written via the cty serializer.
+func writeValueAttribute(body *hclwrite.Body, name, userValue string, fallback cty.Value) error {
+	if userValue == "" {
+		body.SetAttributeValue(name, fallback)
+
+		return nil
+	}
+
+	tokens, err := parseHCLValueTokens(name, userValue)
+	if err != nil {
+		return err
+	}
+
+	body.SetAttributeRaw(name, tokens)
+
+	return nil
+}
+
+// parseHCLValueTokens parses "<name> = <raw>" and returns the right-hand
+// side as a token sequence usable with hclwrite.Body.SetAttributeRaw. This
+// is how user-supplied HCL fragments (e.g. `["a", "b"]` or `{ k = "v" }`)
+// are spliced into the generated values file without going through the cty
+// serializer, which would otherwise require evaluating the fragment.
+func parseHCLValueTokens(name, raw string) (hclwrite.Tokens, error) {
+	src := []byte(name + " = " + raw + "\n")
+
+	file, diags := hclwrite.ParseConfig(src, "values.hcl", hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil, errors.Errorf("invalid HCL value for %q: %s", name, diags.Error())
+	}
+
+	attr := file.Body().GetAttribute(name)
+	if attr == nil {
+		return nil, errors.Errorf("could not extract HCL value for %q from parsed source", name)
+	}
+
+	return attr.Expr().BuildTokens(nil), nil
 }
 
 // configFileForKind returns the filename the given component kind's main HCL
