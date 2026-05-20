@@ -3467,14 +3467,24 @@ func TestNoDiscoveryAuthProviderCmdRequiresExperiment(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "run-all-call-count")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt find --no-discovery-auth-provider-cmd --working-dir "+rootPath,
-	)
-	require.Error(t, err)
+	testCases := []struct {
+		name string
+		args string
+	}{
+		{name: "find", args: "find --no-discovery-auth-provider-cmd --working-dir " + rootPath},
+		{name: "list", args: "list --no-discovery-auth-provider-cmd --working-dir " + rootPath},
+		{name: "run", args: "run --no-discovery-auth-provider-cmd --working-dir " + rootPath + " -- plan"},
+		{name: "shortcut", args: "apply --no-discovery-auth-provider-cmd --working-dir " + rootPath},
+	}
 
-	var requiresExperimentErr shared.NoDiscoveryAuthProviderCmdRequiresExperimentError
-	assert.True(t, errors.As(err, &requiresExperimentErr), "expected NoDiscoveryAuthProviderCmdRequiresExperimentError, got %T: %v", err, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args)
+			require.ErrorIs(t, err, shared.ErrNoDiscoveryAuthProviderCmdRequiresExperiment)
+		})
+	}
 }
 
 func TestNoDiscoveryAuthProviderCmdSkipsDiscoveryAuthWithRacing(t *testing.T) {

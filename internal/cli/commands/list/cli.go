@@ -171,7 +171,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 			}
 
-			return shared.ValidateNoDiscoveryAuthProviderCmd(opts)
+			return nil
 		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
 			return Run(ctx, l, cmdOpts)
