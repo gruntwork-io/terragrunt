@@ -89,12 +89,17 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 			continue
 		}
 
-		writeDependencyBlock(outBody, dep, origBlock, srcBytes, targetDir)
+		if err := writeDependencyBlock(outBody, dep, origBlock, srcBytes, targetDir); err != nil {
+			return err
+		}
+
 		outBody.AppendNewline()
 	}
 
 	// Write non-dependency content with binary per-attribute evaluation.
-	writeNonDependencyContent(outBody, body, srcBytes, evalCtx)
+	if err := writeNonDependencyContent(outBody, body, srcBytes, evalCtx); err != nil {
+		return err
+	}
 
 	filePath := filepath.Join(targetDir, AutoIncludeFileNameForKind(resolved.Kind))
 
@@ -111,8 +116,8 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	return nil
 }
 
-// copyBlock copies block from the AST to hclwrite output. When evalCtx is non-nil attributes are partially evaluated (local.* resolved, dependency.* preserved); otherwise attributes are copied verbatim from source bytes.
-func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext) {
+// copyBlock copies block from the AST to hclwrite output. When evalCtx is non-nil attributes are partially evaluated (local.* resolved, dependency.* preserved); otherwise attributes are copied verbatim from source bytes. Returns the first PartialEval error encountered, so callers can fail fast on pathological inputs.
+func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	newBlock := outBody.AppendNewBlock(block.Type, block.Labels)
 	blockBody := newBlock.Body()
 
@@ -123,13 +128,21 @@ func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, 
 			continue
 		}
 
-		result := PartialEval(attr.Expr, &EvalArgs{EvalCtx: evalCtx, Deferred: deferredRoots, SrcBytes: srcBytes})
+		result, err := PartialEval(attr.Expr, &EvalArgs{EvalCtx: evalCtx, Deferred: deferredRoots, SrcBytes: srcBytes})
+		if err != nil {
+			return err
+		}
+
 		blockBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
 	for _, nested := range block.Body.Blocks {
-		copyBlock(blockBody, nested, srcBytes, evalCtx)
+		if err := copyBlock(blockBody, nested, srcBytes, evalCtx); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 // FindBlock finds a block by type and first label in the AST body; exported for reuse by callers that need to locate specific blocks in parsed HCL bodies.
@@ -181,7 +194,7 @@ func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
 }
 
 // writeDependencyBlock writes a single dependency block with config_path converted to relative-to-targetDir; all other attributes are copied from source bytes to preserve original expressions.
-func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string) {
+func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string) error {
 	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
 
@@ -203,14 +216,18 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 		depBody.SetAttributeRaw(attr.Name, RawTokens(exprBytes))
 	}
 
-	// Copy nested blocks within the dependency (if any).
+	// Copy nested blocks within the dependency (if any). Nested blocks are copied verbatim (evalCtx == nil), so PartialEval is not invoked and the call cannot return a PartialEval error here.
 	for _, nested := range origBlock.Body.Blocks {
-		copyBlock(depBody, nested, srcBytes, nil)
+		if err := copyBlock(depBody, nested, srcBytes, nil); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-// writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body; each attribute expression is partially evaluated so resolvable parts (locals, pure refs) become literals while deferred parts (dependency.*) keep their original source text, enabling mixed expressions like "${local.env}-${dependency.vpc.outputs.vpc_id}" to be partially resolved. Non-dependency blocks pass through Copier: evalCtx == nil copies verbatim from source bytes, evalCtx != nil partially evaluates attributes.
-func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) {
+// writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body; each attribute expression is partially evaluated so resolvable parts (locals, pure refs) become literals while deferred parts (dependency.*) keep their original source text, enabling mixed expressions like "${local.env}-${dependency.vpc.outputs.vpc_id}" to be partially resolved. Non-dependency blocks pass through copyBlock: evalCtx == nil copies verbatim from source bytes, evalCtx != nil partially evaluates attributes.
+func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	for _, attr := range SortedAttributes(body.Attributes) {
 		if evalCtx == nil {
 			exprBytes := RangeBytes(srcBytes, attr.Expr.Range())
@@ -219,7 +236,11 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 			continue
 		}
 
-		result := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
+		result, err := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
+		if err != nil {
+			return err
+		}
+
 		outBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
@@ -228,8 +249,12 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 			continue
 		}
 
-		copyBlock(outBody, block, srcBytes, evalCtx)
+		if err := copyBlock(outBody, block, srcBytes, evalCtx); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.

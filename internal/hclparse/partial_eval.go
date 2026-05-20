@@ -27,14 +27,14 @@ type EvalArgs struct {
 	depth    int
 }
 
-// PartialEval walks an hclsyntax.Expression tree and returns HCL source text: pure expressions (no deferred refs, no function calls) are evaluated to literals; mixed expressions get per-child treatment - evaluable parts become literals, deferred parts keep their original source text.
-func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
+// PartialEval walks an hclsyntax.Expression tree and returns HCL source text: pure expressions (no deferred refs, no function calls) are evaluated to literals; mixed expressions get per-child treatment - evaluable parts become literals, deferred parts keep their original source text. The returned bytes are always usable (graceful source-byte fallback on edge cases); the error signals pathological inputs (depth exhaustion, unresolvable conditional) that the caller may choose to fail on.
+func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 	if args.EvalCtx == nil {
-		return RangeBytes(args.SrcBytes, expr.Range())
+		return RangeBytes(args.SrcBytes, expr.Range()), nil
 	}
 
 	if args.depth > maxPartialEvalDepth {
-		return RangeBytes(args.SrcBytes, expr.Range())
+		return RangeBytes(args.SrcBytes, expr.Range()), PartialEvalDepthExceededError{MaxDepth: maxPartialEvalDepth}
 	}
 
 	args.depth++
@@ -44,23 +44,22 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	// Fast path: pure expression with no function calls, evaluate the whole thing (function calls are preserved because Terragrunt functions can have generation-time side effects).
 	if IsPure(expr, args.Deferred) && !containsFunctionCall(expr) {
 		val, diags := expr.Value(args.EvalCtx)
-		// hclwrite.TokensForValue panics on unknown values; fall back to source bytes so the runtime parser sees the original ref.
+		// hclwrite.TokensForValue panics on unknown values; fall back to source bytes so the runtime parser sees the original ref. Also surface a typed error so strict callers can fail fast on unresolvable refs at generation time.
 		if !diags.HasErrors() && val.IsWhollyKnown() {
-			return ValueToHCLBytes(val)
+			return ValueToHCLBytes(val), nil
 		}
 
-		return RangeBytes(args.SrcBytes, expr.Range())
+		return RangeBytes(args.SrcBytes, expr.Range()), PartialEvalUnresolvedError{Reason: "value is null or unknown at generation time", Err: diags}
 	}
 
 	return partialEvalByType(expr, args)
 }
 
-// partialEvalByType dispatches to type-specific handlers for mixed expressions.
-// Unhandled types fall through to verbatim source bytes.
-func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) []byte {
+// partialEvalByType dispatches to type-specific handlers for mixed expressions; unhandled types fall through to verbatim source bytes.
+func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 	switch e := expr.(type) {
 	case *hclsyntax.LiteralValueExpr:
-		return ValueToHCLBytes(e.Val)
+		return ValueToHCLBytes(e.Val), nil
 	case *hclsyntax.ScopeTraversalExpr:
 		return partialEvalTraversal(e, args)
 	case *hclsyntax.TemplateExpr:
@@ -77,65 +76,70 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) []byte {
 		return partialEvalConditional(e, args)
 	case *hclsyntax.ParenthesesExpr:
 		return partialEvalParens(e, args)
-	default:
-		// Deliberate fallback: unhandled expression types (FunctionCallExpr, ForExpr,
-		// SplatExpr, BinaryOpExpr, UnaryOpExpr, etc.) are emitted as verbatim source
-		// bytes. This is safe: the generated HCL will contain the original expression
-		// text, which is valid HCL that will be evaluated at runtime.
-		return RangeBytes(args.SrcBytes, e.Range())
 	}
+
+	// Unhandled types (ForExpr, SplatExpr, BinaryOpExpr, UnaryOpExpr, etc.) emit verbatim source bytes; the generated HCL contains valid original text evaluated at runtime.
+	return RangeBytes(args.SrcBytes, expr.Range()), nil
 }
 
-func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) []byte {
+func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]byte, error) {
 	if args.Deferred[e.Traversal.RootName()] {
-		return RangeBytes(args.SrcBytes, e.Range())
+		return RangeBytes(args.SrcBytes, e.Range()), nil
 	}
 
 	val, diags := e.Value(args.EvalCtx)
 	if !diags.HasErrors() && val.IsWhollyKnown() {
-		return ValueToHCLBytes(val)
+		return ValueToHCLBytes(val), nil
 	}
 
-	return RangeBytes(args.SrcBytes, e.Range())
+	return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "traversal value is null or unknown at generation time", Err: diags}
 }
 
-// partialEvalChildren rebuilds the source bytes of a parent expression with each child replaced by its PartialEval output. Gaps between/around children (operators, brackets, commas, whitespace) come from the source verbatim, so user formatting is preserved and there are no hard-coded separator strings.
-func partialEvalChildren(args *EvalArgs, parentRange hcl.Range, children []hclsyntax.Expression) []byte {
+// partialEvalChildren rebuilds the source bytes of a parent expression with each child replaced by its PartialEval output. Gaps between/around children (operators, brackets, commas, whitespace) come from the source verbatim, so user formatting is preserved and there are no hard-coded separator strings. Returns the first child error encountered, alongside the assembled bytes.
+func partialEvalChildren(args *EvalArgs, parentRange hcl.Range, children []hclsyntax.Expression) ([]byte, error) {
 	if len(children) == 0 {
-		return RangeBytes(args.SrcBytes, parentRange)
+		return RangeBytes(args.SrcBytes, parentRange), nil
 	}
 
 	src := args.SrcBytes
 	out := make([]byte, 0, parentRange.End.Byte-parentRange.Start.Byte)
 	cursor := parentRange.Start.Byte
 
+	var firstErr error
+
 	for _, child := range children {
 		cr := child.Range()
 
 		out = append(out, src[cursor:cr.Start.Byte]...)
-		out = append(out, PartialEval(child, args)...)
+
+		childBytes, err := PartialEval(child, args)
+		out = append(out, childBytes...)
 		cursor = cr.End.Byte
+
+		if firstErr == nil && err != nil {
+			firstErr = err
+		}
 	}
 
 	out = append(out, src[cursor:parentRange.End.Byte]...)
 
-	return out
+	return out, firstErr
 }
 
-func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte {
+func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) ([]byte, error) {
 	if !IsPure(e.Condition, args.Deferred) || containsFunctionCall(e.Condition) {
 		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Condition, e.TrueResult, e.FalseResult})
 	}
 
 	condVal, diags := e.Condition.Value(args.EvalCtx)
 	if diags.HasErrors() {
-		return RangeBytes(args.SrcBytes, e.Range())
+		return RangeBytes(args.SrcBytes, e.Range()), nil
 	}
 
 	boolVal, err := convert.Convert(condVal, cty.Bool)
-	// Null condition would let True() silently return false (wrong branch); unknown would panic. Fall back to source bytes so runtime evaluation produces a faithful error.
+	// Null condition would let True() silently return false (wrong branch); unknown would panic. Return source bytes so runtime evaluation produces a faithful error, plus a typed error so strict callers can fail fast.
 	if err != nil || boolVal.IsNull() || !boolVal.IsKnown() {
-		return RangeBytes(args.SrcBytes, e.Range())
+		return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "conditional condition is null or unknown"}
 	}
 
 	if boolVal.True() {
@@ -145,14 +149,14 @@ func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte
 	return PartialEval(e.FalseResult, args)
 }
 
-func partialEvalFunctionCall(e *hclsyntax.FunctionCallExpr, args *EvalArgs) []byte {
+func partialEvalFunctionCall(e *hclsyntax.FunctionCallExpr, args *EvalArgs) ([]byte, error) {
 	children := make([]hclsyntax.Expression, len(e.Args))
 	copy(children, e.Args)
 
 	return partialEvalChildren(args, e.Range(), children)
 }
 
-func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) []byte {
+func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) ([]byte, error) {
 	// Pure inner expression - parens are redundant around a single expression; emit the inner directly.
 	if IsPure(e.Expression, args.Deferred) {
 		return PartialEval(e.Expression, args)
@@ -172,7 +176,24 @@ func IsPure(expr hclsyntax.Expression, deferred map[string]bool) bool {
 	return true
 }
 
-// containsFunctionCall reports whether expr contains any FunctionCallExpr anywhere in its AST. Used as a gate in PartialEval's fast path: an expression with no deferred refs would normally be evaluated to a literal eagerly, but if it contains a function call we instead preserve it verbatim. This matters because Terragrunt-style functions (get_terragrunt_dir, find_in_parent_folders, etc.) need to evaluate in the consumer unit's context, not at generation time. hclsyntax.Walk is used so unknown node types (ForExpr, SplatExpr, BinaryOpExpr, etc.) are also traversed for nested function calls.
+// containsFunctionCall reports whether expr contains any FunctionCallExpr anywhere in its AST.
+//
+// It gates PartialEval's fast path: an expression with no deferred refs would normally be
+// evaluated eagerly to a literal, but if it contains a function call the call is preserved
+// verbatim instead.
+//
+// This matters because Terragrunt functions (get_terragrunt_dir, find_in_parent_folders,
+// path_relative_to_include, read_terragrunt_config, etc.) resolve directory context from where
+// the eval runs:
+//   - At autoinclude generation time, the context is the stack file's directory.
+//   - At unit parse time, the context is the consumer unit's directory.
+//
+// Executing the function at generation time would bake the stack-file directory into the
+// generated terragrunt.autoinclude.hcl; preserving the call leaves resolution to the unit
+// parse, where the directory context is correct.
+//
+// hclsyntax.Walk traverses every node type (ForExpr, SplatExpr, BinaryOpExpr, ...) so nested
+// function calls are detected regardless of the enclosing expression.
 func containsFunctionCall(expr hclsyntax.Expression) bool {
 	w := &functionCallWalker{}
 
@@ -199,8 +220,11 @@ func (w *functionCallWalker) Exit(_ hclsyntax.Node) hcl.Diagnostics {
 	return nil
 }
 
-func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
-	var buf bytes.Buffer
+func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, error) {
+	var (
+		buf      bytes.Buffer
+		firstErr error
+	)
 
 	buf.WriteByte('"')
 
@@ -226,13 +250,19 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 
 		// Deferred, function call, or eval failed: emit as interpolation.
 		buf.WriteString("${")
-		buf.Write(PartialEval(part, args))
+
+		partBytes, err := PartialEval(part, args)
+		buf.Write(partBytes)
 		buf.WriteByte('}')
+
+		if firstErr == nil && err != nil {
+			firstErr = err
+		}
 	}
 
 	buf.WriteByte('"')
 
-	return buf.Bytes()
+	return buf.Bytes(), firstErr
 }
 
 // HCLStringContent returns the inner content of an HCL-escaped string
@@ -245,7 +275,7 @@ func HCLStringContent(s string) []byte {
 	return bytes.TrimPrefix(bytes.TrimSuffix(raw, []byte{'"'}), []byte{'"'})
 }
 
-func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) []byte {
+func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) ([]byte, error) {
 	// Stitch only the value expressions; keys + `=` + `,` + braces stay verbatim from the source.
 	children := make([]hclsyntax.Expression, len(e.Items))
 	for i, item := range e.Items {
@@ -255,7 +285,7 @@ func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) []byte {
 	return partialEvalChildren(args, e.Range(), children)
 }
 
-func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) []byte {
+func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) ([]byte, error) {
 	children := make([]hclsyntax.Expression, len(e.Exprs))
 	copy(children, e.Exprs)
 

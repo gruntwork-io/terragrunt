@@ -106,7 +106,7 @@ func FuzzPartialEval(f *testing.F) {
 		}
 
 		for _, attr := range body.Attributes {
-			_ = hclparse.PartialEval(attr.Expr, &hclparse.EvalArgs{
+			_, _ = hclparse.PartialEval(attr.Expr, &hclparse.EvalArgs{
 				EvalCtx:  evalCtx,
 				Deferred: deferred,
 				SrcBytes: srcBytes,

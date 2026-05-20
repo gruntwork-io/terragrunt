@@ -157,7 +157,11 @@ func TestPartialEval(t *testing.T) {
 			t.Parallel()
 
 			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
-			result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: tc.evalCtx, Deferred: testDeferred}))
+
+			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: tc.evalCtx, Deferred: testDeferred})
+			require.NoError(t, err)
+
+			result := string(resultBytes)
 
 			for _, want := range tc.contains {
 				assert.Contains(t, result, want, "expected result to contain %q, got %q", want, result)
@@ -262,7 +266,11 @@ func TestPartialEval_PreservesFunctionCalls(t *testing.T) {
 	}
 
 	expr, srcBytes := parseFirstAttrExpr(t, `val = danger()`)
-	result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred}))
+
+	resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred})
+	require.NoError(t, err)
+
+	result := string(resultBytes)
 
 	assert.False(t, called, "partial evaluation must preserve function calls instead of executing them during generation")
 	assert.Contains(t, result, "danger()")
@@ -286,27 +294,32 @@ func TestPartialEval_PreservesFunctionCallsInConditionalCondition(t *testing.T) 
 	}
 
 	expr, srcBytes := parseFirstAttrExpr(t, `val = danger() ? "yes" : dependency.vpc.outputs.vpc_id`)
-	result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred}))
+
+	resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred})
+	require.NoError(t, err)
 
 	assert.False(t, called, "partial evaluation must not execute function calls in conditional conditions")
-	assert.Contains(t, result, `danger() ? "yes" : dependency.vpc.outputs.vpc_id`)
+	assert.Contains(t, string(resultBytes), `danger() ? "yes" : dependency.vpc.outputs.vpc_id`)
 }
 
-// TestPartialEval_DeeplyNestedExpressionDoesNotOverflow constructs 20000 nested parentheses (twice the depth guard) and verifies PartialEval returns without crashing.
-func TestPartialEval_DeeplyNestedExpressionDoesNotOverflow(t *testing.T) {
+// TestPartialEval_DeeplyNestedExpressionReturnsTypedError constructs 20000 nested parentheses around a deferred ref (so each level recurses through partialEvalParens instead of taking the fast path) and verifies PartialEval returns the source-byte fallback alongside a typed PartialEvalDepthExceededError so strict callers can fail fast.
+func TestPartialEval_DeeplyNestedExpressionReturnsTypedError(t *testing.T) {
 	t.Parallel()
 
 	const depth = 20000
 
-	hcl := "val = " + strings.Repeat("(", depth) + "local.env" + strings.Repeat(")", depth)
+	hcl := "val = " + strings.Repeat("(", depth) + "dependency.vpc.outputs.id" + strings.Repeat(")", depth)
 	expr, srcBytes := parseFirstAttrExpr(t, hcl)
 
-	result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred}))
+	resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
 
-	assert.NotEmpty(t, result, "deeply nested input must return source-byte fallback, not panic")
+	var depthErr hclparse.PartialEvalDepthExceededError
+
+	require.ErrorAs(t, err, &depthErr)
+	assert.NotEmpty(t, resultBytes, "deeply nested input must still return source-byte fallback so callers have valid HCL")
 }
 
-func TestPartialEval_ConditionalNullOrUnknownConditionFallsBackToSource(t *testing.T) {
+func TestPartialEval_ConditionalNullOrUnknownConditionReturnsTypedError(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -328,9 +341,13 @@ func TestPartialEval_ConditionalNullOrUnknownConditionFallsBackToSource(t *testi
 			}
 
 			expr, srcBytes := parseFirstAttrExpr(t, `val = local.flag ? "yes" : "no"`)
-			result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred}))
 
-			assert.Contains(t, result, `local.flag ? "yes" : "no"`, "null/unknown condition must fall back to source, not silently pick a branch")
+			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred})
+
+			var condErr hclparse.PartialEvalUnresolvedError
+
+			require.ErrorAs(t, err, &condErr)
+			assert.Contains(t, string(resultBytes), `local.flag ? "yes" : "no"`, "null/unknown condition must still return source fallback so callers have valid HCL")
 		})
 	}
 }
@@ -383,7 +400,11 @@ func TestPartialEval_FunctionCallArgumentsArePartiallyEvaluated(t *testing.T) {
 			t.Parallel()
 
 			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
-			result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred}))
+
+			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred})
+			require.NoError(t, err)
+
+			result := string(resultBytes)
 
 			for _, want := range tc.contains {
 				assert.Contains(t, result, want)

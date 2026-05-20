@@ -180,3 +180,35 @@ type EmptyArgError struct {
 func (e EmptyArgError) Error() string {
 	return fmt.Sprintf("hclparse.%s: %s is empty", e.Func, e.Arg)
 }
+
+// PartialEvalDepthExceededError indicates that PartialEval hit its recursion guard; the source bytes are returned as a fallback so the caller still has valid HCL to write.
+type PartialEvalDepthExceededError struct {
+	MaxDepth int
+}
+
+func (e PartialEvalDepthExceededError) Error() string {
+	return fmt.Sprintf("partial evaluation exceeded maximum recursion depth %d", e.MaxDepth)
+}
+
+// PartialEvalUnresolvedError indicates that partial evaluation could not produce a final cty value (null, unknown, or eval diagnostic) and had to fall back to source bytes. Err preserves any underlying hcl.Diagnostics for source-position extraction.
+type PartialEvalUnresolvedError struct {
+	Err    error
+	Reason string
+}
+
+func (e PartialEvalUnresolvedError) Error() string {
+	msg := "partial evaluation could not resolve expression"
+	if e.Reason != "" {
+		msg += ": " + e.Reason
+	}
+
+	if e.Err == nil {
+		return msg
+	}
+
+	return fmt.Sprintf("%s: %s", msg, e.Err)
+}
+
+func (e PartialEvalUnresolvedError) Unwrap() error {
+	return e.Err
+}
