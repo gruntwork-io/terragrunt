@@ -125,8 +125,8 @@ type AzureConfig struct {
 //  1. SAS token (data-plane only, no credential needed)
 //  2. Storage account access key
 //  3. Service principal (client_id + client_secret + tenant_id)
-//  4. OIDC / workload identity federation (UseOIDC)
-//  5. Managed Service Identity (UseMSI)
+//  4. Managed Service Identity (UseMSI)
+//  5. OIDC / workload identity federation (UseOIDC)
 //  6. Azure AD via DefaultAzureCredential (UseAzureADAuth or default fallback)
 //
 // Environment variable fallbacks (ARM_* / AZURE_*) are applied to subscription,
@@ -190,24 +190,6 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 
 		return out, validate(out, &resolved)
 
-	case resolved.UseOIDC:
-		cred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
-			ClientOptions: clientOpts,
-			TenantID:      resolved.TenantID,
-			ClientID:      resolved.ClientID,
-			TokenFilePath: resolved.OIDCTokenFilePath,
-		})
-		if err != nil {
-			return nil, errors.Errorf("creating OIDC workload identity credential: %w", err)
-		}
-
-		out.Method = AuthMethodOIDC
-		out.Credential = cred
-
-		l.Debugf("azurehelper: using OIDC / workload identity authentication")
-
-		return out, validate(out, &resolved)
-
 	case resolved.UseMSI:
 		opts := &azidentity.ManagedIdentityCredentialOptions{ClientOptions: clientOpts}
 		if resolved.MSIResourceID != "" {
@@ -223,6 +205,24 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 		out.Credential = cred
 
 		l.Debugf("azurehelper: using managed identity authentication")
+
+		return out, validate(out, &resolved)
+
+	case resolved.UseOIDC:
+		cred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
+			ClientOptions: clientOpts,
+			TenantID:      resolved.TenantID,
+			ClientID:      resolved.ClientID,
+			TokenFilePath: resolved.OIDCTokenFilePath,
+		})
+		if err != nil {
+			return nil, errors.Errorf("creating OIDC workload identity credential: %w", err)
+		}
+
+		out.Method = AuthMethodOIDC
+		out.Credential = cred
+
+		l.Debugf("azurehelper: using OIDC / workload identity authentication")
 
 		return out, validate(out, &resolved)
 

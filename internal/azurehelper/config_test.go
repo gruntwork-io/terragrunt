@@ -114,7 +114,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 			hasCred: true,
 		},
 		{
-			name: "oidc beats msi",
+			name: "msi beats oidc when both enabled",
 			cfg: azurehelper.AzureSessionConfig{
 				SubscriptionID:    testSub,
 				TenantID:          "tid",
@@ -123,7 +123,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 				UseOIDC:           true,
 				UseMSI:            true,
 			},
-			want:    azurehelper.AuthMethodOIDC,
+			want:    azurehelper.AuthMethodMSI,
 			hasCred: true,
 		},
 		{
