@@ -92,10 +92,11 @@ dependency "vpc" {
 			}
 
 			result, diags := autoInclude.Resolve(evalCtx)
-			assert.Nil(t, result, "must not return a partial result containing a zero-value dep")
 			require.True(t, diags.HasErrors(), "%s must surface as a diagnostic", tc.summary)
 			assert.Equal(t, tc.summary, diags[0].Summary)
 			require.NotNil(t, diags[0].Subject, "diagnostic must carry the offending expression's source range")
+			require.NotNil(t, result, "best-effort: result is non-nil even when some deps fail")
+			assert.Empty(t, result.Dependencies, "failed dep must not be appended")
 		})
 	}
 }
@@ -113,9 +114,10 @@ dependency {
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
 
 	result, diags := autoInclude.Resolve(&hcl.EvalContext{Variables: map[string]cty.Value{}})
-	assert.Nil(t, result)
 	require.True(t, diags.HasErrors())
 	assert.Contains(t, diags.Error(), "exactly one label, got 0")
+	require.NotNil(t, result, "best-effort: result is non-nil even when some deps fail")
+	assert.Empty(t, result.Dependencies)
 }
 
 // dependency block with two or more labels likewise produces a diagnostic instead of silently using only the first label.
@@ -131,9 +133,10 @@ dependency "vpc" "extra" {
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
 
 	result, diags := autoInclude.Resolve(&hcl.EvalContext{Variables: map[string]cty.Value{}})
-	assert.Nil(t, result)
 	require.True(t, diags.HasErrors())
 	assert.Contains(t, diags.Error(), "exactly one label, got 2")
+	require.NotNil(t, result, "best-effort: result is non-nil even when some deps fail")
+	assert.Empty(t, result.Dependencies)
 }
 
 func TestAutoIncludeHCL_Resolve_MultipleDependencies(t *testing.T) {

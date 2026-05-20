@@ -134,15 +134,12 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 		deps = append(deps, dep)
 	}
 
-	if diags.HasErrors() {
-		return nil, diags
-	}
-
+	// Best-effort: always return a non-nil result with whichever dependency blocks did resolve, alongside accumulated diagnostics. Production callers can choose to fail when diags.HasErrors(); LSP/preview tools can render the partial result.
 	return &AutoIncludeResolved{
 		EvalCtx:      evalCtx,
 		Dependencies: deps,
 		RawBody:      a.Remain,
-	}, nil
+	}, diags
 }
 
 // resolveDependencyBlock extracts config_path from a dependency block; caller must ensure exactly one label.
