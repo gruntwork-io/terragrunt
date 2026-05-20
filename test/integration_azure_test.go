@@ -88,6 +88,21 @@ func loadAzureTestEnv(t *testing.T) azureTestEnv {
 	return azureTestEnv{SubscriptionID: sub, Location: loc}
 }
 
+// skipIfAccessKeyMode skips the test if ARM_ACCESS_KEY mode is enabled.
+// Access key auth is data-plane only and cannot create/manage storage accounts,
+// so tests requiring control-plane operations must be skipped in this mode.
+func skipIfAccessKeyMode(t *testing.T) {
+	t.Helper()
+
+	accessKey := os.Getenv(azureTestEnvAccessKey)
+	sa := os.Getenv(azureTestEnvAccessKeySA)
+	rg := os.Getenv(azureTestEnvAccessKeyRG)
+
+	if accessKey != "" && sa != "" && rg != "" {
+		t.Skipf("Skipping: test requires control-plane operations, but access-key mode is enabled (ARM_ACCESS_KEY is set)")
+	}
+}
+
 // azureTestResources holds the per-test isolated resource names.
 type azureTestResources struct {
 	ResourceGroup  string
@@ -373,6 +388,7 @@ func assertExperimentDisabled(t *testing.T, err error) {
 // creation, NeedsBootstrap idempotency, and IsVersionControlEnabled.
 func TestAzureBackendBootstrap(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	env := loadAzureTestEnv(t)
 	res := reserveAzureResources(t, env)
@@ -403,6 +419,7 @@ func TestAzureBackendBootstrap(t *testing.T) {
 // both the blob and container delete-retention policies.
 func TestAzureBackendBootstrapSoftDelete(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	env := loadAzureTestEnv(t)
 	res := reserveAzureResources(t, env)
@@ -451,6 +468,7 @@ func TestAzureBackendBootstrapSoftDelete(t *testing.T) {
 // existing resources and exits cleanly without trying to recreate them.
 func TestAzureBackendBootstrapIdempotent(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	env := loadAzureTestEnv(t)
 	res := reserveAzureResources(t, env)
@@ -482,6 +500,7 @@ func TestAzureBackendBootstrapIdempotent(t *testing.T) {
 // supplies a principal ID via TERRAGRUNT_AZURE_TEST_PRINCIPAL_ID.
 func TestAzureBackendBootstrapAssignRBAC(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	principal := os.Getenv(azureTestEnvPrincipalID)
 	if principal == "" {
@@ -524,6 +543,7 @@ func TestAzureBackendBootstrapAssignRBAC(t *testing.T) {
 // container.
 func TestAzureBackendBootstrapSkipFlags(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	env := loadAzureTestEnv(t)
 	res := reserveAzureResources(t, env)
@@ -555,6 +575,7 @@ func TestAzureBackendBootstrapSkipFlags(t *testing.T) {
 // removes the source blob.
 func TestAzureBackendMigrate(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	env := loadAzureTestEnv(t)
 	res := reserveAzureResources(t, env)
@@ -602,6 +623,7 @@ func TestAzureBackendMigrate(t *testing.T) {
 // to operate when the source and destination storage accounts differ.
 func TestAzureBackendMigrateRejectsCrossAccount(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	env := loadAzureTestEnv(t)
 	res := reserveAzureResources(t, env)
@@ -623,6 +645,7 @@ func TestAzureBackendMigrateRejectsCrossAccount(t *testing.T) {
 // blob but leaves the container intact.
 func TestAzureBackendDelete(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	env := loadAzureTestEnv(t)
 	res := reserveAzureResources(t, env)
@@ -659,6 +682,7 @@ func TestAzureBackendDelete(t *testing.T) {
 // container and the storage account.
 func TestAzureBackendDeleteBucket(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	env := loadAzureTestEnv(t)
 	res := reserveAzureResources(t, env)
@@ -727,6 +751,7 @@ func TestAzureSASTokenAuthIsDataPlaneOnly(t *testing.T) {
 // storage accounts hosting many units' state files.
 func TestAzureBackendBootstrapExistingAccount(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	env := loadAzureTestEnv(t)
 	res := reserveAzureResources(t, env)
@@ -781,6 +806,7 @@ func TestAzureBackendBootstrapExistingAccount(t *testing.T) {
 // 409 Conflict / "operation already in progress" errors from ARM.
 func TestAzureParallelStateInit(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	env := loadAzureTestEnv(t)
 	res := reserveAzureResources(t, env)
@@ -828,6 +854,7 @@ func TestAzureParallelStateInit(t *testing.T) {
 // assertion already covered by TestAzureBackendBootstrap.
 func TestAzureBackendBootstrapVersioningDisabled(t *testing.T) {
 	t.Parallel()
+	skipIfAccessKeyMode(t)
 
 	env := loadAzureTestEnv(t)
 	res := reserveAzureResources(t, env)

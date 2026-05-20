@@ -222,6 +222,7 @@ func (o *Options) remoteStateOpts() *remotestate.Options {
 		Options: backend.Options{
 			Writers:                      o.Writers,
 			Env:                          o.Env,
+			Experiments:                  o.Experiments,
 			IAMRoleOptions:               o.IAMRoleOptions,
 			NonInteractive:               o.NonInteractive,
 			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
