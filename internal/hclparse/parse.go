@@ -519,7 +519,7 @@ func resolveAutoIncludes(decoded *unitsAndStacksHCL, evalCtx *hcl.EvalContext, s
 	return autoIncludes, nil
 }
 
-// resolveAutoInclude resolves a single autoinclude block and records the originating file's bytes for expression slicing.
+// resolveAutoInclude resolves a single autoinclude block, attaches the eval context, tags it with the component kind so the generator picks the right filename, and records the originating file's bytes for include-aware expression slicing.
 func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, kind AutoIncludeKind, sourceBytes []byte) (*AutoIncludeResolved, error) {
 	resolved, diags := autoInclude.Resolve(evalCtx)
 	if diags.HasErrors() {

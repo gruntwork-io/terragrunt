@@ -196,7 +196,7 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 	}, nil
 }
 
-// AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values.
+// AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values. Returns EmptyArgError when unitDir is empty so callers can distinguish bad input from a missing file.
 func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fs is nil (unitDir=%q)", unitDir))
