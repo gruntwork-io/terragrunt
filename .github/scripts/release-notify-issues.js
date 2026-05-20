@@ -111,12 +111,16 @@ module.exports = async ({
 };
 
 async function listCommitsInRange({ github, owner, repo, base, head }) {
-  return await github.paginate(github.rest.repos.compareCommitsWithBasehead, {
-    owner,
-    repo,
-    basehead: `${base}...${head}`,
-    per_page: 100,
-  });
+  return await github.paginate(
+    github.rest.repos.compareCommitsWithBasehead,
+    {
+      owner,
+      repo,
+      basehead: `${base}...${head}`,
+      per_page: 100,
+    },
+    (response) => response.data.commits,
+  );
 }
 
 async function collectMergedPRs({ github, owner, repo, commits }) {

@@ -1,0 +1,13 @@
+---
+version: "v1.0.6"
+category: "bug-fixes"
+---
+
+#### `terragrunt render` no longer crashes on `exclude` or `catalog` blocks with certain attributes
+
+Rendering a config crashed with a `value has no attribute of that name` panic before any output could be produced when:
+
+- the `exclude` block set `no_run`, or
+- the `catalog` block set `default_template`, `no_shell`, or `no_hooks`.
+
+These attributes are now carried through the render pipeline alongside the other fields on their respective blocks, so both blocks round-trip cleanly.
