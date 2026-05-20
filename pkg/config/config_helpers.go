@@ -112,6 +112,7 @@ const (
 	FuncNameMarkAsRead                              = "mark_as_read"
 	FuncNameMarkGlobAsRead                          = "mark_glob_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
+	FuncNameDeepMerge                               = "deep_merge"
 )
 
 // TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
@@ -211,6 +212,7 @@ func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l lo
 		FuncNameMarkAsRead:                              wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, markAsRead),
 		FuncNameMarkGlobAsRead:                          wrapStringSliceToStringSliceAsFuncImpl(ctx, pctx, l, markGlobAsRead),
 		FuncNameConstraintCheck:                         wrapStringSliceToBoolAsFuncImpl(ctx, pctx, ConstraintCheck),
+		FuncNameDeepMerge:                               deepMergeMapValuesAsFuncImpl(pctx),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
@@ -782,7 +784,7 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	}
 
 	// Track that this file was read during parsing
-	trackFileRead(pctx.FilesRead, path)
+	pctx.FilesRead.Add(path)
 
 	// We update the ctx of terragruntOptions to the config being read in.
 	l, pctx, err := pctx.WithConfigPath(l, targetConfig)
@@ -986,7 +988,7 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 		path = filepath.Clean(path)
 	}
 
-	trackFileRead(pctx.FilesRead, path)
+	pctx.FilesRead.Add(path)
 
 	return sopsDecryptFileImpl(ctx, pctx, l, path, format, decrypt.File)
 }
@@ -1219,7 +1221,7 @@ func readTFVarsFileImpl(pctx *ParsingContext, l log.Logger, args []string) (stri
 	}
 
 	// Track that this file was read during parsing
-	trackFileRead(pctx.FilesRead, varFile)
+	pctx.FilesRead.Add(varFile)
 
 	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
@@ -1267,7 +1269,7 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 		path = filepath.Clean(path)
 	}
 
-	trackFileRead(pctx.FilesRead, path)
+	pctx.FilesRead.Add(path)
 
 	return file, nil
 }
@@ -1317,7 +1319,7 @@ func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	result := make([]string, 0, len(matches))
 
 	for _, match := range matches {
-		trackFileRead(pctx.FilesRead, match)
+		pctx.FilesRead.Add(match)
 		result = append(result, match)
 	}
 
@@ -1432,18 +1434,4 @@ func ConstraintCheck(ctx context.Context, pctx *ParsingContext, args []string) (
 	}
 
 	return c.Check(v), nil
-}
-
-// trackFileRead adds a file path to the FilesRead slice if it's not already present.
-// This prevents duplicate entries when the same file is read multiple times during parsing.
-func trackFileRead(filesRead *[]string, path string) {
-	if filesRead == nil {
-		return
-	}
-
-	if slices.Contains(*filesRead, path) {
-		return
-	}
-
-	*filesRead = append(*filesRead, path)
 }

@@ -407,7 +407,10 @@ type ValueWithMetadata struct {
 // ctyCatalogConfig is an alternate representation of CatalogConfig that converts internal blocks into a map that
 // maps the name to the underlying struct, as opposed to a list representation.
 type ctyCatalogConfig struct {
-	URLs []string `cty:"urls"`
+	DefaultTemplate string   `cty:"default_template"`
+	URLs            []string `cty:"urls"`
+	NoShell         bool     `cty:"no_shell"`
+	NoHooks         bool     `cty:"no_hooks"`
 }
 
 // ctyEngineConfig is an alternate representation of EngineConfig that converts internal blocks into a map that
@@ -423,6 +426,7 @@ type ctyEngineConfig struct {
 type ctyExclude struct {
 	Actions             []string `cty:"actions"`
 	If                  bool     `cty:"if"`
+	NoRun               bool     `cty:"no_run"`
 	ExcludeDependencies bool     `cty:"exclude_dependencies"`
 }
 
@@ -432,8 +436,21 @@ func catalogConfigAsCty(config *CatalogConfig) (cty.Value, error) {
 		return cty.NilVal, nil
 	}
 
+	noShell := false
+	if config.NoShell != nil {
+		noShell = *config.NoShell
+	}
+
+	noHooks := false
+	if config.NoHooks != nil {
+		noHooks = *config.NoHooks
+	}
+
 	configCty := ctyCatalogConfig{
-		URLs: config.URLs,
+		URLs:            config.URLs,
+		DefaultTemplate: config.DefaultTemplate,
+		NoShell:         noShell,
+		NoHooks:         noHooks,
 	}
 
 	return GoTypeToCty(configCty)
@@ -478,9 +495,15 @@ func excludeConfigAsCty(config *ExcludeConfig) (cty.Value, error) {
 		excludeDependencies = *config.ExcludeDependencies
 	}
 
+	noRun := false
+	if config.NoRun != nil {
+		noRun = *config.NoRun
+	}
+
 	configCty := ctyExclude{
 		If:                  config.If,
 		Actions:             config.Actions,
+		NoRun:               noRun,
 		ExcludeDependencies: excludeDependencies,
 	}
 

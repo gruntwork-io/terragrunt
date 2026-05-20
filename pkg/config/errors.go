@@ -339,3 +339,13 @@ func (e AutoIncludeParserStageError) Error() string {
 func (e AutoIncludeParserStageError) Unwrap() error {
 	return e.Err
 }
+
+// DeepMergeRequiresExperimentError is returned when the deep_merge HCL function
+// is called without the deep-merge experiment enabled.
+type DeepMergeRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err DeepMergeRequiresExperimentError) Error() string {
+	return fmt.Sprintf("deep_merge in %s requires the 'deep-merge' experiment to be enabled", err.ConfigPath)
+}
