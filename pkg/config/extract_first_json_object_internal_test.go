@@ -1,9 +1,8 @@
-package config_test
+package config
 
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -74,7 +73,7 @@ func TestExtractFirstJSONObject(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := config.ExtractFirstJSONObject([]byte(tc.input))
+			got, err := extractFirstJSONObject([]byte(tc.input))
 			if tc.wantErr {
 				require.Error(t, err)
 				return

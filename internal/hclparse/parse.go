@@ -300,13 +300,13 @@ func attemptEvaluateLocals(remaining map[string]*hclsyntax.Attribute, evaluated 
 	return progress
 }
 
-// reportUnresolvedLocals classifies a stuck set of locals: if any local's failure references a root other than local.*, that is a hard eval error (e.g. local.x = unit.foo.path); otherwise the unresolved set forms a dependency cycle.
+// reportUnresolvedLocals classifies a stuck set of locals: if every failure references only locals still in the unresolved set, the set is a cycle/forward-reference group. References to already-evaluated locals or any other root are hard eval errors and should preserve the original HCL diagnostics.
 func reportUnresolvedLocals(remaining map[string]*hclsyntax.Attribute, evalCtx *hcl.EvalContext) error {
 	sortedNames := slices.Sorted(maps.Keys(remaining))
 
 	for _, name := range sortedNames {
 		_, diags := remaining[name].Expr.Value(evalCtx)
-		if !diagsAreLocalForwardRefOnly(diags) {
+		if !diagsAreLocalForwardRefOnly(diags, remaining) {
 			return LocalEvalError{Name: name, Err: diags}
 		}
 	}
@@ -314,21 +314,52 @@ func reportUnresolvedLocals(remaining map[string]*hclsyntax.Attribute, evalCtx *
 	return LocalsCycleError{Names: sortedNames}
 }
 
-// diagsAreLocalForwardRefOnly reports whether every diagnostic's offending expression only references the local.* root; if any references a different root (unit, stack, values, custom), the failure is not a within-locals forward reference and must surface as a real eval error.
-func diagsAreLocalForwardRefOnly(diags hcl.Diagnostics) bool {
+// diagsAreLocalForwardRefOnly reports whether every diagnostic's offending expression only references local names that are still unresolved. References to any other root, to local without an attribute name, or to a local that already evaluated are real eval errors rather than within-locals forward references.
+func diagsAreLocalForwardRefOnly(diags hcl.Diagnostics, remaining map[string]*hclsyntax.Attribute) bool {
 	for _, d := range diags {
 		if d.Expression == nil {
 			return false
 		}
 
+		hasForwardRef := false
+
 		for _, t := range d.Expression.Variables() {
 			if t.RootName() != varLocal {
 				return false
 			}
+
+			localName, ok := localTraversalName(t)
+			if !ok {
+				return false
+			}
+
+			if _, exists := remaining[localName]; !exists {
+				return false
+			}
+
+			hasForwardRef = true
+		}
+
+		if !hasForwardRef {
+			return false
 		}
 	}
 
 	return true
+}
+
+func localTraversalName(t hcl.Traversal) (string, bool) {
+	parts := t.SimpleSplit()
+	if len(parts.Rel) == 0 {
+		return "", false
+	}
+
+	attr, ok := parts.Rel[0].(hcl.TraverseAttr)
+	if !ok {
+		return "", false
+	}
+
+	return attr.Name, true
 }
 
 // diagAt builds a single-diagnostic slice anchored at rng so callers using errors.As(err, &hcl.Diagnostics{}) get the offending expression's source position.

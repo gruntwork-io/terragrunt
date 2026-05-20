@@ -784,7 +784,7 @@ func tryGetStackOutput(
 	targetConfigPath string,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
-	stackFilePath, isStackCandidate := ResolveStackFilePath(dependencyConfig.ConfigPath.AsString(), targetConfigPath)
+	stackFilePath, isStackCandidate := resolveStackFilePath(dependencyConfig.ConfigPath.AsString(), targetConfigPath)
 	if !isStackCandidate {
 		return nil, false, nil
 	}
@@ -824,8 +824,8 @@ func tryGetStackOutput(
 	return &result, true, nil
 }
 
-// ResolveStackFilePath returns the candidate terragrunt.stack.hcl path for a dependency target. ok=false means the dep explicitly points at a unit config (terragrunt.hcl / terragrunt.hcl.json) and is therefore not a stack candidate. rawConfigPath is the user-supplied dependency.config_path; targetConfigPath is the same path after getCleanedTargetConfigPath has normalized bare-directory deps to <dir>/terragrunt.hcl. When ok=true the returned path ends in DefaultStackFile.
-func ResolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool) {
+// resolveStackFilePath returns the candidate terragrunt.stack.hcl path for a dependency target. ok=false means the dep explicitly points at a unit config (terragrunt.hcl / terragrunt.hcl.json) and is therefore not a stack candidate. rawConfigPath is the user-supplied dependency.config_path; targetConfigPath is the same path after getCleanedTargetConfigPath has normalized bare-directory deps to <dir>/terragrunt.hcl. When ok=true the returned path ends in DefaultStackFile.
+func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool) {
 	switch filepath.Base(filepath.Clean(rawConfigPath)) {
 	case DefaultStackFile:
 		// Honor the contract even when target is malformed: anchor on target's directory.
@@ -945,7 +945,7 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 		//     Refs: https://github.com/gruntwork-io/terragrunt/issues/6001
 		//
 		// To make parsing robust to either, isolate the first JSON object in the buffer.
-		trimmed, trimErr := ExtractFirstJSONObject(fetched)
+		trimmed, trimErr := extractFirstJSONObject(fetched)
 		if trimErr != nil {
 			return errors.New(TerragruntOutputParsingError{Path: targetConfig, Err: trimErr})
 		}
@@ -962,14 +962,14 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 	return newJSONBytes, nil
 }
 
-// ExtractFirstJSONObject returns the first complete JSON object found in data, ignoring any
+// extractFirstJSONObject returns the first complete JSON object found in data, ignoring any
 // non-JSON content that precedes or follows it. This is needed because `tofu/terraform output -json`
 // can intermix log lines, ANSI escape codes, or deprecation warnings with the JSON output, depending
 // on the version and backend in use.
 //
 // If data contains no `{`, the original bytes are returned so downstream JSON parsing surfaces the
 // usual "unexpected end of JSON input" error rather than a cryptic message from this helper.
-func ExtractFirstJSONObject(data []byte) ([]byte, error) {
+func extractFirstJSONObject(data []byte) ([]byte, error) {
 	start := bytes.IndexByte(data, '{')
 	if start < 0 {
 		return data, nil

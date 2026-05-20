@@ -102,6 +102,12 @@ func TestPartialEval(t *testing.T) {
 			contains: []string{"try(dependency.vpc.outputs.vpc_id", `"default"`},
 		},
 		{
+			name:     "try with unresolved local arg verbatim",
+			hcl:      `val = try(local.missing, "default")`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{"try(local.missing", `"default"`},
+		},
+		{
 			name:     "conditional pure condition true",
 			hcl:      `val = local.flag ? "yes" : dependency.vpc.outputs.vpc_id`,
 			evalCtx:  buildEvalCtx(),

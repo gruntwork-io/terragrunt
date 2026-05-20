@@ -168,6 +168,33 @@ unit "vpc" {
 	assert.Empty(t, result.AutoIncludes)
 }
 
+func TestParseStackFile_InvalidEvaluatedLocalReferenceIsEvalError(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  base   = {}
+  broken = local.base.missing
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.Error(t, err)
+
+	var evalErr hclparse.LocalEvalError
+	require.ErrorAs(t, err, &evalErr)
+	assert.Equal(t, "broken", evalErr.Name)
+	assert.Contains(t, err.Error(), "Unsupported attribute")
+
+	var cycleErr hclparse.LocalsCycleError
+	assert.NotErrorAs(t, err, &cycleErr)
+}
+
 func TestGenerateAutoIncludeFile_NilResolved(t *testing.T) {
 	t.Parallel()
 

@@ -71,6 +71,28 @@ func TestDiscoverStackChildUnits_NoStackFile(t *testing.T) {
 	assert.Nil(t, refs)
 }
 
+func TestBuildComponentRefMapIncludesNameAndPath(t *testing.T) {
+	t.Parallel()
+
+	got := hclparse.BuildComponentRefMap([]hclparse.ComponentRef{
+		{
+			Name: "networking",
+			Path: ".terragrunt-stack/networking",
+			ChildRefs: []hclparse.ComponentRef{
+				{Name: "vpc", Path: ".terragrunt-stack/networking/.terragrunt-stack/vpc"},
+			},
+		},
+	})
+
+	networking := got.AsValueMap()["networking"].AsValueMap()
+	assert.Equal(t, "networking", networking["name"].AsString())
+	assert.Equal(t, ".terragrunt-stack/networking", networking["path"].AsString())
+
+	vpc := networking["vpc"].AsValueMap()
+	assert.Equal(t, "vpc", vpc["name"].AsString())
+	assert.Equal(t, ".terragrunt-stack/networking/.terragrunt-stack/vpc", vpc["path"].AsString())
+}
+
 func TestUnitPathsFromStackDir(t *testing.T) {
 	t.Parallel()
 

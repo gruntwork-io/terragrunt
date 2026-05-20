@@ -88,14 +88,15 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	return cty.ObjectVal(refMap)
 }
 
-// buildRefAttrs converts one ComponentRef and nested refs recursively. The reserved attribute key "path" holds the component's own path; a nested child ref named "path" cannot be expressed in this namespace and is silently dropped (top-level components are not affected because the unit/stack map keys do not collide with "path").
+// buildRefAttrs converts one ComponentRef and nested refs recursively. The reserved attribute keys "name" and "path" hold the component's own name and path; a nested child ref with either reserved name cannot be expressed in this namespace and is silently dropped (top-level components are not affected because the unit/stack map keys do not collide with reserved child attributes).
 func buildRefAttrs(ref ComponentRef) cty.Value {
 	attrs := map[string]cty.Value{
+		"name": cty.StringVal(ref.Name),
 		"path": cty.StringVal(ref.Path),
 	}
 
 	for _, child := range ref.ChildRefs {
-		if child.Name == "path" {
+		if child.Name == "name" || child.Name == "path" {
 			continue
 		}
 

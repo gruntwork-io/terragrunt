@@ -2,6 +2,7 @@ package hclparse
 
 import (
 	"bytes"
+	"errors"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -153,7 +154,18 @@ func partialEvalFunctionCall(e *hclsyntax.FunctionCallExpr, args *EvalArgs) ([]b
 	children := make([]hclsyntax.Expression, len(e.Args))
 	copy(children, e.Args)
 
-	return partialEvalChildren(args, e.Range(), children)
+	result, err := partialEvalChildren(args, e.Range(), children)
+	if err == nil || isPartialEvalUnresolved(err) {
+		return result, nil
+	}
+
+	return result, err
+}
+
+func isPartialEvalUnresolved(err error) bool {
+	var unresolvedErr PartialEvalUnresolvedError
+
+	return errors.As(err, &unresolvedErr)
 }
 
 func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) ([]byte, error) {
