@@ -134,7 +134,7 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 		deps = append(deps, dep)
 	}
 
-	// Best-effort: always return a non-nil result with whichever dependency blocks did resolve, alongside accumulated diagnostics. Production callers can choose to fail when diags.HasErrors(); LSP/preview tools can render the partial result.
+	// Best-effort: always return whichever dependency blocks resolved, plus accumulated diagnostics.
 	return &AutoIncludeResolved{
 		EvalCtx:      evalCtx,
 		Dependencies: deps,
@@ -196,7 +196,7 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 	}, nil
 }
 
-// AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values. Returns EmptyArgError when unitDir is empty so callers can distinguish bad input from a missing file.
+// AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values.
 func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fs is nil (unitDir=%q)", unitDir))

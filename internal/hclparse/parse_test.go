@@ -1239,7 +1239,7 @@ unit "app" {
 	}
 }
 
-// TestAutoIncludeResolve_RejectsValuesAttribute pins that a `values = {...}` attribute inside an `autoinclude` block is rejected with a guidance message pointing the user at the parent unit/stack block. Applies to both unit-kind and stack-kind autoincludes.
+// TestAutoIncludeResolve_RejectsValuesAttribute verifies a `values = {...}` inside autoinclude is rejected for both unit and stack kinds.
 func TestAutoIncludeResolve_RejectsValuesAttribute(t *testing.T) {
 	t.Parallel()
 
@@ -1293,7 +1293,7 @@ stack "s" {
 	}
 }
 
-// TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude regresses the bootstrap-path include-after-refs ordering bug: a unit declared in an included file must be reachable as unit.<name>.path when another autoinclude in the same included file resolves.
+// TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude verifies a unit declared in an included file is reachable as unit.<name>.path during autoinclude resolution.
 func TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude(t *testing.T) {
 	t.Parallel()
 
@@ -1376,7 +1376,7 @@ unit "vpc" {
 	assert.Equal(t, "vpc", result.Units[0].Name)
 }
 
-// TestParseStackFile_BootstrapUnitPathEvalErrorSurfaces pins that the bootstrap path (no caller-supplied Functions) returns an error when a unit's path expression cannot be evaluated against the stdlib eval context.
+// TestParseStackFile_BootstrapUnitPathEvalErrorSurfaces verifies the bootstrap path returns an error when a unit's path expression cannot be evaluated.
 func TestParseStackFile_BootstrapUnitPathEvalErrorSurfaces(t *testing.T) {
 	t.Parallel()
 

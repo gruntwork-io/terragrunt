@@ -28,7 +28,7 @@ type EvalArgs struct {
 	depth    int
 }
 
-// PartialEval walks an hclsyntax.Expression tree and returns HCL source text: pure expressions (no deferred refs, no function calls) are evaluated to literals; mixed expressions get per-child treatment - evaluable parts become literals, deferred parts keep their original source text. The returned bytes are always usable (graceful source-byte fallback on edge cases); the error signals pathological inputs (depth exhaustion, unresolvable conditional) that the caller may choose to fail on.
+// PartialEval walks an hclsyntax.Expression tree and returns HCL source text; pure parts evaluate to literals, deferred parts stay verbatim, error signals pathological inputs.
 func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 	if args.EvalCtx == nil {
 		return RangeBytes(args.SrcBytes, expr.Range()), nil
@@ -45,7 +45,7 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 	// Fast path: pure expression with no function calls, evaluate the whole thing (function calls are preserved because Terragrunt functions can have generation-time side effects).
 	if IsPure(expr, args.Deferred) && !containsFunctionCall(expr) {
 		val, diags := expr.Value(args.EvalCtx)
-		// hclwrite.TokensForValue panics on unknown values; fall back to source bytes so the runtime parser sees the original ref. Also surface a typed error so strict callers can fail fast on unresolvable refs at generation time.
+		// hclwrite.TokensForValue panics on unknown values; fall back to source bytes and surface a typed error.
 		if !diags.HasErrors() && val.IsWhollyKnown() {
 			return valueToHCLBytes(val), nil
 		}
@@ -96,7 +96,7 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]by
 	return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "traversal value is null or unknown at generation time", Err: diags}
 }
 
-// partialEvalChildren rebuilds the source bytes of a parent expression with each child replaced by its PartialEval output. Gaps between/around children (operators, brackets, commas, whitespace) come from the source verbatim, so user formatting is preserved and there are no hard-coded separator strings. Returns the first child error encountered, alongside the assembled bytes.
+// partialEvalChildren rebuilds parent source bytes with each child replaced by its PartialEval output; gaps stay verbatim.
 func partialEvalChildren(args *EvalArgs, parentRange hcl.Range, children []hclsyntax.Expression) ([]byte, error) {
 	if len(children) == 0 {
 		return RangeBytes(args.SrcBytes, parentRange), nil
@@ -138,7 +138,7 @@ func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) ([]byt
 	}
 
 	boolVal, err := convert.Convert(condVal, cty.Bool)
-	// Null condition would let True() silently return false (wrong branch); unknown would panic. Return source bytes so runtime evaluation produces a faithful error, plus a typed error so strict callers can fail fast.
+	// Null/unknown condition: emit source bytes and a typed error for strict callers.
 	if err != nil || boolVal.IsNull() || !boolVal.IsKnown() {
 		return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "conditional condition is null or unknown"}
 	}
@@ -150,7 +150,7 @@ func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) ([]byt
 	return PartialEval(e.FalseResult, args)
 }
 
-// partialEvalFunctionCall preserves the function call source verbatim and only substitutes child args that resolve to literals. Unresolved-value errors from args are absorbed because HCL function semantics (try, coalesce, defaults, ...) decide at runtime whether a missing ref is fatal; matches the legacy pkg/config behavior where these functions handle attribute-access failures internally.
+// partialEvalFunctionCall substitutes resolvable arg literals; unresolved-arg errors are absorbed so try/coalesce/defaults semantics still work (matches legacy pkg/config behavior).
 func partialEvalFunctionCall(e *hclsyntax.FunctionCallExpr, args *EvalArgs) ([]byte, error) {
 	children := make([]hclsyntax.Expression, len(e.Args))
 	copy(children, e.Args)

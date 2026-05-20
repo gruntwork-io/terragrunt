@@ -308,7 +308,7 @@ func TestPartialEval_PreservesFunctionCallsInConditionalCondition(t *testing.T) 
 	assert.Contains(t, string(resultBytes), `danger() ? "yes" : dependency.vpc.outputs.vpc_id`)
 }
 
-// TestPartialEval_DeeplyNestedExpressionReturnsTypedError constructs 20000 nested parentheses around a deferred ref (so each level recurses through partialEvalParens instead of taking the fast path) and verifies PartialEval returns the source-byte fallback alongside a typed PartialEvalDepthExceededError so strict callers can fail fast.
+// TestPartialEval_DeeplyNestedExpressionReturnsTypedError verifies depth-exhausted input returns source bytes plus PartialEvalDepthExceededError.
 func TestPartialEval_DeeplyNestedExpressionReturnsTypedError(t *testing.T) {
 	t.Parallel()
 

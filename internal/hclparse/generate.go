@@ -116,7 +116,7 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	return nil
 }
 
-// copyBlock copies block from the AST to hclwrite output. When evalCtx is non-nil attributes are partially evaluated (local.* resolved, dependency.* preserved); otherwise attributes are copied verbatim from source bytes. Returns the first PartialEval error encountered, so callers can fail fast on pathological inputs.
+// copyBlock copies block from the AST to hclwrite output; partially evaluates attributes when evalCtx is non-nil, otherwise verbatim.
 func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	newBlock := outBody.AppendNewBlock(block.Type, block.Labels)
 	blockBody := newBlock.Body()
@@ -226,7 +226,7 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 	return nil
 }
 
-// writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body; each attribute expression is partially evaluated so resolvable parts (locals, pure refs) become literals while deferred parts (dependency.*) keep their original source text, enabling mixed expressions like "${local.env}-${dependency.vpc.outputs.vpc_id}" to be partially resolved. Non-dependency blocks pass through copyBlock: evalCtx == nil copies verbatim from source bytes, evalCtx != nil partially evaluates attributes.
+// writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body, partially evaluating each attribute.
 func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	for _, attr := range SortedAttributes(body.Attributes) {
 		if evalCtx == nil {
@@ -262,7 +262,7 @@ func quotedStringTokens(value string) hclwrite.Tokens {
 	return hclwrite.TokensForValue(cty.StringVal(value))
 }
 
-// resolvedSourceFile extracts the originating HCL filename from a resolved autoinclude to enrich panic messages with file context; reads the SrcRange struct field on the known concrete body type so no interface method is invoked (keeps the helper panic-safe even when called from inside a panic formatter).
+// resolvedSourceFile returns the originating HCL filename from a resolved autoinclude for panic-message context.
 func resolvedSourceFile(resolved *AutoIncludeResolved) string {
 	if resolved == nil {
 		return ""

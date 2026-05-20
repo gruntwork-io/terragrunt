@@ -64,7 +64,7 @@ func (e FileReadError) Unwrap() error {
 	return e.Err
 }
 
-// FileParseError indicates a failure to parse an HCL file. Err preserves the underlying error (typically hcl.Diagnostics) so callers can extract it via errors.As; the human-readable Error() string is derived from Err so there is no duplicated detail field.
+// FileParseError indicates a failure to parse an HCL file; Err preserves the underlying diagnostics.
 type FileParseError struct {
 	Err      error
 	FilePath string
@@ -82,7 +82,7 @@ func (e FileParseError) Unwrap() error {
 	return e.Err
 }
 
-// FileDecodeError indicates a failure to decode an HCL file into a struct. Err preserves the underlying error (typically hcl.Diagnostics) so callers can extract it via errors.As; the human-readable Error() string is derived from Err.
+// FileDecodeError indicates a failure to decode an HCL file into a struct; Err preserves the underlying diagnostics.
 type FileDecodeError struct {
 	Err  error
 	Name string
@@ -128,7 +128,7 @@ func (e DirCreateError) Unwrap() error {
 	return e.Err
 }
 
-// LocalEvalError indicates a failure to evaluate a local variable. Err preserves the underlying hcl.Diagnostics so callers can extract them via errors.As; the human-readable Error() string is derived from Err.
+// LocalEvalError indicates a failure to evaluate a local variable; Err preserves the underlying diagnostics.
 type LocalEvalError struct {
 	Err  error
 	Name string
@@ -181,7 +181,7 @@ func (e EmptyArgError) Error() string {
 	return fmt.Sprintf("hclparse.%s: %s is empty", e.Func, e.Arg)
 }
 
-// PartialEvalDepthExceededError indicates that PartialEval hit its recursion guard; the source bytes are returned as a fallback so the caller still has valid HCL to write.
+// PartialEvalDepthExceededError indicates that PartialEval hit its recursion guard.
 type PartialEvalDepthExceededError struct {
 	MaxDepth int
 }
@@ -190,7 +190,7 @@ func (e PartialEvalDepthExceededError) Error() string {
 	return fmt.Sprintf("partial evaluation exceeded maximum recursion depth %d", e.MaxDepth)
 }
 
-// PartialEvalUnresolvedError indicates that partial evaluation could not produce a final cty value (null, unknown, or eval diagnostic) and had to fall back to source bytes. Err preserves any underlying hcl.Diagnostics for source-position extraction.
+// PartialEvalUnresolvedError indicates that partial evaluation could not produce a final cty value.
 type PartialEvalUnresolvedError struct {
 	Err    error
 	Reason string

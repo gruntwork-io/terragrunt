@@ -325,7 +325,7 @@ func (err MarkGlobAsReadRequiresExperimentError) Error() string {
 	return fmt.Sprintf("mark_glob_as_read(%q) in %s requires the 'mark-many-as-read' experiment to be enabled", err.Pattern, err.ConfigPath)
 }
 
-// AutoIncludeParserStageError wraps a failure from one of the autoinclude parser orchestration stages (rescope, eval-context, parse); Err preserves the underlying typed error for errors.As/Is.
+// AutoIncludeParserStageError reports which stage of autoinclude parsing failed.
 type AutoIncludeParserStageError struct {
 	Err   error
 	Stage string

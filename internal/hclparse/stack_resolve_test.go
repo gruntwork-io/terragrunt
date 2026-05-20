@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDiscoverStackChildUnits_NestedSourceResolution drives the source-resolution branch of nested-stack discovery through the public DiscoverStackChildUnits entry point. For each source expression in the parent stack file, the test fixture lays out a corresponding child stack file at the resolved path; discovery should populate ChildRefs only when the source expression is resolvable against the stdlib eval context. Expressions that need parser-owned namespaces (local, unit, stack, values) or terragrunt-only functions must yield no child refs (recursion skipped) so an undiscovered ref later surfaces as a clean HCL diagnostic instead of crashing discovery.
+// TestDiscoverStackChildUnits_NestedSourceResolution verifies discovery populates ChildRefs only when the source expression resolves against the stdlib eval context.
 func TestDiscoverStackChildUnits_NestedSourceResolution(t *testing.T) {
 	t.Parallel()
 

@@ -15,7 +15,7 @@ const (
 	stackOriginFile  = ".terragrunt-stack-origin"
 )
 
-// TestReadStackOrigin_AcceptsAbsoluteExistingDir pins the happy path: a valid sidecar pointing at an absolute existing directory returns that directory.
+// TestReadStackOrigin_AcceptsAbsoluteExistingDir verifies a sidecar pointing at an absolute existing directory is accepted.
 func TestReadStackOrigin_AcceptsAbsoluteExistingDir(t *testing.T) {
 	t.Parallel()
 
@@ -30,7 +30,7 @@ func TestReadStackOrigin_AcceptsAbsoluteExistingDir(t *testing.T) {
 	assert.Equal(t, catalog, got)
 }
 
-// TestReadStackOrigin_RejectsNonAbsolute pins that a relative path in the sidecar is rejected (returns "") so a hand-edited or malformed sidecar cannot redirect resolution to a working-dir-relative location.
+// TestReadStackOrigin_RejectsNonAbsolute verifies a relative path in the sidecar is rejected.
 func TestReadStackOrigin_RejectsNonAbsolute(t *testing.T) {
 	t.Parallel()
 
@@ -41,7 +41,7 @@ func TestReadStackOrigin_RejectsNonAbsolute(t *testing.T) {
 	assert.Empty(t, config.ReadStackOrigin(fsys, testStackCopyDir))
 }
 
-// TestReadStackOrigin_RejectsNonExistent pins that a sidecar pointing to a non-existent path is rejected (returns "") so a stale workspace cannot redirect resolution.
+// TestReadStackOrigin_RejectsNonExistent verifies a sidecar pointing at a non-existent path is rejected.
 func TestReadStackOrigin_RejectsNonExistent(t *testing.T) {
 	t.Parallel()
 

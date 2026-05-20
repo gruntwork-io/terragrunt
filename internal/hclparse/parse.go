@@ -1,4 +1,4 @@
-// Package hclparse parses terragrunt.stack.hcl in four phases - skeleton, locals, includes, unit/stack decode plus autoinclude resolution - so locals evaluate before include merge and unit/stack vars become available after phase four.
+// Package hclparse parses terragrunt.stack.hcl in four phases: skeleton, locals, includes, unit/stack decode + autoinclude.
 package hclparse
 
 import (
@@ -89,7 +89,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	// Phase 4 decodes unit/stack blocks and resolves autoincludes.
 	decoded := &unitsAndStacksHCL{}
 	if diags := gohcl.DecodeBody(mergedRemain, evalCtx, decoded); diags.HasErrors() {
-		// Surface whatever gohcl was able to decode before the error so LSP/IDE callers can inspect partial Units/Stacks; AutoIncludes is left empty because the autoinclude resolution step of Phase 4 did not run.
+		// Surface partial Units/Stacks before the error so LSP/IDE callers can inspect them.
 		result.Units = decoded.Units
 		result.Stacks = decoded.Stacks
 
@@ -166,7 +166,7 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 	maps.Copy(evalCtx.Functions, input.Functions)
 	maps.Copy(evalCtx.Variables, input.Variables)
 
-	// Strip the four namespaces the phased parser populates itself (local from phase 2, unit/stack from phase 4, values from input.Values below) so unevaluated references fail with "no variable named X" instead of leaking caller values.
+	// Strip namespaces the phased parser populates itself so unevaluated refs fail loudly instead of leaking caller values.
 	maps.DeleteFunc(evalCtx.Variables, func(name string, _ cty.Value) bool {
 		return name == varLocal || name == varUnit || name == varStack || name == varValues
 	})
@@ -207,7 +207,7 @@ func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 	return errors.Join(errs...)
 }
 
-// buildUnitRefs builds component refs for unit blocks so autoinclude expressions like `unit.<name>.path` resolve to the generated unit directory; no_dot_terragrunt_stack hoists the unit out of the .terragrunt-stack subdirectory.
+// buildUnitRefs builds component refs for unit blocks; no_dot_terragrunt_stack hoists the unit out of .terragrunt-stack.
 func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(units))
 
@@ -223,7 +223,7 @@ func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef 
 	return refs
 }
 
-// buildStackRefs builds component refs for stack blocks. ChildRefs are populated by best-effort discovery: discoverStackChildUnitsWithDepth reads the nested stack file via the supplied fs, so go-getter-style remote sources (git::, https://, s3://, ...) silently yield no child refs because the file read fails.
+// buildStackRefs builds component refs for stack blocks; ChildRefs come from best-effort nested-stack discovery.
 func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
@@ -235,7 +235,7 @@ func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir
 
 		ref := ComponentRef{Name: s.Name, Path: stackGenPath}
 
-		// Always attempt nested discovery; remote sources (go-getter URLs like git::, https://, s3://, file://) collapse into invalid local paths and vfs.ReadFile silently returns no refs, so no explicit scheme test is needed here.
+		// Always attempt nested discovery; remote sources fail vfs.ReadFile and yield no refs.
 		sourceDir := s.Source
 		if !filepath.IsAbs(sourceDir) {
 			sourceDir = filepath.Join(stackDir, sourceDir)
@@ -252,7 +252,7 @@ func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir
 // maxLocalsIterations bounds the fixed-point loop in evaluateLocals as a safeguard against pathological inputs; mirrors MaxIter in pkg/config/locals.go.
 const maxLocalsIterations = 10000
 
-// evaluateLocals resolves locals via fixed-point iteration, mirroring pkg/config/locals.go::EvaluateLocalsBlock: each pass attempts every remaining local; locals whose dependencies are already evaluated succeed and update the eval context for subsequent locals in the same pass; the loop ends when a pass makes no progress (cycle, undefined ref) or when all locals are evaluated.
+// evaluateLocals resolves locals via fixed-point iteration, mirroring pkg/config/locals.go::EvaluateLocalsBlock.
 func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	// In production the caller parses with hclsyntax.ParseConfig, so the body is always *hclsyntax.Body; surface the impossible-state assertion as an error rather than silently swallowing locals.
 	syntaxBody, ok := body.(*hclsyntax.Body)
@@ -279,7 +279,7 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	return LocalsCycleError{Names: slices.Sorted(maps.Keys(remaining))}
 }
 
-// attemptEvaluateLocals runs one fixed-point pass: every local whose expression can be evaluated against the current context succeeds (and is removed from remaining); locals that fail are left for the next pass. Returns true if at least one local was evaluated in this pass.
+// attemptEvaluateLocals runs one fixed-point pass; returns true if at least one local was evaluated.
 func attemptEvaluateLocals(remaining map[string]*hclsyntax.Attribute, evaluated map[string]cty.Value, evalCtx *hcl.EvalContext) bool {
 	progress := false
 
@@ -300,7 +300,7 @@ func attemptEvaluateLocals(remaining map[string]*hclsyntax.Attribute, evaluated 
 	return progress
 }
 
-// reportUnresolvedLocals classifies a stuck set of locals: if every failure references only locals still in the unresolved set, the set is a cycle/forward-reference group. References to already-evaluated locals or any other root are hard eval errors and should preserve the original HCL diagnostics.
+// reportUnresolvedLocals classifies a stuck set of locals as either a cycle or a hard eval error.
 func reportUnresolvedLocals(remaining map[string]*hclsyntax.Attribute, evalCtx *hcl.EvalContext) error {
 	sortedNames := slices.Sorted(maps.Keys(remaining))
 
@@ -314,7 +314,7 @@ func reportUnresolvedLocals(remaining map[string]*hclsyntax.Attribute, evalCtx *
 	return LocalsCycleError{Names: sortedNames}
 }
 
-// diagsAreLocalForwardRefOnly reports whether every diagnostic's offending expression only references local names that are still unresolved. References to any other root, to local without an attribute name, or to a local that already evaluated are real eval errors rather than within-locals forward references.
+// diagsAreLocalForwardRefOnly reports whether every diagnostic references only still-unresolved locals.
 func diagsAreLocalForwardRefOnly(diags hcl.Diagnostics, remaining map[string]*hclsyntax.Attribute) bool {
 	for _, d := range diags {
 		if d.Expression == nil {
@@ -463,7 +463,7 @@ func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *
 	return resolvedInclude{Remain: included.Remain, Src: data, Path: includePath}, nil
 }
 
-// autoIncludeSourceBytes returns the source bytes of the file an AutoIncludeHCL originated from. The mapping is by filename (each hcl.Body knows its file via Range().Filename), so the same map serves both the root and any included files.
+// autoIncludeSourceBytes returns the source bytes of the file an AutoIncludeHCL originated from.
 func autoIncludeSourceBytes(srcByFilename map[string][]byte, autoInclude *AutoIncludeHCL) []byte {
 	if autoInclude == nil || autoInclude.Remain == nil {
 		return nil
@@ -482,7 +482,7 @@ func AutoIncludeKey(kind AutoIncludeKind, name string) string {
 	return string(kind) + ":" + name
 }
 
-// resolveAutoIncludes resolves autoinclude blocks for all units and stacks. Keys are namespaced as "unit:name" and "stack:name". srcByFilename provides the source bytes of each file (root + included) so generation can slice expression byte ranges from the correct file.
+// resolveAutoIncludes resolves autoinclude blocks for all units and stacks; keys are namespaced as "unit:name" and "stack:name".
 func resolveAutoIncludes(decoded *unitsAndStacksHCL, evalCtx *hcl.EvalContext, srcByFilename map[string][]byte) (map[string]*AutoIncludeResolved, error) {
 	autoIncludes := make(map[string]*AutoIncludeResolved)
 
@@ -519,7 +519,7 @@ func resolveAutoIncludes(decoded *unitsAndStacksHCL, evalCtx *hcl.EvalContext, s
 	return autoIncludes, nil
 }
 
-// resolveAutoInclude resolves a single autoinclude block, attaches the eval context, tags it with the component kind so the generator picks the right filename, and records the originating file's bytes for include-aware expression slicing.
+// resolveAutoInclude resolves a single autoinclude block and records the originating file's bytes for expression slicing.
 func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, kind AutoIncludeKind, sourceBytes []byte) (*AutoIncludeResolved, error) {
 	resolved, diags := autoInclude.Resolve(evalCtx)
 	if diags.HasErrors() {

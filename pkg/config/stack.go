@@ -36,7 +36,7 @@ import (
 const (
 	// StackDir aliases inthclparse.StackDir so external callers (internal/stacks/output, etc.) keep their existing import path without a second source of truth.
 	StackDir = inthclparse.StackDir
-	// stackOriginFile is the sidecar recording the absolute catalog source dir of a copied stack file, so nested recursion resolves relative unit/stack sources against the original catalog instead of the copy location.
+	// stackOriginFile is the sidecar recording the catalog source dir of a copied stack file.
 	stackOriginFile = ".terragrunt-stack-origin"
 	valuesFile      = "terragrunt.values.hcl"
 	manifestName    = ".terragrunt-stack-manifest"
@@ -95,7 +95,7 @@ type Stack struct {
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
 func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, pool *worker.Pool, stackFilePath string) error {
-	// stackSourceDir is the actual directory of the stack file (used for values, target generation, logging). resolveDir is where relative unit/stack source paths get anchored; for a copied catalog stack file under the stack-dependencies experiment, this is the original catalog dir recorded in the .terragrunt-stack-origin sidecar.
+	// resolveDir anchors relative source paths; falls back to stackSourceDir unless a .terragrunt-stack-origin sidecar redirects it.
 	stackSourceDir := filepath.Dir(stackFilePath)
 	resolveDir := stackSourceDir
 	stackDepsEnabled := pctx.Experiments.Evaluate(experiment.StackDependencies)
@@ -477,7 +477,7 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		return err
 	}
 
-	// Record the catalog source dir as a sidecar in the copied stack so nested GenerateStackFile recursion can resolve relative unit/stack sources against the original catalog instead of the copy location; only applies under the stack-dependencies experiment for local stack copies (remote sources fetched via go-getter/CAS are self-contained).
+	// Record the catalog source dir as a sidecar so nested recursion resolves relative paths against the original catalog.
 	if cmp.kind == stackKind && opts.stackDepsEnabled {
 		writeStackOrigin(l, cmp.sourceDir, source, dest)
 	}
@@ -672,7 +672,7 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 	return nil
 }
 
-// ReadStackOrigin returns the absolute catalog source dir recorded in the .terragrunt-stack-origin sidecar of stackDir, or "" when absent, malformed, non-absolute, or pointing at a path that is not an existing directory. The strict validation prevents a stale or hand-edited sidecar from redirecting source/include resolution to an arbitrary filesystem location.
+// ReadStackOrigin returns the absolute catalog source dir from the .terragrunt-stack-origin sidecar, or "" if missing/malformed.
 func ReadStackOrigin(fsys vfs.FS, stackDir string) string {
 	data, err := vfs.ReadFile(fsys, filepath.Join(stackDir, stackOriginFile))
 	if err != nil {
@@ -697,7 +697,7 @@ func ReadStackOrigin(fsys vfs.FS, stackDir string) string {
 	return origin
 }
 
-// writeStackOrigin records the absolute catalog source dir of a copied stack file so the nested GenerateStackFile recursion can resolve relative unit/stack sources against the catalog instead of the copy location. Only writes when source resolves locally; remote sources (go-getter, CAS) don't need it because their fetched trees are self-contained.
+// writeStackOrigin records the catalog source dir in a sidecar so nested recursion resolves relative paths against the original catalog.
 func writeStackOrigin(l log.Logger, sourceDir, source, dest string) {
 	if !isLocal(l, sourceDir, source) {
 		return

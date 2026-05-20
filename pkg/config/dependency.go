@@ -822,7 +822,7 @@ func tryGetStackOutput(
 	return &result, true, nil
 }
 
-// resolveStackFilePath returns the candidate terragrunt.stack.hcl path for a dependency target. ok=false means the dep explicitly points at a unit config (terragrunt.hcl / terragrunt.hcl.json) and is therefore not a stack candidate. rawConfigPath is the user-supplied dependency.config_path; targetConfigPath is the same path after getCleanedTargetConfigPath has normalized bare-directory deps to <dir>/terragrunt.hcl. When ok=true the returned path ends in DefaultStackFile.
+// resolveStackFilePath returns the candidate terragrunt.stack.hcl path for a dependency target; ok=false when the dep points at a unit config.
 func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool) {
 	switch filepath.Base(filepath.Clean(rawConfigPath)) {
 	case DefaultStackFile:

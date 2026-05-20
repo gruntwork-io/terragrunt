@@ -123,7 +123,7 @@ func TestResolveStackFilePath(t *testing.T) {
 	}
 }
 
-// FuzzResolveStackFilePath verifies the path-rewrite helper never panics and every handled candidate ends in DefaultStackFile. raw is the user-authored dependency.config_path; target is the post-cleanup absolute path the resolver actually inspects - the two diverge in production (bare-directory raw + cleaned target with appended DefaultTerragruntConfigPath), so fuzz them independently.
+// FuzzResolveStackFilePath verifies the helper never panics and every handled candidate ends in DefaultStackFile.
 func FuzzResolveStackFilePath(f *testing.F) {
 	seeds := [][2]string{
 		{"/abs/dir/" + DefaultStackFile, "/abs/dir/" + DefaultStackFile},
