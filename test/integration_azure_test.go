@@ -53,6 +53,14 @@ const (
 	azureTestEnvPrincipalID  = "TERRAGRUNT_AZURE_TEST_PRINCIPAL_ID"
 	azureTestDefaultLocation = "eastus"
 
+	// azureTestEnvAccessKey, azureTestEnvAccessKeySA, and azureTestEnvAccessKeyRG
+	// opt data-plane-only tests into reusing a pre-existing storage account
+	// instead of bootstrapping one. Required for auth methods (access key,
+	// SAS) that cannot exercise the ARM control plane.
+	azureTestEnvAccessKey   = "ARM_ACCESS_KEY"
+	azureTestEnvAccessKeySA = "ARM_ACCESS_KEY_SA"
+	azureTestEnvAccessKeyRG = "ARM_ACCESS_KEY_RG"
+
 	azureTestStateBlobKey = "integration/terraform.tfstate"
 )
 
@@ -845,21 +853,71 @@ func TestAzureBackendBootstrapVersioningDisabled(t *testing.T) {
 // against a real container created by Bootstrap. This is the smoke
 // test for the blob client used by every higher-level operation
 // (state read, dependency-fetch-output-from-state, migrate copy).
+//
+// When ARM_ACCESS_KEY + ARM_ACCESS_KEY_SA + ARM_ACCESS_KEY_RG are set
+// the test runs in data-plane-only mode against the pre-existing
+// storage account using the supplied access key, skipping Bootstrap
+// (which requires a token credential). This lets the test exercise
+// auth methods that cannot use the ARM control plane.
 func TestAzureBlobOperations(t *testing.T) {
 	t.Parallel()
 
 	env := loadAzureTestEnv(t)
-	res := reserveAzureResources(t, env)
 
 	ctx := context.Background()
 	l := logger.CreateLogger()
-	b := azurermbackend.NewBackend()
-	opts := azureBackendOpts(t)
-	cfg := azureBackendConfig(env, res, nil)
 
-	require.NoError(t, b.Bootstrap(ctx, l, cfg, opts))
+	accessKey := os.Getenv(azureTestEnvAccessKey)
+	accessKeySA := os.Getenv(azureTestEnvAccessKeySA)
+	accessKeyRG := os.Getenv(azureTestEnvAccessKeyRG)
+	dataPlaneOnly := accessKey != "" && accessKeySA != "" && accessKeyRG != ""
 
-	blob := newAzureBlobClient(t, env, res)
+	var (
+		res  azureTestResources
+		blob *azurehelper.BlobClient
+	)
+
+	if dataPlaneOnly {
+		// Use the pre-existing account; do not bootstrap anything.
+		container := "tgit-" + strings.ToLower(strings.ReplaceAll(uuid.NewString(), "-", ""))[:10]
+		res = azureTestResources{
+			ResourceGroup:  accessKeyRG,
+			StorageAccount: accessKeySA,
+			Container:      container,
+		}
+
+		azCfg, err := azurehelper.NewAzureConfigBuilder().
+			WithSessionConfig(&azurehelper.AzureSessionConfig{
+				SubscriptionID:     env.SubscriptionID,
+				ResourceGroupName:  res.ResourceGroup,
+				StorageAccountName: res.StorageAccount,
+				Location:           env.Location,
+				AccessKey:          accessKey,
+			}).
+			Build(ctx, l)
+		require.NoError(t, err)
+
+		bc, err := azurehelper.NewBlobClient(ctx, azCfg, "")
+		require.NoError(t, err)
+		blob = bc
+
+		require.NoError(t, blob.CreateContainerIfNecessary(ctx, res.Container))
+		t.Cleanup(func() {
+			if err := blob.DeleteContainer(context.Background(), res.Container); err != nil {
+				t.Logf("[cleanup %s] delete container %q: %v", t.Name(), res.Container, err)
+			}
+		})
+	} else {
+		res = reserveAzureResources(t, env)
+
+		b := azurermbackend.NewBackend()
+		opts := azureBackendOpts(t)
+		cfg := azureBackendConfig(env, res, nil)
+
+		require.NoError(t, b.Bootstrap(ctx, l, cfg, opts))
+
+		blob = newAzureBlobClient(t, env, res)
+	}
 
 	const blobKey = "integration/blob-ops.bin"
 
