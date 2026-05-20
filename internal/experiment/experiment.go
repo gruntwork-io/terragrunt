@@ -63,6 +63,9 @@ const (
 	AzureBackend = "azure-backend"
 	// DeepMerge enables the deep_merge HCL function.
 	DeepMerge = "deep-merge"
+	// OptOutAuth gates flags that opt out of running --auth-provider-cmd in
+	// specific phases (currently --no-discovery-auth-provider-cmd).
+	OptOutAuth = "opt-out-auth"
 )
 
 const (
@@ -135,6 +138,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: DeepMerge,
+		},
+		{
+			Name: OptOutAuth,
 		},
 	}
 }

@@ -141,6 +141,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 	flags := NewFlags(l, cmdOpts, prefix)
 	flags = append(flags, shared.NewBackendFlags(opts, prefix)...)
 	flags = append(flags, shared.NewFeatureFlags(opts, prefix)...)
+	flags = append(flags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, prefix))
 
 	return &clihelper.Command{
 		Name:    CommandName,
