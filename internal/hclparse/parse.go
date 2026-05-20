@@ -249,10 +249,10 @@ func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir
 	return refs
 }
 
-// maxLocalsIterations bounds the fixed-point loop in evaluateLocals as a safeguard against pathological inputs; mirrors MaxIter in pkg/config/locals.go.
+// maxLocalsIterations bounds the fixed-point loop in evaluateLocals as a safeguard against pathological inputs.
 const maxLocalsIterations = 10000
 
-// evaluateLocals resolves locals via fixed-point iteration, mirroring pkg/config/locals.go::EvaluateLocalsBlock.
+// evaluateLocals resolves locals via fixed-point iteration.
 func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	// In production the caller parses with hclsyntax.ParseConfig, so the body is always *hclsyntax.Body; surface the impossible-state assertion as an error rather than silently swallowing locals.
 	syntaxBody, ok := body.(*hclsyntax.Body)

@@ -27,7 +27,7 @@ const (
 const (
 	// AutoIncludeFile is the filename for generated unit-level autoinclude files.
 	AutoIncludeFile = "terragrunt.autoinclude.hcl"
-	// AutoIncludeStackFile is the filename for generated stack-level autoinclude files; the .stack.hcl suffix mirrors terragrunt.stack.hcl so tooling (LSP, read_terragrunt_config) can distinguish unit vs stack autoincludes by name.
+	// AutoIncludeStackFile is the filename for generated stack-level autoinclude files.
 	AutoIncludeStackFile = "terragrunt.autoinclude.stack.hcl"
 	// autoIncludeFilePerm is the file permission for generated autoinclude files.
 	autoIncludeFilePerm = 0644
