@@ -3,6 +3,7 @@ import { Aside, Code } from '@astrojs/starlight/components';
 import { getEntry, render } from 'astro:content';
 import type { CollectionEntry } from 'astro:content';
 import Flag from './Flag.astro';
+import { isFlagVisible } from '@lib/flags';
 
 const { path } = Astro.props;
 
@@ -12,6 +13,18 @@ const data = command?.data;
 
 const usage = data?.usage;
 const { Content } = await render(command);
+
+const visibleFlagSlugs = data?.flags
+	? (
+			await Promise.all(
+				data.flags.map(async (slug) => {
+					const flag = await getEntry('flags', slug);
+					if (!flag) return null;
+					return (await isFlagVisible(flag.data.since)) ? slug : null;
+				}),
+			)
+		).filter((slug): slug is string => slug !== null)
+	: [];
 ---
 
 {
@@ -47,11 +60,11 @@ const { Content } = await render(command);
 <Content />
 
 {
-  data?.flags ? (
+  visibleFlagSlugs.length > 0 ? (
   <h2 id="flags">Flags</h2>
   <div>
-    {data?.flags.map((flagSlug) => (
-      flagSlug && <Flag slug={flagSlug} />
+    {visibleFlagSlugs.map((flagSlug) => (
+      <Flag slug={flagSlug} />
     ))}
   </div>
   ) : null

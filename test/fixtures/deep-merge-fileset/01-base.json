@@ -1,0 +1,13 @@
+{
+  "app": {
+    "name": "svc",
+    "settings": {
+      "retries": 1,
+      "tags": {
+        "owner": "platform"
+      }
+    }
+  },
+  "ports": [80],
+  "env": "dev"
+}

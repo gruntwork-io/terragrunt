@@ -1,0 +1,10 @@
+---
+version: "v1.0.5"
+category: "experiments-updated"
+---
+
+#### `cas` — `update_source_with_cas` now idempotent across `unit` and `stack` blocks
+
+A `terragrunt.stack.hcl` with two blocks pointing at the same template directory used to fail `stack generate` when each block had `update_source_with_cas = true`. The first block's pass rewrote the shared template's source to a `cas::sha256:...` reference, then the second block's pass re-read the rewritten file and treated the reference as a relative path.
+
+CAS now skips re-processing a source once it already carries the `cas::` prefix, so multiple `unit` or `stack` blocks can share a template and resolve to the same synthetic tree.

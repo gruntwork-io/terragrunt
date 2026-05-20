@@ -1,0 +1,12 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### Fixed nested key order in `terragrunt stack output`
+
+When a unit lived inside more than one nested stack, `terragrunt stack output` rendered its key with the stack names reversed, so a unit inside `root_stack_3 > stack_v3 > stack_v2` appeared under `stack_v2.stack_v3.root_stack_3` instead of `root_stack_3.stack_v3.stack_v2`. Deeply nested units also leaked to the top level of the output.
+
+The output now joins stack names from outermost to innermost, matching the declared hierarchy in both the HCL and JSON formats.
+
+Thanks to [@anuragrao04](https://github.com/anuragrao04) for contributing this fix!

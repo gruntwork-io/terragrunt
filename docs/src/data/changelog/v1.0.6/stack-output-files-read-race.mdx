@@ -1,0 +1,10 @@
+---
+version: "v1.0.6"
+category: "bug-fixes"
+---
+
+#### `terragrunt stack` commands no longer crash on stacks with multiple units
+
+Running `terragrunt stack output` (or any command that resolves concurrently parsing multiple configuration files) against a stack with several units could intermittently crash while the units were being parsed in parallel due to a race on internal bookkeeping of files read (used in the [reading filter attribute](https://docs.terragrunt.com/features/filter/attributes/#reading-based-expressions)).
+
+Parallel unit parsing now coordinates safely when recording which source files were read, preventing crashes.
