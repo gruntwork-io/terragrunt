@@ -149,8 +149,14 @@ func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, 
 
 	roleDefSuffix := "/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionID
 
+	// Azure's roleAssignments List for Scope API only supports the
+	// `principalId eq '<id>'` filter at subscription scope. At resource
+	// group or resource scope it returns 400 UnsupportedQuery and only
+	// accepts `atScope()` or `assignedTo('<id>')`. assignedTo() works at
+	// every scope (and additionally surfaces assignments granted via
+	// group membership) so use it unconditionally.
 	pager := c.client.NewListForScopePager(scope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
-		Filter: to.Ptr("principalId eq '" + principalID + "'"),
+		Filter: to.Ptr("assignedTo('" + principalID + "')"),
 	})
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
@@ -217,8 +223,11 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 
 	roleDefSuffix := "/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionID
 
+	// See HasRoleAssignment for why assignedTo() is used instead of
+	// `principalId eq '<id>'`: the eq filter is only accepted at
+	// subscription scope.
 	pager := c.client.NewListForScopePager(scope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
-		Filter: to.Ptr("principalId eq '" + principalID + "'"),
+		Filter: to.Ptr("assignedTo('" + principalID + "')"),
 	})
 
 	var firstErr error
