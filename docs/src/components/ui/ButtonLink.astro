@@ -1,0 +1,41 @@
+---
+import Button from "./Button.astro";
+
+interface Props {
+  variant?: "primary" | "secondary" | "ghost" | "outline" | "destructive" | "link";
+  size?: "default" | "sm" | "lg" | "full" | "icon";
+  className?: string;
+  buttonClassName?: string;
+  href?: string;
+  isExternalLink?: boolean;
+}
+
+const {
+  variant,
+  size,
+  className,
+  buttonClassName,
+  href,
+  isExternalLink,
+} = Astro.props;
+---
+
+<a
+  href={href}
+  class:list={[
+    "no-underline",
+    "text-inherit",
+    "hover:no-underline",
+    "hover:text-inherit",
+    className,
+  ]}
+>
+  <Button
+    variant={variant}
+    size={size}
+    className={buttonClassName}
+    isExternalLink={isExternalLink}
+  >
+    <slot />
+  </Button>
+</a>

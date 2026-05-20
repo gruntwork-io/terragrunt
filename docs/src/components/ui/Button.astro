@@ -1,0 +1,67 @@
+---
+interface Props {
+  variant?: "primary" | "secondary" | "ghost" | "outline" | "destructive" | "link";
+  size?: "default" | "sm" | "lg" | "full" | "icon";
+  className?: string;
+  isExternalLink?: boolean;
+}
+
+const {
+  variant = "primary",
+  size = "default",
+  className,
+  isExternalLink = false,
+} = Astro.props;
+---
+
+<button
+  type="button"
+  class:list={[
+    "cursor-pointer m-0 font-medium",
+    "antialiased",
+    "border border-solid",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+    "font-sans rounded-lg text-sm text-center leading-normal",
+    "shadow-md ring-1 ring-white/5",
+    "outline-none outline-offset-0",
+    "no-underline",
+    "transition-[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to] duration-150 ease-[cubic-bezier(0.4,0,0.2,1)]",
+    {
+      "bg-[var(--color-accent-1)] text-[var(--sl-color-white)] hover:bg-[var(--sl-color-accent)] border-[var(--color-button-primary-border)]": variant === "primary",
+      "bg-[var(--color-bg-dark)] text-[var(--sl-color-white)] hover:bg-[var(--sl-color-gray-5)] border-gray-500": variant === "secondary",
+      "bg-red-500 text-white hover:bg-red-600 border-red-500": variant === "destructive",
+      "border border-[var(--sl-color-docs-stroke)] bg-[var(--sl-color-bg)] hover:bg-[var(--sl-color-gray-6)]": variant === "outline",
+      "hover:bg-[var(--sl-color-gray-6)] border-transparent": variant === "ghost",
+      "text-[var(--sl-color-accent)] underline-offset-4 hover:underline border-transparent": variant === "link",
+    },
+    {
+      "block w-fit py-2.5 px-5": size === "default",
+      "block h-9 pt-2 pb-2 pl-3 pr-3 w-auto": size === "sm",
+      "block h-11 pt-2 pb-2 pl-8 pr-8 w-auto": size === "lg",
+      "block h-11 pt-2 pb-2 pl-8 pr-8 w-full": size === "full",
+      "flex w-auto p-3": size === "icon",
+    },
+    className,
+  ]}
+>
+  <slot />
+  {isExternalLink && size !== "icon" && (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="inline-block ml-1 transform translate-y-0.25 -translate-x-0.75 w-3.5 h-3.5"
+      aria-label="External link icon"
+    >
+      <path d="M15 3h6v6" />
+      <path d="M10 14 21 3" />
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    </svg>
+  )}
+</button>

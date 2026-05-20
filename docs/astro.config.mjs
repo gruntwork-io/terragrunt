@@ -7,7 +7,6 @@ import vercel from "@astrojs/vercel";
 import node from "@astrojs/node";
 import partytown from "@astrojs/partytown";
 import tailwindcss from "@tailwindcss/vite";
-import react from "@astrojs/react";
 
 import starlightLinksValidator from "starlight-links-validator";
 import starlightLlmsTxt from "starlight-llms-txt";
@@ -34,8 +33,6 @@ export default defineConfig({
     })
     : node({ mode: "standalone" }),
   integrations: [
-    // We use React for the shadcn/ui components.
-    react(),
     starlight({
       title: "Terragrunt",
       description: "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.",
