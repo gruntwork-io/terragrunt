@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zclconf/go-cty/cty"
 )
 
 func TestDiscoverStackChildUnits(t *testing.T) {
@@ -437,56 +436,4 @@ func TestBuildComponentRefMap_MultiLevelChildRefs(t *testing.T) {
 	// Level 3: infra.deep.db
 	dbVal := deepVal.GetAttr("db")
 	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db", dbVal.GetAttr("path").AsString())
-}
-
-func TestBuildAutoIncludeEvalContext(t *testing.T) {
-	t.Parallel()
-
-	unitRefs := []hclparse.ComponentRef{
-		{Name: "vpc", Path: "vpc"},
-		{Name: "app", Path: "app"},
-	}
-	stackRefs := []hclparse.ComponentRef{
-		{Name: "infra", Path: "infra-stack"},
-	}
-
-	evalCtx := hclparse.BuildAutoIncludeEvalContext(unitRefs, stackRefs)
-
-	require.NotNil(t, evalCtx)
-	require.Contains(t, evalCtx.Variables, "unit")
-	require.Contains(t, evalCtx.Variables, "stack")
-
-	unitVar := evalCtx.Variables["unit"]
-	assert.Equal(t, cty.String, unitVar.GetAttr("vpc").GetAttr("path").Type())
-	assert.Equal(t, "vpc", unitVar.GetAttr("vpc").GetAttr("path").AsString())
-	assert.Equal(t, "app", unitVar.GetAttr("app").GetAttr("path").AsString())
-
-	stackVar := evalCtx.Variables["stack"]
-	assert.Equal(t, "infra-stack", stackVar.GetAttr("infra").GetAttr("path").AsString())
-}
-
-func TestBuildAutoIncludeEvalContext_WithChildRefs(t *testing.T) {
-	t.Parallel()
-
-	stackRefs := []hclparse.ComponentRef{
-		{
-			Name: "stack_w_outputs",
-			Path: "/project/.terragrunt-stack/stack-w-outputs",
-			ChildRefs: []hclparse.ComponentRef{
-				{Name: "unit_w_outputs", Path: "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs"},
-			},
-		},
-	}
-
-	evalCtx := hclparse.BuildAutoIncludeEvalContext(nil, stackRefs)
-
-	stackVar := evalCtx.Variables["stack"]
-	stackRef := stackVar.GetAttr("stack_w_outputs")
-
-	// stack.stack_w_outputs.path works
-	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs", stackRef.GetAttr("path").AsString())
-
-	// stack.stack_w_outputs.unit_w_outputs.path works
-	unitRef := stackRef.GetAttr("unit_w_outputs")
-	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs", unitRef.GetAttr("path").AsString())
 }

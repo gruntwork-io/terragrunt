@@ -196,18 +196,6 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 	}, nil
 }
 
-// BuildAutoIncludeEvalContext creates an HCL evaluation context with unit and stack path references for resolving autoinclude blocks. The context provides unit.<name>.path and stack.<name>.path; additional variables (locals, values) can be merged in by the caller.
-func BuildAutoIncludeEvalContext(unitRefs, stackRefs []ComponentRef) *hcl.EvalContext {
-	vars := map[string]cty.Value{
-		varUnit:  BuildComponentRefMap(unitRefs),
-		varStack: BuildComponentRefMap(stackRefs),
-	}
-
-	return &hcl.EvalContext{
-		Variables: vars,
-	}
-}
-
 // AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values. Returns EmptyArgError when unitDir is empty so callers can distinguish bad input from a missing file.
 func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 	if fs == nil {

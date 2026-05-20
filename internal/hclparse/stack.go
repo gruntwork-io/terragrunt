@@ -14,8 +14,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// StackFileName is the canonical filename of a Terragrunt stack file.
-const StackFileName = "terragrunt.stack.hcl"
+// stackFileName is the canonical filename of a Terragrunt stack file.
+const stackFileName = "terragrunt.stack.hcl"
 
 // StackFileHCL is the parsed skeleton: locals, includes, and Remain.
 type StackFileHCL struct {
@@ -140,7 +140,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	}
 
 	stackDir = util.ResolvePath(stackDir)
-	stackFile := filepath.Join(stackDir, StackFileName)
+	stackFile := filepath.Join(stackDir, stackFileName)
 
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
@@ -153,7 +153,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 
 	return ParseStackFile(fs, &ParseStackFileInput{
 		Src:      data,
-		Filename: StackFileName,
+		Filename: stackFileName,
 		StackDir: stackDir,
 	})
 }
@@ -169,7 +169,7 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 	}
 
 	stackDir = util.ResolvePath(stackDir)
-	stackFile := filepath.Join(stackDir, StackFileName)
+	stackFile := filepath.Join(stackDir, stackFileName)
 
 	units, _, err := decodeDiscovery(fs, stackDir, stackFile)
 	if err != nil {
@@ -219,7 +219,7 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 		return nil
 	}
 
-	stackFile := filepath.Join(stackSourceDir, StackFileName)
+	stackFile := filepath.Join(stackSourceDir, stackFileName)
 
 	units, stacks, err := decodeDiscovery(fs, stackSourceDir, stackFile)
 	if err != nil || (units == nil && stacks == nil) {
@@ -246,7 +246,7 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 
 		ref := ComponentRef{Name: s.Name, Path: nestedGenPath}
 
-		// Recursion eligibility: accept either a plain string literal (fast path) or an expression that evaluates against the Terragrunt stdlib eval context (so `${get_terragrunt_dir()}/...` and friends are enriched). Sources that need parser-owned namespaces (local/values/unit/stack) cannot be resolved here and silently skip recursion - the autoinclude/run-all paths surface the missing ref later as an "Unsupported attribute" diagnostic. Remote sources (go-getter URLs like `git::`, `https://`, ...) fall through to discoverStackChildUnitsWithDepth, where vfs.ReadFile yields iofs.ErrNotExist on the synthesized path and discovery silently returns nil.
+		// Recursion eligibility: accept either a plain string literal (fast path) or an expression that evaluates against the Terraform stdlib eval context. Terragrunt-only functions and parser-owned namespaces (local/values/unit/stack) cannot be resolved here and silently skip recursion; the autoinclude/run-all paths surface the missing ref later as an "Unsupported attribute" diagnostic. Remote sources (go-getter URLs like `git::`, `https://`, ...) fall through to discoverStackChildUnitsWithDepth, where vfs.ReadFile yields iofs.ErrNotExist on the synthesized path and discovery silently returns nil.
 		if nestedSourceDir, ok := resolveStackSource(s.Source, stackSourceDir); ok {
 			if !filepath.IsAbs(nestedSourceDir) {
 				nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)

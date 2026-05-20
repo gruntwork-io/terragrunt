@@ -46,7 +46,7 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 		val, diags := expr.Value(args.EvalCtx)
 		// hclwrite.TokensForValue panics on unknown values; fall back to source bytes so the runtime parser sees the original ref. Also surface a typed error so strict callers can fail fast on unresolvable refs at generation time.
 		if !diags.HasErrors() && val.IsWhollyKnown() {
-			return ValueToHCLBytes(val), nil
+			return valueToHCLBytes(val), nil
 		}
 
 		return RangeBytes(args.SrcBytes, expr.Range()), PartialEvalUnresolvedError{Reason: "value is null or unknown at generation time", Err: diags}
@@ -59,7 +59,7 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 	switch e := expr.(type) {
 	case *hclsyntax.LiteralValueExpr:
-		return ValueToHCLBytes(e.Val), nil
+		return valueToHCLBytes(e.Val), nil
 	case *hclsyntax.ScopeTraversalExpr:
 		return partialEvalTraversal(e, args)
 	case *hclsyntax.TemplateExpr:
@@ -89,7 +89,7 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]by
 
 	val, diags := e.Value(args.EvalCtx)
 	if !diags.HasErrors() && val.IsWhollyKnown() {
-		return ValueToHCLBytes(val), nil
+		return valueToHCLBytes(val), nil
 	}
 
 	return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "traversal value is null or unknown at generation time", Err: diags}
@@ -292,8 +292,8 @@ func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) ([]byte, error
 	return partialEvalChildren(args, e.Range(), children)
 }
 
-// ValueToHCLBytes converts a cty.Value to HCL source text bytes.
-func ValueToHCLBytes(val cty.Value) []byte {
+// valueToHCLBytes converts a cty.Value to HCL source text bytes.
+func valueToHCLBytes(val cty.Value) []byte {
 	tokens := hclwrite.TokensForValue(val)
 
 	return tokens.Bytes()
