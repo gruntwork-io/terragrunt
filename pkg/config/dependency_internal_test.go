@@ -21,7 +21,7 @@ func TestExtractFirstJSONObject(t *testing.T) {
 		name      string
 		input     string
 		want      string
-		wantExact bool
+		wantExact bool // when true, compare bytes exactly instead of as JSON
 		wantErr   bool
 	}{
 		{

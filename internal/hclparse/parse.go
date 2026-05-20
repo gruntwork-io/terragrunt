@@ -77,7 +77,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		}
 	}
 
-	// srcByFilename tracks source bytes by filename.
+	// srcByFilename tracks source bytes by filename so the generator can slice expression bytes from the correct file even after include merging.
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
 	// Phase 3 resolves include blocks and merges included Remain bodies.

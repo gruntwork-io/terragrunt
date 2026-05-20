@@ -73,7 +73,24 @@ type ComponentRef struct {
 	ChildRefs []ComponentRef
 }
 
-// BuildComponentRefMap converts component refs into an HCL object; empty input returns EmptyObjectVal so typos surface as "Unsupported attribute" diagnostics.
+// BuildComponentRefMap converts component refs into an HCL object injected as the `unit` or `stack` variable in the eval context.
+// Empty input returns EmptyObjectVal so typos surface as "Unsupported attribute" diagnostics.
+//
+// Output shape for units:
+//
+//	{
+//	  "unit_name": { "name": "unit_name", "path": "../relative/path" }
+//	}
+//
+// Output shape for stacks with discovered children:
+//
+//	{
+//	  "stack_name": {
+//	    "name": "stack_name",
+//	    "path": "/abs/path",
+//	    "unit_name": { "name": "unit_name", "path": "/abs/path/to/unit" }
+//	  }
+//	}
 func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	if len(refs) == 0 {
 		return cty.EmptyObjectVal
