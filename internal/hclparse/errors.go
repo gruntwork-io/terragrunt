@@ -82,15 +82,18 @@ func (e FileParseError) Unwrap() error {
 	return e.Err
 }
 
-// FileDecodeError indicates a failure to decode an HCL file into a struct. Err preserves the underlying error (typically hcl.Diagnostics) so callers can extract it via errors.As.
+// FileDecodeError indicates a failure to decode an HCL file into a struct. Err preserves the underlying error (typically hcl.Diagnostics) so callers can extract it via errors.As; the human-readable Error() string is derived from Err.
 type FileDecodeError struct {
-	Err    error
-	Name   string
-	Detail string
+	Err  error
+	Name string
 }
 
 func (e FileDecodeError) Error() string {
-	return fmt.Sprintf("failed to decode %q: %s", e.Name, e.Detail)
+	if e.Err == nil {
+		return fmt.Sprintf("failed to decode %q", e.Name)
+	}
+
+	return fmt.Sprintf("failed to decode %q: %s", e.Name, e.Err)
 }
 
 func (e FileDecodeError) Unwrap() error {
@@ -125,15 +128,18 @@ func (e DirCreateError) Unwrap() error {
 	return e.Err
 }
 
-// LocalEvalError indicates a failure to evaluate a local variable. Err preserves the underlying hcl.Diagnostics so callers can extract them via errors.As.
+// LocalEvalError indicates a failure to evaluate a local variable. Err preserves the underlying hcl.Diagnostics so callers can extract them via errors.As; the human-readable Error() string is derived from Err.
 type LocalEvalError struct {
-	Err    error
-	Name   string
-	Detail string
+	Err  error
+	Name string
 }
 
 func (e LocalEvalError) Error() string {
-	return fmt.Sprintf("failed to evaluate local %q: %s", e.Name, e.Detail)
+	if e.Err == nil {
+		return fmt.Sprintf("failed to evaluate local %q", e.Name)
+	}
+
+	return fmt.Sprintf("failed to evaluate local %q: %s", e.Name, e.Err)
 }
 
 func (e LocalEvalError) Unwrap() error {

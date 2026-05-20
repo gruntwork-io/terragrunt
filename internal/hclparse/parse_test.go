@@ -712,7 +712,7 @@ unit "vpc" {
 
 	require.ErrorAs(t, err, &localErr)
 	assert.Equal(t, "vpc_path", localErr.Name)
-	assert.Contains(t, localErr.Detail, `There is no variable named "unit"`)
+	assert.Contains(t, localErr.Error(), `There is no variable named "unit"`)
 }
 
 func TestParseStackFile_MultipleLocals(t *testing.T) {

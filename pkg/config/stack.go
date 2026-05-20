@@ -101,7 +101,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	stackDepsEnabled := pctx.Experiments.Evaluate(experiment.StackDependencies)
 
 	if stackDepsEnabled {
-		if origin := readStackOrigin(stackSourceDir); origin != "" {
+		if origin := ReadStackOrigin(vfs.NewOSFS(), stackSourceDir); origin != "" {
 			resolveDir = origin
 		}
 	}
@@ -672,9 +672,9 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 	return nil
 }
 
-// readStackOrigin returns the absolute catalog source dir recorded in the .terragrunt-stack-origin sidecar of stackDir, or "" when absent, malformed, non-absolute, or pointing at a path that is not an existing directory. The strict validation prevents a stale or hand-edited sidecar from redirecting source/include resolution to an arbitrary filesystem location.
-func readStackOrigin(stackDir string) string {
-	data, err := os.ReadFile(filepath.Join(stackDir, stackOriginFile))
+// ReadStackOrigin returns the absolute catalog source dir recorded in the .terragrunt-stack-origin sidecar of stackDir, or "" when absent, malformed, non-absolute, or pointing at a path that is not an existing directory. The strict validation prevents a stale or hand-edited sidecar from redirecting source/include resolution to an arbitrary filesystem location.
+func ReadStackOrigin(fsys vfs.FS, stackDir string) string {
+	data, err := vfs.ReadFile(fsys, filepath.Join(stackDir, stackOriginFile))
 	if err != nil {
 		return ""
 	}
@@ -689,7 +689,7 @@ func readStackOrigin(stackDir string) string {
 		return ""
 	}
 
-	info, err := os.Stat(origin)
+	info, err := fsys.Stat(origin)
 	if err != nil || !info.IsDir() {
 		return ""
 	}

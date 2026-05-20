@@ -93,7 +93,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		result.Units = decoded.Units
 		result.Stacks = decoded.Stacks
 
-		return result, FileDecodeError{Name: input.Filename, Detail: diags.Error(), Err: diags}
+		return result, FileDecodeError{Name: input.Filename, Err: diags}
 	}
 
 	result.Units = decoded.Units
@@ -150,7 +150,7 @@ func parseStackFileRoot(src []byte, filename string) (*StackFileHCL, error) {
 
 	stackFile := &StackFileHCL{}
 	if decodeDiags := gohcl.DecodeBody(file.Body, nil, stackFile); decodeDiags.HasErrors() {
-		return nil, FileDecodeError{Name: filename, Detail: decodeDiags.Error(), Err: decodeDiags}
+		return nil, FileDecodeError{Name: filename, Err: decodeDiags}
 	}
 
 	return stackFile, nil
@@ -235,15 +235,13 @@ func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir
 
 		ref := ComponentRef{Name: s.Name, Path: stackGenPath}
 
-		// Only walk into local sources; go-getter URLs (git::, https://, s3://, file://, etc.) are not on disk at this point, so skip child discovery for them.
-		if isLocalStackSource(s.Source) {
-			sourceDir := s.Source
-			if !filepath.IsAbs(sourceDir) {
-				sourceDir = filepath.Join(stackDir, sourceDir)
-			}
-
-			ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, 0)
+		// Always attempt nested discovery; remote sources (go-getter URLs like git::, https://, s3://, file://) collapse into invalid local paths and vfs.ReadFile silently returns no refs, so no explicit scheme test is needed here.
+		sourceDir := s.Source
+		if !filepath.IsAbs(sourceDir) {
+			sourceDir = filepath.Join(stackDir, sourceDir)
 		}
+
+		ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, 0)
 
 		refs = append(refs, ref)
 	}
@@ -256,10 +254,10 @@ const maxLocalsIterations = 10000
 
 // evaluateLocals resolves locals via fixed-point iteration, mirroring pkg/config/locals.go::EvaluateLocalsBlock: each pass attempts every remaining local; locals whose dependencies are already evaluated succeed and update the eval context for subsequent locals in the same pass; the loop ends when a pass makes no progress (cycle, undefined ref) or when all locals are evaluated.
 func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
-	// Non-hclsyntax bodies (JSON-format) use their own decoder for locals.
+	// In production the caller parses with hclsyntax.ParseConfig, so the body is always *hclsyntax.Body; surface the impossible-state assertion as an error rather than silently swallowing locals.
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {
-		return nil
+		return UnexpectedBodyTypeError{FilePath: "locals"}
 	}
 
 	attrs := syntaxBody.Attributes
@@ -309,7 +307,7 @@ func reportUnresolvedLocals(remaining map[string]*hclsyntax.Attribute, evalCtx *
 	for _, name := range sortedNames {
 		_, diags := remaining[name].Expr.Value(evalCtx)
 		if !diagsAreLocalForwardRefOnly(diags) {
-			return LocalEvalError{Name: name, Detail: diags.Error(), Err: diags}
+			return LocalEvalError{Name: name, Err: diags}
 		}
 	}
 

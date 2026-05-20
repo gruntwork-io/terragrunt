@@ -80,35 +80,3 @@ func TestResolveStackSource_NilExpression(t *testing.T) {
 	assert.False(t, ok)
 	assert.Empty(t, got)
 }
-
-// TestIsLocalStackSource pins that go-getter URLs and remote schemes are not treated as local filesystem paths, so discovery skips them silently instead of trying to recurse into a non-existent directory.
-func TestIsLocalStackSource(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		src  string
-		want bool
-	}{
-		{"", false},
-		{"../catalog/stacks/foo", true},
-		{"/abs/path/to/catalog", true},
-		{"./relative", true},
-		{"catalog/stacks/foo", true},
-		{"git::https://github.com/org/repo.git", false},
-		{"git::ssh://git@github.com/org/repo.git", false},
-		{"git@github.com:org/repo.git", false},
-		{"https://example.com/source.zip", false},
-		{"http://example.com/source.zip", false},
-		{"s3://bucket/key", false},
-		{"gcs://bucket/key", false},
-		{"file:///abs/path", false},
-		{"hg::https://example.com/repo", false},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.src, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, isLocalStackSource(tc.src))
-		})
-	}
-}
