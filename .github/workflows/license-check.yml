@@ -21,8 +21,7 @@ jobs:
       - name: Use mise to install dependencies
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          version: 2026.1.9
-          experimental: true
+          version: 2026.5.12
         env:
           # Required for GitHub-hosted tool downloads defined in mise.cicd.toml and mise.toml.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
