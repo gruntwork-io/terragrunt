@@ -7,7 +7,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
@@ -123,7 +122,7 @@ func NewComponentDoc(rawContent, fileExt string) *ComponentDoc {
 func FindComponentDoc(fsys vfs.FS, dir string) (*ComponentDoc, error) {
 	files, err := vfs.ReadDirEntries(fsys, dir)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	var filePath, fileExt string
@@ -153,7 +152,7 @@ func FindComponentDoc(fsys vfs.FS, dir string) (*ComponentDoc, error) {
 
 	contentByte, err := vfs.ReadFile(fsys, filePath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return NewComponentDoc(string(contentByte), fileExt), nil

@@ -126,13 +126,9 @@ func takeWidthSuffix(s string, maxW int) string {
 	return string(parts)
 }
 
-// BuildMetaRow renders the catalog list metadata row: type, version, source,
-// and optional tags within innerWidth.
+// BuildMetaRow renders the catalog list metadata row for a non-nil entry:
+// type, version, source, and optional tags within innerWidth.
 func BuildMetaRow(entry *ComponentEntry, innerWidth int, includeTags, selected, dimmed bool) string {
-	if entry == nil {
-		return ""
-	}
-
 	colors := metaPalette(entry.Kind(), selected, dimmed)
 
 	gap := strings.Repeat(" ", metaGap)

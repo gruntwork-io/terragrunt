@@ -1,17 +1,46 @@
 package redesign
 
 import (
-	stderrors "errors"
+	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
+
+// Sentinel errors returned by CopyCmd. Match with errors.Is.
+var (
+	ErrNilComponent    = errors.New("nil component or repo")
+	ErrEmptyRepoPath   = errors.New("empty repo path")
+	ErrEmptyWorkingDir = errors.New("empty working directory")
+)
+
+// DestinationExistsError reports that a copy target collides with an
+// existing file in the working directory. Match with errors.As to read
+// the offending path.
+type DestinationExistsError struct {
+	Path string
+}
+
+func (e *DestinationExistsError) Error() string {
+	return fmt.Sprintf("destination %q already exists; refusing to overwrite", e.Path)
+}
+
+// DestinationNotRegularError reports that a copy target exists but is
+// not a regular file (e.g. a directory, symlink, or device node) and
+// therefore cannot be safely overwritten. Match with errors.As.
+type DestinationNotRegularError struct {
+	Path string
+}
+
+func (e *DestinationNotRegularError) Error() string {
+	return fmt.Sprintf("destination %q is not a regular file; refusing to overwrite", e.Path)
+}
 
 // CopyCmd is a tea.ExecCommand that copies a unit or stack component's
 // directory tree into the user's working directory. Unlike scaffold, it does
@@ -146,12 +175,12 @@ func (c *CopyCmd) SetStderr(io.Writer) {}
 // action mirrors how scaffold emits its output.
 func (c *CopyCmd) resolvePaths() (string, string, error) {
 	if c.component == nil || c.component.Repo == nil {
-		return "", "", errors.New("CopyCmd: nil component or repo")
+		return "", "", ErrNilComponent
 	}
 
 	repoPath := c.component.Repo.Path()
 	if repoPath == "" {
-		return "", "", errors.New("CopyCmd: empty repo path")
+		return "", "", ErrEmptyRepoPath
 	}
 
 	src := repoPath
@@ -161,7 +190,7 @@ func (c *CopyCmd) resolvePaths() (string, string, error) {
 
 	workingDir := c.opts.WorkingDir
 	if workingDir == "" {
-		return "", "", errors.New("CopyCmd: empty working directory")
+		return "", "", ErrEmptyWorkingDir
 	}
 
 	return src, workingDir, nil
@@ -184,7 +213,7 @@ func copyDir(fsys vfs.FS, src, dst string) error {
 
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		target := filepath.Join(dst, rel)
@@ -196,7 +225,7 @@ func copyDir(fsys vfs.FS, src, dst string) error {
 
 			info, err := d.Info()
 			if err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			return fsys.MkdirAll(target, info.Mode().Perm())
@@ -235,14 +264,18 @@ func preflightCopy(fsys vfs.FS, src, dst string) error {
 
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		target := filepath.Join(dst, rel)
-		if _, err := fsys.Stat(target); err == nil {
-			return errors.Errorf("destination %q already exists; refusing to overwrite", target)
-		} else if !stderrors.Is(err, fs.ErrNotExist) {
-			return errors.New(err)
+
+		_, err = fsys.Stat(target)
+		if err == nil {
+			return &DestinationExistsError{Path: target}
+		}
+
+		if !errors.Is(err, fs.ErrNotExist) {
+			return err
 		}
 
 		return nil
@@ -257,11 +290,11 @@ func preflightValuesStub(fsys vfs.FS, dst string) error {
 
 	info, err := fsys.Stat(stub)
 	if err != nil {
-		if stderrors.Is(err, fs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 
-		return errors.New(err)
+		return err
 	}
 
 	// A regular file at the stub path is fine; WriteValuesStub will leave
@@ -270,47 +303,47 @@ func preflightValuesStub(fsys vfs.FS, dst string) error {
 		return nil
 	}
 
-	return errors.Errorf("destination %q is not a regular file; refusing to overwrite", stub)
+	return &DestinationNotRegularError{Path: stub}
 }
 
 func copyFile(fsys vfs.FS, src, dst string) (err error) {
 	in, err := fsys.Open(src)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	defer func() {
 		if cerr := in.Close(); cerr != nil && err == nil {
-			err = errors.New(cerr)
+			err = cerr
 		}
 	}()
 
 	info, err := in.Stat()
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	// O_EXCL ensures we refuse to overwrite existing files in the working
 	// directory, so copying a unit or stack can't silently clobber user edits.
 	out, err := fsys.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
 	if err != nil {
-		if stderrors.Is(err, fs.ErrExist) {
-			return errors.Errorf("destination %q already exists; refusing to overwrite", dst)
+		if errors.Is(err, fs.ErrExist) {
+			return &DestinationExistsError{Path: dst}
 		}
 
-		return errors.New(err)
+		return err
 	}
 
 	if _, err := io.Copy(out, in); err != nil {
 		if cerr := out.Close(); cerr != nil {
-			return errors.New(cerr)
+			return cerr
 		}
 
-		return errors.New(err)
+		return err
 	}
 
 	if err := out.Close(); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil

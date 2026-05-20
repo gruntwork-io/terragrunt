@@ -303,25 +303,8 @@ func (p *Plan) Generate(
 	p.vars["sourceUrl"] = BuildSourceURL(p.originalModuleURL, p.resolvedModuleURL, p.vars)
 
 	// Only set these if the `vars` map doesn't already have them set
-	if _, found := p.vars[enableRootInclude]; !found {
-		p.vars[enableRootInclude] = !opts.ScaffoldNoIncludeRoot
-	} else {
-		l.Warnf(
-			"The %s variable is already set in the var flag(s). The --%s flag will be ignored.",
-			enableRootInclude,
-			shared.NoIncludeRootFlagName,
-		)
-	}
-
-	if _, found := p.vars[rootFileName]; !found {
-		p.vars[rootFileName] = opts.ScaffoldRootFileName
-	} else {
-		l.Warnf(
-			"The %s variable is already set in the var flag(s). The --%s flag will be ignored.",
-			rootFileName,
-			shared.NoIncludeRootFlagName,
-		)
-	}
+	setVarDefault(l, p.vars, enableRootInclude, !opts.ScaffoldNoIncludeRoot, shared.NoIncludeRootFlagName)
+	setVarDefault(l, p.vars, rootFileName, opts.ScaffoldRootFileName, shared.NoIncludeRootFlagName)
 
 	l.Debugf("Running boilerplate generation to %s", p.outputDir)
 	boilerplateOpts := NewBoilerplateOptions(p.boilerplateDir, p.outputDir, p.vars, opts)
@@ -357,9 +340,26 @@ func (p *Plan) Generate(
 	return nil
 }
 
+// setVarDefault writes value to vars[key] when the key is absent; if
+// it's already set, it logs a warning that flagName will be ignored.
+func setVarDefault(l log.Logger, vars map[string]any, key string, value any, flagName string) {
+	if _, found := vars[key]; found {
+		l.Warnf(
+			"The %s variable is already set in the var flag(s). The --%s flag will be ignored.",
+			key,
+			flagName,
+		)
+
+		return
+	}
+
+	vars[key] = value
+}
+
 // applyUserValues copies non-empty entries from values onto the matching
 // ParsedVariable.UserValue, so the template emits the supplied HCL fragment
-// instead of the TODO placeholder line.
+// instead of the TODO placeholder line. Empty values are treated as
+// "not supplied" and leave the existing UserValue untouched.
 func applyUserValues(vars []*config.ParsedVariable, values map[string]string) {
 	if len(values) == 0 {
 		return

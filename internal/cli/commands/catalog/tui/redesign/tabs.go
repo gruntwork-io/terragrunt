@@ -37,16 +37,12 @@ func (t tabKind) String() string {
 	}
 }
 
-// matches reports whether the given entry belongs in this tab. A component
-// is in a kind-specific tab when its Kind matches OR when one of its
-// front-matter tags case-insensitively names the tab's kind (so a
-// `template` tagged `module` shows up in both Templates and Modules).
-// TabAll matches everything.
+// matches reports whether the given non-nil entry belongs in this tab.
+// A component is in a kind-specific tab when its Kind matches OR when
+// one of its front-matter tags case-insensitively names the tab's kind
+// (so a `template` tagged `module` shows up in both Templates and
+// Modules). TabAll matches everything.
 func (t tabKind) matches(entry *ComponentEntry) bool {
-	if entry == nil {
-		return t == TabAll
-	}
-
 	switch t {
 	case TabModules:
 		return entry.Kind() == ComponentKindModule || entry.HasTagForKind(ComponentKindModule)

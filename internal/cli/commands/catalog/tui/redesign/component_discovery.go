@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/ignore"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -73,17 +72,15 @@ func (cd *ComponentDiscovery) WithFS(fsys vfs.FS) *ComponentDiscovery {
 	return cd
 }
 
-// Discover runs component discovery against repo.
+// Discover runs component discovery against repo. repo must be non-nil;
+// callers obtain it from a successful module.NewRepo and check that
+// constructor's error first.
 func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
-	if repo == nil {
-		return nil, errors.New("ComponentDiscovery.Discover: nil repo")
-	}
-
 	repoPath := repo.Path()
 	cloneURL := repo.CloneURL()
 
 	if repoPath == "" {
-		return nil, errors.New("ComponentDiscovery.Discover: empty repo path")
+		return nil, ErrEmptyRepoPath
 	}
 
 	fsys := cd.fsys
@@ -132,7 +129,7 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 
 		relDir, err := filepath.Rel(repoPath, dir)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		relDir = filepath.ToSlash(relDir)
@@ -185,7 +182,7 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 func classifyDir(fsys vfs.FS, dir string) (ComponentKind, bool, error) {
 	entries, err := vfs.ReadDirEntries(fsys, dir)
 	if err != nil {
-		return 0, false, errors.New(err)
+		return 0, false, err
 	}
 
 	var (

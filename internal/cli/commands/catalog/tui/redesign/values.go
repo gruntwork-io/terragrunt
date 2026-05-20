@@ -2,7 +2,8 @@ package redesign
 
 import (
 	"bytes"
-	stderrors "errors"
+	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"sort"
@@ -13,10 +14,21 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
+
+// InvalidHCLValueError reports a user-supplied HCL fragment that failed
+// to parse. Name is the values.<name> reference; Diag is the HCL
+// diagnostic text. Match with errors.As.
+type InvalidHCLValueError struct {
+	Name string
+	Diag string
+}
+
+func (e *InvalidHCLValueError) Error() string {
+	return fmt.Sprintf("invalid HCL value for %q: %s", e.Name, e.Diag)
+}
 
 const (
 	// valuesFileName is the sibling file Terragrunt reads to populate the
@@ -88,18 +100,18 @@ func (r ValuesReferences) allNames() []string {
 func CollectValuesReferences(fsys vfs.FS, path string) (ValuesReferences, error) {
 	raw, err := vfs.ReadFile(fsys, path)
 	if err != nil {
-		if stderrors.Is(err, fs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return ValuesReferences{}, nil
 		}
 
-		return ValuesReferences{}, errors.New(err)
+		return ValuesReferences{}, err
 	}
 
 	parser := hclparse.NewParser()
 
 	file, diags := parser.ParseHCL(raw, filepath.Base(path))
 	if diags.HasErrors() {
-		return ValuesReferences{}, errors.New(diags)
+		return ValuesReferences{}, diags
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
@@ -109,7 +121,7 @@ func CollectValuesReferences(fsys vfs.FS, path string) (ValuesReferences, error)
 
 	collector := newValuesCollector()
 	if walkDiags := hclsyntax.Walk(body, collector); walkDiags.HasErrors() {
-		return ValuesReferences{}, errors.New(walkDiags)
+		return ValuesReferences{}, walkDiags
 	}
 
 	return collector.result(), nil
@@ -257,7 +269,7 @@ func WriteValuesFile(fsys vfs.FS, dir string, refs ValuesReferences, values map[
 
 	exists, err := vfs.FileExists(fsys, filePath)
 	if err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	if exists {
@@ -308,7 +320,7 @@ func WriteValuesFile(fsys vfs.FS, dir string, refs ValuesReferences, values map[
 	}
 
 	if err := vfs.WriteFile(fsys, filePath, buf.Bytes(), valuesStubPerm); err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	return true, nil
@@ -344,12 +356,12 @@ func parseHCLValueTokens(name, raw string) (hclwrite.Tokens, error) {
 
 	file, diags := hclwrite.ParseConfig(src, "values.hcl", hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, errors.Errorf("invalid HCL value for %q: %s", name, diags.Error())
+		return nil, &InvalidHCLValueError{Name: name, Diag: diags.Error()}
 	}
 
 	attr := file.Body().GetAttribute(name)
 	if attr == nil {
-		return nil, errors.Errorf("could not extract HCL value for %q from parsed source", name)
+		return nil, fmt.Errorf("could not extract HCL value for %q from parsed source", name)
 	}
 
 	return attr.Expr().BuildTokens(nil), nil

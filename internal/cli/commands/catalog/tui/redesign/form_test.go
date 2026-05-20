@@ -553,6 +553,19 @@ func TestFormFilterNarrowsAndNavigates(t *testing.T) {
 	assert.NotEqual(t, startCursor, f.Cursor())
 }
 
+func TestFormFilterEntryReturnsFocusCmd(t *testing.T) {
+	t.Parallel()
+
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true},
+		{Name: "vpc_id", Required: true},
+	})
+	f.SetSize(120, 40)
+
+	_, cmd := f.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
+	require.NotNil(t, cmd, "entering filter mode must return the filterInput Focus Cmd so the cursor blinks")
+}
+
 func TestFormFilterEscClearsAndPreservesForm(t *testing.T) {
 	t.Parallel()
 

@@ -149,8 +149,11 @@ func TestCopyCmd_RefusesToOverwriteExistingFile(t *testing.T) {
 	opts.WorkingDir = workingDir
 
 	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "already exists")
+
+	var destErr *redesign.DestinationExistsError
+
+	require.ErrorAs(t, err, &destErr)
+	assert.Equal(t, filepath.Join(workingDir, "terragrunt.stack.hcl"), destErr.Path)
 }
 
 func TestCopyCmd_RejectsNilComponent(t *testing.T) {
@@ -160,8 +163,7 @@ func TestCopyCmd_RejectsNilComponent(t *testing.T) {
 	opts.WorkingDir = t.TempDir()
 
 	err := redesign.NewCopyCmd(logger.CreateLogger(), opts, nil).Run()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "nil component")
+	require.ErrorIs(t, err, redesign.ErrNilComponent)
 }
 
 func TestCopyCmd_RejectsEmptyWorkingDir(t *testing.T) {
@@ -181,8 +183,7 @@ func TestCopyCmd_RejectsEmptyWorkingDir(t *testing.T) {
 	opts.WorkingDir = ""
 
 	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "empty working directory")
+	require.ErrorIs(t, err, redesign.ErrEmptyWorkingDir)
 }
 
 func TestCopyCmd_FailsWhenSourceMissing(t *testing.T) {

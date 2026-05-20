@@ -282,8 +282,10 @@ func TestWriteValuesFile_InvalidHCLFailsLoud(t *testing.T) {
 		"broken": `[1, 2`, // unterminated list
 	})
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `invalid HCL value for "broken"`)
+	var invalidErr *redesign.InvalidHCLValueError
+
+	require.ErrorAs(t, err, &invalidErr)
+	assert.Equal(t, "broken", invalidErr.Name)
 
 	exists, err := vfs.FileExists(fsys, filepath.Join(dir, "terragrunt.values.hcl"))
 	require.NoError(t, err)

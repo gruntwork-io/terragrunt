@@ -11,13 +11,11 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/glamour/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/pkg/browser"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -62,89 +60,62 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 			return m, nil
 		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.ScaffoldInteractive, m.delegateKeys.ScaffoldPlaceholder):
-			if selectedEntry, ok := m.lists[m.activeTab].SelectedItem().(*ComponentEntry); ok {
-				selectedComponent := selectedEntry.Component
-
-				switch {
-				case key.Matches(msg, m.delegateKeys.Choose):
-					// prepare the viewport
-					var content string
-
-					tagsStyle := resolveTagsDetailStyle()
-					tags := selectedComponent.Tags()
-
-					if selectedComponent.IsMarkDown() {
-						var (
-							renderer *glamour.TermRenderer
-							err      error
-						)
-
-						m, renderer, err = m.markdownRenderer()
-						if err != nil {
-							return m, rendererErrCmd(err)
-						}
-
-						body := selectedComponent.Content(false)
-						if tagsStyle == tagsDetailStyleSection {
-							body += tagsMarkdownSection(tags)
-						}
-
-						md, err := renderer.Render(body)
-						if err != nil {
-							return m, rendererErrCmd(err)
-						}
-
-						if tagsStyle == tagsDetailStylePills {
-							if pills := renderDetailTagPills(tags); pills != "" {
-								md = lipgloss.NewStyle().PaddingLeft(glamourDocumentMargin).Render(pills) + "\n\n" + md
-							}
-						}
-
-						content = md
-					} else {
-						content = selectedComponent.Content(true)
-
-						if pills := renderDetailTagPills(tags); pills != "" {
-							content = pills + "\n\n" + content
-						}
-					}
-
-					m.viewport.SetContent(content)
-
-					// Build the button bar. The primary button is always
-					// labeled "Scaffold" regardless of kind; units and
-					// stacks dispatch to the copy action under the hood.
-					var pagerButtons []button
-
-					buttonNames := []string{}
-
-					pagerButtons = append(pagerButtons, scaffoldBtn)
-					buttonNames = append(buttonNames, scaffoldBtn.String())
-
-					if selectedComponent.URL() != "" {
-						pagerButtons = append(pagerButtons, viewSourceBtn)
-						buttonNames = append(buttonNames, viewSourceBtn.String())
-					}
-
-					m.currentPagerButtons = pagerButtons
-					m.buttonBar = buttonbar.New(buttonNames)
-					// Ensure the button bar is initialized
-					cmds = append(cmds, m.buttonBar.Init())
-
-					// advance state
-					m.selectedComponent = selectedComponent
-					m.State = PagerState
-
-					return m, tea.Batch(cmds...)
-				case key.Matches(msg, m.delegateKeys.ScaffoldInteractive):
-					return enterFormState(m, selectedComponent, ListState)
-				case key.Matches(msg, m.delegateKeys.ScaffoldPlaceholder):
-					m.State = ScaffoldState
-
-					return m, primaryActionCmd(m.logger, m, selectedComponent)
-				}
-			} else {
+			selectedEntry, ok := m.lists[m.activeTab].SelectedItem().(*ComponentEntry)
+			if !ok {
 				break
+			}
+
+			selectedComponent := selectedEntry.Component
+
+			switch {
+			case key.Matches(msg, m.delegateKeys.Choose):
+				// prepare the viewport
+				tagsStyle := resolveTagsDetailStyle()
+				tags := selectedComponent.Tags()
+
+				var (
+					content string
+					err     error
+				)
+
+				m, content, err = m.renderComponentContent(selectedComponent, tagsStyle, tags)
+				if err != nil {
+					return m, rendererErrCmd(err)
+				}
+
+				m.viewport.SetContent(content)
+
+				// Build the button bar. The primary button is always
+				// labeled "Scaffold" regardless of kind; units and
+				// stacks dispatch to the copy action under the hood.
+				var pagerButtons []button
+
+				buttonNames := []string{}
+
+				pagerButtons = append(pagerButtons, scaffoldBtn)
+				buttonNames = append(buttonNames, scaffoldBtn.String())
+
+				if selectedComponent.URL() != "" {
+					pagerButtons = append(pagerButtons, viewSourceBtn)
+					buttonNames = append(buttonNames, viewSourceBtn.String())
+				}
+
+				m.currentPagerButtons = pagerButtons
+				m.buttonBar = buttonbar.New(buttonNames)
+				// Ensure the button bar is initialized
+				cmds = append(cmds, m.buttonBar.Init())
+
+				// advance state
+				m.selectedComponent = selectedComponent
+				m.State = PagerState
+
+				return m, tea.Batch(cmds...)
+			case key.Matches(msg, m.delegateKeys.ScaffoldInteractive):
+				return enterFormState(m, selectedComponent, ListState)
+			case key.Matches(msg, m.delegateKeys.ScaffoldPlaceholder):
+				m.State = ScaffoldState
+
+				return m, primaryActionCmd(m.logger, m, selectedComponent)
 			}
 
 		case key.Matches(msg, m.listKeys.Quit):
@@ -269,19 +240,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
+		// The viewport can only be constructed after the first WindowSizeMsg,
+		// which arrives asynchronously.
 		if !m.ready {
-			// Since this program is using the full size of the viewport we
-			// need to wait until we've received the window dimensions before
-			// we can initialize the viewport. The initial dimensions come in
-			// quickly, though asynchronously, which is why we wait for them
-			// here.
 			m.viewport = viewport.New(viewport.WithWidth(msg.Width), viewport.WithHeight(msg.Height-v-lipgloss.Height(m.footerView())))
 			m.ready = true
-		} else {
-			m.viewport.SetWidth(msg.Width)
-			m.viewport.SetHeight(msg.Height - v - lipgloss.Height(m.footerView()))
 		}
 
+		m.viewport.SetWidth(msg.Width)
+		m.viewport.SetHeight(msg.Height - v - lipgloss.Height(m.footerView()))
+
+		// m.form is nil until a formReadyMsg arrives.
 		if m.form != nil {
 			m.form.SetSize(msg.Width-h, msg.Height-v)
 		}
@@ -373,6 +342,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// renderComponentContent prepares the pager body, prepending tag pills
+// when configured. Markdown components run through the model's cached
+// glamour renderer, which may itself be (re)allocated.
+func (m Model) renderComponentContent(c *Component, tagsStyle tagsDetailStyle, tags []string) (Model, string, error) {
+	if !c.IsMarkDown() {
+		content := c.Content(true)
+		if pills := renderDetailTagPills(tags); pills != "" {
+			content = pills + "\n\n" + content
+		}
+
+		return m, content, nil
+	}
+
+	m, renderer, err := m.markdownRenderer()
+	if err != nil {
+		return m, "", err
+	}
+
+	body := c.Content(false)
+	if tagsStyle == tagsDetailStyleSection {
+		body += tagsMarkdownSection(tags)
+	}
+
+	md, err := renderer.Render(body)
+	if err != nil {
+		return m, "", err
+	}
+
+	if tagsStyle == tagsDetailStylePills {
+		if pills := renderDetailTagPills(tags); pills != "" {
+			md = lipgloss.NewStyle().PaddingLeft(glamourDocumentMargin).Render(pills) + "\n\n" + md
+		}
+	}
+
+	return m, md, nil
 }
 
 type rendererErrMsg struct{ err error }
@@ -685,7 +691,7 @@ func discoverModuleFields(l log.Logger, opts *options.TerragruntOptions, c *Comp
 func discoverValuesFields(c *Component) tea.Msg {
 	configName := configFileForKind(c.Kind)
 	if configName == "" {
-		return formDiscoveryErrMsg{err: errors.Errorf("component kind %q has no associated HCL file", c.Kind)}
+		return formDiscoveryErrMsg{err: fmt.Errorf("component kind %q has no associated HCL file", c.Kind)}
 	}
 
 	refs, err := CollectValuesReferences(vfs.NewOSFS(), filepath.Join(c.Repo.Path(), c.Dir, configName))

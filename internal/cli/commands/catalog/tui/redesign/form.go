@@ -935,8 +935,7 @@ func (f *FormModel) updateNavigate(msg tea.Msg) (*FormModel, tea.Cmd) {
 	case key.Matches(keyMsg, f.navKeys.Submit):
 		return f.submit()
 	case key.Matches(keyMsg, f.navKeys.Filter):
-		f.beginFilter()
-		return f, nil
+		return f, f.beginFilter()
 	}
 
 	// The remaining bindings all operate on the focused field; on an
@@ -995,11 +994,11 @@ func (f *FormModel) updateFilterTyping(msg tea.Msg) (*FormModel, tea.Cmd) {
 	return f, cmd
 }
 
-// beginFilter switches the form into filterTyping. The input is focused
-// so subsequent keystrokes edit the query.
-func (f *FormModel) beginFilter() {
+// beginFilter switches the form into filterTyping. The returned tea.Cmd
+// drives the textinput's cursor blink and must reach the Bubble Tea loop.
+func (f *FormModel) beginFilter() tea.Cmd {
 	f.filter = filterTyping
-	_ = f.filterInput.Focus()
+	return f.filterInput.Focus()
 }
 
 // applyFilter commits the typed query. The form returns to plain navigate
