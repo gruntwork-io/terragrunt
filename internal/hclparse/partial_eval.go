@@ -150,6 +150,7 @@ func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) ([]byt
 	return PartialEval(e.FalseResult, args)
 }
 
+// partialEvalFunctionCall preserves the function call source verbatim and only substitutes child args that resolve to literals. Unresolved-value errors from args are absorbed because HCL function semantics (try, coalesce, defaults, ...) decide at runtime whether a missing ref is fatal; matches the legacy pkg/config behavior where these functions handle attribute-access failures internally.
 func partialEvalFunctionCall(e *hclsyntax.FunctionCallExpr, args *EvalArgs) ([]byte, error) {
 	children := make([]hclsyntax.Expression, len(e.Args))
 	copy(children, e.Args)
