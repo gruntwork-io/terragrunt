@@ -1309,7 +1309,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 	t.Run("destination inside source", func(t *testing.T) {
 		t.Parallel()
 
-		err := util.CopyFolderContents(l, source, filepath.Join(source, "nested"), ".terragrunt-test")
+		err := util.CopyFolderContents(l, vfs.NewOSFS(), source, filepath.Join(source, "nested"), ".terragrunt-test")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "inside source")
 	})
@@ -1317,7 +1317,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 	t.Run("destination equals source", func(t *testing.T) {
 		t.Parallel()
 
-		err := util.CopyFolderContents(l, source, source, ".terragrunt-test")
+		err := util.CopyFolderContents(l, vfs.NewOSFS(), source, source, ".terragrunt-test")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "same path")
 	})
@@ -1329,7 +1329,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 
 		t.Cleanup(func() { _ = os.RemoveAll(dest) })
 
-		require.NoError(t, util.CopyFolderContents(l, source, dest, ".terragrunt-test"))
+		require.NoError(t, util.CopyFolderContents(l, vfs.NewOSFS(), source, dest, ".terragrunt-test"))
 	})
 
 	t.Run("destination sharing a prefix with source is allowed", func(t *testing.T) {
@@ -1339,7 +1339,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 
 		t.Cleanup(func() { _ = os.RemoveAll(dest) })
 
-		require.NoError(t, util.CopyFolderContents(l, source, dest, ".terragrunt-test"))
+		require.NoError(t, util.CopyFolderContents(l, vfs.NewOSFS(), source, dest, ".terragrunt-test"))
 	})
 
 	// Dest inside source is the typical Terragrunt source-copy shape:
@@ -1350,13 +1350,32 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 		t.Parallel()
 
 		nested := filepath.Join(source, util.TerragruntCacheDir, "h1", "h2")
-		require.NoError(t, util.CopyFolderContents(l, source, nested, ".terragrunt-test"))
+		require.NoError(t, util.CopyFolderContents(l, vfs.NewOSFS(), source, nested, ".terragrunt-test"))
+	})
+
+	// Fast copy routes through copyFolderContentsFast (vfs.WalkDirParallel)
+	// instead of CopyFolderContentsWithFilter. The guard at the public
+	// CopyFolderContents dispatch must cover both implementations, or this
+	// case hangs the way the slow path used to.
+	t.Run("destination inside source is rejected on fast-copy path", func(t *testing.T) {
+		t.Parallel()
+
+		err := util.CopyFolderContents(l, vfs.NewOSFS(), source, filepath.Join(source, "fastnested"), ".terragrunt-test", util.WithFastCopy())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "inside source")
+	})
+
+	t.Run("destination inside source is allowed on fast-copy path when filter excludes it", func(t *testing.T) {
+		t.Parallel()
+
+		nested := filepath.Join(source, util.TerragruntCacheDir, "fast", "h2")
+		require.NoError(t, util.CopyFolderContents(l, vfs.NewOSFS(), source, nested, ".terragrunt-test", util.WithFastCopy()))
 	})
 
 	t.Run("relative source is rejected", func(t *testing.T) {
 		t.Parallel()
 
-		err := util.CopyFolderContents(l, "relative/source", t.TempDir(), ".terragrunt-test")
+		err := util.CopyFolderContents(l, vfs.NewOSFS(), "relative/source", t.TempDir(), ".terragrunt-test")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "absolute")
 	})
@@ -1364,7 +1383,7 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 	t.Run("relative destination is rejected", func(t *testing.T) {
 		t.Parallel()
 
-		err := util.CopyFolderContents(l, t.TempDir(), "relative/destination", ".terragrunt-test")
+		err := util.CopyFolderContents(l, vfs.NewOSFS(), t.TempDir(), "relative/destination", ".terragrunt-test")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "absolute")
 	})

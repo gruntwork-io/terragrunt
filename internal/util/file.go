@@ -377,12 +377,9 @@ func CopyFolderContents(l log.Logger, fsys vfs.FS, source, destination, manifest
 	source = filepath.ToSlash(source)
 	destination = filepath.ToSlash(destination)
 
-	if cfg.fastCopy {
-		return copyFolderContentsFast(l, fsys, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
-	}
-
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
-	// the copy filter.
+	// the copy filter. The expanded globs feed both the dest-inside-source
+	// assertion below and the filter passed to the slow-path implementation.
 	includeExpandedGlobs := []string{}
 
 	for _, includeGlob := range cfg.includeInCopy {
@@ -409,7 +406,7 @@ func CopyFolderContents(l log.Logger, fsys vfs.FS, source, destination, manifest
 		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
 	}
 
-	return CopyFolderContentsWithFilter(l, fsys, source, destination, manifestFile, func(absolutePath string) bool {
+	filter := func(absolutePath string) bool {
 		relativePath, err := filepath.Rel(source, absolutePath)
 		if err != nil {
 			l.Warnf("Failed to compute relative path from %s to %s: %v", source, absolutePath, err)
@@ -429,7 +426,17 @@ func CopyFolderContents(l log.Logger, fsys vfs.FS, source, destination, manifest
 		}
 
 		return !TerragruntExcludes(filepath.FromSlash(relativePath))
-	})
+	}
+
+	if err := assertCopyPathsSafe(source, destination, filter); err != nil {
+		return err
+	}
+
+	if cfg.fastCopy {
+		return copyFolderContentsFast(l, fsys, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
+	}
+
+	return CopyFolderContentsWithFilter(l, fsys, source, destination, manifestFile, filter)
 }
 
 // copyFolderContentsFast is the [CopyFolderContents] path used when the

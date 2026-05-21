@@ -38,6 +38,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -1992,7 +1993,9 @@ func FuzzFullCLI(f *testing.F) {
 		case r := <-done:
 			err, elapsed = r.err, r.elapsed
 		case <-time.After(fuzzPerRunTimeout + time.Second):
-			t.Fatalf("iteration hung past %s without honoring context cancellation; args=%q", fuzzPerRunTimeout+time.Second, args)
+			buf := make([]byte, 1<<20)
+			n := runtime.Stack(buf, true)
+			t.Fatalf("iteration hung past %s without honoring context cancellation; args=%q\n\n=== goroutine dump ===\n%s", fuzzPerRunTimeout+time.Second, args, buf[:n])
 		}
 
 		// Slow-iteration invariant: a single RunContext should finish well
