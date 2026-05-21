@@ -12,7 +12,6 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/paginator"
 	"charm.land/bubbles/v2/textinput"
-	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/hashicorp/hcl/v2"
@@ -102,59 +101,6 @@ type navigateKeyMap struct {
 	Cancel    key.Binding
 }
 
-func newNavigateKeyMap() navigateKeyMap {
-	return navigateKeyMap{
-		Next: key.NewBinding(
-			key.WithKeys("j", "down"),
-			key.WithHelp("j/↓", "next"),
-		),
-		Prev: key.NewBinding(
-			key.WithKeys("k", "up"),
-			key.WithHelp("k/↑", "prev"),
-		),
-		PrevPage: key.NewBinding(
-			key.WithKeys("h", "left", "pgup", "alt+v"),
-			key.WithHelp("h/←/pgup", "prev page"),
-		),
-		NextPage: key.NewBinding(
-			key.WithKeys("l", "right", "pgdown", "ctrl+v"),
-			key.WithHelp("l/→/pgdn", "next page"),
-		),
-		GoToStart: key.NewBinding(
-			key.WithKeys("home", "ctrl+a"),
-			key.WithHelp("home", "first"),
-		),
-		GoToEnd: key.NewBinding(
-			key.WithKeys("end", "ctrl+e"),
-			key.WithHelp("end", "last"),
-		),
-		Interact: key.NewBinding(
-			key.WithKeys("enter", "i"),
-			key.WithHelp("enter", "edit/toggle"),
-		),
-		Unset: key.NewBinding(
-			key.WithKeys("x"),
-			key.WithHelp("x", "use default"),
-		),
-		UnsetAll: key.NewBinding(
-			key.WithKeys("X"),
-			key.WithHelp("X", "use default (all)"),
-		),
-		Filter: key.NewBinding(
-			key.WithKeys("/"),
-			key.WithHelp("/", "filter"),
-		),
-		Submit: key.NewBinding(
-			key.WithKeys("ctrl+d"),
-			key.WithHelp("ctrl+d", "finish"),
-		),
-		Cancel: key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "cancel"),
-		),
-	}
-}
-
 // editKeyMap groups the edit-mode bindings. Most keypresses on a text
 // field fall through to the focused textinput; ExitEdit, Submit, and
 // Toggle (bool-only) are intercepted.
@@ -162,23 +108,6 @@ type editKeyMap struct {
 	ExitEdit key.Binding
 	Submit   key.Binding
 	Toggle   key.Binding
-}
-
-func newEditKeyMap() editKeyMap {
-	return editKeyMap{
-		ExitEdit: key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "done"),
-		),
-		Submit: key.NewBinding(
-			key.WithKeys("ctrl+d"),
-			key.WithHelp("ctrl+d", "finish"),
-		),
-		Toggle: key.NewBinding(
-			key.WithKeys("enter"),
-			key.WithHelp("enter", "toggle"),
-		),
-	}
 }
 
 // FormModel is the interactive value-collection view shown when the user
@@ -197,7 +126,6 @@ type FormModel struct {
 	fields      []FormField
 	navKeys     navigateKeyMap
 	editKeys    editKeyMap
-	viewport    viewport.Model
 	filterInput textinput.Model
 	help        help.Model
 	paginator   paginator.Model
@@ -281,7 +209,76 @@ func NewFormModel(c *Component, fields []FormField) *FormModel {
 		filterInput: filter,
 		help:        help.New(),
 		paginator:   p,
-		viewport:    viewport.New(viewport.WithWidth(0), viewport.WithHeight(0)),
+	}
+}
+
+func newNavigateKeyMap() navigateKeyMap {
+	return navigateKeyMap{
+		Next: key.NewBinding(
+			key.WithKeys("j", "down"),
+			key.WithHelp("j/↓", "next"),
+		),
+		Prev: key.NewBinding(
+			key.WithKeys("k", "up"),
+			key.WithHelp("k/↑", "prev"),
+		),
+		PrevPage: key.NewBinding(
+			key.WithKeys("h", "left", "pgup", "alt+v"),
+			key.WithHelp("h/←/pgup", "prev page"),
+		),
+		NextPage: key.NewBinding(
+			key.WithKeys("l", "right", "pgdown", "ctrl+v"),
+			key.WithHelp("l/→/pgdn", "next page"),
+		),
+		GoToStart: key.NewBinding(
+			key.WithKeys("home", "ctrl+a"),
+			key.WithHelp("home", "first"),
+		),
+		GoToEnd: key.NewBinding(
+			key.WithKeys("end", "ctrl+e"),
+			key.WithHelp("end", "last"),
+		),
+		Interact: key.NewBinding(
+			key.WithKeys("enter", "i"),
+			key.WithHelp("enter", "edit/toggle"),
+		),
+		Unset: key.NewBinding(
+			key.WithKeys("x"),
+			key.WithHelp("x", "use default"),
+		),
+		UnsetAll: key.NewBinding(
+			key.WithKeys("X"),
+			key.WithHelp("X", "use default (all)"),
+		),
+		Filter: key.NewBinding(
+			key.WithKeys("/"),
+			key.WithHelp("/", "filter"),
+		),
+		Submit: key.NewBinding(
+			key.WithKeys("ctrl+d"),
+			key.WithHelp("ctrl+d", "finish"),
+		),
+		Cancel: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "cancel"),
+		),
+	}
+}
+
+func newEditKeyMap() editKeyMap {
+	return editKeyMap{
+		ExitEdit: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "done"),
+		),
+		Submit: key.NewBinding(
+			key.WithKeys("ctrl+d"),
+			key.WithHelp("ctrl+d", "finish"),
+		),
+		Toggle: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "toggle"),
+		),
 	}
 }
 
@@ -500,12 +497,9 @@ func (f *FormModel) SetSize(w, h int) {
 
 	f.filterInput.SetWidth(inputWidth)
 
-	f.viewport.SetWidth(w)
-	f.viewport.SetHeight(h)
-
 	f.help.SetWidth(w)
 
-	f.computeBodyHeight()
+	f.syncLayout()
 }
 
 // computeBodyHeight derives the rows available for field cards from the
@@ -901,11 +895,62 @@ func (f *FormModel) Update(msg tea.Msg) (*FormModel, tea.Cmd) {
 		return f, nil
 	}
 
+	next, cmd := f.dispatch(msg)
+	next.syncLayout()
+
+	return next, cmd
+}
+
+// dispatch routes an incoming message to the mode-appropriate handler.
+func (f *FormModel) dispatch(msg tea.Msg) (*FormModel, tea.Cmd) {
 	if f.mode == editMode {
 		return f.updateEdit(msg)
 	}
 
 	return f.updateNavigate(msg)
+}
+
+// syncLayout recomputes derived layout state (bodyHeight, pageStart, and
+// paginator position) after an Update. Centralizing the mutation here keeps
+// View pure.
+func (f *FormModel) syncLayout() {
+	f.computeBodyHeight()
+	f.ensureCursorOnPage()
+	f.syncPaginator()
+}
+
+// syncPaginator recomputes the paginator's total page count and current
+// page from the current pageStart. Called from syncLayout so View can stay
+// read-only.
+func (f *FormModel) syncPaginator() {
+	rendered := f.renderIndices()
+	if len(rendered) == 0 {
+		f.paginator.TotalPages = 1
+		f.paginator.Page = 0
+
+		return
+	}
+
+	starts := f.computePageStarts(rendered)
+	if len(starts) == 0 {
+		f.paginator.TotalPages = 1
+		f.paginator.Page = 0
+
+		return
+	}
+
+	curPage := len(starts) - 1
+
+	for i, start := range starts {
+		if f.pageStart < start {
+			curPage = i - 1
+
+			break
+		}
+	}
+
+	f.paginator.TotalPages = len(starts)
+	f.paginator.Page = curPage
 }
 
 // updateNavigate handles keypresses while the form is in navigate mode.
@@ -1297,9 +1342,6 @@ func renderCheckbox(checked bool) string {
 // adjusting the y-offset to track the focused field. A blank top row
 // mirrors the list view's breathing room above the tab bar.
 func (f *FormModel) View() string {
-	f.computeBodyHeight()
-	f.ensureCursorOnPage()
-
 	header := f.renderHeader()
 	filterLine := f.renderFilterLine()
 	hint := f.renderHint()
@@ -1571,26 +1613,9 @@ func (f *FormModel) cursorPosIn(rendered []int) int {
 // caller still reserves the row, so showing nothing keeps the layout
 // stable across navigations.
 func (f *FormModel) renderPagination() string {
-	rendered := f.renderIndices()
-	if len(rendered) == 0 {
+	if f.paginator.TotalPages <= 1 {
 		return ""
 	}
-
-	starts := f.computePageStarts(rendered)
-	if len(starts) <= 1 {
-		return ""
-	}
-
-	curPage := len(starts) - 1
-	for i, start := range starts {
-		if f.pageStart < start {
-			curPage = i - 1
-			break
-		}
-	}
-
-	f.paginator.TotalPages = len(starts)
-	f.paginator.Page = curPage
 
 	return formPaginationLayoutStyle.Render(f.paginator.View())
 }

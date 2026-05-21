@@ -3,6 +3,8 @@
 package redesign
 
 import (
+	"fmt"
+	"io"
 	"sort"
 	"strings"
 
@@ -19,10 +21,24 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// sessionState keeps track of the view we are currently on.
+// EmitExitMessage prints any post-exit message that the final model stashed
+// during its session (e.g. the values-stub callout on a successful copy).
+// It runs after the tea program restores the main terminal buffer, because
+// messages queued via tea.Printf while the alt screen is active get discarded
+// when the alt screen is torn down.
+func EmitExitMessage(finalModel tea.Model, errWriter io.Writer, l log.Logger) {
+	listModel, ok := finalModel.(Model)
+	if !ok || listModel.ExitMessage() == "" {
+		return
+	}
+
+	if _, err := fmt.Fprintln(errWriter, listModel.ExitMessage()); err != nil {
+		l.Warnf("Failed to write exit message: %v", err)
+	}
+}
+
 type sessionState int
 
-// button is a button in the buttonbar component.
 type button int
 
 const (
@@ -42,9 +58,7 @@ const (
 	viewSourceBtn
 )
 
-var (
-	availableButtons = []button{scaffoldBtn, viewSourceBtn}
-)
+var availableButtons = []button{scaffoldBtn, viewSourceBtn}
 
 type Model struct {
 	lists               [numTabs]list.Model
@@ -67,7 +81,7 @@ type Model struct {
 	activeButton        button
 	State               sessionState
 	priorState          sessionState
-	activeTab           tabKind
+	activeTab           TabKind
 	height              int
 	width               int
 	mdRendererWidth     int
@@ -99,8 +113,14 @@ func NewModelWithExitMessageForTest(msg string) Model {
 }
 
 // ActiveTab returns which of the All/Modules/Templates tabs is focused.
-func (m Model) ActiveTab() tabKind {
+func (m Model) ActiveTab() TabKind {
 	return m.activeTab
+}
+
+// Loading reports whether discovery is still running. When true, the tab
+// strip renders a "(loading...)" suffix.
+func (m Model) Loading() bool {
+	return m.loading
 }
 
 // ExitMessage returns the styled post-exit message the model set while
@@ -111,12 +131,10 @@ func (m Model) ExitMessage() string {
 	return m.exitMessage
 }
 
-// Init implements bubbletea.Model.Init
+// Init implements bubbletea.Model.Init.
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{
 		m.buttonBar.Init(),
-		// Reply arrives as tea.BackgroundColorMsg; cached so the README
-		// renderer doesn't have to issue an OSC 11 round-trip per click.
 		tea.RequestBackgroundColor,
 	}
 
@@ -145,38 +163,40 @@ func (b button) String() string {
 // tab whose name appears in the component's front-matter tags). Duplicates
 // are skipped per-list by source path, and each list preserves its own
 // cursor.
-func (m *Model) insertComponentSorted(entry *ComponentEntry) tea.Cmd {
+func (m Model) insertComponentSorted(entry *ComponentEntry) (Model, tea.Cmd) {
 	if entry == nil {
-		return nil
+		return m, nil
 	}
 
 	var cmds []tea.Cmd
 
 	for i := range int(numTabs) {
-		t := tabKind(i)
-		if !t.matches(entry) {
+		t := TabKind(i)
+		if !t.Matches(entry) {
 			continue
 		}
 
-		if cmd := m.insertIntoList(i, entry); cmd != nil {
+		var cmd tea.Cmd
+
+		m, cmd = m.insertIntoList(i, entry)
+		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
 
 	if len(cmds) == 0 {
-		return nil
+		return m, nil
 	}
 
-	return tea.Batch(cmds...)
+	return m, tea.Batch(cmds...)
 }
 
 // insertIntoList places entry into lists[idx] at the correct sorted
 // position, skipping duplicates and preserving the per-list cursor.
-func (m *Model) insertIntoList(idx int, entry *ComponentEntry) tea.Cmd {
+func (m Model) insertIntoList(idx int, entry *ComponentEntry) (Model, tea.Cmd) {
 	items := m.lists[idx].Items()
 	entryTitle := entry.Title()
 
-	// Binary search finds the insertion point by title for sort order.
 	insertIdx := sort.Search(len(items), func(i int) bool {
 		if existing, ok := items[i].(*ComponentEntry); ok {
 			return strings.ToLower(existing.Title()) >= strings.ToLower(entryTitle)
@@ -185,28 +205,25 @@ func (m *Model) insertIntoList(idx int, entry *ComponentEntry) tea.Cmd {
 		return false
 	})
 
-	// De-duplicate by source path, not title, so distinct components that
-	// share a display name are not collapsed.
 	if isDuplicate(items, entry.Component.TerraformSourcePath()) {
-		return nil
+		return m, nil
 	}
 
 	currentIdx := m.lists[idx].Index()
 
 	cmd := m.lists[idx].InsertItem(insertIdx, entry)
 
-	if m.userNavigated {
-		// Preserve cursor: if we inserted before or at the current
-		// selection, shift the cursor forward so it stays on the same item.
-		if insertIdx <= currentIdx {
-			m.lists[idx].Select(currentIdx + 1)
-		}
-	} else {
-		// User hasn't navigated yet, so keep the cursor at the top.
+	if !m.userNavigated {
 		m.lists[idx].Select(0)
+
+		return m, cmd
 	}
 
-	return cmd
+	if insertIdx <= currentIdx {
+		m.lists[idx].Select(currentIdx + 1)
+	}
+
+	return m, cmd
 }
 
 // listenForComponent mirrors the welcome model's variant: the next component
@@ -239,7 +256,7 @@ func (m Model) listenForComponent() tea.Cmd {
 
 // filterItemsByTab returns the subset of items whose Kind belongs in tab t.
 // TabAll returns everything unchanged.
-func filterItemsByTab(items []list.Item, t tabKind) []list.Item {
+func filterItemsByTab(items []list.Item, t TabKind) []list.Item {
 	if t == TabAll {
 		return items
 	}
@@ -252,7 +269,7 @@ func filterItemsByTab(items []list.Item, t tabKind) []list.Item {
 			continue
 		}
 
-		if t.matches(entry) {
+		if t.Matches(entry) {
 			out = append(out, entry)
 		}
 	}
@@ -291,7 +308,7 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []li
 	var lists [numTabs]list.Model
 
 	for i := range int(numTabs) {
-		t := tabKind(i)
+		t := TabKind(i)
 
 		tabItems := filterItemsByTab(items, t)
 

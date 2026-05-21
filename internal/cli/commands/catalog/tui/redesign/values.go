@@ -2,11 +2,12 @@ package redesign
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
-	"sort"
+	"slices"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -85,7 +86,7 @@ func (r ValuesReferences) allNames() []string {
 		names = append(names, o.Name)
 	}
 
-	sort.Strings(names)
+	slices.Sort(names)
 
 	return names
 }
@@ -226,15 +227,15 @@ func (c *valuesCollector) result() ValuesReferences {
 		required = append(required, name)
 	}
 
-	sort.Strings(required)
+	slices.Sort(required)
 
 	optional := make([]OptionalValue, 0, len(c.optionalVals))
 	for name, val := range c.optionalVals {
 		optional = append(optional, OptionalValue{Name: name, Default: val})
 	}
 
-	sort.Slice(optional, func(i, j int) bool {
-		return optional[i].Name < optional[j].Name
+	slices.SortFunc(optional, func(a, b OptionalValue) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return ValuesReferences{Required: required, Optional: optional}
@@ -286,8 +287,8 @@ func WriteValuesFile(fsys vfs.FS, dir string, refs ValuesReferences, values map[
 	if len(refs.Required) > 0 {
 		buf.WriteString(requiredSectionHeader)
 
-		sortedRequired := append([]string(nil), refs.Required...)
-		sort.Strings(sortedRequired)
+		sortedRequired := slices.Clone(refs.Required)
+		slices.Sort(sortedRequired)
 
 		required := hclwrite.NewEmptyFile()
 
@@ -303,9 +304,9 @@ func WriteValuesFile(fsys vfs.FS, dir string, refs ValuesReferences, values map[
 	if len(refs.Optional) > 0 {
 		buf.WriteString(optionalSectionHeader)
 
-		sortedOptional := append([]OptionalValue(nil), refs.Optional...)
-		sort.Slice(sortedOptional, func(i, j int) bool {
-			return sortedOptional[i].Name < sortedOptional[j].Name
+		sortedOptional := slices.Clone(refs.Optional)
+		slices.SortFunc(sortedOptional, func(a, b OptionalValue) int {
+			return cmp.Compare(a.Name, b.Name)
 		})
 
 		optional := hclwrite.NewEmptyFile()

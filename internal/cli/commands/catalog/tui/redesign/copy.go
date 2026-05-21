@@ -52,20 +52,22 @@ type CopyCmd struct {
 	logger    log.Logger
 	fsys      vfs.FS
 	values    map[string]string
-	result    copyResult
+	result    CopyResult
 }
 
-// copyResult records what the copy step did beyond the raw file copy, so the
+// CopyResult records what the copy step did beyond the raw file copy, so the
 // TUI can surface an appropriate exit message to the user.
-type copyResult struct {
-	workingDir    string
-	references    ValuesReferences
-	valuesWritten bool
-	valuesSkipped bool
+type CopyResult struct {
+	WorkingDir    string
+	References    ValuesReferences
+	ValuesWritten bool
+	ValuesSkipped bool
 }
 
-func NewCopyCmd(logger log.Logger, opts *options.TerragruntOptions, c *Component) *CopyCmd {
-	return &CopyCmd{component: c, opts: opts, logger: logger}
+// NewCopyCmd builds a CopyCmd that materializes a unit or stack component's
+// files into opts.WorkingDir when Run is invoked.
+func NewCopyCmd(l log.Logger, opts *options.TerragruntOptions, c *Component) *CopyCmd {
+	return &CopyCmd{component: c, opts: opts, logger: l}
 }
 
 // WithFS overrides the filesystem used for source reads and destination writes.
@@ -84,6 +86,8 @@ func (c *CopyCmd) WithValues(values map[string]string) *CopyCmd {
 	return c
 }
 
+// Run performs the copy, optionally writing a terragrunt.values.hcl stub
+// when the source has values.* references.
 func (c *CopyCmd) Run() error {
 	fsys := c.fsys
 	if fsys == nil {
@@ -97,10 +101,6 @@ func (c *CopyCmd) Run() error {
 
 	c.logger.Debugf("Copying component %q to %q", src, dst)
 
-	// Preflight: refuse before writing anything if any target file would
-	// collide with something already in the working directory. Without this,
-	// a mid-walk collision could leave the working tree in a half-copied
-	// state.
 	if err := preflightCopy(fsys, src, dst); err != nil {
 		return err
 	}
@@ -120,9 +120,6 @@ func (c *CopyCmd) Run() error {
 
 		hasRefs = !refs.IsEmpty()
 
-		// Also preflight the values stub destination so we can fail before
-		// copying when a stub would be written but the destination has an
-		// unrelated obstruction (e.g. it exists as a directory).
 		if hasRefs {
 			if err := preflightValuesStub(fsys, dst); err != nil {
 				return err
@@ -134,18 +131,18 @@ func (c *CopyCmd) Run() error {
 		return err
 	}
 
-	result := copyResult{workingDir: dst}
+	result := CopyResult{WorkingDir: dst}
 
 	if hasRefs {
-		result.references = refs
+		result.References = refs
 
 		written, err := WriteValuesFile(fsys, dst, refs, c.values)
 		if err != nil {
 			return err
 		}
 
-		result.valuesWritten = written
-		result.valuesSkipped = !written
+		result.ValuesWritten = written
+		result.ValuesSkipped = !written
 	}
 
 	c.result = result
@@ -155,7 +152,7 @@ func (c *CopyCmd) Run() error {
 
 // Result exposes the outcome of the last Run call. Intended for the TUI
 // update loop to format an exit message; tests may use it too.
-func (c *CopyCmd) Result() copyResult {
+func (c *CopyCmd) Result() CopyResult {
 	return c.result
 }
 
@@ -335,16 +332,8 @@ func copyFile(fsys vfs.FS, src, dst string) (err error) {
 	}
 
 	if _, err := io.Copy(out, in); err != nil {
-		if cerr := out.Close(); cerr != nil {
-			return cerr
-		}
-
-		return err
+		return errors.Join(err, out.Close())
 	}
 
-	if err := out.Close(); err != nil {
-		return err
-	}
-
-	return nil
+	return out.Close()
 }

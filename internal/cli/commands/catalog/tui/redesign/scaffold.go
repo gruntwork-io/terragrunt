@@ -23,8 +23,8 @@ type scaffoldCmd struct {
 	values    map[string]string
 }
 
-func newScaffoldCmd(logger log.Logger, opts *options.TerragruntOptions, c *Component) *scaffoldCmd {
-	return &scaffoldCmd{component: c, opts: opts, logger: logger}
+func newScaffoldCmd(l log.Logger, opts *options.TerragruntOptions, c *Component) *scaffoldCmd {
+	return &scaffoldCmd{component: c, opts: opts, logger: l}
 }
 
 // WithPlan attaches a prepared scaffold.Plan and the user-supplied HCL

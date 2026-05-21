@@ -22,8 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// Tab key bindings for cycling between the All/Modules/Templates tabs.
-// These are only active outside the list's filter input mode.
 var (
 	tabNextKey = key.NewBinding(
 		key.WithKeys("tab"),
@@ -36,10 +34,7 @@ var (
 )
 
 func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
-	var (
-		cmd  tea.Cmd
-		cmds []tea.Cmd
-	)
+	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
@@ -69,8 +64,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 			switch {
 			case key.Matches(msg, m.delegateKeys.Choose):
-				// prepare the viewport
-				tagsStyle := resolveTagsDetailStyle()
+				tagsStyle := ResolveTagsDetailStyle()
 				tags := selectedComponent.Tags()
 
 				var (
@@ -85,15 +79,8 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 				m.viewport.SetContent(content)
 
-				// Build the button bar. The primary button is always
-				// labeled "Scaffold" regardless of kind; units and
-				// stacks dispatch to the copy action under the hood.
-				var pagerButtons []button
-
-				buttonNames := []string{}
-
-				pagerButtons = append(pagerButtons, scaffoldBtn)
-				buttonNames = append(buttonNames, scaffoldBtn.String())
+				pagerButtons := []button{scaffoldBtn}
+				buttonNames := []string{scaffoldBtn.String()}
 
 				if selectedComponent.URL() != "" {
 					pagerButtons = append(pagerButtons, viewSourceBtn)
@@ -102,14 +89,11 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 				m.currentPagerButtons = pagerButtons
 				m.buttonBar = buttonbar.New(buttonNames)
-				// Ensure the button bar is initialized
-				cmds = append(cmds, m.buttonBar.Init())
 
-				// advance state
 				m.selectedComponent = selectedComponent
 				m.State = PagerState
 
-				return m, tea.Batch(cmds...)
+				return m, nil
 			case key.Matches(msg, m.delegateKeys.ScaffoldInteractive):
 				return enterFormState(m, selectedComponent, ListState)
 			case key.Matches(msg, m.delegateKeys.ScaffoldPlaceholder):
@@ -119,18 +103,11 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, m.listKeys.Quit):
-			// because we're on the first screen, we simply quit at this point
 			return m, tea.Quit
 		}
 	}
 
-	// Handle keyboard and mouse events for the list
 	m.lists[m.activeTab], cmd = m.lists[m.activeTab].Update(msg)
-
-	// Append any commands from button bar initialization
-	if len(cmds) > 0 {
-		return m, tea.Batch(append([]tea.Cmd{cmd}, cmds...)...)
-	}
 
 	return m, cmd
 }
@@ -144,9 +121,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		bbModel, barCmd := m.buttonBar.Update(msg)
-		if newButtonBar, ok := bbModel.(*buttonbar.ButtonBar); ok {
-			m.buttonBar = newButtonBar
-		}
+		m.buttonBar = bbModel.(*buttonbar.ButtonBar)
 
 		if barCmd != nil {
 			cmds = append(cmds, barCmd)
@@ -154,16 +129,10 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 		switch {
 		case key.Matches(msg, m.pagerKeys.Choose):
-			// Choose changes the action depending on the active button
-			// m.activeButton is set by ActiveBtnMsg, which is mapped from m.currentPagerButtons
 			currentAction := m.activeButton
 
 			switch currentAction {
 			case scaffoldBtn:
-				// Enter on the pager's Scaffold button takes the
-				// interactive path (the form), matching `s` from
-				// either the list or the pager. The placeholder flow
-				// stays reachable via `S`.
 				return enterFormState(m, m.selectedComponent, PagerState)
 			case viewSourceBtn:
 				if m.selectedComponent.URL() != "" {
@@ -183,12 +152,10 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			return m, primaryActionCmd(m.logger, m, m.selectedComponent)
 
 		case key.Matches(msg, m.pagerKeys.Quit):
-			// because we're on the second screen, we need to go back
 			m.State = ListState
 			return m, nil
 		}
 	case buttonbar.ActiveBtnMsg:
-		// Map the index from buttonbar.ActiveBtnMsg to the actual button type
 		if int(msg) >= 0 && int(msg) < len(m.currentPagerButtons) {
 			m.activeButton = m.currentPagerButtons[int(msg)]
 		}
@@ -205,7 +172,9 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case componentMsg:
-		cmd := m.insertComponentSorted(msg.entry)
+		var cmd tea.Cmd
+
+		m, cmd = m.insertComponentSorted(msg.entry)
 
 		return m, tea.Batch(cmd, m.listenForComponent())
 	case DiscoveryCompleteMsg:
@@ -240,15 +209,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-		// The viewport can only be constructed after the first WindowSizeMsg,
-		// which arrives asynchronously.
+		viewportHeight := msg.Height - v - lipgloss.Height(m.footerView())
+
 		if !m.ready {
-			m.viewport = viewport.New(viewport.WithWidth(msg.Width), viewport.WithHeight(msg.Height-v-lipgloss.Height(m.footerView())))
+			m.viewport = viewport.New(viewport.WithWidth(msg.Width), viewport.WithHeight(viewportHeight))
 			m.ready = true
 		}
 
 		m.viewport.SetWidth(msg.Width)
-		m.viewport.SetHeight(msg.Height - v - lipgloss.Height(m.footerView()))
+		m.viewport.SetHeight(viewportHeight)
 
 		// m.form is nil until a formReadyMsg arrives.
 		if m.form != nil {
@@ -272,8 +241,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case formDiscoveryErrMsg:
-		// The discovery goroutine failed before we could open the form.
-		// Surface the failure the same way scaffold/copy errors do.
 		m.exitMessage = formatActionFailure("discovering variables", msg.err)
 
 		return m, tea.Quit
@@ -288,46 +255,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
-	case scaffoldFinishedMsg:
-		if msg.err != nil {
-			// tea.Printf during alt-screen gets discarded on teardown, so
-			// stash the failure on the model and let RunRedesign emit it
-			// to the user's scrollback after exit.
-			m.exitMessage = formatActionFailure("scaffolding component", msg.err)
+	case ScaffoldFinishedMsg:
+		if msg.Err != nil {
+			m.exitMessage = formatActionFailure("scaffolding component", msg.Err)
 
 			return m, tea.Quit
 		}
 
-		// Same post-exit-message pattern as the copy flow: stash a styled
-		// callout and let RunRedesign print it after the alt screen is
-		// torn down, so it survives into the user's scrollback.
-		m.exitMessage = formatScaffoldMessage(m.terragruntOptions, msg.interactive)
+		m.exitMessage = formatScaffoldMessage(m.terragruntOptions, msg.Interactive)
 
 		return m, tea.Quit
 
-	case copyFinishedMsg:
-		if msg.err != nil {
-			m.exitMessage = formatActionFailure("copying component", msg.err)
+	case CopyFinishedMsg:
+		if msg.Err != nil {
+			m.exitMessage = formatActionFailure("copying component", msg.Err)
 
 			return m, tea.Quit
 		}
 
-		// Stash a styled post-exit message on the model so RunRedesign
-		// can emit it to stderr after the alt screen is torn down.
-		// tea.Printf lines emitted during alt-screen get discarded when
-		// the alt buffer is restored on exit.
-		m.exitMessage = formatCopyValuesMessage(msg.result, msg.interactive)
+		m.exitMessage = formatCopyValuesMessage(msg.Result, msg.Interactive)
 
 		return m, tea.Quit
 
-	case rendererErrMsg:
-		m.viewport.SetContent("there was an error rendering markdown: " + msg.err.Error())
-		// ensure we show the viewport
+	case RendererErrMsg:
+		m.viewport.SetContent("there was an error rendering markdown: " + msg.Err.Error())
 		m.State = PagerState
 	}
 
-	// Hand off the message and model to the appropriate update function for the
-	// appropriate view based on the current state.
 	switch m.State {
 	case ListState:
 		return updateList(msg, m)
@@ -336,8 +290,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case FormState:
 		return updateForm(msg, m)
 	case ScaffoldState:
-		// if we're on the scaffold state, we do nothing and wait for the
-		// scaffoldFinishedMsg message. This prevents further input.
+		// Discard further input while the scaffold subprocess is running;
+		// the model resumes on ScaffoldFinishedMsg or CopyFinishedMsg.
 		return m, nil
 	}
 
@@ -347,10 +301,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // renderComponentContent prepares the pager body, prepending tag pills
 // when configured. Markdown components run through the model's cached
 // glamour renderer, which may itself be (re)allocated.
-func (m Model) renderComponentContent(c *Component, tagsStyle tagsDetailStyle, tags []string) (Model, string, error) {
+func (m Model) renderComponentContent(c *Component, tagsStyle TagsDetailStyle, tags []string) (Model, string, error) {
 	if !c.IsMarkDown() {
 		content := c.Content(true)
-		if pills := renderDetailTagPills(tags); pills != "" {
+		if pills := RenderDetailTagPills(tags); pills != "" {
 			content = pills + "\n\n" + content
 		}
 
@@ -363,8 +317,8 @@ func (m Model) renderComponentContent(c *Component, tagsStyle tagsDetailStyle, t
 	}
 
 	body := c.Content(false)
-	if tagsStyle == tagsDetailStyleSection {
-		body += tagsMarkdownSection(tags)
+	if tagsStyle == TagsDetailStyleSection {
+		body += TagsMarkdownSection(tags)
 	}
 
 	md, err := renderer.Render(body)
@@ -372,8 +326,8 @@ func (m Model) renderComponentContent(c *Component, tagsStyle tagsDetailStyle, t
 		return m, "", err
 	}
 
-	if tagsStyle == tagsDetailStylePills {
-		if pills := renderDetailTagPills(tags); pills != "" {
+	if tagsStyle == TagsDetailStylePills {
+		if pills := RenderDetailTagPills(tags); pills != "" {
 			md = lipgloss.NewStyle().PaddingLeft(glamourDocumentMargin).Render(pills) + "\n\n" + md
 		}
 	}
@@ -381,45 +335,45 @@ func (m Model) renderComponentContent(c *Component, tagsStyle tagsDetailStyle, t
 	return m, md, nil
 }
 
-type rendererErrMsg struct{ err error }
+// RendererErrMsg signals that the glamour markdown renderer failed to
+// build or render a component's content.
+type RendererErrMsg struct{ Err error }
 
 func rendererErrCmd(err error) tea.Cmd {
 	return func() tea.Msg {
-		return rendererErrMsg{err}
+		return RendererErrMsg{Err: err}
 	}
 }
 
-type scaffoldFinishedMsg struct {
-	err         error
-	interactive bool
+// ScaffoldFinishedMsg is delivered when a scaffold subprocess completes.
+// Interactive distinguishes the form-submit path from the placeholder path.
+type ScaffoldFinishedMsg struct {
+	Err         error
+	Interactive bool
 }
 
-type copyFinishedMsg struct {
-	err         error
-	result      copyResult
-	interactive bool
+// CopyFinishedMsg is delivered when a copy subprocess completes.
+// Interactive distinguishes the form-submit path from the placeholder path.
+type CopyFinishedMsg struct {
+	Err         error
+	Result      CopyResult
+	Interactive bool
 }
 
-// scaffoldComponentCmd returns a tea.Cmd that scaffolds the given component
-// via the redesign-owned scaffold command. It does not require the legacy
-// catalog.CatalogService.
 func scaffoldComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd {
 	return tea.Exec(newScaffoldCmd(l, m.terragruntOptions, c), func(err error) tea.Msg {
-		return scaffoldFinishedMsg{err: err}
+		return ScaffoldFinishedMsg{Err: err}
 	})
 }
 
-// copyComponentCmd returns a tea.Cmd that copies the given component's
-// directory tree into the user's working directory.
 func copyComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd {
 	cmd := NewCopyCmd(l, m.terragruntOptions, c)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
-		return copyFinishedMsg{err: err, result: cmd.Result()}
+		return CopyFinishedMsg{Err: err, Result: cmd.Result()}
 	})
 }
 
-// Styling for the post-exit values-stub callout.
 const (
 	valuesBoxAccentGreen  = "#50FA7B"
 	valuesBoxAccentYellow = "#F1FA8C"
@@ -461,23 +415,23 @@ var (
 // screen, so the box lands in the user's scrollback. interactive controls
 // the body copy: the form path tells the user which lines they still need
 // to revisit, while the placeholder path describes the full TODO flow.
-func formatCopyValuesMessage(r copyResult, interactive bool) string {
-	if r.references.IsEmpty() {
+func formatCopyValuesMessage(r CopyResult, interactive bool) string {
+	if r.References.IsEmpty() {
 		return ""
 	}
 
-	path := displayPath(r.workingDir, filepath.Join(r.workingDir, valuesFileName))
+	path := displayPath(r.WorkingDir, filepath.Join(r.WorkingDir, valuesFileName))
 
 	switch {
-	case r.valuesWritten:
+	case r.ValuesWritten:
 		heading := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(valuesBoxAccentGreen)).
 			Bold(true).
 			Render("terragrunt.values.hcl generated")
 
 		summary := fmt.Sprintf("%d required %s, %d optional %s",
-			len(r.references.Required), pluralize("entry", "entries", len(r.references.Required)),
-			len(r.references.Optional), pluralize("default", "defaults", len(r.references.Optional)))
+			len(r.References.Required), pluralize("entry", "entries", len(r.References.Required)),
+			len(r.References.Optional), pluralize("default", "defaults", len(r.References.Optional)))
 
 		body := "Open the file and replace each \"TODO\" with a real value.\n" +
 			"Optional defaults are pre-populated; edit or delete lines as needed\n" +
@@ -491,13 +445,13 @@ func formatCopyValuesMessage(r copyResult, interactive bool) string {
 
 		return renderValuesBox(valuesBoxAccentGreen, heading, path, summary, body)
 
-	case r.valuesSkipped:
+	case r.ValuesSkipped:
 		heading := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(valuesBoxAccentYellow)).
 			Bold(true).
 			Render("terragrunt.values.hcl left untouched")
 
-		summary := "Referenced values.* keys: " + strings.Join(r.references.allNames(), ", ")
+		summary := "Referenced values.* keys: " + strings.Join(r.References.allNames(), ", ")
 
 		body := "An existing file was found at the destination, so no stub was written.\n" +
 			"Make sure each referenced key above has a real value before running terragrunt."
@@ -762,7 +716,7 @@ func scaffoldComponentWithPlanCmd(l log.Logger, m Model, c *Component, plan *sca
 	cmd := newScaffoldCmd(l, m.terragruntOptions, c).WithPlan(plan, values)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
-		return scaffoldFinishedMsg{err: err, interactive: true}
+		return ScaffoldFinishedMsg{Err: err, Interactive: true}
 	})
 }
 
@@ -772,6 +726,6 @@ func copyComponentWithValuesCmd(l log.Logger, m Model, c *Component, values map[
 	cmd := NewCopyCmd(l, m.terragruntOptions, c).WithValues(values)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
-		return copyFinishedMsg{err: err, result: cmd.Result(), interactive: true}
+		return CopyFinishedMsg{Err: err, Result: cmd.Result(), Interactive: true}
 	})
 }

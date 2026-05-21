@@ -270,13 +270,13 @@ func TestCopyCmd_WithFSUsesInjectedFilesystem(t *testing.T) {
 
 	require.NoError(t, cmd.Run())
 
-	// Result is now populated.
 	r := cmd.Result()
-	assert.NotNil(t, r, "Result should be callable after Run")
+	assert.Equal(t, workingDir, r.WorkingDir, "Result should record the working directory used")
+	assertFileExistsFS(t, fsys, filepath.Join(workingDir, "terragrunt.hcl"))
 }
 
 // TestCopyCmd_ResultZeroValueBeforeRun verifies Result is callable before Run
-// and returns the zero copyResult.
+// and returns the zero CopyResult.
 func TestCopyCmd_ResultZeroValueBeforeRun(t *testing.T) {
 	t.Parallel()
 
@@ -285,9 +285,7 @@ func TestCopyCmd_ResultZeroValueBeforeRun(t *testing.T) {
 
 	cmd := redesign.NewCopyCmd(logger.CreateLogger(), opts, nil)
 
-	// Result is safe to call even before Run; the returned value type
-	// is opaque to external callers but must not panic.
-	assert.NotPanics(t, func() { _ = cmd.Result() })
+	assert.Equal(t, redesign.CopyResult{}, cmd.Result(), "Result should return the zero value before Run")
 }
 
 // TestCopyCmd_StdioSettersAreNoops verifies the tea.ExecCommand stdio setters

@@ -3,7 +3,6 @@ package redesign
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 
 	"charm.land/bubbles/v2/spinner"
@@ -97,22 +96,6 @@ func ComponentMsg(entry *ComponentEntry) tea.Msg {
 	return componentMsg{entry: entry}
 }
 
-// EmitExitMessage prints any post-exit message that the final model stashed
-// during its session (e.g. the values-stub callout on a successful copy).
-// It runs after the tea program restores the main terminal buffer, because
-// messages queued via tea.Printf while the alt screen is active get discarded
-// when the alt screen is torn down.
-func EmitExitMessage(finalModel tea.Model, errWriter io.Writer, l log.Logger) {
-	listModel, ok := finalModel.(Model)
-	if !ok || listModel.ExitMessage() == "" {
-		return
-	}
-
-	if _, err := fmt.Fprintln(errWriter, listModel.ExitMessage()); err != nil {
-		l.Warnf("Failed to write exit message: %v", err)
-	}
-}
-
 // NewWelcomeModel creates a WelcomeModel that immediately begins discovery.
 func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, loadFunc LoadFunc) WelcomeModel {
 	s := spinner.New()
@@ -186,7 +169,9 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "h":
 			if m.state == welcomeNoSources {
-				_ = m.openURL(welcomeDocsURL)
+				if err := m.openURL(welcomeDocsURL); err != nil {
+					m.logger.Warnf("Could not open docs URL: %v", err)
+				}
 			}
 		}
 	case tea.WindowSizeMsg:
@@ -300,12 +285,19 @@ func (m WelcomeModel) handleDiscoveryComplete(msg DiscoveryCompleteMsg) (tea.Mod
 // Model's loading flag stuck on.
 func (m WelcomeModel) listenForComponent() tea.Cmd {
 	ch := m.componentCh
+	if ch == nil {
+		return nil
+	}
+
 	errCh := m.errCh
 
 	return func() tea.Msg {
 		c, ok := <-ch
 		if !ok {
-			err := <-errCh
+			var err error
+			if errCh != nil {
+				err = <-errCh
+			}
 
 			return DiscoveryCompleteMsg{Err: err}
 		}

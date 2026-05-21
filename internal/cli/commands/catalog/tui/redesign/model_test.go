@@ -17,6 +17,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// copyFinishedFromNames assembles a CopyFinishedMsg whose Optional slice is
+// derived from the supplied names (no captured defaults). Required entries
+// stay as plain names.
+func copyFinishedFromNames(workingDir string, required, optional []string, valuesWritten, valuesSkipped bool) redesign.CopyFinishedMsg {
+	opt := make([]redesign.OptionalValue, len(optional))
+	for i, name := range optional {
+		opt[i] = redesign.OptionalValue{Name: name}
+	}
+
+	return redesign.CopyFinishedMsg{
+		Result: redesign.CopyResult{
+			WorkingDir:    workingDir,
+			References:    redesign.ValuesReferences{Required: required, Optional: opt},
+			ValuesWritten: valuesWritten,
+			ValuesSkipped: valuesSkipped,
+		},
+	}
+}
+
 // makeComponents builds a deterministic list of ComponentEntry values for
 // testing. Each entry has a distinct Dir so Title() returns the directory
 // basename and sort order is predictable.
@@ -39,9 +58,9 @@ func makeComponents(t *testing.T) []*redesign.ComponentEntry {
 	}
 }
 
-// TestModelStreamingInsertsSorted verifies that components sent via componentMsg
+// TestModelStreamingInsertsSortedWithRacing verifies that components sent via componentMsg
 // are inserted in alphabetical order in the list.
-func TestModelStreamingInsertsSorted(t *testing.T) {
+func TestModelStreamingInsertsSortedWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -98,9 +117,9 @@ func makeMixedComponents(t *testing.T) []*redesign.ComponentEntry {
 	}
 }
 
-// TestModelTabsFilterByKind verifies that each tab shows only components
+// TestModelTabsFilterByKindWithRacing verifies that each tab shows only components
 // of its kind, while the All tab shows everything.
-func TestModelTabsFilterByKind(t *testing.T) {
+func TestModelTabsFilterByKindWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -131,9 +150,9 @@ func TestModelTabsFilterByKind(t *testing.T) {
 	})
 }
 
-// TestModelTabShiftTabCycles verifies that shift+tab cycles tabs in
+// TestModelTabShiftTabCyclesWithRacing verifies that shift+tab cycles tabs in
 // reverse order.
-func TestModelTabShiftTabCycles(t *testing.T) {
+func TestModelTabShiftTabCyclesWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -160,7 +179,7 @@ func TestModelTabShiftTabCycles(t *testing.T) {
 	})
 }
 
-// TestModelCopyActionPlaceholderTransitionsToScaffoldState asserts that
+// TestModelCopyActionPlaceholderTransitionsToScaffoldStateWithRacing asserts that
 // pressing the placeholder scaffold key (`S`) on a copyable component
 // transitions the Model directly to ScaffoldState, which is what
 // dispatches the copy action with TODO placeholders.
@@ -168,7 +187,7 @@ func TestModelTabShiftTabCycles(t *testing.T) {
 // The copy itself is exercised end-to-end in copy_test.go; here we only
 // verify the wire-up, because tea.Exec (used by the copy dispatch) only runs
 // the underlying ExecCommand inside a real bubbletea runtime.
-func TestModelCopyActionPlaceholderTransitionsToScaffoldState(t *testing.T) {
+func TestModelCopyActionPlaceholderTransitionsToScaffoldStateWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -207,12 +226,12 @@ func TestModelCopyActionPlaceholderTransitionsToScaffoldState(t *testing.T) {
 	})
 }
 
-// TestModelInteractiveScaffoldTransitionsToFormState asserts that pressing
+// TestModelInteractiveScaffoldTransitionsToFormStateWithRacing asserts that pressing
 // the interactive scaffold key (`s`) on a copyable component transitions
 // the Model to FormState. The discovery goroutine runs synchronously via
 // tea.Cmd, so once the form is ready the model has both a form pointer and
 // a captured ValuesReferences.
-func TestModelInteractiveScaffoldTransitionsToFormState(t *testing.T) {
+func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -255,11 +274,11 @@ func TestModelInteractiveScaffoldTransitionsToFormState(t *testing.T) {
 	})
 }
 
-// TestModelEnterOnPagerLaunchesInteractiveForm asserts that once the user
+// TestModelEnterOnPagerLaunchesInteractiveFormWithRacing asserts that once the user
 // has opened a component's README (PagerState), pressing enter on the
 // default-focused Scaffold button takes the interactive form path, the
 // same as pressing `s`. The placeholder flow stays reachable via `S`.
-func TestModelEnterOnPagerLaunchesInteractiveForm(t *testing.T) {
+func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -306,9 +325,9 @@ func TestModelEnterOnPagerLaunchesInteractiveForm(t *testing.T) {
 	})
 }
 
-// TestModelStreamingDeduplicates verifies that sending the same component
+// TestModelStreamingDeduplicatesWithRacing verifies that sending the same component
 // twice does not result in a duplicate entry in the list.
-func TestModelStreamingDeduplicates(t *testing.T) {
+func TestModelStreamingDeduplicatesWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -359,7 +378,7 @@ func TestModelCopyFinishedWritesValuesExitMessage(t *testing.T) {
 
 	// Copy-written: 2 required TODOs (exercises the plural "entries" branch)
 	// and 1 optional (exercises the singular "default" branch).
-	msg := redesign.NewCopyFinishedMsgForTest(nil, workingDir,
+	msg := copyFinishedFromNames(workingDir,
 		[]string{"region", "env"},
 		[]string{"tier"},
 		true, false,
@@ -396,7 +415,7 @@ func TestModelCopyFinishedSkippedValuesExitMessage(t *testing.T) {
 
 	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
 
-	msg := redesign.NewCopyFinishedMsgForTest(nil, workingDir,
+	msg := copyFinishedFromNames(workingDir,
 		[]string{"zeta"},
 		[]string{"alpha"},
 		false, true,
@@ -435,7 +454,7 @@ func TestModelCopyFinishedEmptyReferencesLeavesNoExitMessage(t *testing.T) {
 
 	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
 
-	msg := redesign.NewCopyFinishedMsgForTest(nil, opts.WorkingDir, nil, nil, false, false)
+	msg := copyFinishedFromNames(opts.WorkingDir, nil, nil, false, false)
 
 	updated, _ := m.Update(msg)
 	finalModel := updated.(redesign.Model)
@@ -463,7 +482,7 @@ func TestModelScaffoldFinishedSetsExitMessage(t *testing.T) {
 
 	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
 
-	updated, _ := m.Update(redesign.NewScaffoldFinishedMsgForTest(nil))
+	updated, _ := m.Update(redesign.ScaffoldFinishedMsg{})
 	finalModel := updated.(redesign.Model)
 
 	exit := stripANSI(finalModel.ExitMessage())
@@ -490,7 +509,7 @@ func TestModelScaffoldFinishedEmptyOutputDirHasNoExitMessage(t *testing.T) {
 
 	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
 
-	updated, _ := m.Update(redesign.NewScaffoldFinishedMsgForTest(nil))
+	updated, _ := m.Update(redesign.ScaffoldFinishedMsg{})
 	finalModel := updated.(redesign.Model)
 
 	assert.Empty(t, finalModel.ExitMessage())
@@ -530,7 +549,7 @@ func TestModelCopyFinishedDisplayPathEscapesBaseDir(t *testing.T) {
 
 	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
 
-	msg := redesign.NewCopyFinishedMsgForTest(nil, baseTmp, []string{"a"}, nil, true, false)
+	msg := copyFinishedFromNames(baseTmp, []string{"a"}, nil, true, false)
 
 	updated, _ := m.Update(msg)
 	finalModel := updated.(redesign.Model)
@@ -565,7 +584,7 @@ func TestModelRendererErrMsgSetsViewportAndPagerState(t *testing.T) {
 	m = updated.(redesign.Model)
 
 	boom := errors.New("boom")
-	updated, _ = m.Update(redesign.NewRendererErrMsgForTest(boom))
+	updated, _ = m.Update(redesign.RendererErrMsg{Err: boom})
 	finalModel := updated.(redesign.Model)
 
 	assert.Equal(t, redesign.PagerState, finalModel.State,
@@ -577,10 +596,10 @@ func TestModelRendererErrMsgSetsViewportAndPagerState(t *testing.T) {
 	assert.Contains(t, content, "boom", "viewport content should include the error detail")
 }
 
-// TestModelPagerViewRendersAfterEnter exercises the pager path by pressing
+// TestModelPagerViewRendersAfterEnterWithRacing exercises the pager path by pressing
 // enter on a unit entry, which transitions to PagerState and forces the
 // view to route through pagerView/footerView.
-func TestModelPagerViewRendersAfterEnter(t *testing.T) {
+func TestModelPagerViewRendersAfterEnterWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {

@@ -27,8 +27,8 @@ var (
 	infoHelp          = lipgloss.NewStyle().Padding(infoHelpPaddingTop, 0, 0, bodyPaddingHorizontal)
 )
 
-// View is the main view, which just calls the appropriate sub-view and returns a View representation of the TUI
-// based on the application's state.
+// View implements bubbletea.Model.View, dispatching to a sub-view based on
+// the current session state.
 func (m Model) View() tea.View {
 	var s string
 
@@ -82,7 +82,6 @@ func (m Model) footerView() string {
 
 	info = lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 
-	// button bar and key help
 	pagerKeys := infoHelp.Render(lipgloss.JoinVertical(lipgloss.Left, m.buttonBar.View().Content, "\n", m.pagerKeys.HelpModel.View(m.pagerKeys)))
 
 	return lipgloss.JoinVertical(lipgloss.Left, info, pagerKeys)
