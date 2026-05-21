@@ -226,7 +226,7 @@ unit "vpc" {
 	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), stackDir, newStackParsePctx(t, stackDir))
 	require.NoError(t, err)
 
-	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, inthclparse.WithDiscoveryFunctions(funcs))
+	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcs)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	// basename(dirname(.../root.hcl)) == basename(tmpRoot); resolve symlinks
@@ -255,7 +255,7 @@ unit "vpc" {
 	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), stackDir, newStackParsePctx(t, stackDir))
 	require.NoError(t, err)
 
-	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, inthclparse.WithDiscoveryFunctions(funcs))
+	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcs)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.True(t, strings.HasSuffix(paths[0], "computed-path"), "expected path to end with 'computed-path', got %q", paths[0])

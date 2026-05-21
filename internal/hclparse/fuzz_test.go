@@ -300,7 +300,7 @@ func FuzzUnitPathsFromStackDir_ArgPanics(f *testing.F) {
 			}
 		}()
 
-		_, _ = hclparse.UnitPathsFromStackDir(fs, stackDir)
+		_, _ = hclparse.UnitPathsFromStackDir(fs, stackDir, noFuncs)
 	})
 }
 

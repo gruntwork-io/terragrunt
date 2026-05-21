@@ -342,7 +342,7 @@ func stackDependencyPaths(
 			return nil, NewStackDependencyExpansionError(depPath, fnErr)
 		}
 
-		unitPaths, err := inthclparse.UnitPathsFromStackDir(fs, depPath, inthclparse.WithDiscoveryFunctions(discoveryFuncs))
+		unitPaths, err := inthclparse.UnitPathsFromStackDir(fs, depPath, discoveryFuncs)
 		if err != nil {
 			return nil, NewStackDependencyExpansionError(depPath, err)
 		}

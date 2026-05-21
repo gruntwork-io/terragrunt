@@ -9,7 +9,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty/function"
 )
+
+// noFuncs is the empty HCL function map shared by tests that exercise only
+// literal stack attributes, parse errors, or panic contracts. Any HCL
+// function call against it resolves to "function not found", which is the
+// intended outcome for these tests.
+var noFuncs = map[string]function.Function{}
 
 func TestBuildComponentRefMapExposesPath(t *testing.T) {
 	t.Parallel()
@@ -41,7 +48,7 @@ unit "db" {
 }
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.NoError(t, err)
 	require.Len(t, paths, 2)
 	assert.Contains(t, paths[0], ".terragrunt-stack")
@@ -65,7 +72,7 @@ include "units" {
 }
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.Contains(t, paths[0], filepath.Join(hclparse.StackDir, "vpc"))
@@ -83,7 +90,7 @@ unit "vpc" {
 }
 `), 0644))
 
-	_, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get_repo_root")
 }
@@ -94,7 +101,7 @@ func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, fs.MkdirAll("/test", 0755))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.NoError(t, err)
 	assert.Nil(t, paths)
 }
@@ -104,7 +111,7 @@ func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/nonexistent")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/nonexistent", noFuncs)
 	require.NoError(t, err)
 	assert.Nil(t, paths)
 }
@@ -116,7 +123,7 @@ func TestUnitPathsFromStackDir_MalformedReturnsError(t *testing.T) {
 	require.NoError(t, fs.MkdirAll("/test", 0755))
 	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "x" { source = "." `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.Error(t, err)
 	assert.Nil(t, paths)
 
@@ -219,7 +226,7 @@ unit "vpc" {
 	symlinkDir := filepath.Join(tmpDir, "symlinked-stack")
 	require.NoError(t, os.Symlink(realDir, symlinkDir))
 
-	paths, err := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir)
+	paths, err := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir, noFuncs)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	// Path should resolve to the real directory, not the symlink path.

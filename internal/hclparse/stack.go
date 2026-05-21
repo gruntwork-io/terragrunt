@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
-	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 )
@@ -153,32 +152,12 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	})
 }
 
-// DiscoverOption configures UnitPathsFromStackDir.
-type DiscoverOption func(*discoverOptions)
-
-type discoverOptions struct {
-	funcs map[string]function.Function
-}
-
-func applyDiscoverOptions(opts []DiscoverOption) discoverOptions {
-	var cfg discoverOptions
-
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-
-	return cfg
-}
-
-// WithDiscoveryFunctions installs an HCL function map used while decoding the
-// stack file. Without this option, expressions resolve only against the
-// Terraform stdlib scoped to the stack directory.
-func WithDiscoveryFunctions(funcs map[string]function.Function) DiscoverOption {
-	return func(c *discoverOptions) { c.funcs = funcs }
-}
-
 // UnitPathsFromStackDir returns generated unit paths from discovery parsing.
-func UnitPathsFromStackDir(fs vfs.FS, stackDir string, opts ...DiscoverOption) ([]string, error) {
+// funcs is the HCL function map used while decoding the stack file; production
+// callers build it via config.EarlyStackParseFunctions. The map must be
+// non-nil but may be empty (tests that exercise only literal attributes can
+// pass an empty map).
+func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function.Function) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
 	}
@@ -187,12 +166,14 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string, opts ...DiscoverOption) (
 		panic("hclparse.UnitPathsFromStackDir: stackDir is empty")
 	}
 
+	if funcs == nil {
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: funcs is nil (stackDir=%q)", stackDir))
+	}
+
 	stackDir = util.ResolvePath(stackDir)
 	stackFile := filepath.Join(stackDir, stackFileName)
 
-	cfg := applyDiscoverOptions(opts)
-
-	units, _, err := decodeDiscovery(fs, stackDir, stackFile, cfg.funcs)
+	units, _, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
 	if err != nil {
 		return nil, err
 	}
@@ -217,8 +198,8 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string, opts ...DiscoverOption) (
 
 // decodeDiscovery parses discovery targets and returns path-only unit and stack data.
 //
-// funcs is the function map injected into the discovery eval context. Passing
-// nil falls back to the Terraform stdlib resolved against stackDir.
+// funcs is the function map injected into the discovery eval context; callers
+// must supply a non-nil map (validated at the public entrypoint).
 func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]function.Function) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
@@ -234,7 +215,10 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 		return nil, nil, err
 	}
 
-	evalCtx := discoveryEvalContext(stackDir, funcs)
+	evalCtx := &hcl.EvalContext{
+		Functions: funcs,
+		Variables: map[string]cty.Value{},
+	}
 
 	if parsedFile.Locals != nil {
 		if err := evaluateLocals(parsedFile.Locals.Remain, evalCtx); err != nil {
@@ -287,19 +271,4 @@ func validateDiscoveryUniqueNames(units []*unitPathOnlyHCL, stacks []*stackPathO
 	}
 
 	return errors.Join(errs...)
-}
-
-// discoveryEvalContext returns the eval context used while decoding
-// terragrunt.stack.hcl for discovery. When funcs is non-nil it is used as-is;
-// otherwise the Terraform stdlib resolved against baseDir is used.
-func discoveryEvalContext(baseDir string, funcs map[string]function.Function) *hcl.EvalContext {
-	if funcs == nil {
-		tfscope := tflang.Scope{BaseDir: baseDir}
-		funcs = tfscope.Functions()
-	}
-
-	return &hcl.EvalContext{
-		Functions: funcs,
-		Variables: map[string]cty.Value{},
-	}
 }

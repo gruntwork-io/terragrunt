@@ -9,11 +9,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -203,7 +207,12 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), nestedContent, 0644))
 
-	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir)
+	l := logger.CreateLogger()
+	_, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+	funcs, err := config.EarlyStackParseFunctions(t.Context(), l, stackDir, pctx)
+	require.NoError(t, err)
+
+	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcs)
 	require.NoError(t, err)
 	require.Len(t, unitPaths, 2, "networking stack should expand to 2 unit paths")
 
