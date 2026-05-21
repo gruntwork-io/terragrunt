@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -45,6 +46,9 @@ const (
 
 	moduleURLPattern = `(?:git|hg|s3|gcs)::([^:]+)://([^/]+)(/.*)`
 	moduleURLParts   = 4
+
+	// versionQueryParam is the query parameter used for tfr:// version resolution.
+	versionQueryParam = "version"
 
 	// TODO: Make the root configuration file name configurable
 	DefaultBoilerplateConfig = `
@@ -197,7 +201,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_module", map[string]any{
 		"module_url": moduleURL,
 	}, func(ctx context.Context) error {
-		if _, getErr := getter.GetAny(ctx, tempDir, moduleURL); getErr != nil {
+		if _, getErr := getter.GetAny(ctx, tempDir, moduleURL,
+			getter.WithTFRegistry(getter.NewRegistryGetter(l).
+				WithTofuImplementation(opts.TofuImplementation)),
+		); getErr != nil {
 			return fmt.Errorf("downloading scaffold module from %s: %w", moduleURL, getErr)
 		}
 
@@ -436,7 +443,10 @@ func downloadTemplate(
 	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_template", map[string]any{
 		"template_url": baseURL.String(),
 	}, func(ctx context.Context) error {
-		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
+		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String(),
+			getter.WithTFRegistry(getter.NewRegistryGetter(l).
+				WithTofuImplementation(opts.TofuImplementation)),
+		); getErr != nil {
 			return fmt.Errorf("downloading scaffold template from %s: %w", baseURL.String(), getErr)
 		}
 
@@ -594,14 +604,15 @@ func rewriteModuleURL(
 		sourceURLType = fmt.Sprintf("%s", value)
 	}
 
-	// expand module url
+	// Try to parse the URL as a forced-getter URL (git::https://... etc.)
 	parsedValue, err := parseURL(l, moduleURL)
 	if err != nil {
-		l.Warnf("Failed to parse module url %s", moduleURL)
-
-		parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
-		if err != nil {
-			return nil, errors.New(err)
+		// Not a forced-getter URL. This is normal for many URL formats
+		// (e.g. tfr:// URLs, plain https:// URLs). Just convert to a
+		// standard url.URL without rewriting.
+		parsedModuleURL, parseErr := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
+		if parseErr != nil {
+			return nil, errors.New(parseErr)
 		}
 
 		return parsedModuleURL, nil
@@ -686,6 +697,19 @@ func addRefToModuleURL(
 
 	ref := params.Get(refParam)
 	if ref == "" {
+		// For tfr:// URLs, resolve the latest version via the registry API.
+		if getter.IsTFRSource(moduleURL.String()) {
+			latestVersion, err := resolveTFRVersion(ctx, l, opts, moduleURL)
+			if err != nil || latestVersion == "" {
+				l.Warnf("Failed to find latest version for %s: %v", moduleURL, err)
+			} else {
+				params.Add(versionQueryParam, latestVersion)
+				moduleURL.RawQuery = params.Encode()
+			}
+
+			return moduleURL, nil
+		}
+
 		// if ref is not passed, find last release tag
 		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
 		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
@@ -706,11 +730,33 @@ func addRefToModuleURL(
 	return moduleURL, nil
 }
 
+// resolveTFRVersion resolves the latest version of a tfr:// module
+// by querying the registry's /versions endpoint.
+func resolveTFRVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, moduleURL *url.URL) (string, error) {
+	// Determine the registry domain. If not specified in the URL, use the
+	// default for the current tofu implementation.
+	registryDomain := moduleURL.Host
+	if registryDomain == "" {
+		registryDomain = tfimpl.DefaultRegistryDomain(opts.TofuImplementation)
+	}
+
+	// Extract the module path (e.g. "terraform-aws-modules/vpc/aws")
+	// using SourceDirSubdir which handles the "//subdir" syntax.
+	modulePath, _ := getter.SourceDirSubdir(strings.TrimPrefix(moduleURL.Path, "/"))
+	if modulePath == "" {
+		modulePath = strings.TrimPrefix(moduleURL.Path, "/")
+	}
+
+	return getter.ResolveTFRVersion(ctx, l, nil, registryDomain, modulePath)
+}
+
 // parseURL parses module url to scheme, host and path
+// The regex only matches forced-getter URLs (e.g. git::https://host/path).
+// URLs that don't match (like tfr:// or plain https://) return nil error
+// and the caller handles them as non-rewritable URLs.
 func parseURL(l log.Logger, moduleURL string) (*parsedURL, error) {
 	matches := moduleURLRegex.FindStringSubmatch(moduleURL)
 	if len(matches) != moduleURLParts {
-		l.Warnf("Failed to parse url %s", moduleURL)
 		return nil, failedToParseURLError{}
 	}
 
