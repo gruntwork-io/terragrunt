@@ -13,27 +13,27 @@ func NewListKeyMap() list.KeyMap {
 		// Browsing.
 		CursorUp: key.NewBinding(
 			key.WithKeys("k", "up", "ctrl+p"),
-			key.WithHelp("k/↑/ctrl+p", "move up"),
+			key.WithHelp("k/↑", "move up"),
 		),
 		CursorDown: key.NewBinding(
 			key.WithKeys("j", "down", "ctrl+n"),
-			key.WithHelp("j/↓/ctrl+n", "move down"),
+			key.WithHelp("j/↓", "move down"),
 		),
 		PrevPage: key.NewBinding(
 			key.WithKeys("h", "left", "pgup", "alt+v"),
-			key.WithHelp("h/←/pgup/alt+v", "prev page"),
+			key.WithHelp("h/←", "prev page"),
 		),
 		NextPage: key.NewBinding(
 			key.WithKeys("l", "right", "pgdown", "ctrl+v"),
-			key.WithHelp("l/→/pgdn/ctrl+v", "next page"),
+			key.WithHelp("l/→", "next page"),
 		),
 		GoToStart: key.NewBinding(
 			key.WithKeys("home", "ctrl+a"),
-			key.WithHelp("home/ctrl+a", "go to start"),
+			key.WithHelp("home", "go to start"),
 		),
 		GoToEnd: key.NewBinding(
 			key.WithKeys("end", "ctrl+e"),
-			key.WithHelp("end/ctrl+e", "go to end"),
+			key.WithHelp("end", "go to end"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("/"),
@@ -194,19 +194,19 @@ func NewPagerKeyMap() PagerKeyMap {
 			),
 			Up: key.NewBinding(
 				key.WithKeys("k", "up", "ctrl+p"),
-				key.WithHelp("k/↑/ctrl+p", "move up"),
+				key.WithHelp("k/↑", "move up"),
 			),
 			Down: key.NewBinding(
 				key.WithKeys("j", "down", "ctrl+n"),
-				key.WithHelp("j/↓/ctrl+n", "move down"),
+				key.WithHelp("j/↓", "move down"),
 			),
 			PageDown: key.NewBinding(
 				key.WithKeys("l", "right", "pgdown", "ctrl+v"),
-				key.WithHelp("l/→/pgdn/ctrl+v", "page down"),
+				key.WithHelp("l/→", "page down"),
 			),
 			PageUp: key.NewBinding(
 				key.WithKeys("h", "left", "pgup", "alt+v"),
-				key.WithHelp("h/←/pgup/alt+v", "page up"),
+				key.WithHelp("h/←", "page up"),
 			),
 		},
 		HelpModel: help.New(),

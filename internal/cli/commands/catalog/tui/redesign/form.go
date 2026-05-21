@@ -87,18 +87,19 @@ type FormField struct {
 // arrows) for line moves, h/l (with pgup/pgdn aliases) for page moves,
 // home/end for jump-to-end, and `/` for filter.
 type navigateKeyMap struct {
-	Next      key.Binding
-	Prev      key.Binding
-	NextPage  key.Binding
-	PrevPage  key.Binding
-	GoToStart key.Binding
-	GoToEnd   key.Binding
-	Interact  key.Binding
-	Unset     key.Binding
-	UnsetAll  key.Binding
-	Filter    key.Binding
-	Submit    key.Binding
-	Cancel    key.Binding
+	Next          key.Binding
+	Prev          key.Binding
+	NextPage      key.Binding
+	PrevPage      key.Binding
+	GoToStart     key.Binding
+	GoToEnd       key.Binding
+	Interact      key.Binding
+	Unset         key.Binding
+	UnsetAll      key.Binding
+	Filter        key.Binding
+	SubmitChecked key.Binding
+	Submit        key.Binding
+	Cancel        key.Binding
 }
 
 // editKeyMap groups the edit-mode bindings. Most keypresses on a text
@@ -224,11 +225,11 @@ func newNavigateKeyMap() navigateKeyMap {
 		),
 		PrevPage: key.NewBinding(
 			key.WithKeys("h", "left", "pgup", "alt+v"),
-			key.WithHelp("h/←/pgup", "prev page"),
+			key.WithHelp("h/←", "prev page"),
 		),
 		NextPage: key.NewBinding(
 			key.WithKeys("l", "right", "pgdown", "ctrl+v"),
-			key.WithHelp("l/→/pgdn", "next page"),
+			key.WithHelp("l/→", "next page"),
 		),
 		GoToStart: key.NewBinding(
 			key.WithKeys("home", "ctrl+a"),
@@ -254,9 +255,13 @@ func newNavigateKeyMap() navigateKeyMap {
 			key.WithKeys("/"),
 			key.WithHelp("/", "filter"),
 		),
+		SubmitChecked: key.NewBinding(
+			key.WithKeys("s"),
+			key.WithHelp("s", "scaffold"),
+		),
 		Submit: key.NewBinding(
-			key.WithKeys("ctrl+d"),
-			key.WithHelp("ctrl+d", "finish"),
+			key.WithKeys("S", "ctrl+d"),
+			key.WithHelp("S", "scaffold (skip checks)"),
 		),
 		Cancel: key.NewBinding(
 			key.WithKeys("esc"),
@@ -885,6 +890,46 @@ func (f *FormModel) submit() (*FormModel, tea.Cmd) {
 	return f, func() tea.Msg { return FormSubmitMsg{Values: vals} }
 }
 
+// submitChecked is the same as submit but additionally refuses to submit
+// while any required field is unset, jumping the cursor to the first
+// missing one. Use this for the user-facing "s" shortcut so the form
+// guides the user back to incomplete required values; the force-submit
+// path (S, ctrl+d) bypasses this and falls back to TODO placeholders.
+func (f *FormModel) submitChecked() (*FormModel, tea.Cmd) {
+	if f.mode == editMode {
+		f.exitEdit()
+	}
+
+	if missing := f.firstMissingRequired(); missing >= 0 {
+		f.setCursor(missing)
+		return f, nil
+	}
+
+	return f.submit()
+}
+
+// firstMissingRequired marks each unset required field with a "required
+// value missing" validation error and returns the index of the first such
+// field, or -1 when every required field has been set.
+func (f *FormModel) firstMissingRequired() int {
+	missing := -1
+
+	for i := range f.fields {
+		fld := &f.fields[i]
+		if !fld.Required || fld.Set {
+			continue
+		}
+
+		fld.ValidationErr = "required value missing"
+
+		if missing < 0 {
+			missing = i
+		}
+	}
+
+	return missing
+}
+
 // Update handles a single tea.Msg and returns the (possibly mutated) form
 // plus any command to fire. The dispatcher splits on mode: navigate mode
 // consumes keypresses for movement, mode entry, and set toggling, while
@@ -977,6 +1022,8 @@ func (f *FormModel) updateNavigate(msg tea.Msg) (*FormModel, tea.Cmd) {
 		}
 
 		return f, func() tea.Msg { return FormCancelMsg{} }
+	case key.Matches(keyMsg, f.navKeys.SubmitChecked):
+		return f.submitChecked()
 	case key.Matches(keyMsg, f.navKeys.Submit):
 		return f.submit()
 	case key.Matches(keyMsg, f.navKeys.Filter):
@@ -1391,7 +1438,7 @@ func (f *FormModel) hintBindings() []key.Binding {
 			bindings = append(bindings, f.editKeys.Toggle)
 		}
 
-		return append(bindings, f.editKeys.Submit)
+		return bindings
 	}
 
 	if f.filter == filterTyping {
@@ -1412,12 +1459,11 @@ func (f *FormModel) hintBindings() []key.Binding {
 	return []key.Binding{
 		f.navKeys.Next,
 		f.navKeys.Prev,
-		f.navKeys.NextPage,
-		f.navKeys.PrevPage,
 		f.navKeys.Filter,
 		f.navKeys.Interact,
 		f.navKeys.Unset,
 		f.navKeys.UnsetAll,
+		f.navKeys.SubmitChecked,
 		f.navKeys.Submit,
 		cancel,
 	}
