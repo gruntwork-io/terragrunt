@@ -141,7 +141,7 @@ func TestAlreadyHaveLatestCodeLocalFilePath(t *testing.T) {
 	t.Parallel()
 
 	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world")
-	downloadDir := "does-not-exist"
+	downloadDir := absPath(t, "does-not-exist")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -150,7 +150,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirDoesNotExist(t *testing.T
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com"
-	downloadDir := "does-not-exist"
+	downloadDir := absPath(t, "does-not-exist")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -159,7 +159,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsNoVersionNoVersionF
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-empty"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-empty")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -168,7 +168,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsNoVersionWithVersio
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-version-file-no-query"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-version-file-no-query")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, true)
 }
@@ -177,7 +177,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionNoVersio
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-empty"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-empty")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -186,7 +186,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-version-file"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-version-file")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -195,7 +195,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-version-file-tf-code"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-version-file-tf-code")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, true)
 }
@@ -610,8 +610,8 @@ func copyFolder(t *testing.T, src string, dest string) {
 	err := util.CopyFolderContents(
 		l,
 		vfs.NewOSFS(),
-		filepath.FromSlash(src),
-		filepath.FromSlash(dest),
+		absPath(t, filepath.FromSlash(src)),
+		absPath(t, filepath.FromSlash(dest)),
 		".terragrunt-test",
 	)
 	require.NoError(t, err)

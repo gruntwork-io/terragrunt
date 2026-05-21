@@ -1,0 +1,23 @@
+---
+version: "v1.0.6"
+category: "bug-fixes"
+---
+
+#### `terragrunt` no longer hangs when `download_dir` is a non-hidden subdirectory of the unit
+
+Setting `download_dir` (via the attribute, `--download-dir`, or `TG_DOWNLOAD_DIR`) to a subdirectory of the unit's working directory whose name did not start with a dot caused commands that prepare the OpenTofu or Terraform source (`apply`, `plan`, `run`, and similar) to hang.
+
+For example:
+
+```hcl
+# /infra/web/terragrunt.hcl
+download_dir = "cache"
+
+terraform {
+  source = "./mod"
+}
+```
+
+Here `terragrunt apply` would copy `./mod` into `cache/`, see the new `cache/` directory on the next read of the unit, and recurse into it. The default `.terragrunt-cache` was unaffected because Terragrunt's source-copy step skips any directory whose name starts with a dot.
+
+These configurations now produce an immediate error identifying the source and destination paths.

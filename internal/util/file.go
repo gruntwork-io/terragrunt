@@ -719,6 +719,10 @@ func compileExcludePattern(patterns []string) (glob.Matcher, error) {
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
 func CopyFolderContentsWithFilter(l log.Logger, fsys vfs.FS, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+	if err := assertCopyPathsSafe(source, destination, filter); err != nil {
+		return err
+	}
+
 	const ownerReadWriteExecutePerms = 0o700
 	if err := fsys.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
@@ -812,6 +816,51 @@ func CopyFolderToTemp(fsys vfs.FS, source string, tempPrefix string, filter func
 	}
 
 	return dest, nil
+}
+
+// assertCopyPathsSafe checks that the copy from source to destination
+// won't recurse forever. The unsafe shape is dest-inside-source where
+// the filter would also walk into dest's first segment: MkdirAll seeds
+// destination as a subtree under source before the loop reads source's
+// children, so the next read surfaces dest's first segment as a fresh
+// entry and the loop descends into it without bound. Dest-inside-source
+// is only safe when the filter excludes that first segment (the typical
+// case, e.g. `.terragrunt-cache` is filtered out by [TerragruntExcludes]).
+//
+// Both arguments must be absolute. Relatives are rejected rather than
+// resolved against the process working directory, since callers can
+// shift it independently.
+func assertCopyPathsSafe(source, destination string, filter func(absolutePath string) bool) error {
+	if !filepath.IsAbs(source) {
+		return errors.Errorf("copy source must be an absolute path, got %q", source)
+	}
+
+	if !filepath.IsAbs(destination) {
+		return errors.Errorf("copy destination must be an absolute path, got %q", destination)
+	}
+
+	cleanSource := filepath.Clean(source)
+	cleanDest := filepath.Clean(destination)
+
+	if cleanSource == cleanDest {
+		return errors.Errorf("copy source and destination are the same path: %q", source)
+	}
+
+	sep := string(filepath.Separator)
+	if !strings.HasPrefix(cleanDest+sep, cleanSource+sep) {
+		return nil
+	}
+
+	relDest := strings.TrimPrefix(cleanDest+sep, cleanSource+sep)
+
+	firstSegment, _, _ := strings.Cut(relDest, sep)
+	firstSegmentAbs := filepath.Join(cleanSource, firstSegment)
+
+	if filter == nil || filter(firstSegmentAbs) {
+		return errors.Errorf("copy destination %q is inside source %q and the filter does not exclude %q; the copy would recurse into itself", destination, source, firstSegment)
+	}
+
+	return nil
 }
 
 // IsSymLink returns true if the given file is a symbolic link

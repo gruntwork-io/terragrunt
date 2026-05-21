@@ -1294,6 +1294,82 @@ func TestRelPathForLog(t *testing.T) {
 
 // buildCopyBenchTree lays out a synthetic module source: topDirs
 // top-level directories, each a chain chainDepth levels deep with
+// TestCopyFolderContentsRejectsDestinationInsideSource pins the guard
+// that prevents CopyFolderContentsWithFilter from recursing forever when
+// destination resolves to a path inside source. Without the guard,
+// MkdirAll seeds the destination subtree under source, the next read of
+// source's children surfaces the destination's first segment, and the
+// loop descends into it indefinitely.
+func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
+	t.Parallel()
+
+	source := t.TempDir()
+	l := logger.CreateLogger()
+
+	t.Run("destination inside source", func(t *testing.T) {
+		t.Parallel()
+
+		err := util.CopyFolderContents(l, source, filepath.Join(source, "nested"), ".terragrunt-test")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "inside source")
+	})
+
+	t.Run("destination equals source", func(t *testing.T) {
+		t.Parallel()
+
+		err := util.CopyFolderContents(l, source, source, ".terragrunt-test")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "same path")
+	})
+
+	t.Run("sibling destination is allowed", func(t *testing.T) {
+		t.Parallel()
+
+		dest := filepath.Join(filepath.Dir(source), filepath.Base(source)+"-copy")
+
+		t.Cleanup(func() { _ = os.RemoveAll(dest) })
+
+		require.NoError(t, util.CopyFolderContents(l, source, dest, ".terragrunt-test"))
+	})
+
+	t.Run("destination sharing a prefix with source is allowed", func(t *testing.T) {
+		t.Parallel()
+
+		dest := source + "-suffix"
+
+		t.Cleanup(func() { _ = os.RemoveAll(dest) })
+
+		require.NoError(t, util.CopyFolderContents(l, source, dest, ".terragrunt-test"))
+	})
+
+	// Dest inside source is the typical Terragrunt source-copy shape:
+	// destination is the .terragrunt-cache subtree, which TerragruntExcludes
+	// filters out on each read. The guard must accept this case; the
+	// previously-failing regression test in pkg/config relies on it.
+	t.Run("destination inside source is allowed when filter excludes it", func(t *testing.T) {
+		t.Parallel()
+
+		nested := filepath.Join(source, util.TerragruntCacheDir, "h1", "h2")
+		require.NoError(t, util.CopyFolderContents(l, source, nested, ".terragrunt-test"))
+	})
+
+	t.Run("relative source is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		err := util.CopyFolderContents(l, "relative/source", t.TempDir(), ".terragrunt-test")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "absolute")
+	})
+
+	t.Run("relative destination is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		err := util.CopyFolderContents(l, t.TempDir(), "relative/destination", ".terragrunt-test")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "absolute")
+	})
+}
+
 // filesPerLevel files at every level. A bare-directory include pattern
 // like the top-level name triggers the legacy expandGlobPath recursion
 // once per nested directory.
