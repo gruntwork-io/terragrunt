@@ -245,7 +245,7 @@ func (m WelcomeModel) discoveryErrorView() string {
 
 func (m WelcomeModel) handleComponentMsg(msg componentMsg) (tea.Model, tea.Cmd) {
 	// First component: transition to the catalog list immediately
-	newModel := NewModelStreaming(m.logger, m.opts, msg.entry, m.componentCh, m.errCh)
+	newModel := NewModelStreaming(m.ctx, m.logger, m.opts, msg.entry, m.componentCh, m.errCh)
 	width, height := m.width, m.height
 
 	initCmds := []tea.Cmd{newModel.Init()}

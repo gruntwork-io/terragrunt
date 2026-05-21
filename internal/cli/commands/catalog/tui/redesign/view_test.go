@@ -138,7 +138,7 @@ func TestComponentListView_LoadingTitle(t *testing.T) {
 	require.NotEmpty(t, components)
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -170,7 +170,7 @@ func TestComponentListView_MetadataRowRendered(t *testing.T) {
 	entry := components[0].WithVersion("v1.10.2").WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -197,7 +197,7 @@ func TestComponentListView_TemplateKindRendered(t *testing.T) {
 	)).WithSource("github.com/gruntwork-io/templates-repo")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, template, componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, template, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -219,7 +219,7 @@ func TestComponentListView_NoVersionOmitsVersionPill(t *testing.T) {
 	entry := components[0].WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -253,7 +253,7 @@ func TestComponentListView_LongSourceAbbreviatesWithEllipsis(t *testing.T) {
 	)).WithSource(longSource)
 
 	componentCh := make(chan *redesign.ComponentEntry, 1)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, entry, componentCh, nil)
 
 	// Narrow terminal forces the source column to shrink below the raw width,
 	// which forces abbreviateMiddle to truncate.

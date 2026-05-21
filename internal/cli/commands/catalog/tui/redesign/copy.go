@@ -78,9 +78,10 @@ func (c *CopyCmd) WithFS(fsys vfs.FS) *CopyCmd {
 }
 
 // WithValues threads user-supplied HCL fragments into the generated
-// terragrunt.values.hcl. The interactive scaffold form populates this map
-// keyed by `values.<name>` reference; entries not in the map fall back to
-// the same `"TODO"` / try-fallback behavior as the placeholder flow.
+// terragrunt.values.hcl. The map is keyed by the bare variable name (e.g.,
+// `name`, not `values.name`) — the lookup in WriteValuesFile uses the
+// reference's bare name. Entries not in the map fall back to the same
+// `"TODO"` / try-fallback behavior as the placeholder flow.
 func (c *CopyCmd) WithValues(values map[string]string) *CopyCmd {
 	c.values = values
 	return c

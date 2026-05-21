@@ -172,11 +172,6 @@ func (f *FormModel) Field(i int) FormField {
 	return f.fields[i]
 }
 
-// FieldCount returns the number of fields on the form.
-func (f *FormModel) FieldCount() int {
-	return len(f.fields)
-}
-
 // NewFormModel constructs the form. The first field receives focus.
 func NewFormModel(c *Component, fields []FormField) *FormModel {
 	for i := range fields {
@@ -351,11 +346,17 @@ func newParsedVariableField(v *config.ParsedVariable, required bool) FormField {
 }
 
 // parseBoolDefault maps a ParsedVariable.DefaultValue ("true", "false", or
-// "") to the checkbox's initial value. A bool without a parsed default
-// falls back to false, matching Go's zero value and the most common
-// "no, don't enable this" semantics for terraform booleans.
+// "") to the checkbox's initial value. Anything strconv.ParseBool can't
+// recognize (empty string, malformed input) falls back to false, matching
+// Go's zero value and the most common "no, don't enable this" semantics
+// for terraform booleans.
 func parseBoolDefault(raw string) bool {
-	return raw == "true"
+	b, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false
+	}
+
+	return b
 }
 
 // FieldsFromValuesReferences maps Unit/Stack `values.*` discovery onto the
@@ -466,13 +467,15 @@ func (f *FormModel) values() map[string]string {
 			continue
 		}
 
-		val := strings.TrimSpace(f.fields[i].Input.Value())
-		if val == "" {
+		raw := f.fields[i].Input.Value()
+
+		if f.fields[i].Literal {
+			out[f.fields[i].Name] = strconv.Quote(raw)
 			continue
 		}
 
-		if f.fields[i].Literal {
-			out[f.fields[i].Name] = strconv.Quote(val)
+		val := strings.TrimSpace(raw)
+		if val == "" {
 			continue
 		}
 
@@ -1138,7 +1141,18 @@ func (f *FormModel) snapCursorToVisible() {
 // transition. On bool fields, enter toggles the value in place so the
 // user can flip it as many times as they like before pressing esc.
 // Everything else on a text field is forwarded to the focused textinput.
+//
+// A short-circuit guard at the top covers the (currently unreachable)
+// case of an out-of-range cursor: interact() refuses to enter edit mode
+// on an empty form and every cursor mutation snaps onto a valid index,
+// but the bounds check keeps a stray future caller from panicking here.
 func (f *FormModel) updateEdit(msg tea.Msg) (*FormModel, tea.Cmd) {
+	if f.cursor < 0 || f.cursor >= len(f.fields) {
+		return f, nil
+	}
+
+	fld := &f.fields[f.cursor]
+
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
 		case key.Matches(keyMsg, f.editKeys.ExitEdit):
@@ -1148,7 +1162,7 @@ func (f *FormModel) updateEdit(msg tea.Msg) (*FormModel, tea.Cmd) {
 			return f.submit()
 		}
 
-		if f.fields[f.cursor].Checkbox && key.Matches(keyMsg, f.editKeys.Toggle) {
+		if fld.Checkbox && key.Matches(keyMsg, f.editKeys.Toggle) {
 			f.toggleBool(f.cursor)
 			return f, nil
 		}
@@ -1156,12 +1170,13 @@ func (f *FormModel) updateEdit(msg tea.Msg) (*FormModel, tea.Cmd) {
 
 	// Bool fields have no textinput to feed; ignore non-key messages and
 	// any keys that didn't match the bindings above.
-	if f.fields[f.cursor].Checkbox {
+	if fld.Checkbox {
 		return f, nil
 	}
 
-	ti, cmd := f.fields[f.cursor].Input.Update(msg)
-	f.fields[f.cursor].Input = ti
+	ti, cmd := fld.Input.Update(msg)
+	fld.Input = ti
+
 	f.refreshValidationErr(f.cursor)
 
 	return f, cmd
@@ -1234,6 +1249,7 @@ func (f *FormModel) unsetAllFields() {
 func (f *FormModel) toggleBool(i int) {
 	f.fields[i].Bool = !f.fields[i].Bool
 	f.fields[i].Set = true
+	f.fields[i].ValidationErr = ""
 }
 
 // Form styling. These mirror the surrounding pager/list look so the form

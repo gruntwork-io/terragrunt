@@ -3,6 +3,7 @@
 package redesign
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sort"
@@ -61,6 +62,11 @@ const (
 var availableButtons = []button{scaffoldBtn, viewSourceBtn}
 
 type Model struct {
+	// ctx is the welcome layer's cancellable context. Long-running off-UI
+	// work (e.g. scaffold.Prepare downloading sources) propagates the
+	// user's Ctrl+C through this context, so the call returns instead of
+	// blocking on an abandoned download.
+	ctx                 context.Context
 	lists               [numTabs]list.Model
 	logger              log.Logger
 	terragruntOptions   *options.TerragruntOptions
@@ -96,10 +102,13 @@ type Model struct {
 // for receiving additional entries as they are discovered. errCh carries the
 // loadFunc result; the streaming Model drains it after componentCh closes so
 // it can synthesize a DiscoveryCompleteMsg without racing the welcome model.
-func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *ComponentEntry, componentCh chan *ComponentEntry, errCh chan error) Model {
+// ctx is the cancellable context the welcome layer hands down so off-UI work
+// can observe Ctrl+C.
+func NewModelStreaming(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, initial *ComponentEntry, componentCh chan *ComponentEntry, errCh chan error) Model {
 	items := []list.Item{initial}
 
 	m := newModelWithItems(l, opts, items, componentCh)
+	m.ctx = ctx
 	m.errCh = errCh
 	m.loading = true
 

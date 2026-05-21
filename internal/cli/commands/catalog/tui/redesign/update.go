@@ -596,20 +596,22 @@ func enterFormState(m Model, c *Component, priorState sessionState) (tea.Model, 
 	m.valuesRefs = nil
 	m.selectedComponent = c
 
-	return m, discoverFormCmd(m.logger, m.terragruntOptions, c)
+	return m, discoverFormCmd(m.ctx, m.logger, m.terragruntOptions, c)
 }
 
 // discoverFormCmd runs the kind-appropriate variable discovery off the UI
 // thread. For module/template that means downloading the source and
 // parsing variables via scaffold.Prepare; for unit/stack it means reading
-// the source HCL and walking it via CollectValuesReferences.
-func discoverFormCmd(l log.Logger, opts *options.TerragruntOptions, c *Component) tea.Cmd {
+// the source HCL and walking it via CollectValuesReferences. ctx is the
+// model's cancellable context so a Ctrl+C during discovery aborts the
+// download instead of running it to completion.
+func discoverFormCmd(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, c *Component) tea.Cmd {
 	return func() tea.Msg {
 		if c.Kind.IsCopyable() {
 			return discoverValuesFields(c)
 		}
 
-		return discoverModuleFields(l, opts, c)
+		return discoverModuleFields(ctx, l, opts, c)
 	}
 }
 
@@ -623,10 +625,10 @@ func discoverFormCmd(l log.Logger, opts *options.TerragruntOptions, c *Component
 // is discarded. Real failures still surface: they come back as errors and
 // turn into a formDiscoveryErrMsg, which the outer Update renders as a
 // styled exit message after tea tears down.
-func discoverModuleFields(l log.Logger, opts *options.TerragruntOptions, c *Component) tea.Msg {
+func discoverModuleFields(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, c *Component) tea.Msg {
 	quiet := l.WithOptions(log.WithOutput(io.Discard))
 
-	plan, err := scaffold.Prepare(context.Background(), quiet, opts, c.TerraformSourcePath(), "")
+	plan, err := scaffold.Prepare(ctx, quiet, opts, c.TerraformSourcePath(), "")
 	if err != nil {
 		return formDiscoveryErrMsg{err: err}
 	}

@@ -304,7 +304,7 @@ func (p *Plan) Generate(
 
 	// Only set these if the `vars` map doesn't already have them set
 	setVarDefault(l, p.vars, enableRootInclude, !opts.ScaffoldNoIncludeRoot, shared.NoIncludeRootFlagName)
-	setVarDefault(l, p.vars, rootFileName, opts.ScaffoldRootFileName, shared.NoIncludeRootFlagName)
+	setVarDefault(l, p.vars, rootFileName, opts.ScaffoldRootFileName, shared.RootFileNameFlagName)
 
 	l.Debugf("Running boilerplate generation to %s", p.outputDir)
 	boilerplateOpts := NewBoilerplateOptions(p.boilerplateDir, p.outputDir, p.vars, opts)
