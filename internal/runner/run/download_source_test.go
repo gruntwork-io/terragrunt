@@ -508,12 +508,11 @@ func createConfig(
 		},
 	}
 
-	_, ver, impl, err := run.PopulateTFVersion(
-		t.Context(), l, vexec.NewOSExec(),
-		opts.WorkingDir,
-		opts.VersionManagerFileName,
-		configbridge.TFRunOptsFromOpts(opts),
-	)
+	_, ver, impl, err := run.PopulateTFVersion(t.Context(), l, vexec.NewOSExec(), run.PopulateTFVersionInput{
+		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+		WorkingDir:   opts.WorkingDir,
+		VersionFiles: opts.VersionManagerFileName,
+	})
 	require.NoError(t, err)
 
 	opts.TerraformVersion = ver
