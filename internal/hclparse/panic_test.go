@@ -75,27 +75,6 @@ func TestUnitPathsFromStackDir_EmptyStackDir_Panics(t *testing.T) {
 	})
 }
 
-func TestDiscoverStackChildUnits_NilFS_Panics(t *testing.T) {
-	t.Parallel()
-	assertPanicsContaining(t, "hclparse.DiscoverStackChildUnits: fs is nil", func() {
-		hclparse.DiscoverStackChildUnits(nil, "/src", "/gen")
-	})
-}
-
-func TestDiscoverStackChildUnits_EmptySource_Panics(t *testing.T) {
-	t.Parallel()
-	assertPanicsContaining(t, "hclparse.DiscoverStackChildUnits: stackSourceDir is empty", func() {
-		hclparse.DiscoverStackChildUnits(vfs.NewMemMapFS(), "", "/gen")
-	})
-}
-
-func TestDiscoverStackChildUnits_EmptyGen_Panics(t *testing.T) {
-	t.Parallel()
-	assertPanicsContaining(t, "hclparse.DiscoverStackChildUnits: stackGenDir is empty", func() {
-		hclparse.DiscoverStackChildUnits(vfs.NewMemMapFS(), "/src", "")
-	})
-}
-
 func TestAutoIncludeDependencyPaths_NilFS_Panics(t *testing.T) {
 	t.Parallel()
 	assertPanicsContaining(t, "hclparse.AutoIncludeDependencyPaths: fs is nil", func() {

@@ -189,85 +189,17 @@ dependency "b" { config_path = "../b" }`,
 	})
 }
 
-// FuzzBuildComponentRefMap tests component ref map building with arbitrary names
-// and paths at multiple nesting levels (2 deep).
-// Verifies that BuildComponentRefMap never panics regardless of input.
+// FuzzBuildComponentRefMap tests component ref map building with arbitrary
+// names and paths. Verifies that BuildComponentRefMap never panics regardless
+// of input.
 func FuzzBuildComponentRefMap(f *testing.F) {
-	f.Add("vpc", "/path/vpc", "", "", "", "")
-	f.Add("infra", "/path/infra", "deep", "/path/deep", "db", "/path/db")
-	f.Add("", "", "", "", "", "")
-	f.Add("path", "/reserved", "name", "/also-reserved", "path", "/double-reserved")
+	f.Add("vpc", "/path/vpc")
+	f.Add("", "")
+	f.Add("path", "/reserved")
+	f.Add("name", "/also-reserved")
 
-	f.Fuzz(func(t *testing.T, name, path, childName, childPath, grandchildName, grandchildPath string) {
-		ref := hclparse.ComponentRef{
-			Name: name,
-			Path: path,
-		}
-
-		if childName != "" {
-			child := hclparse.ComponentRef{Name: childName, Path: childPath}
-
-			if grandchildName != "" {
-				child.ChildRefs = []hclparse.ComponentRef{
-					{Name: grandchildName, Path: grandchildPath},
-				}
-			}
-
-			ref.ChildRefs = []hclparse.ComponentRef{child}
-		}
-
-		_ = hclparse.BuildComponentRefMap([]hclparse.ComponentRef{ref})
-	})
-}
-
-// FuzzNestedStackPath tests stack.<name>.<nested_stack>.path resolution with
-// arbitrary stack and unit names. Creates a parent stack referencing a child
-// stack that contains a nested stack, and verifies the pipeline never panics.
-// Fuzz inputs are injected directly into HCL templates without escaping:
-// this is intentional to test that invalid HCL is handled gracefully.
-func FuzzNestedStackPath(f *testing.F) {
-	f.Add("infra", "deep", "vpc", "db")
-	f.Add("network", "storage", "subnet", "bucket")
-	f.Add("a", "b", "c", "d")
-	f.Add("path", "name", "source", "autoinclude")
-
-	f.Fuzz(func(t *testing.T, stackName, nestedStackName, unitName, nestedUnitName string) {
-		if stackName == "" || nestedStackName == "" || unitName == "" || nestedUnitName == "" {
-			t.Skip("HCL labels cannot be empty")
-		}
-
-		fs := vfs.NewMemMapFS()
-
-		// Create the nested (deepest) stack file
-		nestedStackDir := "/fuzz/stacks/nested"
-		_ = fs.MkdirAll(nestedStackDir, 0755)
-
-		nestedContent := `unit "` + nestedUnitName + `" { source = "."; path = "` + nestedUnitName + `" }`
-		_ = vfs.WriteFile(fs, nestedStackDir+"/terragrunt.stack.hcl", []byte(nestedContent), 0644)
-
-		// Create the middle stack that contains a unit + nested stack
-		midStackDir := "/fuzz/stacks/mid"
-		_ = fs.MkdirAll(midStackDir, 0755)
-
-		midContent := `unit "` + unitName + `" { source = "."; path = "` + unitName + `" }
-stack "` + nestedStackName + `" { source = "../nested"; path = "` + nestedStackName + `" }`
-		_ = vfs.WriteFile(fs, midStackDir+"/terragrunt.stack.hcl", []byte(midContent), 0644)
-
-		// Create parent stack referencing the middle stack + an app unit
-		parentSrc := `stack "` + stackName + `" { source = "../stacks/mid"; path = "` + stackName + `" }
-unit "app" { source = "."; path = "app"
-  autoinclude {
-    dependency "dep" { config_path = stack.` + stackName + `.` + nestedStackName + `.path }
-  }
-}`
-		_, _ = hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
-			Src:      []byte(parentSrc),
-			Filename: "fuzz.hcl",
-			StackDir: "/fuzz/live",
-		})
-
-		// Also exercise DiscoverStackChildUnits directly on the middle stack.
-		_ = hclparse.DiscoverStackChildUnits(fs, "/fuzz/stacks/mid", "/fuzz/gen")
+	f.Fuzz(func(t *testing.T, name, path string) {
+		_ = hclparse.BuildComponentRefMap([]hclparse.ComponentRef{{Name: name, Path: path}})
 	})
 }
 
@@ -407,33 +339,6 @@ func FuzzAutoIncludeDependencyPaths_ArgErrors(f *testing.F) {
 				t.Errorf("expected EmptyArgError for empty unitDir, got %v", err)
 			}
 		}
-	})
-}
-
-// FuzzDiscoverStackChildUnits_ArgPanics fuzzes both string args.
-func FuzzDiscoverStackChildUnits_ArgPanics(f *testing.F) {
-	f.Add("/src", "/gen")
-	f.Add("", "/gen")
-	f.Add("/src", "")
-	f.Add("", "")
-	f.Add("\x00", "\x00")
-
-	f.Fuzz(func(t *testing.T, stackSourceDir, stackGenDir string) {
-		fs := vfs.NewMemMapFS()
-
-		defer func() {
-			r := recover()
-
-			shouldPanic := stackSourceDir == "" || stackGenDir == ""
-			switch {
-			case shouldPanic && r == nil:
-				t.Errorf("expected panic for empty args (src=%q gen=%q), got none", stackSourceDir, stackGenDir)
-			case !shouldPanic && r != nil:
-				t.Errorf("unexpected panic for src=%q gen=%q: %v", stackSourceDir, stackGenDir, r)
-			}
-		}()
-
-		_ = hclparse.DiscoverStackChildUnits(fs, stackSourceDir, stackGenDir)
 	})
 }
 

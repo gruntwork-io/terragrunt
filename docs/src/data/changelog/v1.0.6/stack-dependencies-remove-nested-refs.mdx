@@ -1,0 +1,12 @@
+---
+version: "v1.0.6"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: removed `stack.<name>.<unit>.path` references
+
+The `stack-dependencies` experiment no longer resolves `stack.<name>.<unit_name>.path` or `stack.<name>.<nested_stack>.path`. Only the top-level `stack.<name>.path` and `unit.<name>.path` forms remain.
+
+The dropped references conflicted with the reserved `name` and `path` attributes on each ref (a nested unit named `name` or `path` could never be addressed), and resolving them required parsing every nested catalog up-front. Removing the feature simplifies the parser and frees those identifiers.
+
+To depend on a specific generated unit inside a stack, compute the path with `${stack.<name>.path}/<unit-relative-path>` directly. Be aware that the layout under a stack's generated directory depends on `no_dot_terragrunt_stack` on the parent stack and each unit, so hand-computed paths must mirror that resolution.
