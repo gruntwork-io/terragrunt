@@ -377,12 +377,9 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 	source = filepath.ToSlash(source)
 	destination = filepath.ToSlash(destination)
 
-	if cfg.fastCopy {
-		return copyFolderContentsFast(l, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
-	}
-
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
-	// the copy filter.
+	// the copy filter. The expanded globs feed both the dest-inside-source
+	// assertion below and the filter passed to the slow-path implementation.
 	includeExpandedGlobs := []string{}
 
 	for _, includeGlob := range cfg.includeInCopy {
@@ -409,7 +406,7 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
 	}
 
-	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
+	filter := func(absolutePath string) bool {
 		relativePath, err := filepath.Rel(source, absolutePath)
 		if err != nil {
 			l.Warnf("Failed to compute relative path from %s to %s: %v", source, absolutePath, err)
@@ -429,7 +426,17 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 		}
 
 		return !TerragruntExcludes(filepath.FromSlash(relativePath))
-	})
+	}
+
+	if err := assertCopyPathsSafe(source, destination, filter); err != nil {
+		return err
+	}
+
+	if cfg.fastCopy {
+		return copyFolderContentsFast(l, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
+	}
+
+	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, filter)
 }
 
 // copyFolderContentsFast is the [CopyFolderContents] path used when the
@@ -718,6 +725,10 @@ func compileExcludePattern(patterns []string) (glob.Matcher, error) {
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
 func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+	if err := assertCopyPathsSafe(source, destination, filter); err != nil {
+		return err
+	}
+
 	const ownerReadWriteExecutePerms = 0o700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
@@ -811,6 +822,51 @@ func CopyFolderToTemp(source string, tempPrefix string, filter func(path string)
 	}
 
 	return dest, nil
+}
+
+// assertCopyPathsSafe checks that the copy from source to destination
+// won't recurse forever. The unsafe shape is dest-inside-source where
+// the filter would also walk into dest's first segment: MkdirAll seeds
+// destination as a subtree under source before the loop reads source's
+// children, so the next read surfaces dest's first segment as a fresh
+// entry and the loop descends into it without bound. Dest-inside-source
+// is only safe when the filter excludes that first segment (the typical
+// case, e.g. `.terragrunt-cache` is filtered out by [TerragruntExcludes]).
+//
+// Both arguments must be absolute. Relatives are rejected rather than
+// resolved against the process working directory, since callers can
+// shift it independently.
+func assertCopyPathsSafe(source, destination string, filter func(absolutePath string) bool) error {
+	if !filepath.IsAbs(source) {
+		return errors.Errorf("copy source must be an absolute path, got %q", source)
+	}
+
+	if !filepath.IsAbs(destination) {
+		return errors.Errorf("copy destination must be an absolute path, got %q", destination)
+	}
+
+	cleanSource := filepath.Clean(source)
+	cleanDest := filepath.Clean(destination)
+
+	if cleanSource == cleanDest {
+		return errors.Errorf("copy source and destination are the same path: %q", source)
+	}
+
+	sep := string(filepath.Separator)
+	if !strings.HasPrefix(cleanDest+sep, cleanSource+sep) {
+		return nil
+	}
+
+	relDest := strings.TrimPrefix(cleanDest+sep, cleanSource+sep)
+
+	firstSegment, _, _ := strings.Cut(relDest, sep)
+	firstSegmentAbs := filepath.Join(cleanSource, firstSegment)
+
+	if filter == nil || filter(firstSegmentAbs) {
+		return errors.Errorf("copy destination %q is inside source %q and the filter does not exclude %q; the copy would recurse into itself", destination, source, firstSegment)
+	}
+
+	return nil
 }
 
 // IsSymLink returns true if the given file is a symbolic link
