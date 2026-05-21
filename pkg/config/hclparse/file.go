@@ -132,6 +132,9 @@ func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
 
 // Rebind returns a new File wrapper bound to `parser`, sharing the underlying AST.
 //
+// `parser` must be non-nil; Rebind panics otherwise. In practice all callers
+// obtain it from [NewParser], which never returns nil.
+//
 // The `parser` argument is mutated: the file's AST is registered in its file map.
 // This is required because `hcl.NewDiagnosticTextWriter` captures the parser's
 // file map by reference at construction time, so a fresh parser cannot render
@@ -139,6 +142,10 @@ func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
 //
 // The original file wrapper is not modified.
 func (file *File) Rebind(parser *Parser) *File {
+	if parser == nil {
+		panic("hclparse: Rebind called with nil parser")
+	}
+
 	parser.AddFile(file.ConfigPath, file.File)
 
 	return &File{

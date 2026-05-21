@@ -158,6 +158,21 @@ func TestRebindWithRacing(t *testing.T) {
 	done.Wait()
 }
 
+// TestRebindPanicsOnNilParser pins the documented contract that Rebind must be
+// called with a non-nil parser. Production callers obtain the parser from
+// hclparse.NewParser, which never returns nil; the panic exists so a future
+// misuse fails loudly at the call site instead of deep inside AddFile.
+func TestRebindPanicsOnNilParser(t *testing.T) {
+	t.Parallel()
+
+	file, err := hclparse.NewParser().ParseFromString(hclWithUndefinedVar, fixturePath)
+	require.NoError(t, err)
+
+	assert.PanicsWithValue(t, "hclparse: Rebind called with nil parser", func() {
+		file.Rebind(nil)
+	})
+}
+
 // evalContextMissingDependency returns an EvalContext with a non-empty Variables
 // map that omits `dependency`. A non-empty Variables map is required to produce
 // the "no variable named X" wording; an empty context yields "Variables not
