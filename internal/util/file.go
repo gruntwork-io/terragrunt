@@ -834,8 +834,10 @@ func CopyFolderToTemp(source string, tempPrefix string, filter func(path string)
 // case, e.g. `.terragrunt-cache` is filtered out by [TerragruntExcludes]).
 //
 // Both arguments must be absolute. Relatives are rejected rather than
-// resolved against the process working directory, since callers can
-// shift it independently.
+// resolved against the process working directory, since Terragrunt's
+// `--working-dir` flag detaches the conceptual working directory from
+// the Go process CWD, and resolving here would silently produce wrong
+// answers.
 func assertCopyPathsSafe(source, destination string, filter func(absolutePath string) bool) error {
 	if !filepath.IsAbs(source) {
 		return errors.Errorf("copy source must be an absolute path, got %q", source)
