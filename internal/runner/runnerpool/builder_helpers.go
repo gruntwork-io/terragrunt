@@ -250,12 +250,11 @@ func checkUnitVersionConstraints(
 		l = unitLogger
 	}
 
-	_, ver, impl, err := run.PopulateTFVersion(
-		ctx, l, vexec.NewOSExec(),
-		unitOpts.WorkingDir,
-		unitOpts.VersionManagerFileName,
-		configbridge.TFRunOptsFromOpts(unitOpts),
-	)
+	_, ver, impl, err := run.PopulateTFVersion(ctx, l, vexec.NewOSExec(), run.PopulateTFVersionInput{
+		TFOpts:       configbridge.TFRunOptsFromOpts(unitOpts),
+		WorkingDir:   unitOpts.WorkingDir,
+		VersionFiles: unitOpts.VersionManagerFileName,
+	})
 	if err != nil {
 		return errors.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
 	}

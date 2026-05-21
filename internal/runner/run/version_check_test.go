@@ -216,7 +216,9 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	// First call mirrors what setupAutoProviderCacheDir does before
 	// terraform_binary is read from HCL: TFPath is still the auto-detected
 	// "tofu", and the OpenTofu version gets resolved and cached.
-	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(ctx, l, e, "", nil, tfOpts("tofu"))
+	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(ctx, l, e, run.PopulateTFVersionInput{
+		TFOpts: tfOpts("tofu"),
+	})
 	require.NoError(t, err)
 	assert.Equal(t, tfimpl.OpenTofu, tofuImpl)
 	assert.Equal(t, "1.9.0", tofuVer.String())
@@ -225,7 +227,9 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	// "terraform"` has been applied. Before the fix, this hit the poisoned
 	// cache entry and returned OpenTofu v1.9.0, which then failed any
 	// terraform-version-constraint check pinned to a real Terraform release.
-	_, terraformVer, terraformImpl, err := run.PopulateTFVersion(ctx, l, e, "", nil, tfOpts("terraform"))
+	_, terraformVer, terraformImpl, err := run.PopulateTFVersion(ctx, l, e, run.PopulateTFVersionInput{
+		TFOpts: tfOpts("terraform"),
+	})
 	require.NoError(t, err)
 	assert.Equal(t, tfimpl.Terraform, terraformImpl,
 		"expected Terraform after switching TFPath to 'terraform'; got %s"+

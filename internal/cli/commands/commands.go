@@ -334,11 +334,11 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	if opts.TerraformVersion == nil {
-		_, ver, impl, err := run.PopulateTFVersion(
-			ctx, l, vexec.NewOSExec(), opts.WorkingDir,
-			opts.VersionManagerFileName,
-			configbridge.TFRunOptsFromOpts(opts),
-		)
+		_, ver, impl, err := run.PopulateTFVersion(ctx, l, vexec.NewOSExec(), run.PopulateTFVersionInput{
+			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+			WorkingDir:   opts.WorkingDir,
+			VersionFiles: opts.VersionManagerFileName,
+		})
 		if err != nil {
 			return err
 		}

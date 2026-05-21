@@ -32,8 +32,19 @@ var TerraformVersionRegex = regexp.MustCompile(`^(\S+)\s(v?\d+\.\d+\.\d+)`)
 
 const versionParts = 3
 
+// PopulateTFVersionInput holds the inputs for PopulateTFVersion.
+type PopulateTFVersionInput struct {
+	// TFOpts carries the resolved binary path and shell environment.
+	TFOpts *tf.TFOptions
+	// WorkingDir is hashed into the cache key alongside VersionFiles.
+	WorkingDir string
+	// VersionFiles are pinning files (e.g. .terraform-version) whose contents
+	// participate in the cache key.
+	VersionFiles []string
+}
+
 // PopulateTFVersion discovers the currently installed version of OpenTofu/Terraform.
-// It uses a cache keyed by workingDir, versionFiles, and the resolved binary path
+// It uses a cache keyed by WorkingDir, VersionFiles, and the resolved binary path
 // to avoid repeated invocations while still distinguishing between binaries (e.g.
 // when terraform_binary overrides the default after a prior call has already
 // resolved a different binary). Returns the discovered version and implementation
@@ -42,12 +53,10 @@ func PopulateTFVersion(
 	ctx context.Context,
 	l log.Logger,
 	e vexec.Exec,
-	workingDir string,
-	versionFiles []string,
-	tfOpts *tf.TFOptions,
+	in PopulateTFVersionInput,
 ) (log.Logger, *version.Version, tfimpl.Type, error) {
 	versionCache := GetRunVersionCache(ctx)
-	cacheKey := computeVersionFilesCacheKey(workingDir, versionFiles, tfOpts.ShellOptions.TFPath)
+	cacheKey := computeVersionFilesCacheKey(in.WorkingDir, in.VersionFiles, in.TFOpts.ShellOptions.TFPath)
 	l.Debugf("using cache key for version files: %s", cacheKey)
 
 	if cachedOutput, found := versionCache.Get(ctx, cacheKey); found {
@@ -59,7 +68,7 @@ func PopulateTFVersion(
 		return l, terraformVersion, tfImplementation, nil
 	}
 
-	l, terraformVersion, tfImplementation, err := GetTFVersion(ctx, l, e, tfOpts)
+	l, terraformVersion, tfImplementation, err := GetTFVersion(ctx, l, e, in.TFOpts)
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}
