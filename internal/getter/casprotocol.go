@@ -21,7 +21,14 @@ type CASProtocolGetter struct {
 }
 
 // NewCASProtocolGetter creates a new CASProtocolGetter.
+//
+// Requires v.FS: Get dispatches to [cas.CAS.MaterializeTree], which
+// reads and links through v.FS. v.Git is not consulted because
+// materialization is a pure FS operation. Panics with
+// [cas.ErrVenvFSUnset] when v.FS is nil.
 func NewCASProtocolGetter(l log.Logger, c *cas.CAS, v cas.Venv) *CASProtocolGetter {
+	v.RequireFS()
+
 	return &CASProtocolGetter{
 		CAS:    c,
 		Logger: l,

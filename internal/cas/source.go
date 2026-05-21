@@ -72,6 +72,10 @@ type SourceRequest struct {
 //
 // opts.Dir is the destination. opts.Mutable selects copy vs hardlink
 // for the final link, matching the git path.
+//
+// Requires v.FS for store I/O. v.Git is only consulted by fetchers that
+// shell out to git (e.g. the closure built by [CAS.Clone]); other
+// fetchers are free to leave it unset.
 func (c *CAS) FetchSource(
 	ctx context.Context,
 	l log.Logger,
@@ -79,6 +83,8 @@ func (c *CAS) FetchSource(
 	opts *CloneOptions,
 	src SourceRequest,
 ) error {
+	v.RequireFS()
+
 	if src.Fetch == nil {
 		return ErrFetchClosureRequired
 	}
@@ -149,7 +155,11 @@ func OpaqueKey(scheme, url, token string) string {
 // returns the path with a cleanup closure that logs failures rather than
 // returning them. Exported so out-of-package [SourceFetcher] implementations
 // share the same temp-dir layout.
+//
+// Requires v.FS.
 func (c *CAS) MakeFetchTempDir(l log.Logger, v Venv) (string, func(), error) {
+	v.RequireFS()
+
 	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-fetch-*")
 	if err != nil {
 		return "", nil, fmt.Errorf("create source fetch dir: %w", err)
@@ -169,7 +179,11 @@ func (c *CAS) MakeFetchTempDir(l log.Logger, v Venv) (string, func(), error) {
 // when non-empty (probe-derived); otherwise it is the content hash of the
 // tree. Exported so out-of-package [SourceFetcher] implementations ingest
 // through the same path the local-source flow uses.
+//
+// Requires v.FS.
 func (c *CAS) IngestDirectory(l log.Logger, v Venv, sourceDir, suggestedKey string) (string, error) {
+	v.RequireFS()
+
 	hash, treeData, err := c.buildLocalTree(v, sourceDir, DefaultLocalHashAlgorithm)
 	if err != nil {
 		return "", fmt.Errorf("hash %s: %w", sourceDir, err)

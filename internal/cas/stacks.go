@@ -68,17 +68,24 @@ type StackCASResult struct {
 // cloned into a temp directory; local sources are copied into a temp directory
 // so rewrites do not mutate the caller's working tree. The kind should be
 // "unit" or "stack".
+//
+// Requires v.FS unconditionally. Remote sources additionally require
+// v.Git; the assertion fires once dispatch picks the remote branch.
 func (c *CAS) ProcessStackComponent(
 	ctx context.Context,
 	l log.Logger,
 	v Venv,
 	source, kind string,
 ) (*StackCASResult, error) {
+	v.RequireFS()
+
 	repoURL, subdir := getter.SourceDirSubdir(source)
 
 	if isLocalPath(v.FS, repoURL) {
 		return c.processLocalStackComponent(ctx, l, v, repoURL, subdir)
 	}
+
+	v.RequireGit()
 
 	detectedURL, err := DetectRemoteSource(repoURL)
 	if err != nil {

@@ -25,6 +25,8 @@ const DefaultLocalHashAlgorithm = HashSHA256
 
 // StoreLocalDirectory persists all content from a local source directory into the CAS
 // and then links the persisted files to the target directory.
+//
+// Requires v.FS. v.Git is not used.
 func (c *CAS) StoreLocalDirectory(
 	ctx context.Context,
 	l log.Logger,
@@ -32,6 +34,8 @@ func (c *CAS) StoreLocalDirectory(
 	sourceDir, targetDir string,
 	opts ...LinkTreeOption,
 ) error {
+	v.RequireFS()
+
 	hash, treeData, err := c.buildLocalTree(v, sourceDir, DefaultLocalHashAlgorithm)
 	if err != nil {
 		return fmt.Errorf("failed to hash local directory %s: %w", sourceDir, err)
@@ -55,8 +59,13 @@ func (c *CAS) StoreLocalDirectory(
 // it is the "root" for DeterministicTreeHash calls when rewriting nested sources.
 // The same file-content hashes are used both inside the root-hash and as blob
 // hashes in the synthetic tree, so blob lookups and tree lookups stay consistent.
+//
+// Requires v.FS. v.Git is not used.
 func (c *CAS) ComputeLocalRootHash(v Venv, dir string, alg HashAlgorithm) (string, error) {
+	v.RequireFS()
+
 	hash, _, err := c.buildLocalTree(v, dir, alg)
+
 	return hash, err
 }
 

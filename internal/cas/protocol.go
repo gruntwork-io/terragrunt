@@ -103,6 +103,9 @@ func FormatCASRefWithSubdir(hash, subdir string) string {
 
 // MaterializeTree reads a tree from the CAS store and links its contents to the destination directory.
 // It tries the synth store first, then falls back to the git tree store.
+//
+// Requires v.FS for reading the stored tree and writing links. v.Git is
+// not used because materialization is a pure FS operation.
 func (c *CAS) MaterializeTree(
 	ctx context.Context,
 	l log.Logger,
@@ -111,6 +114,8 @@ func (c *CAS) MaterializeTree(
 	dest string,
 	opts ...LinkTreeOption,
 ) error {
+	v.RequireFS()
+
 	var treeData []byte
 
 	var treeStoreUsed *Store

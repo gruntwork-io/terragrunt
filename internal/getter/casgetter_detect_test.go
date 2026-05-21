@@ -7,6 +7,7 @@ import (
 
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
@@ -327,6 +328,62 @@ func TestCASGetterDetect_SchemeNotInRegistryFallsThrough(t *testing.T) {
 
 	ok, _ := g.Detect(req)
 	assert.False(t, ok, "without WithGenericFetchers, s3:// must not be claimed")
+}
+
+// TestNewCASGetter_PanicsOnNilVenvFS pins the constructor-time rejection
+// of a Venv missing FS. The misconfiguration surfaces at the offending
+// NewCASGetter call rather than at first Detect.
+func TestNewCASGetter_PanicsOnNilVenvFS(t *testing.T) {
+	t.Parallel()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	require.PanicsWithValue(t, tgcas.ErrVenvFSUnset, func() {
+		getter.NewCASGetter(logger.CreateLogger(), c, tgcas.Venv{}, &tgcas.CloneOptions{})
+	})
+}
+
+// TestNewCASGetter_PanicsOnNilVenvGit pins the constructor-time
+// rejection of a Venv with FS set but Git missing. CASGetter routes
+// through git for any git source, so a missing runner would otherwise
+// nil-deref deep inside the clone path.
+func TestNewCASGetter_PanicsOnNilVenvGit(t *testing.T) {
+	t.Parallel()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v := tgcas.Venv{FS: vfs.NewOSFS()}
+
+	require.PanicsWithValue(t, tgcas.ErrVenvGitUnset, func() {
+		getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
+	})
+}
+
+// TestCASGetterDetect_PanicsOnNilVenvFS pins the in-Detect repeat of
+// the constructor check. Only reachable when a caller hand-assembles
+// CASGetter and skips NewCASGetter.
+func TestCASGetterDetect_PanicsOnNilVenvFS(t *testing.T) {
+	t.Parallel()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	g := &getter.CASGetter{
+		CAS:       c,
+		Logger:    logger.CreateLogger(),
+		Opts:      &tgcas.CloneOptions{},
+		Venv:      tgcas.Venv{},
+		Detectors: []getter.Detector{new(getter.FileDetector)},
+	}
+
+	require.PanicsWithValue(t, tgcas.ErrVenvFSUnset, func() {
+		_, _ = g.Detect(&gogetter.Request{Src: "./some/local/path", Pwd: t.TempDir()})
+	})
 }
 
 func TestCASGetterDetect_PreservesExistingArchiveQueryValue(t *testing.T) {

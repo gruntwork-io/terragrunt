@@ -62,7 +62,16 @@ func WithDefaultGenericDispatch(fetcherOpts ...GenericFetcherOption) CASGetterOp
 // git and file canonicalization. Pass [WithDefaultGenericDispatch] (or
 // [WithGenericFetchers] + [WithGenericResolvers]) to enable the non-git
 // dispatch path.
+//
+// Requires v.FS and v.Git: the file-path branch in Detect stats through
+// v.FS, and the git-path branch in Get clones through v.Git. Panics
+// with [cas.ErrVenvFSUnset] or [cas.ErrVenvGitUnset] respectively when
+// either is nil. Production callers build v through [cas.OSVenv], which
+// always supplies both.
 func NewCASGetter(l log.Logger, c *cas.CAS, v cas.Venv, opts *cas.CloneOptions, options ...CASGetterOption) *CASGetter {
+	v.RequireFS()
+	v.RequireGit()
+
 	if opts == nil {
 		opts = &cas.CloneOptions{}
 	}
@@ -153,6 +162,11 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 		}
 
 		if _, isFileDetector := detector.(*getter.FileDetector); isFileDetector {
+			// Repeats the NewCASGetter check so a caller that hand-
+			// assembles a CASGetter and skips the constructor still
+			// gets the typed panic instead of a runtime nil-deref.
+			g.Venv.RequireFS()
+
 			info, statErr := g.Venv.FS.Stat(src)
 			if statErr != nil {
 				return false, fmt.Errorf("%w: %s", ErrDirectoryNotFound, src)

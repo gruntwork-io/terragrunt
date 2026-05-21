@@ -236,7 +236,13 @@ func (r *GitResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 // stores intact. Callers customize the clone by passing options such as
 // [WithDir], [WithBranch], or [WithDepth]; calling Clone with no
 // options runs against the zero CloneOptions.
+//
+// Requires v.FS for store I/O and v.Git for the underlying clone.
+// Panics with [ErrVenvFSUnset] or [ErrVenvGitUnset] if either is unset.
 func (c *CAS) Clone(ctx context.Context, l log.Logger, v Venv, url string, options ...CloneOption) error {
+	v.RequireFS()
+	v.RequireGit()
+
 	opts := CloneOptions{}
 	for _, opt := range options {
 		opt(&opts)
