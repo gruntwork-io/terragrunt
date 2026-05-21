@@ -139,6 +139,83 @@ func TestBuildRequestURLRelativePath(t *testing.T) {
 	)
 }
 
+func TestLatestRegistryVersion(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name            string
+		versionsPayload string
+		expectedVersion string
+		expectError     bool
+	}{
+		{
+			name: "picks highest semver not first returned",
+			versionsPayload: `{"modules":[{"versions":[
+				{"version":"0.1.0"},
+				{"version":"0.2.7"},
+				{"version":"0.2.5"},
+				{"version":"0.2.0"}
+			]}]}`,
+			expectedVersion: "0.2.7",
+		},
+		{
+			name: "single version",
+			versionsPayload: `{"modules":[{"versions":[
+				{"version":"1.0.0"}
+			]}]}`,
+			expectedVersion: "1.0.0",
+		},
+		{
+			name:        "empty versions list returns error",
+			versionsPayload: `{"modules":[{"versions":[]}]}`,
+			expectError: true,
+		},
+		{
+			name:        "empty modules list returns error",
+			versionsPayload: `{"modules":[]}`,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := tc.versionsPayload
+			mux := http.NewServeMux()
+
+			mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, err := w.Write([]byte(`{"modules.v1":"/v1/modules/"}`))
+				assert.NoError(t, err)
+			})
+
+			mux.HandleFunc("/v1/modules/namespace/module/aws/versions", func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, err := w.Write([]byte(payload))
+				assert.NoError(t, err)
+			})
+
+			server := httptest.NewTLSServer(mux)
+			t.Cleanup(server.Close)
+
+			srcURL := &url.URL{
+				Scheme: "tfr",
+				Host:   server.Listener.Addr().String(),
+				Path:   "/namespace/module/aws",
+			}
+
+			version, err := getter.LatestRegistryVersion(t.Context(), logger.CreateLogger(), server.Client(), srcURL)
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedVersion, version)
+			}
+		})
+	}
+}
+
 // newRegistryTestServer stands up an httptest TLS server that speaks enough of
 // the OpenTofu/Terraform module-registry protocol to satisfy the
 // RegistryGetter: the service-discovery document, a module download endpoint

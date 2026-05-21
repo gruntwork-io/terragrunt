@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 
+	goversion "github.com/hashicorp/go-version"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -159,6 +161,75 @@ func BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, version
 	}
 
 	return &url.URL{Scheme: "https", Host: registryDomain, Path: moduleFullPath}, nil
+}
+
+// registryVersionsResponse is the response from the registry versions endpoint.
+type registryVersionsResponse struct {
+	Modules []struct {
+		Versions []struct {
+			Version string `json:"version"`
+		} `json:"versions"`
+	} `json:"modules"`
+}
+
+// LatestRegistryVersion queries the registry API for the latest version of the module at srcURL.
+// If httpClient is nil, a default client is used.
+func LatestRegistryVersion(ctx context.Context, l log.Logger, httpClient *http.Client, srcURL *url.URL) (string, error) {
+	if httpClient == nil {
+		httpClient = cleanhttp.DefaultClient()
+	}
+
+	registryDomain := srcURL.Host
+
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, l, httpClient, registryDomain)
+	if err != nil {
+		return "", err
+	}
+
+	modulePath := strings.TrimPrefix(srcURL.Path, "/")
+	versionsRaw := fmt.Sprintf("%s/%s/versions", strings.TrimSuffix(moduleRegistryBasePath, "/"), modulePath)
+
+	// moduleRegistryBasePath may be an absolute URL (e.g. Artifactory returns a full https:// base path).
+	// In that case, parse it directly rather than constructing a new URL with the host prepended.
+	var versionsURL *url.URL
+
+	if parsed, parseErr := url.Parse(versionsRaw); parseErr == nil && parsed.Scheme != "" {
+		versionsURL = parsed
+	} else {
+		versionsURL = &url.URL{Scheme: "https", Host: registryDomain, Path: versionsRaw}
+	}
+
+	bodyData, _, err := httpGETAndGetResponse(ctx, l, httpClient, versionsURL)
+	if err != nil {
+		return "", err
+	}
+
+	var resp registryVersionsResponse
+	if err := json.Unmarshal(bodyData, &resp); err != nil {
+		return "", errors.New(fmt.Sprintf("error parsing versions response: %s", err))
+	}
+
+	if len(resp.Modules) == 0 || len(resp.Modules[0].Versions) == 0 {
+		return "", errors.New(fmt.Sprintf("no versions found for module %s", srcURL))
+	}
+
+	var latest *goversion.Version
+	for _, v := range resp.Modules[0].Versions {
+		parsed, err := goversion.NewVersion(v.Version)
+		if err != nil {
+			continue
+		}
+
+		if latest == nil || parsed.GreaterThan(latest) {
+			latest = parsed
+		}
+	}
+
+	if latest == nil {
+		return "", errors.New(fmt.Sprintf("no valid semver versions found for module %s", srcURL))
+	}
+
+	return latest.Original(), nil
 }
 
 // applyHostToken adds an Authorization header to req based on the user's

@@ -80,6 +80,45 @@ func TestBuildSourceURL(t *testing.T) {
 	}
 }
 
+func TestBuildSourceURLTFR(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		originalURL string
+		resolvedURL string
+		expected    string
+	}{
+		{
+			name:        "tfr:// gets version from resolved URL",
+			originalURL: "tfr://registry.example.com/namespace/module/aws",
+			resolvedURL: "tfr://registry.example.com/namespace/module/aws?version=1.2.3",
+			expected:    "tfr://registry.example.com/namespace/module/aws?version=1.2.3",
+		},
+		{
+			name:        "tfr:// with existing version is not overwritten",
+			originalURL: "tfr://registry.example.com/namespace/module/aws?version=1.0.0",
+			resolvedURL: "tfr://registry.example.com/namespace/module/aws?version=1.2.3",
+			expected:    "tfr://registry.example.com/namespace/module/aws?version=1.0.0",
+		},
+		{
+			name:        "tfr:// with no version in resolved URL returns original",
+			originalURL: "tfr://registry.example.com/namespace/module/aws",
+			resolvedURL: "tfr://registry.example.com/namespace/module/aws",
+			expected:    "tfr://registry.example.com/namespace/module/aws",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := scaffold.BuildSourceURL(tc.originalURL, tc.resolvedURL, map[string]any{})
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 func TestExtractQueryParam(t *testing.T) {
 	t.Parallel()
 
