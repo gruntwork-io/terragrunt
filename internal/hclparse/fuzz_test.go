@@ -199,7 +199,7 @@ func FuzzBuildComponentRefMap(f *testing.F) {
 	f.Add("name", "/also-reserved")
 
 	f.Fuzz(func(t *testing.T, name, path string) {
-		_ = hclparse.BuildComponentRefMap([]hclparse.ComponentRef{{Name: name, Path: path}})
+		hclparse.BuildComponentRefMap([]hclparse.ComponentRef{{Name: name, Path: path}})
 	})
 }
 
@@ -226,7 +226,6 @@ func FuzzAutoIncludeResolve(f *testing.F) {
 			"unit": cty.ObjectVal(map[string]cty.Value{
 				"vpc": cty.ObjectVal(map[string]cty.Value{
 					"path": cty.StringVal("../vpc"),
-					"name": cty.StringVal("vpc"),
 				}),
 			}),
 			"stack": cty.EmptyObjectVal,

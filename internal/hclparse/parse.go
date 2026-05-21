@@ -218,9 +218,7 @@ func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef 
 	return refs
 }
 
-// buildStackRefs builds top-level component refs for stack blocks. ChildRefs
-// stay empty here; callers that need stack.<name>.<unit>.path cross-references
-// enrich the returned slice between ParseStackFile and ParseResult.Finalize.
+// buildStackRefs builds top-level component refs for stack blocks.
 func buildStackRefs(stacks []*StackBlockHCL, stackTargetDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 

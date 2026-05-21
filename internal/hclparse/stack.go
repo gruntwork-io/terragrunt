@@ -68,8 +68,8 @@ type StackBlockHCL struct {
 }
 
 // ComponentRef is a top-level unit or stack ref injected into the eval context
-// as `unit.<name>` or `stack.<name>`. Each ref exposes only the component's
-// own name and generated path.
+// as `unit.<name>` or `stack.<name>`. Each ref carries its label and its
+// generated path; only the path is exposed in HCL.
 type ComponentRef struct {
 	Name string
 	Path string
@@ -82,7 +82,7 @@ type ComponentRef struct {
 // Output shape:
 //
 //	{
-//	  "<name>": { "name": "<name>", "path": "<generated path>" }
+//	  "<name>": { "path": "<generated path>" }
 //	}
 func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	if len(refs) == 0 {
@@ -93,7 +93,6 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 
 	for _, ref := range refs {
 		refMap[ref.Name] = cty.ObjectVal(map[string]cty.Value{
-			"name": cty.StringVal(ref.Name),
 			"path": cty.StringVal(ref.Path),
 		})
 	}
@@ -154,8 +153,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	})
 }
 
-// DiscoverOption configures discovery entry points (UnitPathsFromStackDir,
-// DecodeDiscovery).
+// DiscoverOption configures UnitPathsFromStackDir.
 type DiscoverOption func(*discoverOptions)
 
 type discoverOptions struct {

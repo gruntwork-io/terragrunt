@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildComponentRefMapIncludesNameAndPath(t *testing.T) {
+func TestBuildComponentRefMapExposesPath(t *testing.T) {
 	t.Parallel()
 
 	got := hclparse.BuildComponentRefMap([]hclparse.ComponentRef{
@@ -19,8 +19,9 @@ func TestBuildComponentRefMapIncludesNameAndPath(t *testing.T) {
 	})
 
 	networking := got.AsValueMap()["networking"].AsValueMap()
-	assert.Equal(t, "networking", networking["name"].AsString())
 	assert.Equal(t, ".terragrunt-stack/networking", networking["path"].AsString())
+	_, hasName := networking["name"]
+	assert.False(t, hasName, "ref object should not expose .name")
 }
 
 func TestUnitPathsFromStackDir(t *testing.T) {
