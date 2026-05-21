@@ -194,9 +194,12 @@ func DownloadTerraformSourceIfNecessary(
 	var previousVersion = ""
 	// read previous source version
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	if util.FileExists(terraformSource.VersionFile) {
-		var err error
+	versionFileExists, err := vfs.FileExists(opts.FS, terraformSource.VersionFile)
+	if err != nil {
+		return false, errors.New(err)
+	}
 
+	if versionFileExists {
 		previousVersion, err = readVersionFile(terraformSource)
 		if err != nil {
 			return false, err
@@ -272,10 +275,15 @@ func DownloadTerraformSourceIfNecessary(
 // DownloadFolder. This helps avoid downloading the same code multiple times. Note that if the TerraformSource points
 // to a local file path, a hash will be generated from the contents of the source dir. See the ProcessTerraformSource method for more info.
 func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *Options) (bool, error) {
-	if !util.FileExists(terraformSource.DownloadDir) ||
-		!util.FileExists(terraformSource.WorkingDir) ||
-		!util.FileExists(terraformSource.VersionFile) {
-		return false, nil
+	for _, path := range []string{terraformSource.DownloadDir, terraformSource.WorkingDir, terraformSource.VersionFile} {
+		exists, err := vfs.FileExists(opts.FS, path)
+		if err != nil {
+			return false, errors.New(err)
+		}
+
+		if !exists {
+			return false, nil
+		}
 	}
 
 	hasFiles, err := util.DirContainsTFFiles(terraformSource.WorkingDir)

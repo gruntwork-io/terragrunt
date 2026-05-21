@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -365,7 +364,7 @@ func (o *Options) handleIgnoreSignals(l log.Logger, signals map[string]any) erro
 
 	l.Warnf("Writing error signals to %s", signalsFile)
 
-	if err := os.WriteFile(signalsFile, signalsJSON, ownerPerms); err != nil {
+	if err := vfs.WriteFile(o.FS, signalsFile, signalsJSON, ownerPerms); err != nil {
 		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
 	}
 
