@@ -32,6 +32,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -255,7 +256,8 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDiffer
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVersion(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world-version-remote?ref=v0.83.2"
+	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/" +
+		"download-source/hello-world-version-remote?ref=v0.83.2"
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
@@ -311,7 +313,8 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 func TestInvalidModulePath(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world-version-remote/non-existent-path?ref=v0.83.2"
+	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/" +
+		"download-source/hello-world-version-remote/non-existent-path?ref=v0.83.2"
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
@@ -483,8 +486,8 @@ func createConfig(
 ) (*tf.Source, *options.TerragruntOptions, *runcfg.RunConfig, error) {
 	t.Helper()
 
-	logger := logger.CreateLogger()
-	logger.SetOptions(log.WithOutput(io.Discard))
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
 
 	terraformSource := &tf.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
@@ -505,7 +508,12 @@ func createConfig(
 		},
 	}
 
-	_, ver, impl, err := run.PopulateTFVersion(t.Context(), logger, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
+	_, ver, impl, err := run.PopulateTFVersion(
+		t.Context(), l, vexec.NewOSExec(),
+		opts.WorkingDir,
+		opts.VersionManagerFileName,
+		configbridge.TFRunOptsFromOpts(opts),
+	)
 	require.NoError(t, err)
 
 	opts.TerraformVersion = ver
@@ -963,7 +971,11 @@ func TestDownloadSourceUpdateSourceWithCASRequiresCAS(t *testing.T) {
 			l := logger.CreateLogger()
 			l.SetOptions(log.WithOutput(io.Discard))
 
-			_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, report.NewReport())
+			_, err = run.DownloadTerraformSourceIfNecessary(
+				t.Context(), l, src,
+				configbridge.NewRunOptions(opts),
+				cfg, report.NewReport(),
+			)
 			require.Error(t, err)
 
 			var target *cas.UpdateSourceWithCASRequiresCASError
