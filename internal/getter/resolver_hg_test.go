@@ -3,6 +3,7 @@ package getter_test
 import (
 	"context"
 	"errors"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,6 +126,66 @@ func TestHgResolver_FlagLikeRevStaysBoundToOption(t *testing.T) {
 		"flag-like rev value must stay bound to --rev in a single argv element")
 	assert.NotContains(t, gotArgs, "--debugger",
 		"flag-like rev value must not appear as its own argv element")
+}
+
+// TestHgResolver_RejectsRevWithControlCharacters pins that NUL,
+// newline, and carriage return in the rev are rejected before any hg
+// invocation. Other shell metacharacters (`;`, `|`, ...) pass through
+// because [vexec.Exec.Command] does not run through a shell.
+func TestHgResolver_RejectsRevWithControlCharacters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		rev  string
+	}{
+		{name: "null byte", rev: "tip\x00rest"},
+		{name: "newline", rev: "tip\nrest"},
+		{name: "carriage return", rev: "tip\rrest"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var commandRan bool
+
+			handler := func(_ context.Context, _ vexec.Invocation) vexec.Result {
+				commandRan = true
+				return vexec.Result{Stdout: []byte("abcdef0123456789abcdef0123456789abcdef01\n")}
+			}
+
+			r := &getter.HgResolver{Exec: vexec.NewMemExec(handler)}
+
+			rawURL := "https://example.com/repo?rev=" + url.QueryEscape(tt.rev)
+
+			_, err := r.Probe(t.Context(), rawURL)
+			require.ErrorIs(t, err, getter.ErrInvalidHgRev)
+			assert.False(t, commandRan, "hg must not be invoked when rev is invalid")
+		})
+	}
+}
+
+// TestHgResolver_AcceptsRevWithShellMetacharacters pins that shell
+// metacharacters reach hg literally instead of being rejected by the
+// resolver. The exec layer does not invoke a shell, so `;` is just part
+// of the rev string and hg rejects it on its own merits.
+func TestHgResolver_AcceptsRevWithShellMetacharacters(t *testing.T) {
+	t.Parallel()
+
+	var gotArgs []string
+
+	handler := func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		gotArgs = inv.Args
+		return vexec.Result{Stdout: []byte("abcdef0123456789abcdef0123456789abcdef01\n")}
+	}
+
+	r := &getter.HgResolver{Exec: vexec.NewMemExec(handler)}
+
+	_, err := r.Probe(t.Context(), "https://example.com/repo?rev="+url.QueryEscape("tip ; echo pwned"))
+	require.NoError(t, err)
+	assert.Contains(t, gotArgs, "--rev=tip ; echo pwned",
+		"shell metacharacters must reach hg as part of a single argv element")
 }
 
 // TestHgResolver_AgainstRealHg verifies the resolver against the

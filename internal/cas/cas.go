@@ -53,6 +53,44 @@ type CloneOptions struct {
 	Mutable bool
 }
 
+// CloneOption customizes a single [CAS.Clone] invocation. Each option
+// mutates the per-call CloneOptions before the clone runs. Options are
+// applied in order, so a later option overwrites fields set by an
+// earlier one.
+type CloneOption func(*CloneOptions)
+
+// WithDir sets the target directory for the clone. Empty means use the
+// repository name.
+func WithDir(dir string) CloneOption {
+	return func(o *CloneOptions) { o.Dir = dir }
+}
+
+// WithBranch sets the branch to clone. Empty means HEAD.
+func WithBranch(branch string) CloneOption {
+	return func(o *CloneOptions) { o.Branch = branch }
+}
+
+// WithIncludedGitFiles preserves the named files from the .git
+// directory in the materialized clone.
+func WithIncludedGitFiles(files []string) CloneOption {
+	return func(o *CloneOptions) { o.IncludedGitFiles = files }
+}
+
+// WithDepth sets the `git clone --depth` value for this clone. Positive
+// values request a shallow clone; -1 means full history (Terragrunt
+// omits --depth; git rejects --depth 0). Zero falls back to the CAS-
+// wide default configured via [WithCloneDepth].
+func WithDepth(depth int) CloneOption {
+	return func(o *CloneOptions) { o.Depth = depth }
+}
+
+// WithMutable copies blobs into the target directory instead of
+// hardlinking from the CAS store, so the destination tree is safe to
+// mutate without corrupting the shared store.
+func WithMutable(mutable bool) CloneOption {
+	return func(o *CloneOptions) { o.Mutable = mutable }
+}
+
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
 	blobStore  *Store
@@ -192,20 +230,26 @@ func (r *GitResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 	return results[0].Hash, nil
 }
 
-// Clone fetches url into opts.Dir through the CAS, using a [GitResolver]
-// for the probe and ingesting via `git ls-tree -r` / `git cat-file` so the
-// native git blob and tree formats reach the stores intact.
-//
-// TODO: Make options optional
-func (c *CAS) Clone(ctx context.Context, l log.Logger, v Venv, opts *CloneOptions, url string) error {
-	clonedOpts := *opts
+// Clone fetches url into the target directory through the CAS, using a
+// [GitResolver] for the probe and ingesting via `git ls-tree -r` /
+// `git cat-file` so the native git blob and tree formats reach the
+// stores intact. Callers customize the clone by passing options such as
+// [WithDir], [WithBranch], or [WithDepth]; calling Clone with no
+// options runs against the zero CloneOptions.
+func (c *CAS) Clone(ctx context.Context, l log.Logger, v Venv, url string, options ...CloneOption) error {
+	opts := CloneOptions{}
+	for _, opt := range options {
+		opt(&opts)
+	}
+
+	clonedOpts := opts
 	clonedOpts.Dir = c.prepareTargetDirectory(opts.Dir, url)
 
 	return c.FetchSource(ctx, l, v, &clonedOpts, SourceRequest{
 		Scheme:   "git",
 		URL:      url,
 		Resolver: &GitResolver{Venv: v, Store: c.gitStore, Branch: opts.Branch},
-		Fetch:    c.gitFetcher(url, opts),
+		Fetch:    c.gitFetcher(url, &opts),
 		Attrs:    map[string]any{"branch": opts.Branch},
 	})
 }

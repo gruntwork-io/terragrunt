@@ -135,9 +135,9 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 		return true, nil
 	}
 
-	if scheme, ok := g.matchGenericScheme(req); ok {
+	if scheme, src, ok := g.matchGenericScheme(req); ok {
 		req.Forced = scheme
-		req.Src = appendDisableArchive(req.Src)
+		req.Src = appendDisableArchive(src)
 
 		return true, nil
 	}
@@ -207,7 +207,8 @@ func GitCloneURL(urlStr string) string {
 }
 
 // matchGenericScheme reports whether req should route through the non-git
-// generic path. req.Forced (set by the outer client when it stripped a
+// generic path and returns the scheme plus the (possibly canonicalized)
+// source URL. req.Forced (set by the outer client when it stripped a
 // "<scheme>::" prefix) wins; otherwise the URL scheme is consulted.
 //
 // URL-scheme claiming is restricted to http and https. The bare go-getter
@@ -215,29 +216,53 @@ func GitCloneURL(urlStr string) string {
 // (they expect canonical HTTPS forms or the forced-prefix syntax), so
 // claiming those schemes here would set up a doomed inner fetch on every
 // cache miss.
-func (g *CASGetter) matchGenericScheme(req *getter.Request) (string, bool) {
+//
+// HTTPS URLs against AWS S3 hosts are an exception: virtual-host forms
+// (`<bucket>.s3.amazonaws.com/<key>`) would route through the HTTPS
+// fetcher and bypass S3 auth, so the matcher rewrites them to the path-
+// style form the bare s3 getter accepts and claims the s3 scheme.
+func (g *CASGetter) matchGenericScheme(req *getter.Request) (string, string, bool) {
 	if g.fetchers == nil {
-		return "", false
+		return "", req.Src, false
 	}
 
 	if scheme, ok := g.lookupFetcher(strings.ToLower(req.Forced)); ok {
-		return scheme, true
+		src := req.Src
+
+		// A forced s3 prefix with an AWS virtual-host URL still needs
+		// the rewrite, since the bare s3 getter rejects virtual-host
+		// hosts regardless of how the scheme was claimed.
+		if scheme == SchemeS3 {
+			if u, perr := url.Parse(req.Src); perr == nil {
+				if canonical, cok := canonicalAWSS3HTTPSURL(u); cok {
+					src = canonical
+				}
+			}
+		}
+
+		return scheme, src, true
 	}
 
 	u, err := url.Parse(req.Src)
 	if err != nil || u.Scheme == "" {
-		return "", false
+		return "", req.Src, false
 	}
 
 	scheme := strings.ToLower(u.Scheme)
 	switch scheme {
 	case SchemeHTTP, SchemeHTTPS:
+		if canonical, ok := canonicalAWSS3HTTPSURL(u); ok {
+			if _, fok := g.fetchers[SchemeS3]; fok {
+				return SchemeS3, canonical, true
+			}
+		}
+
 		if _, ok := g.fetchers[scheme]; ok {
-			return scheme, true
+			return scheme, req.Src, true
 		}
 	}
 
-	return "", false
+	return "", req.Src, false
 }
 
 // isGenericScheme reports whether the forced scheme corresponds to a
@@ -321,13 +346,12 @@ func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
 		u.RawQuery = q.Encode()
 	}
 
-	// Copy so concurrent Get calls against the same getter don't race
-	// on Branch/Dir mutation.
-	opts := *g.Opts
-	opts.Branch = ref
-	opts.Dir = req.Dst
-
-	return g.CAS.Clone(ctx, g.Logger, g.Venv, &opts, GitCloneURL(u.String()))
+	return g.CAS.Clone(ctx, g.Logger, g.Venv, GitCloneURL(u.String()),
+		cas.WithDir(req.Dst),
+		cas.WithBranch(ref),
+		cas.WithDepth(g.Opts.Depth),
+		cas.WithMutable(g.Opts.Mutable),
+		cas.WithIncludedGitFiles(g.Opts.IncludedGitFiles))
 }
 
 // getGeneric routes a non-git source through CAS. The archive=false

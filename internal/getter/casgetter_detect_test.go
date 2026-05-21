@@ -142,6 +142,146 @@ func TestCASGetterDetect_SchemeDetectionByURL(t *testing.T) {
 	}
 }
 
+// TestCASGetterDetect_AWSS3HTTPSRoutesToS3Fetcher pins that an https URL
+// against an AWS S3 endpoint claims the s3 scheme (so the inner fetch
+// uses S3 auth) and is rewritten to the path-style form the bare s3
+// getter accepts. Without this, virtual-host URLs would route through
+// the plain HTTPS fetcher and silently fail for private buckets.
+func TestCASGetterDetect_AWSS3HTTPSRoutesToS3Fetcher(t *testing.T) {
+	t.Parallel()
+
+	g := newCASGetterForDetect(t)
+
+	tests := []struct {
+		name    string
+		src     string
+		wantSrc string
+	}{
+		{
+			name:    "global virtual-host rewritten to global path-style",
+			src:     "https://my-bucket.s3.amazonaws.com/path.zip",
+			wantSrc: "https://s3.amazonaws.com/my-bucket/path.zip",
+		},
+		{
+			name:    "regional virtual-host rewritten to regional path-style",
+			src:     "https://my-bucket.s3-us-west-2.amazonaws.com/path.zip",
+			wantSrc: "https://s3-us-west-2.amazonaws.com/my-bucket/path.zip",
+		},
+		{
+			name:    "global path-style claimed unchanged",
+			src:     "https://s3.amazonaws.com/my-bucket/path.zip",
+			wantSrc: "https://s3.amazonaws.com/my-bucket/path.zip",
+		},
+		{
+			name:    "regional path-style claimed unchanged",
+			src:     "https://s3-us-west-2.amazonaws.com/my-bucket/path.zip",
+			wantSrc: "https://s3-us-west-2.amazonaws.com/my-bucket/path.zip",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := &gogetter.Request{Src: tt.src}
+
+			ok, err := g.Detect(req)
+			require.NoError(t, err)
+			require.True(t, ok, "detector should claim %s", tt.src)
+			assert.Equal(t, getter.SchemeS3, req.Forced, "AWS S3 host must route through the s3 fetcher")
+
+			u, parseErr := url.Parse(req.Src)
+			require.NoError(t, parseErr)
+
+			q := u.Query()
+			assert.Equal(t, "false", q.Get("archive"), "Detect must append archive=false")
+
+			q.Del("archive")
+			u.RawQuery = q.Encode()
+
+			assert.Equal(t, tt.wantSrc, u.String(), "Src must be canonicalized to the bare s3 getter's accepted form")
+		})
+	}
+}
+
+// TestCASGetterDetect_AWSS3HTTPSPreservesQueryAndVersion pins that the
+// ?version selector and other query parameters survive the rewrite, so
+// versioned S3 objects keep resolving to the same VersionId after
+// canonicalization.
+func TestCASGetterDetect_AWSS3HTTPSPreservesQueryAndVersion(t *testing.T) {
+	t.Parallel()
+
+	g := newCASGetterForDetect(t)
+
+	req := &gogetter.Request{Src: "https://my-bucket.s3.amazonaws.com/path.zip?version=abc123"}
+
+	ok, err := g.Detect(req)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, getter.SchemeS3, req.Forced)
+
+	u, parseErr := url.Parse(req.Src)
+	require.NoError(t, parseErr)
+	assert.Equal(t, "abc123", u.Query().Get("version"))
+	assert.Equal(t, "/my-bucket/path.zip", u.Path)
+	assert.Equal(t, "s3.amazonaws.com", u.Host)
+}
+
+// TestCASGetterDetect_NonS3AmazonAWSHostFallsThroughToHTTPS pins that
+// non-S3 amazonaws.com hosts (iam, sts, ec2, ...) stay on the HTTPS
+// fetcher rather than being misrouted through s3. canonicalAWSS3HTTPSURL
+// is the gate.
+func TestCASGetterDetect_NonS3AmazonAWSHostFallsThroughToHTTPS(t *testing.T) {
+	t.Parallel()
+
+	g := newCASGetterForDetect(t)
+
+	tests := []string{
+		"https://iam.amazonaws.com/bucket/key.tgz",
+		"https://sts.amazonaws.com/bucket/key.tgz",
+		"https://ec2.amazonaws.com/bucket/key.tgz",
+	}
+
+	for _, src := range tests {
+		t.Run(src, func(t *testing.T) {
+			t.Parallel()
+
+			req := &gogetter.Request{Src: src}
+
+			ok, err := g.Detect(req)
+			require.NoError(t, err)
+			require.True(t, ok)
+			assert.Equal(t, getter.SchemeHTTPS, req.Forced, "non-S3 amazonaws.com hosts must route through HTTPS, not s3")
+		})
+	}
+}
+
+// TestCASGetterDetect_S3ForcedPrefixCanonicalizesVHost pins that
+// `s3::https://<bucket>.s3.amazonaws.com/<key>` is rewritten to the
+// path-style form before being handed to the bare s3 getter, which
+// rejects virtual-host hosts. Without this rewrite, the forced-prefix
+// form would set up a doomed inner fetch on every cache miss.
+func TestCASGetterDetect_S3ForcedPrefixCanonicalizesVHost(t *testing.T) {
+	t.Parallel()
+
+	g := newCASGetterForDetect(t)
+
+	req := &gogetter.Request{
+		Src:    "https://my-bucket.s3.amazonaws.com/path.zip",
+		Forced: getter.SchemeS3,
+	}
+
+	ok, err := g.Detect(req)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, getter.SchemeS3, req.Forced)
+
+	u, parseErr := url.Parse(req.Src)
+	require.NoError(t, parseErr)
+	assert.Equal(t, "/my-bucket/path.zip", u.Path)
+	assert.Equal(t, "s3.amazonaws.com", u.Host)
+}
+
 // TestCASGetterDetect_ForcedPrefixNormalizesAlias pins that `gs::`
 // forced inputs route through the gcs fetcher entry. Without this,
 // `gs::` users would silently miss the GCS dispatch path.

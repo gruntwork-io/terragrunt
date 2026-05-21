@@ -33,10 +33,8 @@ func TestCAS_Clone(t *testing.T) {
 		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:   targetPath,
-			Depth: -1,
-		}, repoURL)
+		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+			cas.WithDepth(-1))
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -57,11 +55,9 @@ func TestCAS_Clone(t *testing.T) {
 		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:    targetPath,
-			Branch: "main",
-			Depth:  -1,
-		}, repoURL)
+		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+			cas.WithBranch("main"),
+			cas.WithDepth(-1))
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -78,11 +74,9 @@ func TestCAS_Clone(t *testing.T) {
 		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:              targetPath,
-			IncludedGitFiles: []string{"HEAD", "config"},
-			Depth:            -1,
-		}, repoURL)
+		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+			cas.WithIncludedGitFiles([]string{"HEAD", "config"}),
+			cas.WithDepth(-1))
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -118,10 +112,8 @@ func TestCAS_FallbackWhenGitStoreFails(t *testing.T) {
 	v, err := cas.OSVenv()
 	require.NoError(t, err)
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, &cas.CloneOptions{
-		Dir:   targetPath,
-		Depth: -1,
-	}, repoURL)
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+		cas.WithDepth(-1))
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(targetPath, "README.md"))
@@ -159,10 +151,8 @@ func TestCAS_CloneRepoWithSymlink(t *testing.T) {
 	v, err := cas.OSVenv()
 	require.NoError(t, err)
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, &cas.CloneOptions{
-		Dir:   targetPath,
-		Depth: -1,
-	}, repoURL)
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+		cas.WithDepth(-1))
 	require.NoError(t, err)
 
 	linkPath := filepath.Join(targetPath, "link.txt")
@@ -200,9 +190,8 @@ func TestCASRejectsNonOSFilesystem(t *testing.T) {
 
 	v := cas.Venv{FS: vfs.NewMemMapFS(), Git: runner}
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, &cas.CloneOptions{
-		Dir:   filepath.Join(helpers.TmpDirWOSymlinks(t), "repo"),
-		Depth: -1,
-	}, "https://example.com/repo.git")
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, "https://example.com/repo.git",
+		cas.WithDir(filepath.Join(helpers.TmpDirWOSymlinks(t), "repo")),
+		cas.WithDepth(-1))
 	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
 }

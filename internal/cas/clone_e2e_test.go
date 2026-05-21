@@ -31,11 +31,9 @@ func TestCASClone_E2E_SymbolicRefSecondRunReusesCache(t *testing.T) {
 
 	// First clone: probe hits, fetcher runs (tree not cached yet).
 	dst1 := filepath.Join(tempDir, "dst1")
-	require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-		Dir:    dst1,
-		Branch: "main",
-		Depth:  -1,
-	}, repoURL))
+	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst1),
+		cas.WithBranch("main"),
+		cas.WithDepth(-1)))
 
 	require.FileExists(t, filepath.Join(dst1, "README.md"))
 	require.FileExists(t, filepath.Join(dst1, "main.tf"))
@@ -50,11 +48,9 @@ func TestCASClone_E2E_SymbolicRefSecondRunReusesCache(t *testing.T) {
 	// FetchSource short-circuits via treeStore.NeedsWrite, fetcher
 	// never runs.
 	dst2 := filepath.Join(tempDir, "dst2")
-	require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-		Dir:    dst2,
-		Branch: "main",
-		Depth:  -1,
-	}, repoURL))
+	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst2),
+		cas.WithBranch("main"),
+		cas.WithDepth(-1)))
 
 	require.FileExists(t, filepath.Join(dst2, "README.md"))
 	require.FileExists(t, filepath.Join(dst2, "main.tf"))
@@ -78,11 +74,9 @@ func TestCASClone_E2E_CommitFormRefRoundTrip(t *testing.T) {
 	// Probe will return ErrNoVersionMetadata (ls-remote can't resolve
 	// a raw SHA), so fetcher canonicalizes via populateTreeFromCommitRef.
 	dst := filepath.Join(tempDir, "dst")
-	require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-		Dir:    dst,
-		Branch: headHash,
-		Depth:  -1,
-	}, repoURL))
+	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst),
+		cas.WithBranch(headHash),
+		cas.WithDepth(-1)))
 
 	require.FileExists(t, filepath.Join(dst, "README.md"))
 
@@ -156,22 +150,18 @@ func TestCASClone_E2E_RemainsOfflineAfterFirstClone(t *testing.T) {
 	l := logger.CreateLogger()
 
 	dst1 := filepath.Join(tempDir, "dst1")
-	require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-		Dir:    dst1,
-		Branch: "main",
-		Depth:  -1,
-	}, repoURL))
+	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst1),
+		cas.WithBranch("main"),
+		cas.WithDepth(-1)))
 
 	// Shut the server down. Any subsequent ls-remote against repoURL
 	// would fail with "Could not resolve host" / "Connection refused".
 	require.NoError(t, srv.Close())
 
 	dst2 := filepath.Join(tempDir, "dst2")
-	require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-		Dir:    dst2,
-		Branch: headHash,
-		Depth:  -1,
-	}, repoURL), "second clone keyed by full SHA must resolve from local CAS without ls-remote")
+	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst2),
+		cas.WithBranch(headHash),
+		cas.WithDepth(-1)), "second clone keyed by full SHA must resolve from local CAS without ls-remote")
 
 	require.FileExists(t, filepath.Join(dst2, "README.md"))
 }
@@ -191,12 +181,10 @@ func TestCASClone_E2E_MutableSetCopiesBlobs(t *testing.T) {
 	l := logger.CreateLogger()
 
 	dst := filepath.Join(tempDir, "dst")
-	require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-		Dir:     dst,
-		Branch:  "main",
-		Depth:   -1,
-		Mutable: true,
-	}, repoURL))
+	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst),
+		cas.WithBranch("main"),
+		cas.WithDepth(-1),
+		cas.WithMutable(true)))
 
 	// Mutable=true: destination files have the original perms, not
 	// the write-bit-stripped read-only perms the default path uses.

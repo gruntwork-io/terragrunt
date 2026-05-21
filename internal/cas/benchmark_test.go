@@ -40,10 +40,8 @@ func BenchmarkClone(b *testing.B) {
 
 			b.StartTimer()
 
-			require.NoError(b, c.Clone(b.Context(), l, v, &cas.CloneOptions{
-				Dir:   targetPath,
-				Depth: -1,
-			}, repoURL))
+			require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(targetPath),
+				cas.WithDepth(-1)))
 		}
 	})
 
@@ -55,10 +53,8 @@ func BenchmarkClone(b *testing.B) {
 		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(b, err)
 
-		require.NoError(b, c.Clone(b.Context(), l, v, &cas.CloneOptions{
-			Dir:   filepath.Join(tempDir, "initial"),
-			Depth: -1,
-		}, repoURL))
+		require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "initial")),
+			cas.WithDepth(-1)))
 
 		b.ResetTimer()
 
@@ -72,10 +68,8 @@ func BenchmarkClone(b *testing.B) {
 
 			b.StartTimer()
 
-			require.NoError(b, c.Clone(b.Context(), l, v, &cas.CloneOptions{
-				Dir:   targetPath,
-				Depth: -1,
-			}, repoURL))
+			require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(targetPath),
+				cas.WithDepth(-1)))
 		}
 	})
 }

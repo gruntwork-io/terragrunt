@@ -33,11 +33,9 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(tempDir, "repo")
-		err = c.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:    targetPath,
-			Branch: headHash,
-			Depth:  -1,
-		}, repoURL)
+		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+			cas.WithBranch(headHash),
+			cas.WithDepth(-1))
 		require.NoError(t, err)
 
 		_, err = os.Stat(filepath.Join(targetPath, "README.md"))
@@ -52,11 +50,9 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(tempDir, "repo")
-		err = c.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:    targetPath,
-			Branch: headHash[:8],
-			Depth:  -1,
-		}, repoURL)
+		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+			cas.WithBranch(headHash[:8]),
+			cas.WithDepth(-1))
 		require.NoError(t, err)
 
 		_, err = os.Stat(filepath.Join(targetPath, "README.md"))
@@ -72,11 +68,9 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		require.NoError(t, err)
 
 		// Prime the central git store.
-		require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:    filepath.Join(tempDir, "first"),
-			Branch: headHash,
-			Depth:  -1,
-		}, repoURL))
+		require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "first")),
+			cas.WithBranch(headHash),
+			cas.WithDepth(-1)))
 
 		// Drop the test server: a cached clone must not need it.
 		repoEntry := cas.EntryPathForURL(filepath.Join(storePath, "git"), repoURL)
@@ -84,11 +78,9 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		require.NoError(t, err)
 
 		secondClone := filepath.Join(tempDir, "second")
-		require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:    secondClone,
-			Branch: headHash,
-			Depth:  -1,
-		}, repoURL))
+		require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(secondClone),
+			cas.WithBranch(headHash),
+			cas.WithDepth(-1)))
 
 		_, err = os.Stat(filepath.Join(secondClone, "README.md"))
 		require.NoError(t, err)
@@ -101,11 +93,9 @@ func TestCASCloneByCommitRef(t *testing.T) {
 		c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:    filepath.Join(tempDir, "repo"),
-			Branch: "0000000000000000000000000000000000000000",
-			Depth:  -1,
-		}, repoURL)
+		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "repo")),
+			cas.WithBranch("0000000000000000000000000000000000000000"),
+			cas.WithDepth(-1))
 		require.Error(t, err)
 		assert.ErrorIs(t, err, git.ErrNoMatchingReference)
 	})
@@ -196,11 +186,9 @@ func TestCASClone_NonTipCommit(t *testing.T) {
 	require.NoError(t, err)
 
 	targetPath := filepath.Join(tempDir, "repo")
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, &cas.CloneOptions{
-		Dir:    targetPath,
-		Branch: firstHash,
-		Depth:  -1,
-	}, repoURL)
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+		cas.WithBranch(firstHash),
+		cas.WithDepth(-1))
 	require.NoError(t, err)
 
 	// Only the first commit's file should be present; later commits
@@ -250,11 +238,9 @@ func TestCASClone_AbbreviatedHexBranchAdvancesAcrossClones(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-		Dir:    filepath.Join(tempDir, "first"),
-		Branch: branch,
-		Depth:  -1,
-	}, repoURL))
+	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "first")),
+		cas.WithBranch(branch),
+		cas.WithDepth(-1)))
 
 	// Advance the branch to a new commit. ls-remote must see the new
 	// tip on the second clone; the probe would otherwise serve the
@@ -263,11 +249,9 @@ func TestCASClone_AbbreviatedHexBranchAdvancesAcrossClones(t *testing.T) {
 	require.NoError(t, srv.Branch(branch))
 
 	secondDir := filepath.Join(tempDir, "second")
-	require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-		Dir:    secondDir,
-		Branch: branch,
-		Depth:  -1,
-	}, repoURL))
+	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(secondDir),
+		cas.WithBranch(branch),
+		cas.WithDepth(-1)))
 
 	_, err = os.Stat(filepath.Join(secondDir, "v2.txt"))
 	require.NoError(t, err, "second clone must reflect the moved branch tip, not the cached prefix-matching commit")
@@ -300,11 +284,9 @@ func TestCASClone_HexBranchNameResolvesViaLsRemote(t *testing.T) {
 	require.NoError(t, err)
 
 	targetPath := filepath.Join(tempDir, "repo")
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, &cas.CloneOptions{
-		Dir:    targetPath,
-		Branch: hexBranch,
-		Depth:  -1,
-	}, repoURL)
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+		cas.WithBranch(hexBranch),
+		cas.WithDepth(-1))
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(targetPath, "README.md"))
@@ -332,11 +314,9 @@ func TestCASClone_TagRef(t *testing.T) {
 	require.NoError(t, err)
 
 	targetPath := filepath.Join(tempDir, "repo")
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, &cas.CloneOptions{
-		Dir:    targetPath,
-		Branch: "v1.0.0",
-		Depth:  -1,
-	}, repoURL)
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+		cas.WithBranch("v1.0.0"),
+		cas.WithDepth(-1))
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(targetPath, "README.md"))
@@ -491,20 +471,16 @@ func TestCASClone_OfflineWhenCommitCached(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-		Dir:    filepath.Join(tempDir, "primed"),
-		Branch: hash,
-		Depth:  -1,
-	}, repoURL))
+	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "primed")),
+		cas.WithBranch(hash),
+		cas.WithDepth(-1)))
 
 	require.NoError(t, srv.Close())
 
 	cachedDir := filepath.Join(tempDir, "cached")
-	require.NoError(t, c.Clone(t.Context(), l, v, &cas.CloneOptions{
-		Dir:    cachedDir,
-		Branch: hash,
-		Depth:  -1,
-	}, repoURL), "cached commit ref must resolve without contacting the server")
+	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(cachedDir),
+		cas.WithBranch(hash),
+		cas.WithDepth(-1)), "cached commit ref must resolve without contacting the server")
 
 	_, err = os.Stat(filepath.Join(cachedDir, "README.md"))
 	require.NoError(t, err)
@@ -570,11 +546,9 @@ func TestCAS_CommitRefFallbackWhenGitStoreFails(t *testing.T) {
 	require.NoError(t, err)
 
 	targetPath := filepath.Join(tempDir, "repo")
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, &cas.CloneOptions{
-		Dir:    targetPath,
-		Branch: headHash,
-		Depth:  -1,
-	}, repoURL)
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+		cas.WithBranch(headHash),
+		cas.WithDepth(-1))
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(targetPath, "README.md"))
@@ -613,11 +587,10 @@ func TestCASCloneByCommitRefConcurrentWithRacing(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			errs[idx] = c.Clone(t.Context(), l, v, &cas.CloneOptions{
-				Dir:    filepath.Join(tempDir, "repo", "worker", string(rune('a'+idx))),
-				Branch: headHash,
-				Depth:  -1,
-			}, repoURL)
+			errs[idx] = c.Clone(t.Context(), l, v, repoURL,
+				cas.WithDir(filepath.Join(tempDir, "repo", "worker", string(rune('a'+idx)))),
+				cas.WithBranch(headHash),
+				cas.WithDepth(-1))
 		}(i)
 	}
 

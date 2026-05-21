@@ -291,3 +291,52 @@ func strPtr(p *string) string {
 
 	return *p
 }
+
+// canonicalAWSS3HTTPSURL returns the path-style HTTPS URL for an AWS S3
+// URL in any supported form, preserving the user's query string. ok is
+// false when u is not http/https against an amazonaws.com host, or when
+// the host matches a form the bare go-getter v2 s3 getter rejects (modern
+// virtual-host and modern path-style).
+//
+// The rewrite exists because the bare s3 getter's parseUrl only accepts
+// path-style hosts (`s3.amazonaws.com`, `s3-<region>.amazonaws.com`), so
+// routing a virtual-host URL to it without canonicalization would set up
+// a doomed inner fetch on every cache miss.
+func canonicalAWSS3HTTPSURL(u *url.URL) (string, bool) {
+	if u == nil {
+		return "", false
+	}
+
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", false
+	}
+
+	if !strings.Contains(u.Host, "amazonaws.com") {
+		return "", false
+	}
+
+	target, err := parseS3URL(u)
+	if err != nil {
+		return "", false
+	}
+
+	canonical := *u
+	canonical.Scheme = "https"
+	canonical.Host = s3HostLabelForRegion(target.Region) + ".amazonaws.com"
+	canonical.Path = "/" + target.Bucket + "/" + target.Key
+
+	return canonical.String(), true
+}
+
+// s3HostLabelForRegion returns the path-style host label for an AWS
+// region. us-east-1 maps to the global "s3" label so probes against
+// region-unspecified URLs stay on the global endpoint instead of
+// silently shifting to us-east-1's regional form.
+func s3HostLabelForRegion(region string) string {
+	if region == "us-east-1" {
+		return "s3"
+	}
+
+	return "s3-" + region
+}

@@ -2,6 +2,7 @@ package getter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -10,6 +11,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 )
+
+// ErrInvalidHgRev is returned when the `?rev=` query parameter contains
+// a character that would corrupt the argv passed to `hg identify` (NUL,
+// newline, or carriage return). Shell metacharacters like `;` and `|`
+// are not in this set: [vexec.Exec.Command] does not run through a
+// shell, so they reach hg as part of the rev argument and hg rejects
+// them on its own.
+var ErrInvalidHgRev = errors.New("invalid hg rev")
 
 // hgResolverTimeout caps `hg identify` so a slow remote can't stall CAS.
 const hgResolverTimeout = 10 * time.Second
@@ -47,6 +56,9 @@ func (r *HgResolver) Probe(ctx context.Context, rawURL string) (string, error) {
 	}
 
 	rev := u.Query().Get("rev")
+	if err := validateHgRev(rev); err != nil {
+		return "", fmt.Errorf("parse hg URL %s: %w", rawURL, err)
+	}
 
 	cleaned := *u
 	q := cleaned.Query()
@@ -86,4 +98,20 @@ func (r *HgResolver) Probe(ctx context.Context, rawURL string) (string, error) {
 	}
 
 	return cas.ContentKey("hg-node", node), nil
+}
+
+// validateHgRev rejects rev values that would corrupt the argv handed to
+// `hg identify`. NUL, newline, and carriage return are the only
+// characters guarded here: they break argument boundaries inside the
+// child process (NUL truncates C strings; newlines split log lines and
+// some hg parsers). Other special characters reach hg literally because
+// [vexec.Exec.Command] does not invoke a shell.
+func validateHgRev(rev string) error {
+	for _, r := range rev {
+		if r == 0 || r == '\n' || r == '\r' {
+			return fmt.Errorf("%w: contains control character", ErrInvalidHgRev)
+		}
+	}
+
+	return nil
 }

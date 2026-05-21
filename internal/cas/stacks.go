@@ -124,11 +124,9 @@ func (c *CAS) ProcessStackComponent(
 
 	cloneDir := filepath.Join(tempDir, "repo")
 
-	if err := c.Clone(ctx, l, v, &CloneOptions{
-		Dir:    cloneDir,
-		Branch: ref,
-		Depth:  c.cloneDepth,
-	}, cleanURL); err != nil {
+	if err := c.Clone(ctx, l, v, cleanURL, WithDir(cloneDir),
+		WithBranch(ref),
+		WithDepth(c.cloneDepth)); err != nil {
 		cleanup()
 
 		return nil, fmt.Errorf("failed to CAS clone %q: %w", cleanURL, err)
@@ -147,7 +145,7 @@ func (c *CAS) ProcessStackComponent(
 		if filepath.IsAbs(subdir) {
 			cleanup()
 
-			return nil, fmt.Errorf("%w: %q", ErrSourceEscapesRepo, subdir)
+			return nil, fmt.Errorf("%w: %q", ErrAbsoluteSource, subdir)
 		}
 
 		contentDir = filepath.Clean(filepath.Join(cloneDir, subdir))
@@ -562,7 +560,7 @@ func (c *CAS) processLocalStackComponent(
 		if filepath.IsAbs(subdir) {
 			cleanup()
 
-			return nil, fmt.Errorf("%w: %q", ErrSourceEscapesRepo, subdir)
+			return nil, fmt.Errorf("%w: %q", ErrAbsoluteSource, subdir)
 		}
 
 		contentDir = filepath.Clean(filepath.Join(repoRoot, subdir))

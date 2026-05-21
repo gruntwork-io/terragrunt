@@ -32,10 +32,8 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		firstClonePath := filepath.Join(tempDir, "first")
 		cas1, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
-		require.NoError(t, cas1.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:   firstClonePath,
-			Depth: -1,
-		}, repoURL))
+		require.NoError(t, cas1.Clone(t.Context(), l, v, repoURL, cas.WithDir(firstClonePath),
+			cas.WithDepth(-1)))
 
 		// Get info about first clone
 		firstReadme := filepath.Join(firstClonePath, "README.md")
@@ -46,10 +44,8 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		secondClonePath := filepath.Join(tempDir, "second")
 		cas2, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
-		require.NoError(t, cas2.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:   secondClonePath,
-			Depth: -1,
-		}, repoURL))
+		require.NoError(t, cas2.Clone(t.Context(), l, v, repoURL, cas.WithDir(secondClonePath),
+			cas.WithDepth(-1)))
 
 		// Get info about second clone
 		secondReadme := filepath.Join(secondClonePath, "README.md")
@@ -71,11 +67,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:    filepath.Join(tempDir, "repo"),
-			Branch: "nonexistent-branch",
-			Depth:  -1,
-		}, repoURL)
+		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "repo")),
+			cas.WithBranch("nonexistent-branch"),
+			cas.WithDepth(-1))
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
@@ -90,10 +84,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, &cas.CloneOptions{
-			Dir:   filepath.Join(tempDir, "repo"),
-			Depth: -1,
-		}, "http://127.0.0.1:1/nonexistent-repo.git")
+		err = c.Clone(t.Context(), l, v, "http://127.0.0.1:1/nonexistent-repo.git",
+			cas.WithDir(filepath.Join(tempDir, "repo")),
+			cas.WithDepth(-1))
 		require.Error(t, err)
 	})
 }
@@ -116,10 +109,8 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		// First clone to populate store
 		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
-		require.NoError(t, c.Clone(ctx, l, v, &cas.CloneOptions{
-			Dir:   filepath.Join(tempDir, "repo"),
-			Depth: -1,
-		}, repoURL))
+		require.NoError(t, c.Clone(ctx, l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "repo")),
+			cas.WithDepth(-1)))
 
 		// Get the commit hash for HEAD
 		g, err := git.NewGitRunner(vexec.NewOSExec())
