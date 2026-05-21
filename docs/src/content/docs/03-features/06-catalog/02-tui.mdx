@@ -192,3 +192,97 @@ tags:
 Tag values that name a component type also promote the component into that type's tab. For example, a component classified as a `template` whose tags include `module` appears under both the `Templates` tab (by its native kind) and the `Modules` tab (by tag), without changing how it's scaffolded.
 
 </Since>
+
+## Keybindings
+
+Each view has its own keymap. The hint bar at the bottom of the screen shows the most common keys for the current view; the table below covers every key that is bound, including alternates that aren't advertised.
+
+### List view
+
+The default view, shown after discovery completes.
+
+| Key | Action |
+|-----|--------|
+| `j`, `↓`, `ctrl+n` | Move down one row |
+| `k`, `↑`, `ctrl+p` | Move up one row |
+| `l`, `→`, `pgdn`, `ctrl+v` | Next page |
+| `h`, `←`, `pgup`, `alt+v` | Previous page |
+| `home`, `ctrl+a` | Jump to first row |
+| `end`, `ctrl+e` | Jump to last row |
+| `enter` | View the selected component's README |
+| `s` | Scaffold the selected component (interactive form) |
+| `S` | Scaffold the selected component (TODO placeholders) |
+| `tab` | Next tab (redesign experiment) |
+| `shift+tab` | Previous tab (redesign experiment) |
+| `/` | Search and filter the visible list |
+| `?` | Toggle the expanded help view |
+| `q`, `esc` | Quit |
+| `ctrl+c` | Force quit |
+
+### Component detail (pager)
+
+Active after pressing `enter` on a component.
+
+| Key | Action |
+|-----|--------|
+| `j`, `↓`, `ctrl+n` | Scroll down one line |
+| `k`, `↑`, `ctrl+p` | Scroll up one line |
+| `l`, `→`, `pgdn`, `ctrl+v` | Page down |
+| `h`, `←`, `pgup`, `alt+v` | Page up |
+| `tab` | Focus the next button in the footer |
+| `shift+tab` | Focus the previous button in the footer |
+| `enter` | Activate the focused button |
+| `s` | Scaffold (interactive form) |
+| `S` | Scaffold (TODO placeholders) |
+| `?` | Toggle the expanded help view |
+| `q`, `esc` | Back to the list |
+| `ctrl+c` | Force quit |
+
+### Interactive scaffold form
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+</Aside>
+
+The form opens in *navigate* mode. Pressing `enter` on a text field switches to *edit* mode, where most keys are forwarded to the underlying text input; press `esc` to return to navigate mode.
+
+#### Navigate mode
+
+| Key | Action |
+|-----|--------|
+| `j`, `↓` | Next field |
+| `k`, `↑` | Previous field |
+| `l`, `→`, `pgdn`, `ctrl+v` | Next page of fields |
+| `h`, `←`, `pgup`, `alt+v` | Previous page of fields |
+| `home`, `ctrl+a` | Jump to the first field |
+| `end`, `ctrl+e` | Jump to the last field |
+| `enter`, `i` | Enter edit mode on a text field, or toggle a checkbox |
+| `x` | Mark the focused field as "use default" |
+| `X` | Mark every optional field as "use default" |
+| `/` | Filter fields by name |
+| `s` | Scaffold (refuses if any required field is unset) |
+| `S`, `ctrl+d` | Scaffold (leaves unset required fields as `# TODO`) |
+| `esc` | Cancel and return to the previous view |
+
+#### Edit mode
+
+Active while typing into a text field. Keys not listed here are forwarded to the text input.
+
+| Key | Action |
+|-----|--------|
+| `esc` | Finish editing and return to navigate mode |
+| `enter` | Toggle (bool/checkbox fields only) |
+| `ctrl+d` | Scaffold immediately, skipping the required-field check |
+
+### Welcome screen
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+The welcome and loading screens are only shown when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+</Aside>
+
+Shown briefly during initial discovery and, if no catalog sources are configured, as a persistent help screen.
+
+| Key | Action |
+|-----|--------|
+| `h` | Open the catalog docs in your browser (only when no sources are found) |
+| `q`, `esc`, `ctrl+c` | Exit |
