@@ -40,6 +40,11 @@ type ParseStackFileInput struct {
 	Variables map[string]cty.Value
 	// Functions are copied from the production parser eval context.
 	Functions map[string]function.Function
+	// NestedDiscoveryFuncs returns the function map to use while decoding a
+	// nested stack catalog discovered during this parse. It is invoked once
+	// per nested directory walked by buildStackRefs. nil falls back to the
+	// Terraform stdlib resolved against the nested directory.
+	NestedDiscoveryFuncs func(dir string) map[string]function.Function
 	// Filename is the basename (not full path) used for parse diagnostics.
 	Filename string
 	// StackDir is used to resolve include paths.
@@ -106,7 +111,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	// Build unit/stack refs and inject them into the eval context.
 	stackTargetDir := filepath.Join(input.StackDir, StackDir)
 	unitRefs := buildUnitRefs(decoded.Units, stackTargetDir)
-	stackRefs := buildStackRefs(fs, decoded.Stacks, input.StackDir, stackTargetDir)
+	stackRefs := buildStackRefs(fs, decoded.Stacks, input.StackDir, stackTargetDir, input.NestedDiscoveryFuncs)
 
 	evalCtx.Variables[varUnit] = BuildComponentRefMap(unitRefs)
 	evalCtx.Variables[varStack] = BuildComponentRefMap(stackRefs)
@@ -224,7 +229,7 @@ func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef 
 }
 
 // buildStackRefs builds component refs for stack blocks; ChildRefs come from best-effort nested-stack discovery.
-func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir string) []ComponentRef {
+func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir string, funcsForDir func(dir string) map[string]function.Function) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
 	for _, s := range stacks {
@@ -241,7 +246,7 @@ func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir
 			sourceDir = filepath.Join(stackDir, sourceDir)
 		}
 
-		ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, 0)
+		ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, 0, funcsForDir)
 
 		refs = append(refs, ref)
 	}

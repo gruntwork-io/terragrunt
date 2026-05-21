@@ -28,6 +28,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -161,6 +162,20 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			Values:    values,
 			Variables: prodEvalCtx.Variables,
 			Functions: prodEvalCtx.Functions,
+			NestedDiscoveryFuncs: func(dir string) map[string]function.Function {
+				// Use the active pctx so every Terragrunt HCL function inside a
+				// nested terragrunt.stack.hcl evaluates against the same state
+				// the parent parse sees. A build error here degrades to stdlib
+				// resolution rather than failing the whole parse.
+				funcs, err := EarlyStackParseFunctions(ctx, scopedLogger, dir, scopedPctx)
+				if err != nil {
+					scopedLogger.Debugf("EarlyStackParseFunctions for nested stack %q: %v", dir, err)
+
+					return nil
+				}
+
+				return funcs
+			},
 		})
 		if parseErr != nil {
 			return AutoIncludeParserStageError{Stage: "parse", File: stackFilePath, Err: parseErr}

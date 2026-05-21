@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDiscoverStackChildUnits_NestedSourceResolution verifies discovery populates ChildRefs only when the source expression resolves against the stdlib eval context.
+// TestDiscoverStackChildUnits_NestedSourceResolution verifies discovery populates ChildRefs only when the source expression resolves against the default (stdlib-only) discovery eval context.
 func TestDiscoverStackChildUnits_NestedSourceResolution(t *testing.T) {
 	t.Parallel()
 

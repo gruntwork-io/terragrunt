@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 // stackFileName is the canonical filename of a Terragrunt stack file.
@@ -176,8 +177,42 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	})
 }
 
+// DiscoverOption configures the discovery entry points UnitPathsFromStackDir
+// and DiscoverStackChildUnits.
+type DiscoverOption func(*discoverOptions)
+
+type discoverOptions struct {
+	funcsForDir func(dir string) map[string]function.Function
+}
+
+func applyDiscoverOptions(opts []DiscoverOption) discoverOptions {
+	var cfg discoverOptions
+
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	return cfg
+}
+
+// WithDiscoveryFunctions installs an HCL function map used while decoding the
+// stack file. Without this option, expressions resolve only against the
+// Terraform stdlib scoped to the stack directory.
+func WithDiscoveryFunctions(funcs map[string]function.Function) DiscoverOption {
+	return func(c *discoverOptions) {
+		c.funcsForDir = func(string) map[string]function.Function { return funcs }
+	}
+}
+
+// WithDiscoveryFunctionsForDir installs a per-directory factory for the HCL
+// function map. DiscoverStackChildUnits invokes it once per nested catalog;
+// UnitPathsFromStackDir invokes it once with stackDir.
+func WithDiscoveryFunctionsForDir(funcsForDir func(dir string) map[string]function.Function) DiscoverOption {
+	return func(c *discoverOptions) { c.funcsForDir = funcsForDir }
+}
+
 // UnitPathsFromStackDir returns generated unit paths from discovery parsing.
-func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
+func UnitPathsFromStackDir(fs vfs.FS, stackDir string, opts ...DiscoverOption) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
 	}
@@ -189,7 +224,14 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 	stackDir = util.ResolvePath(stackDir)
 	stackFile := filepath.Join(stackDir, stackFileName)
 
-	units, _, err := decodeDiscovery(fs, stackDir, stackFile)
+	cfg := applyDiscoverOptions(opts)
+
+	var funcs map[string]function.Function
+	if cfg.funcsForDir != nil {
+		funcs = cfg.funcsForDir(stackDir)
+	}
+
+	units, _, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +258,7 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 const maxDiscoverDepth = 1000
 
 // DiscoverStackChildUnits enriches a stack ComponentRef with nested unit refs for stack.<name>.<unit>.path resolution; best-effort, returns nil ChildRefs on any read/parse failure.
-func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
+func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string, opts ...DiscoverOption) []ComponentRef {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: fs is nil (stackSourceDir=%q, stackGenDir=%q)", stackSourceDir, stackGenDir))
 	}
@@ -229,17 +271,24 @@ func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []Co
 		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: stackGenDir is empty (stackSourceDir=%q)", stackSourceDir))
 	}
 
-	return discoverStackChildUnitsWithDepth(fs, stackSourceDir, stackGenDir, 0)
+	cfg := applyDiscoverOptions(opts)
+
+	return discoverStackChildUnitsWithDepth(fs, stackSourceDir, stackGenDir, 0, cfg.funcsForDir)
 }
 
-func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir string, depth int) []ComponentRef {
+func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir string, depth int, funcsForDir func(dir string) map[string]function.Function) []ComponentRef {
 	if depth > maxDiscoverDepth {
 		return nil
 	}
 
 	stackFile := filepath.Join(stackSourceDir, stackFileName)
 
-	units, stacks, err := decodeDiscovery(fs, stackSourceDir, stackFile)
+	var funcs map[string]function.Function
+	if funcsForDir != nil {
+		funcs = funcsForDir(stackSourceDir)
+	}
+
+	units, stacks, err := decodeDiscovery(fs, stackSourceDir, stackFile, funcs)
 	if err != nil || (units == nil && stacks == nil) {
 		return nil
 	}
@@ -264,13 +313,15 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 
 		ref := ComponentRef{Name: s.Name, Path: nestedGenPath}
 
-		// Only recurse when source resolves against the stdlib eval context; unresolvable sources skip silently and surface later as "Unsupported attribute".
-		if nestedSourceDir, ok := resolveStackSource(s.Source, stackSourceDir); ok {
+		// Only recurse when the source expression resolves against the injected
+		// eval context; unresolvable expressions skip recursion silently so the
+		// full parse can surface a diagnostic with the real call site.
+		if nestedSourceDir, ok := resolveStackSource(s.Source, stackSourceDir, funcs); ok {
 			if !filepath.IsAbs(nestedSourceDir) {
 				nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
 			}
 
-			ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1)
+			ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1, funcsForDir)
 		}
 
 		refs = append(refs, ref)
@@ -280,7 +331,10 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 }
 
 // decodeDiscovery parses discovery targets and returns path-only unit and stack data.
-func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
+//
+// funcs is the function map injected into the discovery eval context. Passing
+// nil falls back to the Terraform stdlib resolved against stackDir.
+func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]function.Function) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
 		if errors.Is(err, iofs.ErrNotExist) {
@@ -295,7 +349,7 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL,
 		return nil, nil, err
 	}
 
-	evalCtx := stdlibEvalContext(stackDir)
+	evalCtx := discoveryEvalContext(stackDir, funcs)
 
 	if parsedFile.Locals != nil {
 		if err := evaluateLocals(parsedFile.Locals.Remain, evalCtx); err != nil {
@@ -350,8 +404,10 @@ func validateDiscoveryUniqueNames(units []*unitPathOnlyHCL, stacks []*stackPathO
 	return errors.Join(errs...)
 }
 
-// resolveStackSource returns the source string for nested stack discovery; falls back to stdlib eval against baseDir, otherwise ("", false).
-func resolveStackSource(expr hcl.Expression, baseDir string) (string, bool) {
+// resolveStackSource returns the source string for nested stack discovery; falls back to the
+// injected discovery eval context (or stdlib-only when funcs is nil) against baseDir,
+// otherwise ("", false).
+func resolveStackSource(expr hcl.Expression, baseDir string, funcs map[string]function.Function) (string, bool) {
 	if s, ok := literalString(expr); ok {
 		return s, true
 	}
@@ -360,7 +416,7 @@ func resolveStackSource(expr hcl.Expression, baseDir string) (string, bool) {
 		return "", false
 	}
 
-	val, diags := expr.Value(stdlibEvalContext(baseDir))
+	val, diags := expr.Value(discoveryEvalContext(baseDir, funcs))
 	if diags.HasErrors() || val.IsNull() || !val.IsKnown() || val.Type() != cty.String {
 		return "", false
 	}
@@ -386,12 +442,17 @@ func literalString(expr hcl.Expression) (string, bool) {
 	return val.AsString(), true
 }
 
-// stdlibEvalContext returns a stdlib-only eval context for discovery.
-func stdlibEvalContext(baseDir string) *hcl.EvalContext {
-	tfscope := tflang.Scope{BaseDir: baseDir}
+// discoveryEvalContext returns the eval context used while decoding
+// terragrunt.stack.hcl for discovery. When funcs is non-nil it is used as-is;
+// otherwise the Terraform stdlib resolved against baseDir is used.
+func discoveryEvalContext(baseDir string, funcs map[string]function.Function) *hcl.EvalContext {
+	if funcs == nil {
+		tfscope := tflang.Scope{BaseDir: baseDir}
+		funcs = tfscope.Functions()
+	}
 
 	return &hcl.EvalContext{
-		Functions: tfscope.Functions(),
+		Functions: funcs,
 		Variables: map[string]cty.Value{},
 	}
 }
