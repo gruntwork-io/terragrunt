@@ -666,16 +666,58 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 		output[MetadataRetry] = retryCty
 	}
 
-	ignoreCty, err := GoTypeToCty(config.Ignore)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	if ignoreCty != cty.NilVal {
+	if ignoreCty := ignoreBlocksAsCty(config.Ignore); ignoreCty != cty.NilVal {
 		output[MetadataIgnore] = ignoreCty
 	}
 
 	return ConvertValuesMapToCtyVal(output)
+}
+
+// ignoreBlocksAsCty returns the blocks as cty.TupleVal. gocty infers each
+// Signals map's element type from its contents (cty.Map(cty.String) when
+// populated, cty.Map(cty.DynamicPseudoType) when empty), so cty.ListVal
+// panics on "inconsistent list element types" when blocks disagree.
+// Tuples allow per-position type variation.
+func ignoreBlocksAsCty(blocks []*IgnoreBlock) cty.Value {
+	if len(blocks) == 0 {
+		return cty.NilVal
+	}
+
+	values := make([]cty.Value, 0, len(blocks))
+	for _, b := range blocks {
+		values = append(values, ignoreBlockAsCty(b))
+	}
+
+	return cty.TupleVal(values)
+}
+
+func ignoreBlockAsCty(b *IgnoreBlock) cty.Value {
+	if b == nil {
+		return cty.NullVal(cty.DynamicPseudoType)
+	}
+
+	ignorableErrors := cty.ListValEmpty(cty.String)
+
+	if len(b.IgnorableErrors) > 0 {
+		items := make([]cty.Value, len(b.IgnorableErrors))
+		for i, s := range b.IgnorableErrors {
+			items[i] = cty.StringVal(s)
+		}
+
+		ignorableErrors = cty.ListVal(items)
+	}
+
+	signals := cty.MapValEmpty(cty.DynamicPseudoType)
+	if len(b.Signals) > 0 {
+		signals = cty.ObjectVal(b.Signals)
+	}
+
+	return cty.ObjectVal(map[string]cty.Value{
+		"name":             cty.StringVal(b.Label),
+		"ignorable_errors": ignorableErrors,
+		"message":          cty.StringVal(b.Message),
+		"signals":          signals,
+	})
 }
 
 // stackConfigAsCty converts a StackConfig into a cty Value so its attributes can be used in other configs.
