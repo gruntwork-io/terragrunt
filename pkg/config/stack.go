@@ -35,13 +35,11 @@ import (
 
 const (
 	// StackDir aliases inthclparse.StackDir so external callers (internal/stacks/output, etc.) keep their existing import path without a second source of truth.
-	StackDir = inthclparse.StackDir
-	// stackOriginFile is the sidecar recording the catalog source dir of a copied stack file.
-	stackOriginFile = ".terragrunt-stack-origin"
-	valuesFile      = "terragrunt.values.hcl"
-	manifestName    = ".terragrunt-stack-manifest"
-	unitDirPerm     = 0755
-	valueFilePerm   = 0644
+	StackDir      = inthclparse.StackDir
+	valuesFile    = "terragrunt.values.hcl"
+	manifestName  = ".terragrunt-stack-manifest"
+	unitDirPerm   = 0755
+	valueFilePerm = 0644
 )
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
@@ -95,16 +93,8 @@ type Stack struct {
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
 func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, pool *worker.Pool, stackFilePath string) error {
-	// resolveDir anchors relative source paths; falls back to stackSourceDir unless a .terragrunt-stack-origin sidecar redirects it.
 	stackSourceDir := filepath.Dir(stackFilePath)
-	resolveDir := stackSourceDir
 	stackDepsEnabled := pctx.Experiments.Evaluate(experiment.StackDependencies)
-
-	if stackDepsEnabled {
-		if origin := ReadStackOrigin(vfs.NewOSFS(), stackSourceDir); origin != "" {
-			resolveDir = origin
-		}
-	}
 
 	values, err := ReadValues(ctx, pctx, l, stackSourceDir)
 	if err != nil {
@@ -124,7 +114,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	var stackSrcBytes []byte
 
-	if pctx.Experiments.Evaluate(experiment.StackDependencies) && stackConfigHasAutoInclude(stackFile) {
+	if stackDepsEnabled && stackConfigHasAutoInclude(stackFile) {
 		// The autoinclude phase uses the internal HCL parser, which currently expects
 		// hclsyntax input (not JSON bodies). Preserve explicit failure behavior for JSON
 		// stack files that still declare autoinclude.
@@ -157,7 +147,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
 			Src:       stackSrcBytes,
 			Filename:  filepath.Base(stackFilePath),
-			StackDir:  resolveDir,
+			StackDir:  stackSourceDir,
 			Values:    values,
 			Variables: prodEvalCtx.Variables,
 			Functions: prodEvalCtx.Functions,
@@ -193,20 +183,19 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	}
 
 	genOpts := generateOpts{
-		rootWorkingDir:   pctx.RootWorkingDir,
-		logShowAbsPaths:  pctx.Writers.LogShowAbsPaths,
-		sourceMap:        pctx.SourceMap,
-		noStackValidate:  pctx.NoStackValidate,
-		stackConfigPath:  pctx.TerragruntStackConfigPath,
-		sourceFile:       stackFilePath,
-		sourceDir:        resolveDir,
-		targetDir:        stackTargetDir,
-		autoIncludes:     autoIncludes,
-		stackSrcBytes:    stackSrcBytes,
-		casEnabled:       casEnabled,
-		casInstance:      casInstance,
-		strictControls:   pctx.StrictControls,
-		stackDepsEnabled: stackDepsEnabled,
+		rootWorkingDir:  pctx.RootWorkingDir,
+		logShowAbsPaths: pctx.Writers.LogShowAbsPaths,
+		sourceMap:       pctx.SourceMap,
+		noStackValidate: pctx.NoStackValidate,
+		stackConfigPath: pctx.TerragruntStackConfigPath,
+		sourceFile:      stackFilePath,
+		sourceDir:       stackSourceDir,
+		targetDir:       stackTargetDir,
+		autoIncludes:    autoIncludes,
+		stackSrcBytes:   stackSrcBytes,
+		casEnabled:      casEnabled,
+		casInstance:     casInstance,
+		strictControls:  pctx.StrictControls,
 	}
 
 	if err := generateUnits(ctx, l, &genOpts, pool, stackFile.Units); err != nil {
@@ -254,20 +243,19 @@ func validateUpdateSourceWithCAS(stackFile *StackConfig, stackFilePath string, c
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
-	autoIncludes     map[string]*inthclparse.AutoIncludeResolved
-	casInstance      *cas.CAS
-	sourceMap        map[string]string
-	strictControls   strict.Controls
-	rootWorkingDir   string
-	stackConfigPath  string
-	sourceFile       string
-	sourceDir        string
-	targetDir        string
-	stackSrcBytes    []byte
-	logShowAbsPaths  bool
-	noStackValidate  bool
-	casEnabled       bool
-	stackDepsEnabled bool
+	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
+	casInstance     *cas.CAS
+	sourceMap       map[string]string
+	strictControls  strict.Controls
+	rootWorkingDir  string
+	stackConfigPath string
+	sourceFile      string
+	sourceDir       string
+	targetDir       string
+	stackSrcBytes   []byte
+	logShowAbsPaths bool
+	noStackValidate bool
+	casEnabled      bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -477,11 +465,6 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		return err
 	}
 
-	// Record the catalog source dir as a sidecar so nested recursion resolves relative paths against the original catalog.
-	if cmp.kind == stackKind && opts.stackDepsEnabled {
-		writeStackOrigin(l, cmp.sourceDir, source, dest)
-	}
-
 	if err := writeValues(l, cmp.values, dest); err != nil {
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
 	}
@@ -670,52 +653,6 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 	}
 
 	return nil
-}
-
-// ReadStackOrigin returns the absolute catalog source dir from the .terragrunt-stack-origin sidecar, or "" if missing/malformed.
-func ReadStackOrigin(fsys vfs.FS, stackDir string) string {
-	data, err := vfs.ReadFile(fsys, filepath.Join(stackDir, stackOriginFile))
-	if err != nil {
-		return ""
-	}
-
-	origin := strings.TrimSpace(string(data))
-	if origin == "" {
-		return ""
-	}
-
-	origin = filepath.Clean(origin)
-	if !filepath.IsAbs(origin) {
-		return ""
-	}
-
-	info, err := fsys.Stat(origin)
-	if err != nil || !info.IsDir() {
-		return ""
-	}
-
-	return origin
-}
-
-// writeStackOrigin records the catalog source dir in a sidecar so nested recursion resolves relative paths against the original catalog.
-func writeStackOrigin(l log.Logger, sourceDir, source, dest string) {
-	if !isLocal(l, sourceDir, source) {
-		return
-	}
-
-	localSrc := source
-	if !filepath.IsAbs(localSrc) {
-		localSrc = filepath.Join(sourceDir, localSrc)
-	}
-
-	absOrigin, err := filepath.Abs(localSrc)
-	if err != nil {
-		return
-	}
-
-	if err := os.WriteFile(filepath.Join(dest, stackOriginFile), []byte(absOrigin), valueFilePerm); err != nil {
-		l.Debugf("failed to write %s in %s: %v", stackOriginFile, dest, err)
-	}
 }
 
 // isLocal determines if a given source path is local or remote.
