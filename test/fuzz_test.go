@@ -36,8 +36,11 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -500,24 +503,118 @@ func buildFuzzFS(c *consumer) []fuzzSeedFile {
 	return fuzzShapes[c.intN(len(fuzzShapes))](c)
 }
 
+// fuzzShapeSimpleUnit is the workhorse shape: a single unit at /work.
+//
+// The body is assembled with optional fragments rather than one fixed
+// template so libFuzzer has structural flips to climb. Each c.boolean()
+// below toggles a distinct code path (top-level attribute parse, hook
+// dispatch, generate codegen, etc.). With the underlying byte stream
+// exhausted, every flip defaults to false and the shape collapses back
+// to the previous minimal form.
 func fuzzShapeSimpleUnit(c *consumer) []fuzzSeedFile {
 	name := orDefault(c.slot(fuzzMaxFuzzSlotChars), "fuzz")
-	hcl := fmt.Sprintf(`
-locals {
-  name = %q
-}
 
-terraform {
-  source = "./mod"
-}
+	var b bytes.Buffer
 
-inputs = {
-  name = local.name
+	fmt.Fprintf(&b, "locals {\n  name = %q\n}\n\n", name)
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "skip = %t\n", c.boolean())
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "prevent_destroy = %t\n", c.boolean())
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "download_dir = %q\n", c.choose([]string{fuzzWorkDir + "/.cache", fuzzWorkDir + "/dl"}))
+	}
+
+	if c.boolean() {
+		role := orDefault(c.slot(fuzzMaxFuzzSlotChars), "fuzz")
+		fmt.Fprintf(&b, "iam_role = %q\n", "arn:aws:iam::123456789012:role/"+role)
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "iam_assume_role_duration = %d\n", 900+c.intN(3000))
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "iam_assume_role_session_name = %q\n", orDefault(c.slot(fuzzMaxFuzzSlotChars), "fuzz"))
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "terraform_version_constraint = %q\n", c.choose([]string{">= 1.0", ">= 0.13", "~> 1.5", "= 1.6.0"}))
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "terragrunt_version_constraint = %q\n", c.choose([]string{">= 0.50", "~> 0.60", "= 0.65.0"}))
+	}
+
+	if c.boolean() {
+		feat := orDefault(c.slotIdent(fuzzMaxFuzzSlotChars), "feat")
+		defVal := c.choose([]string{`"default"`, `1`, `true`, `false`, `["a","b"]`})
+		fmt.Fprintf(&b, "\nfeature %q {\n  default = %s\n}\n", feat, defVal)
+	}
+
+	if c.boolean() {
+		ifExists := c.choose([]string{"overwrite", "overwrite_terragrunt", "skip"})
+		fmt.Fprintf(&b, `
+generate "backend" {
+  path      = "backend.tf"
+  contents  = "terraform { backend \"local\" {} }"
+  if_exists = %q
 }
-`, name)
+`, ifExists)
+	}
+
+	b.WriteString("\nterraform {\n  source = \"./mod\"\n")
+
+	if c.boolean() {
+		b.WriteString("  copy_terraform_lock_file = true\n")
+	}
+
+	if c.boolean() {
+		b.WriteString("  include_in_copy = [\"*.json\"]\n")
+	}
+
+	if c.boolean() {
+		cmd := c.choose([]string{"apply", "plan", "destroy", "init"})
+		fmt.Fprintf(&b, "  before_hook \"pre\" {\n    commands = [%q]\n    execute  = [\"echo\", \"before\"]\n  }\n", cmd)
+	}
+
+	if c.boolean() {
+		cmd := c.choose([]string{"apply", "plan", "destroy", "init"})
+		fmt.Fprintf(&b, "  after_hook \"post\" {\n    commands     = [%q]\n    execute      = [\"echo\", \"after\"]\n    run_on_error = %t\n  }\n", cmd, c.boolean())
+	}
+
+	if c.boolean() {
+		cmd := c.choose([]string{"apply", "plan", "destroy", "init"})
+		fmt.Fprintf(&b, "  extra_arguments \"extra\" {\n    commands  = [%q]\n    arguments = [\"-var\", \"x=1\"]\n  }\n", cmd)
+	}
+
+	b.WriteString("}\n\ninputs = {\n  name = local.name\n")
+
+	if c.boolean() {
+		b.WriteString("  region = \"us-east-1\"\n")
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  count_val = %d\n", c.intN(100))
+	}
+
+	if c.boolean() {
+		b.WriteString("  list_val = [1, 2, 3]\n")
+	}
+
+	if c.boolean() {
+		b.WriteString("  nested = { a = 1, b = \"x\" }\n")
+	}
+
+	b.WriteString("}\n")
 
 	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: b.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`
 variable "name" { type = string }
 resource "null_resource" "x" {}
@@ -526,17 +623,74 @@ output "id" { value = "fixed" }
 	}
 }
 
+// fuzzShapeWithDep exercises the dependency-block parse/eval depth. The
+// dependency on /work/app -> /work/db is fixed (the include + dependency
+// graph is what makes this shape distinct); the dependency block's
+// attribute set varies with the fuzz stream so each evaluator branch
+// (skip_outputs, enabled gating, merge strategy, allowed-commands list)
+// becomes reachable.
 func fuzzShapeWithDep(c *consumer) []fuzzSeedFile {
 	region := orDefault(c.slot(fuzzMaxFuzzSlotChars), "us-east-1")
 
+	var dep bytes.Buffer
+
+	dep.WriteString(`dependency "db" {
+  config_path = "../db"
+`)
+
+	if c.boolean() {
+		dep.WriteString("  mock_outputs = {\n    id = \"mock-id\"\n  }\n")
+	}
+
+	if c.boolean() {
+		dep.WriteString("  mock_outputs_allowed_terraform_commands = [\"plan\", \"apply\", \"destroy\", \"init\", \"validate\"]\n")
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&dep, "  mock_outputs_merge_strategy_with_state = %q\n", c.choose([]string{"no_merge", "shallow", "deep"}))
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&dep, "  mock_outputs_merge_with_state = %t\n", c.boolean())
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&dep, "  skip_outputs = %t\n", c.boolean())
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&dep, "  enabled = %t\n", c.boolean())
+	}
+
+	dep.WriteString("}\n\n")
+
+	var appHCL bytes.Buffer
+
+	appHCL.WriteString(`include "root" {
+  path = find_in_parent_folders("root.hcl")
+`)
+
+	if c.boolean() {
+		fmt.Fprintf(&appHCL, "  merge_strategy = %q\n", c.choose([]string{"no_merge", "shallow", "deep"}))
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&appHCL, "  expose = %t\n", c.boolean())
+	}
+
+	appHCL.WriteString("}\n\n")
+	appHCL.Write(dep.Bytes())
+	appHCL.WriteString("terraform {\n  source = \"../mod\"\n}\n\ninputs = {\n  db_id = dependency.db.outputs.id\n")
+
+	if c.boolean() {
+		appHCL.WriteString("  also = \"value\"\n")
+	}
+
+	appHCL.WriteString("}\n")
+
 	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/root.hcl", data: fmt.Appendf(nil, `
-locals {
-  region = %q
-}
-`, region)},
-		{path: fuzzWorkDir + "/db/terragrunt.hcl", data: []byte(`
-include "root" {
+		{path: fuzzWorkDir + "/root.hcl", data: fmt.Appendf(nil, "locals {\n  region = %q\n}\n", region)},
+		{path: fuzzWorkDir + "/db/terragrunt.hcl", data: []byte(`include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
@@ -548,53 +702,60 @@ inputs = {
   region = include.root.locals.region
 }
 `)},
-		{path: fuzzWorkDir + "/app/terragrunt.hcl", data: []byte(`
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
-
-dependency "db" {
-  config_path = "../db"
-
-  mock_outputs = {
-    id = "mock-id"
-  }
-}
-
-terraform {
-  source = "../mod"
-}
-
-inputs = {
-  db_id = dependency.db.outputs.id
-}
-`)},
-		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`
-resource "null_resource" "x" {}
+		{path: fuzzWorkDir + "/app/terragrunt.hcl", data: appHCL.Bytes()},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}
 output "id" { value = "fixed" }
 `)},
 	}
 }
 
+// fuzzShapeStack lays down a terragrunt.stack.hcl. Unit count, stack-level
+// locals, per-unit values, and per-unit no_dot_terragrunt_stack all flip
+// independently so the stack generator/runner branches each get exercised.
 func fuzzShapeStack(c *consumer) []fuzzSeedFile {
-	unitName := orDefault(c.slot(fuzzMaxFuzzSlotChars), "foo")
-	stack := fmt.Sprintf(`
-unit %q {
-  source = "./units/%s"
-  path   = "live/%s"
-}
+	unitName := orDefault(c.slotIdent(fuzzMaxFuzzSlotChars), "foo")
 
-unit "bar" {
-  source = "./units/bar"
-  path   = "live/bar"
-}
-`, unitName, unitName, unitName)
+	var stack bytes.Buffer
 
-	return []fuzzSeedFile{
+	if c.boolean() {
+		fmt.Fprintf(&stack, "locals {\n  region = %q\n  env    = %q\n}\n\n",
+			orDefault(c.slot(fuzzMaxFuzzSlotChars), "us-east-1"),
+			orDefault(c.slot(fuzzMaxFuzzSlotChars), "dev"))
+	}
+
+	fmt.Fprintf(&stack, "unit %q {\n  source = \"./units/%s\"\n  path   = \"live/%s\"\n",
+		unitName, unitName, unitName)
+
+	if c.boolean() {
+		stack.WriteString("  values = {\n    region = \"us-east-1\"\n")
+
+		if c.boolean() {
+			fmt.Fprintf(&stack, "    name   = %q\n", orDefault(c.slot(fuzzMaxFuzzSlotChars), "x"))
+		}
+
+		stack.WriteString("  }\n")
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&stack, "  no_dot_terragrunt_stack = %t\n", c.boolean())
+	}
+
+	stack.WriteString("}\n\n")
+
+	if c.boolean() {
+		stack.WriteString("unit \"bar\" {\n  source = \"./units/bar\"\n  path   = \"live/bar\"\n")
+
+		if c.boolean() {
+			stack.WriteString("  values = { region = \"us-east-1\" }\n")
+		}
+
+		stack.WriteString("}\n")
+	}
+
+	files := []fuzzSeedFile{
 		{path: fuzzWorkDir + "/root.hcl", data: []byte(`locals { region = "us-east-1" }`)},
-		{path: fuzzWorkDir + "/terragrunt.stack.hcl", data: []byte(stack)},
-		{path: fuzzWorkDir + "/units/" + unitName + "/terragrunt.hcl", data: []byte(`
-include "root" {
+		{path: fuzzWorkDir + "/terragrunt.stack.hcl", data: stack.Bytes()},
+		{path: fuzzWorkDir + "/units/" + unitName + "/terragrunt.hcl", data: []byte(`include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
@@ -602,8 +763,7 @@ terraform {
   source = "../../mod"
 }
 `)},
-		{path: fuzzWorkDir + "/units/bar/terragrunt.hcl", data: []byte(`
-include "root" {
+		{path: fuzzWorkDir + "/units/bar/terragrunt.hcl", data: []byte(`include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
@@ -613,30 +773,39 @@ terraform {
 `)},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
+
+	return files
 }
 
+// fuzzShapeIncludeChain exercises the include merge/expose machinery. Two
+// includes are always present (root + region) so the merge path is hit;
+// merge_strategy and expose on each include flip independently.
 func fuzzShapeIncludeChain(c *consumer) []fuzzSeedFile {
 	envName := orDefault(c.slot(fuzzMaxFuzzSlotChars), "dev")
 
-	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/root.hcl", data: fmt.Appendf(nil, `
-locals {
-  env = %q
-}
-`, envName)},
-		{path: fuzzWorkDir + "/sub/region.hcl", data: []byte(`
-locals {
-  region = "us-east-1"
-}
-`)},
-		{path: fuzzWorkDir + "/sub/terragrunt.hcl", data: []byte(`
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
+	var sub bytes.Buffer
 
-include "region" {
-  path = "region.hcl"
-}
+	sub.WriteString("include \"root\" {\n  path = find_in_parent_folders(\"root.hcl\")\n")
+
+	if c.boolean() {
+		fmt.Fprintf(&sub, "  merge_strategy = %q\n", c.choose([]string{"no_merge", "shallow", "deep"}))
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&sub, "  expose = %t\n", c.boolean())
+	}
+
+	sub.WriteString("}\n\ninclude \"region\" {\n  path = \"region.hcl\"\n")
+
+	if c.boolean() {
+		fmt.Fprintf(&sub, "  merge_strategy = %q\n", c.choose([]string{"no_merge", "shallow", "deep"}))
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&sub, "  expose = %t\n", c.boolean())
+	}
+
+	sub.WriteString(`}
 
 terraform {
   source = "../mod"
@@ -645,34 +814,67 @@ terraform {
 inputs = {
   env    = include.root.locals.env
   region = include.region.locals.region
-}
-`)},
+`)
+
+	if c.boolean() {
+		sub.WriteString("  extra  = \"value\"\n")
+	}
+
+	sub.WriteString("}\n")
+
+	root := bytes.Buffer{}
+	fmt.Fprintf(&root, "locals {\n  env = %q\n", envName)
+
+	if c.boolean() {
+		fmt.Fprintf(&root, "  tier = %q\n", c.choose([]string{"prod", "staging", "dev"}))
+	}
+
+	root.WriteString("}\n")
+
+	region := bytes.Buffer{}
+	region.WriteString("locals {\n  region = \"us-east-1\"\n")
+
+	if c.boolean() {
+		region.WriteString("  zone = \"a\"\n")
+	}
+
+	region.WriteString("}\n")
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/root.hcl", data: root.Bytes()},
+		{path: fuzzWorkDir + "/sub/region.hcl", data: region.Bytes()},
+		{path: fuzzWorkDir + "/sub/terragrunt.hcl", data: sub.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
 }
 
 func fuzzShapeErrorsBlock(c *consumer) []fuzzSeedFile {
 	maxAttempts := 1 + c.intN(4)
-	hcl := fmt.Sprintf(`
-terraform {
-  source = "./mod"
-}
+	sleepSec := 1 + c.intN(5)
 
-errors {
-  retry "transient" {
-    retryable_errors = [".*timeout.*", ".*rate limit.*"]
-    max_attempts     = %d
-    sleep_interval_sec = 1
-  }
-}
+	var b bytes.Buffer
 
-inputs = {
-  name = "fuzz"
-}
-`, maxAttempts)
+	b.WriteString("terraform {\n  source = \"./mod\"\n}\n\nerrors {\n")
+	fmt.Fprintf(&b, "  retry \"transient\" {\n    retryable_errors   = [%q, %q]\n    max_attempts       = %d\n    sleep_interval_sec = %d\n  }\n",
+		c.choose([]string{".*timeout.*", ".*throttl.*", ".*5xx.*", ".*EOF.*"}),
+		c.choose([]string{".*rate limit.*", ".*deadline.*", ".*lock.*"}),
+		maxAttempts, sleepSec)
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  retry \"network\" {\n    retryable_errors   = [\".*connection refused.*\"]\n    max_attempts       = %d\n    sleep_interval_sec = 1\n  }\n",
+			1+c.intN(3))
+	}
+
+	b.WriteString("}\n\ninputs = {\n  name = \"fuzz\"\n")
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  attempt_cap = %d\n", maxAttempts)
+	}
+
+	b.WriteString("}\n")
 
 	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: b.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
 }
@@ -680,21 +882,33 @@ inputs = {
 func fuzzShapeAutoInclude(c *consumer) []fuzzSeedFile {
 	regionLocal := orDefault(c.slot(fuzzMaxFuzzSlotChars), "eu-west-1")
 
-	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/terragrunt.autoinclude.hcl", data: fmt.Appendf(nil, `
-locals {
-  region = %q
-}
-`, regionLocal)},
-		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(`
-terraform {
-  source = "./mod"
-}
+	var auto bytes.Buffer
 
-inputs = {
-  region = "us-east-1"
-}
-`)},
+	fmt.Fprintf(&auto, "locals {\n  region = %q\n", regionLocal)
+
+	if c.boolean() {
+		fmt.Fprintf(&auto, "  tier = %q\n", c.choose([]string{"prod", "staging", "dev"}))
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&auto, "  enabled = %t\n", c.boolean())
+	}
+
+	auto.WriteString("}\n")
+
+	var main bytes.Buffer
+
+	main.WriteString("terraform {\n  source = \"./mod\"\n}\n\ninputs = {\n  region = \"us-east-1\"\n")
+
+	if c.boolean() {
+		main.WriteString("  shared = \"value\"\n")
+	}
+
+	main.WriteString("}\n")
+
+	return []fuzzSeedFile{
+		{path: fuzzWorkDir + "/terragrunt.autoinclude.hcl", data: auto.Bytes()},
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: main.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
 }
@@ -715,80 +929,134 @@ func fuzzShapeMalformed(c *consumer) []fuzzSeedFile {
 
 // fuzzShapeRemoteState drives the remotestate package and the AWS/GCS
 // backend builders. Backend transport routes through v.HTTP, so calls
-// are bounded by the fuzz HTTP handler rather than real network.
+// are bounded by the fuzz HTTP handler rather than real network. Backend
+// type, disable flags, generate.if_exists, and the per-backend config
+// alphabet each flip from the fuzz stream.
 func fuzzShapeRemoteState(c *consumer) []fuzzSeedFile {
 	backend := c.choose([]string{"s3", "gcs", "local"})
 	bucket := orDefault(c.slot(fuzzMaxFuzzSlotChars), "fuzz-bucket")
 	key := orDefault(c.slot(fuzzMaxFuzzSlotChars), "tfstate")
 	region := orDefault(c.slot(fuzzMaxFuzzSlotChars), "us-east-1")
-	hcl := fmt.Sprintf(`
-remote_state {
-  backend                         = %q
-  disable_init                    = false
-  disable_dependency_optimization = false
-  config = {
-    bucket  = %q
-    key     = %q
-    region  = %q
-    encrypt = true
-  }
-  generate = {
-    path      = "backend.tf"
-    if_exists = "overwrite_terragrunt"
-  }
-}
+
+	var b bytes.Buffer
+
+	fmt.Fprintf(&b, "remote_state {\n  backend = %q\n", backend)
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  disable_init = %t\n", c.boolean())
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  disable_dependency_optimization = %t\n", c.boolean())
+	}
+
+	b.WriteString("  config = {\n")
+	fmt.Fprintf(&b, "    bucket = %q\n    key    = %q\n    region = %q\n", bucket, key, region)
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "    encrypt = %t\n", c.boolean())
+	}
+
+	if backend == "s3" && c.boolean() {
+		fmt.Fprintf(&b, "    dynamodb_table = %q\n", orDefault(c.slot(fuzzMaxFuzzSlotChars), "fuzz-lock"))
+	}
+
+	if backend == "s3" && c.boolean() {
+		fmt.Fprintf(&b, "    role_arn = %q\n", "arn:aws:iam::123456789012:role/"+orDefault(c.slot(fuzzMaxFuzzSlotChars), "fuzz"))
+	}
+
+	if backend == "gcs" && c.boolean() {
+		fmt.Fprintf(&b, "    location = %q\n", c.choose([]string{"US", "EU", "ASIA"}))
+	}
+
+	if backend == "gcs" && c.boolean() {
+		fmt.Fprintf(&b, "    project = %q\n", orDefault(c.slot(fuzzMaxFuzzSlotChars), "fuzz-project"))
+	}
+
+	b.WriteString("  }\n")
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  generate = {\n    path      = \"backend.tf\"\n    if_exists = %q\n  }\n",
+			c.choose([]string{"overwrite", "overwrite_terragrunt", "skip"}))
+	}
+
+	b.WriteString(`}
 
 terraform {
   source = "./mod"
 }
 
 inputs = {
-  region = %q
-}
-`, backend, bucket, key, region, region)
+`)
+	fmt.Fprintf(&b, "  region = %q\n", region)
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  bucket = %q\n", bucket)
+	}
+
+	b.WriteString("}\n")
 
 	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: b.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
 }
 
 // fuzzShapeGenerate exercises codegen's contents/signature/if_exists/comment
 // preparation. The final os.WriteFile under /work fails fast on macOS/CI
-// (parent missing), so only the pre-write logic is covered.
+// (parent missing), so only the pre-write logic is covered. Block count,
+// per-block contents, if_exists, comment_prefix, disable_signature, and
+// hcl_fmt each flip from the fuzz stream.
 func fuzzShapeGenerate(c *consumer) []fuzzSeedFile {
-	name := orDefault(c.slot(fuzzMaxFuzzSlotChars), "provider")
+	name := orDefault(c.slotIdent(fuzzMaxFuzzSlotChars), "provider")
 	contents := orDefault(c.slot(fuzzMaxFuzzSlotChars*4), `provider "null" {}`)
 	ifExists := c.choose([]string{"overwrite", "overwrite_terragrunt", "skip"})
 	commentPrefix := orDefault(c.slot(fuzzMaxFuzzSlotChars), "# ")
-	hcl := fmt.Sprintf(`
-generate %q {
-  path              = "%s.tf"
-  contents          = %q
-  if_exists         = %q
-  comment_prefix    = %q
-  disable_signature = false
-}
 
-generate "backend" {
-  path      = "backend.tf"
-  contents  = "terraform { backend \"local\" {} }"
-  if_exists = "overwrite"
-}
+	var b bytes.Buffer
 
-terraform {
-  source = "./mod"
-}
-`, name, name, contents, ifExists, commentPrefix)
+	fmt.Fprintf(&b, "generate %q {\n  path     = \"%s.tf\"\n  contents = %q\n  if_exists = %q\n",
+		name, name, contents, ifExists)
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  comment_prefix = %q\n", commentPrefix)
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  disable_signature = %t\n", c.boolean())
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  hcl_fmt = %t\n", c.boolean())
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  disable = %t\n", c.boolean())
+	}
+
+	b.WriteString("}\n\n")
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "generate \"backend\" {\n  path      = \"backend.tf\"\n  contents  = \"terraform { backend \\\"local\\\" {} }\"\n  if_exists = %q\n}\n\n",
+			c.choose([]string{"overwrite", "overwrite_terragrunt", "skip"}))
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "generate \"versions\" {\n  path      = \"versions.tf\"\n  contents  = \"terraform { required_version = %q }\"\n  if_exists = \"overwrite\"\n}\n\n",
+			c.choose([]string{">= 1.0", "~> 1.5"}))
+	}
+
+	b.WriteString("terraform {\n  source = \"./mod\"\n}\n")
 
 	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: b.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
 }
 
 // fuzzShapeFeatureFlags drives feature-flag parse and substitution in
-// inputs evaluation.
+// inputs evaluation. The default value's HCL type flips between string,
+// number, bool, and list; a second feature block optionally appears.
 func fuzzShapeFeatureFlags(c *consumer) []fuzzSeedFile {
 	// feat is emitted both as a quoted block label and as an unquoted
 	// traversal step (`feature.<feat>.value`). slotIdent ensures the
@@ -796,66 +1064,113 @@ func fuzzShapeFeatureFlags(c *consumer) []fuzzSeedFile {
 	// literal, which would otherwise allow `1e9999999`-style precision
 	// bombs through cty.
 	feat := orDefault(c.slotIdent(fuzzMaxFuzzSlotChars), "feat")
-	defVal := orDefault(c.slot(fuzzMaxFuzzSlotChars), "default")
-	hcl := fmt.Sprintf(`
-feature %q {
-  default = %q
-}
 
-terraform {
-  source = "./mod"
-}
+	defVal := func() string {
+		switch c.intN(5) {
+		case 0:
+			return fmt.Sprintf("%q", orDefault(c.slot(fuzzMaxFuzzSlotChars), "default"))
+		case 1:
+			return strconv.Itoa(c.intN(1000))
+		case 2:
+			if c.boolean() {
+				return "true"
+			}
 
-inputs = {
-  x = feature.%s.value
-}
-`, feat, defVal, feat)
+			return "false"
+		case 3:
+			return `["a", "b", "c"]`
+		default:
+			return `{ k = "v" }`
+		}
+	}()
+
+	var b bytes.Buffer
+
+	fmt.Fprintf(&b, "feature %q {\n  default = %s\n}\n\n", feat, defVal)
+
+	if c.boolean() {
+		feat2 := orDefault(c.slotIdent(fuzzMaxFuzzSlotChars), "feat2")
+		fmt.Fprintf(&b, "feature %q {\n  default = true\n}\n\n", feat2)
+	}
+
+	b.WriteString("terraform {\n  source = \"./mod\"\n}\n\ninputs = {\n")
+	fmt.Fprintf(&b, "  x = feature.%s.value\n", feat)
+	b.WriteString("}\n")
 
 	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: b.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
 }
 
 // fuzzShapeHooks routes before/after/error hook execution through v.Exec
 // via shell.RunCommandWithOutput. extra_arguments exercises arg-injection.
+// Each hook flavour is independently flipped, and within each hook
+// run_on_error / working_dir / suppress_stdout each toggle a parse path.
 func fuzzShapeHooks(c *consumer) []fuzzSeedFile {
 	cmd := c.choose([]string{"apply", "plan", "destroy", "init"})
 	arg := orDefault(c.slot(fuzzMaxFuzzSlotChars), "fuzz")
-	runOnError := c.boolean()
-	hcl := fmt.Sprintf(`
-terraform {
-  source = "./mod"
 
-  before_hook "pre" {
-    commands = [%q]
-    execute  = ["echo", %q]
-  }
+	var b bytes.Buffer
 
-  after_hook "post" {
-    commands     = [%q]
-    execute      = ["echo", "after"]
-    run_on_error = %t
-  }
+	b.WriteString("terraform {\n  source = \"./mod\"\n\n")
 
-  error_hook "err" {
-    commands  = [%q]
-    on_errors = [".*"]
-    execute   = ["echo", "err"]
-  }
+	if c.boolean() {
+		fmt.Fprintf(&b, "  before_hook \"pre\" {\n    commands = [%q]\n    execute  = [\"echo\", %q]\n", cmd, arg)
 
-  extra_arguments "extra" {
-    commands  = [%q]
-    arguments = ["-var", "x=1"]
-    env_vars  = {
-      FUZZ = %q
-    }
-  }
-}
-`, cmd, arg, cmd, runOnError, cmd, cmd, arg)
+		if c.boolean() {
+			fmt.Fprintf(&b, "    working_dir = %q\n", fuzzWorkDir)
+		}
+
+		if c.boolean() {
+			fmt.Fprintf(&b, "    suppress_stdout = %t\n", c.boolean())
+		}
+
+		b.WriteString("  }\n\n")
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  after_hook \"post\" {\n    commands     = [%q]\n    execute      = [\"echo\", \"after\"]\n    run_on_error = %t\n",
+			cmd, c.boolean())
+
+		if c.boolean() {
+			fmt.Fprintf(&b, "    working_dir = %q\n", fuzzWorkDir)
+		}
+
+		b.WriteString("  }\n\n")
+	}
+
+	if c.boolean() {
+		pat := c.choose([]string{".*", ".*timeout.*", ".*lock.*", "ERROR.*"})
+		fmt.Fprintf(&b, "  error_hook \"err\" {\n    commands  = [%q]\n    on_errors = [%q]\n    execute   = [\"echo\", \"err\"]\n",
+			cmd, pat)
+
+		if c.boolean() {
+			fmt.Fprintf(&b, "    run_on_error = %t\n", c.boolean())
+		}
+
+		b.WriteString("  }\n\n")
+	}
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  extra_arguments \"extra\" {\n    commands  = [%q]\n    arguments = [\"-var\", \"x=1\"]\n    env_vars  = {\n      FUZZ = %q\n    }\n",
+			cmd, arg)
+
+		if c.boolean() {
+			b.WriteString("    required_var_files = []\n")
+		}
+
+		if c.boolean() {
+			b.WriteString("    optional_var_files = []\n")
+		}
+
+		b.WriteString("  }\n")
+	}
+
+	b.WriteString("}\n")
 
 	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: b.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
 }
@@ -952,204 +1267,250 @@ inputs = {
 	}
 }
 
-// fuzzShapeMultiUnitRunAll lays down a small diamond DAG of units so a
-// `run --all` invocation drives the queue construction, dependency
-// resolution, and unit-runner scheduling code paths. Unit B and unit C
-// both depend on unit A; the runner has to order A before {B, C} and
-// surface concurrent execution against the in-memory venv.
+// fuzzShapeMultiUnitRunAll lays down a small DAG of units so a `run --all`
+// invocation drives the queue construction, dependency resolution, and
+// unit-runner scheduling code paths. The base diamond (B and C depend on
+// A) is always present; the fuzz stream optionally adds a depth-2 unit D
+// (depends on B and C) and a disconnected unit E. Each unit's skip flag
+// and mock-output attributes flip independently.
 func fuzzShapeMultiUnitRunAll(c *consumer) []fuzzSeedFile {
 	region := orDefault(c.slot(fuzzMaxFuzzSlotChars), "us-east-1")
 	envName := orDefault(c.slot(fuzzMaxFuzzSlotChars), "dev")
 
-	rootHCL := fmt.Sprintf(`
-locals {
-  region = %q
-  env    = %q
-}
-`, region, envName)
+	root := fmt.Sprintf("locals {\n  region = %q\n  env    = %q\n}\n", region, envName)
 
-	unitA := `
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
+	buildUnit := func(name string, deps []string) []byte {
+		var b bytes.Buffer
 
-terraform {
-  source = "../mod"
-}
+		b.WriteString("include \"root\" {\n  path = find_in_parent_folders(\"root.hcl\")\n}\n\n")
 
-inputs = {
-  name   = "a"
-  region = include.root.locals.region
-}
-`
+		for _, d := range deps {
+			fmt.Fprintf(&b, "dependency %q {\n  config_path = \"../%s\"\n", d, d)
 
-	unitB := `
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
+			if c.boolean() {
+				fmt.Fprintf(&b, "  mock_outputs = {\n    id = \"mock-%s-id\"\n  }\n", d)
+			}
 
-dependency "a" {
-  config_path = "../a"
+			if c.boolean() {
+				b.WriteString("  mock_outputs_allowed_terraform_commands = [\"plan\", \"apply\", \"destroy\", \"validate\", \"init\"]\n")
+			}
 
-  mock_outputs = {
-    id = "mock-a-id"
-  }
-  mock_outputs_allowed_terraform_commands = ["plan", "apply", "destroy", "validate", "init"]
-}
+			if c.boolean() {
+				fmt.Fprintf(&b, "  mock_outputs_merge_strategy_with_state = %q\n", c.choose([]string{"no_merge", "shallow", "deep"}))
+			}
 
-terraform {
-  source = "../mod"
-}
+			if c.boolean() {
+				fmt.Fprintf(&b, "  skip_outputs = %t\n", c.boolean())
+			}
 
-inputs = {
-  name        = "b"
-  region      = include.root.locals.region
-  upstream_id = dependency.a.outputs.id
-}
-`
+			b.WriteString("}\n\n")
+		}
 
-	unitC := `
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
+		if c.boolean() {
+			fmt.Fprintf(&b, "skip = %t\n\n", c.boolean())
+		}
 
-dependency "a" {
-  config_path = "../a"
+		b.WriteString("terraform {\n  source = \"../mod\"\n}\n\ninputs = {\n")
+		fmt.Fprintf(&b, "  name   = %q\n  region = include.root.locals.region\n", name)
 
-  mock_outputs = {
-    id = "mock-a-id"
-  }
-  mock_outputs_allowed_terraform_commands = ["plan", "apply", "destroy", "validate", "init"]
-}
+		for _, d := range deps {
+			fmt.Fprintf(&b, "  %s_id = dependency.%s.outputs.id\n", d, d)
+		}
 
-terraform {
-  source = "../mod"
-}
+		b.WriteString("}\n")
 
-inputs = {
-  name        = "c"
-  region      = include.root.locals.region
-  upstream_id = dependency.a.outputs.id
-}
-`
-
-	mainTF := `resource "null_resource" "x" {}
-output "id" { value = "stub-id" }`
-
-	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/root.hcl", data: []byte(rootHCL)},
-		{path: fuzzWorkDir + "/a/terragrunt.hcl", data: []byte(unitA)},
-		{path: fuzzWorkDir + "/b/terragrunt.hcl", data: []byte(unitB)},
-		{path: fuzzWorkDir + "/c/terragrunt.hcl", data: []byte(unitC)},
-		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(mainTF)},
+		return b.Bytes()
 	}
+
+	files := []fuzzSeedFile{
+		{path: fuzzWorkDir + "/root.hcl", data: []byte(root)},
+		{path: fuzzWorkDir + "/a/terragrunt.hcl", data: buildUnit("a", nil)},
+		{path: fuzzWorkDir + "/b/terragrunt.hcl", data: buildUnit("b", []string{"a"})},
+		{path: fuzzWorkDir + "/c/terragrunt.hcl", data: buildUnit("c", []string{"a"})},
+		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}
+output "id" { value = "stub-id" }`)},
+	}
+
+	if c.boolean() {
+		files = append(files, fuzzSeedFile{
+			path: fuzzWorkDir + "/d/terragrunt.hcl",
+			data: buildUnit("d", []string{"b", "c"}),
+		})
+	}
+
+	if c.boolean() {
+		files = append(files, fuzzSeedFile{
+			path: fuzzWorkDir + "/e/terragrunt.hcl",
+			data: buildUnit("e", nil),
+		})
+	}
+
+	return files
 }
 
-// fuzzShapeExclude exercises the exclude block evaluation paths.
+// fuzzShapeExclude exercises the exclude block evaluation paths. The
+// `if` condition, action set, and dependency-exclusion bit each flip
+// from the fuzz stream.
 func fuzzShapeExclude(c *consumer) []fuzzSeedFile {
 	action := c.choose([]string{"apply", "plan", "destroy", "all"})
 	noRun := c.boolean()
 	excludeDeps := c.boolean()
-	hcl := fmt.Sprintf(`
-exclude {
-  if                   = true
-  actions              = [%q]
-  no_run               = %t
-  exclude_dependencies = %t
-}
 
-terraform {
-  source = "./mod"
-}
-`, action, noRun, excludeDeps)
+	condition := "true"
+	if c.boolean() {
+		condition = "false"
+	}
+
+	var b bytes.Buffer
+
+	fmt.Fprintf(&b, "exclude {\n  if      = %s\n  actions = [%q",
+		condition, action)
+
+	if c.boolean() {
+		fmt.Fprintf(&b, ", %q", c.choose([]string{"apply", "plan", "destroy", "init", "validate"}))
+	}
+
+	fmt.Fprintf(&b, "]\n  no_run               = %t\n  exclude_dependencies = %t\n", noRun, excludeDeps)
+	b.WriteString("}\n\nterraform {\n  source = \"./mod\"\n}\n")
+
+	if c.boolean() {
+		b.WriteString("\ninputs = {\n  name = \"fuzz\"\n}\n")
+	}
 
 	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: b.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
 }
 
 // fuzzShapeErrorsIgnore exercises errors { ignore "x" { ... } } alongside
-// the retry variant covered by fuzzShapeErrorsBlock.
+// the retry variant covered by fuzzShapeErrorsBlock. The signals map size,
+// pattern list, and the presence of a second ignore block each flip.
 func fuzzShapeErrorsIgnore(c *consumer) []fuzzSeedFile {
 	pattern := orDefault(c.slot(fuzzMaxFuzzSlotChars), "ignored")
 	sigVal := orDefault(c.slot(fuzzMaxFuzzSlotChars), "sigval")
 	msg := orDefault(c.slot(fuzzMaxFuzzSlotChars), "ignored error")
-	hcl := fmt.Sprintf(`
-errors {
-  retry "transient" {
-    retryable_errors   = [".*timeout.*"]
-    max_attempts       = 2
-    sleep_interval_sec = 1
-  }
-  ignore "known" {
-    ignorable_errors = [%q]
-    message          = %q
-    signals = {
-      foo = %q
-    }
-  }
-}
 
-terraform {
-  source = "./mod"
-}
-`, pattern, msg, sigVal)
+	var b bytes.Buffer
+
+	b.WriteString("errors {\n")
+	b.WriteString("  retry \"transient\" {\n    retryable_errors   = [\".*timeout.*\"]\n    max_attempts       = 2\n    sleep_interval_sec = 1\n  }\n")
+	fmt.Fprintf(&b, "  ignore \"known\" {\n    ignorable_errors = [%q", pattern)
+
+	if c.boolean() {
+		fmt.Fprintf(&b, ", %q", c.choose([]string{".*lock.*", ".*deadline.*", ".*conflict.*"}))
+	}
+
+	fmt.Fprintf(&b, "]\n    message          = %q\n", msg)
+	b.WriteString("    signals = {\n")
+	fmt.Fprintf(&b, "      foo = %q\n", sigVal)
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "      bar = %q\n", orDefault(c.slot(fuzzMaxFuzzSlotChars), "barval"))
+	}
+
+	b.WriteString("    }\n  }\n")
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "  ignore \"second\" {\n    ignorable_errors = [%q]\n    message          = \"second\"\n  }\n",
+			c.choose([]string{".*5xx.*", ".*throttl.*", ".*temp.*"}))
+	}
+
+	b.WriteString("}\n\nterraform {\n  source = \"./mod\"\n}\n")
 
 	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: b.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
 }
 
 // fuzzShapeExtraArgs exercises the extra_arguments arg-injection path.
+// Command set size, env_vars population, second arg block, and the
+// optional/required var file lists each flip from the fuzz stream.
 func fuzzShapeExtraArgs(c *consumer) []fuzzSeedFile {
 	cmd := c.choose([]string{"apply", "plan", "destroy", "init"})
 	val := orDefault(c.slot(fuzzMaxFuzzSlotChars), "v")
-	hcl := fmt.Sprintf(`
-terraform {
-  source = "./mod"
 
-  extra_arguments "vars" {
-    commands  = [%q]
-    arguments = ["-var", "x=%s"]
-    env_vars = {
-      FUZZ = %q
-    }
-    required_var_files = []
-  }
-}
-`, cmd, val, val)
+	var b bytes.Buffer
+
+	b.WriteString("terraform {\n  source = \"./mod\"\n\n")
+
+	fmt.Fprintf(&b, "  extra_arguments \"vars\" {\n    commands  = [%q", cmd)
+
+	if c.boolean() {
+		fmt.Fprintf(&b, ", %q", c.choose([]string{"apply", "plan", "destroy", "init", "validate"}))
+	}
+
+	fmt.Fprintf(&b, "]\n    arguments = [\"-var\", \"x=%s\"]\n", val)
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "    env_vars = {\n      FUZZ = %q\n", val)
+
+		if c.boolean() {
+			fmt.Fprintf(&b, "      BAR  = %q\n", orDefault(c.slot(fuzzMaxFuzzSlotChars), "barval"))
+		}
+
+		b.WriteString("    }\n")
+	}
+
+	if c.boolean() {
+		b.WriteString("    required_var_files = []\n")
+	}
+
+	if c.boolean() {
+		b.WriteString("    optional_var_files = []\n")
+	}
+
+	b.WriteString("  }\n")
+
+	if c.boolean() {
+		fmt.Fprintf(&b, "\n  extra_arguments \"defaults\" {\n    commands  = [%q]\n    arguments = [\"-input=false\"]\n  }\n",
+			c.choose([]string{"apply", "plan", "destroy", "init"}))
+	}
+
+	b.WriteString("}\n")
 
 	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/terragrunt.hcl", data: []byte(hcl)},
+		{path: fuzzWorkDir + "/terragrunt.hcl", data: b.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
 }
 
 // fuzzShapeStackNested exercises stack-level locals, include, values, and
-// nested stack-of-stacks composition.
+// nested stack-of-stacks composition. The values map content, optional
+// nested stack-of-stacks, and per-unit no_dot_terragrunt_stack each flip.
 func fuzzShapeStackNested(c *consumer) []fuzzSeedFile {
 	region := orDefault(c.slot(fuzzMaxFuzzSlotChars), "us-east-1")
-	childName := orDefault(c.slot(fuzzMaxFuzzSlotChars), "child")
-	stackHCL := fmt.Sprintf(`
-locals {
-  region = %q
-}
+	childName := orDefault(c.slotIdent(fuzzMaxFuzzSlotChars), "child")
 
-unit "a" {
-  source = "./units/a"
-  path   = "live/a"
-  values = {
-    region = local.region
-  }
-}
+	var stack bytes.Buffer
 
-stack %q {
-  source = "./stacks/child"
-  path   = "child"
-}
-`, region, childName)
+	fmt.Fprintf(&stack, "locals {\n  region = %q\n", region)
+
+	if c.boolean() {
+		fmt.Fprintf(&stack, "  env = %q\n", c.choose([]string{"dev", "staging", "prod"}))
+	}
+
+	stack.WriteString("}\n\nunit \"a\" {\n  source = \"./units/a\"\n  path   = \"live/a\"\n  values = {\n    region = local.region\n")
+
+	if c.boolean() {
+		fmt.Fprintf(&stack, "    name   = %q\n", orDefault(c.slot(fuzzMaxFuzzSlotChars), "a"))
+	}
+
+	stack.WriteString("  }\n")
+
+	if c.boolean() {
+		fmt.Fprintf(&stack, "  no_dot_terragrunt_stack = %t\n", c.boolean())
+	}
+
+	stack.WriteString("}\n\n")
+	fmt.Fprintf(&stack, "stack %q {\n  source = \"./stacks/child\"\n  path   = \"child\"\n}\n", childName)
+
+	if c.boolean() {
+		fmt.Fprintf(&stack, "\nstack \"sibling\" {\n  source = \"./stacks/%s\"\n  path   = \"sibling\"\n}\n", childName)
+	}
+
+	stackHCL := stack.String()
 
 	return []fuzzSeedFile{
 		{path: fuzzWorkDir + "/root.hcl", data: []byte(`locals { region = "us-east-1" }`)},
@@ -1180,32 +1541,42 @@ terraform {
 
 // fuzzShapeDependenciesPaths exercises the plural-form `dependencies` block
 // distinct from the singular `dependency "X"` form covered by fuzzShapeWithDep.
+// The path count and the presence of a third sibling unit each flip.
 func fuzzShapeDependenciesPaths(c *consumer) []fuzzSeedFile {
-	extra := orDefault(c.slot(fuzzMaxFuzzSlotChars), "other")
-	appHCL := fmt.Sprintf(`
-dependencies {
-  paths = ["../db", "../%s"]
-}
+	extra := orDefault(c.slotIdent(fuzzMaxFuzzSlotChars), "other")
 
-terraform {
-  source = "../mod"
-}
-`, extra)
+	var app bytes.Buffer
 
-	return []fuzzSeedFile{
-		{path: fuzzWorkDir + "/db/terragrunt.hcl", data: []byte(`
-terraform {
-  source = "../mod"
-}
-`)},
-		{path: fuzzWorkDir + "/" + extra + "/terragrunt.hcl", data: []byte(`
-terraform {
-  source = "../mod"
-}
-`)},
-		{path: fuzzWorkDir + "/app/terragrunt.hcl", data: []byte(appHCL)},
+	app.WriteString("dependencies {\n  paths = [\"../db\"")
+
+	if c.boolean() {
+		fmt.Fprintf(&app, ", \"../%s\"", extra)
+	}
+
+	third := orDefault(c.slotIdent(fuzzMaxFuzzSlotChars), "third")
+	includeThird := c.boolean()
+
+	if includeThird {
+		fmt.Fprintf(&app, ", \"../%s\"", third)
+	}
+
+	app.WriteString("]\n}\n\nterraform {\n  source = \"../mod\"\n}\n")
+
+	files := []fuzzSeedFile{
+		{path: fuzzWorkDir + "/db/terragrunt.hcl", data: []byte("terraform {\n  source = \"../mod\"\n}\n")},
+		{path: fuzzWorkDir + "/" + extra + "/terragrunt.hcl", data: []byte("terraform {\n  source = \"../mod\"\n}\n")},
+		{path: fuzzWorkDir + "/app/terragrunt.hcl", data: app.Bytes()},
 		{path: fuzzWorkDir + "/mod/main.tf", data: []byte(`resource "null_resource" "x" {}`)},
 	}
+
+	if includeThird {
+		files = append(files, fuzzSeedFile{
+			path: fuzzWorkDir + "/" + third + "/terragrunt.hcl",
+			data: []byte("terraform {\n  source = \"../mod\"\n}\n"),
+		})
+	}
+
+	return files
 }
 
 func orDefault(s, fallback string) string {
@@ -1220,13 +1591,19 @@ func orDefault(s, fallback string) string {
 // c, so the response is fuzz-driven and reproducible for a given input.
 // Concurrent invocations serialize on the consumer's mutex.
 //
-// `tofu --version` and `terraform --version` get a well-formed version
-// string instead of the random slot output so terragrunt's version-output
-// parser can advance past the binary detection step.
+// For tofu/terraform subcommands whose stdout Terragrunt parses (output,
+// show, state), the handler picks from a curated pool of realistic JSON
+// shapes alongside the random slot. Random alone almost never satisfies
+// the downstream JSON/cty decoders, so dependency.outputs evaluation,
+// plan summarization, and similar post-parse code paths stay unreachable.
+// Letting the fuzz stream choose (valid, malformed, random) widens the
+// acceptance funnel without losing the random-bytes coverage.
 func fuzzExecHandler(c *consumer) vexec.Handler {
 	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		if (inv.Name == "tofu" || inv.Name == "terraform") && len(inv.Args) > 0 && (inv.Args[0] == "-version" || inv.Args[0] == "--version") {
-			return vexec.Result{Stdout: []byte("OpenTofu v1.8.0\non darwin_arm64\n")}
+		if inv.Name == "tofu" || inv.Name == "terraform" {
+			if r, ok := fuzzTFResult(c, &inv); ok {
+				return r
+			}
 		}
 
 		exit := int(c.byteOnce() % 4)
@@ -1242,11 +1619,102 @@ func fuzzExecHandler(c *consumer) vexec.Handler {
 	}
 }
 
+// fuzzTFResult returns a curated response for tofu/terraform subcommands
+// the codebase parses. The second return is false when the subcommand
+// has no special handling, so the caller falls through to the random
+// stdout/exit path.
+func fuzzTFResult(c *consumer, inv *vexec.Invocation) (vexec.Result, bool) {
+	sub := tfSubcommand(inv.Args)
+	switch sub {
+	case "-version", "--version", "version":
+		return vexec.Result{Stdout: []byte("OpenTofu v1.8.0\non darwin_arm64\n")}, true
+	case "output":
+		return vexec.Result{Stdout: fuzzTFOutputStdout(c)}, true
+	case "show":
+		return vexec.Result{Stdout: fuzzTFShowStdout(c)}, true
+	case "state":
+		return vexec.Result{Stdout: fuzzTFStateStdout(c)}, true
+	}
+
+	return vexec.Result{}, false
+}
+
+// tfSubcommand returns the first non-flag argument from a tofu/terraform
+// invocation, skipping leading globals like `-chdir=/work` that Terragrunt
+// prepends.
+func tfSubcommand(args []string) string {
+	for _, a := range args {
+		if a == "" || strings.HasPrefix(a, "-") {
+			continue
+		}
+
+		return a
+	}
+
+	return ""
+}
+
+// tofu output -json shapes: empty, single string, nested object, malformed,
+// or random. Exit code is 0 so the parse path is exercised.
+func fuzzTFOutputStdout(c *consumer) []byte {
+	switch c.byteOnce() & 3 {
+	case 0:
+		return []byte(`{}`)
+	case 1:
+		return []byte(`{"id":{"value":"x","type":"string","sensitive":false}}`)
+	case 2:
+		return []byte(`{"out":{"value":{"k":"v"},"type":["object",{"k":"string"}],"sensitive":false}}`)
+	default:
+		return []byte(c.slot(fuzzMaxExecOutLen))
+	}
+}
+
+// tofu show -json shapes: minimal plan, plan with a single resource change,
+// malformed, or random.
+func fuzzTFShowStdout(c *consumer) []byte {
+	switch c.byteOnce() & 3 {
+	case 0:
+		return []byte(`{"format_version":"1.2","terraform_version":"1.6.0","planned_values":{"root_module":{}},"resource_changes":[],"output_changes":{},"configuration":{"root_module":{}}}`)
+	case 1:
+		return []byte(`{"format_version":"1.2"}`)
+	case 2:
+		return []byte(`{"format_version":"1.2","resource_changes":[{"address":"null_resource.x","mode":"managed","type":"null_resource","name":"x","change":{"actions":["create"],"before":null,"after":{}}}]}`)
+	default:
+		return []byte(c.slot(fuzzMaxExecOutLen))
+	}
+}
+
+// tofu state pull / state show shapes: empty state, populated state, or random.
+func fuzzTFStateStdout(c *consumer) []byte {
+	switch c.byteOnce() & 3 {
+	case 0:
+		return []byte(`{"version":4,"terraform_version":"1.6.0","serial":1,"lineage":"abc","outputs":{},"resources":[]}`)
+	case 1:
+		return []byte(`{"version":4,"outputs":{"id":{"value":"x","type":"string"}},"resources":[]}`)
+	default:
+		return []byte(c.slot(fuzzMaxExecOutLen))
+	}
+}
+
 // fuzzHTTPHandler synthesizes responses for every outbound HTTP request.
-// AWS and GCP SDKs route through the same handler via vhttp; bias toward
-// "{}" so JSON decoders exercise downstream code instead of bailing.
+// AWS and GCP SDKs route through the same handler via vhttp.
+//
+// For STS, S3, IMDS, and GCS the handler picks from a small pool of
+// realistic XML/JSON envelopes alongside the random slot. Bare random
+// bytes never decode as AWS SDK shapes, so credential propagation, S3
+// bucket-validation, and downstream backend builders stay unreachable.
+// Returning a real-shaped AssumeRoleResponse occasionally lets the SDK
+// pass auth and exercise the next layer.
 func fuzzHTTPHandler(c *consumer) vhttp.Handler {
-	return func(_ context.Context, _ *http.Request) (*http.Response, error) {
+	return func(_ context.Context, req *http.Request) (*http.Response, error) {
+		if r, ok := fuzzAWSResponse(c, req); ok {
+			return r, nil
+		}
+
+		if r, ok := fuzzGCSResponse(c, req); ok {
+			return r, nil
+		}
+
 		status := 200 + int(c.byteOnce()%3)*100
 
 		body := []byte("{}")
@@ -1255,6 +1723,145 @@ func fuzzHTTPHandler(c *consumer) vhttp.Handler {
 		}
 
 		return vhttp.Respond(status, body, nil), nil
+	}
+}
+
+// fuzzAWSResponse routes requests bound for AWS service endpoints to a
+// curated XML response pool. Hosts are matched on the conventional SDK
+// patterns; anything else returns ok=false and falls through.
+func fuzzAWSResponse(c *consumer, req *http.Request) (*http.Response, bool) {
+	host := req.URL.Host
+
+	switch {
+	case strings.HasPrefix(host, "sts."):
+		return fuzzSTSResponse(c, req), true
+	case strings.HasPrefix(host, "s3.") || strings.Contains(host, ".s3."):
+		return fuzzS3Response(c), true
+	case host == "169.254.169.254":
+		// IMDS — return 404 so the SDK gives up on instance-profile auth
+		// instead of retrying. Real-shaped credentials would mislead the
+		// rest of the chain into a stable AWS identity for the whole run.
+		return vhttp.Respond(http.StatusNotFound, nil, nil), true
+	}
+
+	return nil, false
+}
+
+const (
+	stsAssumeRoleResponseXML = `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleResult>
+    <Credentials>
+      <SessionToken>FQoG-fuzz-session-token</SessionToken>
+      <SecretAccessKey>fuzz-secret-access-key</SecretAccessKey>
+      <Expiration>2099-01-01T00:00:00Z</Expiration>
+      <AccessKeyId>AKIAFUZZFUZZFUZZFUZZ</AccessKeyId>
+    </Credentials>
+    <AssumedRoleUser>
+      <Arn>arn:aws:sts::123456789012:assumed-role/r/fuzz</Arn>
+      <AssumedRoleId>AROAFUZZ:fuzz</AssumedRoleId>
+    </AssumedRoleUser>
+  </AssumeRoleResult>
+  <ResponseMetadata>
+    <RequestId>00000000-0000-0000-0000-000000000000</RequestId>
+  </ResponseMetadata>
+</AssumeRoleResponse>`
+
+	stsGetCallerIdentityResponseXML = `<GetCallerIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <GetCallerIdentityResult>
+    <Arn>arn:aws:iam::123456789012:user/fuzz</Arn>
+    <UserId>AIDAFUZZ:fuzz</UserId>
+    <Account>123456789012</Account>
+  </GetCallerIdentityResult>
+  <ResponseMetadata>
+    <RequestId>00000000-0000-0000-0000-000000000000</RequestId>
+  </ResponseMetadata>
+</GetCallerIdentityResponse>`
+
+	stsAccessDeniedXML = `<ErrorResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <Error>
+    <Type>Sender</Type>
+    <Code>AccessDenied</Code>
+    <Message>User is not authorized to perform sts:AssumeRole</Message>
+  </Error>
+  <RequestId>00000000-0000-0000-0000-000000000000</RequestId>
+</ErrorResponse>`
+
+	s3NoSuchBucketXML = `<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+  <Code>NoSuchBucket</Code>
+  <Message>The specified bucket does not exist</Message>
+  <BucketName>fuzz-bucket</BucketName>
+  <RequestId>00000000000000000000</RequestId>
+</Error>`
+)
+
+// fuzzSTSResponse picks a realistic STS XML response shape based on the
+// Action= field in the request body. AWS SDK v2 POSTs form-encoded params
+// with Action determining the response shape the decoder expects.
+func fuzzSTSResponse(c *consumer, req *http.Request) *http.Response {
+	headers := http.Header{}
+	headers.Set("Content-Type", "text/xml")
+
+	var body []byte
+	if req.Body != nil {
+		body, _ = io.ReadAll(req.Body)
+	}
+
+	switch {
+	case bytes.Contains(body, []byte("AssumeRole")):
+		switch c.byteOnce() & 3 {
+		case 0, 1:
+			return vhttp.Respond(http.StatusOK, []byte(stsAssumeRoleResponseXML), headers)
+		case 2:
+			return vhttp.Respond(http.StatusForbidden, []byte(stsAccessDeniedXML), headers)
+		default:
+			return vhttp.Respond(http.StatusOK, []byte(c.slot(fuzzMaxHTTPBodyLen)), headers)
+		}
+	case bytes.Contains(body, []byte("GetCallerIdentity")):
+		if c.byteOnce()&1 == 0 {
+			return vhttp.Respond(http.StatusOK, []byte(stsGetCallerIdentityResponseXML), headers)
+		}
+
+		return vhttp.Respond(http.StatusOK, []byte(c.slot(fuzzMaxHTTPBodyLen)), headers)
+	}
+
+	return vhttp.Respond(http.StatusOK, []byte(c.slot(fuzzMaxHTTPBodyLen)), headers)
+}
+
+// fuzzS3Response picks among 200 OK with empty body (head-bucket happy
+// path), a NoSuchBucket XML error, and random bytes.
+func fuzzS3Response(c *consumer) *http.Response {
+	switch c.byteOnce() & 3 {
+	case 0, 1:
+		return vhttp.Respond(http.StatusOK, nil, nil)
+	case 2:
+		headers := http.Header{}
+		headers.Set("Content-Type", "application/xml")
+
+		return vhttp.Respond(http.StatusNotFound, []byte(s3NoSuchBucketXML), headers)
+	default:
+		return vhttp.Respond(http.StatusOK, []byte(c.slot(fuzzMaxHTTPBodyLen)), nil)
+	}
+}
+
+// fuzzGCSResponse routes requests bound for GCS service endpoints to a
+// curated JSON response pool.
+func fuzzGCSResponse(c *consumer, req *http.Request) (*http.Response, bool) {
+	host := req.URL.Host
+	if !strings.HasSuffix(host, ".googleapis.com") && host != "googleapis.com" {
+		return nil, false
+	}
+
+	headers := http.Header{}
+	headers.Set("Content-Type", "application/json")
+
+	switch c.byteOnce() & 3 {
+	case 0, 1:
+		return vhttp.Respond(http.StatusOK, []byte(`{"kind":"storage#bucket","name":"fuzz-bucket","location":"US"}`), headers), true
+	case 2:
+		return vhttp.Respond(http.StatusNotFound, []byte(`{"error":{"code":404,"message":"Not Found"}}`), headers), true
+	default:
+		return vhttp.Respond(http.StatusOK, []byte(c.slot(fuzzMaxHTTPBodyLen)), headers), true
 	}
 }
 
@@ -1355,11 +1962,25 @@ func FuzzFullCLI(f *testing.F) {
 		// conversion on huge precision) blocks RunContext past the framework's
 		// worker timeout, which then reports an opaque "EOF" instead of a
 		// minimizable failure.
-		done := make(chan error, 1)
-		start := time.Now()
+		//
+		// Elapsed is measured inside the worker goroutine so the slow-iteration
+		// check below reflects RunContext's actual wall-clock, not the
+		// scheduling latency between RunContext returning and main getting
+		// scheduled to read the channel. Under fully-saturated parallel fuzz
+		// workers, that scheduler jitter can add hundreds of milliseconds and
+		// produce minimized "findings" that don't reproduce.
+		type runResult struct {
+			err     error
+			elapsed time.Duration
+		}
+
+		done := make(chan runResult, 1)
 
 		go func() {
-			done <- app.RunContext(ctx, args)
+			s := time.Now()
+
+			e := app.RunContext(ctx, args)
+			done <- runResult{err: e, elapsed: time.Since(s)}
 		}()
 
 		var (
@@ -1368,8 +1989,8 @@ func FuzzFullCLI(f *testing.F) {
 		)
 
 		select {
-		case err = <-done:
-			elapsed = time.Since(start)
+		case r := <-done:
+			err, elapsed = r.err, r.elapsed
 		case <-time.After(fuzzPerRunTimeout + time.Second):
 			t.Fatalf("iteration hung past %s without honoring context cancellation; args=%q", fuzzPerRunTimeout+time.Second, args)
 		}
