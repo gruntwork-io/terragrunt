@@ -9,162 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zclconf/go-cty/cty"
 )
-
-func TestBuildComponentRefMap_Empty(t *testing.T) {
-	t.Parallel()
-
-	result := hclparse.BuildComponentRefMap(nil)
-	assert.True(t, result.Type().IsObjectType())
-}
-
-func TestBuildComponentRefMap_WithRefs(t *testing.T) {
-	t.Parallel()
-
-	refs := []hclparse.ComponentRef{
-		{Name: "vpc", Path: "vpc"},
-		{Name: "app", Path: "app-service"},
-	}
-
-	result := hclparse.BuildComponentRefMap(refs)
-
-	require.True(t, result.Type().IsObjectType())
-
-	vpcVal := result.GetAttr("vpc")
-	require.True(t, vpcVal.Type().IsObjectType())
-	assert.Equal(t, "vpc", vpcVal.GetAttr("path").AsString())
-	assert.Equal(t, "vpc", vpcVal.GetAttr("name").AsString())
-
-	appVal := result.GetAttr("app")
-	require.True(t, appVal.Type().IsObjectType())
-	assert.Equal(t, "app-service", appVal.GetAttr("path").AsString())
-	assert.Equal(t, "app", appVal.GetAttr("name").AsString())
-}
-
-func TestBuildComponentRefMap_WithChildRefs(t *testing.T) {
-	t.Parallel()
-
-	refs := []hclparse.ComponentRef{
-		{
-			Name: "networking",
-			Path: "/project/.terragrunt-stack/networking",
-			ChildRefs: []hclparse.ComponentRef{
-				{Name: "vpc", Path: "/project/.terragrunt-stack/networking/.terragrunt-stack/vpc"},
-				{Name: "subnets", Path: "/project/.terragrunt-stack/networking/.terragrunt-stack/subnets"},
-			},
-		},
-	}
-
-	result := hclparse.BuildComponentRefMap(refs)
-
-	netVal := result.GetAttr("networking")
-	require.True(t, netVal.Type().IsObjectType())
-	assert.Equal(t, "/project/.terragrunt-stack/networking", netVal.GetAttr("path").AsString())
-
-	// Child unit refs are accessible as nested attributes
-	vpcVal := netVal.GetAttr("vpc")
-	require.True(t, vpcVal.Type().IsObjectType())
-	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/vpc", vpcVal.GetAttr("path").AsString())
-	assert.Equal(t, "vpc", vpcVal.GetAttr("name").AsString())
-
-	subnetsVal := netVal.GetAttr("subnets")
-	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/subnets", subnetsVal.GetAttr("path").AsString())
-}
-
-func TestBuildComponentRefMap_MultiLevelChildRefs(t *testing.T) {
-	t.Parallel()
-
-	// 3 levels: infra -> deep -> db (stack.infra.deep.db.path)
-	refs := []hclparse.ComponentRef{
-		{
-			Name: "infra",
-			Path: "/gen/infra",
-			ChildRefs: []hclparse.ComponentRef{
-				{Name: "vpc", Path: "/gen/infra/.terragrunt-stack/vpc"},
-				{
-					Name: "deep",
-					Path: "/gen/infra/.terragrunt-stack/deep",
-					ChildRefs: []hclparse.ComponentRef{
-						{Name: "db", Path: "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db"},
-					},
-				},
-			},
-		},
-	}
-
-	result := hclparse.BuildComponentRefMap(refs)
-
-	// Level 1: infra
-	infraVal := result.GetAttr("infra")
-	assert.Equal(t, "/gen/infra", infraVal.GetAttr("path").AsString())
-
-	// Level 2: infra.deep
-	deepVal := infraVal.GetAttr("deep")
-	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep", deepVal.GetAttr("path").AsString())
-
-	// Level 3: infra.deep.db
-	dbVal := deepVal.GetAttr("db")
-	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db", dbVal.GetAttr("path").AsString())
-	assert.Equal(t, "db", dbVal.GetAttr("name").AsString())
-}
-
-func TestExtractUnitRefs(t *testing.T) {
-	t.Parallel()
-
-	units := []*hclparse.UnitBlockHCL{
-		{Name: "vpc", Path: "vpc", Source: "../modules/vpc"},
-		{Name: "app", Path: "app-service", Source: "../modules/app"},
-	}
-
-	refs := hclparse.ExtractUnitRefs(units)
-
-	require.Len(t, refs, 2)
-	assert.Equal(t, "vpc", refs[0].Name)
-	assert.Equal(t, "vpc", refs[0].Path)
-	assert.Equal(t, "app", refs[1].Name)
-	assert.Equal(t, "app-service", refs[1].Path)
-}
-
-func TestExtractStackRefs(t *testing.T) {
-	t.Parallel()
-
-	stacks := []*hclparse.StackBlockHCL{
-		{Name: "networking", Path: "networking", Source: "../stacks/networking"},
-	}
-
-	refs := hclparse.ExtractStackRefs(stacks)
-
-	require.Len(t, refs, 1)
-	assert.Equal(t, "networking", refs[0].Name)
-	assert.Equal(t, "networking", refs[0].Path)
-}
-
-func TestBuildAutoIncludeEvalContext(t *testing.T) {
-	t.Parallel()
-
-	unitRefs := []hclparse.ComponentRef{
-		{Name: "vpc", Path: "vpc"},
-		{Name: "app", Path: "app"},
-	}
-	stackRefs := []hclparse.ComponentRef{
-		{Name: "infra", Path: "infra-stack"},
-	}
-
-	evalCtx := hclparse.BuildAutoIncludeEvalContext(unitRefs, stackRefs)
-
-	require.NotNil(t, evalCtx)
-	require.Contains(t, evalCtx.Variables, "unit")
-	require.Contains(t, evalCtx.Variables, "stack")
-
-	unitVar := evalCtx.Variables["unit"]
-	assert.Equal(t, cty.String, unitVar.GetAttr("vpc").GetAttr("path").Type())
-	assert.Equal(t, "vpc", unitVar.GetAttr("vpc").GetAttr("path").AsString())
-	assert.Equal(t, "app", unitVar.GetAttr("app").GetAttr("path").AsString())
-
-	stackVar := evalCtx.Variables["stack"]
-	assert.Equal(t, "infra-stack", stackVar.GetAttr("infra").GetAttr("path").AsString())
-}
 
 func TestDiscoverStackChildUnits(t *testing.T) {
 	t.Parallel()
@@ -226,30 +71,26 @@ func TestDiscoverStackChildUnits_NoStackFile(t *testing.T) {
 	assert.Nil(t, refs)
 }
 
-func TestBuildAutoIncludeEvalContext_WithChildRefs(t *testing.T) {
+func TestBuildComponentRefMapIncludesNameAndPath(t *testing.T) {
 	t.Parallel()
 
-	stackRefs := []hclparse.ComponentRef{
+	got := hclparse.BuildComponentRefMap([]hclparse.ComponentRef{
 		{
-			Name: "stack_w_outputs",
-			Path: "/project/.terragrunt-stack/stack-w-outputs",
+			Name: "networking",
+			Path: ".terragrunt-stack/networking",
 			ChildRefs: []hclparse.ComponentRef{
-				{Name: "unit_w_outputs", Path: "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs"},
+				{Name: "vpc", Path: ".terragrunt-stack/networking/.terragrunt-stack/vpc"},
 			},
 		},
-	}
+	})
 
-	evalCtx := hclparse.BuildAutoIncludeEvalContext(nil, stackRefs)
+	networking := got.AsValueMap()["networking"].AsValueMap()
+	assert.Equal(t, "networking", networking["name"].AsString())
+	assert.Equal(t, ".terragrunt-stack/networking", networking["path"].AsString())
 
-	stackVar := evalCtx.Variables["stack"]
-	stackRef := stackVar.GetAttr("stack_w_outputs")
-
-	// stack.stack_w_outputs.path works
-	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs", stackRef.GetAttr("path").AsString())
-
-	// stack.stack_w_outputs.unit_w_outputs.path works
-	unitRef := stackRef.GetAttr("unit_w_outputs")
-	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs", unitRef.GetAttr("path").AsString())
+	vpc := networking["vpc"].AsValueMap()
+	assert.Equal(t, "vpc", vpc["name"].AsString())
+	assert.Equal(t, ".terragrunt-stack/networking/.terragrunt-stack/vpc", vpc["path"].AsString())
 }
 
 func TestUnitPathsFromStackDir(t *testing.T) {
@@ -274,6 +115,46 @@ unit "db" {
 	require.Len(t, paths, 2)
 	assert.Contains(t, paths[0], ".terragrunt-stack")
 	assert.Contains(t, paths[1], ".terragrunt-stack")
+}
+
+func TestUnitPathsFromStackDir_WithIncludedUnits(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test/includes", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/includes/units.hcl", []byte(`
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "vpc"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
+include "units" {
+  path = "./includes/units.hcl"
+}
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+	assert.Contains(t, paths[0], filepath.Join(hclparse.StackDir, "vpc"))
+}
+
+func TestUnitPathsFromStackDir_PathWithUnsupportedFunctionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
+unit "vpc" {
+  source = "../units/vpc"
+  path   = get_repo_root()
+}
+`), 0644))
+
+	_, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get_repo_root")
 }
 
 func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
@@ -381,7 +262,7 @@ unit "app" {
 	symlinkDir := filepath.Join(tmpDir, "symlinked-stack")
 	require.NoError(t, os.Symlink(realDir, symlinkDir))
 
-	// Parse via the symlink — should work the same as via real path
+	// Parse via the symlink - should work the same as via real path
 	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), symlinkDir)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -484,4 +365,97 @@ unit "vpc" {
 	names := []string{result.Units[0].Name, result.Units[1].Name}
 	assert.Contains(t, names, "vpc")
 	assert.Contains(t, names, "monitoring")
+}
+
+func TestBuildComponentRefMap_Empty(t *testing.T) {
+	t.Parallel()
+
+	result := hclparse.BuildComponentRefMap(nil)
+	assert.True(t, result.Type().IsObjectType())
+}
+
+func TestBuildComponentRefMap_WithRefs(t *testing.T) {
+	t.Parallel()
+
+	refs := []hclparse.ComponentRef{
+		{Name: "vpc", Path: "vpc"},
+		{Name: "app", Path: "app-service"},
+	}
+
+	result := hclparse.BuildComponentRefMap(refs)
+
+	require.True(t, result.Type().IsObjectType())
+
+	vpcVal := result.GetAttr("vpc")
+	require.True(t, vpcVal.Type().IsObjectType())
+	assert.Equal(t, "vpc", vpcVal.GetAttr("path").AsString())
+
+	appVal := result.GetAttr("app")
+	require.True(t, appVal.Type().IsObjectType())
+	assert.Equal(t, "app-service", appVal.GetAttr("path").AsString())
+}
+
+func TestBuildComponentRefMap_WithChildRefs(t *testing.T) {
+	t.Parallel()
+
+	refs := []hclparse.ComponentRef{
+		{
+			Name: "networking",
+			Path: "/project/.terragrunt-stack/networking",
+			ChildRefs: []hclparse.ComponentRef{
+				{Name: "vpc", Path: "/project/.terragrunt-stack/networking/.terragrunt-stack/vpc"},
+				{Name: "subnets", Path: "/project/.terragrunt-stack/networking/.terragrunt-stack/subnets"},
+			},
+		},
+	}
+
+	result := hclparse.BuildComponentRefMap(refs)
+
+	netVal := result.GetAttr("networking")
+	require.True(t, netVal.Type().IsObjectType())
+	assert.Equal(t, "/project/.terragrunt-stack/networking", netVal.GetAttr("path").AsString())
+
+	// Child unit refs are accessible as nested attributes
+	vpcVal := netVal.GetAttr("vpc")
+	require.True(t, vpcVal.Type().IsObjectType())
+	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/vpc", vpcVal.GetAttr("path").AsString())
+
+	subnetsVal := netVal.GetAttr("subnets")
+	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/subnets", subnetsVal.GetAttr("path").AsString())
+}
+
+func TestBuildComponentRefMap_MultiLevelChildRefs(t *testing.T) {
+	t.Parallel()
+
+	// 3 levels: infra -> deep -> db (stack.infra.deep.db.path)
+	refs := []hclparse.ComponentRef{
+		{
+			Name: "infra",
+			Path: "/gen/infra",
+			ChildRefs: []hclparse.ComponentRef{
+				{Name: "vpc", Path: "/gen/infra/.terragrunt-stack/vpc"},
+				{
+					Name: "deep",
+					Path: "/gen/infra/.terragrunt-stack/deep",
+					ChildRefs: []hclparse.ComponentRef{
+						{Name: "db", Path: "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db"},
+					},
+				},
+			},
+		},
+	}
+
+	result := hclparse.BuildComponentRefMap(refs)
+
+	// Level 1: infra
+	infraVal := result.GetAttr("infra")
+	assert.Equal(t, "/gen/infra", infraVal.GetAttr("path").AsString())
+
+	// Level 2: infra.deep
+	deepVal := infraVal.GetAttr("deep")
+	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep", deepVal.GetAttr("path").AsString())
+
+	// Level 3: infra.deep.db
+	dbVal := deepVal.GetAttr("db")
+	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db", dbVal.GetAttr("path").AsString())
 }

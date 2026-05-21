@@ -95,10 +95,18 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 		return &AutoIncludeResolved{EvalCtx: evalCtx, RawBody: a.Remain}, nil
 	}
 
-	var (
-		deps  []AutoIncludeDependency
-		diags hcl.Diagnostics
-	)
+	if valuesAttr, hasValues := body.Attributes["values"]; hasValues {
+		return nil, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "values is not allowed inside autoinclude",
+			Detail:   "Did you mean to declare values = {...} on the parent unit/stack block (next to source/path) instead of inside the autoinclude block?",
+			Subject:  valuesAttr.Range().Ptr(),
+		}}
+	}
+
+	deps := make([]AutoIncludeDependency, 0, len(body.Blocks))
+
+	var diags hcl.Diagnostics
 
 	for _, block := range body.Blocks {
 		if block.Type != blockDependency {
@@ -126,20 +134,15 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 		deps = append(deps, dep)
 	}
 
-	if diags.HasErrors() {
-		return nil, diags
-	}
-
+	// Best-effort: always return whichever dependency blocks resolved, plus accumulated diagnostics.
 	return &AutoIncludeResolved{
 		EvalCtx:      evalCtx,
 		Dependencies: deps,
 		RawBody:      a.Remain,
-	}, nil
+	}, diags
 }
 
-// resolveDependencyBlock extracts config_path from a dependency block
-// by evaluating it against the eval context (which has unit/stack paths).
-// The full block is preserved for generation.
+// resolveDependencyBlock extracts config_path from a dependency block; caller must ensure exactly one label.
 func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (AutoIncludeDependency, hcl.Diagnostics) {
 	name := block.Labels[0]
 
@@ -154,17 +157,35 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 		}}
 	}
 
+	pathRange := configPathAttr.Expr.Range().Ptr()
+
 	val, diags := configPathAttr.Expr.Value(evalCtx)
-	if diags.HasErrors() || !val.IsKnown() || val.IsNull() {
+	if diags.HasErrors() {
 		return AutoIncludeDependency{}, diags
 	}
 
-	if val.Type() != cty.String {
+	// Null/unknown evaluate without HCL diagnostics; surface them as typed diags with source position so callers can detect the failure and editors can underline the offending expression.
+	switch {
+	case !val.IsKnown():
+		return AutoIncludeDependency{}, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Unknown config_path",
+			Detail:   fmt.Sprintf("dependency %q config_path evaluated to an unknown value", name),
+			Subject:  pathRange,
+		}}
+	case val.IsNull():
+		return AutoIncludeDependency{}, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Null config_path",
+			Detail:   fmt.Sprintf("dependency %q config_path must not be null", name),
+			Subject:  pathRange,
+		}}
+	case val.Type() != cty.String:
 		return AutoIncludeDependency{}, hcl.Diagnostics{{
 			Severity: hcl.DiagError,
 			Summary:  "Invalid config_path type",
-			Detail:   "dependency config_path must evaluate to a string",
-			Subject:  configPathAttr.Expr.Range().Ptr(),
+			Detail:   fmt.Sprintf("dependency %q config_path must evaluate to a string", name),
+			Subject:  pathRange,
 		}}
 	}
 
@@ -173,28 +194,6 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 		ConfigPath: val.AsString(),
 		Block:      block.AsHCLBlock(),
 	}, nil
-}
-
-// BuildAutoIncludeEvalContext creates an HCL evaluation context with
-// unit and stack path references for resolving autoinclude blocks.
-//
-// The context provides:
-//   - unit.<name>.path - resolved path of each unit in the stack
-//   - unit.<name>.name - name label of each unit
-//   - stack.<name>.path - resolved path of each stack in the stack
-//   - stack.<name>.name - name label of each stack
-//
-// Additional variables (locals, values) can be merged into the returned
-// context by the caller.
-func BuildAutoIncludeEvalContext(unitRefs, stackRefs []ComponentRef) *hcl.EvalContext {
-	vars := map[string]cty.Value{
-		varUnit:  BuildComponentRefMap(unitRefs),
-		varStack: BuildComponentRefMap(stackRefs),
-	}
-
-	return &hcl.EvalContext{
-		Variables: vars,
-	}
 }
 
 // AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values. Returns EmptyArgError when unitDir is empty so callers can distinguish bad input from a missing file.
@@ -264,7 +263,7 @@ func readAutoIncludeBody(fs vfs.FS, path string) (*hclsyntax.Body, error) {
 
 	file, diags := hclsyntax.ParseConfig(data, path, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, FileParseError{FilePath: path, Detail: diags.Error()}
+		return nil, FileParseError{FilePath: path, Err: diags}
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
@@ -295,7 +294,7 @@ func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (st
 
 	val, valDiags := configPathAttr.Expr.Value(nil)
 	if valDiags.HasErrors() {
-		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path: " + valDiags.Error(), Err: valDiags}
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path evaluation failed", Err: valDiags}
 	}
 
 	if !val.IsKnown() {

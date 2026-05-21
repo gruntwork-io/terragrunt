@@ -734,9 +734,8 @@ func getTerragruntOutput(
 	return &convertedOutput, isEmpty, errors.New(err)
 }
 
-// collectStackUnitOutputs iterates over stack units, reads their cached
-// terraform outputs, and returns them as a map keyed by unit name.
-func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, stackDir string, units []*Unit) map[string]cty.Value {
+// collectStackUnitOutputs aggregates per-unit outputs keyed by unit name for dependency.<stack>.outputs.<unit>.<key> resolution.
+func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, stackDir string, units []*Unit) (map[string]cty.Value, error) {
 	unitOutputs := make(map[string]cty.Value)
 
 	for _, unit := range units {
@@ -751,31 +750,25 @@ func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
 		if err != nil {
-			l.Warnf("Failed to get output for stack unit %s: %v", unit.Name, err)
-
-			continue
+			return nil, errors.Errorf("stack unit %s output fetch failed: %w", unit.Name, err)
 		}
 
 		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
 		if err != nil {
-			l.Warnf("Failed to parse output for stack unit %s: %v", unit.Name, err)
-
-			continue
+			return nil, errors.Errorf("stack unit %s output parse failed: %w", unit.Name, err)
 		}
 
 		if len(outputMap) > 0 {
 			convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
 			if err != nil {
-				l.Warnf("Failed to convert output map for stack unit %s: %v", unit.Name, err)
-
-				continue
+				return nil, errors.Errorf("stack unit %s output convert failed: %w", unit.Name, err)
 			}
 
 			unitOutputs[unit.Name] = convertedOutput
 		}
 	}
 
-	return unitOutputs
+	return unitOutputs, nil
 }
 
 // tryGetStackOutput checks if targetConfigPath points to a stack directory
@@ -789,11 +782,9 @@ func tryGetStackOutput(
 	targetConfigPath string,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
-	// Check if the path is a directory containing a stack file
-	stackFilePath := targetConfigPath
-
-	if filepath.Base(stackFilePath) != DefaultStackFile {
-		stackFilePath = filepath.Join(targetConfigPath, DefaultStackFile)
+	stackFilePath, isStackCandidate := resolveStackFilePath(dependencyConfig.ConfigPath.AsString(), targetConfigPath)
+	if !isStackCandidate {
+		return nil, false, nil
 	}
 
 	if !util.FileExists(stackFilePath) {
@@ -817,7 +808,10 @@ func tryGetStackOutput(
 		return nil, true, errors.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
-	unitOutputs := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
+	unitOutputs, err := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
+	if err != nil {
+		return nil, true, errors.Errorf("failed to collect stack unit outputs for %s: %w", stackFilePath, err)
+	}
 
 	if len(unitOutputs) == 0 {
 		return nil, true, nil
@@ -826,6 +820,26 @@ func tryGetStackOutput(
 	result := cty.ObjectVal(unitOutputs)
 
 	return &result, true, nil
+}
+
+// resolveStackFilePath returns the candidate terragrunt.stack.hcl path for a dependency target; ok=false when the dep points at a unit config.
+func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool) {
+	switch filepath.Base(filepath.Clean(rawConfigPath)) {
+	case DefaultStackFile:
+		// Honor the contract even when target is malformed: anchor on target's directory.
+		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile), true
+	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
+		return "", false
+	}
+
+	switch filepath.Base(targetConfigPath) {
+	case DefaultStackFile:
+		return targetConfigPath, true
+	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
+		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile), true
+	default:
+		return filepath.Join(targetConfigPath, DefaultStackFile), true
+	}
 }
 
 func isAwsS3NoSuchKey(err error) bool {
