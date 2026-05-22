@@ -87,7 +87,7 @@ mise install
 
 Terragrunt looks for `tofu` on your PATH and uses it **automatically**.
 
-If you've installed OpenTofu, you're good to go. We'll be using OpenTofu for this course, but if you need to use Terraform, see the [Terragrunt docs](https://terragrunt.gruntwork.io/docs/reference/hcl/attributes/#terraform_binary).
+If you've installed OpenTofu, you're good to go. We'll be using OpenTofu for this course, but if you need to use Terraform, see the [Terragrunt docs](/reference/hcl/attributes/#terraform_binary).
 
 ---
 
@@ -100,7 +100,7 @@ When versions don't match, you might see:
 - Provider protocol mismatches
 - State file format issues after upgrades
 
-> Check the [Terragrunt docs](https://terragrunt.gruntwork.io/docs/reference/supported-versions/#supported-opentofu-versions) when upgrading either tool.
+> Check the [Terragrunt docs](/reference/supported-versions/#supported-opentofu-versions) when upgrading either tool.
 
 ## The terragrunt.hcl File
 
@@ -252,7 +252,7 @@ This launches a terminal UI where you can:
 
 ### Using a Catalog Configuration
 
-For teams, [configure](https://terragrunt.gruntwork.io/docs/features/catalog/) a **default catalog** in your `root.hcl`:
+For teams, [configure](/features/catalog/) a **default catalog** in your `root.hcl`:
 
 ```hcl
 catalog {

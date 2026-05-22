@@ -170,7 +170,7 @@ inputs = {
 | **`get_repo_root()`** | Absolute path to Git repository root |
 | **`get_path_from_repo_root()`** | Relative path from repo root to current directory |
 
-> See the [official documentation](https://terragrunt.gruntwork.io/docs/reference/hcl/functions/) for the complete list of path functions.
+> See the [official documentation](/reference/hcl/functions/) for the complete list of path functions.
 
 ## Environment and Configuration
 
@@ -274,7 +274,7 @@ The `--terragrunt-quiet` flag **redacts that stdout from the logs** while still 
 | **`--terragrunt-global-cache`** | Caches globally *(runs once across all configs)* |
 | **`--terragrunt-no-cache`** | Disables caching when you need fresh values |
 
-> See the [official documentation](https://terragrunt.gruntwork.io/docs/reference/hcl/functions/#special-parameters) for additional details on these parameters.
+> See the [official documentation](/reference/hcl/functions/#special-parameters) for additional details on these parameters.
 
 ## Command Helpers
 

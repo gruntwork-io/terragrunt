@@ -77,8 +77,8 @@ For command references and configuration details:
 
 | Resource | Description |
 |:---------|:------------|
-| [**Full documentation**](https://terragrunt.gruntwork.io/docs/) | Complete reference |
-| [**Configuration blocks**](https://terragrunt.gruntwork.io/docs/reference/hcl/blocks/) | HCL block reference |
-| [**Built-in functions**](https://terragrunt.gruntwork.io/docs/reference/hcl/functions/) | Function reference |
-| [**CLI reference**](https://terragrunt.gruntwork.io/docs/reference/cli/) | Command-line options |
+| [**Full documentation**](/) | Complete reference |
+| [**Configuration blocks**](/reference/hcl/blocks/) | HCL block reference |
+| [**Built-in functions**](/reference/hcl/functions/) | Function reference |
+| [**CLI reference**](/reference/cli/) | Command-line options |
 | [**Join us on Discord**](/community/invite) | Ask questions and chat with the Terragrunt community |
