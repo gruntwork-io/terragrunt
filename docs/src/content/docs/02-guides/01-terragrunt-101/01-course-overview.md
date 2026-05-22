@@ -43,7 +43,8 @@ Terragrunt helps you **organize** and **reuse** your infrastructure code.
 ### Getting Started
 
 You'll start with the basics in [**Module 2: First Principles**](/guides/terragrunt-101/first-principles-terminology/), where you'll learn:
-- What are **units** and **stacks**?
+
+- What **units** and **stacks** are
 - How Terragrunt runs OpenTofu/Terraform code
 
 Then in [**Module 3: Getting Started**](/guides/terragrunt-101/getting-started/), you'll install Terragrunt, learn the commands, and set up your first project.
@@ -65,6 +66,7 @@ In [**Module 6: Authoring Units**](/guides/terragrunt-101/authoring-units/), you
 ### Advanced Topics
 
 [**Module 8: Advanced Patterns**](/guides/terragrunt-101/advanced-patterns/) brings it all together with:
+
 - Dynamic credentials with `auth-provider-command`
 - Run queue strategies and filtering
 - Error handling (retries and ignoring expected errors)
@@ -75,10 +77,10 @@ In [**Module 6: Authoring Units**](/guides/terragrunt-101/authoring-units/), you
 
 For command references and configuration details:
 
-| Resource | Description |
-|:---------|:------------|
-| [**Full documentation**](/) | Complete reference |
-| [**Configuration blocks**](/reference/hcl/blocks/) | HCL block reference |
-| [**Built-in functions**](/reference/hcl/functions/) | Function reference |
-| [**CLI reference**](/reference/cli/) | Command-line options |
-| [**Join us on Discord**](/community/invite) | Ask questions and chat with the Terragrunt community |
+| Resource                                                | Description                                          |
+| :------------------------------------------------------ | :--------------------------------------------------- |
+| [**Full documentation**](/getting-started/quick-start/) | Complete reference                                   |
+| [**Configuration blocks**](/reference/hcl/blocks/)      | HCL block reference                                  |
+| [**Built-in functions**](/reference/hcl/functions/)     | Function reference                                   |
+| [**CLI reference**](/reference/cli/)                    | Command-line options                                 |
+| [**Join us on Discord**](/community/invite)             | Ask questions and chat with the Terragrunt community |

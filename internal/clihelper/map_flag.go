@@ -3,15 +3,29 @@ package clihelper
 import (
 	"context"
 	libflag "flag"
+	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"maps"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
 )
+
+// MapJoin formats m as "key<kvSep>value" entries joined by entrySep, sorted
+// alphabetically for deterministic output.
+func MapJoin[M ~map[K]V, K comparable, V any](m M, entrySep, kvSep string) string {
+	parts := make([]string, 0, len(m))
+	for k, v := range m {
+		parts = append(parts, fmt.Sprintf("%v%s%v", k, kvSep, v))
+	}
+
+	slices.Sort(parts)
+
+	return strings.Join(parts, entrySep)
+}
 
 // MapFlag implements Flag
 var _ Flag = new(MapFlag[string, string])
@@ -232,5 +246,5 @@ func (flag *mapValue[K, V]) String() string {
 		return ""
 	}
 
-	return collections.MapJoin(*flag.values, flag.argSep, flag.valSep)
+	return MapJoin(*flag.values, flag.argSep, flag.valSep)
 }

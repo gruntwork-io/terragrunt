@@ -10,12 +10,12 @@ sidebar:
 
 After completing this module, you'll be able to:
 
-| Objective | Key Concepts |
-|:----------|:-------------|
-| **Explain** what problems Terragrunt solves | DRY IaC, IaC Orchestration |
-| **Define** core terminology | Units, stacks, includes, dependencies |
-| **Describe** orchestration | How Terragrunt coordinates execution |
-| **Explain** blast radius | Why it matters for safe deployments |
+| Objective                                   | Key Concepts                          |
+| :------------------------------------------ | :------------------------------------ |
+| **Explain** what problems Terragrunt solves | DRY IaC, IaC Orchestration            |
+| **Define** core terminology                 | Units, stacks, includes, dependencies |
+| **Describe** orchestration                  | How Terragrunt coordinates execution  |
+| **Explain** blast radius                    | Why it matters for safe deployments   |
 
 ## Why Terragrunt Exists
 
@@ -30,6 +30,7 @@ It **doesn't replace** them. Instead, it **coordinates** how and when your infra
 #### 1. Managing Dependencies
 
 Terragrunt builds a **Directed Acyclic Graph (DAG)** to:
+
 - Coordinate deployments across multiple state files
 - Execute units in the **correct dependency order**
 
@@ -40,6 +41,7 @@ Write shared configuration **once** in parent files, then **inherit** it everywh
 #### 3. Segmenting State for Smaller Blast Radius
 
 Split infrastructure into **independent units** with separate state files to:
+
 - Isolate changes
 - Reduce risk
 - Limit the impact of failures
@@ -47,6 +49,7 @@ Split infrastructure into **independent units** with separate state files to:
 #### 4. Automating Remote State Backend
 
 Terragrunt **automatically creates and configures**:
+
 - S3 buckets
 - DynamoDB tables
 
@@ -63,6 +66,7 @@ Terragrunt generates provider and backend configuration **at runtime** based on 
 You write OpenTofu / Terraform modules as **generic patterns**.
 
 Terragrunt then:
+
 - **Instantiates** those patterns with specific configurations
 - **Wires** them together by passing outputs between units
 - **Executes** them in the correct dependency order
@@ -88,9 +92,9 @@ A **stack** is a collection of units managed together.
 
 Terragrunt supports **two types**:
 
-| Type | Description |
-|:-----|:------------|
-| **Implicit stacks** | Created through directory organization *(traditional approach)* |
+| Type                | Description                                                                  |
+| :------------------ | :--------------------------------------------------------------------------- |
+| **Implicit stacks** | Created through directory organization *(traditional approach)*              |
 | **Explicit stacks** | Defined in `terragrunt.stack.hcl` files that generate units programmatically |
 
 ---
@@ -99,10 +103,10 @@ Terragrunt supports **two types**:
 
 Terragrunt provides **two mechanisms** for defining relationships between units:
 
-| Block | Purpose | When to Use |
-|:------|:--------|:------------|
-| **`dependency`** | Retrieves outputs from another unit | When you need **data** from one unit in another |
-| **`dependencies`** | Defines ordering relationships | When units must run in order but **don't exchange data** |
+| Block              | Purpose                             | When to Use                                              |
+| :----------------- | :---------------------------------- | :------------------------------------------------------- |
+| **`dependency`**   | Retrieves outputs from another unit | When you need **data** from one unit in another          |
+| **`dependencies`** | Defines ordering relationships      | When units must run in order but **don't exchange data** |
 
 Terragrunt reads these declarations to build the directed acyclic graph (DAG) which is used to determine the order in which it executes OpenTofu/Terraform.
 
@@ -120,11 +124,11 @@ This is how you **share common settings** and keep your configs **DRY**.
 
 A **DAG** is how Terragrunt determines execution order. Let's break down the term:
 
-| Word | Meaning | Example |
-|:-----|:--------|:--------|
-| **Directed** | Relationships flow one way | A → B means "A must complete before B starts" |
-| **Acyclic** | No circular dependencies | You can't have A → B → C → back to A |
-| **Graph** | A structure of connected nodes | Similar to a project dependency chart |
+| Word         | Meaning                        | Example                                       |
+| :----------- | :----------------------------- | :-------------------------------------------- |
+| **Directed** | Relationships flow one way     | A → B means "A must complete before B starts" |
+| **Acyclic**  | No circular dependencies       | You can't have A → B → C → back to A          |
+| **Graph**    | A structure of connected nodes | Similar to a project dependency chart         |
 
 Because Terragrunt explicitly builds a DAG, it can easily calculate independent "paths" (without mutual dependencies) that can safely run in parallel to speed up overall execution.
 
@@ -132,7 +136,7 @@ Because Terragrunt explicitly builds a DAG, it can easily calculate independent 
 
 In a CI/CD pipeline, you can't deploy before tests pass, and tests can't run before the code compiles:
 
-```
+```text
 Compile → Test → Deploy
 ```
 
@@ -163,12 +167,12 @@ As you navigate the filesystem you are changing what infrastructure you can affe
 
 ### Benefits of a Smaller Blast Radius
 
-| Benefit | Impact |
-|:--------|:-------|
-| **Faster** plan and apply | Less waiting, quicker feedback |
-| **Less risk** from changes | Isolated failures |
-| **Easier debugging** | Fewer variables to consider |
-| **Better collaboration** | Teams can work independently |
+| Benefit                    | Impact                         |
+| :------------------------- | :----------------------------- |
+| **Faster** plan and apply  | Less waiting, quicker feedback |
+| **Less risk** from changes | Isolated failures              |
+| **Easier debugging**       | Fewer variables to consider    |
+| **Better collaboration**   | Teams can work independently   |
 
 ---
 
@@ -176,10 +180,10 @@ As you navigate the filesystem you are changing what infrastructure you can affe
 
 Orchestration works best with **small, focused units**.
 
-| Unit Size | Apply Time | Complexity | Recovery |
-|:----------|:-----------|:-----------|:---------|
-| Small unit | ~2 minutes | Easy to reason about | Quick recovery |
-| Monolithic config | ~45 minutes | Hard to understand | Difficult recovery |
+| Unit Size         | Apply Time  | Complexity           | Recovery           |
+| :---------------- | :---------- | :------------------- | :----------------- |
+| Small unit        | ~2 minutes  | Easy to reason about | Quick recovery     |
+| Monolithic config | ~45 minutes | Hard to understand   | Difficult recovery |
 
 When something goes wrong, **small units are easier to fix**.
 
@@ -187,12 +191,12 @@ When something goes wrong, **small units are easier to fix**.
 
 When you run `terragrunt apply`, here's what happens:
 
-| Step | Action |
-|:----:|:-------|
+| Step  | Action                                          |
+| :---: | :---------------------------------------------- |
 | **1** | Downloads module sources into a cache directory |
-| **2** | Copies local files to the cache directory |
-| **3** | Generates backend and provider configurations |
-| **4** | Runs the OpenTofu / Terraform command |
+| **2** | Copies local files to the cache directory       |
+| **3** | Generates backend and provider configurations   |
+| **4** | Runs the OpenTofu / Terraform command           |
 
 *We'll explore this process in detail in [Module 3](/guides/terragrunt-101/getting-started/).*
 

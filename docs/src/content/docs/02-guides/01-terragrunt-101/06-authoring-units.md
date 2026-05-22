@@ -10,12 +10,12 @@ sidebar:
 
 Upon completing this module, you will be able to:
 
-| Objective | What You'll Learn |
-|:----------|:------------------|
-| **Design modules** | For composability and reusability |
-| **Recognize antipatterns** | Why monolithic modules create problems |
-| **Apply patterns** | Module designs that work well with Terragrunt |
-| **Build implicit stacks** | Deploy using Terragrunt |
+| Objective                  | What You'll Learn                             |
+| :------------------------- | :-------------------------------------------- |
+| **Design modules**         | For composability and reusability             |
+| **Recognize antipatterns** | Why monolithic modules create problems        |
+| **Apply patterns**         | Module designs that work well with Terragrunt |
+| **Build implicit stacks**  | Deploy using Terragrunt                       |
 
 ## Designing Effective Modules
 
@@ -27,10 +27,10 @@ A well-designed module represents the **smallest independently deployable piece 
 
 ### Design Principles
 
-| Principle | Description |
-|:----------|:------------|
-| **Hermetic** | Self-contained with all necessary configuration |
-| **Atomic** | Changes apply as a single operation |
+| Principle               | Description                                                      |
+| :---------------------- | :--------------------------------------------------------------- |
+| **Hermetic**            | Self-contained with all necessary configuration                  |
+| **Atomic**              | Changes apply as a single operation                              |
 | **Appropriately sized** | Small enough for quick operations, large enough to be meaningful |
 
 > Modules should **trend smaller** over time. It's better to create a VPC as one module, subnets as another, rather than combining everything into a monolithic "networking" module.
@@ -39,14 +39,14 @@ A well-designed module represents the **smallest independently deployable piece 
 
 ### Benefits of Smaller Modules
 
-| Benefit | Impact |
-|:--------|:-------|
-| **Faster plan/apply cycles** | Quick feedback |
-| **Easier to parallelize** | Multiple units at once |
-| **Easier to debug** | Less code to examine |
-| **Reduced blast radius** | Isolated failures |
-| **Better collaboration** | Teams work independently |
-| **More flexible composition** | Mix and match |
+| Benefit                       | Impact                   |
+| :---------------------------- | :----------------------- |
+| **Faster plan/apply cycles**  | Quick feedback           |
+| **Easier to parallelize**     | Multiple units at once   |
+| **Easier to debug**           | Less code to examine     |
+| **Reduced blast radius**      | Isolated failures        |
+| **Better collaboration**      | Teams work independently |
+| **More flexible composition** | Mix and match            |
 
 ## The Monolithic Antipattern
 
@@ -57,6 +57,7 @@ Before looking at good design, let's examine **what to avoid**.
 ### What Monolithic Looks Like
 
 A monolithic networking module might create:
+
 - VPC and internet gateway
 - Public, private, and isolated subnets across multiple AZs
 - NAT gateways and route tables
@@ -68,13 +69,13 @@ All in **one module** with 20+ input variables and conditional logic to enable/d
 
 #### Problems This Creates
 
-| Problem | Impact |
-|:--------|:-------|
-| **Slow plans** | Every plan evaluates all resources, even for a single route change |
-| **Large blast radius** | Any change risks the entire network stack |
-| **Team blocking** | Only one person can work on "networking" |
-| **Take-all-or-nothing** | Can't use just the VPC piece elsewhere |
-| **Slow feedback loops** | Discourages small, safe changes |
+| Problem                 | Impact                                                             |
+| :---------------------- | :----------------------------------------------------------------- |
+| **Slow plans**          | Every plan evaluates all resources, even for a single route change |
+| **Large blast radius**  | Any change risks the entire network stack                          |
+| **Team blocking**       | Only one person can work on "networking"                           |
+| **Take-all-or-nothing** | Can't use just the VPC piece elsewhere                             |
+| **Slow feedback loops** | Discourages small, safe changes                                    |
 
 ---
 
@@ -82,11 +83,11 @@ All in **one module** with 20+ input variables and conditional logic to enable/d
 
 The same infrastructure split into **focused modules**:
 
-| Module | Responsibility | Typical Size |
-|:-------|:---------------|:-------------|
-| **`vpc`** | VPC, internet gateway, default resources | ~200 lines |
-| **`vpc-subnet`** | Subnets, route tables, NAT gateways | ~120 lines |
-| **`vpc-route`** | Individual routes | ~40 lines |
+| Module           | Responsibility                           | Typical Size |
+| :--------------- | :--------------------------------------- | :----------- |
+| **`vpc`**        | VPC, internet gateway, default resources | ~200 lines   |
+| **`vpc-subnet`** | Subnets, route tables, NAT gateways      | ~120 lines   |
+| **`vpc-route`**  | Individual routes                        | ~40 lines    |
 
 > Each module does **one thing well** and exposes outputs for downstream consumption.
 
@@ -94,24 +95,24 @@ The same infrastructure split into **focused modules**:
 
 #### What This Enables
 
-| Benefit | Example |
-|:--------|:--------|
-| **Targeted plans** | ~2 resources for a route change |
-| **Small blast radius** | Route changes don't risk VPC changes |
-| **Parallel work** | Teams can work on different units |
-| **Mix and match** | Different modules for different use cases |
-| **Fast feedback** | Encourages incremental improvements |
+| Benefit                | Example                                   |
+| :--------------------- | :---------------------------------------- |
+| **Targeted plans**     | ~2 resources for a route change           |
+| **Small blast radius** | Route changes don't risk VPC changes      |
+| **Parallel work**      | Teams can work on different units         |
+| **Mix and match**      | Different modules for different use cases |
+| **Fast feedback**      | Encourages incremental improvements       |
 
 ---
 
 ### The Difference in Practice
 
-| Aspect | Monolithic | Composable |
-|:-------|:-----------|:-----------|
-| **Plan time** (route change) | All 30+ resources | ~2 resources |
-| **Blast radius** | Entire network stack | Isolated to changed unit |
-| **Team collaboration** | Blocked—one owner | Parallel work possible |
-| **Reusability** | Take all or nothing | Mix and match |
+| Aspect                       | Monolithic           | Composable               |
+| :--------------------------- | :------------------- | :----------------------- |
+| **Plan time** (route change) | All 30+ resources    | ~2 resources             |
+| **Blast radius**             | Entire network stack | Isolated to changed unit |
+| **Team collaboration**       | Blocked—one owner    | Parallel work possible   |
+| **Reusability**              | Take all or nothing  | Mix and match            |
 
 > The composable approach requires more files, but this is a **feature, not a bug**. Each file represents a clear boundary with explicit dependencies.
 
@@ -203,12 +204,12 @@ variable "tags" {
 
 ### Pattern Summary
 
-| Pattern | Benefit |
-|:--------|:--------|
-| **Rich outputs** | Clear, structured access to values |
-| **Grouped inputs** | Clean interface, related settings together |
-| **Sensible defaults** | Minimal configuration needed |
-| **Consistent tags** | Inherit from include hierarchy |
+| Pattern               | Benefit                                    |
+| :-------------------- | :----------------------------------------- |
+| **Rich outputs**      | Clear, structured access to values         |
+| **Grouped inputs**    | Clean interface, related settings together |
+| **Sensible defaults** | Minimal configuration needed               |
+| **Consistent tags**   | Inherit from include hierarchy             |
 
 ## Building an Implicit Stack
 
@@ -222,7 +223,7 @@ The directory structure ***is*** the stack—Terragrunt discovers units by walki
 
 A typical implicit stack follows an environment-based hierarchy:
 
-```
+```text
 live/
 ├── dev/
 │   └── us-east-1/
@@ -244,12 +245,12 @@ live/
 
 #### What the Structure Encodes
 
-| Level | Example | Meaning |
-|:------|:--------|:--------|
-| **Environment** | `dev` | Which deployment environment |
-| **Region** | `us-east-1` | Which AWS region |
-| **Component** | `network` | Logical grouping of related infrastructure |
-| **Unit** | `vpc`, `subnets` | Individual deployable pieces |
+| Level           | Example          | Meaning                                    |
+| :-------------- | :--------------- | :----------------------------------------- |
+| **Environment** | `dev`            | Which deployment environment               |
+| **Region**      | `us-east-1`      | Which AWS region                           |
+| **Component**   | `network`        | Logical grouping of related infrastructure |
+| **Unit**        | `vpc`, `subnets` | Individual deployable pieces               |
 
 ---
 
@@ -265,32 +266,32 @@ terragrunt run --all apply   # Apply all units in dependency order
 
 Terragrunt automatically:
 
-| Step | Action |
-|:----:|:-------|
-| **1** | Discovers all `terragrunt.hcl` files in the directory tree |
-| **2** | Builds a dependency graph from `dependency` blocks |
+| Step  | Action                                                                 |
+| :---: | :--------------------------------------------------------------------- |
+| **1** | Discovers all `terragrunt.hcl` files in the directory tree             |
+| **2** | Builds a dependency graph from `dependency` blocks                     |
 | **3** | Executes operations in the correct order *(or in parallel where safe)* |
 
 ---
 
 ### Advantages of Implicit Stacks
 
-| Advantage | Description |
-|:----------|:------------|
-| **Intuitive** | The filesystem *is* the stack definition |
-| **No extra configuration** | Works with just `terragrunt.hcl` files |
-| **Flexible** | Run against any directory level |
-| **Familiar** | Works like traditional Terraform directory structures |
+| Advantage                  | Description                                           |
+| :------------------------- | :---------------------------------------------------- |
+| **Intuitive**              | The filesystem *is* the stack definition              |
+| **No extra configuration** | Works with just `terragrunt.hcl` files                |
+| **Flexible**               | Run against any directory level                       |
+| **Familiar**               | Works like traditional Terraform directory structures |
 
 ---
 
 ### Limitations of Implicit Stacks
 
-| Limitation | Description |
-|:-----------|:------------|
-| **Duplication** | Reusing a stack means copying directories |
-| **No versioning** | Can't version the stack as a single artifact |
+| Limitation             | Description                                        |
+| :--------------------- | :------------------------------------------------- |
+| **Duplication**        | Reusing a stack means copying directories          |
+| **No versioning**      | Can't version the stack as a single artifact       |
 | **Environment sprawl** | Adding environments requires duplicating structure |
-| **Hardcoded values** | Configuration lives in individual files |
+| **Hardcoded values**   | Configuration lives in individual files            |
 
 > These limitations motivate **explicit stacks**, which you'll learn about in [**Module 7**](/guides/terragrunt-101/composing-stacks/).

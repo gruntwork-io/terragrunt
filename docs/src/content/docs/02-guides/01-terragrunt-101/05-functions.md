@@ -10,18 +10,19 @@ sidebar:
 
 This module covers the functions that make your Terragrunt configurations **dynamic**:
 
-| Category | Purpose |
-|:---------|:--------|
-| **Path helpers** | Figure out where things are |
-| **Environment lookups** | Read environment variables |
-| **Configuration readers** | Parse other Terragrunt files |
-| **Shell execution** | Run commands and capture output |
+| Category                  | Purpose                         |
+| :------------------------ | :------------------------------ |
+| **Path helpers**          | Figure out where things are     |
+| **Environment lookups**   | Read environment variables      |
+| **Configuration readers** | Parse other Terragrunt files    |
+| **Shell execution**       | Run commands and capture output |
 
 ## Built-in HCL Support
 
 Terragrunt configurations are written in **HCL** (HashiCorp Configuration Language).
 
 You have access to all the standard HCL features:
+
 - **Conditionals**
 - **Loops**
 - **Expressions**
@@ -100,8 +101,8 @@ remote_state {
 }
 ```
 
-| Unit Location | State Key |
-|:--------------|:----------|
+| Unit Location                       | State Key                         |
+| :---------------------------------- | :-------------------------------- |
 | `prod/us-east-1/vpc/terragrunt.hcl` | `prod/us-east-1/vpc/tofu.tfstate` |
 
 ---
@@ -162,13 +163,13 @@ inputs = {
 
 ### Quick Reference
 
-| Function | Returns |
-|:---------|:--------|
-| **`find_in_parent_folders()`** | Absolute path to first matching file upward |
-| **`path_relative_to_include()`** | Relative path from included file to current |
-| **`get_terragrunt_dir()`** | Absolute path to current `terragrunt.hcl` directory |
-| **`get_repo_root()`** | Absolute path to Git repository root |
-| **`get_path_from_repo_root()`** | Relative path from repo root to current directory |
+| Function                         | Returns                                             |
+| :------------------------------- | :-------------------------------------------------- |
+| **`find_in_parent_folders()`**   | Absolute path to first matching file upward         |
+| **`path_relative_to_include()`** | Relative path from included file to current         |
+| **`get_terragrunt_dir()`**       | Absolute path to current `terragrunt.hcl` directory |
+| **`get_repo_root()`**            | Absolute path to Git repository root                |
+| **`get_path_from_repo_root()`**  | Relative path from repo root to current directory   |
 
 > See the [official documentation](/reference/hcl/functions/) for the complete list of path functions.
 
@@ -224,11 +225,11 @@ inputs = {
 
 ### Quick Reference
 
-| Function | Purpose |
-|:---------|:--------|
-| **`get_env()`** | Read environment variables with optional default |
-| **`read_terragrunt_config()`** | Parse another Terragrunt file |
-| **`sops_decrypt_file()`** | Decrypt SOPS-encrypted secrets |
+| Function                       | Purpose                                          |
+| :----------------------------- | :----------------------------------------------- |
+| **`get_env()`**                | Read environment variables with optional default |
+| **`read_terragrunt_config()`** | Parse another Terragrunt file                    |
+| **`sops_decrypt_file()`**      | Decrypt SOPS-encrypted secrets                   |
 
 ## Shell Execution
 
@@ -268,11 +269,11 @@ The `--terragrunt-quiet` flag **redacts that stdout from the logs** while still 
 
 ### Available Flags
 
-| Flag | What it does |
-|:-----|:-------------|
-| **`--terragrunt-quiet`** | Redacts the command's stdout from Terragrunt logs *(useful for sensitive data)* |
-| **`--terragrunt-global-cache`** | Caches globally *(runs once across all configs)* |
-| **`--terragrunt-no-cache`** | Disables caching when you need fresh values |
+| Flag                            | What it does                                                                    |
+| :------------------------------ | :------------------------------------------------------------------------------ |
+| **`--terragrunt-quiet`**        | Redacts the command's stdout from Terragrunt logs *(useful for sensitive data)* |
+| **`--terragrunt-global-cache`** | Caches globally *(runs once across all configs)*                                |
+| **`--terragrunt-no-cache`**     | Disables caching when you need fresh values                                     |
 
 > See the [official documentation](/reference/hcl/functions/#special-parameters) for additional details on these parameters.
 
@@ -305,11 +306,11 @@ terraform {
 
 ### Available Helper Functions
 
-| Function | Returns Commands That... |
-|:---------|:-------------------------|
-| **`get_terraform_commands_that_need_vars()`** | Accept `-var` and `-var-file` flags |
-| **`get_terraform_commands_that_need_locking()`** | Use state locking |
-| **`get_terraform_commands_that_need_parallelism()`** | Support the `-parallelism` flag |
+| Function                                             | Returns Commands That...            |
+| :--------------------------------------------------- | :---------------------------------- |
+| **`get_terraform_commands_that_need_vars()`**        | Accept `-var` and `-var-file` flags |
+| **`get_terraform_commands_that_need_locking()`**     | Use state locking                   |
+| **`get_terraform_commands_that_need_parallelism()`** | Support the `-parallelism` flag     |
 
 ## Locals and mark_as_read()
 
@@ -367,19 +368,19 @@ locals {
 
 #### Key Points
 
-| Requirement | Why |
-|:------------|:----|
-| Use `mark_as_read()` | Enables tracking non-HCL files |
-| Must be in `locals` | For filter tracking to work |
+| Requirement           | Why                                                                   |
+| :-------------------- | :-------------------------------------------------------------------- |
+| Use `mark_as_read()`  | Enables tracking non-HCL files                                        |
+| Must be in `locals`   | For filter tracking to work                                           |
 | Works with `--filter` | `--filter 'reading=<file>'` to include units that read specific files |
 
 ---
 
 #### When to Use `mark_as_read()`
 
-| Use Case | Example |
-|:---------|:--------|
-| Reading non-HCL files | JSON, YAML, or other files loaded with `file()` that affect your infrastructure |
-| Filter detection | When you need `--filter 'reading=<file>'` to scope `run` commands by file dependency |
+| Use Case              | Example                                                                              |
+| :-------------------- | :----------------------------------------------------------------------------------- |
+| Reading non-HCL files | JSON, YAML, or other files loaded with `file()` that affect your infrastructure      |
+| Filter detection      | When you need `--filter 'reading=<file>'` to scope `run` commands by file dependency |
 
 > Terragrunt Functions like `read_terragrunt_config()`, `read_tfvars_file()`, and `sops_decrypt_file()` **automatically track** their files — you don't need `mark_as_read()` for those.

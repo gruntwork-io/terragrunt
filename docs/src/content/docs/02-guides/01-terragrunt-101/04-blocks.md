@@ -10,13 +10,13 @@ sidebar:
 
 This module covers the **building blocks** of every Terragrunt unit configuration:
 
-| Block | Purpose |
-|:------|:--------|
-| **`terraform`** | Points to your module source |
-| **`include`** | Inherits configuration from parent files |
-| **`dependency`** | Wires units together |
-| **`generate`** | Creates files dynamically |
-| **`remote_state`** | Configures your state backend |
+| Block              | Purpose                                  |
+| :----------------- | :--------------------------------------- |
+| **`terraform`**    | Points to your module source             |
+| **`include`**      | Inherits configuration from parent files |
+| **`dependency`**   | Wires units together                     |
+| **`generate`**     | Creates files dynamically                |
+| **`remote_state`** | Configures your state backend            |
 
 ## The terraform Block
 
@@ -36,13 +36,13 @@ terraform {
 
 You can pull modules from various sources. Terragrunt uses the same [source syntax as OpenTofu](https://opentofu.org/docs/language/modules/sources/):
 
-| Pattern | Example |
-|:--------|:--------|
-| **Git over SSH** | `git::git@github.com:org/repo.git//path?ref=v1.0.0` |
-| **Git over HTTPS** | `git::https://github.com/org/repo.git//path?ref=v1.0.0` |
-| **Local path** | `../../../modules/vpc` or even `.` |
+| Pattern                | Example                                                          |
+| :--------------------- | :--------------------------------------------------------------- |
+| **Git over SSH**       | `git::git@github.com:org/repo.git//path?ref=v1.0.0`              |
+| **Git over HTTPS**     | `git::https://github.com/org/repo.git//path?ref=v1.0.0`          |
+| **Local path**         | `../../../modules/vpc` or even `.`                               |
 | **Terraform Registry** | `tfr://registry.terraform.io/hashicorp/consul/aws?version=0.1.0` |
-| **S3 bucket** | `s3::https://s3-us-east-1.amazonaws.com/bucket/modules.zip` |
+| **S3 bucket**          | `s3::https://s3-us-east-1.amazonaws.com/bucket/modules.zip`      |
 
 ---
 
@@ -89,10 +89,10 @@ terraform {
 }
 ```
 
-| Hook Type | When It Runs |
-|:----------|:-------------|
+| Hook Type         | When It Runs                  |
+| :---------------- | :---------------------------- |
 | **`before_hook`** | Before the specified commands |
-| **`after_hook`** | After the specified commands |
+| **`after_hook`**  | After the specified commands  |
 
 ## The include Block
 
@@ -112,21 +112,21 @@ include "root" {
 
 ### Key Attributes
 
-| Attribute | What it does |
-|:----------|:-------------|
-| **`path`** | Location of the file to include |
-| **`merge_strategy`** | How parent and child configs combine |
-| **`expose`** | Set to `true` to access the parent's values |
+| Attribute            | What it does                                |
+| :------------------- | :------------------------------------------ |
+| **`path`**           | Location of the file to include             |
+| **`merge_strategy`** | How parent and child configs combine        |
+| **`expose`**         | Set to `true` to access the parent's values |
 
 ---
 
 ### Merge Strategies
 
-| Strategy | Behavior |
-|:---------|:---------|
-| **`no_merge`** | No merging. Access parent values via `include.<label>` |
-| **`shallow`** | Child wins. Attributes override parent *(this is the default)* |
-| **`deep`** | Recursive merge for maps, concatenation for lists |
+| Strategy       | Behavior                                                       |
+| :------------- | :------------------------------------------------------------- |
+| **`no_merge`** | No merging. Access parent values via `include.<label>`         |
+| **`shallow`**  | Child wins. Attributes override parent *(this is the default)* |
+| **`deep`**     | Recursive merge for maps, concatenation for lists              |
 
 ---
 
@@ -222,13 +222,13 @@ inputs = {
 
 **Result:**
 
-| Key | Value | Source |
-|:----|:------|:-------|
-| `tags.Environment` | `"staging"` | Child overrides parent |
-| `tags.ManagedBy` | `"Terragrunt"` | Inherited from parent |
-| `tags.Team` | `"platform"` | Inherited from parent |
-| `tags.Name` | `"my-resource"` | Added by child |
-| `security_groups` | `["sg-default", "sg-app-specific"]` | Concatenated |
+| Key                | Value                               | Source                 |
+| :----------------- | :---------------------------------- | :--------------------- |
+| `tags.Environment` | `"staging"`                         | Child overrides parent |
+| `tags.ManagedBy`   | `"Terragrunt"`                      | Inherited from parent  |
+| `tags.Team`        | `"platform"`                        | Inherited from parent  |
+| `tags.Name`        | `"my-resource"`                     | Added by child         |
+| `security_groups`  | `["sg-default", "sg-app-specific"]` | Concatenated           |
 
 ---
 
@@ -281,13 +281,13 @@ inputs = {
 
 A common convention is to create an **`_envcommon/`** directory at the repository root containing shared configuration for each component type.
 
-| File | Contains |
-|:-----|:---------|
+| File                 | Contains                                                  |
+| :------------------- | :-------------------------------------------------------- |
 | `_envcommon/vpc.hcl` | Common dependencies, inputs, generate blocks for all VPCs |
 
 Each environment's `terragrunt.hcl` then includes **both** `root.hcl` and the relevant `_envcommon/*.hcl` file, overriding only environment-specific values.
 
-```
+```text
 infrastructure-live/
 ├── root.hcl
 ├── _envcommon/
@@ -303,6 +303,7 @@ infrastructure-live/
 The `dependency` block **wires units together**.
 
 Declare a dependency, and Terragrunt:
+
 - Creates a **DAG** (directed acyclic graph) edge
 - Handles the **execution order**
 - Gives you access to that unit's **outputs**
@@ -321,11 +322,11 @@ inputs = {
 
 ### What Happens When You Declare a Dependency
 
-| Behavior | What it means |
-|:---------|:--------------|
-| **Execution order** | During `run --all` operations, Terragrunt runs the dependency before the units that depend on it |
-| **Output access** | You can read the dependency's outputs via `dependency.<label>.outputs` |
-| **Reverse on destroy** | `destroy` walks the DAG in reverse, tearing down dependents before their dependencies |
+| Behavior               | What it means                                                                                    |
+| :--------------------- | :----------------------------------------------------------------------------------------------- |
+| **Execution order**    | During `run --all` operations, Terragrunt runs the dependency before the units that depend on it |
+| **Output access**      | You can read the dependency's outputs via `dependency.<label>.outputs`                           |
+| **Reverse on destroy** | `destroy` walks the DAG in reverse, tearing down dependents before their dependencies            |
 
 Terragrunt fetches a dependency's outputs **just in time**, right before it runs the unit that needs them, not all upfront. The dependency's state reflects its most recent apply by the time its outputs are read.
 
@@ -399,9 +400,9 @@ dependencies {
 
 This ensures the listed units run first, but **doesn't expose their outputs**.
 
-| Block | Use When |
-|:------|:---------|
-| **`dependency`** | You need outputs |
+| Block              | Use When               |
+| :----------------- | :--------------------- |
+| **`dependency`**   | You need outputs       |
 | **`dependencies`** | You only need ordering |
 
 ---
@@ -435,6 +436,7 @@ inputs = {
 The `generate` block creates files **dynamically** before OpenTofu/Terraform runs.
 
 This is how you inject:
+
 - Provider configurations
 - Backend settings
 - Any other files your modules need
@@ -462,20 +464,20 @@ EOF
 
 ### Key Attributes
 
-| Attribute | What it does |
-|:----------|:-------------|
-| **`path`** | Where to write the file *(relative to the working directory)* |
-| **`if_exists`** | What to do if the file already exists |
-| **`contents`** | The content to write |
+| Attribute       | What it does                                                  |
+| :-------------- | :------------------------------------------------------------ |
+| **`path`**      | Where to write the file *(relative to the working directory)* |
+| **`if_exists`** | What to do if the file already exists                         |
+| **`contents`**  | The content to write                                          |
 
 ---
 
 ### if_exists Options
 
-| Option | Behavior |
-|:-------|:---------|
-| **`overwrite`** | Always overwrite the file |
-| **`skip`** | Never overwrite existing files |
+| Option                     | Behavior                                                  |
+| :------------------------- | :-------------------------------------------------------- |
+| **`overwrite`**            | Always overwrite the file                                 |
+| **`skip`**                 | Never overwrite existing files                            |
 | **`overwrite_terragrunt`** | Only overwrite files that Terragrunt previously generated |
 
 > Use **`overwrite_terragrunt`** as your default because it lets Terragrunt manage its own generated files while respecting any files you've manually created.
@@ -484,12 +486,12 @@ EOF
 
 ### Common Use Cases
 
-| Use Case | Example |
-|:---------|:--------|
+| Use Case                   | Example                                   |
+| :------------------------- | :---------------------------------------- |
 | **Provider configuration** | AWS provider with region and default tags |
-| **Backend configuration** | S3 backend with dynamic state key |
-| **Required providers** | Version constraints for providers |
-| **Terraform settings** | Required version constraints |
+| **Backend configuration**  | S3 backend with dynamic state key         |
+| **Required providers**     | Version constraints for providers         |
+| **Terraform settings**     | Required version constraints              |
 
 ## The remote_state Block
 
@@ -516,11 +518,11 @@ remote_state {
 
 ### Main Parts
 
-| Attribute | What it does |
-|:----------|:-------------|
-| **`backend`** | Which backend to use (`s3`, `gcs`, `azurerm`, etc.) |
-| **`generate`** | Where to write the generated backend configuration |
-| **`config`** | Backend-specific settings |
+| Attribute      | What it does                                        |
+| :------------- | :-------------------------------------------------- |
+| **`backend`**  | Which backend to use (`s3`, `gcs`, `azurerm`, etc.) |
+| **`generate`** | Where to write the generated backend configuration  |
+| **`config`**   | Backend-specific settings                           |
 
 ---
 
@@ -528,10 +530,10 @@ remote_state {
 
 When Terragrunt detects that the S3 bucket or DynamoDB table **doesn't exist**, it creates them automatically with sensible defaults:
 
-| Resource | Default Configuration |
-|:---------|:----------------------|
-| **S3 bucket** | Versioning enabled, server-side encryption (AES-256) |
-| **DynamoDB table** | Provisioned for state locking |
+| Resource           | Default Configuration                                |
+| :----------------- | :--------------------------------------------------- |
+| **S3 bucket**      | Versioning enabled, server-side encryption (AES-256) |
+| **DynamoDB table** | Provisioned for state locking                        |
 
 > This eliminates the **chicken-and-egg problem** of "how do I create the bucket that stores my state?"
 

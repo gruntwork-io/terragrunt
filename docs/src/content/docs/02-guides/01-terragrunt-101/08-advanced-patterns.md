@@ -11,17 +11,18 @@ next: false
 
 Upon completing this module, you will be able to:
 
-| Objective | What You'll Learn |
-|:----------|:------------------|
-| **Configure dynamic credentials** | Using `--auth-provider-cmd` |
-| **Execute efficiently** | Run queue strategies with filtering |
-| **Handle errors** | Automatic retry for transient failures |
+| Objective                         | What You'll Learn                      |
+| :-------------------------------- | :------------------------------------- |
+| **Configure dynamic credentials** | Using `--auth-provider-cmd`            |
+| **Execute efficiently**           | Run queue strategies with filtering    |
+| **Handle errors**                 | Automatic retry for transient failures |
 
 ## Dynamic Credentials with `--auth-provider-cmd`
 
 The `--auth-provider-cmd` flag enables Terragrunt to obtain AWS credentials **dynamically** by executing a command that returns credentials in JSON format.
 
 This approach works with **any credential provider**:
+
 - AWS SSO
 - OIDC token exchanges
 - Custom scripts
@@ -68,11 +69,11 @@ The command must output JSON matching this schema (all fields optional):
 }
 ```
 
-| Field | Description |
-|:------|:------------|
-| `awsCredentials` | Static AWS credentials to use directly |
-| `awsRole` | Role to assume (Terragrunt handles refresh) |
-| `envs` | Additional environment variables to set |
+| Field            | Description                                 |
+| :--------------- | :------------------------------------------ |
+| `awsCredentials` | Static AWS credentials to use directly      |
+| `awsRole`        | Role to assume (Terragrunt handles refresh) |
+| `envs`           | Additional environment variables to set     |
 
 The `envs` field is useful for authenticating to **non-AWS providers**. For example, you can return credentials for Azure, GCP, or any other service that uses environment variables:
 
@@ -117,13 +118,13 @@ aws configure export-credentials | \
 
 ### Benefits
 
-| Benefit | Description |
-|:--------|:------------|
-| **Dynamic credentials** | Fetched at runtime by a command you control |
-| **No static credentials** | Avoids secrets in configuration files |
-| **Flexible** | Works with any credential provider |
-| **CI/CD friendly** | Different roles for different pipeline stages |
-| **Multi-account support** | Assume different roles per account |
+| Benefit                   | Description                                   |
+| :------------------------ | :-------------------------------------------- |
+| **Dynamic credentials**   | Fetched at runtime by a command you control   |
+| **No static credentials** | Avoids secrets in configuration files         |
+| **Flexible**              | Works with any credential provider            |
+| **CI/CD friendly**        | Different roles for different pipeline stages |
+| **Multi-account support** | Assume different roles per account            |
 
 :::caution
 **`--auth-provider-cmd` provides _dynamic_ credentials, not automatically _secure_ ones.** Terragrunt runs the command you give it and uses whatever it returns. It's your responsibility to write a script that fetches credentials securely. For example, source short-lived credentials from AWS SSO or OIDC, or return an `awsRole` so Terragrunt assumes and refreshes the role for you.
@@ -140,11 +141,11 @@ Control how many units run simultaneously with **`--parallelism`**:
 terragrunt run apply --all --parallelism 10
 ```
 
-| Value | Effect |
-|:------|:-------|
-| **Lower** | Reduces AWS API throttling |
-| **Higher** | Speeds up large deployments |
-| **Default** | 10 |
+| Value       | Effect                      |
+| :---------- | :-------------------------- |
+| **Lower**   | Reduces AWS API throttling  |
+| **Higher**  | Speeds up large deployments |
+| **Default** | 10                          |
 
 ---
 
@@ -174,16 +175,16 @@ terragrunt run --filter 'reading=root.hcl' -- plan
 
 The filter flag supports a **flexible query language**:
 
-| Filter Type | Example | Description |
-|:------------|:--------|:------------|
-| **Path-based** | `'{./prod/**}'` | Glob patterns on paths |
-| **Name-based** | `'app*'` | Match unit names |
-| **Type-based** | `'type=unit'` | Filter by type |
-| **Negation** | `'!{./test/**}'` | Exclude matches |
-| **Intersection** (AND) | `'{./prod/**} \| type=unit'` | Both must match |
-| **Multiple filters** (OR) | `--filter 'app1' --filter 'app2'` | Either can match |
-| **Dependencies** | `'service...'` | Unit and its dependencies |
-| **Dependents** | `'...service'` | Unit and its dependents |
+| Filter Type               | Example                           | Description               |
+| :------------------------ | :-------------------------------- | :------------------------ |
+| **Path-based**            | `'{./prod/**}'`                   | Glob patterns on paths    |
+| **Name-based**            | `'app*'`                          | Match unit names          |
+| **Type-based**            | `'type=unit'`                     | Filter by type            |
+| **Negation**              | `'!{./test/**}'`                  | Exclude matches           |
+| **Intersection** (AND)    | `'{./prod/**} \| type=unit'`      | Both must match           |
+| **Multiple filters** (OR) | `--filter 'app1' --filter 'app2'` | Either can match          |
+| **Dependencies**          | `'service...'`                    | Unit and its dependencies |
+| **Dependents**            | `'...service'`                    | Unit and its dependents   |
 
 ---
 
@@ -214,6 +215,7 @@ terragrunt run --filter '...service' -- plan
 ### Automatic Retry for Transient Errors
 
 AWS API calls occasionally fail due to:
+
 - Rate limiting
 - Eventual consistency
 - Network issues
@@ -252,11 +254,11 @@ errors {
 
 ### Retry Configuration Options
 
-| Attribute | Description |
-|:----------|:------------|
-| **`retryable_errors`** | List of regex patterns to match |
-| **`max_attempts`** | Maximum number of retry attempts |
-| **`sleep_interval_sec`** | Seconds to wait between retries |
+| Attribute                | Description                      |
+| :----------------------- | :------------------------------- |
+| **`retryable_errors`**   | List of regex patterns to match  |
+| **`max_attempts`**       | Maximum number of retry attempts |
+| **`sleep_interval_sec`** | Seconds to wait between retries  |
 
 ---
 
@@ -276,8 +278,8 @@ errors {
 }
 ```
 
-| Use Case | Pattern Example |
-|:---------|:----------------|
+| Use Case             | Pattern Example                   |
+| :------------------- | :-------------------------------- |
 | **Resource deleted** | `".*ResourceNotFoundException.*"` |
-| **IAM entity gone** | `".*NoSuchEntity.*"` |
-| **Not found** | `".*NotFound.*"` |
+| **IAM entity gone**  | `".*NoSuchEntity.*"`              |
+| **Not found**        | `".*NotFound.*"`                  |

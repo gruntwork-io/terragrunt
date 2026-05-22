@@ -10,14 +10,14 @@ sidebar:
 
 By the end of this module, you'll be able to:
 
-| Skill | What You'll Learn |
-|:------|:------------------|
-| **Install & configure** | Set up Terragrunt with OpenTofu or Terraform |
-| **Create `root.hcl`** | Build shared configuration |
-| **Use catalog & scaffold** | Quickly create units from modules |
-| **Write configurations** | Author basic `terragrunt.hcl` files |
-| **Run commands** | Execute `plan`, `apply`, and `destroy` |
-| **Understand the cache** | How `.terragrunt-cache` works |
+| Skill                      | What You'll Learn                            |
+| :------------------------- | :------------------------------------------- |
+| **Install & configure**    | Set up Terragrunt with OpenTofu or Terraform |
+| **Create `root.hcl`**      | Build shared configuration                   |
+| **Use catalog & scaffold** | Quickly create units from modules            |
+| **Write configurations**   | Author basic `terragrunt.hcl` files          |
+| **Run commands**           | Execute `plan`, `apply`, and `destroy`       |
+| **Understand the cache**   | How `.terragrunt-cache` works                |
 
 ## Installation and Setup
 
@@ -25,13 +25,13 @@ By the end of this module, you'll be able to:
 
 You have a few options for installing Terragrunt:
 
-| Method | Command |
-|:-------|:--------|
-| **mise** | `mise use -g terragrunt` |
-| **Homebrew** (macOS/Linux) | `brew install terragrunt` |
-| **Chocolatey** (Windows) | `choco install terragrunt` |
-| **tenv** | `tenv tg install latest` |
-| **Direct download** | `curl -sL https://docs.terragrunt.com/install \| bash` |
+| Method                     | Command                                                |
+| :------------------------- | :----------------------------------------------------- |
+| **mise**                   | `mise use -g terragrunt`                               |
+| **Homebrew** (macOS/Linux) | `brew install terragrunt`                              |
+| **Chocolatey** (Windows)   | `choco install terragrunt`                             |
+| **tenv**                   | `tenv tg install latest`                               |
+| **Direct download**        | `curl -sL https://docs.terragrunt.com/install \| bash` |
 
 Pick whatever works for your setup. Our engineers at Gruntwork use **mise**!
 
@@ -42,6 +42,7 @@ Pick whatever works for your setup. Our engineers at Gruntwork use **mise**!
 [mise](https://mise.jdx.dev/) is a polyglot tool version manager that handles Terragrunt, OpenTofu, and other tools you'll need.
 
 **Why mise?**
+
 - Keeps tool versions **consistent** across your team
 - Lets you **pin versions** per-project
 
@@ -96,6 +97,7 @@ If you've installed OpenTofu, you're good to go. We'll be using OpenTofu for thi
 Terragrunt, OpenTofu, and your providers all need to **play nicely together**.
 
 When versions don't match, you might see:
+
 - Unsupported argument or block types
 - Provider protocol mismatches
 - State file format issues after upgrades
@@ -130,6 +132,7 @@ inputs = {
 Tells Terragrunt **where to find** your OpenTofu or Terraform module.
 
 You can point it at:
+
 - A **Git repository**: `source = "git::git@github.com:acme/modules.git//vpc?ref=v1.0.0"`
 - A **local path**: `source = "../../../modules/vpc"` (or even `source = "."`!)
 - A **registry module**: `source = "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws?version=5.0.0"`
@@ -160,11 +163,11 @@ Terragrunt passes variables to OpenTofu by setting the [`TF_VAR_$name`](https://
 
 You'll also see these blocks in more complex configurations:
 
-| Block | Purpose |
-|:------|:--------|
-| **`locals`** | Reusable expressions within the file |
-| **`generate`** | Creating files dynamically (like provider configurations) |
-| **`dependency`** | Pulling outputs from other units |
+| Block              | Purpose                                                                                  |
+| :----------------- | :--------------------------------------------------------------------------------------- |
+| **`locals`**       | Reusable expressions within the file                                                     |
+| **`generate`**     | Creating files dynamically (like provider configurations)                                |
+| **`dependency`**   | Pulling outputs from other units                                                         |
 | **`remote_state`** | Configuring your state backend *(covered in [Module 4](/guides/terragrunt-101/blocks/))* |
 
 ## Running Commands
@@ -173,13 +176,13 @@ You'll also see these blocks in more complex configurations:
 
 Terragrunt commands mirror what you already know from OpenTofu and Terraform:
 
-| Command | Purpose |
-|:--------|:--------|
-| `terragrunt init` | Initialize *(usually automatic)* |
-| `terragrunt plan` | Preview changes |
-| `terragrunt apply` | Apply changes |
-| `terragrunt destroy` | Destroy resources |
-| `terragrunt output` | Display outputs |
+| Command              | Purpose                          |
+| :------------------- | :------------------------------- |
+| `terragrunt init`    | Initialize *(usually automatic)* |
+| `terragrunt plan`    | Preview changes                  |
+| `terragrunt apply`   | Apply changes                    |
+| `terragrunt destroy` | Destroy resources                |
+| `terragrunt output`  | Display outputs                  |
 
 > **Note:** As a quality of life feature, Terragrunt **auto-initializes** when needed. You rarely need to run `terragrunt init` yourself.
 
@@ -189,10 +192,10 @@ Terragrunt commands mirror what you already know from OpenTofu and Terraform:
 
 When you have several units that depend on each other, **`run --all`** lets you operate on them together:
 
-| Command | Behavior |
-|:--------|:---------|
-| `terragrunt run --all plan` | Plan all units in dependency order |
-| `terragrunt run --all apply` | Apply in dependency order |
+| Command                        | Behavior                              |
+| :----------------------------- | :------------------------------------ |
+| `terragrunt run --all plan`    | Plan all units in dependency order    |
+| `terragrunt run --all apply`   | Apply in dependency order             |
 | `terragrunt run --all destroy` | Destroy in *reverse* dependency order |
 
 Terragrunt figures out the right order based on your **dependency graph**.
@@ -203,12 +206,12 @@ Terragrunt figures out the right order based on your **dependency graph**.
 
 Here are some commonly used commands that are **unique to Terragrunt**:
 
-| Command | Purpose |
-|:--------|:--------|
-| `terragrunt hcl fmt` | Format your HCL files |
-| `terragrunt hcl validate --inputs` | Check that inputs match module expectations |
-| `terragrunt render` | See the fully-rendered configuration |
-| `terragrunt list --format=dot --dependencies` | Visualize the dependency graph |
+| Command                                       | Purpose                                     |
+| :-------------------------------------------- | :------------------------------------------ |
+| `terragrunt hcl fmt`                          | Format your HCL files                       |
+| `terragrunt hcl validate --inputs`            | Check that inputs match module expectations |
+| `terragrunt render`                           | See the fully-rendered configuration        |
+| `terragrunt list --format=dot --dependencies` | Visualize the dependency graph              |
 
 ---
 
@@ -242,6 +245,7 @@ terragrunt catalog https://github.com/gruntwork-io/terragrunt-infrastructure-mod
 ```
 
 This launches a terminal UI where you can:
+
 - **Browse** modules
 - **Read** their documentation
 - **Scaffold** them into your project
@@ -277,11 +281,11 @@ terragrunt scaffold https://github.com/gruntwork-io/terragrunt-infrastructure-mo
 
 Terragrunt generates a `terragrunt.hcl` file with:
 
-| Component | Description |
-|:----------|:------------|
-| `terraform.source` block | Points to the module |
-| `inputs` attribute | All module variables, commented out with descriptions |
-| Placeholder values | Ready for you to fill in |
+| Component                | Description                                           |
+| :----------------------- | :---------------------------------------------------- |
+| `terraform.source` block | Points to the module                                  |
+| `inputs` attribute       | All module variables, commented out with descriptions |
+| Placeholder values       | Ready for you to fill in                              |
 
 > This saves you from having to look up variable names and types manually. You get a **working starting point** that you can customize.
 
@@ -297,16 +301,17 @@ Understanding how Terragrunt parses your configuration and executes commands hel
 
 Before any commands run, Terragrunt parses your configuration in a **specific order**:
 
-| Order | Block | What Happens |
-|:-----:|:------|:-------------|
-| **1** | `include` | Parent configuration files are loaded first |
-| **2** | `locals` | Local values are evaluated *(can reference included values)* |
-| **3** | `dependency` | Dependency blocks are resolved; outputs are fetched from remote state |
-| **4** | Everything else | `inputs`, `terraform`, `generate`, etc. are processed |
+| Order | Block           | What Happens                                                          |
+| :---: | :-------------- | :-------------------------------------------------------------------- |
+| **1** | `include`       | Parent configuration files are loaded first                           |
+| **2** | `locals`        | Local values are evaluated *(can reference included values)*          |
+| **3** | `dependency`    | Dependency blocks are resolved; outputs are fetched from remote state |
+| **4** | Everything else | `inputs`, `terraform`, `generate`, etc. are processed                 |
 
 > This ordering matters because **each step can reference values from previous steps**.
 
 For example:
+
 - `locals` can use `include.root.locals.account_id`
 - `inputs` can use both `local.environment` and `dependency.vpc.outputs.vpc_id`
 
@@ -316,17 +321,17 @@ For example:
 
 After parsing completes, running `terragrunt plan` or `terragrunt apply` triggers:
 
-| Step | Action |
-|:----:|:-------|
-| **1** | **Download** — If the source is remote, Terragrunt downloads it to the cache |
-| **2** | **Copy** — If the source is local, Terragrunt copies it to the cache |
-| **3** | **Generate** — Any `generate` blocks create files in the cache directory |
+| Step  | Action                                                                          |
+| :---: | :------------------------------------------------------------------------------ |
+| **1** | **Download** — If the source is remote, Terragrunt downloads it to the cache    |
+| **2** | **Copy** — If the source is local, Terragrunt copies it to the cache            |
+| **3** | **Generate** — Any `generate` blocks create files in the cache directory        |
 | **4** | **Initialize** — Terragrunt runs `tofu init` (or `terraform init`) in the cache |
-| **5** | **Execute** — The actual plan/apply/destroy runs inside the cache directory |
+| **5** | **Execute** — The actual plan/apply/destroy runs inside the cache directory     |
 
 This is why you'll see output like:
 
-```
+```text
 INFO   Running command: tofu init
 INFO   Running command: tofu plan
 ```
@@ -339,11 +344,11 @@ INFO   Running command: tofu plan
 
 Understanding this flow helps with:
 
-| Situation | What to Know |
-|:----------|:-------------|
-| **Debugging errors** | Know which parsing phase failed based on the error message |
-| **Writing configurations** | Reference values only from earlier phases |
-| **Optimizing performance** | Understand why `dependency` blocks can slow things down |
+| Situation                  | What to Know                                               |
+| :------------------------- | :--------------------------------------------------------- |
+| **Debugging errors**       | Know which parsing phase failed based on the error message |
+| **Writing configurations** | Reference values only from earlier phases                  |
+| **Optimizing performance** | Understand why `dependency` blocks can slow things down    |
 
 ## The .terragrunt-cache Directory
 
@@ -359,11 +364,11 @@ Terragrunt **doesn't run** OpenTofu/Terraform directly in your unit directory.
 
 Instead, it creates a working directory inside `.terragrunt-cache` where all the actual execution happens.
 
-| Purpose | Benefit |
-|:--------|:--------|
+| Purpose                            | Benefit                                                                                           |
+| :--------------------------------- | :------------------------------------------------------------------------------------------------ |
 | **Keeps source directories clean** | Your `terragrunt.hcl` files stay untouched, `.terraform` directories spawn in `.terragrunt-cache` |
-| **Supports remote sources** | Downloads Git repos and works with that code |
-| **Enables code generation** | `generate` and `remote_state` blocks create files here |
+| **Supports remote sources**        | Downloads Git repos and works with that code                                                      |
+| **Enables code generation**        | `generate` and `remote_state` blocks create files here                                            |
 
 ---
 
@@ -371,7 +376,7 @@ Instead, it creates a working directory inside `.terragrunt-cache` where all the
 
 Here's what a typical `.terragrunt-cache` directory looks like:
 
-```
+```text
 .terragrunt-cache/
 └── qWeRtY1234/                  # Hash based on source URL
     └── aBcDeF5678/              # Hash based on terragrunt.hcl path
@@ -427,7 +432,7 @@ When troubleshooting, `cd` into the cache directory and run OpenTofu commands di
 You can also use the `--inputs-debug` flag of Terragrunt from the unit directory to generate a debug.tfvars.
 This will fully render all inputs Terragrunt would use, so you can experiment with Tofu directly.
 
-```
+```bash
 terragrunt plan --inputs-debug
 ```
 
@@ -439,7 +444,7 @@ Here's the project structure we recommend.
 
 It organizes things by **account**, **region**, **environment**, and **resource type**:
 
-```
+```text
 infrastructure-live/
 ├── root.hcl
 └── prod-account/
@@ -460,12 +465,12 @@ infrastructure-live/
 
 #### Configuration Hierarchy
 
-| File | Purpose |
-|:-----|:--------|
-| **`root.hcl`** | Configuration shared by *everything* (e.g., remote state setup) |
-| **`account.hcl`** | Account-level variables |
-| **`region.hcl`** | Region-level variables |
-| **`env.hcl`** | Environment-level variables |
+| File              | Purpose                                                         |
+| :---------------- | :-------------------------------------------------------------- |
+| **`root.hcl`**    | Configuration shared by *everything* (e.g., remote state setup) |
+| **`account.hcl`** | Account-level variables                                         |
+| **`region.hcl`**  | Region-level variables                                          |
+| **`env.hcl`**     | Environment-level variables                                     |
 
 > Units **read from all of these files** typically through `root.hcl`, which handles loading the others. You'll rarely include files like `region.hcl` directly.
 
@@ -477,7 +482,7 @@ We recommend keeping your reusable modules in a **separate repository** from you
 
 This **"two-repository pattern"** gives you:
 
-| Benefit | Description |
-|:--------|:------------|
+| Benefit                    | Description                                             |
+| :------------------------- | :------------------------------------------------------ |
 | **Independent versioning** | Pin different environments to different module versions |
-| **Clean separation** | "What we *can* deploy" vs. "what we *have* deployed" |
+| **Clean separation**       | "What we *can* deploy" vs. "what we *have* deployed"    |

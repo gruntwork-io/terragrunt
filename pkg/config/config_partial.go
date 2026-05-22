@@ -601,10 +601,6 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 	}
 
-	if pctx.Experiments.Evaluate(experiment.MarkManyAsRead) && output.Terraform != nil && output.Terraform.Source != nil {
-		markLocalModuleSourceAsRead(pctx, file.ConfigPath, *output.Terraform.Source)
-	}
-
 	errsContainsIncludeErr := false
 
 	for _, err := range errs.WrappedErrors() {
@@ -629,6 +625,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			config.ProcessedIncludes = pctx.TrackInclude.CurrentMap
 			output = config
 		}
+	}
+
+	if pctx.Experiments.Evaluate(experiment.MarkManyAsRead) && output.Terraform != nil && output.Terraform.Source != nil {
+		markLocalModuleSourceAsRead(pctx, file.ConfigPath, *output.Terraform.Source)
 	}
 
 	if errs.ErrorOrNil() != nil {

@@ -10,13 +10,13 @@ sidebar:
 
 Upon completing this module, you will be able to:
 
-| Objective | What You'll Learn |
-|:----------|:------------------|
-| **Understand the difference** | Implicit vs. explicit stacks |
-| **Define explicit stacks** | Using `terragrunt.stack.hcl` |
-| **Use stack commands** | Generate, plan, and apply stacks |
-| **Pass values** | To units within a stack |
-| **Compose stacks** | From units and nested stacks |
+| Objective                     | What You'll Learn                |
+| :---------------------------- | :------------------------------- |
+| **Understand the difference** | Implicit vs. explicit stacks     |
+| **Define explicit stacks**    | Using `terragrunt.stack.hcl`     |
+| **Use stack commands**        | Generate, plan, and apply stacks |
+| **Pass values**               | To units within a stack          |
+| **Compose stacks**            | From units and nested stacks     |
 
 ## From Implicit to Explicit Stacks
 
@@ -24,7 +24,7 @@ Throughout this course, you've been working with **implicit stacks**.
 
 When you organize units in a directory structure and run `terragrunt run --all`, Terragrunt treats that directory as a stack. It discovers units by walking the filesystem and builds a dependency graph from your `dependency` blocks.
 
-```
+```text
 dev/
 ├── vpc/
 │   └── terragrunt.hcl
@@ -38,22 +38,22 @@ dev/
 
 ### Advantages of Implicit Stacks
 
-| Advantage | Description |
-|:----------|:------------|
-| **Intuitive** | The filesystem *is* the stack definition |
-| **No extra configuration** | Works out of the box |
-| **Natural fit** | Works with existing Terragrunt projects |
+| Advantage                  | Description                              |
+| :------------------------- | :--------------------------------------- |
+| **Intuitive**              | The filesystem *is* the stack definition |
+| **No extra configuration** | Works out of the box                     |
+| **Natural fit**            | Works with existing Terragrunt projects  |
 
 ---
 
 ### Limitations of Implicit Stacks
 
-| Limitation | Impact |
-|:-----------|:-------|
-| **Directory-based definition** | Stack definition lives in structure, not code |
-| **Copying required** | Reusing a stack means copying directories |
-| **No versioning** | Can't version a stack and its inputs as a single artifact |
-| **Duplication** | Deploying to multiple environments requires duplicating structure |
+| Limitation                     | Impact                                                            |
+| :----------------------------- | :---------------------------------------------------------------- |
+| **Directory-based definition** | Stack definition lives in structure, not code                     |
+| **Copying required**           | Reusing a stack means copying directories                         |
+| **No versioning**              | Can't version a stack and its inputs as a single artifact         |
+| **Duplication**                | Deploying to multiple environments requires duplicating structure |
 
 ---
 
@@ -91,11 +91,11 @@ When you run `terragrunt stack generate`, Terragrunt creates the directory struc
 
 ### Unit Block Attributes
 
-| Attribute | Required | Description |
-|:----------|:---------|:------------|
-| **`source`** | Yes | Where to fetch the unit configuration from |
-| **`path`** | Yes | Local directory path for the generated unit |
-| **`values`** | No | Values to pass to the unit *(accessed via `values.*`)* |
+| Attribute    | Required | Description                                            |
+| :----------- | :------- | :----------------------------------------------------- |
+| **`source`** | Yes      | Where to fetch the unit configuration from             |
+| **`path`**   | Yes      | Local directory path for the generated unit            |
+| **`values`** | No       | Values to pass to the unit *(accessed via `values.*`)* |
 
 > The `source` attribute supports the same formats as regular units (local paths, Git SSH, Git HTTPS). Using Git sources with **version tags** enables treating your stack as a **versioned artifact**.
 
@@ -193,13 +193,13 @@ This creates a **single definition** that can be instantiated with different val
 
 Explicit stacks introduce new commands under **`terragrunt stack`**:
 
-| Command | Description |
-|:--------|:------------|
-| **`terragrunt stack generate`** | Generate units from the stack definition |
-| **`terragrunt stack run plan`** | Plan all units in the stack |
-| **`terragrunt stack run apply`** | Apply all units in the stack |
-| **`terragrunt stack run destroy`** | Destroy all units in reverse order |
-| **`terragrunt stack run output`** | Show outputs from all units |
+| Command                            | Description                              |
+| :--------------------------------- | :--------------------------------------- |
+| **`terragrunt stack generate`**    | Generate units from the stack definition |
+| **`terragrunt stack run plan`**    | Plan all units in the stack              |
+| **`terragrunt stack run apply`**   | Apply all units in the stack             |
+| **`terragrunt stack run destroy`** | Destroy all units in reverse order       |
+| **`terragrunt stack run output`**  | Show outputs from all units              |
 
 ---
 
@@ -256,11 +256,11 @@ stack "logging" {
 
 ### Stack Block Attributes
 
-| Attribute | Required | Description |
-|:----------|:---------|:------------|
-| **`source`** | Yes | Path to another stack definition |
-| **`path`** | Yes | Local directory path for the nested stack |
-| **`values`** | No | Values to pass to the nested stack |
+| Attribute    | Required | Description                               |
+| :----------- | :------- | :---------------------------------------- |
+| **`source`** | Yes      | Path to another stack definition          |
+| **`path`**   | Yes      | Local directory path for the nested stack |
+| **`values`** | No       | Values to pass to the nested stack        |
 
 ---
 
@@ -268,7 +268,7 @@ stack "logging" {
 
 Nested stacks enable building **reusable infrastructure blueprints**:
 
-```
+```text
 catalog/
 ├── stacks/
 │   ├── eks-cluster/
@@ -283,17 +283,17 @@ catalog/
     └── prometheus/
 ```
 
-| Level | Purpose |
-|:------|:--------|
-| **Units** | Individual infrastructure components |
-| **Stacks** | Composed collections of units |
-| **Full environment** | Composed collections of stacks |
+| Level                | Purpose                              |
+| :------------------- | :----------------------------------- |
+| **Units**            | Individual infrastructure components |
+| **Stacks**           | Composed collections of units        |
+| **Full environment** | Composed collections of stacks       |
 
 ## Environment Pattern with Explicit Stacks
 
 A powerful pattern is defining a **single stack blueprint** and deploying it **multiple times** with different configurations:
 
-```
+```text
 project/
 ├── stacks/
 │   └── three-tier-vpc/
@@ -393,9 +393,9 @@ stack "network" {
 
 ### Benefits of This Pattern
 
-| Benefit | Description |
-|:--------|:------------|
-| **Single definition** | One place defines what the stack contains |
-| **Isolated configuration** | Instance-specific values in simple files |
-| **Consistency** | All instances use the same blueprint |
-| **Easy scaling** | Adding new instances is simple |
+| Benefit                    | Description                               |
+| :------------------------- | :---------------------------------------- |
+| **Single definition**      | One place defines what the stack contains |
+| **Isolated configuration** | Instance-specific values in simple files  |
+| **Consistency**            | All instances use the same blueprint      |
+| **Easy scaling**           | Adding new instances is simple            |
