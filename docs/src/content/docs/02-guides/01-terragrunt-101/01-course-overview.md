@@ -54,7 +54,7 @@ Then in [**Module 3: Getting Started**](/guides/terragrunt-101/getting-started/)
 
 [**Module 4: HCL Blocks**](/guides/terragrunt-101/blocks/) introduces the `terraform`, `include`, and `dependency` blocks that power Terragrunt configurations.
 
-[**Module 5: Functions**](/guides/terragrunt-101/functions/) covers path helpers, environment lookups, and shell execution—tools that help you share configuration across environments *without copying and pasting*.
+[**Module 5: Functions**](/guides/terragrunt-101/functions/) covers path helpers, environment lookups, and shell execution: tools that help you share configuration across environments *without copying and pasting*.
 
 In [**Module 6: Authoring Units**](/guides/terragrunt-101/authoring-units/), you'll write your own reusable units using inputs, generate blocks, and include patterns.
 
