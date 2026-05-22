@@ -7,12 +7,16 @@ export const sidebar = [
     label: "Guides",
     items: [
       {
-        label: "Terralith to Terragrunt",
-        autogenerate: { directory: "02-guides/01-terralith-to-terragrunt", collapsed: true },
+        label: "Terragrunt 101",
+        autogenerate: { directory: "02-guides/01-terragrunt-101", collapsed: true },
       },
       {
         label: "Continuous Integration with Terragrunt",
         autogenerate: { directory: "02-guides/02-continuous-integration-with-terragrunt", collapsed: true },
+      },
+      {
+        label: "Terralith to Terragrunt",
+        autogenerate: { directory: "02-guides/03-terralith-to-terragrunt", collapsed: true },
       },
     ],
     collapsed: true,

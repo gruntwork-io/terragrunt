@@ -1,0 +1,557 @@
+---
+title: Terragrunt HCL Blocks
+description: The building blocks of every Terragrunt configuration — terraform, include, dependency, generate, and remote_state
+slug: guides/terragrunt-101/blocks
+sidebar:
+  order: 4
+---
+
+## Introduction
+
+This module covers the **building blocks** of every Terragrunt unit configuration:
+
+| Block | Purpose |
+|:------|:--------|
+| **`terraform`** | Points to your module source |
+| **`include`** | Inherits configuration from parent files |
+| **`dependency`** | Wires units together |
+| **`generate`** | Creates files dynamically |
+| **`remote_state`** | Configures your state backend |
+
+## The terraform Block
+
+The `terraform` block points Terragrunt to your OpenTofu/Terraform code.
+
+**Every unit needs one.**
+
+```hcl
+terraform {
+  source = "git::git@github.com:gruntwork-io/modules.git//vpc?ref=v0.1.0"
+}
+```
+
+---
+
+### Source Types
+
+You can pull modules from various sources. Terragrunt uses the same [source syntax as OpenTofu](https://opentofu.org/docs/language/modules/sources/):
+
+| Pattern | Example |
+|:--------|:--------|
+| **Git over SSH** | `git::git@github.com:org/repo.git//path?ref=v1.0.0` |
+| **Git over HTTPS** | `git::https://github.com/org/repo.git//path?ref=v1.0.0` |
+| **Local path** | `../../../modules/vpc` or even `.` |
+| **Terraform Registry** | `tfr://registry.terraform.io/hashicorp/consul/aws?version=0.1.0` |
+| **S3 bucket** | `s3::https://s3-us-east-1.amazonaws.com/bucket/modules.zip` |
+
+---
+
+### extra_arguments
+
+Need to pass flags to specific commands? Use **`extra_arguments`**:
+
+```hcl
+terraform {
+  source = "git::git@github.com:gruntwork-io/modules.git//vpc?ref=v0.1.0"
+
+  extra_arguments "retry_lock" {
+    commands  = get_terraform_commands_that_need_locking()
+    arguments = ["-lock-timeout=20m"]
+  }
+
+  extra_arguments "auto_approve" {
+    commands  = ["apply"]
+    arguments = ["-auto-approve"]
+  }
+}
+```
+
+---
+
+### Hooks
+
+Run scripts **before** or **after** commands with `before_hook` and `after_hook`:
+
+```hcl
+terraform {
+  source = "../../../modules/vpc"
+
+  before_hook "validate" {
+    commands = ["apply", "plan"]
+    execute  = ["./scripts/validate-inputs.sh"]
+  }
+
+  after_hook "notify" {
+    commands     = ["apply"]
+    execute      = ["./scripts/notify-slack.sh", "VPC deployed"]
+    run_on_error = true
+  }
+}
+```
+
+| Hook Type | When It Runs |
+|:----------|:-------------|
+| **`before_hook`** | Before the specified commands |
+| **`after_hook`** | After the specified commands |
+
+## The include Block
+
+The `include` block is one of Terragrunt's **most powerful features**.
+
+It pulls in configuration from parent files, letting you **define settings once** and **inherit them everywhere**.
+
+> Instead of copying remote state configuration, provider settings, or common tags into every `terragrunt.hcl` file, you define them once at the top and include them everywhere. It's the foundation of keeping your configurations **DRY**.
+
+```hcl
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+```
+
+---
+
+### Key Attributes
+
+| Attribute | What it does |
+|:----------|:-------------|
+| **`path`** | Location of the file to include |
+| **`merge_strategy`** | How parent and child configs combine |
+| **`expose`** | Set to `true` to access the parent's values |
+
+---
+
+### Merge Strategies
+
+| Strategy | Behavior |
+|:---------|:---------|
+| **`no_merge`** | No merging. Access parent values via `include.<label>` |
+| **`shallow`** | Child wins. Attributes override parent *(this is the default)* |
+| **`deep`** | Recursive merge for maps, concatenation for lists |
+
+---
+
+#### no_merge Example
+
+With `no_merge`, the parent configuration is **not applied at all**. You must explicitly reference parent values using `include.<label>`:
+
+```hcl
+# root.hcl
+inputs = {
+  environment = "production"
+  region      = "us-east-1"
+}
+
+# child terragrunt.hcl
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  expose         = true
+  merge_strategy = "no_merge"
+}
+
+# Parent inputs are NOT inherited. You must explicitly use them:
+inputs = {
+  environment = include.root.inputs.environment  # "production"
+  region      = include.root.inputs.region       # "us-east-1"
+  app_name    = "my-app"
+}
+```
+
+---
+
+#### shallow Example
+
+With `shallow` *(the default)*, child attributes **completely replace** parent attributes at the top level:
+
+```hcl
+# root.hcl
+inputs = {
+  tags = {
+    Environment = "production"
+    ManagedBy   = "Terragrunt"
+    Team        = "platform"
+  }
+}
+
+# child terragrunt.hcl
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "shallow"  # This is the default
+}
+
+inputs = {
+  tags = {
+    Name = "my-resource"
+  }
+}
+
+# Result: tags only contains { Name = "my-resource" }
+# The parent's tags map is completely replaced, not merged!
+```
+
+---
+
+#### deep Example
+
+With `deep`, maps are **recursively merged** (child keys override matching parent keys), and lists are **concatenated**:
+
+```hcl
+# root.hcl
+inputs = {
+  tags = {
+    Environment = "production"
+    ManagedBy   = "Terragrunt"
+    Team        = "platform"
+  }
+  security_groups = ["sg-default"]
+}
+
+# child terragrunt.hcl
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+inputs = {
+  tags = {
+    Name        = "my-resource"
+    Environment = "staging"  # Overrides parent's "production"
+  }
+  security_groups = ["sg-app-specific"]
+}
+```
+
+**Result:**
+
+| Key | Value | Source |
+|:----|:------|:-------|
+| `tags.Environment` | `"staging"` | Child overrides parent |
+| `tags.ManagedBy` | `"Terragrunt"` | Inherited from parent |
+| `tags.Team` | `"platform"` | Inherited from parent |
+| `tags.Name` | `"my-resource"` | Added by child |
+| `security_groups` | `["sg-default", "sg-app-specific"]` | Concatenated |
+
+---
+
+### Accessing Parent Values
+
+Set **`expose = true`** to read values from the parent:
+
+```hcl
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  expose         = true
+  merge_strategy = "deep"
+}
+
+inputs = {
+  # With expose, you can access the locals block of root.hcl
+  account_id = include.root.locals.account_id
+
+  tags = merge(
+    include.root.locals.common_tags,
+    { Name = "my-resource" }
+  )
+}
+```
+
+---
+
+### Multiple Includes
+
+You can include **several files**, each with its own label:
+
+```hcl
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+include "env" {
+  path   = find_in_parent_folders("env.hcl")
+  expose = true
+}
+
+inputs = {
+  environment = include.env.locals.environment
+}
+```
+
+---
+
+### The _envcommon Pattern
+
+A common convention is to create an **`_envcommon/`** directory at the repository root containing shared configuration for each component type.
+
+| File | Contains |
+|:-----|:---------|
+| `_envcommon/vpc.hcl` | Common dependencies, inputs, generate blocks for all VPCs |
+
+Each environment's `terragrunt.hcl` then includes **both** `root.hcl` and the relevant `_envcommon/*.hcl` file, overriding only environment-specific values.
+
+```
+infrastructure-live/
+├── root.hcl
+├── _envcommon/
+│   └── vpc.hcl           # Common deps, inputs, generate blocks for VPCs
+├── dev/us-east-1/vpc/
+│   └── terragrunt.hcl    # Includes root.hcl + _envcommon/vpc.hcl
+└── prod/us-east-1/vpc/
+    └── terragrunt.hcl    # Includes root.hcl + _envcommon/vpc.hcl
+```
+
+## The dependency Block
+
+The `dependency` block **wires units together**.
+
+Declare a dependency, and Terragrunt:
+- Creates a **DAG** (directed acyclic graph) edge
+- Handles the **execution order**
+- Gives you access to that unit's **outputs**
+
+```hcl
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc.id
+}
+```
+
+---
+
+### What Happens When You Declare a Dependency
+
+| Behavior | What it means |
+|:---------|:--------------|
+| **Execution order** | During `run --all` operations, Terragrunt runs the dependency before the units that depend on it |
+| **Output access** | You can read the dependency's outputs via `dependency.<label>.outputs` |
+| **Reverse on destroy** | `destroy` walks the DAG in reverse, tearing down dependents before their dependencies |
+
+Terragrunt fetches a dependency's outputs **just in time**, right before it runs the unit that needs them, not all upfront. The dependency's state reflects its most recent apply by the time its outputs are read.
+
+---
+
+### Mock Outputs
+
+You **can't `plan`** a unit if its dependencies don't exist yet.
+
+A dependency "exists" when Terragrunt can read its outputs from Terraform state, which happens once the dependency has been successfully applied at least once. If the dependency's state file is missing, Terragrunt has nothing to read, and your plan fails.
+
+**Mock outputs solve this:**
+
+```hcl
+dependency "vpc" {
+  config_path = "../vpc"
+
+  mock_outputs = {
+    vpc = {
+      id         = "vpc-mock12345"
+      arn        = "arn:aws:ec2:us-east-1:123456789012:vpc/vpc-mock12345"
+      cidr_block = "10.0.0.0/16"
+    }
+    subnets = {
+      private = {
+        ids = ["subnet-mock1", "subnet-mock2"]
+      }
+    }
+  }
+  mock_outputs_allowed_terraform_commands = ["plan", "validate"]
+}
+
+inputs = {
+  vpc_id     = dependency.vpc.outputs.vpc.id
+  subnet_ids = dependency.vpc.outputs.subnets.private.ids
+}
+```
+
+> For more detailed examples of mock outputs in multi-unit stacks, see [**Module 7: Composing Stacks**](/guides/terragrunt-101/composing-stacks/).
+
+---
+
+### Ordering Without Outputs
+
+Sometimes you need **execution order** but don't care about the outputs.
+
+You have **two options**:
+
+---
+
+#### Option 1: `skip_outputs` on a dependency block
+
+```hcl
+dependency "iam_roles" {
+  config_path  = "../iam-roles"
+  skip_outputs = true
+}
+```
+
+---
+
+#### Option 2: The `dependencies` block
+
+When you have **multiple** ordering-only dependencies, the `dependencies` block *(plural)* is more concise:
+
+```hcl
+dependencies {
+  paths = ["../iam-roles", "../kms", "../security-group"]
+}
+```
+
+This ensures the listed units run first, but **doesn't expose their outputs**.
+
+| Block | Use When |
+|:------|:---------|
+| **`dependency`** | You need outputs |
+| **`dependencies`** | You only need ordering |
+
+---
+
+### Multiple Dependencies
+
+Real-world units usually depend on **several others**:
+
+```hcl
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "security_group" {
+  config_path = "../security-group"
+}
+
+dependency "iam_role" {
+  config_path = "../iam-role"
+}
+
+inputs = {
+  vpc_id            = dependency.vpc.outputs.vpc.id
+  security_group_id = dependency.security_group.outputs.security_group.id
+  instance_profile  = dependency.iam_role.outputs.role.name
+}
+```
+
+## The generate Block
+
+The `generate` block creates files **dynamically** before OpenTofu/Terraform runs.
+
+This is how you inject:
+- Provider configurations
+- Backend settings
+- Any other files your modules need
+
+```hcl
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+provider "aws" {
+  region = "${local.aws_region}"
+
+  default_tags {
+    tags = {
+      Environment = "${local.environment}"
+      ManagedBy   = "Terragrunt"
+    }
+  }
+}
+EOF
+}
+```
+
+---
+
+### Key Attributes
+
+| Attribute | What it does |
+|:----------|:-------------|
+| **`path`** | Where to write the file *(relative to the working directory)* |
+| **`if_exists`** | What to do if the file already exists |
+| **`contents`** | The content to write |
+
+---
+
+### if_exists Options
+
+| Option | Behavior |
+|:-------|:---------|
+| **`overwrite`** | Always overwrite the file |
+| **`skip`** | Never overwrite existing files |
+| **`overwrite_terragrunt`** | Only overwrite files that Terragrunt previously generated |
+
+> Use **`overwrite_terragrunt`** as your default because it lets Terragrunt manage its own generated files while respecting any files you've manually created.
+
+---
+
+### Common Use Cases
+
+| Use Case | Example |
+|:---------|:--------|
+| **Provider configuration** | AWS provider with region and default tags |
+| **Backend configuration** | S3 backend with dynamic state key |
+| **Required providers** | Version constraints for providers |
+| **Terraform settings** | Required version constraints |
+
+## The remote_state Block
+
+The `remote_state` block configures your **state backend** and can automatically provision the backend resources (like S3 buckets) if they don't exist.
+
+```hcl
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    bucket         = "my-company-tofu-state"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "tofu-locks"
+  }
+}
+```
+
+---
+
+### Main Parts
+
+| Attribute | What it does |
+|:----------|:-------------|
+| **`backend`** | Which backend to use (`s3`, `gcs`, `azurerm`, etc.) |
+| **`generate`** | Where to write the generated backend configuration |
+| **`config`** | Backend-specific settings |
+
+---
+
+### Auto-Provisioning
+
+When Terragrunt detects that the S3 bucket or DynamoDB table **doesn't exist**, it creates them automatically with sensible defaults:
+
+| Resource | Default Configuration |
+|:---------|:----------------------|
+| **S3 bucket** | Versioning enabled, server-side encryption (AES-256) |
+| **DynamoDB table** | Provisioned for state locking |
+
+> This eliminates the **chicken-and-egg problem** of "how do I create the bucket that stores my state?"
+
+---
+
+### Local Backend for Development
+
+For local development or testing, use the **local backend**:
+
+```hcl
+remote_state {
+  backend = "local"
+  config = {
+    path = "${get_terragrunt_dir()}/tofu.tfstate"
+  }
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+}
+```
+
+> Advanced patterns like per-account/per-region state buckets and native S3 locking are covered in [**Module 8**](/guides/terragrunt-101/advanced-patterns/).

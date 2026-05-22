@@ -11,6 +11,7 @@ import tailwindcss from "@tailwindcss/vite";
 import starlightLinksValidator from "starlight-links-validator";
 import starlightLlmsTxt from "starlight-llms-txt";
 import d2 from "astro-d2";
+import rehypeExternalLinks from "rehype-external-links";
 
 import { sidebar } from "./src/data/sidebar.ts";
 import { rehypeChangelogAnchors } from "./src/lib/rehype-changelog-anchors.ts";
@@ -155,7 +156,23 @@ export default defineConfig({
     }),
   ],
   markdown: {
-    rehypePlugins: [rehypeChangelogAnchors],
+    rehypePlugins: [
+      rehypeChangelogAnchors,
+      [
+        rehypeExternalLinks,
+        {
+          target: "_blank",
+          rel: ["noopener", "noreferrer"],
+          // Treat http(s) URLs not on docs.terragrunt.com as external.
+          test: (element) => {
+            const href = element.properties?.href;
+            if (typeof href !== "string") return false;
+            if (!/^https?:\/\//i.test(href)) return false;
+            return !/^https?:\/\/(?:[^/]*\.)?docs\.terragrunt\.com(?:[/?#]|$)/i.test(href);
+          },
+        },
+      ],
+    ],
   },
   // Note that some redirects are handled in vercel.json instead.
   //
