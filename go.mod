@@ -10,7 +10,6 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.7
 	github.com/creack/pty v1.1.24
 	github.com/fatih/structs v1.1.0
-	github.com/getsops/sops/v3 v3.13.0
 	github.com/gitsight/go-vcsurl v1.0.1
 	github.com/go-errors/errors v1.5.1
 	github.com/gofrs/flock v0.13.0
@@ -88,6 +87,7 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/charmbracelet/x/term v0.2.2
+	github.com/getsops/sops/v3 v3.12.2
 	github.com/go-git/go-billy/v6 v6.0.0-alpha.1
 	github.com/go-git/go-git/v6 v6.0.0-alpha.1
 	github.com/gobwas/glob v0.2.3
@@ -143,7 +143,7 @@ require (
 	github.com/aws/aws-sdk-go v1.44.122 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.10 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.23 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.17 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.18 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.23 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.23 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.24 // indirect
@@ -316,6 +316,12 @@ replace (
 	atomicgo.dev/cursor => github.com/atomicgo/cursor v0.2.0
 	atomicgo.dev/keyboard => github.com/atomicgo/keyboard v0.2.9
 	atomicgo.dev/schedule => github.com/atomicgo/schedule v0.1.0
+
+	// Pinned to 3.12.2 because 3.13.0 dropped DecodeNewLines from the INI store,
+	// which breaks decryption of INI files encrypted with earlier sops versions.
+	// See https://github.com/getsops/sops/issues/2188
+	github.com/getsops/sops/v3 => github.com/getsops/sops/v3 v3.12.2
+
 	// Many functions of terraform was converted to internal to avoid use as a library after v0.15.3. This means that we
 	// can't use terraform as a library after v0.15.3, so we pull that in here.
 	github.com/hashicorp/terraform => github.com/hashicorp/terraform v0.15.3
