@@ -8,7 +8,7 @@ import {
   pullRequestsToMarkdown,
 } from "./changelog";
 
-const SITE = "https://terragrunt.gruntwork.io";
+const SITE = "https://docs.terragrunt.com";
 
 describe("compareVersionsDesc", () => {
   test("orders semver versions descending", () => {
