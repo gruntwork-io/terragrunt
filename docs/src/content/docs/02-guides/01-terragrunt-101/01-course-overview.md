@@ -24,7 +24,7 @@ Terragrunt helps you **organize**, **reuse**, and **orchestrate** infrastructure
 - **Catalog**: Scaffold new units quickly with `terragrunt catalog` to enable infrastructure self-service using Infrastructure as Code.
 - **Orchestration**: Run multiple units in the right order. Terragrunt understands dependencies between modules and manages multiple state files so you can plan, apply and destroy in dependency order without manual scripting.
 
-If you've outgrown ad hoc folder copying, repeated backend blocks, or custom scripts to chain Terraform/OpenTofu runs, this course will show you how Terragrunt addresses that. You'll learn the concepts (units, stacks, root config), the HCL blocks and functions that make config reusable, and how to author and compose stacks so your IaC stays maintainable as it grows.
+If you've outgrown ad-hoc copy/paste, repeated backend blocks, or custom scripts to chain OpenTofu/Terraform runs, this course will show you how Terragrunt addresses that. You'll learn the concepts (units, stacks, root config), the HCL blocks and functions that make config reusable, and how to author and compose stacks so your IaC stays maintainable as it grows.
 
 ---
 
