@@ -47,9 +47,6 @@ const (
 	moduleURLPattern = `(?:git|hg|s3|gcs)::([^:]+)://([^/]+)(/.*)`
 	moduleURLParts   = 4
 
-	// versionQueryParam is the query parameter used for tfr:// version resolution.
-	versionQueryParam = "version"
-
 	// TODO: Make the root configuration file name configurable
 	DefaultBoilerplateConfig = `
 variables:
@@ -700,12 +697,17 @@ func addRefToModuleURL(
 		// For tfr:// URLs, resolve the latest version via the registry API.
 		if getter.IsTFRSource(moduleURL.String()) {
 			latestVersion, err := resolveTFRVersion(ctx, l, opts, moduleURL)
-			if err != nil || latestVersion == "" {
-				l.Warnf("Failed to find latest version for %s: %v", moduleURL, err)
-			} else {
-				params.Add(versionQueryParam, latestVersion)
-				moduleURL.RawQuery = params.Encode()
+			if err != nil {
+				return nil, err
 			}
+
+			if latestVersion == "" {
+				l.Warnf("Failed to find latest version for %s", moduleURL)
+				return moduleURL, nil
+			}
+
+			params.Add(getter.VersionQueryKey, latestVersion)
+			moduleURL.RawQuery = params.Encode()
 
 			return moduleURL, nil
 		}
@@ -721,10 +723,11 @@ func addRefToModuleURL(
 		tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for %s", rootSourceURL)
-		} else {
-			params.Add(refParam, tag)
-			moduleURL.RawQuery = params.Encode()
+			return moduleURL, nil
 		}
+
+		params.Add(refParam, tag)
+		moduleURL.RawQuery = params.Encode()
 	}
 
 	return moduleURL, nil
@@ -743,9 +746,6 @@ func resolveTFRVersion(ctx context.Context, l log.Logger, opts *options.Terragru
 	// Extract the module path (e.g. "terraform-aws-modules/vpc/aws")
 	// using SourceDirSubdir which handles the "//subdir" syntax.
 	modulePath, _ := getter.SourceDirSubdir(strings.TrimPrefix(moduleURL.Path, "/"))
-	if modulePath == "" {
-		modulePath = strings.TrimPrefix(moduleURL.Path, "/")
-	}
 
 	return getter.ResolveTFRVersion(ctx, l, nil, registryDomain, modulePath)
 }

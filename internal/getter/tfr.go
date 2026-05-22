@@ -19,7 +19,8 @@ import (
 	safetemp "github.com/hashicorp/go-safetemp"
 )
 
-const versionQueryKey = "version"
+// VersionQueryKey is the query parameter used for tfr:// version resolution.
+const VersionQueryKey = "version"
 
 // RegistryGetter is the go-getter v2 implementation of the tfr:// protocol.
 //
@@ -113,7 +114,7 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := SourceDirSubdir(srcURL.Path)
 
-	versionList, hasVersion := queryValues[versionQueryKey]
+	versionList, hasVersion := queryValues[VersionQueryKey]
 	if !hasVersion {
 		return errors.New(MalformedRegistryURLErr{reason: "missing version query"})
 	}

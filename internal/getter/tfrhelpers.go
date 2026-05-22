@@ -8,13 +8,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-cleanhttp"
+	version "github.com/hashicorp/go-version"
 	svchost "github.com/hashicorp/terraform-svchost"
 )
 
@@ -287,29 +288,30 @@ func ResolveTFRVersion(ctx context.Context, l log.Logger, httpClient *http.Clien
 		return "", nil
 	}
 
-	versions := make([]string, len(resp.Modules[0].Versions))
-	for i, v := range resp.Modules[0].Versions {
-		versions[i] = v.Version
+	versions := make([]*version.Version, 0, len(resp.Modules[0].Versions))
+	for _, v := range resp.Modules[0].Versions {
+		parsed, err := version.NewVersion(v.Version)
+		if err != nil {
+			continue
+		}
+
+		versions = append(versions, parsed)
+	}
+
+	if len(versions) == 0 {
+		return "", nil
 	}
 
 	// Sort in descending semver order and return the top.
-	sort.Slice(versions, func(i, j int) bool {
-		return versions[i] > versions[j]
+	slices.SortFunc(versions, func(a, b *version.Version) int {
+		return b.Compare(a)
 	})
 
-	return versions[0], nil
+	return versions[0].Original(), nil
 }
 
 // IsTFRSource checks whether the given URL is a tfr:// registry URL.
 func IsTFRSource(rawURL string) bool {
-	if strings.HasPrefix(rawURL, "tfr://") {
-		return true
-	}
-
 	u, err := url.Parse(rawURL)
-	if err == nil && u.Scheme == "tfr" {
-		return true
-	}
-
-	return false
+	return err == nil && u.Scheme == "tfr"
 }
