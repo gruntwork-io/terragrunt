@@ -714,6 +714,11 @@ func addRefToModuleURL(
 	if ref == "" {
 		// For tfr:// URLs, resolve the latest version via the registry API.
 		if getter.IsTFRSource(moduleURL.String()) {
+			// If version is already specified, skip resolution.
+			if params.Has(getter.VersionQueryKey) {
+				return moduleURL, nil
+			}
+
 			latestVersion, err := resolveTFRVersion(ctx, l, opts, moduleURL)
 			if err != nil {
 				return nil, err
@@ -724,7 +729,7 @@ func addRefToModuleURL(
 				return moduleURL, nil
 			}
 
-			params.Add(getter.VersionQueryKey, latestVersion)
+			params.Set(getter.VersionQueryKey, latestVersion)
 			moduleURL.RawQuery = params.Encode()
 
 			return moduleURL, nil
