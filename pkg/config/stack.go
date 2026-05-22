@@ -94,7 +94,6 @@ type Stack struct {
 // It handles the creation of required directories and returns any errors encountered.
 func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, pool *worker.Pool, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
-	stackDepsEnabled := pctx.Experiments.Evaluate(experiment.StackDependencies)
 
 	values, err := ReadValues(ctx, pctx, l, stackSourceDir)
 	if err != nil {
@@ -114,7 +113,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	var stackSrcBytes []byte
 
-	if stackDepsEnabled && stackConfigHasAutoInclude(stackFile) {
+	if pctx.Experiments.Evaluate(experiment.StackDependencies) && stackConfigHasAutoInclude(stackFile) {
 		// The autoinclude phase uses the internal HCL parser, which currently expects
 		// hclsyntax input (not JSON bodies). Preserve explicit failure behavior for JSON
 		// stack files that still declare autoinclude.
@@ -172,16 +171,9 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return err
 		}
 
-		c, casErr := cas.New(cas.WithCloneDepth(pctx.CASCloneDepth))
-		if casErr != nil {
-			l.Warnf("Failed to initialize CAS for stack generation: %v. CAS features disabled.", casErr)
-
-			casEnabled = false
-		}
-
-		if casEnabled {
-			casInstance = c
-		}
+		instance, ok := makeCAS(l, pctx.CASCloneDepth)
+		casInstance = instance
+		casEnabled = ok
 	}
 
 	genOpts := generateOpts{
@@ -241,6 +233,17 @@ func validateUpdateSourceWithCAS(stackFile *StackConfig, stackFilePath string, c
 	}
 
 	return nil
+}
+
+// makeCAS initializes a CAS instance for stack generation, returning (nil, false) and logging a warning on failure.
+func makeCAS(l log.Logger, cloneDepth int) (*cas.CAS, bool) {
+	c, err := cas.New(cas.WithCloneDepth(cloneDepth))
+	if err != nil {
+		l.Warnf("Failed to initialize CAS for stack generation: %v. CAS features disabled.", err)
+		return nil, false
+	}
+
+	return c, true
 }
 
 // generateOpts holds the subset of options needed for stack/unit generation.
