@@ -15,7 +15,7 @@ func main() {
 	os.Exit(run())
 }
 
-func run() int {
+func run() (code int) {
 	opts := options.NewTerragruntOptions()
 	l := log.New(
 		log.WithOutput(opts.Writers.ErrWriter),
@@ -24,7 +24,12 @@ func run() int {
 	)
 
 	reporter := log.NewPanicReporter()
-	defer reporter.PanicHandler(l, opts.VersionString, os.Args)
+	// Recover panics here so main owns os.Exit and any future main-level defers still run.
+	defer func() {
+		if reporter.PanicHandler(recover(), l, opts.VersionString, os.Args) {
+			code = 1
+		}
+	}()
 
 	if err := global.NewLogLevelFlag(l, opts, nil).Parse(os.Args); err != nil {
 		l.Errorf("An error has occurred: %v", err)

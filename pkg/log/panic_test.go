@@ -120,6 +120,74 @@ func TestReportPanicFallsBackToTempDirWhenGetwdFails(t *testing.T) {
 	require.NoError(t, err, "expected crash file at %s", expectedPath)
 }
 
+func TestReportPanicRetriesTempDirWhenCwdWriteFails(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	when := time.Date(2026, 5, 22, 12, 30, 45, 0, time.UTC)
+	pid := 4242
+	r := newStubPanicReporter(fs, "/readonly", when, pid)
+	// Reject writes under the cwd; accept anywhere else (i.e. /tmp).
+	r.WriteFile = func(name string, data []byte, perm os.FileMode) error {
+		if filepath.Dir(name) == "/readonly" {
+			return errors.New("read-only filesystem")
+		}
+
+		return vfs.WriteFile(fs, name, data, perm)
+	}
+
+	logger, output := newPanicLogger()
+	r.ReportPanic(logger, "1.7.9", "boom", []byte("stack"), []string{"terragrunt"})
+
+	tempPath := "/tmp/terragrunt-crash-20260522T123045Z-4242.log"
+	_, err := vfs.ReadFile(fs, tempPath)
+	require.NoError(t, err, "expected fallback file at %s", tempPath)
+
+	assert.Contains(t, output.String(), tempPath)
+	assert.NotContains(t, output.String(), "Failed to save a panic report file")
+}
+
+func TestPanicHandler(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns false when rec is nil", func(t *testing.T) {
+		t.Parallel()
+
+		r := newStubPanicReporter(vfs.NewMemMapFS(), "/wd", time.Now().UTC(), 1)
+		assert.False(t, r.PanicHandler(nil, logger.CreateLogger(), func() string { return "1.7.9" }, []string{"terragrunt"}))
+	})
+
+	t.Run("returns true and writes report when rec is set", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		when := time.Date(2026, 5, 22, 12, 30, 45, 0, time.UTC)
+		r := newStubPanicReporter(fs, "/wd", when, 9999)
+
+		l, output := newPanicLogger()
+
+		// recover() must be called from the deferred frame; pass the value through to PanicHandler.
+		recovered := false
+
+		func() {
+			defer func() {
+				recovered = r.PanicHandler(recover(), l, func() string { return "1.7.9" }, []string{"terragrunt", "plan"})
+			}()
+
+			panic("boom")
+		}()
+
+		assert.True(t, recovered)
+
+		expectedPath := "/wd/terragrunt-crash-20260522T123045Z-9999.log"
+
+		_, err := vfs.ReadFile(fs, expectedPath)
+		require.NoError(t, err)
+		assert.Contains(t, output.String(), "TERRAGRUNT CRASH")
+		assert.Contains(t, output.String(), "Panic: boom")
+	})
+}
+
 func TestPanicDetails(t *testing.T) {
 	t.Parallel()
 
@@ -163,14 +231,27 @@ func TestPanicDetails(t *testing.T) {
 	t.Run("ErrorStack wrapper surfaces captured stack", func(t *testing.T) {
 		t.Parallel()
 
-		err := stackedError{
+		// Wrap via fmt.Errorf so PanicDetails must walk the chain via errors.As to find the ErrorStack.
+		inner := stackedError{
 			msg:   "wrapped runtime panic",
 			stack: "goroutine 1:\nruntime/panic.go:860\npanic({0x...})\n",
 		}
+		err := fmt.Errorf("outer: %w", inner)
 
 		msg, stack := log.PanicDetails(err)
-		assert.Equal(t, "wrapped runtime panic", msg)
-		assert.Equal(t, []byte(err.stack), stack)
+		assert.Equal(t, "outer: wrapped runtime panic", msg)
+		assert.Equal(t, []byte(inner.stack), stack)
+	})
+
+	t.Run("ErrorStack without panic marker returns nil stack", func(t *testing.T) {
+		t.Parallel()
+
+		// A benign error that happens to expose an ErrorStack must NOT be returned as a panic stack.
+		err := stackedError{msg: "ordinary failure", stack: "io.EOF\n\tnet/io.go:42\n"}
+
+		msg, stack := log.PanicDetails(err)
+		assert.Equal(t, "ordinary failure", msg)
+		assert.Nil(t, stack, "ErrorStack lacking panic markers must not be returned")
 	})
 }
 
@@ -203,12 +284,34 @@ func TestIsPanic(t *testing.T) {
 		assert.True(t, log.IsPanic(fmt.Errorf("wrapped: %w", err)))
 	})
 
-	t.Run("matches an error whose message contains a runtime panic frame", func(t *testing.T) {
+	t.Run("plain error containing panic text is not classified as a Terragrunt panic", func(t *testing.T) {
 		t.Parallel()
 
+		// Subprocess (tofu/terraform) crash text bubbled up as a regular error must NOT trigger a Terragrunt crash banner.
 		err := errors.New("panic: simulated\n\ngoroutine 1 [running]:\nruntime/debug.Stack()\npanic({0x...})\n\t/usr/local/go/src/runtime/panic.go:860")
 
-		assert.True(t, log.IsPanic(err))
+		assert.False(t, log.IsPanic(err))
+	})
+
+	t.Run("matches a wrapped runtime.Error", func(t *testing.T) {
+		t.Parallel()
+
+		var rerr runtime.Error
+
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					rerr, _ = r.(runtime.Error)
+				}
+			}()
+
+			var arr []int
+
+			_ = arr[5] //nolint:staticcheck // intentional out-of-bounds to obtain a runtime.Error
+		}()
+
+		assert.NotNil(t, rerr, "test setup: expected runtime panic")
+		assert.True(t, log.IsPanic(fmt.Errorf("wrapped: %w", rerr)))
 	})
 
 	t.Run("matches an error whose ErrorStack contains a runtime panic frame", func(t *testing.T) {

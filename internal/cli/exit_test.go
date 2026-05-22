@@ -11,6 +11,7 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -51,6 +52,18 @@ func TestExitCodeFor(t *testing.T) {
 
 		assert.Equal(t, 1, code)
 		assert.Contains(t, buf.String(), "TERRAGRUNT CRASH")
+	})
+
+	t.Run("ErrUserCancelled exits 0 silently without logging the error", func(t *testing.T) {
+		t.Parallel()
+
+		l, buf := newBufferLogger()
+		wrapped := fmt.Errorf("aborted: %w", runall.ErrUserCancelled)
+
+		code := cli.ExitCodeFor(l, []string{"terragrunt"}, "1.7.9", wrapped, 0, newReporter())
+
+		assert.Equal(t, 0, code)
+		assert.Empty(t, buf.String(), "must not log when the user cancels a destructive run --all")
 	})
 }
 

@@ -5,6 +5,8 @@ category: "process-updates"
 
 #### Friendly panic reports
 
-On a panic, Terragrunt writes a `terragrunt-crash-<UTC-timestamp>-<pid>.log` file with runtime context, the panic message, and the stack trace.
+On a panic, Terragrunt writes a `terragrunt-crash-<UTC-timestamp>-<pid>.log` file with runtime context, the panic message, and the stack trace. If the current directory is not writable, the file is written under the system temp directory instead.
 
-The terminal output shows where the report was saved, the Terragrunt version, and the bug-report URL. If Terragrunt cannot write the file, it prints the report inline so the diagnostic details are not lost.
+The terminal output shows a banner with the Terragrunt version, the saved report path, and the bug-report URL, followed by the full panic report so the diagnostics are also preserved in CI and container logs. If Terragrunt cannot write the file at all, the same report is still printed inline so nothing is lost.
+
+The report includes the full command line; review it for secrets passed as flag values before attaching it to a public ticket.

@@ -41,6 +41,8 @@ A panic report has been saved to:
 
     %s
 
+The report includes the command line; review it for secrets before sharing.
+
 To report this issue, please open a new ticket including the items below:
 
     1. Your Terragrunt version: %s
@@ -58,6 +60,8 @@ Open issues at: %s
 Terragrunt crashed. This is always indicative of a bug within Terragrunt.
 
 Failed to save a panic report file: %s
+
+The report includes the command line; review it for secrets before sharing.
 
 To report this issue, please open a new ticket including the items below:
 
@@ -115,11 +119,10 @@ func NewPanicReporter() *PanicReporter {
 	}
 }
 
-// PanicHandler must be invoked as defer r.PanicHandler(...) to catch panics.
-func (r *PanicReporter) PanicHandler(l Logger, version func() string, args []string) {
-	rec := recover()
+// PanicHandler reports rec when non-nil and returns true; caller must invoke recover() in the surrounding defer and pass the value.
+func (r *PanicReporter) PanicHandler(rec any, l Logger, version func() string, args []string) bool {
 	if rec == nil {
-		return
+		return false
 	}
 
 	v := ""
@@ -132,7 +135,8 @@ func (r *PanicReporter) PanicHandler(l Logger, version func() string, args []str
 	}
 
 	r.ReportPanic(l, v, fmt.Sprintf("%v", rec), debug.Stack(), args)
-	os.Exit(1)
+
+	return true
 }
 
 // ReportPanic writes the crash log and friendly banner for a panic surfaced as a returned error.
@@ -155,8 +159,7 @@ func (r *PanicReporter) ReportPanic(l Logger, version, panicMsg string, stack []
 	l.Error(logContent)
 }
 
-// PanicDetails returns the panic message and stack split out of err.
-// Handles cty function.PanicError, go-errors wrappers (via ErrorStack()), and plain errors.
+// PanicDetails returns the panic message and stack split out of err; callers must gate on IsPanic.
 func PanicDetails(err error) (msg string, stack []byte) {
 	if err == nil {
 		return "", nil
@@ -167,15 +170,39 @@ func PanicDetails(err error) (msg string, stack []byte) {
 		return fmt.Sprintf("%v", ctyPanic.Value), ctyPanic.Stack
 	}
 
-	var stackErr interface{ ErrorStack() string }
-	if stdErrors.As(err, &stackErr) {
-		return err.Error(), []byte(stackErr.ErrorStack())
+	if s := findPanicStack(err); s != nil {
+		return err.Error(), s
 	}
 
 	return err.Error(), nil
 }
 
-// IsPanic reports whether err originated from a recovered panic.
+// findPanicStack walks single- and multi-error chains and returns the first ErrorStack whose content matches a panic marker.
+func findPanicStack(err error) []byte {
+	if err == nil {
+		return nil
+	}
+
+	if e, ok := err.(interface{ ErrorStack() string }); ok {
+		if s := e.ErrorStack(); isPanicMessage(s) {
+			return []byte(s)
+		}
+	}
+
+	if u, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, e := range u.Unwrap() {
+			if s := findPanicStack(e); s != nil {
+				return s
+			}
+		}
+
+		return nil
+	}
+
+	return findPanicStack(stdErrors.Unwrap(err))
+}
+
+// IsPanic reports whether err originated from a recovered panic; only typed signals are honored to avoid subprocess-output false positives.
 func IsPanic(err error) bool {
 	if err == nil {
 		return false
@@ -186,7 +213,8 @@ func IsPanic(err error) bool {
 		return true
 	}
 
-	if isPanicMessage(err.Error()) {
+	var runtimeErr runtime.Error
+	if stdErrors.As(err, &runtimeErr) {
 		return true
 	}
 
@@ -261,14 +289,36 @@ func (r *PanicReporter) writeLog(version, panicMsg string, stack []byte, args []
 	now := r.now()
 	pid := r.getPID()
 	workingDir := r.workingDir()
-	logPath := filepath.Join(workingDir, r.formatLogPath(now, pid))
-
 	content := r.formatLog(version, panicMsg, stack, args, now, workingDir, pid)
-	if err := r.writeFile(logPath, []byte(content), crashFileMode); err != nil {
+	fileName := r.formatLogPath(now, pid)
+	logPath := filepath.Join(workingDir, fileName)
+
+	err := r.writeFile(logPath, []byte(content), crashFileMode)
+	if err == nil {
+		return logPath, content, nil
+	}
+
+	// Cwd is read-only or otherwise rejected the write; try TempDir before giving up.
+	tempDir := r.tempDir()
+	if tempDir == "" || tempDir == workingDir {
 		return "", content, err
 	}
 
-	return logPath, content, nil
+	tempPath := filepath.Join(tempDir, fileName)
+	if tempErr := r.writeFile(tempPath, []byte(content), crashFileMode); tempErr == nil {
+		return tempPath, content, nil
+	}
+
+	return "", content, err
+}
+
+// tempDir returns r.TempDir() when set, else os.TempDir.
+func (r *PanicReporter) tempDir() string {
+	if r.TempDir != nil {
+		return r.TempDir()
+	}
+
+	return os.TempDir()
 }
 
 // now returns r.Now() or time.Now if r.Now is nil.
@@ -309,13 +359,7 @@ func (r *PanicReporter) workingDir() string {
 		return wd
 	}
 
-	if r.TempDir != nil {
-		if td := r.TempDir(); td != "" {
-			return td
-		}
-	}
-
-	return os.TempDir()
+	return r.tempDir()
 }
 
 func (r *PanicReporter) formatLog(

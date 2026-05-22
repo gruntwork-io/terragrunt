@@ -4,13 +4,14 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// RunWithExitCode executes the CLI and returns the process exit code; panics at the top level must be caught by `defer reporter.PanicHandler(...)`.
+// RunWithExitCode executes the CLI and returns the process exit code; top-level panics are caught by the caller via a deferred recover() passed to reporter.PanicHandler.
 func (app *App) RunWithExitCode(args []string, em *tf.DetailedExitCodeMap, reporter *log.PanicReporter) int {
 	// Background root since RunWithExitCode owns the process lifetime; em and logger are injected so internals can resolve them via context.
 	ctx := log.ContextWithLogger(context.Background(), app.l)
@@ -26,6 +27,11 @@ func (app *App) RunWithExitCode(args []string, em *tf.DetailedExitCodeMap, repor
 func ExitCodeFor(l log.Logger, args []string, version string, err error, success int, reporter *log.PanicReporter) int {
 	if err == nil {
 		return success
+	}
+
+	// User declined a destructive run --all prompt; exit silently like the pre-refactor entry point.
+	if errors.Is(err, runall.ErrUserCancelled) {
+		return 0
 	}
 
 	logRunError(l, args, version, err, reporter)
