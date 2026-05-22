@@ -19,6 +19,12 @@ import (
 // re-parses the current config to compute a Terraform source URL, which a
 // terragrunt.stack.hcl does not have.
 //
+// The returned map is freshly allocated on every call (via
+// [createTerragruntEvalContext], which builds a new `map[string]function.Function{}`
+// per invocation). Callers own the result outright: concurrent discovery
+// goroutines each get their own map, and the override write on
+// [FuncNameGetWorkingDir] is not visible to any other caller.
+//
 // Callers building a ParsingContext from *options.TerragruntOptions should use
 // configbridge.NewParsingContext.
 func EarlyStackParseFunctions(ctx context.Context, l log.Logger, baseDir string, pctx *ParsingContext) (map[string]function.Function, error) {
@@ -32,6 +38,10 @@ func EarlyStackParseFunctions(ctx context.Context, l log.Logger, baseDir string,
 	evalCtx, err := createTerragruntEvalContext(ctx, scoped, l, stackFilePath)
 	if err != nil {
 		return nil, err
+	}
+
+	if evalCtx.Functions == nil {
+		panic("config.EarlyStackParseFunctions: evalCtx.Functions is nil")
 	}
 
 	funcs := evalCtx.Functions
