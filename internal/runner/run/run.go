@@ -16,8 +16,9 @@ import (
 	"strings"
 	"sync"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
@@ -32,8 +33,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-
-	"github.com/hashicorp/go-multierror"
 )
 
 const (
@@ -303,7 +302,7 @@ func runTerragruntWithConfig(
 			}
 		}
 
-		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
+		return errors.Join(runTerraformError, lockFileError)
 	})
 }
 
@@ -351,7 +350,7 @@ func RunActionWithHooks(
 	r *report.Report,
 	action func(ctx context.Context) error,
 ) error {
-	var allErrors *errors.MultiError
+	var allErrors []error
 
 	v := OSVenv()
 
@@ -361,26 +360,32 @@ func RunActionWithHooks(
 		Cfg:                cfg,
 		PreviousExecErrors: allErrors,
 	})
-	allErrors = allErrors.Append(beforeHookErrors)
+	if beforeHookErrors != nil {
+		allErrors = append(allErrors, beforeHookErrors)
+	}
 
-	var actionErrors error
 	if beforeHookErrors == nil {
-		actionErrors = action(ctx)
-		allErrors = allErrors.Append(actionErrors)
+		if actionErrors := action(ctx); actionErrors != nil {
+			allErrors = append(allErrors, actionErrors)
+		}
 	} else {
 		l.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
 
-	postHookErrors := ProcessHooks(ctx, l, v, ProcessHooksParams{
+	if postHookErrors := ProcessHooks(ctx, l, v, ProcessHooksParams{
 		Hooks:              cfg.Terraform.AfterHooks,
 		Opts:               opts,
 		Cfg:                cfg,
 		PreviousExecErrors: allErrors,
-	})
-	errorHookErrors := ProcessErrorHooks(ctx, l, v.Exec, cfg.Terraform.ErrorHooks, opts, allErrors)
-	allErrors = allErrors.Append(postHookErrors, errorHookErrors)
+	}); postHookErrors != nil {
+		allErrors = append(allErrors, postHookErrors)
+	}
 
-	return allErrors.ErrorOrNil()
+	if errorHookErrors := ProcessErrorHooks(ctx, l, v.Exec, cfg.Terraform.ErrorHooks, opts, allErrors); errorHookErrors != nil {
+		allErrors = append(allErrors, errorHookErrors)
+	}
+
+	return errors.Join(allErrors...)
 }
 
 // SetTerragruntInputsAsEnvVars sets the inputs from Terragrunt configurations to TF_VAR_* environment variables for
@@ -413,7 +418,7 @@ func CheckFolderContainsTerraformCode(opts *Options) error {
 	}
 
 	if !found {
-		return errors.New(NoTerraformFilesFound(opts.WorkingDir))
+		return NoTerraformFilesFound(opts.WorkingDir)
 	}
 
 	return nil
@@ -423,7 +428,7 @@ func CheckFolderContainsTerraformCode(opts *Options) error {
 func checkTerraformCodeDefinesBackend(opts *Options, backendType string) error {
 	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType))
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	// Check for backend definitions in .tf and .tofu files using WalkDir
@@ -438,7 +443,7 @@ func checkTerraformCodeDefinesBackend(opts *Options, backendType string) error {
 
 	terraformJSONBackendRegexp, err := regexp.Compile(fmt.Sprintf(`(?m)"backend":[[:space:]]*{[[:space:]]*"%s"`, backendType))
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	definesJSONBackend, err := util.GrepFilesWithSuffix(vfs.NewOSFS(), terraformJSONBackendRegexp, opts.WorkingDir, ".tf.json")
@@ -450,7 +455,7 @@ func checkTerraformCodeDefinesBackend(opts *Options, backendType string) error {
 		return nil
 	}
 
-	return errors.New(BackendNotDefined{ConfigPath: opts.TerragruntConfigPath, WorkingDir: opts.WorkingDir, BackendType: backendType})
+	return BackendNotDefined{ConfigPath: opts.TerragruntConfigPath, WorkingDir: opts.WorkingDir, BackendType: backendType}
 }
 
 // Returns true if we need to run `terraform init` to download providers
@@ -745,7 +750,7 @@ func checkProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
 	}
 
 	if cfg.PreventDestroy {
-		return errors.New(ModuleIsProtected{ConfigPath: opts.TerragruntConfigPath})
+		return ModuleIsProtected{ConfigPath: opts.TerragruntConfigPath}
 	}
 
 	return nil
@@ -770,7 +775,7 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 
 	jsonContents, err := json.MarshalIndent(jsonEmptyVars, "", "  ")
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	varFile := filepath.Join(opts.WorkingDir, NullTFVarsFile)
@@ -778,7 +783,7 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 	const ownerReadWritePermissions = 0600
 
 	if err := os.WriteFile(varFile, jsonContents, os.FileMode(ownerReadWritePermissions)); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	return varFile, nil

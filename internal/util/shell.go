@@ -8,8 +8,9 @@ import (
 	"strings"
 	"syscall"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 )
 
@@ -25,8 +26,8 @@ type CmdOutput struct {
 }
 
 // GetExitCode returns the exit code of a command. If the error does not
-// implement errorCode or is not an exec.ExitError
-// or *errors.MultiError type, the error is returned.
+// implement errorCode or is not an exec.ExitError, the error is returned.
+// Joined errors are traversed by errors.As via their Unwrap() []error method.
 func GetExitCode(err error) (int, error) {
 	var exitStatus interface {
 		ExitStatus() (int, error)
@@ -44,16 +45,6 @@ func GetExitCode(err error) (int, error) {
 	if ok := errors.As(err, &exiterr); ok {
 		status := exiterr.Sys().(syscall.WaitStatus)
 		return status.ExitStatus(), nil
-	}
-
-	var multiErr *errors.MultiError
-	if ok := errors.As(err, &multiErr); ok {
-		for _, err := range multiErr.WrappedErrors() {
-			exitCode, exitCodeErr := GetExitCode(err)
-			if exitCodeErr == nil {
-				return exitCode, nil
-			}
-		}
 	}
 
 	return 0, err

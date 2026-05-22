@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
@@ -87,7 +86,7 @@ func RunTflintWithOpts(
 	_, err = shell.RunCommandWithOutput(ctx, l, v.Exec, opts.ShellOptions, opts.RootWorkingDir, false, false,
 		initArgs[0], initArgs[1:]...)
 	if err != nil {
-		return errors.New(ErrorRunningTflint{Args: initArgs, Err: err})
+		return ErrorRunningTflint{Args: initArgs, Err: err}
 	}
 
 	// tflint execution
@@ -106,7 +105,7 @@ func RunTflintWithOpts(
 	_, err = shell.RunCommandWithOutput(ctx, l, v.Exec, opts.ShellOptions, opts.RootWorkingDir, false, false,
 		args[0], args[1:]...)
 	if err != nil {
-		return errors.New(ErrorRunningTflint{Args: args, Err: err})
+		return ErrorRunningTflint{Args: args, Err: err}
 	}
 
 	l.Info("Tflint has run successfully. No issues found.")
@@ -272,7 +271,7 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 			util.RelPathForLog(opts.RootWorkingDir, currentDir, opts.Writers.LogShowAbsPaths))
 
 		if currentDir == previousDir {
-			return "", errors.New(ConfigNotFound{cause: "Traversed all the day to the root"})
+			return "", ConfigNotFound{cause: "Traversed all the day to the root"}
 		}
 
 		fileToFind := filepath.Join(previousDir, ".tflint.hcl")
@@ -292,9 +291,9 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 		previousDir = currentDir
 	}
 
-	return "", errors.New(ConfigNotFound{
+	return "", ConfigNotFound{
 		cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", opts.MaxFoldersToCheck),
-	})
+	}
 }
 
 // ConfigFilePath returns the configuration file specified in --config argument,

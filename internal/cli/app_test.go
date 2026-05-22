@@ -21,7 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -480,7 +479,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
-		t.Fatalf("error: %v\n", errors.New(err))
+		t.Fatalf("error: %v\n", err)
 	}
 
 	opts.WorkingDir = workingDir

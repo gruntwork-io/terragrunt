@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
@@ -28,7 +27,7 @@ type NetworkMirrorProviderHandler struct {
 func NewNetworkMirrorProviderHandler(logger log.Logger, networkMirror *cliconfig.ProviderInstallationNetworkMirror, credsSource *cliconfig.CredentialsSource) (*NetworkMirrorProviderHandler, error) {
 	networkMirrorURL, err := url.Parse(networkMirror.URL)
 	if err != nil {
-		return nil, errors.Errorf("failed to parse network mirror URL %q: %w", networkMirror.URL, err)
+		return nil, fmt.Errorf("failed to parse network mirror URL %q: %w", networkMirror.URL, err)
 	}
 
 	return &NetworkMirrorProviderHandler{

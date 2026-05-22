@@ -2,13 +2,13 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-multierror"
 )
 
 const (
@@ -29,7 +28,7 @@ const (
 type ProcessHooksParams struct {
 	Opts               *Options
 	Cfg                *runcfg.RunConfig
-	PreviousExecErrors *errors.MultiError
+	PreviousExecErrors []error
 	Hooks              []runcfg.Hook
 }
 
@@ -39,7 +38,7 @@ func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParam
 		return nil
 	}
 
-	var errorsOccured *multierror.Error
+	var errorsOccured []error
 
 	l.Debugf("Detected %d Hooks", len(p.Hooks))
 
@@ -50,7 +49,7 @@ func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParam
 			continue
 		}
 
-		allPreviousErrors := p.PreviousExecErrors.Append(errorsOccured)
+		allPreviousErrors := append(slices.Clone(p.PreviousExecErrors), errorsOccured...)
 		if shouldRunHook(curHook, p.Opts, allPreviousErrors) {
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
@@ -59,12 +58,12 @@ func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParam
 				return runHook(ctx, l, v, p.Opts, p.Cfg, curHook)
 			})
 			if err != nil {
-				errorsOccured = multierror.Append(errorsOccured, err)
+				errorsOccured = append(errorsOccured, err)
 			}
 		}
 	}
 
-	return errorsOccured.ErrorOrNil()
+	return errors.Join(errorsOccured...)
 }
 
 // ProcessErrorHooks runs error_hook blocks whose OnErrors regex matches one
@@ -75,40 +74,30 @@ func ProcessErrorHooks(
 	exec vexec.Exec,
 	hooks []runcfg.ErrorHook,
 	opts *Options,
-	previousExecErrors *errors.MultiError,
+	previousExecErrors []error,
 ) error {
-	if len(hooks) == 0 || previousExecErrors.ErrorOrNil() == nil {
+	if len(hooks) == 0 || len(previousExecErrors) == 0 {
 		return nil
 	}
 
-	var errorsOccured *multierror.Error
+	var errorsOccured []error
 
 	l.Debugf("Detected %d error Hooks", len(hooks))
 
-	customMultierror := multierror.Error{
-		Errors: previousExecErrors.WrappedErrors(),
-		ErrorFormat: func(err []error) string {
-			errorMessages := make([]string, 0, len(err))
+	errorMessages := make([]string, 0, len(previousExecErrors))
+	for _, e := range previousExecErrors {
+		errorMessage := e.Error()
+		// Process execution errors carry stdout that hook patterns need to match against.
+		// https://github.com/gruntwork-io/terragrunt/issues/2045
+		var processError util.ProcessExecutionError
+		if errors.As(e, &processError) {
+			errorMessage = fmt.Sprintf("%s\n%s", processError.Error(), processError.Output.Stdout.String())
+		}
 
-			for _, e := range err {
-				errorMessage := e.Error()
-				// Check if is process execution error and try to extract output
-				// https://github.com/gruntwork-io/terragrunt/issues/2045
-				originalError := errors.Unwrap(e)
-				if originalError != nil {
-					var processError util.ProcessExecutionError
-					if ok := errors.As(originalError, &processError); ok {
-						errorMessage = fmt.Sprintf("%s\n%s", processError.Error(), processError.Output.Stdout.String())
-					}
-				}
-
-				errorMessages = append(errorMessages, errorMessage)
-			}
-
-			return strings.Join(errorMessages, "\n")
-		},
+		errorMessages = append(errorMessages, errorMessage)
 	}
-	errorMessage := customMultierror.Error()
+
+	errorMessage := strings.Join(errorMessages, "\n")
 
 	for _, curHook := range hooks {
 		if util.MatchesAny(curHook.OnErrors, errorMessage) && slices.Contains(curHook.Commands, opts.TerraformCommand) {
@@ -140,12 +129,12 @@ func ProcessErrorHooks(
 				return nil
 			})
 			if err != nil {
-				errorsOccured = multierror.Append(errorsOccured, err)
+				errorsOccured = append(errorsOccured, err)
 			}
 		}
 	}
 
-	return errorsOccured.ErrorOrNil()
+	return errors.Join(errorsOccured...)
 }
 
 // hookErrorMessage extracts command, args and output from the error
@@ -178,15 +167,14 @@ func hookErrorMessage(hookName string, err error) string {
 func shouldRunHook(
 	hook *runcfg.Hook,
 	opts *Options,
-	previousExecErrors *errors.MultiError,
+	previousExecErrors []error,
 ) bool {
-	// if there's no previous error, execute command
-	// OR if a previous error DID happen AND we want to run anyways
-	// then execute.
-	// Skip execution if there was an error AND we care about errors
+	// If there's no previous error, execute command.
+	// Or if a previous error did happen and the hook opts in via RunOnError, execute.
+	// Skip execution when there was an error and the hook doesn't run on errors.
 	//
 	// resolves: https://github.com/gruntwork-io/terragrunt/issues/459
-	hasErrors := previousExecErrors.ErrorOrNil() != nil
+	hasErrors := len(previousExecErrors) > 0
 	isCommandInHook := slices.Contains(hook.Commands, opts.TerraformCommand)
 
 	return isCommandInHook && (!hasErrors || hook.RunOnError)

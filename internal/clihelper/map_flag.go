@@ -10,7 +10,6 @@ import (
 
 	"maps"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -210,7 +209,7 @@ func (flag *mapValue[K, V]) Reset() {
 func (flag *mapValue[K, V]) Set(str string) error {
 	parts := flag.splitter(str, flag.valSep)
 	if len(parts) != flatPatsCount {
-		return errors.New(NewInvalidKeyValueError(flag.valSep, str))
+		return NewInvalidKeyValueError(flag.valSep, str)
 	}
 
 	key := flag.keyType.Clone(new(K))

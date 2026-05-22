@@ -7,7 +7,6 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 )
 
@@ -856,12 +855,12 @@ func unitToCty(unit *Unit) (cty.Value, error) {
 func convertToCtyWithJSON(val any) (cty.Value, error) {
 	jsonBytes, err := json.Marshal(val)
 	if err != nil {
-		return cty.NilVal, errors.New(err)
+		return cty.NilVal, err
 	}
 
 	var ctyJSONVal ctyjson.SimpleJSONValue
 	if err := ctyJSONVal.UnmarshalJSON(jsonBytes); err != nil {
-		return cty.NilVal, errors.New(err)
+		return cty.NilVal, err
 	}
 
 	return ctyJSONVal.Value, nil
@@ -889,12 +888,12 @@ func GoTypeToCty(val any) (cty.Value, error) {
 	// Use the existing logic for other types
 	ctyType, err := gocty.ImpliedType(val)
 	if err != nil {
-		return cty.NilVal, errors.New(err)
+		return cty.NilVal, err
 	}
 
 	ctyOut, err := gocty.ToCtyValue(val, ctyType)
 	if err != nil {
-		return cty.NilVal, errors.New(err)
+		return cty.NilVal, err
 	}
 
 	return ctyOut, nil

@@ -5,7 +5,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -133,7 +132,7 @@ func testParseTerraformVersion(t *testing.T, versionString string, expectedVersi
 		require.NoError(t, actualErr)
 		assert.Equal(t, expected, actualVersion)
 	} else {
-		assert.True(t, errors.IsError(actualErr, expectedErr))
+		assert.ErrorIs(t, actualErr, expectedErr)
 	}
 }
 
