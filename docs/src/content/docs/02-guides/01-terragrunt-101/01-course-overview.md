@@ -15,7 +15,7 @@ This is a **self-paced course** for engineers who already use OpenTofu or Terraf
 
 ### Why Terragrunt?
 
-Terragrunt helps you **organize**, **reuse**, and **orchestrate** infrastructure at scale, without the copy/paste and repetition that plain Terraform or OpenTofu often force.
+Terragrunt helps you **organize**, **reuse**, and **orchestrate** infrastructure at scale, without the copy/paste and repetition that OpenTofu or Terraform alone often require.
 
 **What Terragrunt does really well today:**
 
