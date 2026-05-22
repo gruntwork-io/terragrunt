@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -333,11 +334,11 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	if opts.TerraformVersion == nil {
-		_, ver, impl, err := run.PopulateTFVersion(
-			ctx, l, opts.WorkingDir,
-			opts.VersionManagerFileName,
-			configbridge.TFRunOptsFromOpts(opts),
-		)
+		_, ver, impl, err := run.PopulateTFVersion(ctx, l, vexec.NewOSExec(), run.PopulateTFVersionInput{
+			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+			WorkingDir:   opts.WorkingDir,
+			VersionFiles: opts.VersionManagerFileName,
+		})
 		if err != nil {
 			return err
 		}

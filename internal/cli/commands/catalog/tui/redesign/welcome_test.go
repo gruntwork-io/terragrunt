@@ -69,9 +69,9 @@ func TestEmitExitMessage_WriteFailureIsLogged(t *testing.T) {
 	})
 }
 
-// TestWelcomeLoadingScreen_NoSources verifies that when discovery finds no
+// TestWelcomeLoadingScreen_NoSourcesWithRacing verifies that when discovery finds no
 // component sources, the welcome model stays on the no-sources help screen.
-func TestWelcomeLoadingScreen_NoSources(t *testing.T) {
+func TestWelcomeLoadingScreen_NoSourcesWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -95,10 +95,10 @@ func TestWelcomeLoadingScreen_NoSources(t *testing.T) {
 	})
 }
 
-// TestWelcomeLoadingScreen_TransitionsToComponentList verifies that when
+// TestWelcomeLoadingScreen_TransitionsToComponentListWithRacing verifies that when
 // discovery finds components, the welcome model transitions to the full
 // component list TUI.
-func TestWelcomeLoadingScreen_TransitionsToComponentList(t *testing.T) {
+func TestWelcomeLoadingScreen_TransitionsToComponentListWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -133,9 +133,9 @@ func TestWelcomeLoadingScreen_TransitionsToComponentList(t *testing.T) {
 	})
 }
 
-// TestWelcomeLoadingScreen_ComponentListNavigation verifies the full flow:
+// TestWelcomeLoadingScreen_ComponentListNavigationWithRacing verifies the full flow:
 // loading → component list → select component details → back to list → quit.
-func TestWelcomeLoadingScreen_ComponentListNavigation(t *testing.T) {
+func TestWelcomeLoadingScreen_ComponentListNavigationWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -173,9 +173,9 @@ func TestWelcomeLoadingScreen_ComponentListNavigation(t *testing.T) {
 	})
 }
 
-// TestWelcomeLoadingScreen_QuitDuringLoading verifies that pressing q
+// TestWelcomeLoadingScreen_QuitDuringLoadingWithRacing verifies that pressing q
 // during the loading phase exits cleanly.
-func TestWelcomeLoadingScreen_QuitDuringLoading(t *testing.T) {
+func TestWelcomeLoadingScreen_QuitDuringLoadingWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -204,9 +204,9 @@ func TestWelcomeLoadingScreen_QuitDuringLoading(t *testing.T) {
 	})
 }
 
-// TestWelcomeNoSourcesScreen_HelpKeyOpensDocs verifies that pressing h on
+// TestWelcomeNoSourcesScreen_HelpKeyOpensDocsWithRacing verifies that pressing h on
 // the no-sources screen triggers the open-URL function with the docs URL.
-func TestWelcomeNoSourcesScreen_HelpKeyOpensDocs(t *testing.T) {
+func TestWelcomeNoSourcesScreen_HelpKeyOpensDocsWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -240,9 +240,9 @@ func TestWelcomeNoSourcesScreen_HelpKeyOpensDocs(t *testing.T) {
 	})
 }
 
-// TestWelcomeNoSourcesScreen_UnhandledKey verifies that pressing an
+// TestWelcomeNoSourcesScreen_UnhandledKeyWithRacing verifies that pressing an
 // unrecognized key on the no-sources screen does not crash or change state.
-func TestWelcomeNoSourcesScreen_UnhandledKey(t *testing.T) {
+func TestWelcomeNoSourcesScreen_UnhandledKeyWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -269,9 +269,9 @@ func TestWelcomeNoSourcesScreen_UnhandledKey(t *testing.T) {
 	})
 }
 
-// TestWelcomeStreamingComponents verifies that components stream into the list
+// TestWelcomeStreamingComponentsWithRacing verifies that components stream into the list
 // one at a time, ending up in sorted order.
-func TestWelcomeStreamingComponents(t *testing.T) {
+func TestWelcomeStreamingComponentsWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {

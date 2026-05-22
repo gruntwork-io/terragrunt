@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -59,7 +58,7 @@ func LoadURL(
 		RootWorkingDir:   opts.RootWorkingDir,
 	})
 	if err != nil {
-		return errors.Errorf("failed to initialize repository %s: %w", repoURL, err)
+		return fmt.Errorf("failed to initialize repository %s: %w", repoURL, err)
 	}
 
 	discovery := NewComponentDiscovery().WithFS(fsys).WithExtraIgnoreFile(opts.CatalogIgnoreFile)
@@ -69,7 +68,7 @@ func LoadURL(
 
 	components, err := discovery.Discover(repo)
 	if err != nil {
-		return errors.Errorf("failed to discover components in repository %s: %w", repoURL, err)
+		return fmt.Errorf("failed to discover components in repository %s: %w", repoURL, err)
 	}
 
 	if len(components) == 0 {

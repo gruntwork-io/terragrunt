@@ -138,7 +138,7 @@ func TestComponentListView_LoadingTitle(t *testing.T) {
 	require.NotEmpty(t, components)
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -170,7 +170,7 @@ func TestComponentListView_MetadataRowRendered(t *testing.T) {
 	entry := components[0].WithVersion("v1.10.2").WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -197,7 +197,7 @@ func TestComponentListView_TemplateKindRendered(t *testing.T) {
 	)).WithSource("github.com/gruntwork-io/templates-repo")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, template, componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, template, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -219,7 +219,7 @@ func TestComponentListView_NoVersionOmitsVersionPill(t *testing.T) {
 	entry := components[0].WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
 	componentCh := make(chan *redesign.ComponentEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, entry, componentCh, nil)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -253,7 +253,7 @@ func TestComponentListView_LongSourceAbbreviatesWithEllipsis(t *testing.T) {
 	)).WithSource(longSource)
 
 	componentCh := make(chan *redesign.ComponentEntry, 1)
-	m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, entry, componentCh, nil)
 
 	// Narrow terminal forces the source column to shrink below the raw width,
 	// which forces abbreviateMiddle to truncate.
@@ -269,7 +269,7 @@ func TestComponentListView_LongSourceAbbreviatesWithEllipsis(t *testing.T) {
 
 // --- synctest: Streaming Flow ---
 
-func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
+func TestWelcomeStreamingFlowWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -299,97 +299,98 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, opts, streamingLoad)
 
 		m = updateModel(m, windowSize)
-
-		_, isWelcome := m.(redesign.WelcomeModel)
-		assert.True(t, isWelcome, "should start as WelcomeModel")
-
-		content := stripANSI(m.View().Content)
-		assert.Contains(t, content, "Terragrunt Catalog", "should show title while loading")
-
-		cmd := m.Init()
-
-		msgCh := make(chan tea.Msg, 10)
-
-		go func() {
-			if cmd != nil {
-				msg := cmd()
-				if msg != nil {
-					msgCh <- msg
-				}
-			}
-		}()
-
-		time.Sleep(150 * time.Millisecond)
-
-		draining := true
-		for draining {
-			select {
-			case msg := <-msgCh:
-				var nextCmd tea.Cmd
-
-				m, nextCmd = m.Update(msg)
-
-				if nextCmd != nil {
-					go func() {
-						result := nextCmd()
-						if result != nil {
-							msgCh <- result
-						}
-					}()
-				}
-			default:
-				draining = false
-			}
-		}
-
-		time.Sleep(500 * time.Millisecond)
-
-		draining = true
-		for draining {
-			select {
-			case msg := <-msgCh:
-				var nextCmd tea.Cmd
-
-				m, nextCmd = m.Update(msg)
-
-				if nextCmd != nil {
-					go func() {
-						result := nextCmd()
-						if result != nil {
-							msgCh <- result
-						}
-					}()
-				}
-			default:
-				draining = false
-			}
-		}
+		m = runUntilQuiet(t, m, m.Init(), 5*time.Second)
 
 		listModel, isList := m.(redesign.Model)
-		if isList {
-			assert.Equal(t, redesign.ListState, listModel.State, "should be in list state")
+		require.True(t, isList, "welcome should transition to streaming Model after first component")
 
-			items := listModel.List().Items()
-			assert.GreaterOrEqual(t, len(items), 1, "should have at least one component in the list")
+		assert.Equal(t, redesign.ListState, listModel.State, "should be in list state")
 
-			for i := 1; i < len(items); i++ {
-				prev := items[i-1].(*redesign.ComponentEntry).Title()
-				curr := items[i].(*redesign.ComponentEntry).Title()
-				assert.LessOrEqual(t, strings.ToLower(prev), strings.ToLower(curr),
-					"components should be in alphabetical order: %q should come before %q", prev, curr)
-			}
+		items := listModel.List().Items()
+		assert.GreaterOrEqual(t, len(items), 1, "should have at least one component in the list")
+
+		for i := 1; i < len(items); i++ {
+			prev := items[i-1].(*redesign.ComponentEntry).Title()
+			curr := items[i].(*redesign.ComponentEntry).Title()
+			assert.LessOrEqual(t, strings.ToLower(prev), strings.ToLower(curr),
+				"components should be in alphabetical order: %q should come before %q", prev, curr)
 		}
 	})
 }
 
-// TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscovery_Synctest
+// runUntilQuiet dispatches initialCmd into the synctest bubble and applies
+// every message it produces (and the transitive cmds those messages return)
+// until budget elapses without new activity. Used by tests that need
+// post-Init state transitions to actually update the model — unlike
+// driveModel's settle loop, which discards trailing messages so background
+// tickers can finish cleanly.
+func runUntilQuiet(t *testing.T, m tea.Model, initialCmd tea.Cmd, budget time.Duration) tea.Model {
+	t.Helper()
+
+	msgCh := make(chan tea.Msg, 100)
+
+	spawn := func(cmd tea.Cmd) {
+		if cmd == nil {
+			return
+		}
+
+		go func() {
+			if msg := cmd(); msg != nil {
+				msgCh <- msg
+			}
+		}()
+	}
+
+	apply := func(msg tea.Msg) {
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				spawn(c)
+			}
+
+			return
+		}
+
+		var cmd tea.Cmd
+
+		m, cmd = m.Update(msg)
+		spawn(cmd)
+	}
+
+	spawn(initialCmd)
+
+	deadline := time.Now().Add(budget)
+
+	for time.Now().Before(deadline) {
+		synctest.Wait()
+
+		for drained := false; ; drained = false {
+			select {
+			case msg := <-msgCh:
+				apply(msg)
+
+				drained = true
+			default:
+			}
+
+			if !drained {
+				break
+			}
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	return m
+}
+
+// TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscoveryWithRacing
 // drives the full welcome → streaming-list transition end-to-end through the
 // bubbletea command cycle and asserts that the rendered list view stops
 // showing the `(loading...)` tab-bar suffix once discovery completes. It
 // guards against a regression where the swap from WelcomeModel to the
 // streaming Model dropped the in-flight DiscoveryCompleteMsg, leaving the
 // loading indicator stuck on screen.
-func TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscovery_Synctest(t *testing.T) {
+func TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscoveryWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -473,7 +474,7 @@ func TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscovery_Synctest(t *t
 		listModel, ok := m.(redesign.Model)
 		require.True(t, ok, "should have transitioned to streaming Model after discovery")
 
-		assert.False(t, redesign.LoadingForTest(listModel),
+		assert.False(t, listModel.Loading(),
 			"streaming Model.loading should be cleared by DiscoveryCompleteMsg")
 
 		content := stripANSI(listModel.View().Content)
@@ -486,7 +487,7 @@ func TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscovery_Synctest(t *t
 
 // --- synctest: Spinner Animation ---
 
-func TestWelcomeLoadingSpinner_Synctest(t *testing.T) {
+func TestWelcomeLoadingSpinnerWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -496,55 +497,18 @@ func TestWelcomeLoadingSpinner_Synctest(t *testing.T) {
 		l := logger.CreateLogger()
 
 		slowLoad := func(ctx context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
-			select {
-			case <-time.After(10 * time.Second):
-			case <-ctx.Done():
-			}
+			<-ctx.Done()
 
 			return nil
 		}
 
-		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, opts, slowLoad)
+		m := redesign.NewWelcomeModel(t.Context(), l, opts, slowLoad)
 
-		m = updateModel(m, windowSize)
+		finalModel := driveModel(t, m, 120, 40, []tea.Msg{
+			tea.KeyPressMsg{Code: 'q', Text: "q"},
+		})
 
-		cmd := m.Init()
-
-		msgCh := make(chan tea.Msg, 10)
-
-		go func() {
-			if cmd != nil {
-				msg := cmd()
-				if msg != nil {
-					msgCh <- msg
-				}
-			}
-		}()
-
-		time.Sleep(150 * time.Millisecond)
-
-		draining := true
-		for draining {
-			select {
-			case msg := <-msgCh:
-				var nextCmd tea.Cmd
-
-				m, nextCmd = m.Update(msg)
-
-				if nextCmd != nil {
-					go func() {
-						result := nextCmd()
-						if result != nil {
-							msgCh <- result
-						}
-					}()
-				}
-			default:
-				draining = false
-			}
-		}
-
-		view := m.View()
+		view := finalModel.View()
 		content := stripANSI(view.Content)
 
 		assert.Contains(t, content, "Terragrunt Catalog", "should still show title")

@@ -84,32 +84,32 @@ func TestDiscoverSourceURLs(t *testing.T) {
 	unitE := filepath.Join(tmpDir, "unit-e")
 
 	for _, dir := range []string{unitA, unitB, unitC, unitD, unitE} {
-		require.NoError(t, os.MkdirAll(dir, 0755))
+		require.NoError(t, os.MkdirAll(dir, 0o755))
 	}
 
 	require.NoError(t, os.WriteFile(filepath.Join(unitA, "terragrunt.hcl"), []byte(`
 terraform {
   source = "github.com/org/repo-a//modules/vpc?ref=v1.0"
 }
-`), 0644))
+`), 0o644))
 
 	require.NoError(t, os.WriteFile(filepath.Join(unitB, "terragrunt.hcl"), []byte(`
 terraform {
   source = "github.com/org/repo-b"
 }
-`), 0644))
+`), 0o644))
 
 	require.NoError(t, os.WriteFile(filepath.Join(unitC, "terragrunt.hcl"), []byte(`
 terraform {
   source = "github.com/org/repo-a//modules/ecs?ref=v2.0"
 }
-`), 0644))
+`), 0o644))
 
 	require.NoError(t, os.WriteFile(filepath.Join(unitD, "terragrunt.hcl"), []byte(`
 terraform {
   source = "${local.base_source_url}?ref=v1.0"
 }
-`), 0644))
+`), 0o644))
 
 	require.NoError(t, os.WriteFile(filepath.Join(unitE, "terragrunt.hcl"), []byte(`
 include "root" {
@@ -119,7 +119,7 @@ include "root" {
 inputs = {
   name = "test"
 }
-`), 0644))
+`), 0o644))
 
 	l := logger.CreateLogger()
 	ctx, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
