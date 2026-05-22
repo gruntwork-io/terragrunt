@@ -20,7 +20,7 @@ terragrunt: $(shell find . \( -type d -name 'vendor' -prune \) \
                         -o \( -type f -name '*.go'   -print \) )
 	set -xe ;\
 	vtag_maybe_extra=$$(git describe --tags --abbrev=12 --dirty --broken) ;\
-	CGO_ENABLED=0 go build -o $@ -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=$${vtag_maybe_extra}" .
+	CGO_ENABLED=0 go build -o $@ -ldflags "-s -w -X github.com/gruntwork-io/terragrunt/internal/version.Version=$${vtag_maybe_extra}" .
 
 clean:
 	rm -f terragrunt

@@ -4,9 +4,9 @@ package module
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -118,7 +118,7 @@ func (module *Module) isValid() (bool, error) {
 			continue
 		}
 
-		if collections.ListContainsElement(ignoreFiles, file.Name()) {
+		if slices.Contains(ignoreFiles, file.Name()) {
 			continue
 		}
 

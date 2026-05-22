@@ -12,7 +12,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -437,7 +436,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	opts.TerraformCommand = cmdName
 	opts.TerraformCliArgs = iacargs.New(args...)
 
-	opts.Env = env.Parse(os.Environ())
+	opts.Env = util.EnvironMap()
 
 	// --- Working Dir
 	if opts.WorkingDir == "" {
