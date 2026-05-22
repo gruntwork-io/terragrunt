@@ -13,11 +13,11 @@ Upon completing this module, you will be able to:
 
 | Objective | What You'll Learn |
 |:----------|:------------------|
-| **Configure dynamic credentials** | Using `auth-provider-command` |
+| **Configure dynamic credentials** | Using `--auth-provider-cmd` |
 | **Execute efficiently** | Run queue strategies with filtering |
 | **Handle errors** | Automatic retry for transient failures |
 
-## Dynamic Credentials with auth-provider-command
+## Dynamic Credentials with `--auth-provider-cmd`
 
 The `--auth-provider-cmd` flag enables Terragrunt to obtain AWS credentials **dynamically** by executing a command that returns credentials in JSON format.
 
@@ -126,7 +126,7 @@ aws configure export-credentials | \
 | **Multi-account support** | Assume different roles per account |
 
 :::caution
-**`auth-provider-command` provides _dynamic_ credentials, not automatically _secure_ ones.** Terragrunt runs the command you give it and uses whatever it returns. It's your responsibility to write a script that fetches credentials securely. For example, source short-lived credentials from AWS SSO or OIDC, or return an `awsRole` so Terragrunt assumes and refreshes the role for you.
+**`--auth-provider-cmd` provides _dynamic_ credentials, not automatically _secure_ ones.** Terragrunt runs the command you give it and uses whatever it returns. It's your responsibility to write a script that fetches credentials securely. For example, source short-lived credentials from AWS SSO or OIDC, or return an `awsRole` so Terragrunt assumes and refreshes the role for you.
 :::
 
 ## Run Strategies and Filtering

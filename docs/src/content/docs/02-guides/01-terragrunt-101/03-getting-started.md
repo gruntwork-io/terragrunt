@@ -152,7 +152,7 @@ Passes **variables** to your module.
 
 Note that `inputs` is an attribute (`inputs = { ... }`), not a block.
 
-Terragrunt passes variables to OpenTofu by setting a [`TF_VAR_$name`](https://opentofu.org/docs/cli/config/environment-variables/#tf_var_name) environment variables.
+Terragrunt passes variables to OpenTofu by setting the [`TF_VAR_$name`](https://opentofu.org/docs/cli/config/environment-variables/#tf_var_name) environment variable.
 
 ---
 
@@ -424,8 +424,8 @@ When troubleshooting, `cd` into the cache directory and run OpenTofu commands di
 
 > This lets you **inspect the generated files** and see exactly what Terragrunt assembled.
 
-You can also use the `--inputs-debug` flag of terragrunt from the unit directory to generate a debug.tfvars.
-This will fully render all inputs Terragrunt would use so you can experiment with Tofu directly.
+You can also use the `--inputs-debug` flag of Terragrunt from the unit directory to generate a debug.tfvars.
+This will fully render all inputs Terragrunt would use, so you can experiment with Tofu directly.
 
 ```
 terragrunt plan --inputs-debug

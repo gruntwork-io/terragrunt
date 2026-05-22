@@ -350,7 +350,7 @@ This matters when using `--filter 'reading=<file>'` to selectively run units tha
 
 The `mark_as_read()` function **registers the file** as having been read by the unit. It returns the file path, so you wrap it around the path you pass to `file()`:
 
-`mark_as_read()` effectively enables Terragrunt to add units to a run queue dependent on non-hcl files.
+`mark_as_read()` effectively enables Terragrunt to add units to a run queue dependent on non-HCL files.
 
 ```hcl
 locals {
@@ -369,7 +369,7 @@ locals {
 
 | Requirement | Why |
 |:------------|:----|
-| Use `mark_as_read()` | Enables tracking non-hcl files |
+| Use `mark_as_read()` | Enables tracking non-HCL files |
 | Must be in `locals` | For filter tracking to work |
 | Works with `--filter` | `--filter 'reading=<file>'` to include units that read specific files |
 
