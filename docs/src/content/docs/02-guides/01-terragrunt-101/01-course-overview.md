@@ -1,6 +1,6 @@
 ---
 title: Overview
-description: Welcome and orientation for the Terragrunt 101 self-paced course
+description: Welcome and orientation for the Terragrunt 101 self-paced guide
 slug: guides/terragrunt-101
 sidebar:
   order: 1
