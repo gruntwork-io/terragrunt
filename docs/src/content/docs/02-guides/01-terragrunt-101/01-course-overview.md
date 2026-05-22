@@ -66,7 +66,7 @@ In [**Module 6: Authoring Units**](/guides/terragrunt-101/authoring-units/), you
 
 [**Module 8: Advanced Patterns**](/guides/terragrunt-101/advanced-patterns/) brings it all together with:
 - Dynamic credentials with `auth-provider-command`
-- Run-queue strategies and filtering
+- Run queue strategies and filtering
 - Error handling (retries and ignoring expected errors)
 
 ## Resources
