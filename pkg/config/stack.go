@@ -177,7 +177,9 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			l.Warnf("Failed to initialize CAS for stack generation: %v. CAS features disabled.", casErr)
 
 			casEnabled = false
-		} else {
+		}
+
+		if casEnabled {
 			casInstance = c
 		}
 	}
@@ -403,9 +405,11 @@ func validateGeneratedComponent(l log.Logger, cmp *componentToGenerate, opts *ge
 	if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
 		if opts.noStackValidate {
 			l.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
-		} else {
-			return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
+
+			return nil
 		}
+
+		return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
 	}
 
 	return nil
@@ -625,24 +629,7 @@ func isCASProtocol(source string) bool {
 // contents of the source directory to the destination. If remote, it fetches the
 // source and stores it in the destination directory.
 func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, dest string) error {
-	if isLocal(l, sourceDir, src) {
-		// check if src is absolute path, if not, join with sourceDir
-		var localSrc string
-
-		if filepath.IsAbs(src) {
-			localSrc = src
-		} else {
-			localSrc = filepath.Join(sourceDir, src)
-		}
-
-		localSrc = filepath.Clean(localSrc)
-
-		if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
-			return true
-		}); err != nil {
-			return errors.Errorf("Failed to copy %s to %s %w", localSrc, dest, err)
-		}
-	} else {
+	if !isLocal(l, sourceDir, src) {
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
 			return errors.Errorf("Failed to create directory %s for %s %w", dest, identifier, err)
 		}
@@ -650,6 +637,23 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 		if _, err := getter.GetAny(ctx, dest, src); err != nil {
 			return errors.Errorf("Failed to fetch %s %s for %s %w", src, dest, identifier, err)
 		}
+
+		return nil
+	}
+
+	// check if src is absolute path, if not, join with sourceDir
+	localSrc := src
+
+	if !filepath.IsAbs(src) {
+		localSrc = filepath.Join(sourceDir, src)
+	}
+
+	localSrc = filepath.Clean(localSrc)
+
+	if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
+		return true
+	}); err != nil {
+		return errors.Errorf("Failed to copy %s to %s %w", localSrc, dest, err)
 	}
 
 	return nil

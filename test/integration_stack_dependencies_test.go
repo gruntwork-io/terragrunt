@@ -1140,13 +1140,7 @@ func TestStackDepsNestedSameNameWithCAS(t *testing.T) {
 	catalog := helpers.TmpDirWOSymlinks(t)
 	liveDir := helpers.TmpDirWOSymlinks(t)
 
-	writeCatalogFile := func(rel, body string) {
-		full := filepath.Join(catalog, rel)
-		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
-		require.NoError(t, os.WriteFile(full, []byte(body), 0644))
-	}
-
-	writeCatalogFile("units/foo/main.tf", `resource "local_file" "marker" {
+	writeStackDepsFile(t, catalog, "units/foo/main.tf", `resource "local_file" "marker" {
   content  = "Hello from unit foo inside stack foo!"
   filename = "${path.module}/output.txt"
 }
@@ -1155,9 +1149,9 @@ output "val" {
   value = "from-stack-foo-unit-foo"
 }
 `)
-	writeCatalogFile("units/foo/terragrunt.hcl", ``)
+	writeStackDepsFile(t, catalog, "units/foo/terragrunt.hcl", ``)
 
-	writeCatalogFile("units/bar/main.tf", `variable "val" {
+	writeStackDepsFile(t, catalog, "units/bar/main.tf", `variable "val" {
   type        = string
   description = "Value received from stack.foo.foo"
 }
@@ -1171,10 +1165,10 @@ output "received_val" {
   value = var.val
 }
 `)
-	writeCatalogFile("units/bar/terragrunt.hcl", ``)
+	writeStackDepsFile(t, catalog, "units/bar/terragrunt.hcl", ``)
 
 	// Catalog stack file uses a bare relative `source` rewritten to a cas:: reference at generation time.
-	writeCatalogFile("stacks/foo/terragrunt.stack.hcl", `unit "foo" {
+	writeStackDepsFile(t, catalog, "stacks/foo/terragrunt.stack.hcl", `unit "foo" {
   source = "../..//units/foo"
   path   = "foo"
 
@@ -1273,16 +1267,10 @@ func TestStackDepsRelativeCatalogSourceRewrittenByCAS(t *testing.T) {
 	catalog := helpers.TmpDirWOSymlinks(t)
 	liveDir := helpers.TmpDirWOSymlinks(t)
 
-	writeCatalogFile := func(rel, body string) {
-		full := filepath.Join(catalog, rel)
-		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
-		require.NoError(t, os.WriteFile(full, []byte(body), 0644))
-	}
+	writeStackDepsFile(t, catalog, "units/baz/main.tf", `output "value" { value = "baz" }`)
+	writeStackDepsFile(t, catalog, "units/baz/terragrunt.hcl", ``)
 
-	writeCatalogFile("units/baz/main.tf", `output "value" { value = "baz" }`)
-	writeCatalogFile("units/baz/terragrunt.hcl", ``)
-
-	writeCatalogFile("stacks/inner/terragrunt.stack.hcl", `unit "baz" {
+	writeStackDepsFile(t, catalog, "stacks/inner/terragrunt.stack.hcl", `unit "baz" {
   source = "../..//units/baz"
   path   = "baz"
 
@@ -1316,4 +1304,13 @@ func TestStackDepsRelativeCatalogSourceRewrittenByCAS(t *testing.T) {
 
 	// And the nested unit must materialize under the recursion target.
 	require.FileExists(t, filepath.Join(liveDir, inthclparse.StackDir, "inner", inthclparse.StackDir, "baz", "terragrunt.hcl"))
+}
+
+// writeStackDepsFile writes body to root/rel, creating parent dirs as needed; test fails on any error.
+func writeStackDepsFile(t *testing.T, root, rel, body string) {
+	t.Helper()
+
+	full := filepath.Join(root, rel)
+	require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
+	require.NoError(t, os.WriteFile(full, []byte(body), 0644))
 }

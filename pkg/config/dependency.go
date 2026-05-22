@@ -105,7 +105,9 @@ func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 	if sourceDepConfig.MockOutputs != nil {
 		if dep.MockOutputs == nil {
 			dep.MockOutputs = sourceDepConfig.MockOutputs
-		} else {
+		}
+
+		if dep.MockOutputs != sourceDepConfig.MockOutputs {
 			newMockOutputs, err := deepMergeCtyMaps(*dep.MockOutputs, *sourceDepConfig.MockOutputs)
 			if err != nil {
 				return err
@@ -118,7 +120,9 @@ func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 	if sourceDepConfig.MockOutputsAllowedTerraformCommands != nil {
 		if dep.MockOutputsAllowedTerraformCommands == nil {
 			dep.MockOutputsAllowedTerraformCommands = sourceDepConfig.MockOutputsAllowedTerraformCommands
-		} else {
+		}
+
+		if dep.MockOutputsAllowedTerraformCommands != sourceDepConfig.MockOutputsAllowedTerraformCommands {
 			mergedCmds := append(*dep.MockOutputsAllowedTerraformCommands, *sourceDepConfig.MockOutputsAllowedTerraformCommands...)
 			dep.MockOutputsAllowedTerraformCommands = &mergedCmds
 		}
@@ -133,15 +137,15 @@ func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 //   - mock_outputs_merge_with_state being true returns ShallowMerge
 //   - mock_outputs_merge_with_state being false returns NoMerge
 func (dep *Dependency) getMockOutputsMergeStrategy() MergeStrategyType {
-	if dep.MockOutputsMergeStrategyWithState == nil {
-		if dep.MockOutputsMergeWithState != nil && (*dep.MockOutputsMergeWithState) {
-			return ShallowMerge
-		} else {
-			return NoMerge
-		}
+	if dep.MockOutputsMergeStrategyWithState != nil {
+		return *dep.MockOutputsMergeStrategyWithState
 	}
 
-	return *dep.MockOutputsMergeStrategyWithState
+	if dep.MockOutputsMergeWithState != nil && (*dep.MockOutputsMergeWithState) {
+		return ShallowMerge
+	}
+
+	return NoMerge
 }
 
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
