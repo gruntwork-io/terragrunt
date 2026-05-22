@@ -21,7 +21,7 @@ Terragrunt helps you **organize**, **reuse**, and **orchestrate** infrastructure
 
 - **Stacks**: Split infrastructure into small, deployable [**units**](https://docs.terragrunt.com/getting-started/terminology/#unit) and combine them into [**stacks**](https://docs.terragrunt.com/getting-started/terminology/#stack). Define a stack once (e.g., a VPC plus subnets plus security groups) and instantiate it across environments or accounts with different values. No duplicated directory trees.
 - **Keep things DRY**: Share backend config, CLI arguments, and inputs across all your units via a single root config. The OpenTofu/Terraform `backend` block doesn't support variables; Terragrunt does, so you write configuration once and reuse it everywhere.
-- **Catalog**: Scaffold new units quickly with `terragrunt catalog` from a curated set of modules instead of writing every `terragrunt.hcl` from scratch.
+- **Catalog**: Scaffold new units quickly with `terragrunt catalog` to enable infrastructure self-service using Infrastructure as Code.
 - **Orchestration**: Run many units in the right order. Terragrunt understands dependencies between modules and manages multiple state files so you can plan and apply in dependency order without manual scripting.
 
 If you've outgrown ad hoc folder copying, repeated backend blocks, or custom scripts to chain Terraform/OpenTofu runs, this course will show you how Terragrunt addresses that. You'll learn the concepts (units, stacks, root config), the HCL blocks and functions that make config reusable, and how to author and compose stacks so your IaC stays maintainable as it grows.
