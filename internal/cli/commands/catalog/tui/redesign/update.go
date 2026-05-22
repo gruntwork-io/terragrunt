@@ -54,7 +54,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			m.activeTab = m.activeTab.prev()
 
 			return m, nil
-		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.ScaffoldInteractive, m.delegateKeys.ScaffoldPlaceholder):
+		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.ScaffoldInteractive):
 			selectedEntry, ok := m.lists[m.activeTab].SelectedItem().(*ComponentEntry)
 			if !ok {
 				break
@@ -96,10 +96,6 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 				return m, nil
 			case key.Matches(msg, m.delegateKeys.ScaffoldInteractive):
 				return enterFormState(m, selectedComponent, ListState)
-			case key.Matches(msg, m.delegateKeys.ScaffoldPlaceholder):
-				m.State = ScaffoldState
-
-				return m, primaryActionCmd(m.logger, m, selectedComponent)
 			}
 
 		case key.Matches(msg, m.listKeys.Quit):
@@ -146,10 +142,21 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.pagerKeys.ScaffoldInteractive):
 			return enterFormState(m, m.selectedComponent, PagerState)
-		case key.Matches(msg, m.pagerKeys.ScaffoldPlaceholder):
-			m.State = ScaffoldState
+		case key.Matches(msg, m.pagerKeys.ToggleWrap):
+			m.softWrap = !m.softWrap
+			m.mdRenderer = nil
 
-			return m, primaryActionCmd(m.logger, m, m.selectedComponent)
+			if m.selectedComponent != nil {
+				updated, content, err := m.renderComponentContent(m.selectedComponent, ResolveTagsDetailStyle(), m.selectedComponent.Tags())
+				if err != nil {
+					return m, rendererErrCmd(err)
+				}
+
+				m = updated
+				m.viewport.SetContent(content)
+			}
+
+			return m, nil
 
 		case key.Matches(msg, m.pagerKeys.Quit):
 			m.State = ListState
@@ -360,20 +367,6 @@ type CopyFinishedMsg struct {
 	Interactive bool
 }
 
-func scaffoldComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd {
-	return tea.Exec(newScaffoldCmd(l, m.terragruntOptions, c), func(err error) tea.Msg {
-		return ScaffoldFinishedMsg{Err: err}
-	})
-}
-
-func copyComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd {
-	cmd := NewCopyCmd(l, m.terragruntOptions, c)
-
-	return tea.Exec(cmd, func(err error) tea.Msg {
-		return CopyFinishedMsg{Err: err, Result: cmd.Result()}
-	})
-}
-
 const (
 	valuesBoxAccentGreen  = "#50FA7B"
 	valuesBoxAccentYellow = "#F1FA8C"
@@ -558,16 +551,6 @@ func displayPath(baseDir, abs string) string {
 	// the string reads obviously as a relative path. filepath.Join/Clean both
 	// strip this prefix, so we compose it explicitly.
 	return "." + string(filepath.Separator) + rel
-}
-
-// primaryActionCmd dispatches to scaffold or copy based on the component's
-// kind. Units and stacks copy; modules and templates scaffold.
-func primaryActionCmd(l log.Logger, m Model, c *Component) tea.Cmd {
-	if c.Kind.IsCopyable() {
-		return copyComponentCmd(l, m, c)
-	}
-
-	return scaffoldComponentCmd(l, m, c)
 }
 
 // formReadyMsg is delivered once discovery has built a populated FormModel

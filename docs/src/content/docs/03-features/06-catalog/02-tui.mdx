@@ -45,16 +45,15 @@ This will recursively search for OpenTofu/Terraform modules in the root of the r
 1. Search and filter the table: `/` and start typing.
 1. Select a module in the table: use the arrow keys to go up and down and next/previous page using the left and right arrow keys.
 1. Read the docs for a selected module: `ENTER`.
-1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` for using the module with an interactive form: `s`.
-1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` that leaves every input as a `# TODO` placeholder for you to fill in by hand: `S`.
+1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` for using the module with an interactive form: `s`. Inside the form, `ctrl+d` writes the file even when required fields are still unset, leaving them as `# TODO` placeholders for you to fill in by hand.
 
 <Aside type="tip" title="Catalog Redesign Experiment">
-The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Without the experiment, both `s` and `S` produce the same placeholder-style output as `S`.
+The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Without the experiment, `s` produces a placeholder-style file with every input marked `# TODO`.
 </Aside>
 
 ## Scaffolding Flags
 
-The following `catalog` flags control behavior of the underlying `scaffold` command, regardless of whether you launch it with `s` (interactive form) or `S` (placeholder file):
+The following `catalog` flags control behavior of the underlying `scaffold` command launched via `s`:
 
 - `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
 - `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.
@@ -211,7 +210,6 @@ The default view, shown after discovery completes.
 | `end`, `ctrl+e` | Jump to last row |
 | `enter` | View the selected component's README |
 | `s` | Scaffold the selected component (interactive form) |
-| `S` | Scaffold the selected component (TODO placeholders) |
 | `tab` | Next tab (redesign experiment) |
 | `shift+tab` | Previous tab (redesign experiment) |
 | `/` | Search and filter the visible list |
@@ -233,7 +231,7 @@ Active after pressing `enter` on a component.
 | `shift+tab` | Focus the previous button in the footer |
 | `enter` | Activate the focused button |
 | `s` | Scaffold (interactive form) |
-| `S` | Scaffold (TODO placeholders) |
+| `w` | Toggle soft-wrapping of long README lines |
 | `?` | Toggle the expanded help view |
 | `q`, `esc` | Back to the list |
 | `ctrl+c` | Force quit |
@@ -257,11 +255,11 @@ The form opens in *navigate* mode. Pressing `enter` on a text field switches to 
 | `home`, `ctrl+a` | Jump to the first field |
 | `end`, `ctrl+e` | Jump to the last field |
 | `enter`, `i` | Enter edit mode on a text field, or toggle a checkbox |
-| `x` | Mark the focused field as "use default" |
-| `X` | Mark every optional field as "use default" |
+| `x` | Reset the focused optional field to its source default |
+| `X` | Reset every optional field to its source default |
 | `/` | Filter fields by name |
-| `s` | Scaffold (refuses if any required field is unset) |
-| `S`, `ctrl+d` | Scaffold (leaves unset required fields as `# TODO`) |
+| `s` | Scaffold; if any required field is unset, the form prompts you to press `ctrl+d` to write anyway |
+| `ctrl+d` | Scaffold immediately, leaving unset required fields as `# TODO` |
 | `esc` | Cancel and return to the previous view |
 
 #### Edit mode
@@ -271,7 +269,9 @@ Active while typing into a text field. Keys not listed here are forwarded to the
 | Key | Action |
 |-----|--------|
 | `esc` | Finish editing and return to navigate mode |
-| `enter` | Toggle (bool/checkbox fields only) |
+| `enter` | On a text/HCL field, finish editing and return to navigate mode (same as `esc`). On a bool field, toggle between `[x] true` and `[ ] false` |
+| `tab` | Commit the current field and jump to the next visible one, staying in edit mode |
+| `shift+tab` | Commit the current field and jump to the previous visible one, staying in edit mode |
 | `ctrl+d` | Scaffold immediately, skipping the required-field check |
 
 ### Welcome screen

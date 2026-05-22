@@ -179,53 +179,6 @@ func TestModelTabShiftTabCyclesWithRacing(t *testing.T) {
 	})
 }
 
-// TestModelCopyActionPlaceholderTransitionsToScaffoldStateWithRacing asserts that
-// pressing the placeholder scaffold key (`S`) on a copyable component
-// transitions the Model directly to ScaffoldState, which is what
-// dispatches the copy action with TODO placeholders.
-//
-// The copy itself is exercised end-to-end in copy_test.go; here we only
-// verify the wire-up, because tea.Exec (used by the copy dispatch) only runs
-// the underlying ExecCommand inside a real bubbletea runtime.
-func TestModelCopyActionPlaceholderTransitionsToScaffoldStateWithRacing(t *testing.T) {
-	t.Parallel()
-
-	synctest.Test(t, func(t *testing.T) {
-		fsys := vfs.NewMemMapFS()
-		repoDir := testRepoDir
-
-		unitBody := `locals { region = values.region }` + "\n"
-		writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
-
-		repo := newFakeRepo(t, fsys, repoDir)
-
-		components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
-		require.NoError(t, err)
-		require.Len(t, components, 1)
-		require.Equal(t, redesign.ComponentKindUnit, components[0].Kind)
-
-		opts, err := options.NewTerragruntOptionsForTest("")
-		require.NoError(t, err)
-
-		opts.WorkingDir = t.TempDir()
-
-		entry := redesign.NewComponentEntry(components[0]).WithSource("github.com/gruntwork-io/fake-repo")
-
-		componentCh := make(chan *redesign.ComponentEntry)
-		close(componentCh)
-
-		m := redesign.NewModelStreaming(t.Context(), logger.CreateLogger(), opts, entry, componentCh, nil)
-
-		// Capital S = placeholder scaffold flow.
-		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'S', Text: "S"}}
-
-		finalModel := driveModel(t, m, 120, 40, msgs).(redesign.Model)
-
-		assert.Equal(t, redesign.ScaffoldState, finalModel.State,
-			"pressing 'S' on a unit should transition to ScaffoldState")
-	})
-}
-
 // TestModelInteractiveScaffoldTransitionsToFormStateWithRacing asserts that pressing
 // the interactive scaffold key (`s`) on a copyable component transitions
 // the Model to FormState. The discovery goroutine runs synchronously via
@@ -636,5 +589,54 @@ func TestModelPagerViewRendersAfterEnterWithRacing(t *testing.T) {
 		content := stripANSI(finalModel.View().Content)
 		assert.Contains(t, content, "100%",
 			"pager footer should render scroll percent")
+	})
+}
+
+// TestModelPagerWToggleFlipsSoftWrapWithRacing exercises the `w` key in
+// PagerState: starting from default soft-wrap on, one press flips it
+// off, a second flips it back. The toggle also rebuilds the cached
+// glamour renderer, which is hard to inspect from outside, so we rely on
+// the visible softWrap accessor to verify the lifecycle.
+func TestModelPagerWToggleFlipsSoftWrapWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		opts.WorkingDir = t.TempDir()
+
+		l := logger.CreateLogger()
+
+		entry := redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindModule,
+			"github.com/gruntwork-io/fake-repo",
+			"modules/vpc",
+			"# VPC Module\nA module.",
+		)).WithSource("github.com/gruntwork-io/fake-repo")
+
+		componentCh := make(chan *redesign.ComponentEntry)
+		close(componentCh)
+
+		m := redesign.NewModelStreaming(t.Context(), l, opts, entry, componentCh, nil)
+
+		// Enter pager, then toggle `w` twice. driveModel runs the
+		// messages through Update in order and returns the final model.
+		msgs := []tea.Msg{
+			tea.KeyPressMsg{Code: tea.KeyEnter},
+			tea.KeyPressMsg{Code: 'w', Text: "w"},
+		}
+
+		afterFirstToggle := driveModel(t, m, 120, 40, msgs).(redesign.Model)
+
+		assert.Equal(t, redesign.PagerState, afterFirstToggle.State)
+		assert.False(t, afterFirstToggle.SoftWrap(),
+			"first `w` press should flip soft-wrap off")
+
+		updated, _ := afterFirstToggle.Update(tea.KeyPressMsg{Code: 'w', Text: "w"})
+		afterSecondToggle := updated.(redesign.Model)
+
+		assert.True(t, afterSecondToggle.SoftWrap(),
+			"second `w` press should flip soft-wrap back on")
 	})
 }

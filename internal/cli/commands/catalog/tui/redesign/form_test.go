@@ -42,12 +42,14 @@ func drainFormCmds(cmd tea.Cmd) tea.Msg {
 
 // pressJ etc. are tiny ergonomic helpers so the modal test sequences stay
 // readable.
-func pressJ() tea.KeyPressMsg     { return tea.KeyPressMsg{Code: 'j', Text: "j"} }
-func pressK() tea.KeyPressMsg     { return tea.KeyPressMsg{Code: 'k', Text: "k"} }
-func pressX() tea.KeyPressMsg     { return tea.KeyPressMsg{Code: 'x', Text: "x"} }
-func pressEnter() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyEnter} }
-func pressEsc() tea.KeyPressMsg   { return tea.KeyPressMsg{Code: tea.KeyEscape} }
-func pressCtrlD() tea.KeyPressMsg { return tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl} }
+func pressJ() tea.KeyPressMsg        { return tea.KeyPressMsg{Code: 'j', Text: "j"} }
+func pressK() tea.KeyPressMsg        { return tea.KeyPressMsg{Code: 'k', Text: "k"} }
+func pressX() tea.KeyPressMsg        { return tea.KeyPressMsg{Code: 'x', Text: "x"} }
+func pressEnter() tea.KeyPressMsg    { return tea.KeyPressMsg{Code: tea.KeyEnter} }
+func pressEsc() tea.KeyPressMsg      { return tea.KeyPressMsg{Code: tea.KeyEscape} }
+func pressCtrlD() tea.KeyPressMsg    { return tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl} }
+func pressTab() tea.KeyPressMsg      { return tea.KeyPressMsg{Code: tea.KeyTab} }
+func pressShiftTab() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift} }
 
 func TestFormFieldsFromParsedVariables_OrderingAndMetadata(t *testing.T) {
 	t.Parallel()
@@ -386,11 +388,12 @@ func TestFormHCLValidationBlocksSubmit(t *testing.T) {
 		"validation failure should attach an error to the field")
 }
 
-func TestFormLiveValidationFlagsBadHCL(t *testing.T) {
+func TestFormValidationOnExitFlagsBadHCL(t *testing.T) {
 	t.Parallel()
 
-	// Type a partial map literal one keystroke at a time and confirm the
-	// field's ValidationErr toggles in response to the syntactic state.
+	// Type a partial map literal and confirm no error surfaces while
+	// the user is still typing; on esc back to navigate the validator
+	// runs once and flags the broken value.
 	f := redesign.NewFormModel(nil, []redesign.FormField{
 		{Name: "tags", TypeStr: "map"},
 	})
@@ -402,19 +405,29 @@ func TestFormLiveValidationFlagsBadHCL(t *testing.T) {
 		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 
-	assert.NotEmpty(t, f.Field(0).ValidationErr,
-		"partial map literal should be flagged while still being typed")
+	assert.Empty(t, f.Field(0).ValidationErr,
+		"validation shouldn't fire mid-typing; the user is still working")
 
-	// Finish the literal; the error should clear.
+	f, _ = f.Update(pressEsc())
+
+	assert.NotEmpty(t, f.Field(0).ValidationErr,
+		"on blur (esc back to navigate) the broken literal should be flagged")
+
+	// Re-enter edit and finish the literal; on the next blur the error
+	// should clear.
+	f, _ = f.Update(pressEnter())
+
 	for _, r := range `r"}` {
 		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 
+	f, _ = f.Update(pressEsc())
+
 	assert.Empty(t, f.Field(0).ValidationErr,
-		"completing the map literal should clear the error")
+		"completing the literal then blurring should clear the error")
 }
 
-func TestFormLiveValidationFlagsTypeMismatch(t *testing.T) {
+func TestFormValidationOnExitFlagsTypeMismatch(t *testing.T) {
 	t.Parallel()
 
 	// Declared type is "number" but the user types a string.
@@ -429,11 +442,13 @@ func TestFormLiveValidationFlagsTypeMismatch(t *testing.T) {
 		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 
+	f, _ = f.Update(pressEsc())
+
 	assert.NotEmpty(t, f.Field(0).ValidationErr,
-		"a string literal in a number field should be flagged")
+		"a string literal in a number field should be flagged on blur")
 }
 
-func TestFormLiveValidationFlagsBareIdentifier(t *testing.T) {
+func TestFormValidationOnExitFlagsBareIdentifier(t *testing.T) {
 	t.Parallel()
 
 	// A bare word in a map field parses as a single-step traversal,
@@ -452,11 +467,13 @@ func TestFormLiveValidationFlagsBareIdentifier(t *testing.T) {
 		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 
+	f, _ = f.Update(pressEsc())
+
 	assert.NotEmpty(t, f.Field(0).ValidationErr,
-		"a bare identifier should be flagged as not matching the declared type")
+		"a bare identifier should be flagged on blur as not matching the declared type")
 }
 
-func TestFormLiveValidationAcceptsReferences(t *testing.T) {
+func TestFormValidationOnExitAcceptsReferences(t *testing.T) {
 	t.Parallel()
 
 	// References can't be evaluated without context; the validator
@@ -473,8 +490,32 @@ func TestFormLiveValidationAcceptsReferences(t *testing.T) {
 		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 
+	f, _ = f.Update(pressEsc())
+
 	assert.Empty(t, f.Field(0).ValidationErr,
-		"references should be accepted; eval errors aren't validation errors")
+		"references should be accepted on blur; eval errors aren't validation errors")
+}
+
+func TestFormValidationDoesNotFireMidTyping(t *testing.T) {
+	t.Parallel()
+
+	// Eben specifically called out distracting partial-syntax errors
+	// flashing while typing. Confirm no validation error appears until
+	// the user signals they're done (esc, or a future tab to the next
+	// field).
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "port", TypeStr: "number"},
+	})
+	f.SetSize(120, 40)
+
+	f, _ = f.Update(pressEnter())
+
+	for _, r := range `"abc` {
+		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+
+		assert.Empty(t, f.Field(0).ValidationErr,
+			"validation must not fire on any keystroke; only on blur")
+	}
 }
 
 func TestFormPageNavigationJumpsMultipleFields(t *testing.T) {
@@ -649,6 +690,406 @@ func TestFormValuesReferencesPromotesBoolDefaults(t *testing.T) {
 
 	assert.True(t, fields[2].Checkbox)
 	assert.False(t, fields[2].Bool)
+}
+
+func TestFormTabCyclesCategoryAndNarrowsCursor(t *testing.T) {
+	t.Parallel()
+
+	// Mix required and optional fields; the cursor starts at the first
+	// required field. tab moves to the Required-only tab (no-op for the
+	// cursor since it's already on a required), then to Optional which
+	// snaps the cursor onto the first optional field.
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
+		{Name: "debug", Checkbox: true, TypeStr: "bool"},
+	})
+	f.SetSize(120, 40)
+
+	require.Equal(t, 0, f.Cursor())
+
+	// All -> Required.
+	f, _ = f.Update(pressTab())
+	assert.Equal(t, 0, f.Cursor(),
+		"first required is already focused; cursor doesn't move")
+
+	// j should stay inside Required-only.
+	f, _ = f.Update(pressJ())
+	assert.Equal(t, 1, f.Cursor(), "j walks to the next required field")
+
+	f, _ = f.Update(pressJ())
+	assert.Equal(t, 1, f.Cursor(),
+		"j past the last required clamps; Optional fields aren't reachable here")
+
+	// Required -> Optional snaps to the first optional.
+	f, _ = f.Update(pressTab())
+	assert.Equal(t, 2, f.Cursor(),
+		"switching to Optional should land on the first optional field")
+
+	// shift+tab back to Required.
+	f, _ = f.Update(pressShiftTab())
+	assert.Less(t, f.Cursor(), 2,
+		"shift+tab from Optional cycles back to Required; cursor returns to a required field")
+}
+
+func TestFormCategoryANDsWithTextFilter(t *testing.T) {
+	t.Parallel()
+
+	// Optional category + "vpc" text filter should leave only optional
+	// fields whose names contain "vpc".
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "vpc_required", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "vpc_cidr", Literal: true, TypeStr: "string", Initial: "10.0.0.0/16"},
+		{Name: "vpc_name", Literal: true, TypeStr: "string", Initial: "main"},
+		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
+	})
+	f.SetSize(120, 40)
+
+	// Switch to Optional (tab x2: All -> Required -> Optional).
+	f, _ = f.Update(pressTab())
+	f, _ = f.Update(pressTab())
+
+	// Open the filter and type "vpc".
+	f, _ = f.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
+
+	for _, r := range "vpc" {
+		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	f, _ = f.Update(pressEnter())
+
+	// Walk every visible field and confirm the visible set is the
+	// intersection of Optional + contains("vpc").
+	const walkSteps = 4
+
+	visited := make([]string, 0, walkSteps+1)
+	visited = append(visited, f.Field(f.Cursor()).Name)
+
+	for range walkSteps {
+		f, _ = f.Update(pressJ())
+		visited = append(visited, f.Field(f.Cursor()).Name)
+	}
+
+	for _, name := range visited {
+		assert.Contains(t, name, "vpc", "filter should restrict to vpc-named fields")
+		assert.NotEqual(t, "vpc_required", name,
+			"required vpc_required must be excluded by the Optional category")
+	}
+}
+
+func TestFormTabInEditCommitsValidatesAndAdvancesStayingInEdit(t *testing.T) {
+	t.Parallel()
+
+	// Enter edit on the first field, type a value, tab to the next field.
+	// The first field should be marked Set with no validation error (the
+	// value is a valid HCL number), the cursor should move to field 1,
+	// and edit mode should persist so the next character lands in the
+	// new textinput.
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "port", Required: true, TypeStr: "number"},
+		{Name: "host", Required: true, TypeStr: "string", Literal: true},
+	})
+	f.SetSize(120, 40)
+
+	f, _ = f.Update(pressEnter())
+
+	for _, r := range "8080" {
+		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	f, _ = f.Update(pressTab())
+
+	assert.Equal(t, 1, f.Cursor(), "tab should advance the cursor")
+	assert.True(t, f.Field(0).Set,
+		"the original field should be committed (Set=true) on tab")
+	assert.Empty(t, f.Field(0).ValidationErr,
+		"valid input should produce no on-blur validation error")
+
+	// Type into the new field; if edit mode persisted, the textinput
+	// should pick up the character.
+	f, _ = f.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+
+	assert.Equal(t, "a", f.Field(1).Input.Value(),
+		"after tab the next field should be in edit mode and accept input")
+}
+
+func TestFormTabInEditFlagsBadValueOnBlur(t *testing.T) {
+	t.Parallel()
+
+	// Tab away from a broken value: validation should fire as part of
+	// the tab-commit step, same as it would on esc.
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "port", Required: true, TypeStr: "number"},
+		{Name: "host", Required: true, TypeStr: "string", Literal: true},
+	})
+	f.SetSize(120, 40)
+
+	f, _ = f.Update(pressEnter())
+
+	for _, r := range `"oops"` {
+		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	f, _ = f.Update(pressTab())
+
+	assert.Equal(t, 1, f.Cursor())
+	assert.NotEmpty(t, f.Field(0).ValidationErr,
+		"a type mismatch should be flagged when tab commits the field")
+}
+
+func TestFormShiftTabInEditMovesPrev(t *testing.T) {
+	t.Parallel()
+
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "port", Required: true, TypeStr: "number"},
+		{Name: "host", Required: true, TypeStr: "string", Literal: true},
+	})
+	f.SetSize(120, 40)
+
+	// Move cursor to field 1, enter edit, then shift+tab back to field 0.
+	f, _ = f.Update(pressJ())
+	f, _ = f.Update(pressEnter())
+	f, _ = f.Update(pressShiftTab())
+
+	assert.Equal(t, 0, f.Cursor(),
+		"shift+tab in edit mode should move to the previous visible field")
+}
+
+func TestFormTabInEditAtBoundaryIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	// On the last field, tab should not wrap; the user stays put with
+	// edit mode preserved.
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "a", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "b", Required: true, Literal: true, TypeStr: "string"},
+	})
+	f.SetSize(120, 40)
+
+	f, _ = f.Update(pressJ())
+	f, _ = f.Update(pressEnter())
+
+	for _, r := range "x" {
+		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	f, _ = f.Update(pressTab())
+
+	assert.Equal(t, 1, f.Cursor(),
+		"tab at the last field is a no-op")
+
+	// Subsequent character still lands in field 1.
+	f, _ = f.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
+	assert.Equal(t, "xy", f.Field(1).Input.Value())
+}
+
+func TestFormDetailOverlayOpenAndClose(t *testing.T) {
+	t.Parallel()
+
+	// `?` from navigate opens the overlay; `?` again closes it.
+	// Default-state form is in navigate mode.
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string",
+			Description: "AWS region for the resource."},
+	})
+	f.SetSize(120, 40)
+
+	assert.False(t, f.DetailOpen())
+
+	f, _ = f.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
+	assert.True(t, f.DetailOpen(), "? in navigate mode should open the overlay")
+
+	view := f.View()
+	assert.Contains(t, view, "AWS region for the resource.",
+		"the overlay should render the full description")
+	assert.Contains(t, view, "? close",
+		"the overlay should advertise how to close")
+
+	f, _ = f.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
+	assert.False(t, f.DetailOpen(), "? again should close the overlay")
+}
+
+func TestFormDetailOverlayEscClosesWithoutCancelingForm(t *testing.T) {
+	t.Parallel()
+
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string",
+			Description: "AWS region."},
+	})
+	f.SetSize(120, 40)
+
+	f, _ = f.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
+	require.True(t, f.DetailOpen())
+
+	f, cmd := f.Update(pressEsc())
+
+	assert.False(t, f.DetailOpen(), "esc should close the overlay")
+	assert.Nil(t, drainFormCmds(cmd),
+		"esc in the overlay must not also cancel the form")
+}
+
+func TestFormUnfocusedDescriptionIsTruncatedAndFocusedIsFull(t *testing.T) {
+	t.Parallel()
+
+	longDesc := "L1\nL2\nL3\nL4"
+
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "a", Required: true, Literal: true, TypeStr: "string",
+			Description: longDesc},
+		{Name: "b", Required: true, Literal: true, TypeStr: "string",
+			Description: longDesc},
+	})
+	f.SetSize(120, 40)
+
+	view := f.View()
+
+	// Field 0 is focused: full description visible.
+	for _, line := range []string{"L1", "L2", "L3", "L4"} {
+		assert.Contains(t, view, line,
+			"focused field's description should render in full")
+	}
+
+	// Move focus to field 1; field 0 is now unfocused. With descPreviewLines=2
+	// and an extra paragraph past it, the unfocused field's render should
+	// end with an ellipsis marker. We can't tell which field's L3/L4 lines
+	// are which without parsing, so confirm an ellipsis appears in the view
+	// (which only happens via the truncation helper).
+	f, _ = f.Update(pressJ())
+
+	view = f.View()
+	assert.Contains(t, view, "…",
+		"unfocused field with a long description should be truncated with …")
+}
+
+func TestFormUntouchedCursorTracksFirstVisibleAcrossTabs(t *testing.T) {
+	t.Parallel()
+
+	// A user who only tabs / searches (no j/k) should keep focus on the
+	// first visible field as the category changes. Mirrors the list view's
+	// "freshly inserted item snaps selection to 0 until you navigate"
+	// pattern.
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
+		{Name: "size", Literal: true, TypeStr: "string", Initial: "small"},
+	})
+	f.SetSize(120, 40)
+
+	// All -> Required: still first.
+	f, _ = f.Update(pressTab())
+	assert.Equal(t, 0, f.Cursor(), "first required is still index 0")
+
+	// Required -> Optional: first optional is index 2.
+	f, _ = f.Update(pressTab())
+	assert.Equal(t, 2, f.Cursor(),
+		"un-navigated user should land on the first visible field after a tab")
+
+	// Optional -> All: first overall is index 0.
+	f, _ = f.Update(pressTab())
+	assert.Equal(t, 0, f.Cursor(),
+		"un-navigated user should snap back to the first field on All")
+}
+
+func TestFormNavigationStickyAfterJK(t *testing.T) {
+	t.Parallel()
+
+	// Once the user presses j/k, subsequent tabs preserve the cursor
+	// (when the field stays visible) instead of snapping to the top.
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "a", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "b", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "c", Required: true, Literal: true, TypeStr: "string"},
+	})
+	f.SetSize(120, 40)
+
+	f, _ = f.Update(pressJ())
+	require.Equal(t, 1, f.Cursor())
+
+	// Tab cycles to Required (already required-only fields here); the
+	// cursor's field is still visible, so it should stay put.
+	f, _ = f.Update(pressTab())
+	assert.Equal(t, 1, f.Cursor(),
+		"after j, the cursor sticks across category cycles when still visible")
+}
+
+func TestFormUntouchedCursorTracksFirstMatchWhileFiltering(t *testing.T) {
+	t.Parallel()
+
+	// A user who hasn't navigated should also have the cursor snap to
+	// the first match as they type into the filter, even when their
+	// pre-filter cursor would have stayed visible.
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
+	})
+	f.SetSize(120, 40)
+
+	// Open filter, type 'v' so "vpc_id" matches but "region" doesn't.
+	f, _ = f.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
+	f, _ = f.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
+
+	assert.Equal(t, 1, f.Cursor(),
+		"un-navigated cursor should snap to the first matching field")
+}
+
+func TestFormEnterInEditExitsBackToNavigateOnTextField(t *testing.T) {
+	t.Parallel()
+
+	// Enter on a text/HCL field acts as the symmetric counterpart to
+	// the enter that brought the user into edit mode: commit + validate
+	// + return to navigate, same as esc.
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
+	})
+	f.SetSize(120, 40)
+
+	f, _ = f.Update(pressEnter())
+
+	for _, r := range "us-east-1" {
+		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	// Sanity: the keystrokes went into the input (edit mode is live).
+	require.Equal(t, "us-east-1", f.Field(0).Input.Value())
+
+	f, _ = f.Update(pressEnter())
+
+	// After enter we should be back in navigate; a typed character
+	// should no longer reach the input.
+	f, _ = f.Update(tea.KeyPressMsg{Code: 'z', Text: "z"})
+
+	assert.Equal(t, "us-east-1", f.Field(0).Input.Value(),
+		"enter in edit mode should exit; subsequent keystrokes shouldn't reach the input")
+	assert.True(t, f.Field(0).Set,
+		"the edited field should be committed (Set=true) on enter")
+}
+
+func TestFormEnterInEditStillTogglesBool(t *testing.T) {
+	t.Parallel()
+
+	// Enter on a bool field in edit mode keeps its toggle semantics; the
+	// new exit-on-enter behavior is text-field-only.
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "debug", Checkbox: true, TypeStr: "bool"},
+	})
+	f.SetSize(120, 40)
+
+	require.False(t, f.Field(0).Bool)
+	require.False(t, f.Field(0).Set)
+
+	// First enter: navigate -> edit on a checkbox flips into edit mode
+	// without committing yet (Set stays false until a toggle).
+	f, _ = f.Update(pressEnter())
+
+	// Second enter: toggle to true.
+	f, _ = f.Update(pressEnter())
+
+	assert.True(t, f.Field(0).Bool, "enter in checkbox edit mode should toggle")
+	assert.True(t, f.Field(0).Set,
+		"toggle commits the field so values() emits it")
 }
 
 func TestCtyValueAsHCLRoundTrips(t *testing.T) {
