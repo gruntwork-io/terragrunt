@@ -17,8 +17,8 @@ import (
 func TestTagPillStyle_KnownKindUsesKindColor(t *testing.T) {
 	t.Parallel()
 
-	moduleTag := redesign.TagPillRenderForTest("module", false)
-	unknownTag := redesign.TagPillRenderForTest("networking", false)
+	moduleTag := redesign.TagPillStyle("module", false).Render("module")
+	unknownTag := redesign.TagPillStyle("networking", false).Render("networking")
 
 	hasYellow := strings.Contains(moduleTag, "255;218;24") ||
 		strings.Contains(moduleTag, "FFDA18") ||
@@ -38,23 +38,23 @@ func TestKindForTag(t *testing.T) {
 		wantKind redesign.ComponentKind
 		wantOK   bool
 	}{
-		{"module", redesign.ComponentKindModule, true},
-		{"Module", redesign.ComponentKindModule, true},
-		{"MODULE", redesign.ComponentKindModule, true},
-		{"template", redesign.ComponentKindTemplate, true},
-		{"unit", redesign.ComponentKindUnit, true},
-		{"stack", redesign.ComponentKindStack, true},
-		{"  unit  ", redesign.ComponentKindUnit, true},
-		{"modules", 0, false},
-		{"networking", 0, false},
-		{"", 0, false},
+		{tag: "module", wantKind: redesign.ComponentKindModule, wantOK: true},
+		{tag: "Module", wantKind: redesign.ComponentKindModule, wantOK: true},
+		{tag: "MODULE", wantKind: redesign.ComponentKindModule, wantOK: true},
+		{tag: "template", wantKind: redesign.ComponentKindTemplate, wantOK: true},
+		{tag: "unit", wantKind: redesign.ComponentKindUnit, wantOK: true},
+		{tag: "stack", wantKind: redesign.ComponentKindStack, wantOK: true},
+		{tag: "  unit  ", wantKind: redesign.ComponentKindUnit, wantOK: true},
+		{tag: "modules"},
+		{tag: "networking"},
+		{tag: ""},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.tag, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := redesign.KindForTagForTest(tc.tag)
+			got, ok := redesign.KindForTag(tc.tag)
 			assert.Equal(t, tc.wantOK, ok)
 
 			if tc.wantOK {
@@ -67,7 +67,7 @@ func TestKindForTag(t *testing.T) {
 func TestRenderTagPills_FitsAllInWideRow(t *testing.T) {
 	t.Parallel()
 
-	out := redesign.RenderTagPillsForTest([]string{"a", "b", "c"}, 200, false)
+	out := redesign.RenderTagPills([]string{"a", "b", "c"}, 200, false)
 	require.NotEmpty(t, out)
 
 	plain := stripANSI(out)
@@ -80,7 +80,7 @@ func TestRenderTagPills_TruncatesWithCountedOverflow(t *testing.T) {
 	t.Parallel()
 
 	// Width 15 = label(6) + "aa"(4) + sep(1) + "+2"(4); forces truncation.
-	out := redesign.RenderTagPillsForTest([]string{"aa", "bb", "cc"}, 15, false)
+	out := redesign.RenderTagPills([]string{"aa", "bb", "cc"}, 15, false)
 	require.NotEmpty(t, out)
 
 	plain := stripANSI(out)
@@ -167,7 +167,7 @@ func tagsColumn(row string) (int, bool) {
 func TestRenderTagPills_PrivilegedTagsSortFirst(t *testing.T) {
 	t.Parallel()
 
-	out := redesign.RenderTagPillsForTest([]string{"networking", "module", "aws"}, 200, false)
+	out := redesign.RenderTagPills([]string{"networking", "module", "aws"}, 200, false)
 	plain := stripANSI(out)
 
 	moduleIdx := strings.Index(plain, "module")
@@ -185,7 +185,7 @@ func TestRenderTagPills_PrivilegedTagsSortFirst(t *testing.T) {
 func TestRenderTagPills_LabelPrependedWhenTagsFit(t *testing.T) {
 	t.Parallel()
 
-	out := redesign.RenderTagPillsForTest([]string{"a", "b"}, 200, false)
+	out := redesign.RenderTagPills([]string{"a", "b"}, 200, false)
 	plain := stripANSI(out)
 	assert.True(t, strings.HasPrefix(plain, "tags: "), "expected tags: prefix, got %q", plain)
 }
@@ -193,14 +193,14 @@ func TestRenderTagPills_LabelPrependedWhenTagsFit(t *testing.T) {
 func TestRenderTagPills_EmptyReturnsEmpty(t *testing.T) {
 	t.Parallel()
 
-	assert.Empty(t, redesign.RenderTagPillsForTest(nil, 100, false))
-	assert.Empty(t, redesign.RenderTagPillsForTest([]string{}, 100, false))
+	assert.Empty(t, redesign.RenderTagPills(nil, 100, false))
+	assert.Empty(t, redesign.RenderTagPills([]string{}, 100, false))
 }
 
 func TestRenderDetailTagPills(t *testing.T) {
 	t.Parallel()
 
-	out := redesign.RenderDetailTagPillsForTest([]string{"module", "networking"})
+	out := redesign.RenderDetailTagPills([]string{"module", "networking"})
 	require.NotEmpty(t, out)
 
 	plain := stripANSI(out)
@@ -212,33 +212,33 @@ func TestRenderDetailTagPills(t *testing.T) {
 func TestTagsMarkdownSection(t *testing.T) {
 	t.Parallel()
 
-	got := redesign.TagsMarkdownSectionForTest([]string{"a", "b"})
+	got := redesign.TagsMarkdownSection([]string{"a", "b"})
 	assert.Equal(t, "\n\n## Tags\n\n- a\n- b\n", got)
 
-	assert.Empty(t, redesign.TagsMarkdownSectionForTest(nil))
+	assert.Empty(t, redesign.TagsMarkdownSection(nil))
 }
 
 func TestEnvTagsListLayoutToggle(t *testing.T) {
-	t.Setenv(redesign.EnvTagsListLayoutForTest, "row")
-	assert.True(t, redesign.ResolveTagsListLayoutRowForTest())
+	t.Setenv(redesign.EnvTagsListLayout, "row")
+	assert.True(t, (redesign.ResolveTagsListLayout() == redesign.TagsListLayoutRow))
 
-	t.Setenv(redesign.EnvTagsListLayoutForTest, "META")
-	assert.True(t, redesign.ResolveTagsListLayoutMetaForTest())
+	t.Setenv(redesign.EnvTagsListLayout, "META")
+	assert.True(t, (redesign.ResolveTagsListLayout() == redesign.TagsListLayoutMeta))
 
-	t.Setenv(redesign.EnvTagsListLayoutForTest, "")
-	assert.True(t, redesign.ResolveTagsListLayoutMetaForTest())
+	t.Setenv(redesign.EnvTagsListLayout, "")
+	assert.True(t, (redesign.ResolveTagsListLayout() == redesign.TagsListLayoutMeta))
 
-	t.Setenv(redesign.EnvTagsListLayoutForTest, "garbage")
-	assert.True(t, redesign.ResolveTagsListLayoutMetaForTest())
+	t.Setenv(redesign.EnvTagsListLayout, "garbage")
+	assert.True(t, (redesign.ResolveTagsListLayout() == redesign.TagsListLayoutMeta))
 }
 
 func TestEnvTagsDetailStyleToggle(t *testing.T) {
-	t.Setenv(redesign.EnvTagsDetailStyleForTest, "section")
-	assert.True(t, redesign.ResolveTagsDetailStyleSectionForTest())
+	t.Setenv(redesign.EnvTagsDetailStyle, "section")
+	assert.True(t, (redesign.ResolveTagsDetailStyle() == redesign.TagsDetailStyleSection))
 
-	t.Setenv(redesign.EnvTagsDetailStyleForTest, "")
-	assert.True(t, redesign.ResolveTagsDetailStylePillsForTest())
+	t.Setenv(redesign.EnvTagsDetailStyle, "")
+	assert.True(t, (redesign.ResolveTagsDetailStyle() == redesign.TagsDetailStylePills))
 
-	t.Setenv(redesign.EnvTagsDetailStyleForTest, "garbage")
-	assert.True(t, redesign.ResolveTagsDetailStylePillsForTest())
+	t.Setenv(redesign.EnvTagsDetailStyle, "garbage")
+	assert.True(t, (redesign.ResolveTagsDetailStyle() == redesign.TagsDetailStylePills))
 }

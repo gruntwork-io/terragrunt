@@ -23,11 +23,11 @@ tags: [module, networking]
 `,
 	))
 
-	assert.True(t, redesign.MatchesTab(redesign.TabAll, template))
-	assert.True(t, redesign.MatchesTab(redesign.TabTemplates, template))
-	assert.True(t, redesign.MatchesTab(redesign.TabModules, template), "template tagged module should match TabModules")
-	assert.False(t, redesign.MatchesTab(redesign.TabUnits, template))
-	assert.False(t, redesign.MatchesTab(redesign.TabStacks, template))
+	assert.True(t, redesign.TabAll.Matches(template))
+	assert.True(t, redesign.TabTemplates.Matches(template))
+	assert.True(t, redesign.TabModules.Matches(template), "template tagged module should match TabModules")
+	assert.False(t, redesign.TabUnits.Matches(template))
+	assert.False(t, redesign.TabStacks.Matches(template))
 }
 
 func TestTabKindMatches_CaseInsensitive(t *testing.T) {
@@ -44,8 +44,8 @@ tags: [Module, UNIT]
 `,
 	))
 
-	assert.True(t, redesign.MatchesTab(redesign.TabModules, stack))
-	assert.True(t, redesign.MatchesTab(redesign.TabUnits, stack))
+	assert.True(t, redesign.TabModules.Matches(stack))
+	assert.True(t, redesign.TabUnits.Matches(stack))
 }
 
 func TestTabKindMatches_NoTagsOnlyKind(t *testing.T) {
@@ -58,10 +58,10 @@ func TestTabKindMatches_NoTagsOnlyKind(t *testing.T) {
 		"# VPC\nNo frontmatter here.",
 	))
 
-	assert.True(t, redesign.MatchesTab(redesign.TabModules, module))
-	assert.False(t, redesign.MatchesTab(redesign.TabTemplates, module))
-	assert.False(t, redesign.MatchesTab(redesign.TabUnits, module))
-	assert.False(t, redesign.MatchesTab(redesign.TabStacks, module))
+	assert.True(t, redesign.TabModules.Matches(module))
+	assert.False(t, redesign.TabTemplates.Matches(module))
+	assert.False(t, redesign.TabUnits.Matches(module))
+	assert.False(t, redesign.TabStacks.Matches(module))
 }
 
 func TestRenderTabBar_ActiveKindTabUsesKindColor(t *testing.T) {
@@ -130,7 +130,7 @@ tags: [networking, aws]
 `,
 	))
 
-	assert.False(t, redesign.MatchesTab(redesign.TabTemplates, module))
-	assert.False(t, redesign.MatchesTab(redesign.TabUnits, module))
-	assert.False(t, redesign.MatchesTab(redesign.TabStacks, module))
+	assert.False(t, redesign.TabTemplates.Matches(module))
+	assert.False(t, redesign.TabUnits.Matches(module))
+	assert.False(t, redesign.TabStacks.Matches(module))
 }

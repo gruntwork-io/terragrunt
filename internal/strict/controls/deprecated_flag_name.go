@@ -11,11 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-const (
-	GlobalFlagsCategoryName     = "Global flags"
-	CommandFlagsCategoryNameFmt = "`%s` command flags"
-)
-
 var _ = strict.Control(new(DeprecatedFlagName))
 
 // DeprecatedFlagName is strict control for deprecated flag names.

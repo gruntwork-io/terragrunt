@@ -1,7 +1,6 @@
 package redesign
 
 import (
-	"fmt"
 	"io"
 	"strings"
 
@@ -76,7 +75,7 @@ type catalogDelegate struct {
 	keys       *tui.DelegateKeyMap
 	shortHelp  func() []key.Binding
 	fullHelp   func() [][]key.Binding
-	tagsLayout tagsListLayout
+	tagsLayout TagsListLayout
 }
 
 func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
@@ -99,7 +98,7 @@ func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
 		Foreground(lipgloss.Color(selectedDescForegroundColorDark)).
 		BorderForeground(lipgloss.Color(selectedDescBorderForegroundColorDark))
 
-	help := []key.Binding{keys.Choose, keys.Scaffold}
+	help := []key.Binding{keys.Choose, keys.ScaffoldInteractive, keys.ScaffoldPlaceholder}
 
 	return catalogDelegate{
 		styles: styles,
@@ -110,7 +109,7 @@ func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
 		fullHelp: func() [][]key.Binding {
 			return [][]key.Binding{help}
 		},
-		tagsLayout: resolveTagsListLayout(),
+		tagsLayout: ResolveTagsListLayout(),
 	}
 }
 
@@ -118,7 +117,7 @@ func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
 // each item is title + desc + meta (3 lines); in the row layout tags get
 // their own fourth line.
 func (d catalogDelegate) Height() int {
-	if d.tagsLayout == tagsListLayoutRow {
+	if d.tagsLayout == TagsListLayoutRow {
 		return delegateHeightWithTagsRow
 	}
 
@@ -184,24 +183,34 @@ func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.
 
 	metaInnerWidth := max(1, m.Width()-padL-padR)
 
-	includeTagsInMeta := d.tagsLayout == tagsListLayoutMeta && !emptyFilter
+	includeTagsInMeta := d.tagsLayout == TagsListLayoutMeta && !emptyFilter
 	metaContent := BuildMetaRow(entry, metaInnerWidth, includeTagsInMeta, selected, emptyFilter)
 	metaLine := styleMetaLine(s, metaContent, selected, padL, padR)
 
-	if d.tagsLayout != tagsListLayoutRow {
-		fmt.Fprintf(w, "%s\n%s\n%s", title, desc, metaLine) //nolint:errcheck,gosec
+	if d.tagsLayout != TagsListLayoutRow {
+		writeDelegateLines(w, title, desc, metaLine)
 
 		return
 	}
 
 	tagsContent := ""
 	if !emptyFilter {
-		tagsContent = renderTagPills(entry.Tags(), metaInnerWidth, selected)
+		tagsContent = RenderTagPills(entry.Tags(), metaInnerWidth, selected)
 	}
 
 	tagsLine := styleMetaLine(s, tagsContent, selected, padL, padR)
 
-	fmt.Fprintf(w, "%s\n%s\n%s\n%s", title, desc, metaLine, tagsLine) //nolint:errcheck,gosec
+	writeDelegateLines(w, title, desc, metaLine, tagsLine)
+}
+
+// writeDelegateLines joins lines with newlines and writes them to w.
+// list.Model's Render call always feeds w from its own bytes.Buffer, whose
+// Write cannot fail; we panic on the contract violation rather than swallow
+// the diagnostic if a future caller passes a different writer.
+func writeDelegateLines(w io.Writer, lines ...string) {
+	if _, err := io.WriteString(w, strings.Join(lines, "\n")); err != nil {
+		panic(err)
+	}
 }
 
 // truncateFirstLine returns only the first line of s, truncated to maxWidth.

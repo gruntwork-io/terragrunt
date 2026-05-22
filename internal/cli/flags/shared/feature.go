@@ -16,7 +16,6 @@ const (
 func NewFeatureFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 
 	return clihelper.Flags{
 		flags.NewFlag(&clihelper.MapFlag[string, string]{
@@ -32,7 +31,7 @@ func NewFeatureFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihe
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("feature"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("feature"), opts.StrictControls),
 		),
 	}
 }

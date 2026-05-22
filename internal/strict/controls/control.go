@@ -17,9 +17,6 @@ type Control struct {
 	// Error is the Error that will be returned when the Control is Enabled.
 	Error error
 
-	// Category is the category of the control.
-	Category *strict.Category
-
 	// Name is the name of the control.
 	Name string
 
@@ -69,16 +66,6 @@ func (ctrl *Control) GetStatus() strict.Status {
 // GetEnabled implements `strict.Control` interface.
 func (ctrl *Control) GetEnabled() bool {
 	return ctrl.Enabled
-}
-
-// GetCategory implements `strict.Control` interface.
-func (ctrl *Control) GetCategory() *strict.Category {
-	return ctrl.Category
-}
-
-// SetCategory implements `strict.Control` interface.
-func (ctrl *Control) SetCategory(category *strict.Category) {
-	ctrl.Category = category
 }
 
 // Enable implements `strict.Control` interface.

@@ -1237,7 +1237,7 @@ func ParseConfigFile(
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(childCtx, cacheKey); found {
-				file = cacheConfig
+				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
 			} else {
 				// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 				var parseErr error
