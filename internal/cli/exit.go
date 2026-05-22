@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"os"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -11,16 +10,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// RunAndExit runs the CLI then os.Exits with ExitCodeFor; panics at the top level must be caught by `defer reporter.PanicHandler(...)`.
-func (app *App) RunAndExit(args []string, em *tf.DetailedExitCodeMap, reporter *log.PanicReporter) {
-	// Background root since RunAndExit owns the process lifetime; em and logger are injected so internals can resolve them via context.
+// RunWithExitCode executes the CLI and returns the process exit code; panics at the top level must be caught by `defer reporter.PanicHandler(...)`.
+func (app *App) RunWithExitCode(args []string, em *tf.DetailedExitCodeMap, reporter *log.PanicReporter) int {
+	// Background root since RunWithExitCode owns the process lifetime; em and logger are injected so internals can resolve them via context.
 	ctx := log.ContextWithLogger(context.Background(), app.l)
 	ctx = tf.ContextWithDetailedExitCode(ctx, em)
 
 	err := app.RunContext(ctx, args)
 	detailed := app.opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode)
 
-	os.Exit(ExitCodeFor(app.l, args, app.opts.VersionString(), err, em.Final(detailed), reporter))
+	return ExitCodeFor(app.l, args, app.opts.VersionString(), err, em.Final(detailed), reporter)
 }
 
 // ExitCodeFor maps a CLI run result to a process exit code; errors carrying a panic route through reporter.

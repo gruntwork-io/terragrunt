@@ -208,6 +208,19 @@ func TestIsPanic(t *testing.T) {
 
 		assert.True(t, log.IsPanic(err))
 	})
+
+	t.Run("matches a panic inside an errors.Join multi-error", func(t *testing.T) {
+		t.Parallel()
+
+		panicErr := stackedError{
+			msg:   "joined panic",
+			stack: "goroutine 1:\nruntime/panic.go:860\npanic({0x...})\n",
+		}
+
+		joined := errors.Join(errors.New("first benign failure"), panicErr, errors.New("second benign failure"))
+
+		assert.True(t, log.IsPanic(joined))
+	})
 }
 
 // Private helper functions

@@ -12,6 +12,10 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	opts := options.NewTerragruntOptions()
 	l := log.New(
 		log.WithOutput(opts.Writers.ErrWriter),
@@ -21,11 +25,11 @@ func main() {
 
 	if err := global.NewLogLevelFlag(l, opts, nil).Parse(os.Args); err != nil {
 		l.Errorf("An error has occurred: %v", err)
-		os.Exit(1)
+		return 1
 	}
 
 	reporter := log.NewPanicReporter()
 	defer reporter.PanicHandler(l, opts.VersionString, os.Args)
 
-	cli.NewApp(l, opts).RunAndExit(os.Args, tf.NewDetailedExitCodeMap(), reporter)
+	return cli.NewApp(l, opts).RunWithExitCode(os.Args, tf.NewDetailedExitCodeMap(), reporter)
 }

@@ -111,7 +111,7 @@ func NewPanicReporter() *PanicReporter {
 		GetPID:    os.Getpid,
 		TempDir:   os.TempDir,
 		WriteFile: os.WriteFile,
-		BuildInfo: ReadBuildInfo,
+		BuildInfo: readBuildInfo,
 	}
 }
 
@@ -180,21 +180,38 @@ func IsPanic(err error) bool {
 		return true
 	}
 
-	if IsPanicMessage(err.Error()) {
+	if isPanicMessage(err.Error()) {
 		return true
 	}
 
-	for cur := err; cur != nil; cur = stdErrors.Unwrap(cur) {
-		if e, ok := cur.(interface{ ErrorStack() string }); ok && IsPanicMessage(e.ErrorStack()) {
-			return true
-		}
-	}
-
-	return false
+	return hasPanicStack(err)
 }
 
-// IsPanicMessage reports whether s contains a cty or Go runtime panic marker.
-func IsPanicMessage(s string) bool {
+// hasPanicStack walks single- and multi-error chains looking for a panic stack.
+func hasPanicStack(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if e, ok := err.(interface{ ErrorStack() string }); ok && isPanicMessage(e.ErrorStack()) {
+		return true
+	}
+
+	if u, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, e := range u.Unwrap() {
+			if hasPanicStack(e) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	return hasPanicStack(stdErrors.Unwrap(err))
+}
+
+// isPanicMessage reports whether s contains a cty or Go runtime panic marker.
+func isPanicMessage(s string) bool {
 	if s == "" {
 		return false
 	}
@@ -208,8 +225,8 @@ func IsPanicMessage(s string) bool {
 	return false
 }
 
-// ReadBuildInfo extracts the VCS commit and dirty flag baked into the binary.
-func ReadBuildInfo() (string, bool) {
+// readBuildInfo extracts the VCS commit and dirty flag baked into the binary.
+func readBuildInfo() (string, bool) {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		return unknownValue, false
@@ -277,16 +294,13 @@ func (r *PanicReporter) writeFile(name string, data []byte, perm os.FileMode) er
 
 // workingDir returns the directory to write the crash log to.
 func (r *PanicReporter) workingDir() string {
+	getwd := os.Getwd
 	if r.Getwd != nil {
-		if wd, err := r.Getwd(); err == nil {
-			return wd
-		}
+		getwd = r.Getwd
 	}
 
-	if r.Getwd == nil {
-		if wd, err := os.Getwd(); err == nil {
-			return wd
-		}
+	if wd, err := getwd(); err == nil && wd != "" {
+		return wd
 	}
 
 	if r.TempDir != nil {
