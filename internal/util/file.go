@@ -824,51 +824,101 @@ func CopyFolderToTemp(source string, tempPrefix string, filter func(path string)
 	return dest, nil
 }
 
+// CopySourceNotAbsoluteError is returned when [CopyFolderContents] or
+// [CopyFolderContentsWithFilter] is called with a non-absolute source.
+type CopySourceNotAbsoluteError struct {
+	Path string
+}
+
+func (err CopySourceNotAbsoluteError) Error() string {
+	return fmt.Sprintf("copy source must be an absolute path, got %q", err.Path)
+}
+
+// CopyDestinationNotAbsoluteError is returned when [CopyFolderContents]
+// or [CopyFolderContentsWithFilter] is called with a non-absolute
+// destination.
+type CopyDestinationNotAbsoluteError struct {
+	Path string
+}
+
+func (err CopyDestinationNotAbsoluteError) Error() string {
+	return fmt.Sprintf("copy destination must be an absolute path, got %q", err.Path)
+}
+
+// CopySourceEqualsDestinationError is returned when [CopyFolderContents]
+// or [CopyFolderContentsWithFilter] is called with source and destination
+// resolving to the same path.
+type CopySourceEqualsDestinationError struct {
+	Path string
+}
+
+func (err CopySourceEqualsDestinationError) Error() string {
+	return fmt.Sprintf("copy source and destination are the same path: %q", err.Path)
+}
+
+// CopyDestinationInsideSourceError is returned when [CopyFolderContents]
+// or [CopyFolderContentsWithFilter] is called with a destination inside
+// the source where the filter would not stop the source walk before
+// reaching the destination subtree.
+type CopyDestinationInsideSourceError struct {
+	Source      string
+	Destination string
+	RelDest     string
+}
+
+func (err CopyDestinationInsideSourceError) Error() string {
+	return fmt.Sprintf("copy destination %q is inside source %q and the filter does not exclude any segment of %q; the copy would recurse into itself", err.Destination, err.Source, err.RelDest)
+}
+
 // assertCopyPathsSafe checks that the copy from source to destination
-// won't recurse forever. The unsafe shape is dest-inside-source where
-// the filter would also walk into dest's first segment: MkdirAll seeds
-// destination as a subtree under source before the loop reads source's
-// children, so the next read surfaces dest's first segment as a fresh
-// entry and the loop descends into it without bound. Dest-inside-source
-// is only safe when the filter excludes that first segment (the typical
-// case, e.g. `.terragrunt-cache` is filtered out by [TerragruntExcludes]).
+// won't recurse forever.
 //
-// Both arguments must be absolute. Relatives are rejected rather than
-// resolved against the process working directory, since Terragrunt's
-// `--working-dir` flag detaches the conceptual working directory from
-// the Go process CWD, and resolving here would silently produce wrong
-// answers.
+// The copy is safe whenever the filter excludes any segment
+// along that path (the typical case, e.g. `.terragrunt-cache` is
+// filtered out by [TerragruntExcludes]); the walker stops there and
+// never reaches the destination subtree.
+//
+// Both arguments must be absolute.
 func assertCopyPathsSafe(source, destination string, filter func(absolutePath string) bool) error {
 	if !filepath.IsAbs(source) {
-		return errors.Errorf("copy source must be an absolute path, got %q", source)
+		return CopySourceNotAbsoluteError{Path: source}
 	}
 
 	if !filepath.IsAbs(destination) {
-		return errors.Errorf("copy destination must be an absolute path, got %q", destination)
+		return CopyDestinationNotAbsoluteError{Path: destination}
 	}
 
 	cleanSource := filepath.Clean(source)
 	cleanDest := filepath.Clean(destination)
 
 	if cleanSource == cleanDest {
-		return errors.Errorf("copy source and destination are the same path: %q", source)
+		return CopySourceEqualsDestinationError{Path: source}
 	}
 
-	sep := string(filepath.Separator)
-	if !strings.HasPrefix(cleanDest+sep, cleanSource+sep) {
+	relDest, err := filepath.Rel(cleanSource, cleanDest)
+	if err != nil {
+		// Different volumes on Windows, etc. The paths can't nest.
 		return nil
 	}
 
-	relDest := strings.TrimPrefix(cleanDest+sep, cleanSource+sep)
-
-	firstSegment, _, _ := strings.Cut(relDest, sep)
-	firstSegmentAbs := filepath.Join(cleanSource, firstSegment)
-
-	if filter == nil || filter(firstSegmentAbs) {
-		return errors.Errorf("copy destination %q is inside source %q and the filter does not exclude %q; the copy would recurse into itself", destination, source, firstSegment)
+	sep := string(filepath.Separator)
+	if relDest == ".." || strings.HasPrefix(relDest, ".."+sep) {
+		return nil
 	}
 
-	return nil
+	accumulated := cleanSource
+	for segment := range strings.SplitSeq(relDest, sep) {
+		accumulated = filepath.Join(accumulated, segment)
+		if filter != nil && !filter(accumulated) {
+			return nil
+		}
+	}
+
+	return errors.New(CopyDestinationInsideSourceError{
+		Source:      source,
+		Destination: destination,
+		RelDest:     relDest,
+	})
 }
 
 // IsSymLink returns true if the given file is a symbolic link
@@ -879,7 +929,6 @@ func IsSymLink(path string) bool {
 }
 
 func TerragruntExcludes(path string) bool {
-	// Do not exclude the terraform lock file (new feature added in terraform 0.14)
 	if filepath.Base(path) == TerraformLockFile {
 		return false
 	}

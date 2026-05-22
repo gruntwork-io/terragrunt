@@ -1309,16 +1309,18 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 		t.Parallel()
 
 		err := util.CopyFolderContents(l, source, filepath.Join(source, "nested"), ".terragrunt-test")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "inside source")
+
+		var insideErr util.CopyDestinationInsideSourceError
+		require.ErrorAs(t, err, &insideErr)
 	})
 
 	t.Run("destination equals source", func(t *testing.T) {
 		t.Parallel()
 
 		err := util.CopyFolderContents(l, source, source, ".terragrunt-test")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "same path")
+
+		var sameErr util.CopySourceEqualsDestinationError
+		require.ErrorAs(t, err, &sameErr)
 	})
 
 	t.Run("sibling destination is allowed", func(t *testing.T) {
@@ -1341,6 +1343,30 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 		require.NoError(t, util.CopyFolderContents(l, source, dest, ".terragrunt-test"))
 	})
 
+	// filepath.Rel can produce pure-`..` relative paths when destination
+	// is a strict ancestor of source (e.g. `..`, `../..`). The walker
+	// globs source's children once at entry, so writes into the ancestor
+	// don't re-enter source's tree and the copy is safe.
+	t.Run("destination is parent of source is allowed", func(t *testing.T) {
+		t.Parallel()
+
+		nestedSource := filepath.Join(t.TempDir(), "child")
+		require.NoError(t, os.MkdirAll(nestedSource, 0o700))
+
+		dest := filepath.Dir(nestedSource)
+		require.NoError(t, util.CopyFolderContents(l, nestedSource, dest, ".terragrunt-test"))
+	})
+
+	t.Run("destination is grandparent of source is allowed", func(t *testing.T) {
+		t.Parallel()
+
+		nestedSource := filepath.Join(t.TempDir(), "child", "grandchild")
+		require.NoError(t, os.MkdirAll(nestedSource, 0o700))
+
+		dest := filepath.Dir(filepath.Dir(nestedSource))
+		require.NoError(t, util.CopyFolderContents(l, nestedSource, dest, ".terragrunt-test"))
+	})
+
 	// Dest inside source is the typical Terragrunt source-copy shape:
 	// destination is the .terragrunt-cache subtree, which TerragruntExcludes
 	// filters out on each read. The guard must accept this case; the
@@ -1352,6 +1378,25 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 		require.NoError(t, util.CopyFolderContents(l, source, nested, ".terragrunt-test"))
 	})
 
+	// dest = source/<unit>/.terragrunt-cache/<h>/<h> is the integration
+	// shape when a unit's `source` URL points to a parent of the unit
+	// itself (`../..//modules/x`). The hidden segment that stops the
+	// walker is not the first component of the relative path, so the
+	// guard has to look at every segment, not just the first.
+	t.Run("destination inside source is allowed when a deeper segment is excluded", func(t *testing.T) {
+		t.Parallel()
+
+		nested := filepath.Join(source, "live", "child", util.TerragruntCacheDir, "h1", "h2")
+		require.NoError(t, util.CopyFolderContents(l, source, nested, ".terragrunt-test"))
+	})
+
+	t.Run("destination inside source is allowed when a deeper segment is excluded on fast-copy path", func(t *testing.T) {
+		t.Parallel()
+
+		nested := filepath.Join(source, "live", "child", util.TerragruntCacheDir, "fast", "h2")
+		require.NoError(t, util.CopyFolderContents(l, source, nested, ".terragrunt-test", util.WithFastCopy()))
+	})
+
 	// Fast copy routes through copyFolderContentsFast (vfs.WalkDirParallel)
 	// instead of CopyFolderContentsWithFilter. The guard at the public
 	// CopyFolderContents dispatch must cover both implementations, or this
@@ -1360,8 +1405,9 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 		t.Parallel()
 
 		err := util.CopyFolderContents(l, source, filepath.Join(source, "fastnested"), ".terragrunt-test", util.WithFastCopy())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "inside source")
+
+		var insideErr util.CopyDestinationInsideSourceError
+		require.ErrorAs(t, err, &insideErr)
 	})
 
 	t.Run("destination inside source is allowed on fast-copy path when filter excludes it", func(t *testing.T) {
@@ -1375,16 +1421,18 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 		t.Parallel()
 
 		err := util.CopyFolderContents(l, "relative/source", t.TempDir(), ".terragrunt-test")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "absolute")
+
+		var notAbsErr util.CopySourceNotAbsoluteError
+		require.ErrorAs(t, err, &notAbsErr)
 	})
 
 	t.Run("relative destination is rejected", func(t *testing.T) {
 		t.Parallel()
 
 		err := util.CopyFolderContents(l, t.TempDir(), "relative/destination", ".terragrunt-test")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "absolute")
+
+		var notAbsErr util.CopyDestinationNotAbsoluteError
+		require.ErrorAs(t, err, &notAbsErr)
 	})
 }
 
