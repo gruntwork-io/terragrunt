@@ -298,6 +298,24 @@ func BuildSourceURL(originalURL, resolvedURL string, vars map[string]any) string
 		return resolvedURL
 	}
 
+	if getter.IsTFRSource(originalURL) {
+		versionVal := ExtractQueryParam(resolvedURL, getter.VersionQueryKey)
+		if versionVal == "" {
+			return originalURL
+		}
+
+		base, rawQuery := splitURLQuery(originalURL)
+
+		params, err := url.ParseQuery(rawQuery)
+		if err != nil || params.Has(getter.VersionQueryKey) {
+			return originalURL
+		}
+
+		params.Set(getter.VersionQueryKey, versionVal)
+
+		return base + "?" + params.Encode()
+	}
+
 	refVal := ExtractQueryParam(resolvedURL, refParam)
 	if refVal == "" {
 		return originalURL
