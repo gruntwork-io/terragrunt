@@ -17,7 +17,7 @@ import (
 // PanicIssueURL is the canonical bug report URL shown in the crash banner.
 const PanicIssueURL = "https://github.com/gruntwork-io/terragrunt/issues"
 
-// panicMessageMarkers are substrings emitted only in cty/runtime panic messages.
+// panicMessageMarkers are substrings found in cty error messages or Go runtime stack traces.
 var panicMessageMarkers = []string{
 	"panic in function implementation",
 	"runtime/panic.go:",
@@ -119,7 +119,7 @@ func NewPanicReporter() *PanicReporter {
 	}
 }
 
-// PanicHandler reports rec when non-nil and returns true; caller must invoke recover() in the surrounding defer and pass the value.
+// PanicHandler reports rec when non-nil and returns true.
 func (r *PanicReporter) PanicHandler(rec any, l Logger, version func() string, args []string) bool {
 	if rec == nil {
 		return false
@@ -285,6 +285,7 @@ func readBuildInfo() (string, bool) {
 
 // Private helper functions
 
+// writeLog formats and persists the crash report; on cwd write failure it retries under TempDir.
 func (r *PanicReporter) writeLog(version, panicMsg string, stack []byte, args []string) (string, string, error) {
 	now := r.now()
 	pid := r.getPID()
@@ -298,18 +299,20 @@ func (r *PanicReporter) writeLog(version, panicMsg string, stack []byte, args []
 		return logPath, content, nil
 	}
 
-	// Cwd is read-only or otherwise rejected the write; try TempDir before giving up.
+	// Cwd write rejected; try TempDir before giving up.
 	tempDir := r.tempDir()
 	if tempDir == "" || tempDir == workingDir {
 		return "", content, err
 	}
 
 	tempPath := filepath.Join(tempDir, fileName)
-	if tempErr := r.writeFile(tempPath, []byte(content), crashFileMode); tempErr == nil {
+
+	tempErr := r.writeFile(tempPath, []byte(content), crashFileMode)
+	if tempErr == nil {
 		return tempPath, content, nil
 	}
 
-	return "", content, err
+	return "", content, stdErrors.Join(err, tempErr)
 }
 
 // tempDir returns r.TempDir() when set, else os.TempDir.
@@ -348,7 +351,7 @@ func (r *PanicReporter) writeFile(name string, data []byte, perm os.FileMode) er
 	return os.WriteFile(name, data, perm)
 }
 
-// workingDir returns the directory to write the crash log to.
+// workingDir returns cwd, or TempDir if cwd is empty or errors.
 func (r *PanicReporter) workingDir() string {
 	getwd := os.Getwd
 	if r.Getwd != nil {
@@ -362,6 +365,7 @@ func (r *PanicReporter) workingDir() string {
 	return r.tempDir()
 }
 
+// formatLog renders the crashLogTemplate with runtime context.
 func (r *PanicReporter) formatLog(
 	version, panicMsg string,
 	stack []byte,
@@ -410,6 +414,7 @@ func (r *PanicReporter) formatLog(
 	)
 }
 
+// formatLogPath builds the crash log filename from timestamp and pid.
 func (r *PanicReporter) formatLogPath(when time.Time, pid int) string {
 	return crashLogPrefix + "-" + when.UTC().Format(crashLogFileTimeLayout) + "-" + strconv.Itoa(pid) + ".log"
 }

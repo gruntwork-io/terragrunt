@@ -181,10 +181,12 @@ func TestPanicHandler(t *testing.T) {
 
 		expectedPath := "/wd/terragrunt-crash-20260522T123045Z-9999.log"
 
-		_, err := vfs.ReadFile(fs, expectedPath)
+		body, err := vfs.ReadFile(fs, expectedPath)
 		require.NoError(t, err)
 		assert.Contains(t, output.String(), "TERRAGRUNT CRASH")
 		assert.Contains(t, output.String(), "Panic: boom")
+		// The test's own frame must appear in the captured stack so defer-ordering regressions are caught.
+		assert.Contains(t, string(body), "panic_test.go")
 	})
 }
 

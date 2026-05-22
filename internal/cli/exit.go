@@ -11,9 +11,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// RunWithExitCode executes the CLI and returns the process exit code; top-level panics are caught by the caller via a deferred recover() passed to reporter.PanicHandler.
+// RunWithExitCode executes the CLI and returns the process exit code.
 func (app *App) RunWithExitCode(args []string, em *tf.DetailedExitCodeMap, reporter *log.PanicReporter) int {
-	// Background root since RunWithExitCode owns the process lifetime; em and logger are injected so internals can resolve them via context.
+	// RunWithExitCode owns process lifetime; em and logger are injected via context.
 	ctx := log.ContextWithLogger(context.Background(), app.l)
 	ctx = tf.ContextWithDetailedExitCode(ctx, em)
 
