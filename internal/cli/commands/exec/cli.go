@@ -23,13 +23,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, cmdOpts *Options, p
 
 	sharedFlags := append(
 		clihelper.Flags{
-			shared.NewConfigFlag(opts, prefix, CommandName),
-			shared.NewDownloadDirFlag(opts, prefix, CommandName),
+			shared.NewConfigFlag(opts, prefix),
+			shared.NewDownloadDirFlag(opts, prefix),
 			shared.NewTFPathFlag(opts),
-			shared.NewAuthProviderCmdFlag(opts, prefix, CommandName),
-			shared.NewInputsDebugFlag(opts, prefix, CommandName),
+			shared.NewAuthProviderCmdFlag(opts, prefix),
+			shared.NewInputsDebugFlag(opts, prefix),
 		},
-		shared.NewIAMAssumeRoleFlags(opts, prefix, CommandName)...,
+		shared.NewIAMAssumeRoleFlags(opts, prefix)...,
 	)
 
 	return append(sharedFlags,

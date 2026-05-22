@@ -86,9 +86,6 @@ const (
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
-	legacyLogsControl := flags.StrictControlsByGlobalFlags(opts.StrictControls, controls.LegacyLogs)
-
 	flags := clihelper.Flags{
 		NewLogLevelFlag(l, opts, prefix),
 
@@ -98,7 +95,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.WorkingDir,
 			Usage:       "The path to the directory of Terragrunt configurations. Default is current directory.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedWorkingDirFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedWorkingDirFlagName), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:    LogDisableFlagName,
@@ -114,7 +111,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedLogDisableFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedLogDisableFlagName), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        ShowLogAbsPathsFlagName,
@@ -122,7 +119,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.Writers.LogShowAbsPaths,
 			Usage:       "Show absolute paths in logs.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedShowLogAbsPathsFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedShowLogAbsPathsFlagName), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:    NoColorFlagName,
@@ -133,7 +130,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedNoColorFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedNoColorFlagName), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:    LogFormatFlagName,
@@ -151,10 +148,10 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedLogFormatFlagName), terragruntPrefixControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedDisableLogFormattingFlagName), legacyLogsControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedJSONLogFlagName), legacyLogsControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedTfLogJSONFlagName), legacyLogsControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedLogFormatFlagName), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedDisableLogFormattingFlagName), opts.StrictControls, controls.LegacyLogs),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedJSONLogFlagName), opts.StrictControls, controls.LegacyLogs),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedTfLogJSONFlagName), opts.StrictControls, controls.LegacyLogs)),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:    LogCustomFormatFlagName,
@@ -162,7 +159,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:   "Set the custom log formatting.",
 			Setter:  l.Formatter().SetCustomFormat,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedLogCustomFormatFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedLogCustomFormatFlagName), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NonInteractiveFlagName,
@@ -170,11 +167,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.NonInteractive,
 			Usage:       `Assume "yes" for all prompts.`,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedNonInteractiveFlagName), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedNonInteractiveFlagName), opts.StrictControls),
 			flags.WithDeprecatedFlag(&clihelper.BoolFlag{
 				Negative: true,
 				EnvVars:  flags.Prefix{}.EnvVars(DeprecatedTFInputFlagName),
-			}, nil, terragruntPrefixControl)),
+			}, nil, opts.StrictControls)),
 
 		// Experiment Mode flags.
 
@@ -188,7 +185,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedExperimentModeFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedExperimentModeFlagName), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.SliceFlag[string]{
 			Name:    ExperimentFlagName,
@@ -201,7 +198,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedExperimentFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedExperimentFlagName), opts.StrictControls)),
 
 		// Tips Mode flags.
 
@@ -242,7 +239,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedStrictModeFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedStrictModeFlagName), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.SliceFlag[string]{
 			Name:    StrictControlFlagName,
@@ -258,7 +255,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedStrictControlFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedStrictControlFlagName), opts.StrictControls)),
 	}
 
 	flags = flags.Add(NewTelemetryFlags(opts, nil)...)
@@ -272,29 +269,28 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 
 	return clihelper.Flags{
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			EnvVars:     tgPrefix.EnvVars(TelemetryTraceExporterFlagName),
 			Destination: &opts.Telemetry.TraceExporter,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-trace-exporter"), terragruntPrefixControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-trace-exporter"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-trace-exporter"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-trace-exporter"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			EnvVars:     tgPrefix.EnvVars(TelemetryTraceExporterInsecureEndpointFlagName),
 			Destination: &opts.Telemetry.TraceExporterInsecureEndpoint,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-trace-exporter-insecure-endpoint"), terragruntPrefixControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-trace-exporter-insecure-endpoint"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-trace-exporter-insecure-endpoint"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-trace-exporter-insecure-endpoint"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			EnvVars:     tgPrefix.EnvVars(TelemetryTraceExporterHTTPEndpointFlagName),
 			Destination: &opts.Telemetry.TraceExporterHTTPEndpoint,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-trace-exporter-http-endpoint"), terragruntPrefixControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-trace-exporter-http-endpoint"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-trace-exporter-http-endpoint"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-trace-exporter-http-endpoint"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			EnvVars:     flags.Prefix{}.EnvVars(TraceparentFlagName),
@@ -304,22 +300,21 @@ func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli
 			EnvVars:     tgPrefix.EnvVars(TelemetryMetricExporterFlagName),
 			Destination: &opts.Telemetry.MetricExporter,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-metric-exporter"), terragruntPrefixControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-metric-exporter"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-metric-exporter"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-metric-exporter"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			EnvVars:     tgPrefix.EnvVars(TelemetryMetricExporterInsecureEndpointFlagName),
 			Destination: &opts.Telemetry.MetricExporterInsecureEndpoint,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-metric-exporter-insecure-endpoint"), terragruntPrefixControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-metric-exporter-insecure-endpoint"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-metric-exporter-insecure-endpoint"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-metric-exporter-insecure-endpoint"), opts.StrictControls)),
 	}
 }
 
 func NewLogLevelFlag(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 
 	return flags.NewFlag(&clihelper.GenericFlag[string]{
 		Name:        LogLevelFlagName,
@@ -343,7 +338,7 @@ func NewLogLevelFlag(l log.Logger, opts *options.TerragruntOptions, prefix flags
 
 			return nil
 		},
-	}, flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedLogLevelFlagName), terragruntPrefixControl))
+	}, flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedLogLevelFlagName), opts.StrictControls))
 }
 
 func NewHelpVersionFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {

@@ -6,10 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
-const (
-	CLIRedesignCommandsCategoryName = "CLI redesign commands"
-)
-
 // NewDeprecatedReplacedCommand declares the deprecated command that has an alternative command.
 func NewDeprecatedReplacedCommand(command, newCommand string) *Control {
 	return &Control{
