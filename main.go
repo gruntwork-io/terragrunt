@@ -23,13 +23,13 @@ func run() int {
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
 
+	reporter := log.NewPanicReporter()
+	defer reporter.PanicHandler(l, opts.VersionString, os.Args)
+
 	if err := global.NewLogLevelFlag(l, opts, nil).Parse(os.Args); err != nil {
 		l.Errorf("An error has occurred: %v", err)
 		return 1
 	}
-
-	reporter := log.NewPanicReporter()
-	defer reporter.PanicHandler(l, opts.VersionString, os.Args)
 
 	return cli.NewApp(l, opts).RunWithExitCode(os.Args, tf.NewDetailedExitCodeMap(), reporter)
 }

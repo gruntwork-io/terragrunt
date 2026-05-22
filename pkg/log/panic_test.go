@@ -159,6 +159,19 @@ func TestPanicDetails(t *testing.T) {
 		assert.Equal(t, "plain panic message", msg)
 		assert.Nil(t, stack)
 	})
+
+	t.Run("ErrorStack wrapper surfaces captured stack", func(t *testing.T) {
+		t.Parallel()
+
+		err := stackedError{
+			msg:   "wrapped runtime panic",
+			stack: "goroutine 1:\nruntime/panic.go:860\npanic({0x...})\n",
+		}
+
+		msg, stack := log.PanicDetails(err)
+		assert.Equal(t, "wrapped runtime panic", msg)
+		assert.Equal(t, []byte(err.stack), stack)
+	})
 }
 
 func TestIsPanic(t *testing.T) {

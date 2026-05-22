@@ -155,7 +155,8 @@ func (r *PanicReporter) ReportPanic(l Logger, version, panicMsg string, stack []
 	l.Error(logContent)
 }
 
-// PanicDetails returns (Value, Stack) split out of a cty function.PanicError.
+// PanicDetails returns the panic message and stack split out of err.
+// Handles cty function.PanicError, go-errors wrappers (via ErrorStack()), and plain errors.
 func PanicDetails(err error) (msg string, stack []byte) {
 	if err == nil {
 		return "", nil
@@ -164,6 +165,11 @@ func PanicDetails(err error) (msg string, stack []byte) {
 	var ctyPanic function.PanicError
 	if stdErrors.As(err, &ctyPanic) {
 		return fmt.Sprintf("%v", ctyPanic.Value), ctyPanic.Stack
+	}
+
+	var stackErr interface{ ErrorStack() string }
+	if stdErrors.As(err, &stackErr) {
+		return err.Error(), []byte(stackErr.ErrorStack())
 	}
 
 	return err.Error(), nil
