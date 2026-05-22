@@ -311,7 +311,7 @@ func (p *Plan) Generate(
 
 	emptyDep := &variables.Dependency{}
 
-	result, err := templates.ProcessTemplateWithContext(ctx, boilerplateOpts, boilerplateOpts, emptyDep)
+	result, err := templates.ProcessTemplateWithContext(ctx, l, boilerplateOpts, boilerplateOpts, emptyDep)
 	if err != nil {
 		return errors.New(err)
 	}
