@@ -164,11 +164,9 @@ func (c *Component) Content(stripTags bool) string {
 // NewComponentForTest constructs a Component for use in unit tests without
 // requiring a cloned repository on disk.
 func NewComponentForTest(kind ComponentKind, cloneURL, dir, readme string) *Component {
-	var doc *ComponentDoc
+	doc := &ComponentDoc{}
 	if readme != "" {
 		doc = NewComponentDoc(readme, mdExt)
-	} else {
-		doc = &ComponentDoc{}
 	}
 
 	return &Component{

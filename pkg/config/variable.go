@@ -17,12 +17,18 @@ import (
 )
 
 // ParsedVariable structure with input name, default value and description.
+//
+// UserValue is the raw HCL fragment a caller (for example, the interactive
+// catalog scaffold form) supplied for the right-hand side of the inputs
+// assignment. When empty, scaffold templates fall back to the placeholder
+// TODO line.
 type ParsedVariable struct {
 	Name                    string
 	Description             string
 	Type                    string
 	DefaultValue            string
 	DefaultValuePlaceholder string
+	UserValue               string
 }
 
 // ParseVariables - parse variables from tf files.

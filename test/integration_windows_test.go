@@ -257,7 +257,7 @@ func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
 	}
 
-	copyErr := util.CopyFolderContents(createLogger(), environmentPath, filepath.Join(targetPath, environmentPath), ".terragrunt-test")
+	copyErr := util.CopyFolderContents(createLogger(), helpers.MustAbs(t, environmentPath), filepath.Join(targetPath, environmentPath), ".terragrunt-test")
 	require.NoError(t, copyErr)
 }
 
@@ -277,7 +277,7 @@ func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 		t,
 		util.CopyFolderContents(
 			createLogger(),
-			environmentPath,
+			helpers.MustAbs(t, environmentPath),
 			filepath.Join(tmpDir, environmentPath),
 			".terragrunt-test",
 			util.WithIncludeInCopy(".tflint.hcl"),

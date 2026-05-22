@@ -221,7 +221,7 @@ func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, filepath.Join(tmpDir, environmentPath), ".terragrunt-test", util.WithIncludeInCopy(".tflint.hcl")))
+	require.NoError(t, util.CopyFolderContents(createLogger(), helpers.MustAbs(t, environmentPath), filepath.Join(tmpDir, environmentPath), ".terragrunt-test", util.WithIncludeInCopy(".tflint.hcl")))
 
 	return tmpDir
 }

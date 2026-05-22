@@ -324,3 +324,28 @@ type MarkGlobAsReadRequiresExperimentError struct {
 func (err MarkGlobAsReadRequiresExperimentError) Error() string {
 	return fmt.Sprintf("mark_glob_as_read(%q) in %s requires the 'mark-many-as-read' experiment to be enabled", err.Pattern, err.ConfigPath)
 }
+
+// AutoIncludeParserStageError reports which stage of autoinclude parsing failed.
+type AutoIncludeParserStageError struct {
+	Err   error
+	Stage string
+	File  string
+}
+
+func (e AutoIncludeParserStageError) Error() string {
+	return fmt.Sprintf("autoinclude parser %s stage failed for %s: %s", e.Stage, e.File, e.Err)
+}
+
+func (e AutoIncludeParserStageError) Unwrap() error {
+	return e.Err
+}
+
+// DeepMergeRequiresExperimentError is returned when the deep_merge HCL function
+// is called without the deep-merge experiment enabled.
+type DeepMergeRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err DeepMergeRequiresExperimentError) Error() string {
+	return fmt.Sprintf("deep_merge in %s requires the 'deep-merge' experiment to be enabled", err.ConfigPath)
+}

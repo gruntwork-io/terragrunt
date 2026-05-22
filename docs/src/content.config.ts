@@ -56,6 +56,7 @@ const flags = defineCollection({
 		type: z.string(),
 		env: z.array(z.string()).optional(),
 		aliases: z.array(z.string()).optional(),
+		since: z.string().optional(),
 	}),
 });
 

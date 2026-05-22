@@ -1,0 +1,10 @@
+---
+version: "v1.0.6"
+category: "bug-fixes"
+---
+
+#### `mark-many-as-read` experiment now triggers during discovery
+
+With the `mark-many-as-read` experiment enabled, a unit whose `terraform { source = ... }` pointed at a local module did not show up under `--filter 'reading='` filters that referenced files inside that module. Discovery would parse the unit, but the module files were never recorded as read, so the [reading filter attribute](https://docs.terragrunt.com/features/filter/attributes/#reading-based-expressions) could not match and the queue came back empty.
+
+The module walk now runs on the discovery code path as well, so changes to files in a local module source flow through to the units that depend on them.

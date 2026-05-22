@@ -139,7 +139,7 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 			logPrefix           string
 		)
 
-		trackFileRead(pctx.FilesRead, includeConfig.Path)
+		pctx.FilesRead.Add(includeConfig.Path)
 
 		if isPartial {
 			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, pctx, l, &includeConfig)

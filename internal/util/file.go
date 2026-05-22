@@ -377,12 +377,9 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 	source = filepath.ToSlash(source)
 	destination = filepath.ToSlash(destination)
 
-	if cfg.fastCopy {
-		return copyFolderContentsFast(l, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
-	}
-
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
-	// the copy filter.
+	// the copy filter. The expanded globs feed both the dest-inside-source
+	// assertion below and the filter passed to the slow-path implementation.
 	includeExpandedGlobs := []string{}
 
 	for _, includeGlob := range cfg.includeInCopy {
@@ -409,7 +406,7 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
 	}
 
-	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
+	filter := func(absolutePath string) bool {
 		relativePath, err := filepath.Rel(source, absolutePath)
 		if err != nil {
 			l.Warnf("Failed to compute relative path from %s to %s: %v", source, absolutePath, err)
@@ -429,7 +426,17 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 		}
 
 		return !TerragruntExcludes(filepath.FromSlash(relativePath))
-	})
+	}
+
+	if err := assertCopyPathsSafe(source, destination, filter); err != nil {
+		return err
+	}
+
+	if cfg.fastCopy {
+		return copyFolderContentsFast(l, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
+	}
+
+	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, filter)
 }
 
 // copyFolderContentsFast is the [CopyFolderContents] path used when the
@@ -718,6 +725,10 @@ func compileExcludePattern(patterns []string) (glob.Matcher, error) {
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
 func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+	if err := assertCopyPathsSafe(source, destination, filter); err != nil {
+		return err
+	}
+
 	const ownerReadWriteExecutePerms = 0o700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
@@ -813,6 +824,103 @@ func CopyFolderToTemp(source string, tempPrefix string, filter func(path string)
 	return dest, nil
 }
 
+// CopySourceNotAbsoluteError is returned when [CopyFolderContents] or
+// [CopyFolderContentsWithFilter] is called with a non-absolute source.
+type CopySourceNotAbsoluteError struct {
+	Path string
+}
+
+func (err CopySourceNotAbsoluteError) Error() string {
+	return fmt.Sprintf("copy source must be an absolute path, got %q", err.Path)
+}
+
+// CopyDestinationNotAbsoluteError is returned when [CopyFolderContents]
+// or [CopyFolderContentsWithFilter] is called with a non-absolute
+// destination.
+type CopyDestinationNotAbsoluteError struct {
+	Path string
+}
+
+func (err CopyDestinationNotAbsoluteError) Error() string {
+	return fmt.Sprintf("copy destination must be an absolute path, got %q", err.Path)
+}
+
+// CopySourceEqualsDestinationError is returned when [CopyFolderContents]
+// or [CopyFolderContentsWithFilter] is called with source and destination
+// resolving to the same path.
+type CopySourceEqualsDestinationError struct {
+	Path string
+}
+
+func (err CopySourceEqualsDestinationError) Error() string {
+	return fmt.Sprintf("copy source and destination are the same path: %q", err.Path)
+}
+
+// CopyDestinationInsideSourceError is returned when [CopyFolderContents]
+// or [CopyFolderContentsWithFilter] is called with a destination inside
+// the source where the filter would not stop the source walk before
+// reaching the destination subtree.
+type CopyDestinationInsideSourceError struct {
+	Source      string
+	Destination string
+	RelDest     string
+}
+
+func (err CopyDestinationInsideSourceError) Error() string {
+	return fmt.Sprintf("copy destination %q is inside source %q and the filter does not exclude any segment of %q; the copy would recurse into itself", err.Destination, err.Source, err.RelDest)
+}
+
+// assertCopyPathsSafe checks that the copy from source to destination
+// won't recurse forever.
+//
+// The copy is safe whenever the filter excludes any segment
+// along that path (the typical case, e.g. `.terragrunt-cache` is
+// filtered out by [TerragruntExcludes]); the walker stops there and
+// never reaches the destination subtree.
+//
+// Both arguments must be absolute.
+func assertCopyPathsSafe(source, destination string, filter func(absolutePath string) bool) error {
+	if !filepath.IsAbs(source) {
+		return CopySourceNotAbsoluteError{Path: source}
+	}
+
+	if !filepath.IsAbs(destination) {
+		return CopyDestinationNotAbsoluteError{Path: destination}
+	}
+
+	cleanSource := filepath.Clean(source)
+	cleanDest := filepath.Clean(destination)
+
+	if cleanSource == cleanDest {
+		return CopySourceEqualsDestinationError{Path: source}
+	}
+
+	relDest, err := filepath.Rel(cleanSource, cleanDest)
+	if err != nil {
+		// Different volumes on Windows, etc. The paths can't nest.
+		return nil
+	}
+
+	sep := string(filepath.Separator)
+	if relDest == ".." || strings.HasPrefix(relDest, ".."+sep) {
+		return nil
+	}
+
+	accumulated := cleanSource
+	for segment := range strings.SplitSeq(relDest, sep) {
+		accumulated = filepath.Join(accumulated, segment)
+		if filter != nil && !filter(accumulated) {
+			return nil
+		}
+	}
+
+	return errors.New(CopyDestinationInsideSourceError{
+		Source:      source,
+		Destination: destination,
+		RelDest:     relDest,
+	})
+}
+
 // IsSymLink returns true if the given file is a symbolic link
 // Per https://stackoverflow.com/a/18062079/2308858
 func IsSymLink(path string) bool {
@@ -821,7 +929,6 @@ func IsSymLink(path string) bool {
 }
 
 func TerragruntExcludes(path string) bool {
-	// Do not exclude the terraform lock file (new feature added in terraform 0.14)
 	if filepath.Base(path) == TerraformLockFile {
 		return false
 	}

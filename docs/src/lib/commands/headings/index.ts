@@ -1,4 +1,5 @@
 import { getEntry, type CollectionEntry } from 'astro:content';
+import { isFlagVisible } from '@lib/flags';
 
 export async function getHeadings(
 	command: CollectionEntry<'commands'>,
@@ -33,18 +34,29 @@ export async function getHeadings(
 	}
 
 	if (command.data.flags) {
-		headings.push({ depth: 2, slug: 'flags', text: 'Flags' });
+		const flagEntries = await Promise.all(
+			command.data.flags.map((flagName: string) => getEntry('flags', flagName)),
+		);
+		const visibleFlags = (
+			await Promise.all(
+				flagEntries.map(async (flag) => {
+					if (!flag) return null;
+					return (await isFlagVisible(flag.data.since)) ? flag : null;
+				}),
+			)
+		).filter((flag): flag is NonNullable<typeof flag> => flag !== null);
 
-		const flags = await Promise.all(command.data.flags.map(async (flagName: string) => {
-			const flag = (await getEntry('flags', flagName))!;
-			return {
-				depth: 3,
-				slug: flag.data.name,
-				text: `--${flag.data.name}`,
-			};
-		}));
+		if (visibleFlags.length > 0) {
+			headings.push({ depth: 2, slug: 'flags', text: 'Flags' });
 
-		headings.push(...flags);
+			for (const flag of visibleFlags) {
+				headings.push({
+					depth: 3,
+					slug: flag.data.name,
+					text: `--${flag.data.name}`,
+				});
+			}
+		}
 	}
 
 	return headings;

@@ -257,14 +257,15 @@ describe("collectMergedPRs", () => {
 });
 
 describe("listCommitsInRange", () => {
-  test("uses paginate with the basehead form and 100 per_page", async () => {
-    let capturedMethod, capturedOpts;
+  test("uses paginate with the basehead form, 100 per_page, and extracts commits via mapFn", async () => {
+    let capturedMethod, capturedOpts, capturedMapFn;
     const compareFn = () => {};
     const github = {
-      paginate: async (method, opts) => {
+      paginate: async (method, opts, mapFn) => {
         capturedMethod = method;
         capturedOpts = opts;
-        return [{ sha: "a" }, { sha: "b" }];
+        capturedMapFn = mapFn;
+        return mapFn({ data: { commits: [{ sha: "a" }, { sha: "b" }] } });
       },
       rest: { repos: { compareCommitsWithBasehead: compareFn } },
     };
@@ -285,5 +286,9 @@ describe("listCommitsInRange", () => {
       basehead: "v0.95.0...v0.96.0",
       per_page: 100,
     });
+    expect(typeof capturedMapFn).toBe("function");
+    expect(
+      capturedMapFn({ data: { commits: [{ sha: "x" }] } }),
+    ).toEqual([{ sha: "x" }]);
   });
 });

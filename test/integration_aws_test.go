@@ -25,7 +25,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
 
-	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -1789,7 +1788,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	for i := range 20 {
-		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test")
+		err := util.CopyFolderContents(logger.CreateLogger(), helpers.MustAbs(t, testFixtureParallelStateInit), tmpEnvPath, ".terragrunt-test")
 		require.NoError(t, err)
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),
@@ -1827,8 +1826,10 @@ func TestAwsAssumeRole(t *testing.T) {
 	backendFile := filepath.Join(cacheDir, "backend.tf")
 	assert.FileExists(t, backendFile)
 
-	content, err := files.ReadFileAsString(backendFile)
+	contentBytes, err := os.ReadFile(backendFile)
 	require.NoError(t, err)
+
+	content := string(contentBytes)
 
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
@@ -1870,8 +1871,10 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 	backendFile := filepath.Join(cacheDir, "backend.tf")
 	assert.FileExists(t, backendFile)
 
-	content, err := files.ReadFileAsString(backendFile)
+	contentBytes, err := os.ReadFile(backendFile)
 	require.NoError(t, err)
+
+	content := string(contentBytes)
 
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
