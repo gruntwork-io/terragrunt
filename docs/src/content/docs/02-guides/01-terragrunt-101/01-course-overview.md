@@ -1,5 +1,5 @@
 ---
-title: Course Overview
+title: Overview
 description: Welcome and orientation for the Terragrunt 101 self-paced course
 slug: guides/terragrunt-101
 sidebar:
