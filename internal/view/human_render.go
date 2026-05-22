@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/mitchellh/colorstring"
-	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/term"
 )
 
@@ -128,7 +128,7 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 			lines := strings.SplitSeq(diag.Detail, "\n")
 			for line := range lines {
 				if !strings.HasPrefix(line, " ") {
-					line = wordwrap.WrapString(line, uint(paraWidth))
+					line = util.WrapWords(line, paraWidth)
 				}
 
 				if _, err := fmt.Fprintf(&buf, "%s\n", line); err != nil {
