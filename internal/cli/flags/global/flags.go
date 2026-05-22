@@ -4,8 +4,8 @@ package global
 import (
 	"context"
 	"fmt"
+	"slices"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/help"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
@@ -330,7 +330,7 @@ func NewLogLevelFlag(l log.Logger, opts *options.TerragruntOptions, prefix flags
 				"fatal",
 			}
 
-			if collections.ListContainsElement(removedLevels, val) {
+			if slices.Contains(removedLevels, val) {
 				opts.ForwardTFStdout = true
 
 				l.Formatter().SetDisabledOutput(true)

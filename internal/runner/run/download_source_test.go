@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
-	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
 	"github.com/stretchr/testify/assert"
@@ -501,7 +500,7 @@ func createConfig(
 	require.NoError(t, err)
 
 	opts.SourceUpdate = sourceUpdate
-	opts.Env = env.Parse(os.Environ())
+	opts.Env = util.EnvironMap()
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -996,7 +995,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	opts.Env = env.Parse(os.Environ())
+	opts.Env = util.EnvironMap()
 
 	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()

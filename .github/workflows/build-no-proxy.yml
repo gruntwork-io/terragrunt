@@ -75,5 +75,5 @@ jobs:
             OUTPUT="${OUTPUT}.exe"
           fi
           go build -o "${OUTPUT}" \
-            -ldflags "-X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME} -extldflags '-static'" \
+            -ldflags "-X github.com/gruntwork-io/terragrunt/internal/version.Version=${GITHUB_REF_NAME} -extldflags '-static'" \
             .

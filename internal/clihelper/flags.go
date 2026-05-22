@@ -4,9 +4,8 @@ import (
 	"context"
 	libflag "flag"
 	"io"
+	"slices"
 	"sort"
-
-	"github.com/gruntwork-io/go-commons/collections"
 )
 
 type Flags []Flag
@@ -45,7 +44,7 @@ func (flags Flags) Apply(flagSet *libflag.FlagSet, errHandler func(err error) er
 // Get returns a Flag by the given name.
 func (flags Flags) Get(name string) Flag {
 	for _, flag := range flags {
-		if collections.ListContainsElement(flag.Names(), name) {
+		if slices.Contains(flag.Names(), name) {
 			return flag
 		}
 	}
@@ -59,7 +58,7 @@ func (flags Flags) Filter(names ...string) Flags {
 
 	for _, flag := range flags {
 		for _, name := range names {
-			if collections.ListContainsElement(flag.Names(), name) {
+			if slices.Contains(flag.Names(), name) {
 				filtered = append(filtered, flag)
 			}
 		}
