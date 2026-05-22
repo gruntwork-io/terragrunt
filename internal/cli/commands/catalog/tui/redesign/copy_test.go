@@ -149,8 +149,11 @@ func TestCopyCmd_RefusesToOverwriteExistingFile(t *testing.T) {
 	opts.WorkingDir = workingDir
 
 	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "already exists")
+
+	var destErr *redesign.DestinationExistsError
+
+	require.ErrorAs(t, err, &destErr)
+	assert.Equal(t, filepath.Join(workingDir, "terragrunt.stack.hcl"), destErr.Path)
 }
 
 func TestCopyCmd_RejectsNilComponent(t *testing.T) {
@@ -160,8 +163,7 @@ func TestCopyCmd_RejectsNilComponent(t *testing.T) {
 	opts.WorkingDir = t.TempDir()
 
 	err := redesign.NewCopyCmd(logger.CreateLogger(), opts, nil).Run()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "nil component")
+	require.ErrorIs(t, err, redesign.ErrNilComponent)
 }
 
 func TestCopyCmd_RejectsEmptyWorkingDir(t *testing.T) {
@@ -181,8 +183,7 @@ func TestCopyCmd_RejectsEmptyWorkingDir(t *testing.T) {
 	opts.WorkingDir = ""
 
 	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "empty working directory")
+	require.ErrorIs(t, err, redesign.ErrEmptyWorkingDir)
 }
 
 func TestCopyCmd_FailsWhenSourceMissing(t *testing.T) {
@@ -269,13 +270,13 @@ func TestCopyCmd_WithFSUsesInjectedFilesystem(t *testing.T) {
 
 	require.NoError(t, cmd.Run())
 
-	// Result is now populated.
 	r := cmd.Result()
-	assert.NotNil(t, r, "Result should be callable after Run")
+	assert.Equal(t, workingDir, r.WorkingDir, "Result should record the working directory used")
+	assertFileExistsFS(t, fsys, filepath.Join(workingDir, "terragrunt.hcl"))
 }
 
 // TestCopyCmd_ResultZeroValueBeforeRun verifies Result is callable before Run
-// and returns the zero copyResult.
+// and returns the zero CopyResult.
 func TestCopyCmd_ResultZeroValueBeforeRun(t *testing.T) {
 	t.Parallel()
 
@@ -284,9 +285,7 @@ func TestCopyCmd_ResultZeroValueBeforeRun(t *testing.T) {
 
 	cmd := redesign.NewCopyCmd(logger.CreateLogger(), opts, nil)
 
-	// Result is safe to call even before Run; the returned value type
-	// is opaque to external callers but must not panic.
-	assert.NotPanics(t, func() { _ = cmd.Result() })
+	assert.Equal(t, redesign.CopyResult{}, cmd.Result(), "Result should return the zero value before Run")
 }
 
 // TestCopyCmd_StdioSettersAreNoops verifies the tea.ExecCommand stdio setters

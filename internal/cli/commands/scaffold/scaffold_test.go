@@ -116,6 +116,108 @@ func TestDefaultTemplateVariables(t *testing.T) {
 		*cfg.Terraform.Source)
 }
 
+func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
+	t.Parallel()
+
+	// One required and one optional ParsedVariable, both carrying a
+	// UserValue that the template should emit verbatim instead of the
+	// TODO placeholder line or the commented default line.
+	requiredVariables := []*config.ParsedVariable{
+		{
+			Name:                    "vpc_cidr",
+			Description:             "VPC CIDR block.",
+			Type:                    "string",
+			DefaultValuePlaceholder: `""`,
+			UserValue:               `"10.0.0.0/16"`,
+		},
+		{
+			Name:                    "subnets",
+			Description:             "Subnet list.",
+			Type:                    "list(string)",
+			DefaultValuePlaceholder: "[]",
+			UserValue:               `["10.0.1.0/24", "10.0.2.0/24"]`,
+		},
+	}
+
+	optionalVariables := []*config.ParsedVariable{
+		{
+			Name:         "enable_dns",
+			Description:  "Enable DNS.",
+			Type:         "bool",
+			DefaultValue: "true",
+			UserValue:    "false",
+		},
+		{
+			Name:                    "untouched",
+			Description:             "Optional left untouched.",
+			Type:                    "string",
+			DefaultValue:            `"keep"`,
+			DefaultValuePlaceholder: `""`,
+		},
+	}
+
+	vars := map[string]any{
+		"requiredVariables": requiredVariables,
+		"optionalVariables": optionalVariables,
+		"sourceUrl":         "git::https://github.com/gruntwork-io/terragrunt.git//mod?ref=v1",
+		"EnableRootInclude": false,
+		"RootFileName":      "root.hcl",
+	}
+
+	workDir := helpers.TmpDirWOSymlinks(t)
+
+	templateDir := filepath.Join(workDir, "template")
+	require.NoError(t, os.Mkdir(templateDir, 0755))
+
+	outputDir := filepath.Join(workDir, "output")
+	require.NoError(t, os.Mkdir(outputDir, 0755))
+
+	require.NoError(t, os.WriteFile(filepath.Join(templateDir, "terragrunt.hcl"),
+		[]byte(scaffold.DefaultTerragruntTemplate), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"),
+		[]byte(scaffold.DefaultBoilerplateConfig), 0644))
+
+	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, vars, true, true)
+	emptyDep := &variables.Dependency{}
+	require.NoError(t, templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep))
+
+	content, err := util.ReadFileAsString(filepath.Join(outputDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	// Required field with a user value: HCL fragment emitted, no TODO line.
+	assert.Contains(t, content, `vpc_cidr = "10.0.0.0/16"`)
+	assert.NotRegexp(t, `vpc_cidr\s*=\s*""\s*# TODO`, content,
+		"a user-supplied required value should suppress the TODO placeholder line")
+
+	// Required list value: emitted verbatim, not turned into a TODO.
+	assert.Contains(t, content, `subnets = ["10.0.1.0/24", "10.0.2.0/24"]`)
+
+	// Optional field with a user value: written uncommented with the user
+	// value, not as the commented default line.
+	assert.Contains(t, content, `enable_dns = false`)
+	assert.NotContains(t, content, `# enable_dns = true`,
+		"a user-supplied optional value should suppress the commented default")
+
+	// Optional field with no user value: stays commented out with the default.
+	assert.Contains(t, content, `# untouched = "keep"`)
+
+	// The generated file should still parse as a valid terragrunt.hcl.
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
+	cfg, err := config.ReadTerragruntConfig(t.Context(), l, pctx, config.DefaultParserOptions(l, opts.StrictControls))
+	require.NoError(t, err)
+
+	assert.Contains(t, cfg.Inputs, "vpc_cidr")
+	assert.Contains(t, cfg.Inputs, "subnets")
+	assert.Contains(t, cfg.Inputs, "enable_dns")
+	assert.NotContains(t, cfg.Inputs, "untouched",
+		"optional variable without a user value should remain commented out")
+}
+
 func TestCatalogConfigApplication(t *testing.T) {
 	t.Parallel()
 
