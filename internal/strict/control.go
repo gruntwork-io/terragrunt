@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"slices"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -150,7 +151,7 @@ func (ctrls Controls) LogEnabled(logger log.Logger) {
 	enabledControls := ctrls.FilterByEnabled()
 
 	if len(enabledControls) > 0 {
-		logger.Debugf("Enabled strict control(s): %s", enabledControls.Names())
+		logger.Debugf("Enabled strict control(s): %s", strings.Join(enabledControls.Names(), ", "))
 	}
 }
 
