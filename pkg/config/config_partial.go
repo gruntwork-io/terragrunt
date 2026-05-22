@@ -296,7 +296,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
-				file = cacheConfig
+				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
 			} else {
 				var parseErr error
 
