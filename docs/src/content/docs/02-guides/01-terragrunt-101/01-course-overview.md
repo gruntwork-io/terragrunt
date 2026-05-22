@@ -44,7 +44,7 @@ Terragrunt helps you **organize** and **reuse** your infrastructure code.
 
 You'll start with the basics in [**Module 2: First Principles**](/guides/terragrunt-101/first-principles-terminology/), where you'll learn:
 - What are **units** and **stacks**?
-- How does Terragrunt run your OpenTofu or Terraform code?
+- How Terragrunt runs OpenTofu/Terraform code
 
 Then in [**Module 3: Getting Started**](/guides/terragrunt-101/getting-started/), you'll install Terragrunt, learn the commands, and set up your first project.
 
