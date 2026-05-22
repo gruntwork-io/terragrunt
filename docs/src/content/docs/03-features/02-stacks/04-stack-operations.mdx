@@ -492,7 +492,7 @@ If a plan is missing for any unit, the command will fail.
 If a plan job was scoped with `--filter`, you must pass the **same** `--filter` to the apply so the apply discovery set matches the artifact contents. For example:
 
 ```bash
-# Plan `<svc>` and its dependencies:
+# Plan `<unit>` and its dependencies:
 terragrunt run --all --filter '<unit>...' --out-dir /tmp/tfplan -- plan
 
 # Apply must reuse the same filter:
