@@ -3,7 +3,6 @@ package log
 import (
 	stdErrors "errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -29,21 +28,46 @@ const (
 	crashLogPrefix         = "terragrunt-crash"
 	crashLogFileTimeLayout = "20060102T150405Z"
 
+	unknownValue = "unknown"
+
 	crashFileMode os.FileMode = 0o600
 
-	panicOutput = `
+	panicBannerSuccess = `
 ***************************** TERRAGRUNT CRASH *****************************
 
-Terragrunt crashed! This is always indicative of a bug within Terragrunt.
-Please report the crash with Terragrunt[1] so that we can fix this.
+Terragrunt crashed. This is always indicative of a bug within Terragrunt.
 
-When reporting bugs, please include your Terragrunt version and the panic
-report file, and any additional information which may help replicate the
-issue.
+A panic report has been saved to:
 
-[1]: ` + PanicIssueURL + `
+    %s
 
+To report this issue, please open a new ticket including the items below:
+
+    1. Your Terragrunt version: %s
+    2. The full panic report file linked above.
+    3. Any additional information which may help reproduce the issue.
+
+Open issues at: %s
+
+************************ Full error details follow *************************
+`
+
+	panicBannerFallback = `
 ***************************** TERRAGRUNT CRASH *****************************
+
+Terragrunt crashed. This is always indicative of a bug within Terragrunt.
+
+Failed to save a panic report file: %s
+
+To report this issue, please open a new ticket including the items below:
+
+    1. Your Terragrunt version: %s
+    2. The full panic report shown below.
+    3. Any additional information which may help reproduce the issue.
+
+Open issues at: %s
+
+************************ Full error details follow *************************
 `
 
 	crashLogTemplate = `Terragrunt panic report
@@ -115,18 +139,20 @@ func (r *PanicReporter) PanicHandler(l Logger, version func() string, args []str
 func (r *PanicReporter) ReportPanic(l Logger, version, panicMsg string, stack []byte, args []string) {
 	logPath, logContent, writeErr := r.writeLog(version, panicMsg, stack, args)
 
-	l.Error(panicOutput)
+	displayVersion := version
+	if displayVersion == "" {
+		displayVersion = unknownValue
+	}
 
 	if writeErr != nil {
-		l.Errorf("Unable to write crash report: %v", writeErr)
-		l.Errorf("Please report this issue at %s and include the crash report output below.", PanicIssueURL)
+		l.Errorf(panicBannerFallback, writeErr, displayVersion, PanicIssueURL)
 		l.Error(logContent)
 
 		return
 	}
 
-	l.Errorf("A panic report has been saved to: %s", logPath)
-	l.Errorf("Please report this issue at %s and attach the panic report.", PanicIssueURL)
+	l.Errorf(panicBannerSuccess, logPath, displayVersion, PanicIssueURL)
+	l.Error(logContent)
 }
 
 // PanicDetails returns (Value, Stack) split out of a cty function.PanicError.
@@ -167,25 +193,6 @@ func IsPanic(err error) bool {
 	return false
 }
 
-// PanicSuppressingWriter forwards to Inner but drops any Write whose payload matches markers.
-type PanicSuppressingWriter struct {
-	Inner io.Writer
-}
-
-// NewPanicSuppressingWriter wraps inner so that writes carrying panic content are dropped.
-func NewPanicSuppressingWriter(inner io.Writer) *PanicSuppressingWriter {
-	return &PanicSuppressingWriter{Inner: inner}
-}
-
-// Write returns (0, nil) on a dropped payload; zero bytes are forwarded to Inner.
-func (w *PanicSuppressingWriter) Write(p []byte) (int, error) {
-	if IsPanicMessage(string(p)) {
-		return 0, nil
-	}
-
-	return w.Inner.Write(p)
-}
-
 // IsPanicMessage reports whether s contains a cty or Go runtime panic marker.
 func IsPanicMessage(s string) bool {
 	if s == "" {
@@ -205,10 +212,10 @@ func IsPanicMessage(s string) bool {
 func ReadBuildInfo() (string, bool) {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
-		return "unknown", false
+		return unknownValue, false
 	}
 
-	commit := "unknown"
+	commit := unknownValue
 	modified := false
 
 	for _, s := range info.Settings {
@@ -299,7 +306,7 @@ func (r *PanicReporter) formatLog(
 	workingDir string,
 	pid int,
 ) string {
-	commit, modified := "unknown", false
+	commit, modified := unknownValue, false
 	if r.BuildInfo != nil {
 		commit, modified = r.BuildInfo()
 	}
@@ -316,7 +323,7 @@ func (r *PanicReporter) formatLog(
 	}
 
 	if version == "" {
-		version = "unknown"
+		version = unknownValue
 	}
 
 	return fmt.Sprintf(

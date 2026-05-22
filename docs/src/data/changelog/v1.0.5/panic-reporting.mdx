@@ -1,8 +1,0 @@
----
-version: "v1.0.5"
-category: "process-updates"
----
-
-#### Friendly panic reports
-
-On a panic, Terragrunt now writes a `terragrunt-crash-<UTC-timestamp>-<pid>.log` file with full runtime context, then logs the file path and the bug-report URL. Detailed panic traces no longer flood the terminal. If the file cannot be written, the report is printed inline so nothing is lost.

@@ -36,9 +36,13 @@ func TestReportPanicWritesCrashLog(t *testing.T) {
 
 	logOutput := output.String()
 	assert.Contains(t, logOutput, "TERRAGRUNT CRASH")
-	assert.Contains(t, logOutput, "A panic report has been saved to: "+expectedPath)
+	assert.Contains(t, logOutput, "A panic report has been saved to:")
+	assert.Contains(t, logOutput, expectedPath)
+	assert.Contains(t, logOutput, "1. Your Terragrunt version: 1.7.9")
+	assert.Contains(t, logOutput, "2. The full panic report file linked above.")
+	assert.Contains(t, logOutput, "Full error details follow")
 	assert.Contains(t, logOutput, log.PanicIssueURL)
-	assert.NotContains(t, logOutput, "Unable to write crash report")
+	assert.NotContains(t, logOutput, "Failed to save a panic report file")
 
 	body, err := vfs.ReadFile(fs, expectedPath)
 	require.NoError(t, err)
@@ -71,9 +75,12 @@ func TestReportPanicFallsBackWhenWriteFails(t *testing.T) {
 	r.ReportPanic(logger, "1.7.9", "slice bounds out of range", []byte("stack"), []string{"terragrunt"})
 
 	logOutput := output.String()
-	assert.Contains(t, logOutput, "Unable to write crash report: disk full")
+	assert.Contains(t, logOutput, "Failed to save a panic report file: disk full")
 	assert.Contains(t, logOutput, "Panic: slice bounds out of range")
 	assert.Contains(t, logOutput, "TERRAGRUNT CRASH")
+	assert.Contains(t, logOutput, "1. Your Terragrunt version: 1.7.9")
+	assert.Contains(t, logOutput, "2. The full panic report shown below.")
+	assert.Contains(t, logOutput, "Full error details follow")
 	assert.Contains(t, logOutput, log.PanicIssueURL)
 }
 
@@ -111,35 +118,6 @@ func TestReportPanicFallsBackToTempDirWhenGetwdFails(t *testing.T) {
 	expectedPath := filepath.Join("/tmp", "terragrunt-crash-"+when.UTC().Format("20060102T150405Z")+"-"+strconv.Itoa(pid)+".log")
 	_, err := vfs.ReadFile(fs, expectedPath)
 	require.NoError(t, err, "expected crash file at %s", expectedPath)
-}
-
-func TestPanicSuppressingWriter(t *testing.T) {
-	t.Parallel()
-
-	t.Run("forwards regular payloads", func(t *testing.T) {
-		t.Parallel()
-
-		var inner bytes.Buffer
-
-		w := log.NewPanicSuppressingWriter(&inner)
-		n, err := w.Write([]byte("regular log line\n"))
-		require.NoError(t, err)
-		assert.Equal(t, len("regular log line\n"), n)
-		assert.Equal(t, "regular log line\n", inner.String())
-	})
-
-	t.Run("drops panic-bearing payloads", func(t *testing.T) {
-		t.Parallel()
-
-		var inner bytes.Buffer
-
-		w := log.NewPanicSuppressingWriter(&inner)
-		payload := "Error: Error in function call\nCall to function \"run_cmd\" failed: panic in function implementation: nil deref\n"
-		n, err := w.Write([]byte(payload))
-		require.NoError(t, err)
-		assert.Equal(t, 0, n)
-		assert.Empty(t, inner.String())
-	})
 }
 
 func TestPanicDetails(t *testing.T) {
