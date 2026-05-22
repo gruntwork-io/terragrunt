@@ -58,7 +58,7 @@ Then in [**Module 3: Getting Started**](/guides/terragrunt-101/getting-started/)
 
 In [**Module 6: Authoring Units**](/guides/terragrunt-101/authoring-units/), you'll write your own reusable units using inputs, generate blocks, and include patterns.
 
-[**Module 7: Composing Stacks**](/guides/terragrunt-101/composing-stacks/) teaches you to combine units into stacks with dependencies—both implicit and explicit.
+[**Module 7: Composing Stacks**](/guides/terragrunt-101/composing-stacks/) teaches you to combine units into stacks with dependencies.
 
 ---
 
