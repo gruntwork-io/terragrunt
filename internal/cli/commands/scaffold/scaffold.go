@@ -706,7 +706,12 @@ func addRefToModuleURL(
 
 	refReplacement, refVarPassed := vars[refVar]
 	if refVarPassed {
-		params.Set(refParam, fmt.Sprintf("%s", refReplacement))
+		paramKey := refParam
+		if getter.IsTFRSource(moduleURL.String()) {
+			paramKey = getter.VersionQueryKey
+		}
+
+		params.Set(paramKey, fmt.Sprintf("%s", refReplacement))
 		moduleURL.RawQuery = params.Encode()
 	}
 
