@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -76,15 +76,13 @@ func newBufferLogger() (log.Logger, *bytes.Buffer) {
 	return log.New(log.WithOutput(buf), log.WithLevel(log.InfoLevel), log.WithFormatter(formatter)), buf
 }
 
-func newReporter() *log.PanicReporter {
-	fs := vfs.NewMemMapFS()
-
-	return &log.PanicReporter{
+func newReporter() *panicreport.Reporter {
+	return &panicreport.Reporter{
+		FS:        vfs.NewMemMapFS(),
 		Now:       func() time.Time { return time.Date(2026, 5, 15, 12, 30, 45, 0, time.UTC) },
 		Getwd:     func() (string, error) { return "/wd", nil },
 		GetPID:    func() int { return 1 },
 		TempDir:   func() string { return "/tmp" },
-		WriteFile: func(name string, data []byte, perm os.FileMode) error { return vfs.WriteFile(fs, name, data, perm) },
 		BuildInfo: func() (string, bool) { return "test", false },
 	}
 }

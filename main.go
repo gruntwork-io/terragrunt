@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
+	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -23,7 +24,7 @@ func run() (code int) {
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
 
-	reporter := log.NewPanicReporter()
+	reporter := panicreport.New()
 	// Recover panics here so main owns os.Exit and any future main-level defers still run.
 	defer func() {
 		if reporter.PanicHandler(recover(), l, opts.VersionString, os.Args) {

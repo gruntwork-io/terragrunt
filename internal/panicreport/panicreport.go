@@ -1,4 +1,5 @@
-package log
+// Package panicreport collects a friendly crash report on top-level panics.
+package panicreport
 
 import (
 	stdErrors "errors"
@@ -12,6 +13,10 @@ import (
 	"time"
 
 	"github.com/zclconf/go-cty/cty/function"
+
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	// Imports pkg/log; pkg/log must never import internal/panicreport (would cycle via internal/vfs).
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // PanicIssueURL is the canonical bug report URL shown in the crash banner.
@@ -97,30 +102,30 @@ Stack trace:
 `
 )
 
-// PanicReporter holds hooks used by the crash report path.
-type PanicReporter struct {
+// Reporter writes the crash banner and persists a crash log file on panic.
+type Reporter struct {
+	FS        vfs.FS
 	Now       func() time.Time
 	Getwd     func() (string, error)
 	GetPID    func() int
 	TempDir   func() string
-	WriteFile func(name string, data []byte, perm os.FileMode) error
 	BuildInfo func() (commit string, modified bool)
 }
 
-// NewPanicReporter returns a PanicReporter wired with production defaults.
-func NewPanicReporter() *PanicReporter {
-	return &PanicReporter{
+// New returns a Reporter wired with production defaults.
+func New() *Reporter {
+	return &Reporter{
+		FS:        vfs.NewOSFS(),
 		Now:       time.Now,
 		Getwd:     os.Getwd,
 		GetPID:    os.Getpid,
 		TempDir:   os.TempDir,
-		WriteFile: os.WriteFile,
 		BuildInfo: readBuildInfo,
 	}
 }
 
 // PanicHandler reports rec when non-nil and returns true.
-func (r *PanicReporter) PanicHandler(rec any, l Logger, version func() string, args []string) bool {
+func (r *Reporter) PanicHandler(rec any, l log.Logger, version func() string, args []string) bool {
 	if rec == nil {
 		return false
 	}
@@ -140,7 +145,7 @@ func (r *PanicReporter) PanicHandler(rec any, l Logger, version func() string, a
 }
 
 // ReportPanic writes the crash log and friendly banner for a panic surfaced as a returned error.
-func (r *PanicReporter) ReportPanic(l Logger, version, panicMsg string, stack []byte, args []string) {
+func (r *Reporter) ReportPanic(l log.Logger, version, panicMsg string, stack []byte, args []string) {
 	logPath, logContent, writeErr := r.writeLog(version, panicMsg, stack, args)
 
 	displayVersion := version
@@ -286,7 +291,7 @@ func readBuildInfo() (string, bool) {
 // Private helper functions
 
 // writeLog formats and persists the crash report; on cwd write failure it retries under TempDir.
-func (r *PanicReporter) writeLog(version, panicMsg string, stack []byte, args []string) (string, string, error) {
+func (r *Reporter) writeLog(version, panicMsg string, stack []byte, args []string) (string, string, error) {
 	now := r.now()
 	pid := r.getPID()
 	workingDir := r.workingDir()
@@ -316,7 +321,7 @@ func (r *PanicReporter) writeLog(version, panicMsg string, stack []byte, args []
 }
 
 // tempDir returns r.TempDir() when set, else os.TempDir.
-func (r *PanicReporter) tempDir() string {
+func (r *Reporter) tempDir() string {
 	if r.TempDir != nil {
 		return r.TempDir()
 	}
@@ -325,7 +330,7 @@ func (r *PanicReporter) tempDir() string {
 }
 
 // now returns r.Now() or time.Now if r.Now is nil.
-func (r *PanicReporter) now() time.Time {
+func (r *Reporter) now() time.Time {
 	if r.Now != nil {
 		return r.Now()
 	}
@@ -334,7 +339,7 @@ func (r *PanicReporter) now() time.Time {
 }
 
 // getPID returns r.GetPID() or os.Getpid if r.GetPID is nil.
-func (r *PanicReporter) getPID() int {
+func (r *Reporter) getPID() int {
 	if r.GetPID != nil {
 		return r.GetPID()
 	}
@@ -342,17 +347,18 @@ func (r *PanicReporter) getPID() int {
 	return os.Getpid()
 }
 
-// writeFile delegates to r.WriteFile or os.WriteFile when unset.
-func (r *PanicReporter) writeFile(name string, data []byte, perm os.FileMode) error {
-	if r.WriteFile != nil {
-		return r.WriteFile(name, data, perm)
+// writeFile writes through r.FS, falling back to a fresh OS FS when unset.
+func (r *Reporter) writeFile(name string, data []byte, perm os.FileMode) error {
+	fs := r.FS
+	if fs == nil {
+		fs = vfs.NewOSFS()
 	}
 
-	return os.WriteFile(name, data, perm)
+	return vfs.WriteFile(fs, name, data, perm)
 }
 
 // workingDir returns cwd, or TempDir if cwd is empty or errors.
-func (r *PanicReporter) workingDir() string {
+func (r *Reporter) workingDir() string {
 	getwd := os.Getwd
 	if r.Getwd != nil {
 		getwd = r.Getwd
@@ -366,7 +372,7 @@ func (r *PanicReporter) workingDir() string {
 }
 
 // formatLog renders the crashLogTemplate with runtime context.
-func (r *PanicReporter) formatLog(
+func (r *Reporter) formatLog(
 	version, panicMsg string,
 	stack []byte,
 	args []string,
@@ -415,7 +421,7 @@ func (r *PanicReporter) formatLog(
 }
 
 // formatLogPath builds the crash log filename from timestamp and pid.
-func (r *PanicReporter) formatLogPath(when time.Time, pid int) string {
+func (r *Reporter) formatLogPath(when time.Time, pid int) string {
 	return crashLogPrefix + "-" + when.UTC().Format(crashLogFileTimeLayout) + "-" + strconv.Itoa(pid) + ".log"
 }
 

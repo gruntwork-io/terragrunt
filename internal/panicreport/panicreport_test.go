@@ -1,4 +1,4 @@
-package log_test
+package panicreport_test
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -27,10 +28,10 @@ func TestReportPanicWritesCrashLog(t *testing.T) {
 
 	when := time.Date(2026, 5, 15, 12, 30, 45, 0, time.UTC)
 	fs := vfs.NewMemMapFS()
-	r := newStubPanicReporter(fs, "/wd", when, 8080)
-	logger, output := newPanicLogger()
+	r := newStubReporter(fs, "/wd", when, 8080)
+	l, output := newPanicLogger()
 
-	r.ReportPanic(logger, "1.7.9", "nil pointer dereference", []byte("stack-frames\nrunes"), []string{"terragrunt", "plan"})
+	r.ReportPanic(l, "1.7.9", "nil pointer dereference", []byte("stack-frames\nrunes"), []string{"terragrunt", "plan"})
 
 	expectedPath := "/wd/terragrunt-crash-20260515T123045Z-8080.log"
 
@@ -41,7 +42,7 @@ func TestReportPanicWritesCrashLog(t *testing.T) {
 	assert.Contains(t, logOutput, "1. Your Terragrunt version: 1.7.9")
 	assert.Contains(t, logOutput, "2. The full panic report file linked above.")
 	assert.Contains(t, logOutput, "Full error details follow")
-	assert.Contains(t, logOutput, log.PanicIssueURL)
+	assert.Contains(t, logOutput, panicreport.PanicIssueURL)
 	assert.NotContains(t, logOutput, "Failed to save a panic report file")
 
 	body, err := vfs.ReadFile(fs, expectedPath)
@@ -66,22 +67,22 @@ func TestReportPanicWritesCrashLog(t *testing.T) {
 func TestReportPanicFallsBackWhenWriteFails(t *testing.T) {
 	t.Parallel()
 
-	r := newStubPanicReporter(vfs.NewMemMapFS(), "/wd", time.Now().UTC(), os.Getpid())
-	r.WriteFile = func(string, []byte, os.FileMode) error {
-		return errors.New("disk full")
-	}
+	// All writes are rejected; cwd-write fails, TempDir retry also fails (same FS), inline fallback fires.
+	fs := &rejectWritesFS{FS: vfs.NewMemMapFS(), err: errors.New("disk full")}
+	r := newStubReporter(fs, "/wd", time.Now().UTC(), os.Getpid())
 
-	logger, output := newPanicLogger()
-	r.ReportPanic(logger, "1.7.9", "slice bounds out of range", []byte("stack"), []string{"terragrunt"})
+	l, output := newPanicLogger()
+	r.ReportPanic(l, "1.7.9", "slice bounds out of range", []byte("stack"), []string{"terragrunt"})
 
 	logOutput := output.String()
-	assert.Contains(t, logOutput, "Failed to save a panic report file: disk full")
+	assert.Contains(t, logOutput, "Failed to save a panic report file")
+	assert.Contains(t, logOutput, "disk full")
 	assert.Contains(t, logOutput, "Panic: slice bounds out of range")
 	assert.Contains(t, logOutput, "TERRAGRUNT CRASH")
 	assert.Contains(t, logOutput, "1. Your Terragrunt version: 1.7.9")
 	assert.Contains(t, logOutput, "2. The full panic report shown below.")
 	assert.Contains(t, logOutput, "Full error details follow")
-	assert.Contains(t, logOutput, log.PanicIssueURL)
+	assert.Contains(t, logOutput, panicreport.PanicIssueURL)
 }
 
 func TestReportPanicFallbacksOnEmptyInputs(t *testing.T) {
@@ -89,11 +90,11 @@ func TestReportPanicFallbacksOnEmptyInputs(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 	when := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	r := newStubPanicReporter(fs, "/wd", when, 1)
+	r := newStubReporter(fs, "/wd", when, 1)
 
 	r.ReportPanic(logger.CreateLogger(), "", "", nil, []string{})
 
-	body, err := vfs.ReadFile(fs, "/wd/"+"terragrunt-crash-20260102T030405Z-1.log")
+	body, err := vfs.ReadFile(fs, "/wd/terragrunt-crash-20260102T030405Z-1.log")
 	require.NoError(t, err)
 
 	content := string(body)
@@ -110,7 +111,7 @@ func TestReportPanicFallsBackToTempDirWhenGetwdFails(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	when := time.Now().UTC()
 	pid := os.Getpid()
-	r := newStubPanicReporter(fs, "/wd", when, pid)
+	r := newStubReporter(fs, "/wd", when, pid)
 	r.Getwd = func() (string, error) { return "", errors.New("denied") }
 
 	r.ReportPanic(logger.CreateLogger(), "1.7.9", "divide by zero", []byte("stack"), nil)
@@ -123,21 +124,14 @@ func TestReportPanicFallsBackToTempDirWhenGetwdFails(t *testing.T) {
 func TestReportPanicRetriesTempDirWhenCwdWriteFails(t *testing.T) {
 	t.Parallel()
 
-	fs := vfs.NewMemMapFS()
+	// Reject writes under /readonly; accept anywhere else (i.e. /tmp).
+	fs := &readOnlyDirsFS{FS: vfs.NewMemMapFS(), readOnlyDirs: []string{"/readonly"}}
 	when := time.Date(2026, 5, 22, 12, 30, 45, 0, time.UTC)
 	pid := 4242
-	r := newStubPanicReporter(fs, "/readonly", when, pid)
-	// Reject writes under the cwd; accept anywhere else (i.e. /tmp).
-	r.WriteFile = func(name string, data []byte, perm os.FileMode) error {
-		if filepath.Dir(name) == "/readonly" {
-			return errors.New("read-only filesystem")
-		}
+	r := newStubReporter(fs, "/readonly", when, pid)
 
-		return vfs.WriteFile(fs, name, data, perm)
-	}
-
-	logger, output := newPanicLogger()
-	r.ReportPanic(logger, "1.7.9", "boom", []byte("stack"), []string{"terragrunt"})
+	l, output := newPanicLogger()
+	r.ReportPanic(l, "1.7.9", "boom", []byte("stack"), []string{"terragrunt"})
 
 	tempPath := "/tmp/terragrunt-crash-20260522T123045Z-4242.log"
 	_, err := vfs.ReadFile(fs, tempPath)
@@ -153,7 +147,7 @@ func TestPanicHandler(t *testing.T) {
 	t.Run("returns false when rec is nil", func(t *testing.T) {
 		t.Parallel()
 
-		r := newStubPanicReporter(vfs.NewMemMapFS(), "/wd", time.Now().UTC(), 1)
+		r := newStubReporter(vfs.NewMemMapFS(), "/wd", time.Now().UTC(), 1)
 		assert.False(t, r.PanicHandler(nil, logger.CreateLogger(), func() string { return "1.7.9" }, []string{"terragrunt"}))
 	})
 
@@ -162,7 +156,7 @@ func TestPanicHandler(t *testing.T) {
 
 		fs := vfs.NewMemMapFS()
 		when := time.Date(2026, 5, 22, 12, 30, 45, 0, time.UTC)
-		r := newStubPanicReporter(fs, "/wd", when, 9999)
+		r := newStubReporter(fs, "/wd", when, 9999)
 
 		l, output := newPanicLogger()
 
@@ -186,7 +180,7 @@ func TestPanicHandler(t *testing.T) {
 		assert.Contains(t, output.String(), "TERRAGRUNT CRASH")
 		assert.Contains(t, output.String(), "Panic: boom")
 		// The test's own frame must appear in the captured stack so defer-ordering regressions are caught.
-		assert.Contains(t, string(body), "panic_test.go")
+		assert.Contains(t, string(body), "panicreport_test.go")
 	})
 }
 
@@ -196,7 +190,7 @@ func TestPanicDetails(t *testing.T) {
 	t.Run("nil returns empty values", func(t *testing.T) {
 		t.Parallel()
 
-		msg, stack := log.PanicDetails(nil)
+		msg, stack := panicreport.PanicDetails(nil)
 		assert.Empty(t, msg)
 		assert.Nil(t, stack)
 	})
@@ -205,7 +199,7 @@ func TestPanicDetails(t *testing.T) {
 		t.Parallel()
 
 		err := function.PanicError{Value: "nil deref", Stack: []byte("cty stack frames")}
-		msg, stack := log.PanicDetails(err)
+		msg, stack := panicreport.PanicDetails(err)
 
 		assert.Equal(t, "nil deref", msg)
 		assert.Equal(t, []byte("cty stack frames"), stack)
@@ -217,7 +211,7 @@ func TestPanicDetails(t *testing.T) {
 		inner := function.PanicError{Value: "boom", Stack: []byte("inner stack")}
 		wrapped := fmt.Errorf("evaluating: %w", inner)
 
-		msg, stack := log.PanicDetails(wrapped)
+		msg, stack := panicreport.PanicDetails(wrapped)
 		assert.Equal(t, "boom", msg)
 		assert.Equal(t, []byte("inner stack"), stack)
 	})
@@ -225,7 +219,7 @@ func TestPanicDetails(t *testing.T) {
 	t.Run("non-cty panic falls back to err.Error", func(t *testing.T) {
 		t.Parallel()
 
-		msg, stack := log.PanicDetails(errors.New("plain panic message"))
+		msg, stack := panicreport.PanicDetails(errors.New("plain panic message"))
 		assert.Equal(t, "plain panic message", msg)
 		assert.Nil(t, stack)
 	})
@@ -240,7 +234,7 @@ func TestPanicDetails(t *testing.T) {
 		}
 		err := fmt.Errorf("outer: %w", inner)
 
-		msg, stack := log.PanicDetails(err)
+		msg, stack := panicreport.PanicDetails(err)
 		assert.Equal(t, "outer: wrapped runtime panic", msg)
 		assert.Equal(t, []byte(inner.stack), stack)
 	})
@@ -251,7 +245,7 @@ func TestPanicDetails(t *testing.T) {
 		// A benign error that happens to expose an ErrorStack must NOT be returned as a panic stack.
 		err := stackedError{msg: "ordinary failure", stack: "io.EOF\n\tnet/io.go:42\n"}
 
-		msg, stack := log.PanicDetails(err)
+		msg, stack := panicreport.PanicDetails(err)
 		assert.Equal(t, "ordinary failure", msg)
 		assert.Nil(t, stack, "ErrorStack lacking panic markers must not be returned")
 	})
@@ -263,15 +257,15 @@ func TestIsPanic(t *testing.T) {
 	t.Run("nil is not a panic", func(t *testing.T) {
 		t.Parallel()
 
-		assert.False(t, log.IsPanic(nil))
+		assert.False(t, panicreport.IsPanic(nil))
 	})
 
 	t.Run("plain wrapped error is not a panic", func(t *testing.T) {
 		t.Parallel()
 
-		assert.False(t, log.IsPanic(errors.New("regular failure")))
-		assert.False(t, log.IsPanic(errors.New("panic but not from runtime")))
-		assert.False(t, log.IsPanic(errors.New("user requested panic shutdown")))
+		assert.False(t, panicreport.IsPanic(errors.New("regular failure")))
+		assert.False(t, panicreport.IsPanic(errors.New("panic but not from runtime")))
+		assert.False(t, panicreport.IsPanic(errors.New("user requested panic shutdown")))
 	})
 
 	t.Run("matches cty function.PanicError by type", func(t *testing.T) {
@@ -282,8 +276,8 @@ func TestIsPanic(t *testing.T) {
 			Stack: []byte("cty stack"),
 		}
 
-		assert.True(t, log.IsPanic(err))
-		assert.True(t, log.IsPanic(fmt.Errorf("wrapped: %w", err)))
+		assert.True(t, panicreport.IsPanic(err))
+		assert.True(t, panicreport.IsPanic(fmt.Errorf("wrapped: %w", err)))
 	})
 
 	t.Run("plain error containing panic text is not classified as a Terragrunt panic", func(t *testing.T) {
@@ -292,7 +286,7 @@ func TestIsPanic(t *testing.T) {
 		// Subprocess (tofu/terraform) crash text bubbled up as a regular error must NOT trigger a Terragrunt crash banner.
 		err := errors.New("panic: simulated\n\ngoroutine 1 [running]:\nruntime/debug.Stack()\npanic({0x...})\n\t/usr/local/go/src/runtime/panic.go:860")
 
-		assert.False(t, log.IsPanic(err))
+		assert.False(t, panicreport.IsPanic(err))
 	})
 
 	t.Run("matches a wrapped runtime.Error", func(t *testing.T) {
@@ -313,7 +307,7 @@ func TestIsPanic(t *testing.T) {
 		}()
 
 		assert.NotNil(t, rerr, "test setup: expected runtime panic")
-		assert.True(t, log.IsPanic(fmt.Errorf("wrapped: %w", rerr)))
+		assert.True(t, panicreport.IsPanic(fmt.Errorf("wrapped: %w", rerr)))
 	})
 
 	t.Run("matches an error whose ErrorStack contains a runtime panic frame", func(t *testing.T) {
@@ -324,7 +318,7 @@ func TestIsPanic(t *testing.T) {
 			stack: "goroutine 1:\nruntime/panic.go:860\npanic({0x...})\n",
 		}
 
-		assert.True(t, log.IsPanic(err))
+		assert.True(t, panicreport.IsPanic(err))
 	})
 
 	t.Run("matches a panic inside an errors.Join multi-error", func(t *testing.T) {
@@ -337,7 +331,7 @@ func TestIsPanic(t *testing.T) {
 
 		joined := errors.Join(errors.New("first benign failure"), panicErr, errors.New("second benign failure"))
 
-		assert.True(t, log.IsPanic(joined))
+		assert.True(t, panicreport.IsPanic(joined))
 	})
 }
 
@@ -351,6 +345,39 @@ type stackedError struct {
 func (e stackedError) Error() string      { return e.msg }
 func (e stackedError) ErrorStack() string { return e.stack }
 
+// rejectWritesFS wraps an FS and rejects every write call with err; intercepts the OpenFile leg of vfs.WriteFile.
+type rejectWritesFS struct {
+	vfs.FS
+	err error
+}
+
+func (r *rejectWritesFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.File, error) {
+	if flag&(os.O_WRONLY|os.O_RDWR|os.O_CREATE) != 0 {
+		return nil, r.err
+	}
+
+	return r.FS.OpenFile(name, flag, perm)
+}
+
+// readOnlyDirsFS rejects writes under readOnlyDirs; intercepts the OpenFile leg of vfs.WriteFile.
+type readOnlyDirsFS struct {
+	vfs.FS
+	readOnlyDirs []string
+}
+
+func (r *readOnlyDirsFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.File, error) {
+	if flag&(os.O_WRONLY|os.O_RDWR|os.O_CREATE) != 0 {
+		dir := filepath.Dir(name)
+		for _, ro := range r.readOnlyDirs {
+			if dir == ro {
+				return nil, errors.New("read-only filesystem")
+			}
+		}
+	}
+
+	return r.FS.OpenFile(name, flag, perm)
+}
+
 func newPanicLogger() (log.Logger, *bytes.Buffer) {
 	buf := new(bytes.Buffer)
 	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
@@ -358,13 +385,13 @@ func newPanicLogger() (log.Logger, *bytes.Buffer) {
 	return log.New(log.WithOutput(buf), log.WithLevel(log.InfoLevel), log.WithFormatter(formatter)), buf
 }
 
-func newStubPanicReporter(fs vfs.FS, workDir string, now time.Time, pid int) *log.PanicReporter {
-	return &log.PanicReporter{
+func newStubReporter(fs vfs.FS, workDir string, now time.Time, pid int) *panicreport.Reporter {
+	return &panicreport.Reporter{
+		FS:        fs,
 		Now:       func() time.Time { return now },
 		Getwd:     func() (string, error) { return workDir, nil },
 		GetPID:    func() int { return pid },
 		TempDir:   func() string { return "/tmp" },
-		WriteFile: func(name string, data []byte, perm os.FileMode) error { return vfs.WriteFile(fs, name, data, perm) },
 		BuildInfo: func() (string, bool) { return "deadbeef", true },
 	}
 }
