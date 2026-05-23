@@ -1,0 +1,47 @@
+---
+name: stack-output-implicit
+status: active
+since: "1.0.5"
+---
+
+Aggregate unit outputs without requiring a `terragrunt.stack.hcl` file.
+
+### `stack-output-implicit` - What it does
+When enabled, `terragrunt stack output` falls back to discovering units directly under the working directory if no `terragrunt.stack.hcl` files are found, instead of warning and returning nothing. Each discovered unit's outputs are aggregated under a key equal to the unit's directory path relative to the working directory (forward slashes on every OS, including Windows).
+
+```bash
+terragrunt stack output --experiment stack-output-implicit
+```
+
+Example output for a working directory containing units at `./vpc`, `./db`, and `./apps/api`:
+
+```hcl
+apps/api = {
+  domain = "api.example.com"
+}
+db = {
+  endpoint = "db.local"
+  port     = 5432
+}
+vpc = {
+  vpc_id = "vpc-1234567890"
+}
+```
+
+Filtering and dot drill-down behave the same way as with explicit stacks:
+
+```bash
+terragrunt stack output vpc.vpc_id --format raw --experiment stack-output-implicit
+```
+
+Directory names containing `.` cannot be drilled into with the dot separator — use `--format json` for those, the same caveat that already applies to explicit-stack unit names containing `.`. Unit-level `exclude` blocks against the `output` action are honored, matching explicit-stack behavior.
+
+### `stack-output-implicit` - How to provide feedback
+Provide your feedback on the [GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions) page or on the original feature request, [#4559](https://github.com/gruntwork-io/terragrunt/issues/4559).
+
+### `stack-output-implicit` - Criteria for stabilization
+To transition the `stack-output-implicit` feature to a stable release, the following must be addressed:
+
+- [ ] Community feedback on the chosen key shape (relative path with forward slashes, no `./` prefix)
+- [ ] Confirmation that the dot-separator caveat for directory names containing `.` is acceptable, or design of an opt-in alternative drill-down syntax
+- [ ] Coverage on Windows CI to lock in the cross-platform path normalization

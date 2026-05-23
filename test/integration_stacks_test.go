@@ -492,10 +492,12 @@ func TestStackOutputsImplicit(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
+	const experimentFlag = " --experiment stack-output-implicit"
+
 	t.Run("json", func(t *testing.T) {
 		t.Parallel()
 
-		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --non-interactive --working-dir "+rootPath)
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --non-interactive --working-dir "+rootPath+experimentFlag)
 		require.NoError(t, err)
 
 		var result map[string]map[string]any
@@ -516,7 +518,7 @@ func TestStackOutputsImplicit(t *testing.T) {
 	t.Run("filter by path key", func(t *testing.T) {
 		t.Parallel()
 
-		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output somefolder/aws --format json --non-interactive --working-dir "+rootPath)
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output somefolder/aws --format json --non-interactive --working-dir "+rootPath+experimentFlag)
 		require.NoError(t, err)
 
 		var result map[string]map[string]any
@@ -531,9 +533,19 @@ func TestStackOutputsImplicit(t *testing.T) {
 	t.Run("drill into a specific attribute", func(t *testing.T) {
 		t.Parallel()
 
-		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output vpc.vpc_id --format raw --non-interactive --working-dir "+rootPath)
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output vpc.vpc_id --format raw --non-interactive --working-dir "+rootPath+experimentFlag)
 		require.NoError(t, err)
 		assert.Equal(t, "vpc-1234567890", strings.TrimSpace(stdout))
+	})
+
+	t.Run("disabled without the experiment flag", func(t *testing.T) {
+		t.Parallel()
+
+		// Without --experiment stack-output-implicit, the fallback must not
+		// fire: behavior matches the pre-experiment state (warn + empty output).
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --non-interactive --working-dir "+rootPath)
+		require.NoError(t, err)
+		assert.Empty(t, strings.TrimSpace(stdout))
 	})
 }
 

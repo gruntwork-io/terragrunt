@@ -1,13 +1,15 @@
 ---
 version: "v1.0.5"
-category: "new-features"
+category: "experiments-added"
 ---
 
 #### `stack output` works without `terragrunt.stack.hcl` (implicit stacks)
 
+Gated behind the new [`stack-output-implicit`](/reference/experiments/active/#stack-output-implicit---what-it-does) experiment.
+
 `terragrunt stack output` previously required a `terragrunt.stack.hcl` file to produce aggregated outputs. When run in a directory with only loose units, it warned that no stack files were found and produced nothing.
 
-It now falls back to discovering units directly under the working directory and aggregates their outputs keyed by the unit's directory path (relative to the working directory):
+With the experiment enabled, it now falls back to discovering units directly under the working directory and aggregates their outputs keyed by the unit's directory path (relative to the working directory, forward slashes on every OS):
 
 ```bash
 $ terragrunt stack output
@@ -26,8 +28,10 @@ apps/api = {
 Filtering and drill-down work the same way they do for explicit stacks:
 
 ```bash
-$ terragrunt stack output vpc.vpc_id --format raw
+$ terragrunt stack output vpc.vpc_id --format raw --experiment stack-output-implicit
 vpc-1234567890
 ```
+
+Directory names containing `.` cannot be drilled into with the dot separator — use `--format json` for those, same caveat as explicit-stack unit names with `.`.
 
 Closes [#4559](https://github.com/gruntwork-io/terragrunt/issues/4559).

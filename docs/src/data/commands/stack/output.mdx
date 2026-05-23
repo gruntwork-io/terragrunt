@@ -75,7 +75,9 @@ project1_app1.custom_value1 = "value1"
 
 ## Implicit stacks
 
-`terragrunt stack output` also works when no `terragrunt.stack.hcl` file is present. In that case it discovers the units under the working directory and aggregates their outputs keyed by each unit's directory path (relative to the working directory):
+Gated behind the [`stack-output-implicit`](/reference/experiments/active/#stack-output-implicit---what-it-does) experiment. Enable with `--experiment stack-output-implicit` (or `TG_EXPERIMENT=stack-output-implicit`).
+
+When enabled and no `terragrunt.stack.hcl` file is present, `terragrunt stack output` discovers the units under the working directory and aggregates their outputs keyed by each unit's directory path (relative to the working directory, forward slashes on every OS):
 
 ```bash
 $ terragrunt stack output

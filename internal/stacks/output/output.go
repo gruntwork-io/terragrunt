@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
@@ -102,7 +103,13 @@ func StackOutput(
 	}
 
 	if len(foundFiles) == 0 {
+		if !opts.Experiments.Evaluate(experiment.StackOutputImplicit) {
+			l.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
+			return cty.NilVal, nil
+		}
+
 		l.Debugf("No stack files found in %s; falling back to unit discovery for outputs", opts.WorkingDir)
+
 		return implicitStackOutput(ctx, l, opts, excludedPaths)
 	}
 

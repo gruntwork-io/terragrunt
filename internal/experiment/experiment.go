@@ -66,6 +66,10 @@ const (
 	// OptOutAuth gates flags that opt out of running --auth-provider-cmd in
 	// specific phases (currently --no-discovery-auth-provider-cmd).
 	OptOutAuth = "opt-out-auth"
+	// StackOutputImplicit lets `terragrunt stack output` fall back to discovering
+	// units directly under the working directory when no terragrunt.stack.hcl
+	// files are present, aggregating their outputs keyed by relative path.
+	StackOutputImplicit = "stack-output-implicit"
 )
 
 const (
@@ -141,6 +145,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptOutAuth,
+		},
+		{
+			Name: StackOutputImplicit,
 		},
 	}
 }
