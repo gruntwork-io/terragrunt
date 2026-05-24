@@ -17,7 +17,6 @@ terragrunt
 .devcontainer.json
 .cursor/
 .claude/
-.env
 .licensei.cache
 bin
 
@@ -29,3 +28,5 @@ comparison-report.*
 rsrc.syso
 resource.syso
 *.syso
+config.bat
+node_modules
