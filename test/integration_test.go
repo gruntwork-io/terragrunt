@@ -2979,6 +2979,38 @@ func TestTerragruntGenerateBlockOverwriteTerragruntSuccess(t *testing.T) {
 	assert.False(t, helpers.FileIsInFolder(t, "bar.tfstate", generateTestCase))
 }
 
+func TestTerragruntGenerateBlockOverwriteTerragruntOrSkipSuccess(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "overwrite_terragrunt_or_skip")
+	helpers.CleanupTerraformFolder(t, generateTestCase)
+	helpers.CleanupTerragruntFolder(t, generateTestCase)
+
+	// Must not error even though backend.tf has no terragrunt signature.
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --experiment overwrite-terragrunt-or-skip --working-dir "+generateTestCase)
+	// The pre-existing file was skipped, so bar.tfstate (not foo.tfstate) is the state path.
+	assert.False(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.True(t, helpers.FileIsInFolder(t, "bar.tfstate", generateTestCase))
+}
+
+func TestTerragruntGenerateBlockOverwriteTerragruntOrSkipRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, defeating the experiment-gate check this test pins")
+	}
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "overwrite_terragrunt_or_skip")
+	helpers.CleanupTerraformFolder(t, generateTestCase)
+	helpers.CleanupTerragruntFolder(t, generateTestCase)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
+	require.Error(t, err)
+	assert.Contains(t, stderr, "overwrite-terragrunt-or-skip")
+}
+
 func TestTerragruntGenerateBlockOverwriteTerragruntFail(t *testing.T) {
 	t.Parallel()
 

@@ -1884,6 +1884,16 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 			continue
 		}
 
+		if block.IfExists == codegen.ExistsOverwriteTerragruntOrSkipStr &&
+			!pctx.Experiments.Evaluate(experiment.OverwriteTerragruntOrSkip) {
+			errs = errs.Append(errors.Errorf(
+				"generate block %q: if_exists = %q requires the %q experiment to be enabled",
+				block.Name, block.IfExists, experiment.OverwriteTerragruntOrSkip,
+			))
+
+			continue
+		}
+
 		if block.IfDisabled == nil {
 			block.IfDisabled = &DefaultGenerateBlockIfDisabledValueStr
 		}

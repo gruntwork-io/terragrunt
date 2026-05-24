@@ -66,6 +66,10 @@ const (
 	// OptOutAuth gates flags that opt out of running --auth-provider-cmd in
 	// specific phases (currently --no-discovery-auth-provider-cmd).
 	OptOutAuth = "opt-out-auth"
+	// OverwriteTerragruntOrSkip enables the "overwrite_terragrunt_or_skip" value
+	// for the if_exists attribute in generate blocks. When a file exists without
+	// a Terragrunt signature, generation is silently skipped instead of erroring.
+	OverwriteTerragruntOrSkip = "overwrite-terragrunt-or-skip"
 )
 
 const (
@@ -141,6 +145,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptOutAuth,
+		},
+		{
+			Name: OverwriteTerragruntOrSkip,
 		},
 	}
 }
