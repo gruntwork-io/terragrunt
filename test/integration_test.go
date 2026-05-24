@@ -2994,6 +2994,21 @@ func TestTerragruntGenerateBlockOverwriteTerragruntOrSkipSuccess(t *testing.T) {
 	assert.True(t, helpers.FileIsInFolder(t, "bar.tfstate", generateTestCase))
 }
 
+func TestTerragruntGenerateBlockOverwriteTerragruntOrSkipOverwritesSignedFile(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "overwrite_terragrunt_or_skip_with_signature")
+	helpers.CleanupTerraformFolder(t, generateTestCase)
+	helpers.CleanupTerragruntFolder(t, generateTestCase)
+
+	// The existing backend.tf has a Terragrunt signature, so it should be overwritten.
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --experiment overwrite-terragrunt-or-skip --working-dir "+generateTestCase)
+	// The signed file was overwritten with foo.tfstate content.
+	assert.True(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, helpers.FileIsInFolder(t, "bar.tfstate", generateTestCase))
+}
+
 func TestTerragruntGenerateBlockOverwriteTerragruntOrSkipRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
