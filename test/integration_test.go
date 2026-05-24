@@ -3021,9 +3021,9 @@ func TestTerragruntGenerateBlockOverwriteTerragruntOrSkipRequiresExperiment(t *t
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	require.Error(t, err)
-	assert.Contains(t, stderr, "overwrite-terragrunt-or-skip")
+	assert.Contains(t, err.Error(), "overwrite-terragrunt-or-skip")
 }
 
 func TestTerragruntGenerateBlockOverwriteTerragruntFail(t *testing.T) {
