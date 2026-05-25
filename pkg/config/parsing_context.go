@@ -45,10 +45,10 @@ type ParsingContext struct {
 	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
 
-    // FeatureFlags contains explicit feature flag overrides supplied by the user.
+	// FeatureFlags contains explicit feature flag overrides supplied by the user.
 	FeatureFlags *xsync.Map[string, string]
 
-    FilesRead *FilesRead
+	FilesRead *FilesRead
 	Telemetry *telemetry.Options
 
 	DecodedDependencies *cty.Value
