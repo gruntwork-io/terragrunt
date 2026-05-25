@@ -155,12 +155,10 @@ func FuzzHCLRunCommand(f *testing.F) {
 	})
 }
 
-// strippedRunCmdArgs is an independent reference implementation of the
-// option-flag handling in runCommandImpl (pkg/config/config_helpers.go) used
-// as the fuzz oracle. Keep both switches in sync if either changes. It
-// returns the args after stripping known --terragrunt-* options from the
-// front and reports whether --terragrunt-no-cache and --terragrunt-global-cache
-// appeared together (which produces a conflict error).
+// strippedRunCmdArgs mirrors runCommandImpl's option-flag handling without invoking
+// the function under test. It returns the args after stripping known --terragrunt-*
+// options from the front and reports whether --terragrunt-no-cache and
+// --terragrunt-global-cache appeared together (which produces a conflict error).
 func strippedRunCmdArgs(args []string) ([]string, bool) {
 	var hasNoCache, hasGlobalCache bool
 

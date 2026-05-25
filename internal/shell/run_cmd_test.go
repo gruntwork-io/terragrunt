@@ -21,9 +21,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// TestRunCommandPTYRequiresOSBackedExec verifies that requesting PTY mode
-// with a non-OS-backed Exec returns ErrPTYRequiresOSBackend without spawning
-// a subprocess.
+// TestRunCommandPTYRequiresOSBackedExec verifies the OSCmder unwrap pattern:
+// requesting PTY mode with an in-memory backend returns vexec.ErrNotOSBacked
+// rather than attempting to spawn a real subprocess through the mock.
 func TestRunCommandPTYRequiresOSBackedExec(t *testing.T) {
 	t.Parallel()
 

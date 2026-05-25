@@ -154,9 +154,7 @@ func (osExec) LookPath(file string) (string, error) {
 	return exec.LookPath(file)
 }
 
-// OSBacked is the marker that satisfies OSExeccer. Implemented as a method
-// (not detected via type assertion on Cmd) so callers can check the Exec
-// before allocating a Cmd, avoiding a wasted Command(ctx, ...) call.
+// OSBacked is the marker that satisfies OSExeccer.
 func (osExec) OSBacked() {}
 
 type osCmd struct {
