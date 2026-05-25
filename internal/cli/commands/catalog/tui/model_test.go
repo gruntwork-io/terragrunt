@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -29,7 +30,7 @@ import (
 // the interact callback, and returns the final model once the program exits.
 // The program runs with a pipe for input, a buffer for output, and a fixed
 // terminal size so tests are deterministic.
-func runModel(t *testing.T, m tui.Model, width, height int, interact func(p *tea.Program)) tui.Model { //nolint:gocritic
+func runModel(t *testing.T, m tui.Model, width, height int, interact func(p *tea.Program)) tui.Model {
 	t.Helper()
 
 	var out bytes.Buffer
@@ -78,7 +79,7 @@ func runModel(t *testing.T, m tui.Model, width, height int, interact func(p *tea
 func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) catalog.CatalogService {
 	t.Helper()
 
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoOpts module.RepoOpts) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
 		repoURL := repoOpts.CloneURL
 		// Create a temporary directory structure for testing
 		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
@@ -132,7 +133,7 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 
 		repoOpts.CloneURL = dummyRepoDir
 
-		return module.NewRepo(ctx, logger, repoOpts)
+		return module.NewRepo(ctx, logger, fsys, repoOpts)
 	}
 
 	// Create a temporary root config file

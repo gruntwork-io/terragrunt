@@ -1,18 +1,14 @@
 ---
 import { render } from "astro:content";
-import CopyReleaseNotes from "./CopyReleaseNotes.astro";
-import { groupByCategory, prepareForGitHub, type ChangelogEntry } from "@lib/changelog";
+import { groupByCategory, type ChangelogEntry } from "@lib/changelog";
 
 interface Props {
-  version: string;
   entries: ChangelogEntry[];
 }
 
-const { version, entries } = Astro.props;
+const { entries } = Astro.props;
 
 const groups = groupByCategory(entries);
-
-const siteUrl = Astro.site?.origin ?? "https://docs.terragrunt.com";
 
 const rendered = await Promise.all(
   groups.map(async (group) => {
@@ -25,18 +21,6 @@ const rendered = await Promise.all(
     return { group, entries };
   })
 );
-
-const githubMarkdown = prepareForGitHub(
-  groups
-    .map((group) => {
-      const bodies = group.entries.map((e) => (e.body ?? "").trim()).join("\n\n");
-      return `### ${group.category.label}\n\n---\n\n${bodies}`;
-    })
-    .join("\n\n"),
-  siteUrl,
-);
-
-const isSemver = version.startsWith("v");
 ---
 
 {rendered.map(({ group, entries }) => (
@@ -52,40 +36,3 @@ const isSemver = version.startsWith("v");
     {entries.map(({ Content }) => <Content />)}
   </section>
 ))}
-
-{isSemver && (
-  <aside class="copy-section">
-    <p class="copy-heading">Copy to GitHub Releases</p>
-    <p class="copy-description">Copy these release notes with absolute URLs and heading levels adjusted for use in a <a href={`https://github.com/gruntwork-io/terragrunt/releases/new?tag=${version}`}>GitHub Release</a>.</p>
-    <CopyReleaseNotes markdown={githubMarkdown} />
-  </aside>
-)}
-
-<style>
-  .copy-section {
-    margin-top: 2rem;
-    padding: 1.25rem;
-    border: 1px solid var(--sl-color-docs-stroke);
-    border-radius: 0.5rem;
-    background: var(--sl-color-bg-nav);
-  }
-
-  .copy-heading {
-    font-size: 0.875rem;
-    font-weight: 600;
-    font-family: var(--font-sans);
-    color: var(--sl-color-white);
-    margin: 0 0 0.375rem;
-  }
-
-  .copy-description {
-    font-size: 0.8125rem;
-    color: var(--sl-color-gray-3);
-    margin: 0 0 0.75rem;
-    line-height: 1.5;
-  }
-
-  .copy-description a {
-    color: var(--sl-color-accent);
-  }
-</style>

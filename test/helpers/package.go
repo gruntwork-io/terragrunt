@@ -43,11 +43,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
-	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
@@ -108,11 +108,12 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 		t,
 		util.CopyFolderContents(
 			logger.CreateLogger(),
-			environmentPath,
+			MustAbs(t, environmentPath),
 			filepath.Join(tmpDir, environmentPath),
 			".terragrunt-test",
-			includeInCopy,
-			excludeFromCopy,
+			util.WithIncludeInCopy(includeInCopy...),
+			util.WithExcludeFromCopy(excludeFromCopy...),
+			util.WithFastCopy(),
 		),
 	)
 
@@ -513,7 +514,7 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 func GetPathRelativeTo(t *testing.T, path string, basePath string) string {
 	t.Helper()
 
-	relPath, err := util.GetPathRelativeTo(path, basePath)
+	relPath, err := filepath.Rel(basePath, path)
 	require.NoError(t, err)
 
 	return relPath
@@ -525,7 +526,7 @@ func GetPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 	relPaths := make([]string, len(paths))
 
 	for i, path := range paths {
-		relPath, err := util.GetPathRelativeTo(path, basePath)
+		relPath, err := filepath.Rel(basePath, path)
 		require.NoError(t, err)
 
 		relPaths[i] = relPath
@@ -917,6 +918,40 @@ func IsTerraform110OrHigher(t *testing.T) bool {
 // IsOpenTofuInstalled checks if OpenTofu is installed.
 func IsOpenTofuInstalled(ctx context.Context) bool {
 	return util.IsCommandExecutable(vexec.NewOSExec(), ctx, TofuBinary, "-version")
+}
+
+// IsOpenTofu112OrHigher reports whether the wrapped binary is OpenTofu 1.12.0
+// or higher. The registry-side `packages` field that carries multi-platform
+// hashes is already live for all users, but the OpenTofu binary itself only
+// began consuming it in 1.12. Tests that invoke `tofu init` directly and
+// assert on multi-platform h1 hashes in `.terraform.lock.hcl` should gate on
+// this; tests that consume the field via Terragrunt's provider cache server
+// do not need to.
+func IsOpenTofu112OrHigher(t *testing.T) bool {
+	t.Helper()
+
+	const (
+		requiredMajor = 1
+		requiredMinor = 12
+	)
+
+	if IsTerraform(t.Context()) {
+		return false
+	}
+
+	output, err := exec.CommandContext(t.Context(), TofuBinary, "-version").Output()
+	require.NoError(t, err)
+
+	matches := regexp.MustCompile(`OpenTofu v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
+	require.Len(t, matches, semverPartsLen, "Expected OpenTofu version to be in the format 'OpenTofu v1.12.0'")
+
+	major, err := strconv.Atoi(matches[1])
+	require.NoError(t, err)
+
+	minor, err := strconv.Atoi(matches[2])
+	require.NoError(t, err)
+
+	return major > requiredMajor || (major == requiredMajor && minor >= requiredMinor)
 }
 
 // IsTerraformInstalled checks if Terraform is installed.

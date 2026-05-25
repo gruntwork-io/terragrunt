@@ -41,6 +41,7 @@ interface GitHubReleaseResponse {
   name: string;
   html_url: string;
   published_at: string;
+  body?: string;
   [key: string]: unknown;
 }
 
@@ -132,6 +133,55 @@ export async function getLatestRelease(
     });
   } catch (error) {
     console.error(`Error fetching latest release for ${owner}/${repo}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Fetches a specific release by tag with memoization.
+ * Results are cached for 1 hour to avoid rate limiting.
+ */
+export async function getReleaseByTag(
+  owner: string,
+  repo: string,
+  tag: string
+): Promise<GitHubReleaseResponse | null> {
+  const cacheKey = `release-tag:${owner}/${repo}/${tag}`;
+
+  try {
+    return await memoizedFetch(cacheKey, async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+      try {
+        const response = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`,
+          {
+            headers: {
+              'User-Agent': 'Terragrunt-Docs',
+            },
+            signal: controller.signal,
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status !== 404) {
+            console.error(
+              `Failed to fetch release ${tag} for ${owner}/${repo}:`,
+              response.status,
+              await response.text()
+            );
+          }
+          return null;
+        }
+
+        return response.json();
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    });
+  } catch (error) {
+    console.error(`Error fetching release ${tag} for ${owner}/${repo}:`, error);
     return null;
   }
 }

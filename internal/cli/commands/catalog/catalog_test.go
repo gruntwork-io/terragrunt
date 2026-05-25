@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -26,7 +27,7 @@ func TestCatalogCommandInitialization(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create mock repository function for testing
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoOpts module.RepoOpts) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
 		repoURL := repoOpts.CloneURL
 		// Create a temporary directory structure for testing
 		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
@@ -46,7 +47,7 @@ func TestCatalogCommandInitialization(t *testing.T) {
 
 		repoOpts.CloneURL = dummyRepoDir
 
-		return module.NewRepo(ctx, logger, repoOpts)
+		return module.NewRepo(ctx, logger, fsys, repoOpts)
 	}
 
 	// Create a temporary root config file

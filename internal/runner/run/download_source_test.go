@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
-	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
 	"github.com/stretchr/testify/assert"
@@ -27,12 +27,31 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/hashicorp/go-getter"
 )
+
+// findGetter scans the slice for the first Getter of type T and returns it.
+// Used by tests that need to assert configuration on a specific custom getter
+// without relying on the v1 map-by-scheme indexing that v2 dropped.
+func findGetter[T any](getters []getter.Getter) (T, bool) {
+	i := slices.IndexFunc(getters, func(g getter.Getter) bool {
+		_, ok := g.(T)
+		return ok
+	})
+
+	if i < 0 {
+		var zero T
+		return zero, false
+	}
+
+	return getters[i].(T), true
+}
 
 func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 	t.Parallel()
@@ -114,7 +133,7 @@ func TestAlreadyHaveLatestCodeLocalFilePath(t *testing.T) {
 	t.Parallel()
 
 	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world")
-	downloadDir := "does-not-exist"
+	downloadDir := absPath(t, "does-not-exist")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -123,7 +142,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirDoesNotExist(t *testing.T
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com"
-	downloadDir := "does-not-exist"
+	downloadDir := absPath(t, "does-not-exist")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -132,7 +151,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsNoVersionNoVersionF
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-empty"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-empty")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -141,7 +160,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsNoVersionWithVersio
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-version-file-no-query"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-version-file-no-query")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, true)
 }
@@ -150,7 +169,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionNoVersio
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-empty"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-empty")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -159,7 +178,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-version-file"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-version-file")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -168,7 +187,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-version-file-tf-code"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-version-file-tf-code")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, true)
 }
@@ -237,7 +256,8 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDiffer
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVersion(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world-version-remote?ref=v0.83.2"
+	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/" +
+		"download-source/hello-world-version-remote?ref=v0.83.2"
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
@@ -293,7 +313,8 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 func TestInvalidModulePath(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world-version-remote/non-existent-path?ref=v0.83.2"
+	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/" +
+		"download-source/hello-world-version-remote/non-existent-path?ref=v0.83.2"
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
@@ -465,8 +486,8 @@ func createConfig(
 ) (*tf.Source, *options.TerragruntOptions, *runcfg.RunConfig, error) {
 	t.Helper()
 
-	logger := logger.CreateLogger()
-	logger.SetOptions(log.WithOutput(io.Discard))
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
 
 	terraformSource := &tf.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
@@ -479,7 +500,7 @@ func createConfig(
 	require.NoError(t, err)
 
 	opts.SourceUpdate = sourceUpdate
-	opts.Env = env.Parse(os.Environ())
+	opts.Env = util.EnvironMap()
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -487,7 +508,11 @@ func createConfig(
 		},
 	}
 
-	_, ver, impl, err := run.PopulateTFVersion(t.Context(), logger, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
+	_, ver, impl, err := run.PopulateTFVersion(t.Context(), l, vexec.NewOSExec(), run.PopulateTFVersionInput{
+		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+		WorkingDir:   opts.WorkingDir,
+		VersionFiles: opts.VersionManagerFileName,
+	})
 	require.NoError(t, err)
 
 	opts.TerraformVersion = ver
@@ -563,11 +588,9 @@ func copyFolder(t *testing.T, src string, dest string) {
 
 	err := util.CopyFolderContents(
 		l,
-		filepath.FromSlash(src),
-		filepath.FromSlash(dest),
+		absPath(t, filepath.FromSlash(src)),
+		absPath(t, filepath.FromSlash(dest)),
 		".terragrunt-test",
-		nil,
-		nil,
 	)
 	require.NoError(t, err)
 }
@@ -608,18 +631,12 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 			require.NoError(t, err)
 
-			client := &getter.Client{}
-
-			// Call updateGetters
-			updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), configbridge.NewRunOptions(terragruntOptions), tc.cfg)
-			err = updateGettersFunc(client)
+			client, err := run.BuildDownloadClient(logger.CreateLogger(), configbridge.NewRunOptions(terragruntOptions), tc.cfg)
 			require.NoError(t, err)
 
-			// Find the file getter
-			fileGetter, ok := client.Getters["file"].(*run.FileCopyGetter)
-			require.True(t, ok, "File getter should be of type FileCopyGetter")
+			fileGetter, ok := findGetter[*getter.FileCopyGetter](client.Getters)
+			require.True(t, ok, "client should register a FileCopyGetter")
 
-			// Verify ExcludeFromCopy
 			assert.Equal(
 				t,
 				tc.expectedExcludeFiles,
@@ -630,62 +647,61 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 	}
 }
 
-// TestUpdateGettersHTTPNetrc verifies that HTTP/HTTPS getters have Netrc enabled
+// TestBuildDownloadClientHTTPNetrc verifies that HTTP/HTTPS getters have Netrc enabled
 // for authentication via ~/.netrc files.
-func TestUpdateGettersHTTPNetrc(t *testing.T) {
+func TestBuildDownloadClientHTTPNetrc(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
 
-	cfg := &runcfg.RunConfig{
-		Terraform: runcfg.TerraformConfig{},
-	}
-
-	client := &getter.Client{}
-
-	updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), configbridge.NewRunOptions(terragruntOptions), cfg)
-	err = updateGettersFunc(client)
+	client, err := run.BuildDownloadClient(
+		logger.CreateLogger(),
+		configbridge.NewRunOptions(terragruntOptions),
+		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+	)
 	require.NoError(t, err)
 
-	// Verify HTTP getter has Netrc enabled
-	httpGetter, ok := client.Getters["http"].(*getter.HttpGetter)
-	require.True(t, ok, "HTTP getter should be of type HttpGetter")
-	assert.True(t, httpGetter.Netrc, "HTTP getter should have Netrc enabled for ~/.netrc authentication")
-
-	// Verify HTTPS getter has Netrc enabled
-	httpsGetter, ok := client.Getters["https"].(*getter.HttpGetter)
-	require.True(t, ok, "HTTPS getter should be of type HttpGetter")
-	assert.True(t, httpsGetter.Netrc, "HTTPS getter should have Netrc enabled for ~/.netrc authentication")
+	wrapped, ok := findGetter[*getter.HTTPSchemeGetter](client.Getters)
+	require.True(t, ok, "client should register an HttpGetter")
+	require.NotNil(t, wrapped.Inner)
+	assert.True(t, wrapped.Inner.Netrc, "HttpGetter must have Netrc enabled for ~/.netrc authentication")
 }
 
-// TestUpdateGettersIncludesAllGlobalGetters verifies that every scheme registered in the global
-// getter.Getters map is present in client.Getters after calling UpdateGetters. This guards against
-// regressions where the reflect-based approach might silently fail to create an instance.
-func TestUpdateGettersIncludesAllGlobalGetters(t *testing.T) {
+// TestBuildDownloadClientCoversDefaultSchemes verifies that the canonical
+// Terragrunt protocol set is registered: file (via FileCopyGetter), git (via
+// the symlink-preserving GitGetter), http(s), s3, gcs, hg, smb, and tfr (via
+// RegistryGetter).
+func TestBuildDownloadClientCoversDefaultSchemes(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
 
-	cfg := &runcfg.RunConfig{
-		Terraform: runcfg.TerraformConfig{},
-	}
-
-	client := &getter.Client{}
-
-	updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), configbridge.NewRunOptions(terragruntOptions), cfg)
-	err = updateGettersFunc(client)
+	client, err := run.BuildDownloadClient(
+		logger.CreateLogger(),
+		configbridge.NewRunOptions(terragruntOptions),
+		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+	)
 	require.NoError(t, err)
 
-	// Every scheme from the global getter.Getters map must be present
-	for scheme := range getter.Getters {
-		assert.Contains(t, client.Getters, scheme,
-			"client.Getters should contain the %q scheme from the global getter.Getters map", scheme)
-	}
+	_, ok := findGetter[*getter.FileCopyGetter](client.Getters)
+	assert.True(t, ok, "FileCopyGetter (file scheme)")
 
-	// Terragrunt-specific getters must also be present
-	assert.Contains(t, client.Getters, "tfr", "client.Getters should contain the Terragrunt registry getter")
+	_, ok = findGetter[*getter.GitGetter](client.Getters)
+	assert.True(t, ok, "GitGetter (git scheme)")
+
+	_, ok = findGetter[*getter.RegistryGetter](client.Getters)
+	assert.True(t, ok, "RegistryGetter (tfr scheme)")
+
+	_, ok = findGetter[*getter.HTTPSchemeGetter](client.Getters)
+	assert.True(t, ok, "HttpGetter (http/https schemes)")
+
+	_, ok = findGetter[*getter.HgGetter](client.Getters)
+	assert.True(t, ok, "HgGetter (hg scheme)")
+
+	_, ok = findGetter[*getter.SmbClientGetter](client.Getters)
+	assert.True(t, ok, "SmbClientGetter (smb scheme)")
 }
 
 // TestDownloadWithNoSourceCreatesCache tests that when sourceURL is "." (no source specified),
@@ -957,7 +973,11 @@ func TestDownloadSourceUpdateSourceWithCASRequiresCAS(t *testing.T) {
 			l := logger.CreateLogger()
 			l.SetOptions(log.WithOutput(io.Discard))
 
-			_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, report.NewReport())
+			_, err = run.DownloadTerraformSourceIfNecessary(
+				t.Context(), l, src,
+				configbridge.NewRunOptions(opts),
+				cfg, report.NewReport(),
+			)
 			require.Error(t, err)
 
 			var target *cas.UpdateSourceWithCASRequiresCASError
@@ -975,7 +995,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	opts.Env = env.Parse(os.Environ())
+	opts.Env = util.EnvironMap()
 
 	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()
@@ -1074,18 +1094,91 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 
 	cfg := &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}}
 
-	client := &getter.Client{
-		Src:  server.URL + "/module.tf",
-		Dst:  filepath.Join(t.TempDir(), "module.tf"),
-		Mode: getter.ClientModeFile,
-	}
+	dst := filepath.Join(t.TempDir(), "module.tf")
 
-	updateFn := run.UpdateGetters(logger.CreateLogger(), configbridge.NewRunOptions(opts), cfg)
-	require.NoError(t, updateFn(client))
+	client, err := run.BuildDownloadClient(logger.CreateLogger(), configbridge.NewRunOptions(opts), cfg)
+	require.NoError(t, err)
 
-	require.NoError(t, client.Get())
+	_, err = client.Get(t.Context(), &getter.Request{
+		Src:     server.URL + "/module.tf",
+		Dst:     dst,
+		GetMode: getter.ModeFile,
+	})
+	require.NoError(t, err)
 
-	downloaded, err := os.ReadFile(client.Dst)
+	downloaded, err := os.ReadFile(dst)
 	require.NoError(t, err)
 	assert.Equal(t, fileContent, string(downloaded))
+}
+
+// TestDownloadTerraformSourceRejectsNonOSFilesystem pins that the entry
+// guard returns ErrNonOSFilesystem before any download work runs when
+// Options.FS is not OS-backed.
+func TestDownloadTerraformSourceRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	runOpts := configbridge.NewRunOptions(opts)
+	runOpts.FS = vfs.NewMemMapFS()
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	_, err = run.DownloadTerraformSource(
+		t.Context(),
+		l,
+		".",
+		runOpts,
+		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+		report.NewReport(),
+	)
+	require.ErrorIs(t, err, run.ErrNonOSFilesystem)
+}
+
+// TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem pins the guard
+// on the exported helper so external callers cannot bypass the OS-FS invariant.
+func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	runOpts := configbridge.NewRunOptions(opts)
+	runOpts.FS = vfs.NewMemMapFS()
+
+	src, err := tf.NewSource(logger.CreateLogger(), ".", t.TempDir(), opts.WorkingDir, false)
+	require.NoError(t, err)
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		logger.CreateLogger(),
+		src,
+		runOpts,
+		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+		report.NewReport(),
+	)
+	require.ErrorIs(t, err, run.ErrNonOSFilesystem)
+}
+
+// TestBuildDownloadClientRejectsNonOSFilesystem pins the guard on the
+// exported client constructor so callers cannot construct a client that would
+// later hand a non-OS FS to FileCopyGetter or RegistryGetter.
+func TestBuildDownloadClientRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	runOpts := configbridge.NewRunOptions(opts)
+	runOpts.FS = vfs.NewMemMapFS()
+
+	client, err := run.BuildDownloadClient(
+		logger.CreateLogger(),
+		runOpts,
+		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+	)
+	require.ErrorIs(t, err, run.ErrNonOSFilesystem)
+	assert.Nil(t, client)
 }

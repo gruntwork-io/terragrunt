@@ -243,7 +243,8 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 
 // TestTerragruntProviderCacheWithAbsoluteModuleURL tests that the provider cache correctly handles
 // registries that return absolute URLs in their .well-known/terraform.json discovery response.
-// See https://github.com/gruntwork-io/terragrunt/issues/5156
+// The generated CLI config must route modules.v1 through the cache server (so credentials get
+// rewritten — see issue #5970) without leaking the old malformed double-host URL from issue #5156.
 func TestTerragruntProviderCacheWithAbsoluteModuleURL(t *testing.T) {
 	rootPath := t.TempDir()
 	appPath := filepath.Join(rootPath, "app")
@@ -335,11 +336,11 @@ func TestTerragruntProviderCacheWithAbsoluteModuleURL(t *testing.T) {
 
 	terraformrc := string(terraformrcBytes)
 
-	assert.Contains(
+	assert.NotContains(
 		t,
 		terraformrc,
 		absoluteModulesURL,
-		"The .terraformrc should contain the absolute modules.v1 URL as-is",
+		"The .terraformrc should not leak the upstream modules.v1 URL — the cache server proxies it",
 	)
 
 	malformedURL := fmt.Sprintf("https://%s%s", registryHost, absoluteModulesURL)
@@ -349,6 +350,26 @@ func TestTerragruntProviderCacheWithAbsoluteModuleURL(t *testing.T) {
 		malformedURL,
 		"The .terraformrc should NOT contain a malformed URL with double hostname",
 	)
+
+	modulesLine := extractHostServiceLine(t, terraformrc, "modules.v1")
+	assert.Contains(t, modulesLine, "/v1/modules/"+registryHost+"/",
+		"modules.v1 should be routed through the cache server with the registry host as the next path segment")
+	assert.NotContains(t, modulesLine, "//"+registryHost,
+		"modules.v1 URL should not contain a double slash before the registry host")
+}
+
+func extractHostServiceLine(t *testing.T, terraformrc, service string) string {
+	t.Helper()
+
+	for line := range strings.SplitSeq(terraformrc, "\n") {
+		if strings.Contains(line, `"`+service+`"`) {
+			return line
+		}
+	}
+
+	t.Fatalf("service %q not found in .terraformrc:\n%s", service, terraformrc)
+
+	return ""
 }
 
 func TestTerragruntDownloadDir(t *testing.T) {
@@ -707,7 +728,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheDirect)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheDirect)
 
-	cacheDir, err := util.GetCacheDir()
+	cacheDir, err := util.EnsureCacheDir()
 	require.NoError(t, err)
 
 	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-direct")

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -44,8 +45,8 @@ type ParsingContext struct {
 	TrackInclude     *TrackInclude
 	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
-	FeatureFlags     *xsync.MapOf[string, string]
-	FilesRead        *[]string
+	FeatureFlags     *xsync.Map[string, string]
+	FilesRead        *FilesRead
 	Telemetry        *telemetry.Options
 
 	DecodedDependencies *cty.Value
@@ -124,11 +125,9 @@ func (ctx *ParsingContext) Exec() vexec.Exec {
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {
-	filesRead := make([]string, 0)
-
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
-		FilesRead:        &filesRead,
+		FilesRead:        NewFilesRead(),
 	}
 
 	for _, opt := range opts {
@@ -269,6 +268,18 @@ func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.
 	}
 
 	c := ctx.Clone()
+
+	// Keep DownloadDir in sync with TerragruntConfigPath: if the current context was
+	// using the default download dir for the old config, update it to the default for
+	// the new config. This ensures that when read_terragrunt_config() or dependency
+	// processing switches to a different module, DownloadDir reflects the new module's
+	// default rather than an inherited stale default from an ancestor. User-set custom
+	// dirs (which won't match any module's default) are preserved unchanged.
+	_, defaultDir := util.DefaultWorkingAndDownloadDirs(ctx.TerragruntConfigPath)
+	if filepath.Clean(c.DownloadDir) == filepath.Clean(defaultDir) {
+		_, c.DownloadDir = util.DefaultWorkingAndDownloadDirs(configPath)
+	}
+
 	c.TerragruntConfigPath = configPath
 	c.WorkingDir = workingDir
 

@@ -16,6 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -28,6 +30,8 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		l.Debugf("Skipping stack generation for %s", opts.TerragruntStackConfigPath)
 		return nil
 	}
+
+	tips.GiveStackTargetTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
 
 	opts.StackAction = "generate"
 

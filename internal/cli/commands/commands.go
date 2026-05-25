@@ -12,13 +12,14 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gruntwork-io/go-commons/env"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -154,7 +155,7 @@ func WrapWithTelemetry(
 				return err
 			}
 
-			if err := runAction(childCtx, cliCtx, l, opts, action); err != nil {
+			if err := RunAction(childCtx, cliCtx, l, opts, action); err != nil {
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
 				return err
 			}
@@ -238,7 +239,9 @@ func GiveWindowsSymlinksTip(
 	tip.Evaluate(l)
 }
 
-func runAction(
+// RunAction wires up cancellation, run-scoped caches, and (when enabled)
+// the provider cache server, then invokes action with the resulting context.
+func RunAction(
 	ctx context.Context,
 	cliCtx *clihelper.Context,
 	l log.Logger,
@@ -274,8 +277,10 @@ func runAction(
 		l.Formatter().SetDisabledColors(true)
 	}
 
-	// actionCtx is the context passed to the action, which may be wrapped with hooks
-	actionCtx := ctx
+	// Install run-scoped caches on actionCtx so memoized helpers like
+	// [github.com/gruntwork-io/terragrunt/internal/shell.GitTopLevelDir] share
+	// state across the whole action.
+	actionCtx := cache.ContextWithCache(ctx)
 
 	// Run provider cache server
 	if opts.ProviderCacheOptions.Enabled {
@@ -284,16 +289,16 @@ func runAction(
 			return err
 		}
 
-		ln, err := server.Listen(ctx)
+		ln, err := server.Listen(actionCtx)
 		if err != nil {
 			return err
 		}
 		defer ln.Close() //nolint:errcheck
 
-		actionCtx = tf.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
+		actionCtx = tf.ContextWithTerraformCommandHook(actionCtx, server.TerraformCommandHook)
 
 		errGroup.Go(func() error {
-			return server.Run(ctx, ln)
+			return server.Run(actionCtx, ln)
 		})
 	}
 
@@ -328,11 +333,11 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	if opts.TerraformVersion == nil {
-		_, ver, impl, err := run.PopulateTFVersion(
-			ctx, l, opts.WorkingDir,
-			opts.VersionManagerFileName,
-			configbridge.TFRunOptsFromOpts(opts),
-		)
+		_, ver, impl, err := run.PopulateTFVersion(ctx, l, vexec.NewOSExec(), run.PopulateTFVersionInput{
+			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+			WorkingDir:   opts.WorkingDir,
+			VersionFiles: opts.VersionManagerFileName,
+		})
 		if err != nil {
 			return err
 		}
@@ -366,7 +371,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	// Set up the provider cache directory
 	providerCacheDir := opts.ProviderCacheOptions.Dir
 	if providerCacheDir == "" {
-		cacheDir, err := util.GetCacheDir()
+		cacheDir, err := util.EnsureCacheDir()
 		if err != nil {
 			return errors.Errorf("failed to get cache directory: %w", err)
 		}
@@ -431,7 +436,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	opts.TerraformCommand = cmdName
 	opts.TerraformCliArgs = iacargs.New(args...)
 
-	opts.Env = env.Parse(os.Environ())
+	opts.Env = util.EnvironMap()
 
 	// --- Working Dir
 	if opts.WorkingDir == "" {

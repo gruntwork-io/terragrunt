@@ -17,7 +17,9 @@ type Telemeter struct {
 }
 
 // NewTelemeter initializes the telemetry collector.
-func NewTelemeter(ctx context.Context, l log.Logger, appName, appVersion string, writer io.Writer, opts *Options) (*Telemeter, error) {
+func NewTelemeter(
+	ctx context.Context, l log.Logger, appName, appVersion string, writer io.Writer, opts *Options,
+) (*Telemeter, error) {
 	tracer, err := NewTracer(ctx, l, appName, appVersion, writer, opts)
 	if err != nil {
 		return nil, errors.New(err)
@@ -61,7 +63,9 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 }
 
 // Collect collects telemetry from function execution metrics and traces.
-func (tlm *Telemeter) Collect(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
+func (tlm *Telemeter) Collect(
+	ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error,
+) error {
 	if tlm == nil {
 		// This should not happen in normal operation. Log a stack trace to help
 		// diagnose if this nil guard is the one preventing a panic.

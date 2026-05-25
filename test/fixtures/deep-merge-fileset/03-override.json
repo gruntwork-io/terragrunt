@@ -1,0 +1,9 @@
+{
+  "app": {
+    "name": "svc-prod",
+    "settings": {
+      "timeout": 30
+    }
+  },
+  "env": "prod"
+}

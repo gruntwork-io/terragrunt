@@ -20,6 +20,7 @@ type Server struct {
 	*router.Router
 	*Config
 	ProviderController *controllers.ProviderController
+	ModuleController   *controllers.ModuleController
 	services           []services.Service
 }
 
@@ -44,8 +45,19 @@ func NewServer(opts ...Option) *Server {
 		Logger:                      cfg.logger,
 	}
 
+	moduleController := &controllers.ModuleController{
+		AuthMiddleware:     authMiddleware,
+		ProxyModuleHandler: cfg.proxyModuleHandler,
+		Logger:             cfg.logger,
+	}
+
+	endpointers := []controllers.Endpointer{providerController}
+	if cfg.proxyModuleHandler != nil {
+		endpointers = append(endpointers, moduleController)
+	}
+
 	discoveryController := &controllers.DiscoveryController{
-		Endpointers: []controllers.Endpointer{providerController},
+		Endpointers: endpointers,
 	}
 
 	rootRouter := router.New()
@@ -56,11 +68,16 @@ func NewServer(opts ...Option) *Server {
 	v1Group := rootRouter.Group("v1")
 	v1Group.Register(providerController)
 
+	if cfg.proxyModuleHandler != nil {
+		v1Group.Register(moduleController)
+	}
+
 	return &Server{
 		Router:             rootRouter,
 		Config:             cfg,
 		services:           []services.Service{cfg.providerService},
 		ProviderController: providerController,
+		ModuleController:   moduleController,
 	}
 }
 
@@ -103,10 +120,13 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 		<-ctx.Done()
 		server.logger.Infof("Shutting down Terragrunt Cache server...")
 
-		ctx, cancel := context.WithTimeout(ctx, server.shutdownTimeout)
+		// The parent ctx is by definition already cancelled here; detach from
+		// its cancellation (preserving any values) so http.Server.Shutdown gets
+		// the full shutdownTimeout to drain in-flight requests.
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), server.shutdownTimeout)
 		defer cancel()
 
-		if err := server.Shutdown(ctx); err != nil {
+		if err := server.Shutdown(shutdownCtx); err != nil {
 			return errors.New(err)
 		}
 
@@ -119,5 +139,9 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 
 	defer server.logger.Infof("Terragrunt Cache server stopped")
 
-	return errGroup.Wait()
+	if err := errGroup.Wait(); err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+
+	return nil
 }

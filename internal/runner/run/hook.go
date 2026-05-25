@@ -9,7 +9,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -26,36 +25,54 @@ const (
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 )
 
-// hookErrorMessage extracts command, args and output from the error
-// so users see WHY a hook failed, not just the exit code.
-func hookErrorMessage(hookName string, err error) string {
-	var processErr util.ProcessExecutionError
-	if !errors.As(err, &processErr) {
-		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
-	}
-
-	exitCode, exitCodeErr := processErr.ExitStatus()
-	if exitCodeErr != nil {
-		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
-	}
-
-	cmd := strings.Join(append([]string{processErr.Command}, processErr.Args...), " ")
-
-	output := strings.TrimSpace(processErr.Output.Stderr.String())
-	if output == "" {
-		output = strings.TrimSpace(processErr.Output.Stdout.String())
-	}
-
-	if output != "" {
-		return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d:\n%s", hookName, cmd, exitCode, output)
-	}
-
-	return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d", hookName, cmd, exitCode)
+// ProcessHooksParams groups the configuration and data inputs for ProcessHooks.
+type ProcessHooksParams struct {
+	Opts               *Options
+	Cfg                *runcfg.RunConfig
+	PreviousExecErrors *errors.MultiError
+	Hooks              []runcfg.Hook
 }
 
-func processErrorHooks(
+// ProcessHooks processes a list of hooks, executing each one that matches the current command.
+func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParams) error {
+	if len(p.Hooks) == 0 {
+		return nil
+	}
+
+	var errorsOccured *multierror.Error
+
+	l.Debugf("Detected %d Hooks", len(p.Hooks))
+
+	for i := range p.Hooks {
+		curHook := &p.Hooks[i]
+		if !curHook.If {
+			l.Debugf("Skipping hook: %s", curHook.Name)
+			continue
+		}
+
+		allPreviousErrors := p.PreviousExecErrors.Append(errorsOccured)
+		if shouldRunHook(curHook, p.Opts, allPreviousErrors) {
+			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hook_"+curHook.Name, map[string]any{
+				"hook": curHook.Name,
+				"dir":  curHook.WorkingDir,
+			}, func(ctx context.Context) error {
+				return runHook(ctx, l, v, p.Opts, p.Cfg, curHook)
+			})
+			if err != nil {
+				errorsOccured = multierror.Append(errorsOccured, err)
+			}
+		}
+	}
+
+	return errorsOccured.ErrorOrNil()
+}
+
+// ProcessErrorHooks runs error_hook blocks whose OnErrors regex matches one
+// of previousExecErrors. It is the error-path complement to [ProcessHooks].
+func ProcessErrorHooks(
 	ctx context.Context,
 	l log.Logger,
+	exec vexec.Exec,
 	hooks []runcfg.ErrorHook,
 	opts *Options,
 	previousExecErrors *errors.MultiError,
@@ -107,8 +124,8 @@ func processErrorHooks(
 
 				_, possibleError := shell.RunCommandWithOutput(
 					ctx,
-					vexec.NewOSExec(),
 					l,
+					exec,
 					hookOpts.shellRunOptions(),
 					curHook.WorkingDir,
 					curHook.SuppressStdout,
@@ -131,46 +148,31 @@ func processErrorHooks(
 	return errorsOccured.ErrorOrNil()
 }
 
-// ProcessHooks processes a list of hooks, executing each one that matches the current command.
-func ProcessHooks(
-	ctx context.Context,
-	l log.Logger,
-	hooks []runcfg.Hook,
-	opts *Options,
-	cfg *runcfg.RunConfig,
-	previousExecErrors *errors.MultiError,
-	_ *report.Report,
-) error {
-	if len(hooks) == 0 {
-		return nil
+// hookErrorMessage extracts command, args and output from the error
+// so users see WHY a hook failed, not just the exit code.
+func hookErrorMessage(hookName string, err error) string {
+	var processErr util.ProcessExecutionError
+	if !errors.As(err, &processErr) {
+		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
 	}
 
-	var errorsOccured *multierror.Error
-
-	l.Debugf("Detected %d Hooks", len(hooks))
-
-	for i := range hooks {
-		curHook := &hooks[i]
-		if !curHook.If {
-			l.Debugf("Skipping hook: %s", curHook.Name)
-			continue
-		}
-
-		allPreviousErrors := previousExecErrors.Append(errorsOccured)
-		if shouldRunHook(curHook, opts, allPreviousErrors) {
-			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hook_"+curHook.Name, map[string]any{
-				"hook": curHook.Name,
-				"dir":  curHook.WorkingDir,
-			}, func(ctx context.Context) error {
-				return runHook(ctx, l, opts, cfg, curHook)
-			})
-			if err != nil {
-				errorsOccured = multierror.Append(errorsOccured, err)
-			}
-		}
+	exitCode, exitCodeErr := processErr.ExitStatus()
+	if exitCodeErr != nil {
+		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
 	}
 
-	return errorsOccured.ErrorOrNil()
+	cmd := strings.Join(append([]string{processErr.Command}, processErr.Args...), " ")
+
+	output := strings.TrimSpace(processErr.Output.Stderr.String())
+	if output == "" {
+		output = strings.TrimSpace(processErr.Output.Stdout.String())
+	}
+
+	if output != "" {
+		return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d:\n%s", hookName, cmd, exitCode, output)
+	}
+
+	return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d", hookName, cmd, exitCode)
 }
 
 func shouldRunHook(
@@ -193,6 +195,7 @@ func shouldRunHook(
 func runHook(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,
@@ -207,13 +210,13 @@ func runHook(
 	hookOpts := optsWithHookEnvs(opts, curHook.Name)
 
 	if actionToExecute == "tflint" {
-		return executeTFLint(ctx, l, opts, cfg, curHook, workingDir)
+		return executeTFLint(ctx, l, v, opts, cfg, curHook, workingDir)
 	}
 
 	_, possibleError := shell.RunCommandWithOutput(
 		ctx,
-		vexec.NewOSExec(),
 		l,
+		v.Exec,
 		hookOpts.shellRunOptions(),
 		workingDir,
 		suppressStdout,
@@ -230,6 +233,7 @@ func runHook(
 func executeTFLint(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,
@@ -242,7 +246,7 @@ func executeTFLint(
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
-	err := tflint.RunTflintWithOpts(ctx, l, opts.tflintRunOptions(), cfg, curHook)
+	err := tflint.RunTflintWithOpts(ctx, l, v.tflintVenv(), opts.tflintRunOptions(), cfg, curHook)
 	if err != nil {
 		l.Errorf("%s", hookErrorMessage(curHook.Name, err))
 		return err

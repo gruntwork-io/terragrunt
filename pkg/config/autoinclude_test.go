@@ -122,3 +122,40 @@ inputs = {
 	// Autoinclude should NOT be merged
 	assert.Equal(t, "original", parsed.Inputs["name"])
 }
+
+// Defensive test: a sibling terragrunt.autoinclude.stack.hcl (the stack-level filename) must NOT be merged into a unit's terragrunt.hcl. Stack-level autoincludes are handled by the stack parser path; merging here would defeat the point of the filename split.
+func TestMergeAutoInclude_StackLevelFilenameNotMergedIntoUnit(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+terraform {
+  source = "."
+}
+
+inputs = {
+  name = "from-unit"
+}
+`), 0644))
+
+	// A sibling terragrunt.autoinclude.stack.hcl must be ignored by the unit-level merge path.
+	stackAutoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeStackFile)
+	require.NoError(t, os.WriteFile(stackAutoIncludePath, []byte(`
+inputs = {
+  name = "from-stack-autoinclude-must-not-merge"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+
+	assert.Equal(t, "from-unit", parsed.Inputs["name"], "stack-level autoinclude must NOT be merged into the unit config")
+}

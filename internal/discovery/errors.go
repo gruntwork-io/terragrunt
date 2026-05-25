@@ -135,3 +135,24 @@ func NewCoexistenceError(a, b component.Component) error {
 		ConfigFileB:   b.ConfigFile(),
 	})
 }
+
+// StackDependencyExpansionError indicates that a stack dependency path could not be expanded into
+// its constituent unit paths. Wraps the underlying parse error so callers can extract typed details
+// via errors.As.
+type StackDependencyExpansionError struct {
+	Wrapped error
+	DepPath string
+}
+
+func (e StackDependencyExpansionError) Error() string {
+	return fmt.Sprintf("failed to expand stack dependency path %s: %s", e.DepPath, e.Wrapped)
+}
+
+func (e StackDependencyExpansionError) Unwrap() error {
+	return e.Wrapped
+}
+
+// NewStackDependencyExpansionError wraps err with the dependency path that triggered the expansion.
+func NewStackDependencyExpansionError(depPath string, err error) error {
+	return errors.New(StackDependencyExpansionError{DepPath: depPath, Wrapped: err})
+}

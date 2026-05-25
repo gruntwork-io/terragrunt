@@ -6,4 +6,4 @@ set -euo pipefail
 
 touch "$ENV_FILE"
 
-printf "export TG_PROVIDER_CACHE='%s'\n" "1" >> "$ENV_FILE"
+printf "export TG_PROVIDER_CACHE='%s'\n" "1" >>"$ENV_FILE"

@@ -1,0 +1,19 @@
+---
+version: "v1.0.5"
+category: "experiments-updated"
+---
+
+#### `cas` — `mutable` attribute on `terraform`, `unit`, and `stack` blocks
+
+A new `mutable` attribute opts a block out of CAS hardlinking when its source is fetched through CAS. With `mutable = true`, files materialized into `.terragrunt-cache` (for `terraform`) or `.terragrunt-stack` (for `unit` and `stack`) are copied from the CAS store and the working tree is editable.
+
+The default is `false`. Files are materialized read-only so an accidental edit cannot reach back into the shared CAS store.
+
+```hcl
+terraform {
+  source  = "git::https://github.com/acme/infrastructure-modules.git//vpc?ref=v1.0.0"
+  mutable = true
+}
+```
+
+The flag is orthogonal to `update_source_with_cas` and has no effect when content is fetched through the standard download path, which already produces an independent copy.

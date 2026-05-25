@@ -3,13 +3,14 @@ package runall
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -27,14 +28,26 @@ import (
 // Known terraform commands that are explicitly not supported in run --all due to the nature of the command. This is
 // tracked as a map that maps the terraform command to the reasoning behind disallowing the command in run --all.
 var runAllDisabledCommands = map[string]string{
-	tf.CommandNameImport:      "terraform import should only be run against a single state representation to avoid injecting the wrong object in the wrong state representation.",
-	tf.CommandNameTaint:       "terraform taint should only be run against a single state representation to avoid using the wrong state address.",
-	tf.CommandNameUntaint:     "terraform untaint should only be run against a single state representation to avoid using the wrong state address.",
-	tf.CommandNameConsole:     "terraform console requires stdin, which is shared across all instances of run --all when multiple modules run concurrently.",
-	tf.CommandNameForceUnlock: "lock IDs are unique per state representation and thus should not be run with run --all.",
+	tf.CommandNameImport: "terraform import should only be run against a single" +
+		" state representation to avoid injecting the wrong object" +
+		" in the wrong state representation.",
+	tf.CommandNameTaint: "terraform taint should only be run against a single" +
+		" state representation to avoid using the wrong state address.",
+	tf.CommandNameUntaint: "terraform untaint should only be run against a single" +
+		" state representation to avoid using the wrong state address.",
+	tf.CommandNameConsole: "terraform console requires stdin, which is shared" +
+		" across all instances of run --all when multiple modules" +
+		" run concurrently.",
+	tf.CommandNameForceUnlock: "lock IDs are unique per state representation" +
+		" and thus should not be run with run --all.",
 }
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (err error) {
+	// --filter sets RunAll, so the CLI layer dispatches here without going
+	// through the single-unit run path. Emit the tip here as well; the
+	// underlying sync.Once dedupes if both paths fire.
+	tips.GiveStackTargetTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
+
 	if opts.TerraformCommand == "" {
 		return errors.New(MissingCommand{})
 	}
@@ -74,23 +87,32 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// Skip summary for programmatic interactions:
 	// - When JSON output is requested (--json or report format is JSON)
 	// - When running 'output' command (typically for programmatic consumption)
+	// - When the user cancelled the run-all confirmation prompt, since
+	//   no units ran.
 	if !opts.SummaryDisable && !shouldSkipSummary(opts) {
 		defer func() {
-			if err := r.WriteSummary(opts.Writers.Writer); err != nil {
-				l.Warnf("Failed to write summary: %v", err)
+			if errors.Is(err, ErrUserCancelled) {
+				return
+			}
+
+			if writeErr := r.WriteSummary(opts.Writers.Writer); writeErr != nil {
+				l.Warnf("Failed to write summary: %v", writeErr)
 			}
 		}()
 	}
 
 	gitFilters := opts.Filters.UniqueGitFilters()
 
-	// Only create worktrees when git filter expressions are present
-	var (
-		wts *worktrees.Worktrees
-		err error
-	)
+	// Only create worktrees when git filter expressions are present.
+	// `err` is the named return; the summary defer reads it to detect
+	// ErrUserCancelled.
+	var wts *worktrees.Worktrees
 	if len(gitFilters) > 0 {
-		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
+		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+			WorkingDir:     opts.WorkingDir,
+			GitExpressions: gitFilters,
+			Experiments:    opts.Experiments,
+		})
 		if err != nil {
 			return errors.Errorf("failed to create worktrees: %w", err)
 		}
@@ -151,7 +173,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	return RunAllOnStack(ctx, l, opts, rnr, r)
 }
 
-func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, rnr common.StackRunner, r *report.Report) error {
+func RunAllOnStack(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	rnr common.StackRunner,
+	r *report.Report,
+) error {
 	l.Debugf("%s", rnr.GetStack().String())
 
 	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
@@ -165,9 +193,12 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	case tf.CommandNameApply:
 		prompt = "Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed above?"
 	case tf.CommandNameDestroy:
-		prompt = "WARNING: Are you sure you want to run `terragrunt destroy` in each unit of the run queue displayed above? There is no undo!"
+		prompt = "WARNING: Are you sure you want to run `terragrunt destroy`" +
+			" in each unit of the run queue displayed above? There is no undo!"
 	case tf.CommandNameState:
-		prompt = "Are you sure you want to manipulate the state with `terragrunt state` in each unit of the run queue displayed above? Note that absolute paths are shared, while relative paths will be relative to each working directory."
+		prompt = "Are you sure you want to manipulate the state with `terragrunt state`" +
+			" in each unit of the run queue displayed above? Note that absolute paths are shared," +
+			" while relative paths will be relative to each working directory."
 	}
 
 	if prompt != "" {
@@ -177,8 +208,11 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		}
 
 		if !shouldRunAll {
-			// We explicitly exit here to avoid running any defers that might be registered, like from the run summary.
-			os.Exit(0)
+			// Return a sentinel so the caller can map the cancellation
+			// to a clean exit. os.Exit here would skip every defer in
+			// the program, including worktree cleanup and telemetry
+			// shutdown.
+			return ErrUserCancelled
 		}
 	}
 

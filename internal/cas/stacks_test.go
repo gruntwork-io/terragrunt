@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -423,4 +424,47 @@ func TestProcessStackComponent_BlobsStoredInCAS(t *testing.T) {
 	entries, err = os.ReadDir(treeStore.Path())
 	require.NoError(t, err)
 	assert.NotEmpty(t, entries, "tree store should contain entries after processing")
+}
+
+func TestProcessStackComponent_AcceptsExplicitGitPrefix(t *testing.T) {
+	t.Parallel()
+
+	repoURL := startStackTestServer(t)
+	l := logger.CreateLogger()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	require.NoError(t, err)
+
+	source := "git::" + repoURL + "//stacks/my-stack?ref=main"
+
+	result, err := c.ProcessStackComponent(t.Context(), l, source, "stack")
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	assert.FileExists(t, filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+}
+
+func TestProcessStackComponent_ShorthandSourceReachesClone(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	require.NoError(t, err)
+
+	// Bogus org so the network call fails fast. The error shape proves the
+	// shorthand was rewritten and reached `git ls-remote`.
+	source := "github.com/gruntwork-io-this-org-does-not-exist/repo?ref=main"
+
+	_, err = c.ProcessStackComponent(t.Context(), l, source, "stack")
+	require.Error(t, err)
+	require.ErrorIs(t, err, git.ErrCommandSpawn, "failure must come from a spawned git command")
+
+	var wrapped *git.WrappedError
+	require.ErrorAs(t, err, &wrapped)
+	assert.Equal(t, "git_ls_remote", wrapped.Op,
+		"failure must originate from ls-remote, proving the URL was handed to git")
 }

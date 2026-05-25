@@ -1,0 +1,10 @@
+---
+version: "v1.0.6"
+category: "bug-fixes"
+---
+
+#### `terraform_binary` properly respected when both `tofu` and `terraform` are on `PATH`
+
+A regression in command execution caching resulted in over-caching the STDOUT result of `tofu --version` when both `tofu` and `terraform` were available on `PATH` and `terraform_binary` was set. Early on in the execution flow, Terragrunt checks if OpenTofu is installed what its version is to determine if it supports setting of the automatic provider cache directory. This resulted in the value of `terraform_binary` being ignored for later version checks to assess compliance with `terraform_version_constraint`.
+
+The version-detection cache used per run is now scoped to the binary that produced each entry, so the version recorded against an early default-binary resolution no longer leaks into the later resolution that honors `terraform_binary`.

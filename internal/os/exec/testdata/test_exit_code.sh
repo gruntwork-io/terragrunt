@@ -2,4 +2,4 @@
 
 set -e
 
-exit $1
+exit "$1"

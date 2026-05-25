@@ -8,12 +8,13 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"strings"
 
 	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/glob"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 // FileName is the fixed name looked up at the repo root.
@@ -32,13 +33,13 @@ type Matcher struct {
 	rules []rule
 }
 
-// Load reads <repoPath>/.terragrunt-catalog-ignore. A missing file is not an
-// error: an empty Matcher is returned. Callers pointing at an explicit,
-// caller-validated path should use LoadFile instead.
-func Load(repoPath string) (*Matcher, error) {
-	f, err := os.Open(filepath.Join(repoPath, FileName))
+// Load reads <repoPath>/.terragrunt-catalog-ignore from fsys. A missing file
+// is not an error: an empty Matcher is returned. Callers pointing at an
+// explicit, caller-validated path should use LoadFile instead.
+func Load(fsys vfs.FS, repoPath string) (*Matcher, error) {
+	f, err := fsys.Open(filepath.Join(repoPath, FileName))
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return &Matcher{}, nil
 		}
 
@@ -48,11 +49,11 @@ func Load(repoPath string) (*Matcher, error) {
 	return parseAndClose(f)
 }
 
-// LoadFile reads an ignore file at the given path. The caller is responsible
-// for validating that the path is non-empty and exists; this function simply
-// reads and parses.
-func LoadFile(path string) (*Matcher, error) {
-	f, err := os.Open(path)
+// LoadFile reads an ignore file at the given path from fsys. The caller is
+// responsible for validating that the path is non-empty and exists; this
+// function simply reads and parses.
+func LoadFile(fsys vfs.FS, path string) (*Matcher, error) {
+	f, err := fsys.Open(path)
 	if err != nil {
 		return nil, tgerrors.New(err)
 	}
@@ -70,7 +71,7 @@ func (m *Matcher) Merge(other *Matcher) {
 	m.rules = append(m.rules, other.rules...)
 }
 
-func parseAndClose(f *os.File) (m *Matcher, err error) {
+func parseAndClose(f vfs.File) (m *Matcher, err error) {
 	defer func() {
 		if cerr := f.Close(); cerr != nil && err == nil {
 			err = tgerrors.New(cerr)

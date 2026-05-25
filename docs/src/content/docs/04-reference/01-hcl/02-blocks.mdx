@@ -8,6 +8,8 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
@@ -110,6 +112,25 @@ The `terraform` block supports the following arguments:
 - `error_hook` (block): Nested blocks used to specify command hooks that run when an error is thrown. The
   error must match one of the expressions listed in the `on_errors` attribute. Error hooks are executed after the before/after hooks.
   To handle errors during source download (when using the `source` attribute), use `init-from-module` in the `commands` list.
+
+<Before version="1.0.5">
+
+<Aside type="tip">
+A `mutable` attribute that opts a `terraform` block out of CAS hardlinking is coming in v1.0.5.
+</Aside>
+
+</Before>
+
+<Since version="1.0.5">
+
+- `mutable` (attribute): When `true`, content fetched into `.terragrunt-cache` through the
+  [content-addressable storage (CAS)](/features/caching/cas) is copied from the CAS store and the
+  working tree under `.terragrunt-cache` is editable. The default is `false`: files are
+  materialized read-only so an accidental edit cannot reach back into the shared CAS store. The
+  flag has no effect when CAS is not used to fetch the source; the standard download path already
+  produces an independent, writable copy.
+
+</Since>
 
 In addition to supporting before and after hooks for all OpenTofu/Terraform commands, the following specialized hooks are also
 supported:

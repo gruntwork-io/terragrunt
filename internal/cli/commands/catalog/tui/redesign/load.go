@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -47,7 +47,9 @@ func LoadURL(
 
 	l.Debugf("Processing repository %s in temporary path %s", repoURL, tempPath)
 
-	repo, err := module.NewRepo(ctx, l, module.RepoOpts{
+	fsys := vfs.NewOSFS()
+
+	repo, err := module.NewRepo(ctx, l, fsys, &module.RepoOpts{
 		CloneURL:         repoURL,
 		Path:             tempPath,
 		WalkWithSymlinks: walkWithSymlinks,
@@ -56,17 +58,17 @@ func LoadURL(
 		RootWorkingDir:   opts.RootWorkingDir,
 	})
 	if err != nil {
-		return errors.Errorf("failed to initialize repository %s: %w", repoURL, err)
+		return fmt.Errorf("failed to initialize repository %s: %w", repoURL, err)
 	}
 
-	discovery := NewComponentDiscovery().WithExtraIgnoreFile(opts.CatalogIgnoreFile)
+	discovery := NewComponentDiscovery().WithFS(fsys).WithExtraIgnoreFile(opts.CatalogIgnoreFile)
 	if walkWithSymlinks {
 		discovery = discovery.WithWalkWithSymlinks()
 	}
 
 	components, err := discovery.Discover(repo)
 	if err != nil {
-		return errors.Errorf("failed to discover components in repository %s: %w", repoURL, err)
+		return fmt.Errorf("failed to discover components in repository %s: %w", repoURL, err)
 	}
 
 	if len(components) == 0 {
@@ -78,7 +80,7 @@ func LoadURL(
 
 	// Resolve the latest release tag once per repo. All components from the
 	// same repo share the Repo, so the tag is set for everyone.
-	repo.ResolveLatestTag(ctx)
+	repo.ResolveLatestTag(ctx, l)
 
 	source := ExtractRepoURL(repo.SourceURL())
 

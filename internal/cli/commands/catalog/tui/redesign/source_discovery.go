@@ -4,8 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/hashicorp/go-getter"
-
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -64,18 +63,15 @@ func ExtractRepoURL(source string) string {
 		return ""
 	}
 
-	// Split at // to separate repo URL from module subdirectory
 	moduleURL, _ := getter.SourceDirSubdir(source)
 	if moduleURL == "" {
 		return ""
 	}
 
-	// Strip query parameters (e.g., ?ref=v1.0.0)
 	if idx := strings.IndexByte(moduleURL, '?'); idx >= 0 {
 		moduleURL = moduleURL[:idx]
 	}
 
-	// Strip getter-specific prefixes (e.g., git::, s3::, gcs::)
 	if idx := strings.Index(moduleURL, "::"); idx >= 0 {
 		moduleURL = moduleURL[idx+2:]
 	}

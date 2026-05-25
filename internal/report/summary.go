@@ -336,7 +336,10 @@ func (s *Summary) writeUnitLevelSummary(w io.Writer, colorizer *Colorizer) error
 }
 
 // writeUnitDuration writes unit duration with cleaner formatting
-func (s *Summary) writeUnitDuration(w io.Writer, run *Run, colorizer *Colorizer, unitColorizer func(string) string) error {
+func (s *Summary) writeUnitDuration(
+	w io.Writer, run *Run, colorizer *Colorizer,
+	unitColorizer func(string) string,
+) error {
 	duration := run.Ended.Sub(run.Started)
 
 	name := run.Path

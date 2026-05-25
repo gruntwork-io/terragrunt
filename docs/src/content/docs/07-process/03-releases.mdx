@@ -16,53 +16,71 @@ Once 1.0 is released, Terragrunt backwards compatibility will be guaranteed for 
 
 This documentation should be updated at that time to reflect the new policy. If it has not, please file a bug report.
 
+## Immutable Releases
+
+Terragrunt uses [GitHub's immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases) to ensure that once a release is published, its tag and assets cannot be modified or deleted. This means the binary you download today is the same binary that was uploaded when the release was published.
+
+To support immutability, releases are built as **drafts** first. All artifacts are uploaded and verified before the release is published. Once published, the git tag is created and the release is locked.
+
+<Aside type="note" title="Not yet enabled">
+  Immutable releases are not yet turned on for the `gruntwork-io/terragrunt` repository. The release workflow has been updated to support them, and maintainers want to run a few releases through the new workflow before enabling the setting on GitHub.
+</Aside>
+
 ## When to Cut a New Release
 
 While Terragrunt is still pre-1.0, maintainers will cut a new release whenever a new feature is added or a bug is fixed. Maintainers will exercise their best judgment to determine when a new release is necessary, and bias towards cutting a new release as frequently as possible when in doubt.
 
 ## How to Create a New Release
 
-To release a new version of Terragrunt, go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and cut a new pre-release off the `main` branch. Ensure that the new release uses the **Set as a pre-release** checkbox initially.
+To release a new version of Terragrunt:
 
-The GitHub Actions workflow for this repository has been configured to:
+1. Go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and click **Draft a new release**.
 
-1. Automatically detect new tags.
+2. In the **Choose a tag** field, enter the version (e.g., `v1.0.2`). Select **Create new tag: v1.0.2 on publish**.
 
-2. Build assets for every OS using that tag as a version number (including binaries, archives, checksums, signature files, etc.).
+3. **Set the target to an explicit commit SHA**, not a branch name. This prevents new commits from being pulled into the release between draft creation and publishing. You can find the commit SHA from the tip of the branch you want to release (e.g., `main`).
 
-3. Upload the assets to the release in GitHub.
+4. Set the release title to the version tag (e.g., `v1.0.2`).
 
-See [`.github/workflows/release.yml`](https://github.com/gruntwork-io/terragrunt/blob/main/.github/workflows/release.yml) for details.
+5. Click **Save draft**.
 
-Follow the GitHub Actions logs to ensure that the assets are built and uploaded correctly. Once the job is successful, go back to the release, give the release notes a final review, then uncheck the **Set as a pre-release** checkbox and check the **Set as the latest release** checkbox.
+6. Trigger the [Release workflow](https://github.com/gruntwork-io/terragrunt/actions/workflows/release.yml) via **Run workflow**, providing the version string you just drafted (e.g., `v1.0.2`). The workflow looks up the draft release, reads its target commit SHA, and will:
+   - Validate the tag is a valid semantic version
+   - Verify the target is a commit SHA (not a branch name)
+   - Build binaries for every supported OS and architecture
+   - Sign macOS and Windows binaries
+   - Generate checksums and cryptographic signatures
+   - Upload all assets to the draft release
+
+7. Once the workflow succeeds, go back to the draft release and verify the assets are present and downloadable.
+
+8. Write or finalize the release notes.
+
+<Aside type="note" title="Re-running after edits">
+  If you edit the draft (for example, to retarget a new commit SHA), re-run the Release workflow with the same version to rebuild and overwrite the assets. Editing the draft does not automatically trigger a rebuild.
+</Aside>
+
+9. When ready:
+   - For stable releases: uncheck **Set as a pre-release** and check **Set as the latest release**.
+   - For pre-releases: check **Set as a pre-release**.
+
+10. Click **Publish release**. This creates the git tag at the pinned commit, makes the release immutable, and triggers the release announcement.
+
+### Retrying a Failed Build
+
+If the build workflow fails mid-way, re-run the Release workflow via **workflow_dispatch** with the same version (e.g., `v1.0.2`). It looks up the existing draft release and rebuilds, overwriting any previously uploaded assets.
 
 ## Pre-releases
 
 Occasionally, Terragrunt maintainers will cut a pre-release to get feedback on the UI/UX for a new feature or to give the community a chance to test it in the wild before making it generally available.
 
-Alpha pre-releases are generally cut off a feature branch, in order to keep the `main` branch stable and releasable at all times.
+All pre-releases use semver-compliant version strings:
 
-Pre-releases are tagged with a pre-release name that looks like the following: `alpha2025022501`, etc. with the following information:
-
-- Channel: e.g. `alpha` (indicating the stability of the release)
-
-  The `alpha` channel has the following meaning in Terragrunt:
-
-  - `alpha`: This release is recommended for testing in non-production environments only. It is intended for testing out new features with stakeholders external to Gruntwork before a general release.
-
-  At the moment, this is really the only channel we need. In the future, we might adjust this to include more channels, such as `beta`, etc.
-
-- Date: e.g. `20250225` (indicating the date the release was cut without dashes or slashes)
-- Incremental number: e.g. `01` (indicating the number of pre-releases cut on that day)
+- `v1.0.0-alpha.1`: Alpha pre-releases, recommended for testing in non-production environments only. Intended for testing new features with stakeholders external to Gruntwork before a general release.
+- `v1.0.0-beta.1`: Beta pre-releases, for broader testing.
+- `v1.0.0-rc1`: Release candidates, which undergo more thorough testing (automated and manual) before the final release.
 
 This pre-release system is subject to change, and maintainers will update this documentation to reflect any changes.
-
-The current plan for how maintainers are going to handle pre-releases after 1.0 is that:
-
-1. Pre-releases for the `alpha` channel will continue to be cut from feature branches, and use the same naming convention as before.
-2. Pre-releases for the `rc` channel will be cut from the `main` branch, and use a naming convention that looks like `v1.0.0-rc1`, which is incremented for each release candidate.
-
-Release candidates in the `rc` channel will undergo more thorough testing, both automated and manual.
 
 ## Tip Builds
 
@@ -164,4 +182,3 @@ Tip builds are signed using the same process as official releases. Each build in
 Maintainers can manually trigger a test build from any branch using the [`test-build.yml`](https://github.com/gruntwork-io/terragrunt/actions/workflows/test-build.yml) workflow via `workflow_dispatch`. Test builds are versioned as `test-{commit_sha}` and uploaded under the `test` prefix (or `tip` if triggered from `main`).
 
 This is useful for giving stakeholders a binary to test before a feature branch is merged.
-

@@ -38,6 +38,8 @@ const (
 	ErrAbsoluteSource Error = "update_source_with_cas does not support absolute sources"
 	// ErrSourceEscapesRepo is returned when an update_source_with_cas source resolves outside the cloned repository
 	ErrSourceEscapesRepo Error = "update_source_with_cas source escapes repository root"
+	// ErrNotADirectory is returned when a path expected to be a directory is not.
+	ErrNotADirectory Error = "not a directory"
 )
 
 // WrappedError provides additional context for errors
@@ -66,15 +68,11 @@ var (
 	ErrNoMatchingReference = errors.New("no matching reference")
 	ErrReadTree            = errors.New("failed to read tree")
 	ErrNoWorkDir           = errors.New("working directory not set")
+	ErrGitStorePath        = errors.New("failed to prepare git store path")
+	ErrGitStoreLock        = errors.New("failed to acquire git store lock")
+	ErrGitStoreFSNotOS     = errors.New("git store requires an OS-backed filesystem")
+	ErrFallbackCloneDir    = errors.New("failed to create fallback clone directory")
 )
-
-func wrapError(op, path string, err error) error {
-	return &WrappedError{
-		Op:   op,
-		Path: path,
-		Err:  err,
-	}
-}
 
 // UpdateSourceWithCASRequiresCASError is returned when a block sets
 // update_source_with_cas = true but CAS is unavailable, either because the
@@ -88,6 +86,22 @@ type UpdateSourceWithCASRequiresCASError struct {
 	Name string
 	// Path is the file containing the offending block.
 	Path string
+}
+
+// GitStoreObjectMissingError is returned when a fetch into the central git
+// store completes but the requested object is still not reachable. Callers
+// fall back to a temporary clone when they see this.
+type GitStoreObjectMissingError struct {
+	Hash string
+	Ref  string
+	URL  string
+}
+
+func (e *GitStoreObjectMissingError) Error() string {
+	return fmt.Sprintf(
+		"object %s not present in central git store after fetching %s from %s",
+		e.Hash, e.Ref, e.URL,
+	)
 }
 
 func (e *UpdateSourceWithCASRequiresCASError) Error() string {

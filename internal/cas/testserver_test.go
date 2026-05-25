@@ -7,6 +7,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// newEmptyTestServer creates a Server that the caller can populate
+// before starting. The returned cleanup is registered on the test, so
+// the caller only needs to invoke Start. Useful for tests that need
+// access to commit hashes, tags, or want to shut the server down
+// mid-test to verify offline behavior.
+func newEmptyTestServer(t *testing.T) *git.Server {
+	t.Helper()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	return srv
+}
+
 // startTestServer creates a local Git server with a few test files and
 // returns its URL. The server is shut down when the test completes.
 func startTestServer(t *testing.T) string {

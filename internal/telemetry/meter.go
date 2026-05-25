@@ -71,7 +71,9 @@ func NewMeter(ctx context.Context, appName, appVersion string, writer io.Writer,
 }
 
 // Time collects time for function execution
-func (meter *Meter) Time(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
+func (meter *Meter) Time(
+	ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error,
+) error {
 	if meter == nil || meter.exporter == nil {
 		return fn(ctx)
 	}

@@ -2,6 +2,8 @@
 package cliconfig
 
 import (
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -153,6 +155,21 @@ func (cfg *Config) Clone() *Config {
 //		}
 //	}
 func (cfg *Config) AddHost(name string, services map[string]string) {
+	// Merge with existing host to avoid duplicates while preserving other service endpoints.
+	for i, host := range cfg.Hosts {
+		if host.Name == name {
+			merged := maps.Clone(host.Services)
+			if merged == nil {
+				merged = make(map[string]string)
+			}
+
+			maps.Copy(merged, services)
+			cfg.Hosts[i] = ConfigHost{Name: name, Services: merged}
+
+			return
+		}
+	}
+
 	cfg.Hosts = append(cfg.Hosts, ConfigHost{
 		Name:     name,
 		Services: services,

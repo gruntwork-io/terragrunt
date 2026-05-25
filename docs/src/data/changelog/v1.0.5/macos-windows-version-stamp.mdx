@@ -1,0 +1,12 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### macOS and Windows binaries report the correct release version
+
+The v1.0.4 macOS and Windows release binaries reported `terragrunt version main` and parsed as `0.0.0`, breaking any `terragrunt_version_constraint` configured against them.
+
+`sign-macos.yml` and `sign-windows.yml` included build jobs for standalone `workflow_dispatch` runs. During the release workflow, those jobs still saw the original `workflow_dispatch` event from `release.yml`, so the old condition evaluated to true. The redundant build used `BUILD_VERSION=${{ github.ref_name }}` and replaced the correctly versioned artifact uploaded by `build.yml`.
+
+The signing workflows now skip their internal build job when invoked via `workflow_call` and only build when dispatched directly, so release binaries keep the version stamped by `build.yml`.

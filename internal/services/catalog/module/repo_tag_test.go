@@ -63,11 +63,10 @@ func TestResolveLatestTag_FindsHighestSemver(t *testing.T) {
 	l := logger.CreateLogger()
 
 	repo := &module.Repo{
-		Logger:    l,
 		RemoteURL: bareDir,
 	}
 
-	repo.ResolveLatestTag(t.Context())
+	repo.ResolveLatestTag(t.Context(), l)
 
 	assert.Equal(t, "v1.10.2", repo.LatestTag)
 }
@@ -79,11 +78,10 @@ func TestResolveLatestTag_NoTags(t *testing.T) {
 	l := logger.CreateLogger()
 
 	repo := &module.Repo{
-		Logger:    l,
 		RemoteURL: bareDir,
 	}
 
-	repo.ResolveLatestTag(t.Context())
+	repo.ResolveLatestTag(t.Context(), l)
 
 	assert.Empty(t, repo.LatestTag)
 }
@@ -93,11 +91,9 @@ func TestResolveLatestTag_EmptyRemoteURL(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	repo := &module.Repo{
-		Logger: l,
-	}
+	repo := &module.Repo{}
 
-	repo.ResolveLatestTag(t.Context())
+	repo.ResolveLatestTag(t.Context(), l)
 
 	assert.Empty(t, repo.LatestTag)
 }

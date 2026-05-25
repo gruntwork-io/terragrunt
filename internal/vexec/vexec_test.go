@@ -48,6 +48,47 @@ func TestMemExec_HandlerReceivesInvocation(t *testing.T) {
 	assert.Equal(t, []byte("input"), out)
 }
 
+func TestOSCmder_OSBackendSatisfies(t *testing.T) {
+	t.Parallel()
+
+	cmd := vexec.NewOSExec().Command(t.Context(), "some-binary", "arg1")
+
+	oc, ok := cmd.(vexec.OSCmder)
+	require.True(t, ok, "OS-backed Cmd must satisfy OSCmder")
+
+	got := oc.OSCmd()
+	require.NotNil(t, got)
+	assert.Equal(t, []string{"some-binary", "arg1"}, got.Args)
+}
+
+func TestOSCmder_PropagatesSetters(t *testing.T) {
+	t.Parallel()
+
+	cmd := vexec.NewOSExec().Command(t.Context(), "some-binary", "arg1")
+
+	stdin := strings.NewReader("input")
+	cmd.SetStdin(stdin)
+	cmd.SetEnv([]string{"FOO=bar"})
+	cmd.SetDir("/work")
+
+	got := cmd.(vexec.OSCmder).OSCmd()
+	assert.Equal(t, []string{"some-binary", "arg1"}, got.Args)
+	assert.Equal(t, []string{"FOO=bar"}, got.Env)
+	assert.Equal(t, "/work", got.Dir)
+	assert.Same(t, stdin, got.Stdin)
+}
+
+func TestOSCmder_MemBackendDoesNot(t *testing.T) {
+	t.Parallel()
+
+	e := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		return vexec.Result{}
+	})
+
+	_, ok := e.Command(t.Context(), "echo").(vexec.OSCmder)
+	assert.False(t, ok, "MemExec Cmd must not satisfy OSCmder")
+}
+
 func TestMemExec_CombinedOutput(t *testing.T) {
 	t.Parallel()
 

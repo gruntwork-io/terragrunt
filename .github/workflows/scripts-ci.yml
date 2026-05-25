@@ -1,0 +1,78 @@
+name: Scripts CI
+
+on:
+  push:
+    paths:
+      - "**/*.sh"
+      - "**/*.bats"
+      - ".github/scripts/**/*.js"
+      - ".github/workflows/scripts-ci.yml"
+      - "mise.toml"
+
+jobs:
+  lint-shell:
+    name: Lint shell scripts
+    runs-on: ubuntu-slim
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: 2026.5.12
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: shellcheck
+        run: |
+          find . -name "*.sh" \
+            -not -path "./node_modules/*" \
+            -not -path "./docs/node_modules/*" \
+            -not -path "./.git/*" \
+            -print0 \
+            | xargs -0 mise x shellcheck -- shellcheck -x -P SCRIPTDIR
+
+      - name: shfmt
+        run: |
+          find . -name "*.sh" \
+            -not -path "./node_modules/*" \
+            -not -path "./docs/node_modules/*" \
+            -not -path "./.git/*" \
+            -print0 \
+            | xargs -0 mise x shfmt -- shfmt -d
+
+  test-shell:
+    name: Test shell scripts
+    runs-on: ubuntu-slim
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: 2026.5.12
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: bats
+        run: mise x bats -- bats --print-output-on-failure .github/scripts/release/tests/
+
+  test-js:
+    name: Test JS scripts
+    runs-on: ubuntu-slim
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: 2026.5.12
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: bun test
+        working-directory: .github/scripts
+        run: mise x bun -- bun test

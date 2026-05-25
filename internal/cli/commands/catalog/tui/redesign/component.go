@@ -12,9 +12,9 @@ const (
 	maxDescriptionLength = 200
 )
 
-// ComponentKind classifies a Component as a Terraform/OpenTofu module or a
-// boilerplate template. The distinction matters because scaffolding behavior
-// changes based on the presence of a `.boilerplate/` directory.
+// ComponentKind classifies a Component. Modules and templates are scaffoldable
+// artifacts; units and stacks are terragrunt configurations that the user
+// copies into their working directory.
 type ComponentKind int
 
 const (
@@ -23,6 +23,11 @@ const (
 	// ComponentKindTemplate is a directory containing a `.boilerplate/`
 	// subdirectory or a top-level `boilerplate.yml`.
 	ComponentKindTemplate
+	// ComponentKindUnit is a directory containing a `terragrunt.hcl` file.
+	ComponentKindUnit
+	// ComponentKindStack is a directory containing a `terragrunt.stack.hcl`
+	// file.
+	ComponentKindStack
 )
 
 // String returns the user-visible kind label.
@@ -30,11 +35,21 @@ func (k ComponentKind) String() string {
 	switch k {
 	case ComponentKindTemplate:
 		return "template"
+	case ComponentKindUnit:
+		return "unit"
+	case ComponentKindStack:
+		return "stack"
 	case ComponentKindModule:
 		return "module"
 	default:
 		return "module"
 	}
+}
+
+// IsCopyable reports whether a component of this kind is installed by copying
+// its directory tree into the working directory rather than by scaffolding.
+func (k ComponentKind) IsCopyable() bool {
+	return k == ComponentKindUnit || k == ComponentKindStack
 }
 
 // Component is the redesign-owned representation of a scaffoldable directory
@@ -95,6 +110,16 @@ func (c *Component) Description() string {
 // FilterValue is what the list fuzzy-matches against when the user filters.
 func (c *Component) FilterValue() string { return c.Title() }
 
+// Tags returns the component's README front-matter tags, in authoring order.
+// Returns nil when the component has no Doc or declares no tags.
+func (c *Component) Tags() []string {
+	if c.Doc == nil {
+		return nil
+	}
+
+	return c.Doc.Tags()
+}
+
 // URL returns the browser-friendly source URL for the component, or an empty
 // string if one could not be derived.
 func (c *Component) URL() string { return c.url }
@@ -139,11 +164,9 @@ func (c *Component) Content(stripTags bool) string {
 // NewComponentForTest constructs a Component for use in unit tests without
 // requiring a cloned repository on disk.
 func NewComponentForTest(kind ComponentKind, cloneURL, dir, readme string) *Component {
-	var doc *ComponentDoc
+	doc := &ComponentDoc{}
 	if readme != "" {
 		doc = NewComponentDoc(readme, mdExt)
-	} else {
-		doc = &ComponentDoc{}
 	}
 
 	return &Component{

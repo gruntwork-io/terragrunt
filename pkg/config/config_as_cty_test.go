@@ -167,6 +167,55 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	}
 }
 
+// TestTerragruntConfigAsCtyMixedIgnoreSignals pins the fix for a panic
+// reachable from `terragrunt render` when two errors.ignore blocks have
+// differently-shaped signals maps. Before the fix, cty.ListVal panicked
+// on "inconsistent list element types" because gocty inferred
+// cty.Map(cty.String) for the populated block and
+// cty.Map(cty.DynamicPseudoType) for the empty one.
+func TestTerragruntConfigAsCtyMixedIgnoreSignals(t *testing.T) {
+	t.Parallel()
+
+	testConfig := config.TerragruntConfig{
+		Errors: &config.ErrorsConfig{
+			Ignore: []*config.IgnoreBlock{
+				{
+					Label:           "with-signals",
+					IgnorableErrors: []string{".*timeout.*"},
+					Message:         "ignored",
+					Signals: map[string]cty.Value{
+						"foo": cty.StringVal("bar"),
+					},
+				},
+				{
+					Label:           "without-signals",
+					IgnorableErrors: []string{".*5xx.*"},
+					Message:         "also ignored",
+				},
+			},
+		},
+	}
+
+	ctyVal, err := config.TerragruntConfigAsCty(&testConfig)
+	require.NoError(t, err)
+
+	ctyMap, err := ctyhelper.ParseCtyValueToMap(ctyVal)
+	require.NoError(t, err)
+
+	errorsMap := ctyMap["errors"].(map[string]any)
+	ignore := errorsMap["ignore"].([]any)
+	require.Len(t, ignore, 2)
+
+	first := ignore[0].(map[string]any)
+	assert.Equal(t, "with-signals", first["name"])
+	assert.Equal(t, "ignored", first["message"])
+	assert.Equal(t, map[string]any{"foo": "bar"}, first["signals"])
+
+	second := ignore[1].(map[string]any)
+	assert.Equal(t, "without-signals", second["name"])
+	assert.Equal(t, "also ignored", second["message"])
+}
+
 // This test makes sure that all the fields in RemoteState are converted to cty
 func TestRemoteStateAsCtyDrift(t *testing.T) {
 	t.Parallel()
@@ -221,6 +270,7 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	// they use omit-when-nil semantics via ctyObjectAddField.
 	omitWhenNilFields := map[string]bool{
 		"UpdateSourceWithCAS": true,
+		"Mutable":             true,
 	}
 
 	terraformConfigStructInfo := structs.New(config.TerraformConfig{})

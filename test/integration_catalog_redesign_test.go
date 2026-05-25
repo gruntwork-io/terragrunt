@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -115,7 +116,7 @@ func TestCatalogRedesignDiscoveryWithIgnoreFiles(t *testing.T) {
 
 	seedFakeGit(t, repoDir)
 
-	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), module.RepoOpts{
+	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{
 		CloneURL:       repoDir,
 		Path:           repoDir,
 		RootWorkingDir: repoDir,

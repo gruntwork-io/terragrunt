@@ -52,9 +52,9 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 
 	switch node := expr.(type) {
 	case *PathExpression:
-		return evaluatePathFilter(node, components)
+		return evaluatePathFilter(l, node, components)
 	case *AttributeExpression:
-		return evaluateAttributeFilter(node, components)
+		return evaluateAttributeFilter(l, node, components)
 	case *PrefixExpression:
 		return evaluatePrefixExpression(l, node, components)
 	case *InfixExpression:
@@ -69,20 +69,24 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 }
 
 // evaluatePathFilter evaluates a path filter using glob matching.
-func evaluatePathFilter(filter *PathExpression, components component.Components) (component.Components, error) {
+func evaluatePathFilter(l log.Logger, filter *PathExpression, components component.Components) (component.Components, error) {
 	result := make(component.Components, 0, len(components))
 
 	for _, c := range components {
 		if matchPath(c, filter) {
 			result = append(result, c)
+
+			continue
 		}
+
+		traceFilterMiss(l, filter, c)
 	}
 
 	return result, nil
 }
 
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(filter *AttributeExpression, components []component.Component) ([]component.Component, error) {
+func evaluateAttributeFilter(l log.Logger, filter *AttributeExpression, components []component.Component) ([]component.Component, error) {
 	var result []component.Component
 
 	switch filter.Key {
@@ -92,7 +96,11 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 		for _, c := range components {
 			if g.Match(filepath.Base(c.Path())) {
 				result = append(result, c)
+
+				continue
 			}
+
+			traceFilterMiss(l, filter, c)
 		}
 
 	case AttributeType:
@@ -101,13 +109,21 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 			for _, c := range components {
 				if _, ok := c.(*component.Unit); ok {
 					result = append(result, c)
+
+					continue
 				}
+
+				traceFilterMiss(l, filter, c)
 			}
 		case AttributeTypeValueStack:
 			for _, c := range components {
 				if _, ok := c.(*component.Stack); ok {
 					result = append(result, c)
+
+					continue
 				}
+
+				traceFilterMiss(l, filter, c)
 			}
 		default:
 			return nil, NewEvaluationError("invalid type value: " + filter.Value + " (expected 'unit' or 'stack')")
@@ -118,13 +134,21 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 			for _, c := range components {
 				if c.External() {
 					result = append(result, c)
+
+					continue
 				}
+
+				traceFilterMiss(l, filter, c)
 			}
 		case AttributeExternalValueFalse:
 			for _, c := range components {
 				if !c.External() {
 					result = append(result, c)
+
+					continue
 				}
+
+				traceFilterMiss(l, filter, c)
 			}
 		default:
 			return nil, NewEvaluationError("invalid external value: " + filter.Value + " (expected 'true' or 'false')")
@@ -141,6 +165,8 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 
 			discoveryCtx := c.DiscoveryContext()
 			if discoveryCtx == nil || discoveryCtx.WorkingDir == "" {
+				traceFilterMiss(l, filter, c)
+
 				continue
 			}
 
@@ -156,7 +182,11 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 
 			if slices.ContainsFunc(relReading, g.Match) {
 				result = append(result, c)
+
+				continue
 			}
+
+			traceFilterMiss(l, filter, c)
 		}
 	case AttributeSource:
 		g := filter.Glob()
@@ -164,13 +194,22 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 		for _, c := range components {
 			if slices.ContainsFunc(c.Sources(), g.Match) {
 				result = append(result, c)
+
+				continue
 			}
+
+			traceFilterMiss(l, filter, c)
 		}
 	default:
 		return nil, NewEvaluationError("unknown attribute key: " + filter.Key)
 	}
 
 	return result, nil
+}
+
+// traceFilterMiss emits a trace log when a component does not match a filter.
+func traceFilterMiss(l log.Logger, expr Expression, c component.Component) {
+	l.Tracef("Filter %s did not match component %s", expr, c.Path())
 }
 
 // evaluatePrefixExpression evaluates a prefix expression (negation).
@@ -337,7 +376,7 @@ func traverseGraph(
 	remainingDepth int,
 ) {
 	if remainingDepth <= 0 {
-		if l != nil && params.warnOnLimit {
+		if params.warnOnLimit {
 			directionName := params.direction.String()
 
 			l.Warnf(

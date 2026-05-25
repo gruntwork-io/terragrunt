@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -31,13 +32,31 @@ var TerraformVersionRegex = regexp.MustCompile(`^(\S+)\s(v?\d+\.\d+\.\d+)`)
 
 const versionParts = 3
 
+// PopulateTFVersionInput holds the inputs for PopulateTFVersion.
+type PopulateTFVersionInput struct {
+	// TFOpts carries the resolved binary path and shell environment.
+	TFOpts *tf.TFOptions
+	// WorkingDir is hashed into the cache key alongside VersionFiles.
+	WorkingDir string
+	// VersionFiles are pinning files (e.g. .terraform-version) whose contents
+	// participate in the cache key.
+	VersionFiles []string
+}
+
 // PopulateTFVersion discovers the currently installed version of OpenTofu/Terraform.
-// It uses a cache keyed by workingDir and versionFiles to avoid repeated invocations.
-// Returns the discovered version and implementation type; the caller is responsible
-// for storing them on *options.TerragruntOptions.
-func PopulateTFVersion(ctx context.Context, l log.Logger, workingDir string, versionFiles []string, tfOpts *tf.TFOptions) (log.Logger, *version.Version, tfimpl.Type, error) {
+// It uses a cache keyed by WorkingDir, VersionFiles, and the resolved binary path
+// to avoid repeated invocations while still distinguishing between binaries (e.g.
+// when terraform_binary overrides the default after a prior call has already
+// resolved a different binary). Returns the discovered version and implementation
+// type; the caller is responsible for storing them on *options.TerragruntOptions.
+func PopulateTFVersion(
+	ctx context.Context,
+	l log.Logger,
+	e vexec.Exec,
+	in PopulateTFVersionInput,
+) (log.Logger, *version.Version, tfimpl.Type, error) {
 	versionCache := GetRunVersionCache(ctx)
-	cacheKey := computeVersionFilesCacheKey(workingDir, versionFiles)
+	cacheKey := computeVersionFilesCacheKey(in.WorkingDir, in.VersionFiles, in.TFOpts.ShellOptions.TFPath)
 	l.Debugf("using cache key for version files: %s", cacheKey)
 
 	if cachedOutput, found := versionCache.Get(ctx, cacheKey); found {
@@ -49,7 +68,7 @@ func PopulateTFVersion(ctx context.Context, l log.Logger, workingDir string, ver
 		return l, terraformVersion, tfImplementation, nil
 	}
 
-	l, terraformVersion, tfImplementation, err := GetTFVersion(ctx, l, tfOpts)
+	l, terraformVersion, tfImplementation, err := GetTFVersion(ctx, l, e, in.TFOpts)
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}
@@ -110,7 +129,12 @@ func parseVersionFromCache(cachedData string) (tfimpl.Type, *version.Version, er
 // GetTFVersion checks the OpenTofu/Terraform version directly without using cache.
 // It takes pre-built *tf.TFOptions and runs "terraform version", discarding output
 // and stripping TF_CLI_ARGS env vars to avoid interference.
-func GetTFVersion(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions) (log.Logger, *version.Version, tfimpl.Type, error) {
+func GetTFVersion(
+	ctx context.Context,
+	l log.Logger,
+	e vexec.Exec,
+	tfOpts *tf.TFOptions,
+) (log.Logger, *version.Version, tfimpl.Type, error) {
 	// Clone to avoid mutating the caller's options.
 	optsCopy := *tfOpts
 	shellCopy := *optsCopy.ShellOptions
@@ -130,7 +154,7 @@ func GetTFVersion(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions) (log.
 
 	optsCopy.ShellOptions.Env = envCopy
 
-	output, err := tf.RunCommandWithOutput(ctx, l, &optsCopy, tf.FlagNameVersion)
+	output, err := tf.RunCommandWithOutput(ctx, l, e, &optsCopy, tf.FlagNameVersion)
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}
@@ -156,7 +180,8 @@ func GetTFVersion(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions) (log.
 	return l, terraformVersion, tfImplementation, nil
 }
 
-// CheckTerragruntVersionMeetsConstraint checks that the current version of Terragrunt meets the specified constraint and return an error if it doesn't
+// CheckTerragruntVersionMeetsConstraint checks that the current version of
+// Terragrunt meets the specified constraint and returns an error if it doesn't.
 func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
 	versionConstraint, err := version.NewConstraint(constraint)
 	if err != nil {
@@ -181,7 +206,8 @@ func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, cons
 	return nil
 }
 
-// CheckTerraformVersionMeetsConstraint checks that the current version of Terraform meets the specified constraint and return an error if it doesn't
+// CheckTerraformVersionMeetsConstraint checks that the current version of
+// Terraform meets the specified constraint and returns an error if it doesn't.
 func CheckTerraformVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
 	versionConstraint, err := version.NewConstraint(constraint)
 	if err != nil {
@@ -225,8 +251,12 @@ func parseTerraformImplementationType(versionCommandOutput string) (tfimpl.Type,
 	}
 }
 
-// Helper to compute a cache key from the checksums of provided files
-func computeVersionFilesCacheKey(workingDir string, versionFiles []string) string {
+// computeVersionFilesCacheKey builds a cache key from the resolved binary path
+// plus the checksums of any version-pinning files. The binary path is part of
+// the key because the same working directory can legitimately resolve to
+// different binaries within a single run (e.g. when terraform_binary overrides
+// the default), and conflating those produces the wrong version string.
+func computeVersionFilesCacheKey(workingDir string, versionFiles []string, tfPath string) string {
 	var hashes []string
 
 	for _, file := range versionFiles {
@@ -253,6 +283,8 @@ func computeVersionFilesCacheKey(workingDir string, versionFiles []string) strin
 		cacheKey = strings.Join(hashes, "|")
 	}
 
+	cacheKey = tfPath + "|" + cacheKey
+
 	return util.EncodeBase64Sha1(cacheKey)
 }
 
@@ -275,9 +307,17 @@ type InvalidTerragruntVersion struct {
 }
 
 func (err InvalidTerraformVersion) Error() string {
-	return fmt.Sprintf("The currently installed version of Terraform (%s) is not compatible with the version Terragrunt requires (%s).", err.CurrentVersion.String(), err.VersionConstraints.String())
+	return fmt.Sprintf(
+		"The currently installed version of Terraform (%s) is not compatible with the version Terragrunt requires (%s).",
+		err.CurrentVersion.String(),
+		err.VersionConstraints.String(),
+	)
 }
 
 func (err InvalidTerragruntVersion) Error() string {
-	return fmt.Sprintf("The currently installed version of Terragrunt (%s) is not compatible with the version constraint requiring (%s).", err.CurrentVersion.String(), err.VersionConstraints.String())
+	return fmt.Sprintf(
+		"The currently installed version of Terragrunt (%s) is not compatible with the version constraint requiring (%s).",
+		err.CurrentVersion.String(),
+		err.VersionConstraints.String(),
+	)
 }

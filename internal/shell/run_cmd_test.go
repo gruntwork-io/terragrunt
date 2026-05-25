@@ -3,13 +3,17 @@ package shell_test
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	osexec "github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,8 +22,8 @@ import (
 )
 
 // TestRunCommandPTYRequiresOSBackedExec verifies the OSCmder unwrap pattern:
-// requesting PTY mode with an in-memory backend returns vexec.ErrNotOSBacked
-// rather than attempting to spawn a real subprocess through the mock.
+// requesting PTY mode with an in-memory backend surfaces an OS-backend
+// requirement error rather than attempting to spawn a real subprocess.
 func TestRunCommandPTYRequiresOSBackedExec(t *testing.T) {
 	t.Parallel()
 
@@ -32,11 +36,11 @@ func TestRunCommandPTYRequiresOSBackedExec(t *testing.T) {
 
 	l := logger.CreateLogger()
 	_, runErr := shell.RunCommandWithOutput(
-		t.Context(), memExec, l, configbridge.ShellRunOptsFromOpts(terragruntOptions),
+		t.Context(), l, memExec, configbridge.ShellRunOptsFromOpts(terragruntOptions),
 		"", false, true, "echo", "hi",
 	)
 	require.Error(t, runErr)
-	assert.ErrorIs(t, runErr, vexec.ErrNotOSBacked)
+	assert.ErrorIs(t, runErr, osexec.ErrPTYRequiresOSBackend)
 }
 
 func TestRunShellCommand(t *testing.T) {
@@ -47,10 +51,10 @@ func TestRunShellCommand(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), vexec.NewOSExec(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
-	cmd = shell.RunCommand(t.Context(), vexec.NewOSExec(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "not-a-real-command")
+	cmd = shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "not-a-real-command")
 	require.Error(t, cmd)
 }
 
@@ -69,7 +73,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), vexec.NewOSExec(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stdout.String(), "OpenTofu", "Output directed to stdout")
@@ -82,7 +86,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writers.Writer = stderr
 	terragruntOptions.Writers.ErrWriter = stderr
 
-	cmd = shell.RunCommand(t.Context(), vexec.NewOSExec(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd = shell.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stderr.String(), "OpenTofu", "Output directed to stderr")
@@ -111,9 +115,9 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	ctx = cache.ContextWithCache(ctx)
-	c := cache.ContextCache[string](ctx, cache.RunCmdCacheContextKey)
+	c := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
 	assert.NotNil(t, c)
-	assert.Empty(t, c.Cache)
+	assert.Equal(t, 0, c.Len())
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -125,5 +129,54 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 	path2, err := shell.GitTopLevelDir(ctx, l, terragruntOptions.Env, path)
 	require.NoError(t, err)
 	assert.Equal(t, path1, path2)
-	assert.Len(t, c.Cache, 1)
+	assert.Equal(t, 1, c.Len())
+}
+
+// TestGitTopLevelDirPrefixHit asserts that a descendant query is served from
+// the cache. The seeded root is synthetic, so a non-cached answer would have
+// to come from `git rev-parse` and would not equal the seeded root.
+func TestGitTopLevelDirPrefixHit(t *testing.T) {
+	t.Parallel()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	subdir := filepath.Join(root, "a", "b", "c")
+	require.NoError(t, os.MkdirAll(subdir, 0o755))
+
+	ctx := cache.ContextWithCache(t.Context())
+	c := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
+	c.Add(ctx, root)
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), terragruntOptions.Env, subdir)
+	require.NoError(t, err)
+	assert.Equal(t, root, got)
+}
+
+// TestGitTopLevelDirNestedRepoBypass asserts that a `.git` entry between the
+// query path and the cached root forces a fallthrough to `git`. The synthetic
+// outer root is not a real repo, so the test passes whether `git` errors or
+// returns a different root, as long as the outer root is not returned.
+func TestGitTopLevelDirNestedRepoBypass(t *testing.T) {
+	t.Parallel()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	nested := filepath.Join(root, "sub")
+	require.NoError(t, os.MkdirAll(filepath.Join(nested, ".git"), 0o755))
+
+	deep := filepath.Join(nested, "inner")
+	require.NoError(t, os.MkdirAll(deep, 0o755))
+
+	ctx := cache.ContextWithCache(t.Context())
+	c := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
+	c.Add(ctx, root)
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), terragruntOptions.Env, deep)
+	if err == nil {
+		assert.NotEqual(t, root, got, "guard should not return the outer root when a nested .git exists")
+	}
 }

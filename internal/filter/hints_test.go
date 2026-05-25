@@ -156,19 +156,6 @@ func TestHints_Golden(t *testing.T) {
   hint: The '...' operator must be used in either a graph-based or Git-based expression. e.g. '...foo...' or '[main...HEAD]'
 `,
 		},
-		// TODO: Make this not an error. This should just be a path expression pointing at the current directory.
-		{
-			name:  "illegal character",
-			query: ".",
-			expected: `Filter parsing error: Illegal token
- --> --filter '.'
-
-     .
-     ^ Unrecognized character '.'
-
-  hint: This character is not recognized. Valid operators: | (union), ! (negation), = (attribute)
-`,
-		},
 		{
 			name:  "missing git ref after ellipsis",
 			query: "[main...]",

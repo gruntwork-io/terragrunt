@@ -7,7 +7,6 @@ import vercel from "@astrojs/vercel";
 import node from "@astrojs/node";
 import partytown from "@astrojs/partytown";
 import tailwindcss from "@tailwindcss/vite";
-import react from "@astrojs/react";
 
 import starlightLinksValidator from "starlight-links-validator";
 import starlightLlmsTxt from "starlight-llms-txt";
@@ -34,8 +33,6 @@ export default defineConfig({
     })
     : node({ mode: "standalone" }),
   integrations: [
-    // We use React for the shadcn/ui components.
-    react(),
     starlight({
       title: "Terragrunt",
       description: "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.",
@@ -48,41 +45,6 @@ export default defineConfig({
         {
           tag: 'meta',
           attrs: {
-            name: 'description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:title',
-            content: 'Terragrunt',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:type',
-            content: 'website',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:url',
-            content: 'https://docs.terragrunt.com',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
             name: 'twitter:card',
             content: 'summary_large_image',
           },
@@ -90,15 +52,15 @@ export default defineConfig({
         {
           tag: 'meta',
           attrs: {
-            name: 'twitter:title',
-            content: 'Terragrunt',
+            property: 'og:image',
+            content: 'https://docs.terragrunt.com/images/terragrunt-og-image-1200x630.png',
           },
         },
         {
           tag: 'meta',
           attrs: {
-            name: 'twitter:description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+            name: 'twitter:image',
+            content: 'https://docs.terragrunt.com/images/terragrunt-twitter-image.png',
           },
         },
         {
@@ -181,7 +143,16 @@ export default defineConfig({
         forward: ['dataLayer.push'],
       },
     }),
-    sitemap(),
+    sitemap({
+      // changefreq/priority intentionally omitted: the Docusaurus/Astro
+      // maintainers note these are ignored by Google's crawler, and Bing
+      // treats them as advisory at best.
+      //
+      // lastmod intentionally omitted: a global new Date() stamps every URL
+      // with build time, which Google heuristics discount as noise. Per-page
+      // accuracy would need git log (Vercel's default shallow clone makes this
+      // unreliable) or a populated `lastUpdated` frontmatter field.
+    }),
   ],
   markdown: {
     rehypePlugins: [rehypeChangelogAnchors],
@@ -192,6 +163,8 @@ export default defineConfig({
   // It's faster to have Vercel handle it anyways.
   redirects: {
     // Catch-all redirect from /docs/* to /*
+    // Note: this only fires at depth 0 under the Vercel adapter; deeper paths
+    // are handled by an equivalent rule in vercel.json. Kept here for `astro dev`.
     "/docs/[...slug]": "/[...slug]",
 
     // Root redirects

@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 
-	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -55,14 +55,14 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 	for i, url := range cfg.URLs {
 		url := filepath.Join(configDir, url)
 
-		if files.FileExists(url) {
+		if _, err := os.Stat(url); err == nil {
 			cfg.URLs[i] = url
 		}
 	}
 
 	if cfg.DefaultTemplate != "" {
 		path := filepath.Join(configDir, cfg.DefaultTemplate)
-		if files.FileExists(path) {
+		if _, err := os.Stat(path); err == nil {
 			cfg.DefaultTemplate = path
 		}
 	}

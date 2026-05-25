@@ -1,0 +1,18 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### `--download-dir` is now respected through `dependency` blocks and `read_terragrunt_config`
+
+A custom download directory set via `--download-dir` (or `TG_DOWNLOAD_DIR`) was honored for the unit being run, but lost as soon as parsing crossed into another config. `dependency` blocks and `read_terragrunt_config()` would fall back to the dependency's local `.terragrunt-cache` next to its `terragrunt.hcl`, ignoring the user-set path.
+
+```sh
+TG_DOWNLOAD_DIR=/tmp/tg-cache terragrunt run --all plan
+# Root unit: outputs landed in /tmp/tg-cache ✓
+# Dependency outputs: written next to each dependency's terragrunt.hcl ✗
+```
+
+When the parsing context switches to a new config path, the download directory is now updated only if it still points at the previous module's default location. A user-supplied path never matches any module's default and is carried through every dependency hop unchanged.
+
+Thanks to [@maonat](https://github.com/maonat) for contributing this fix!

@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -28,7 +29,7 @@ import (
 
 // NewRepoFunc defines the signature for a function that creates a new repository.
 // This allows for mocking in tests.
-type NewRepoFunc func(ctx context.Context, l log.Logger, opts module.RepoOpts) (*module.Repo, error)
+type NewRepoFunc func(ctx context.Context, l log.Logger, fsys vfs.FS, opts *module.RepoOpts) (*module.Repo, error)
 
 // ModuleFunc is called for each module discovered during streaming load.
 type ModuleFunc func(mod *module.Module)
@@ -170,7 +171,9 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 
 		// Initialize the repository. This might involve cloning or updating.
 		// Use the newRepo function stored in the service instance.
-		repo, err := s.newRepo(ctx, l, module.RepoOpts{
+		fsys := vfs.NewOSFS()
+
+		repo, err := s.newRepo(ctx, l, fsys, &module.RepoOpts{
 			CloneURL:         currentRepoURL,
 			Path:             tempPath,
 			WalkWithSymlinks: walkWithSymlinks,
@@ -188,7 +191,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 		}
 
 		// Find modules within the initialized repository.
-		repoModules, err := repo.FindModules(ctx)
+		repoModules, err := repo.FindModules(ctx, l, fsys)
 		if err != nil {
 			l.Errorf("Failed to find modules in repository %s: %v", currentRepoURL, err)
 
@@ -234,7 +237,9 @@ func (s *catalogServiceImpl) LoadStreamingURL(ctx context.Context, l log.Logger,
 
 	l.Debugf("Processing repository %s in temporary path %s", repoURL, tempPath)
 
-	repo, err := s.newRepo(ctx, l, module.RepoOpts{
+	fsys := vfs.NewOSFS()
+
+	repo, err := s.newRepo(ctx, l, fsys, &module.RepoOpts{
 		CloneURL:         repoURL,
 		Path:             tempPath,
 		WalkWithSymlinks: walkWithSymlinks,
@@ -246,7 +251,7 @@ func (s *catalogServiceImpl) LoadStreamingURL(ctx context.Context, l log.Logger,
 		return errors.Errorf("failed to initialize repository %s: %w", repoURL, err)
 	}
 
-	repoModules, err := repo.FindModules(ctx)
+	repoModules, err := repo.FindModules(ctx, l, fsys)
 	if err != nil {
 		return errors.Errorf("failed to find modules in repository %s: %w", repoURL, err)
 	}

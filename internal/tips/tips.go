@@ -7,6 +7,19 @@ const (
 	// WindowsSymlinkWarning is the tip that warns Windows users about symlinks.
 	WindowsSymlinkWarning = "windows-symlink-warning"
 
+	// StackTargetMissingTypeStack is the tip shown when a `--filter` path targets a
+	// stack directory but the filter is not restricted to stacks via `| type=stack`.
+	StackTargetMissingTypeStack = "stack-target-missing-type-stack"
+
+	// StackTargetMissingTypeStackMessage is the default message for the
+	// stack-target-missing-type-stack tip. The runtime message that is shown to the
+	// user is assembled at evaluation time so it can list the offending filters and
+	// the suggested rewrites.
+	StackTargetMissingTypeStackMessage = "One or more --filter paths target a stack directory " +
+		"but the filter is not restricted to stacks. Without `| type=stack`, " +
+		"`stack generate` will ignore the filter and `run` will not generate just that stack. " +
+		"See https://docs.terragrunt.com/features/filter/#stack-generate"
+
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.
 	WindowsSymlinkWarningMessage = "Windows users may encounter silent fallback behavior to provider copying " +
 		"instead of symlinking in OpenTofu/Terraform. " +
@@ -38,6 +51,10 @@ func NewTips() Tips {
 		{
 			Name:    WindowsSymlinkWarning,
 			Message: WindowsSymlinkWarningMessage,
+		},
+		{
+			Name:    StackTargetMissingTypeStack,
+			Message: StackTargetMissingTypeStackMessage,
 		},
 	}
 }

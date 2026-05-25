@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
@@ -296,7 +297,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
-				file = cacheConfig
+				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
 			} else {
 				var parseErr error
 
@@ -387,6 +388,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	// See: https://github.com/gruntwork-io/terragrunt/issues/4983
 	if err := DetectDeprecatedConfigurations(ctx, pctx, l, file); err != nil {
 		return nil, err
+	}
+
+	if includeFromChild != nil && includeFromChild.Path != "" && !filepath.IsAbs(includeFromChild.Path) {
+		includeFromChild.Path = filepath.Clean(filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includeFromChild.Path))
 	}
 
 	pctx = pctx.WithTrackInclude(nil)
@@ -609,24 +614,7 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	// TrackInclude is nil when DecodeBaseBlocks returned (nil, err), e.g. an invalid feature
 	// default. Skip the merge in that case and let the error surface at the return below.
 	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 && !errsContainsIncludeErr {
-		includeCount := len(pctx.TrackInclude.CurrentList)
-		includePaths := make([]string, 0, includeCount)
-
-		for _, inc := range pctx.TrackInclude.CurrentList {
-			if inc.Path != "" {
-				includePaths = append(includePaths, inc.Path)
-			}
-		}
-
-		var config *TerragruntConfig
-
-		err := TraceParseIncludeMerge(ctx, file.ConfigPath, includeCount, includePaths, func(ctx context.Context) error {
-			var mergeErr error
-
-			config, mergeErr = handleInclude(ctx, pctx, l, output, true)
-
-			return mergeErr
-		})
+		config, err := handleInclude(ctx, pctx, l, output, true)
 		if err != nil {
 			errs = errs.Append(err)
 		}
@@ -637,6 +625,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			config.ProcessedIncludes = pctx.TrackInclude.CurrentMap
 			output = config
 		}
+	}
+
+	if pctx.Experiments.Evaluate(experiment.MarkManyAsRead) && output.Terraform != nil && output.Terraform.Source != nil {
+		markLocalModuleSourceAsRead(pctx, file.ConfigPath, *output.Terraform.Source)
 	}
 
 	if errs.ErrorOrNil() != nil {
@@ -681,10 +673,6 @@ func partialParseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log
 	}
 
 	includePath := includedConfig.Path
-
-	if !filepath.IsAbs(includePath) {
-		includePath = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includePath)
-	}
 
 	config, err := PartialParseConfigFile(
 		ctx,

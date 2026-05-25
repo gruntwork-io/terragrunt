@@ -9,8 +9,8 @@ mkdir -p "$OUTPUT_DIR"
 
 # Paginate all releases to ensure TAG_NAME is in the list
 ALL_TAGS=$(gh api --paginate "repos/{owner}/{repo}/releases" \
-	--jq '[.[] | select(.draft == false and .prerelease == false) | .tag_name]' \
-	| jq -s 'add // []')
+	--jq '[.[] | select(.draft == false and .prerelease == false) | .tag_name]' |
+	jq -s 'add // []')
 
 PREV_TAG=$(jq -r --arg tag "$TAG_NAME" '
 	index($tag) as $i |

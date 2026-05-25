@@ -39,11 +39,11 @@ Group 1
 ...
 `} />
 
-We can also selectively run the plan for the `dev` environment by changing the working directory to `dev`, or using the [`--queue-include-dir`](https://docs.terragrunt.com/reference/cli-options/#queue-include-dir) flag.
+We can also selectively run the plan for the `dev` environment by changing the working directory to `dev`, or using the [`--filter`](/features/filter) flag.
 
 <Code title="live/dev" lang="bash" frame="terminal" code={`$ terragrunt plan`} />
 
-<Code title="live" lang="bash" frame="terminal" code={`$ terragrunt run --all --queue-include-dir dev plan
+<Code title="live" lang="bash" frame="terminal" code={`$ terragrunt run --all --filter ./dev plan
 15:09:17.090 INFO   The runner at . will be processed in the following order for command plan:
 Group 1
 - Unit ./dev

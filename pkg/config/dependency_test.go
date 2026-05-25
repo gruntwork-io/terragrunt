@@ -1,16 +1,14 @@
 package config_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-
-	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,7 +122,7 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	err = pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 	require.NoError(t, err)
 
-	pctx.Env = env.Parse(os.Environ())
+	pctx.Env = util.EnvironMap()
 	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
@@ -266,4 +264,23 @@ dependency "enabled" {
 
 	// Only enabled dependency should be in the paths
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
+}
+
+// TestExposedIncludeFullParseSurfacesNoOutputsError pins that a full parse of a child
+// config whose exposed include cannot resolve its dependency outputs returns a
+// TerragruntOutputTargetNoOutputs error in the chain.
+func TestExposedIncludeFullParseSurfacesNoOutputsError(t *testing.T) {
+	t.Parallel()
+
+	childPath, err := filepath.Abs(filepath.Join("..", "..", "test", "fixtures", "regressions", "exposed-include-partial-parse-error", "child", "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	ctx, pctx := newTestParsingContext(t, childPath)
+	pctx.Env = util.EnvironMap()
+
+	_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), childPath, nil)
+	require.Error(t, err)
+
+	var noOutputs config.TerragruntOutputTargetNoOutputs
+	require.ErrorAs(t, err, &noOutputs)
 }

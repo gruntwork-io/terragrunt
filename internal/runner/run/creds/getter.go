@@ -22,7 +22,12 @@ func NewGetter() *Getter {
 }
 
 // ObtainAndUpdateEnvIfNecessary obtains credentials through different providers and sets them to the provided env map.
-func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.Logger, env map[string]string, authProviders ...providers.Provider) error {
+func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
+	ctx context.Context,
+	l log.Logger,
+	env map[string]string,
+	authProviders ...providers.Provider,
+) error {
 	for _, provider := range authProviders {
 		creds, err := provider.GetCredentials(ctx, l)
 		if err != nil {
@@ -35,7 +40,8 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 
 		for providerName, prevCreds := range getter.obtainedCreds {
 			if prevCreds.Name == creds.Name {
-				l.Warnf("%s credentials obtained using %s are overwritten by credentials obtained using %s.", creds.Name, providerName, provider.Name())
+				l.Warnf("%s credentials obtained using %s are overwritten by credentials obtained using %s.",
+					creds.Name, providerName, provider.Name())
 			}
 		}
 
@@ -51,9 +57,17 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 // credentials, and populates env before HCL parsing.
 // Use when sops_decrypt_file() or get_aws_account_id() may appear in locals.
 // See https://github.com/gruntwork-io/terragrunt/issues/5515
-func ObtainCredsForParsing(ctx context.Context, l log.Logger, authProviderCmd string, env map[string]string, shellOpts *shell.ShellOptions) (*Getter, error) {
+func ObtainCredsForParsing(
+	ctx context.Context,
+	l log.Logger,
+	authProviderCmd string,
+	env map[string]string,
+	shellOpts *shell.ShellOptions,
+) (*Getter, error) {
 	g := NewGetter()
-	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, env, externalcmd.NewProvider(l, authProviderCmd, shellOpts)); err != nil {
+
+	provider := externalcmd.NewProvider(l, authProviderCmd, shellOpts)
+	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, env, provider); err != nil {
 		return nil, err
 	}
 

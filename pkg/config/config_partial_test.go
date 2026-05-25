@@ -19,6 +19,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+const testDependenciesApp1HCL = `dependencies { paths = ["../app1"] }`
+
 func TestPartialParseResolvesLocals(t *testing.T) {
 	t.Parallel()
 
@@ -576,7 +578,7 @@ func TestPartialParseSavesToHclCache(t *testing.T) {
 	// Setup test environment
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
-	configContent := `dependencies { paths = ["../app1"] }` //nolint:goconst
+	configContent := testDependenciesApp1HCL
 	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
 
 	// Get file metadata for cache key generation
@@ -615,7 +617,7 @@ func TestPartialParseCacheHitOnSecondParse(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
-	configContent := `dependencies { paths = ["../app1"] }`
+	configContent := testDependenciesApp1HCL
 	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
 
 	fileInfo, err := os.Stat(configPath)
@@ -648,7 +650,7 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
-	originalContent := `dependencies { paths = ["../app1"] }`
+	originalContent := testDependenciesApp1HCL
 	modifiedContent := `dependencies { paths = ["../app1", "../app2"] }`
 
 	require.NoError(t, os.WriteFile(configPath, []byte(originalContent), 0644))
@@ -730,7 +732,7 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
-	configContent := `dependencies { paths = ["../app1"] }`
+	configContent := testDependenciesApp1HCL
 	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
 
 	fileInfo, err := os.Stat(configPath)
@@ -787,7 +789,7 @@ func TestPartialParseConfigCacheDifferentCallers(t *testing.T) {
 	// Create a shared config file that both modules will parse.
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	sharedConfigPath := filepath.Join(tmpDir, "shared.hcl")
-	sharedContent := `dependencies { paths = ["../app1"] }`
+	sharedContent := testDependenciesApp1HCL
 	require.NoError(t, os.WriteFile(sharedConfigPath, []byte(sharedContent), 0644))
 
 	// Create two different module directories with distinct config paths.

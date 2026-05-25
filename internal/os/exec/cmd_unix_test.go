@@ -1,5 +1,4 @@
 //go:build linux || darwin
-// +build linux darwin
 
 package exec_test
 
@@ -13,6 +12,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,9 +26,11 @@ var (
 func TestExitCodeUnix(t *testing.T) {
 	t.Parallel()
 
+	l := logger.CreateLogger()
+
 	for index := 0; index <= 255; index++ {
-		cmd := exec.Command(t.Context(), "testdata/test_exit_code.sh", strconv.Itoa(index))
-		err := cmd.Run()
+		cmd := exec.Command(t.Context(), vexec.NewOSExec(), "testdata/test_exit_code.sh", strconv.Itoa(index))
+		err := cmd.Run(l)
 
 		if index == 0 {
 			require.NoError(t, err)
@@ -52,19 +55,21 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	expectedWait := 5
 
-	cmd := exec.Command(t.Context(), "testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
+	l := logger.CreateLogger()
+
+	cmd := exec.Command(t.Context(), vexec.NewOSExec(), "testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
 
 	runChannel := make(chan error)
 
 	go func() {
-		runChannel <- cmd.Run()
+		runChannel <- cmd.Run(l)
 	}()
 
 	time.Sleep(time.Second)
 
 	start := time.Now()
 
-	cmd.Process.Signal(os.Interrupt)
+	cmd.SendSignal(l, os.Interrupt)
 
 	err := <-runChannel
 	require.Error(t, err)
@@ -83,12 +88,17 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 
 	expectedInterrupts := 10
 
-	cmd := exec.Command(t.Context(), "testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts))
+	l := logger.CreateLogger()
+
+	cmd := exec.Command(
+		t.Context(), vexec.NewOSExec(),
+		"testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts),
+	)
 
 	runChannel := make(chan error)
 
 	go func() {
-		runChannel <- cmd.Run()
+		runChannel <- cmd.Run(l)
 	}()
 
 	time.Sleep(time.Second)
@@ -106,7 +116,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 			case err = <-runChannel:
 				return interrupts, err
 			default:
-				cmd.Process.Signal(os.Interrupt)
+				cmd.SendSignal(l, os.Interrupt)
 
 				interrupts++
 			}
@@ -132,14 +142,16 @@ func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	cmd := exec.Command(ctx, "testdata/test_graceful_shutdown.sh")
+	l := logger.CreateLogger()
+
+	cmd := exec.Command(ctx, vexec.NewOSExec(), "testdata/test_graceful_shutdown.sh")
 
 	cmd.Configure(exec.WithGracefulShutdownDelay(5 * time.Second))
 
 	runChannel := make(chan error)
 
 	go func() {
-		runChannel <- cmd.Run()
+		runChannel <- cmd.Run(l)
 	}()
 
 	time.Sleep(500 * time.Millisecond)

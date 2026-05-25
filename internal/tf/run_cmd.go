@@ -8,7 +8,6 @@ import (
 
 	"slices"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -53,18 +52,19 @@ type TFOptions struct {
 	JSONLogFormat                bool
 }
 
-// RunCommand runs the given Terraform command.
-func RunCommand(ctx context.Context, l log.Logger, runOpts *TFOptions, args ...string) error {
-	_, err := RunCommandWithOutput(ctx, l, runOpts, args...)
+// RunCommand runs the given Terraform command using the provided vexec.Exec.
+// Pass vexec.NewMemExec from tests and fuzzers to intercept invocations so
+// tofu/terraform are never forked.
+func RunCommand(ctx context.Context, l log.Logger, e vexec.Exec, runOpts *TFOptions, args ...string) error {
+	_, err := RunCommandWithOutput(ctx, l, e, runOpts, args...)
 
 	return err
 }
 
-// RunCommandWithOutput runs the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
-// method's caller. The subprocess backend is the OS-backed vexec.Exec; tests
-// that need to intercept subprocess execution should call shell.RunCommandWithOutput
-// directly with a vexec.NewMemExec.
-func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *TFOptions, args ...string) (*util.CmdOutput, error) {
+// RunCommandWithOutput runs the given Terraform command using the provided
+// vexec.Exec, writing its stdout/stderr to the terminal AND returning
+// stdout/stderr to this method's caller.
+func RunCommandWithOutput(ctx context.Context, l log.Logger, e vexec.Exec, runOpts *TFOptions, args ...string) (*util.CmdOutput, error) {
 	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
@@ -87,7 +87,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *TFOptions,
 		shellOpts.Writers.ErrWriter = errWriter
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, vexec.NewOSExec(), l, shellOpts, "", false, needsPTY, runOpts.ShellOptions.TFPath, args...)
+	output, err := shell.RunCommandWithOutput(ctx, l, e, shellOpts, "", false, needsPTY, runOpts.ShellOptions.TFPath, args...)
 
 	hasDetailedExitCode := slices.Contains(args, FlagNameDetailedExitCode)
 	if hasDetailedExitCode {
@@ -205,7 +205,7 @@ func shouldForceForwardTFStdout(args clihelper.Args) bool {
 		return true
 	}
 
-	return collections.ListContainsElement(tfCommands, args.CommandName())
+	return slices.Contains(tfCommands, args.CommandName())
 }
 
 // buildOutWriter returns the writer for the command's stdout.

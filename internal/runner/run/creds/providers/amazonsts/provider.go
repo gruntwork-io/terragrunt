@@ -6,10 +6,12 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -47,7 +49,19 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 	l.Debugf("Assuming IAM role %s with a session duration of %d seconds.",
 		iamRoleOpts.RoleARN, iamRoleOpts.AssumeRoleDuration)
 
-	resp, err := awshelper.AssumeIamRole(ctx, iamRoleOpts, "", provider.env)
+	var resp *types.Credentials
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "creds_assume_role", map[string]any{
+		"role_arn":     iamRoleOpts.RoleARN,
+		"session_name": iamRoleOpts.AssumeRoleSessionName,
+		"duration":     iamRoleOpts.AssumeRoleDuration,
+	}, func(ctx context.Context) error {
+		var assumeErr error
+
+		resp, assumeErr = awshelper.AssumeIamRole(ctx, iamRoleOpts, "", provider.env)
+
+		return assumeErr
+	})
 	if err != nil {
 		return nil, err
 	}

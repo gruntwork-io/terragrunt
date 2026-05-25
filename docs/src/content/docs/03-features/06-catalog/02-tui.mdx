@@ -7,6 +7,8 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Launch the user interface for searching and managing your module catalog.
 
@@ -41,13 +43,18 @@ catalog {
 This will recursively search for OpenTofu/Terraform modules in the root of the repo and the `modules` directory and show a table with all the modules. You can then:
 
 1. Search and filter the table: `/` and start typing.
-1. Select a module in the table: use the arrow keys to go up and down and next/previous page.
-1. See the docs for a selected module: `ENTER`.
-1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` for using the module: `S`.
+1. Select a module in the table: use the arrow keys to go up and down and next/previous page using the left and right arrow keys.
+1. Read the docs for a selected module: `ENTER`.
+1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` for using the module with an interactive form: `s`.
+1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` that leaves every input as a `# TODO` placeholder for you to fill in by hand: `S`.
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Without the experiment, both `s` and `S` produce the same placeholder-style output as `S`.
+</Aside>
 
 ## Scaffolding Flags
 
-The following `catalog` flags control behavior of the underlying `scaffold` command when the `S` key is pressed in a catalog entry:
+The following `catalog` flags control behavior of the underlying `scaffold` command, regardless of whether you launch it with `s` (interactive form) or `S` (placeholder file):
 
 - `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
 - `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.
@@ -102,3 +109,180 @@ This section describes behavior that is only available when the [`catalog-redesi
 </Aside>
 
 The list view is split into three tabs: `All`, `Modules`, and `Templates`. `All` is selected when the TUI launches. Press `tab` to move to the next tab and `shift+tab` to move to the previous; cycling wraps at either end. The active tab filters the list down to components of that kind, and each tab keeps its own cursor position and search filter, so switching back preserves where you were.
+
+## README front-matter
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+</Aside>
+
+Component authors can override the catalog UI's default title and description by adding a YAML block at the top of the component's `README.md`. Two forms are accepted.
+
+The conventional dash-separated form:
+
+```markdown
+---
+name: VPC App
+description: A VPC for application workloads.
+---
+
+# VPC App
+
+...
+```
+
+An HTML-comment-wrapped form, which stays invisible on Markdown viewers that render dash-separated front-matter as a horizontal rule. The opening tag must be `<!-- Frontmatter` (case-insensitive):
+
+```markdown
+<!-- Frontmatter
+name: VPC App
+description: A VPC for application workloads.
+-->
+
+# VPC App
+
+...
+```
+
+Both forms are parsed the same way.
+
+Recognized keys:
+
+- `name`: the component title shown in the list view. When unset, the title falls back to the first `# H1` heading in the README, then to the directory name.
+- `description`: the short description shown beneath the title in the list view. When unset, it is derived from the README body.
+
+A third key, `tags`, controls the colored pills shown next to each component; see the next section. Unknown keys are ignored.
+
+## Component tags
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+</Aside>
+
+<Before version="1.0.4">
+
+In a future release, the catalog UI will read tag information from the front-matter of component `README.md` files.
+
+</Before>
+
+<Since version="1.0.4">
+
+Catalog authors can attach tags to a component by adding a `tags` key to the component's `README.md` front-matter. Tags appear as colored pills next to the component in the list view, and as a row above the rendered README in the detail view.
+
+Either inline-array or dash-list YAML form is accepted:
+
+```markdown
+<!-- Frontmatter
+name: VPC App
+description: A VPC for application workloads.
+tags: [networking, aws, module]
+-->
+```
+
+```markdown
+<!-- Frontmatter
+name: VPC App
+tags:
+  - networking
+  - aws
+  - module
+-->
+```
+
+Tag values that name a component type also promote the component into that type's tab. For example, a component classified as a `template` whose tags include `module` appears under both the `Templates` tab (by its native kind) and the `Modules` tab (by tag), without changing how it's scaffolded.
+
+</Since>
+
+## Keybindings
+
+Each view has its own keymap. The hint bar at the bottom of the screen shows the most common keys for the current view; the table below covers every key that is bound, including alternates that aren't advertised.
+
+### List view
+
+The default view, shown after discovery completes.
+
+| Key | Action |
+|-----|--------|
+| `j`, `↓`, `ctrl+n` | Move down one row |
+| `k`, `↑`, `ctrl+p` | Move up one row |
+| `l`, `→`, `pgdn`, `ctrl+v` | Next page |
+| `h`, `←`, `pgup`, `alt+v` | Previous page |
+| `home`, `ctrl+a` | Jump to first row |
+| `end`, `ctrl+e` | Jump to last row |
+| `enter` | View the selected component's README |
+| `s` | Scaffold the selected component (interactive form) |
+| `S` | Scaffold the selected component (TODO placeholders) |
+| `tab` | Next tab (redesign experiment) |
+| `shift+tab` | Previous tab (redesign experiment) |
+| `/` | Search and filter the visible list |
+| `?` | Toggle the expanded help view |
+| `q`, `esc` | Quit |
+| `ctrl+c` | Force quit |
+
+### Component detail (pager)
+
+Active after pressing `enter` on a component.
+
+| Key | Action |
+|-----|--------|
+| `j`, `↓`, `ctrl+n` | Scroll down one line |
+| `k`, `↑`, `ctrl+p` | Scroll up one line |
+| `l`, `→`, `pgdn`, `ctrl+v` | Page down |
+| `h`, `←`, `pgup`, `alt+v` | Page up |
+| `tab` | Focus the next button in the footer |
+| `shift+tab` | Focus the previous button in the footer |
+| `enter` | Activate the focused button |
+| `s` | Scaffold (interactive form) |
+| `S` | Scaffold (TODO placeholders) |
+| `?` | Toggle the expanded help view |
+| `q`, `esc` | Back to the list |
+| `ctrl+c` | Force quit |
+
+### Interactive scaffold form
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+</Aside>
+
+The form opens in *navigate* mode. Pressing `enter` on a text field switches to *edit* mode, where most keys are forwarded to the underlying text input; press `esc` to return to navigate mode.
+
+#### Navigate mode
+
+| Key | Action |
+|-----|--------|
+| `j`, `↓` | Next field |
+| `k`, `↑` | Previous field |
+| `l`, `→`, `pgdn`, `ctrl+v` | Next page of fields |
+| `h`, `←`, `pgup`, `alt+v` | Previous page of fields |
+| `home`, `ctrl+a` | Jump to the first field |
+| `end`, `ctrl+e` | Jump to the last field |
+| `enter`, `i` | Enter edit mode on a text field, or toggle a checkbox |
+| `x` | Mark the focused field as "use default" |
+| `X` | Mark every optional field as "use default" |
+| `/` | Filter fields by name |
+| `s` | Scaffold (refuses if any required field is unset) |
+| `S`, `ctrl+d` | Scaffold (leaves unset required fields as `# TODO`) |
+| `esc` | Cancel and return to the previous view |
+
+#### Edit mode
+
+Active while typing into a text field. Keys not listed here are forwarded to the text input.
+
+| Key | Action |
+|-----|--------|
+| `esc` | Finish editing and return to navigate mode |
+| `enter` | Toggle (bool/checkbox fields only) |
+| `ctrl+d` | Scaffold immediately, skipping the required-field check |
+
+### Welcome screen
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+The welcome and loading screens are only shown when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+</Aside>
+
+Shown briefly during initial discovery and, if no catalog sources are configured, as a persistent help screen.
+
+| Key | Action |
+|-----|--------|
+| `h` | Open the catalog docs in your browser (only when no sources are found) |
+| `q`, `esc`, `ctrl+c` | Exit |

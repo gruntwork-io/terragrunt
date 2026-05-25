@@ -2,6 +2,8 @@ package hclparse
 
 import (
 	"cmp"
+	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 
@@ -12,14 +14,38 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+// AutoIncludeKind identifies whether a generated autoinclude file is unit-level or stack-level. The values intentionally match internal/component.{UnitKind,StackKind} but are defined here because internal/component -> pkg/config -> internal/hclparse is the established import direction; reusing the component constants would create a cycle.
+type AutoIncludeKind string
+
 const (
-	// AutoIncludeFile is the filename for generated autoinclude files.
+	// KindUnit selects the unit-level filename (terragrunt.autoinclude.hcl). Value matches component.UnitKind.
+	KindUnit AutoIncludeKind = "unit"
+	// KindStack selects the stack-level filename (terragrunt.autoinclude.stack.hcl). Value matches component.StackKind.
+	KindStack AutoIncludeKind = "stack"
+)
+
+const (
+	// AutoIncludeFile is the filename for generated unit-level autoinclude files.
 	AutoIncludeFile = "terragrunt.autoinclude.hcl"
+	// AutoIncludeStackFile is the filename for generated stack-level autoinclude files.
+	AutoIncludeStackFile = "terragrunt.autoinclude.stack.hcl"
 	// autoIncludeFilePerm is the file permission for generated autoinclude files.
 	autoIncludeFilePerm = 0644
 	// autoIncludeDirPerm is the directory permission for generated autoinclude dirs.
 	autoIncludeDirPerm = 0755
 )
+
+// AutoIncludeFileNameForKind returns the autoinclude filename to generate for the given kind. Panics on unknown kinds (programmer error) so a misspelled or missing kind cannot silently produce the wrong filename.
+func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
+	switch kind {
+	case KindUnit:
+		return AutoIncludeFile
+	case KindStack:
+		return AutoIncludeStackFile
+	default:
+		panic(fmt.Sprintf("hclparse.AutoIncludeFileNameForKind: unknown kind %q (expected %q or %q)", kind, KindUnit, KindStack))
+	}
+}
 
 // GenerateAutoIncludeFile writes a terragrunt.autoinclude.hcl file in the
 // given directory from a resolved autoinclude.
@@ -32,9 +58,16 @@ const (
 //     from the original AST source bytes: dependency.*.outputs.* references
 //     are preserved without evaluation.
 //
-// srcBytes is the original terragrunt.stack.hcl file content, used to extract
-// source text for expressions via byte ranges.
+// Requires non-nil fs and non-empty targetDir (panics otherwise). resolved may be nil (no-op). srcBytes must be the bytes of the file resolved.RawBody was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
 func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: fs is nil (targetDir=%q, sourceFile=%q)", targetDir, resolvedSourceFile(resolved)))
+	}
+
+	if targetDir == "" {
+		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: targetDir is empty (sourceFile=%q)", resolvedSourceFile(resolved)))
+	}
+
 	if resolved == nil {
 		return nil
 	}
@@ -56,14 +89,19 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 			continue
 		}
 
-		writeDependencyBlock(outBody, dep, origBlock, srcBytes, targetDir)
+		if err := writeDependencyBlock(outBody, dep, origBlock, srcBytes, targetDir); err != nil {
+			return err
+		}
+
 		outBody.AppendNewline()
 	}
 
 	// Write non-dependency content with binary per-attribute evaluation.
-	writeNonDependencyContent(outBody, body, srcBytes, evalCtx)
+	if err := writeNonDependencyContent(outBody, body, srcBytes, evalCtx); err != nil {
+		return err
+	}
 
-	filePath := filepath.Join(targetDir, AutoIncludeFile)
+	filePath := filepath.Join(targetDir, AutoIncludeFileNameForKind(resolved.Kind))
 
 	if err := fs.MkdirAll(targetDir, autoIncludeDirPerm); err != nil {
 		return DirCreateError{DirPath: targetDir, Err: err}
@@ -78,49 +116,36 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	return nil
 }
 
-// Copier copies HCL blocks from AST source to hclwrite output.
-// When an eval context is set, attributes are partially evaluated
-// (local.* resolved, dependency.* preserved). Without it, attributes
-// are copied verbatim from source bytes.
-type Copier struct {
-	evalCtx *hcl.EvalContext
-}
-
-// NewCopier creates a Copier that copies blocks verbatim.
-func NewCopier() *Copier {
-	return &Copier{}
-}
-
-// WithEvalCtx returns the Copier with partial evaluation enabled.
-func (c *Copier) WithEvalCtx(evalCtx *hcl.EvalContext) *Copier {
-	c.evalCtx = evalCtx
-
-	return c
-}
-
-// CopyBlock copies a block from the original AST to hclwrite output.
-func (c *Copier) CopyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte) {
+// copyBlock copies block from the AST to hclwrite output; partially evaluates attributes when evalCtx is non-nil, otherwise verbatim.
+func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	newBlock := outBody.AppendNewBlock(block.Type, block.Labels)
 	blockBody := newBlock.Body()
 
 	for _, attr := range SortedAttributes(block.Body.Attributes) {
-		if c.evalCtx == nil {
+		if evalCtx == nil {
 			blockBody.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
 
 			continue
 		}
 
-		result := PartialEval(attr.Expr, &EvalArgs{EvalCtx: c.evalCtx, Deferred: deferredRoots, SrcBytes: srcBytes})
+		result, err := PartialEval(attr.Expr, &EvalArgs{EvalCtx: evalCtx, Deferred: deferredRoots, SrcBytes: srcBytes})
+		if err != nil {
+			return err
+		}
+
 		blockBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
 	for _, nested := range block.Body.Blocks {
-		c.CopyBlock(blockBody, nested, srcBytes)
+		if err := copyBlock(blockBody, nested, srcBytes, evalCtx); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-// FindBlock finds a block by type and first label in the AST body.
-// Exported for reuse by callers that need to locate specific blocks in parsed HCL bodies.
+// FindBlock finds a block by type and first label in the AST body; exported for reuse by callers that need to locate specific blocks in parsed HCL bodies.
 func FindBlock(body *hclsyntax.Body, blockType, label string) *hclsyntax.Block {
 	for _, block := range body.Blocks {
 		if block.Type == blockType && len(block.Labels) > 0 && block.Labels[0] == label {
@@ -143,8 +168,7 @@ func RangeBytes(src []byte, r hcl.Range) []byte {
 	return src[start:end]
 }
 
-// RawTokens wraps raw bytes as a single hclwrite token. hclwrite.Format
-// will handle the final formatting of the output.
+// RawTokens wraps raw bytes as a single hclwrite token; hclwrite.Format handles the final formatting of the output.
 func RawTokens(b []byte) hclwrite.Tokens {
 	if len(b) == 0 {
 		return nil
@@ -164,22 +188,13 @@ func CommentTokens(text string) hclwrite.Tokens {
 
 // SortedAttributes returns attributes in a deterministic order by source position.
 func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
-	sorted := make([]*hclsyntax.Attribute, 0, len(attrs))
-	for _, attr := range attrs {
-		sorted = append(sorted, attr)
-	}
-
-	slices.SortFunc(sorted, func(a, b *hclsyntax.Attribute) int {
+	return slices.SortedFunc(maps.Values(attrs), func(a, b *hclsyntax.Attribute) int {
 		return cmp.Compare(a.SrcRange.Start.Byte, b.SrcRange.Start.Byte)
 	})
-
-	return sorted
 }
 
-// writeDependencyBlock writes a single dependency block with resolved config_path.
-// The config_path is converted to a path relative to targetDir. All other
-// attributes are copied from source bytes to preserve original expressions.
-func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string) {
+// writeDependencyBlock writes a single dependency block with config_path converted to relative-to-targetDir; all other attributes are copied from source bytes to preserve original expressions.
+func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string) error {
 	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
 
@@ -201,23 +216,18 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 		depBody.SetAttributeRaw(attr.Name, RawTokens(exprBytes))
 	}
 
-	// Copy nested blocks within the dependency (if any).
+	// Copy nested blocks within the dependency (if any). Nested blocks are copied verbatim (evalCtx == nil), so PartialEval is not invoked and the call cannot return a PartialEval error here.
 	for _, nested := range origBlock.Body.Blocks {
-		NewCopier().CopyBlock(depBody, nested, srcBytes)
+		if err := copyBlock(depBody, nested, srcBytes, nil); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-// writeNonDependencyContent writes non-dependency attributes and blocks from
-// the autoinclude body. Each attribute expression is partially evaluated:
-// resolvable parts (locals, pure refs) become literals, while deferred parts
-// (dependency.*) keep their original source text. This enables mixed
-// expressions like "${local.env}-${dependency.vpc.outputs.vpc_id}" to be
-// partially resolved.
-//
-// Non-dependency blocks are copied through Copier:
-//   - evalCtx == nil: verbatim from source bytes
-//   - evalCtx != nil: attributes are partially evaluated
-func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) {
+// writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body, partially evaluating each attribute.
+func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	for _, attr := range SortedAttributes(body.Attributes) {
 		if evalCtx == nil {
 			exprBytes := RangeBytes(srcBytes, attr.Expr.Range())
@@ -226,7 +236,11 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 			continue
 		}
 
-		result := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
+		result, err := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
+		if err != nil {
+			return err
+		}
+
 		outBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
@@ -235,11 +249,29 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 			continue
 		}
 
-		NewCopier().WithEvalCtx(evalCtx).CopyBlock(outBody, block, srcBytes)
+		if err := copyBlock(outBody, block, srcBytes, evalCtx); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.
 func quotedStringTokens(value string) hclwrite.Tokens {
 	return hclwrite.TokensForValue(cty.StringVal(value))
+}
+
+// resolvedSourceFile returns the originating HCL filename from a resolved autoinclude for panic-message context.
+func resolvedSourceFile(resolved *AutoIncludeResolved) string {
+	if resolved == nil {
+		return ""
+	}
+
+	body, ok := resolved.RawBody.(*hclsyntax.Body)
+	if !ok || body == nil {
+		return ""
+	}
+
+	return body.SrcRange.Filename
 }
