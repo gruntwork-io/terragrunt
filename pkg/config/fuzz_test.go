@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -124,12 +123,9 @@ func FuzzHCLRunCommand(f *testing.F) {
 			return vexec.Result{Stdout: []byte(mockOutput)}
 		})
 
-		baseCtx, pctx := newTestParsingContext(t, "")
+		ctx, pctx := newTestParsingContext(t, "")
 		pctx.Writers.Writer = io.Discard
 		pctx.Writers.ErrWriter = io.Discard
-
-		ctx, cancel := context.WithTimeout(baseCtx, 2*time.Second)
-		defer cancel()
 
 		l := logger.CreateLogger()
 		out, err := config.RunCommand(ctx, pctx, l, memExec, argsForCall)
@@ -159,10 +155,12 @@ func FuzzHCLRunCommand(f *testing.F) {
 	})
 }
 
-// strippedRunCmdArgs mirrors runCommandImpl's option-flag handling without invoking
-// the function under test. It returns the args after stripping known --terragrunt-*
-// options from the front and reports whether --terragrunt-no-cache and
-// --terragrunt-global-cache appeared together (which produces a conflict error).
+// strippedRunCmdArgs is an independent reference implementation of the
+// option-flag handling in runCommandImpl (pkg/config/config_helpers.go) used
+// as the fuzz oracle. Keep both switches in sync if either changes. It
+// returns the args after stripping known --terragrunt-* options from the
+// front and reports whether --terragrunt-no-cache and --terragrunt-global-cache
+// appeared together (which produces a conflict error).
 func strippedRunCmdArgs(args []string) ([]string, bool) {
 	var hasNoCache, hasGlobalCache bool
 

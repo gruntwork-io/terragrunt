@@ -186,11 +186,14 @@ func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l lo
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		FuncNameFindInParentFolders:                     wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, FindInParentFolders),
-		FuncNamePathRelativeToInclude:                   wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeToInclude),
-		FuncNamePathRelativeFromInclude:                 wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeFromInclude),
-		FuncNameGetEnv:                                  wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, getEnvironmentVariable),
-		FuncNameRunCmd:                                  wrapRunCommandAsFuncImpl(ctx, pctx, l, e),
+		FuncNameFindInParentFolders:     wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, FindInParentFolders),
+		FuncNamePathRelativeToInclude:   wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeToInclude),
+		FuncNamePathRelativeFromInclude: wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeFromInclude),
+		FuncNameGetEnv:                  wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, getEnvironmentVariable),
+		FuncNameRunCmd: wrapStringSliceToStringAsFuncImpl(ctx, pctx, l,
+			func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
+				return RunCommand(ctx, pctx, l, e, params)
+			}),
 		FuncNameReadTerragruntConfig:                    readTerragruntConfigAsFuncImpl(ctx, pctx, l),
 		FuncNameGetPlatform:                             wrapVoidToStringAsFuncImpl(ctx, pctx, l, getPlatform),
 		FuncNameGetRepoRoot:                             wrapVoidToStringAsFuncImpl(ctx, pctx, l, getRepoRoot),
