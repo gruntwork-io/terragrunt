@@ -33,8 +33,7 @@ jobs:
       - name: Use mise to install dependencies
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          version: 2026.1.9
-          experimental: true
+          version: 2026.5.12
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -76,5 +75,5 @@ jobs:
             OUTPUT="${OUTPUT}.exe"
           fi
           go build -o "${OUTPUT}" \
-            -ldflags "-X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME} -extldflags '-static'" \
+            -ldflags "-X github.com/gruntwork-io/terragrunt/internal/version.Version=${GITHUB_REF_NAME} -extldflags '-static'" \
             .

@@ -68,8 +68,12 @@ func abbreviateMiddle(s string, maxWidth int) string {
 		return ansi.Truncate(s, maxWidth, "")
 	}
 
+	// Split the available width evenly between the prefix and suffix so the
+	// ellipsis sits roughly in the middle.
+	const ellipsisHalfDivisor = 2
+
 	avail := maxWidth - ellW
-	leftW := avail / 2 //nolint:mnd
+	leftW := avail / ellipsisHalfDivisor
 	rightW := avail - leftW
 
 	return takeWidthPrefix(s, leftW) + ell + takeWidthSuffix(s, rightW)
@@ -126,13 +130,9 @@ func takeWidthSuffix(s string, maxW int) string {
 	return string(parts)
 }
 
-// BuildMetaRow renders the catalog list metadata row: type, version, source,
-// and optional tags within innerWidth.
+// BuildMetaRow renders the catalog list metadata row for a non-nil entry:
+// type, version, source, and optional tags within innerWidth.
 func BuildMetaRow(entry *ComponentEntry, innerWidth int, includeTags, selected, dimmed bool) string {
-	if entry == nil {
-		return ""
-	}
-
 	colors := metaPalette(entry.Kind(), selected, dimmed)
 
 	gap := strings.Repeat(" ", metaGap)
@@ -202,18 +202,13 @@ func BuildMetaRow(entry *ComponentEntry, innerWidth int, includeTags, selected, 
 			srcDisplay := abbreviateMiddle(entry.Source, srcMax)
 			srcW := lipgloss.Width(srcDisplay)
 
-			var (
-				part  string
-				partW int
-			)
+			part := colors.source.Render(srcDisplay)
+			partW := srcW
 
 			if tagsFollow && srcW < srcMax {
 				// Pad outside the colored span so trailing spaces stay blank.
-				part = colors.source.Render(srcDisplay) + strings.Repeat(" ", srcMax-srcW)
+				part += strings.Repeat(" ", srcMax-srcW)
 				partW = srcMax
-			} else {
-				part = colors.source.Render(srcDisplay)
-				partW = srcW
 			}
 
 			parts = append(parts, part)
@@ -224,7 +219,7 @@ func BuildMetaRow(entry *ComponentEntry, innerWidth int, includeTags, selected, 
 	if includeTags {
 		tagsBudget := remaining()
 		if tagsBudget > 0 {
-			if tagsLine := renderTagPills(entry.Tags(), tagsBudget, selected); tagsLine != "" {
+			if tagsLine := RenderTagPills(entry.Tags(), tagsBudget, selected); tagsLine != "" {
 				parts = append(parts, tagsLine)
 			}
 		}

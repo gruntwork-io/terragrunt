@@ -16,9 +16,10 @@ func TestKeyDelegateKeyMapShortHelp(t *testing.T) {
 	km := tui.NewDelegateKeyMap()
 	got := km.ShortHelp()
 
-	require.Len(t, got, 2)
+	require.Len(t, got, 3)
 	assert.Equal(t, km.Choose, got[0])
-	assert.Equal(t, km.Scaffold, got[1])
+	assert.Equal(t, km.ScaffoldInteractive, got[1])
+	assert.Equal(t, km.ScaffoldPlaceholder, got[2])
 
 	for i, b := range got {
 		assert.NotEmpty(t, b.Keys(), "binding %d has no keys", i)
@@ -32,9 +33,19 @@ func TestKeyDelegateKeyMapFullHelp(t *testing.T) {
 	got := km.FullHelp()
 
 	require.Len(t, got, 1)
-	require.Len(t, got[0], 2)
+	require.Len(t, got[0], 3)
 	assert.Equal(t, km.Choose, got[0][0])
-	assert.Equal(t, km.Scaffold, got[0][1])
+	assert.Equal(t, km.ScaffoldInteractive, got[0][1])
+	assert.Equal(t, km.ScaffoldPlaceholder, got[0][2])
+}
+
+func TestKeyDelegateKeyMapSeparatesLowerAndUpperS(t *testing.T) {
+	t.Parallel()
+
+	km := tui.NewDelegateKeyMap()
+
+	assert.Equal(t, []string{"s"}, km.ScaffoldInteractive.Keys())
+	assert.Equal(t, []string{"S"}, km.ScaffoldPlaceholder.Keys())
 }
 
 func TestKeyPagerKeyMapShortHelp(t *testing.T) {
@@ -51,7 +62,8 @@ func TestKeyPagerKeyMapShortHelp(t *testing.T) {
 		km.Navigation,
 		km.NavigationBack,
 		km.Choose,
-		km.Scaffold,
+		km.ScaffoldInteractive,
+		km.ScaffoldPlaceholder,
 		km.Help,
 		km.Quit,
 	}
@@ -81,10 +93,20 @@ func TestKeyPagerKeyMapFullHelp(t *testing.T) {
 	assert.Equal(t, km.Navigation, got[1][0])
 	assert.Equal(t, km.NavigationBack, got[1][1])
 	assert.Equal(t, km.Choose, got[1][2])
-	assert.Equal(t, km.Scaffold, got[1][3])
+	assert.Equal(t, km.ScaffoldInteractive, got[1][3])
 
-	require.Len(t, got[2], 3)
-	assert.Equal(t, km.Help, got[2][0])
-	assert.Equal(t, km.Quit, got[2][1])
-	assert.Equal(t, km.ForceQuit, got[2][2])
+	require.Len(t, got[2], 4)
+	assert.Equal(t, km.ScaffoldPlaceholder, got[2][0])
+	assert.Equal(t, km.Help, got[2][1])
+	assert.Equal(t, km.Quit, got[2][2])
+	assert.Equal(t, km.ForceQuit, got[2][3])
+}
+
+func TestKeyPagerKeyMapSeparatesLowerAndUpperS(t *testing.T) {
+	t.Parallel()
+
+	km := tui.NewPagerKeyMap()
+
+	assert.Equal(t, []string{"s"}, km.ScaffoldInteractive.Keys())
+	assert.Equal(t, []string{"S"}, km.ScaffoldPlaceholder.Keys())
 }

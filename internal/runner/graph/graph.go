@@ -23,7 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (err error) {
 	// Get credentials BEFORE config parsing — sops_decrypt_file() and
 	// get_aws_account_id() in locals need auth-provider credentials
 	// available in opts.Env during HCL evaluation.
@@ -112,8 +112,12 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	if !opts.SummaryDisable {
 		defer func() {
-			if err := r.WriteSummary(opts.Writers.Writer); err != nil {
-				l.Warnf("Failed to write summary: %v", err)
+			if errors.Is(err, runall.ErrUserCancelled) {
+				return
+			}
+
+			if writeErr := r.WriteSummary(opts.Writers.Writer); writeErr != nil {
+				l.Warnf("Failed to write summary: %v", writeErr)
 			}
 		}()
 	}

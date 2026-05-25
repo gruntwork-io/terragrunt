@@ -348,8 +348,11 @@ func parseComponent(
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
 		shellOpts := configbridge.ShellRunOptsFromOpts(parseOpts)
-		if _, err := creds.ObtainCredsForParsing(ctx, l, parseOpts.AuthProviderCmd, parseOpts.Env, shellOpts); err != nil {
-			return errors.Errorf("obtaining auth provider credentials for %s: %w", parseOpts.TerragruntConfigPath, err)
+
+		if parseOpts.DiscoveryAuthProviderCmd {
+			if _, err := creds.ObtainCredsForParsing(ctx, l, parseOpts.AuthProviderCmd, parseOpts.Env, shellOpts); err != nil {
+				return errors.Errorf("obtaining auth provider credentials for %s: %w", parseOpts.TerragruntConfigPath, err)
+			}
 		}
 
 		ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseOpts)
@@ -403,7 +406,7 @@ func parseComponent(
 		}
 
 		if parsingCtx.FilesRead != nil {
-			readFiles := sanitizeReadFiles(*parsingCtx.FilesRead)
+			readFiles := sanitizeReadFiles(parsingCtx.FilesRead.Paths())
 			c.SetReading(readFiles...)
 		}
 

@@ -7,7 +7,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
@@ -123,7 +122,7 @@ func NewComponentDoc(rawContent, fileExt string) *ComponentDoc {
 func FindComponentDoc(fsys vfs.FS, dir string) (*ComponentDoc, error) {
 	files, err := vfs.ReadDirEntries(fsys, dir)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	var filePath, fileExt string
@@ -153,7 +152,7 @@ func FindComponentDoc(fsys vfs.FS, dir string) (*ComponentDoc, error) {
 
 	contentByte, err := vfs.ReadFile(fsys, filePath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return NewComponentDoc(string(contentByte), fileExt), nil
@@ -204,17 +203,18 @@ func (doc *ComponentDoc) Description(maxLength int) string {
 	for i, sentence := range sentences {
 		symbols += len(sentence)
 
-		if symbols > maxLength {
-			if i == 0 {
-				desc = sentence
-			} else {
-				desc = strings.Join(sentences[:i], ".")
-			}
-
-			desc += "."
-
-			break
+		if symbols <= maxLength {
+			continue
 		}
+
+		desc = strings.Join(sentences[:i], ".")
+		if i == 0 {
+			desc = sentence
+		}
+
+		desc += "."
+
+		break
 	}
 
 	return desc
@@ -240,9 +240,9 @@ func (doc *ComponentDoc) parseFrontmatter(key docDataKey) string {
 	return doc.frontmatterCache[key]
 }
 
-// ensureFrontmatter parses the README front-matter as YAML on first use,
-// populating frontmatterCache (name/description) and frontmatterTags.
-// Unknown keys and parse errors are silently ignored.
+// ensureFrontmatter parses the YAML front-matter on first use. Unknown keys
+// and parse errors are silently ignored so a malformed front-matter never
+// blocks the rest of a README from rendering.
 func (doc *ComponentDoc) ensureFrontmatter() {
 	if doc.frontmatterDone {
 		return

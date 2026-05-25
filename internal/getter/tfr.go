@@ -3,7 +3,6 @@ package getter
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -16,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-cleanhttp"
 	getter "github.com/hashicorp/go-getter/v2"
-	safetemp "github.com/hashicorp/go-safetemp"
 )
 
 const versionQueryKey = "version"
@@ -76,6 +74,19 @@ func (r *RegistryGetter) WithHTTPClient(c *http.Client) *RegistryGetter {
 // the source URL does not specify a host. See [RegistryGetter.TofuImplementation].
 func (r *RegistryGetter) WithTofuImplementation(impl tfimpl.Type) *RegistryGetter {
 	r.TofuImplementation = impl
+	return r
+}
+
+// WithFS sets the filesystem used for archive extraction cleanup.
+// Panics if fs is not OS-backed: getSubdir re-enters go-getter and runs
+// util.CopyFolderContentsWithFilter, both of which bypass this abstraction.
+func (r *RegistryGetter) WithFS(fs vfs.FS) *RegistryGetter {
+	if !vfs.IsOSFS(fs) {
+		panic("getter.RegistryGetter.WithFS: requires an OS-backed filesystem")
+	}
+
+	r.FS = fs
+
 	return r
 }
 
@@ -183,16 +194,21 @@ func (r *RegistryGetter) delegateGet(ctx context.Context, dst, src string) error
 // subdirectory into dstPath. This is how the registry getter handles
 // `MODULE/subdir` selectors.
 func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, sourceURL, subDir string) error {
-	tempdirPath, tempdirCloser, err := safetemp.Dir("", "getter")
+	// Hand the consumer a non-existent path inside an existing parent so
+	// go-getter can create the destination itself, and clean up the parent
+	// on return.
+	parent, err := vfs.MkdirTemp(r.FS, "", "getter")
 	if err != nil {
 		return err
 	}
 
-	defer func(tempdirCloser io.Closer) {
-		if err := tempdirCloser.Close(); err != nil {
-			l.Warnf("Error closing temporary directory %s: %v", tempdirPath, err)
+	defer func() {
+		if err := r.FS.RemoveAll(parent); err != nil {
+			l.Warnf("Error removing temporary directory %s: %v", parent, err)
 		}
-	}(tempdirCloser)
+	}()
+
+	tempdirPath := filepath.Join(parent, "temp")
 
 	if err := r.delegateGet(ctx, tempdirPath, sourceURL); err != nil {
 		return fmt.Errorf("downloading registry module archive from %s: %w", sourceURL, err)

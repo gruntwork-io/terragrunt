@@ -30,6 +30,8 @@ const (
 	includeMultipleFixturePath   = "fixtures/include-multiple/"
 	includeRunAllFixturePath     = "fixtures/include-runall/"
 	rootTerragruntHCLFixturePath = "fixtures/root-terragrunt-hcl-regression/"
+
+	includeRemoteStateDepsFixturePath = "fixtures/dependency-include-remote-state/"
 )
 
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
@@ -303,6 +305,82 @@ func TestTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
 	// Root should not be treated as a runnable unit (the "." directory should be excluded)
 	rootRun := runs.FindByName(".")
 	assert.Nil(t, rootRun, "Root directory should not be in the report as it should be excluded")
+}
+
+// TestIncludeRemoteStateNoSpuriousUnknownVariableErrors covers both sides of
+// the rebind contract.
+//
+// The first subtest asserts the `Unknown variable "dependency"` log line no
+// longer appears when a unit's shared include references `dependency.*`
+// outputs.
+//
+// The second subtest patches the child config to reference an undeclared
+// identifier and asserts the resulting error still reaches stderr, so the
+// rebind path is not silently swallowing real diagnostics.
+func TestIncludeRemoteStateNoSpuriousUnknownVariableErrors(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T) string {
+		t.Helper()
+
+		helpers.CleanupTerraformFolder(t, includeRemoteStateDepsFixturePath)
+		tmpEnvPath := helpers.CopyEnvironment(t, includeRemoteStateDepsFixturePath)
+		rootPath := filepath.Join(tmpEnvPath, includeRemoteStateDepsFixturePath)
+
+		for _, dir := range []string{"sub", "rgs", "parent"} {
+			unitPath := filepath.Join(rootPath, dir)
+
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+				"terragrunt apply -auto-approve --non-interactive --working-dir "+unitPath)
+			require.NoError(t, err)
+		}
+
+		return rootPath
+	}
+
+	t.Run("spurious dependency errors are suppressed", func(t *testing.T) {
+		t.Parallel()
+
+		rootPath := setup(t)
+		childPath := filepath.Join(rootPath, "parent", "child")
+
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+			"terragrunt plan --non-interactive --working-dir "+childPath)
+		require.NoError(t, err)
+
+		assert.NotContains(t, stderr, `There is no variable named "dependency"`)
+	})
+
+	t.Run("real undefined references still surface", func(t *testing.T) {
+		t.Parallel()
+
+		rootPath := setup(t)
+		childPath := filepath.Join(rootPath, "parent", "child")
+		childHCL := filepath.Join(childPath, "terragrunt.hcl")
+
+		// Patch in a reference to an undeclared identifier. The traversal does not
+		// start with `dependency`, so the dependency.go suppression path must not
+		// silence it; the error has to reach stderr.
+		const sentinel = "undeclared_identifier_that_should_surface"
+
+		contents, err := os.ReadFile(childHCL)
+		require.NoError(t, err)
+
+		patched := strings.Replace(
+			string(contents),
+			"parent_value = dependency.parent.outputs.value",
+			"parent_value = "+sentinel,
+			1,
+		)
+		require.NotEqual(t, string(contents), patched, "fixture must contain the line being patched")
+		require.NoError(t, os.WriteFile(childHCL, []byte(patched), 0o644))
+
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+			"terragrunt plan --non-interactive --working-dir "+childPath)
+		require.Error(t, err, "an undeclared identifier must produce a terragrunt error")
+		assert.Contains(t, stderr, sentinel,
+			"diagnostic for the undeclared identifier must reach stderr")
+	})
 }
 
 func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]helpers.TerraformOutput) {

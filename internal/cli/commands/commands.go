@@ -12,7 +12,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -20,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -333,11 +333,11 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	if opts.TerraformVersion == nil {
-		_, ver, impl, err := run.PopulateTFVersion(
-			ctx, l, opts.WorkingDir,
-			opts.VersionManagerFileName,
-			configbridge.TFRunOptsFromOpts(opts),
-		)
+		_, ver, impl, err := run.PopulateTFVersion(ctx, l, vexec.NewOSExec(), run.PopulateTFVersionInput{
+			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+			WorkingDir:   opts.WorkingDir,
+			VersionFiles: opts.VersionManagerFileName,
+		})
 		if err != nil {
 			return err
 		}
@@ -436,7 +436,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	opts.TerraformCommand = cmdName
 	opts.TerraformCliArgs = iacargs.New(args...)
 
-	opts.Env = env.Parse(os.Environ())
+	opts.Env = util.EnvironMap()
 
 	// --- Working Dir
 	if opts.WorkingDir == "" {

@@ -1,14 +1,12 @@
 ---
 version: "v1.0.5"
-category: "new-features"
+category: "performance-improvements"
 ---
 
 #### `stack output` fetches unit outputs in parallel
 
-`terragrunt stack output` previously read outputs from each unit sequentially, which became slow on large stacks because every read blocks on a `tofu output` child process. Outputs are now fetched concurrently across units, bounded by the `--parallelism` flag (default unbounded, env `TG_PARALLELISM`).
+`terragrunt stack output` now fetches outputs from multiple units at the same time, which is noticeably faster on larger stacks. Use the existing `--parallelism` flag (or `TG_PARALLELISM`) to lower concurrency if you need to.
 
 ```bash
 terragrunt stack output --parallelism 4
 ```
-
-Set `--parallelism` to cap concurrency on machines where unbounded fetches would exhaust file descriptors or hit cloud-provider rate limits.

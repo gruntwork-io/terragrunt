@@ -8,9 +8,9 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// kindForTag returns the ComponentKind that tag names case-insensitively,
+// KindForTag returns the ComponentKind that tag names case-insensitively,
 // and a bool reporting whether tag matched any known kind.
-func kindForTag(tag string) (ComponentKind, bool) {
+func KindForTag(tag string) (ComponentKind, bool) {
 	switch strings.ToLower(strings.TrimSpace(tag)) {
 	case "module":
 		return ComponentKindModule, true
@@ -25,11 +25,11 @@ func kindForTag(tag string) (ComponentKind, bool) {
 	return 0, false
 }
 
-// tagPillStyle returns the pill style for a tag. Privileged tags reuse the
+// TagPillStyle returns the pill style for a tag. Privileged tags reuse the
 // kind palette; neutral tags use the dimmer tag palette so the row reads
 // tertiary.
-func tagPillStyle(tag string, selected bool) lipgloss.Style {
-	if kind, ok := kindForTag(tag); ok {
+func TagPillStyle(tag string, selected bool) lipgloss.Style {
+	if kind, ok := KindForTag(tag); ok {
 		bg, fg := pillColorsForKind(kind, selected)
 
 		return lipgloss.NewStyle().
@@ -95,10 +95,10 @@ func tagsLabelStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(metaMuted))
 }
 
-// renderTagPills renders tags as space-joined pills under a `tags: ` label,
+// RenderTagPills renders tags as space-joined pills under a `tags: ` label,
 // fit within maxWidth with a trailing `+N` pill for any that don't fit.
 // Privileged tags sort first.
-func renderTagPills(tags []string, maxWidth int, selected bool) string {
+func RenderTagPills(tags []string, maxWidth int, selected bool) string {
 	if len(tags) == 0 || maxWidth <= 0 {
 		return ""
 	}
@@ -118,7 +118,7 @@ func renderTagPills(tags []string, maxWidth int, selected bool) string {
 
 	// Reserve against the widest possible +N so the indicator always fits.
 	worstOverflowText := fmt.Sprintf("+%d", len(sorted))
-	worstOverflowW := lipgloss.Width(tagPillStyle(worstOverflowText, selected).Render(worstOverflowText))
+	worstOverflowW := lipgloss.Width(TagPillStyle(worstOverflowText, selected).Render(worstOverflowText))
 
 	budget := maxWidth - labelW
 
@@ -128,7 +128,7 @@ func renderTagPills(tags []string, maxWidth int, selected bool) string {
 	)
 
 	for i, tag := range sorted {
-		pill := tagPillStyle(tag, selected).Render(tag)
+		pill := TagPillStyle(tag, selected).Render(tag)
 		w := lipgloss.Width(pill)
 
 		extra := w
@@ -153,7 +153,7 @@ func renderTagPills(tags []string, maxWidth int, selected bool) string {
 	if len(rendered) < len(sorted) {
 		remaining := len(sorted) - len(rendered)
 		text := fmt.Sprintf("+%d", remaining)
-		overflowPill := tagPillStyle(text, selected).Render(text)
+		overflowPill := TagPillStyle(text, selected).Render(text)
 		overflowW := lipgloss.Width(overflowPill)
 
 		switch {
@@ -171,9 +171,9 @@ func renderTagPills(tags []string, maxWidth int, selected bool) string {
 	return label + strings.Join(rendered, sep)
 }
 
-// renderDetailTagPills renders all tags as pills, no width cap, for the
+// RenderDetailTagPills renders all tags as pills, no width cap, for the
 // detail view above the README. Privileged tags sort first.
-func renderDetailTagPills(tags []string) string {
+func RenderDetailTagPills(tags []string) string {
 	if len(tags) == 0 {
 		return ""
 	}
@@ -182,15 +182,15 @@ func renderDetailTagPills(tags []string) string {
 	rendered := make([]string, 0, len(sorted))
 
 	for _, tag := range sorted {
-		rendered = append(rendered, tagPillStyle(tag, false).Render(tag))
+		rendered = append(rendered, TagPillStyle(tag, false).Render(tag))
 	}
 
 	return tagsLabelStyle().Render(tagsLabelText) + strings.Join(rendered, " ")
 }
 
-// tagsMarkdownSection returns a `## Tags` markdown block for appending to a
+// TagsMarkdownSection returns a `## Tags` markdown block for appending to a
 // README. Privileged tags sort first.
-func tagsMarkdownSection(tags []string) string {
+func TagsMarkdownSection(tags []string) string {
 	if len(tags) == 0 {
 		return ""
 	}
@@ -216,8 +216,8 @@ func sortPrivilegedFirst(tags []string) []string {
 	out := slices.Clone(tags)
 
 	slices.SortStableFunc(out, func(a, b string) int {
-		_, aPriv := kindForTag(a)
-		_, bPriv := kindForTag(b)
+		_, aPriv := KindForTag(a)
+		_, bPriv := KindForTag(b)
 
 		switch {
 		case aPriv && !bPriv:

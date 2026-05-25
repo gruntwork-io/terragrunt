@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
@@ -371,7 +372,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
-				file = cacheConfig
+				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
 			} else {
 				var parseErr error
 
@@ -700,6 +701,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			config.ProcessedIncludes = pctx.TrackInclude.CurrentMap
 			output = config
 		}
+	}
+
+	if pctx.Experiments.Evaluate(experiment.MarkManyAsRead) && output.Terraform != nil && output.Terraform.Source != nil {
+		markLocalModuleSourceAsRead(pctx, file.ConfigPath, *output.Terraform.Source)
 	}
 
 	if errs.ErrorOrNil() != nil {

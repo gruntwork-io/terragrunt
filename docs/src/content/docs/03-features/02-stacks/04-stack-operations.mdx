@@ -445,7 +445,7 @@ terragrunt run --all --parallelism 4 -- apply
 
 ## Limiting stack output parallelism
 
-`terragrunt stack output` fetches outputs from every unit concurrently. Each fetch spawns a `tofu output` child process, so very large stacks may need a cap to avoid file-descriptor exhaustion or hitting cloud-provider rate limits. The same `--parallelism` flag bounds the number of concurrent unit fetches:
+`terragrunt stack output` reads unit outputs in parallel. Use the same `--parallelism` flag to lower concurrency if a large stack hits resource limits (for example, file descriptors or cloud-provider rate limits):
 
 ```sh
 terragrunt stack output --parallelism 4
@@ -483,6 +483,23 @@ This integration also exists for the `apply` command, where the generated plan w
 ```bash
 $ terragrunt run --all --out-dir /tmp/tfplan -- apply
 ```
+
+<Aside type="note">
+
+Performing a `run --all --out-dir <dir> -- apply` requires that a plan already exists for each unit in the stack.
+If a plan is missing for any unit, the command will fail.
+
+If a plan job was scoped with `--filter`, you must pass the **same** `--filter` to the apply so the apply discovery set matches the artifact contents. For example:
+
+```bash
+# Plan `<unit>` and its dependencies:
+terragrunt run --all --filter '<unit>...' --out-dir /tmp/tfplan -- plan
+
+# Apply must reuse the same filter:
+terragrunt run --all --filter '<unit>...' --out-dir /tmp/tfplan -- apply
+```
+
+</Aside>
 
 For planning a destroy operation, use the following commands:
 

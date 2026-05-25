@@ -33,7 +33,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/hashicorp/go-version"
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 )
 
 const ContextKey ctxKey = iota
@@ -81,8 +81,8 @@ type TerragruntOptions struct {
 	Writers writer.Writers
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
-	// FeatureFlags is a map of explicit feature flag overrides.
-	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
+	// FeatureFlags is a map of feature flags to enable.
+	FeatureFlags *xsync.Map[string, string] `clone:"shadowcopy"`
 	// EngineConfig holds the resolved engine configuration from HCL.
 	EngineConfig *engine.EngineConfig
 	// EngineOptions groups CLI-supplied engine options.
@@ -220,6 +220,10 @@ type TerragruntOptions struct {
 	AutoRetry bool
 	// Whether we should automatically run terraform init if necessary when executing other commands
 	AutoInit bool
+	// When false (set via --no-discovery-auth-provider-cmd), skip running the
+	// auth provider command during the discovery parse phase. Requires the
+	// opt-out-auth experiment. Default true preserves existing behavior.
+	DiscoveryAuthProviderCmd bool
 	// Allows to skip the output of all dependencies.
 	SkipOutput bool
 	// Whether we should prompt the user for confirmation or always assume "yes"
@@ -317,30 +321,31 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		Writers:                writer.Writers{Writer: stdout, ErrWriter: stderr},
-		TFPath:                 DefaultWrappedPath,
-		ExcludesFile:           defaultExcludesFile,
-		FiltersFile:            defaultFiltersFile,
-		AutoInit:               true,
-		RunAllAutoApprove:      true,
-		Env:                    map[string]string{},
-		SourceMap:              map[string]string{},
-		TerraformCliArgs:       iacargs.New(),
-		MaxFoldersToCheck:      DefaultMaxFoldersToCheck,
-		AutoRetry:              true,
-		Parallelism:            DefaultParallelism,
-		JSONOut:                DefaultJSONOutName,
-		TofuImplementation:     tfimpl.Unknown,
-		ProviderCacheOptions:   pcoptions.ProviderCacheOptions{RegistryNames: pcoptions.DefaultRegistryNames},
-		FeatureFlags:           xsync.NewMapOf[string, string](),
-		Errors:                 defaultErrorsConfig(),
-		StrictControls:         controls.New(),
-		Experiments:            experiment.NewExperiments(),
-		Tips:                   tips.NewTips(),
-		Telemetry:              new(telemetry.Options),
-		EngineOptions:          new(engine.EngineOptions),
-		VersionManagerFileName: defaultVersionManagerFileName,
-		CASCloneDepth:          1,
+		Writers:                  writer.Writers{Writer: stdout, ErrWriter: stderr},
+		TFPath:                   DefaultWrappedPath,
+		ExcludesFile:             defaultExcludesFile,
+		FiltersFile:              defaultFiltersFile,
+		AutoInit:                 true,
+		RunAllAutoApprove:        true,
+		DiscoveryAuthProviderCmd: true,
+		Env:                      map[string]string{},
+		SourceMap:                map[string]string{},
+		TerraformCliArgs:         iacargs.New(),
+		MaxFoldersToCheck:        DefaultMaxFoldersToCheck,
+		AutoRetry:                true,
+		Parallelism:              DefaultParallelism,
+		JSONOut:                  DefaultJSONOutName,
+		TofuImplementation:       tfimpl.Unknown,
+		ProviderCacheOptions:     pcoptions.ProviderCacheOptions{RegistryNames: pcoptions.DefaultRegistryNames},
+		FeatureFlags:             xsync.NewMap[string, string](),
+		Errors:                   defaultErrorsConfig(),
+		StrictControls:           controls.New(),
+		Experiments:              experiment.NewExperiments(),
+		Tips:                     tips.NewTips(),
+		Telemetry:                new(telemetry.Options),
+		EngineOptions:            new(engine.EngineOptions),
+		VersionManagerFileName:   defaultVersionManagerFileName,
+		CASCloneDepth:            1,
 	}
 }
 

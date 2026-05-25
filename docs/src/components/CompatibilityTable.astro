@@ -1,14 +1,31 @@
 ---
 import { getCollection } from 'astro:content';
+import { getLatestRelease } from '@lib/github';
+import { effectiveTerragruntMax, filterByReleasedMin } from '@lib/compatibility';
 
 interface Props {
   tool: 'opentofu' | 'terraform';
 }
 
 const { tool } = Astro.props;
-const entries = (await getCollection('compatibility'))
-  .filter(e => e.data.tool === tool)
-  .sort((a, b) => b.data.order - a.data.order);
+
+const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
+// Fail open when we cannot determine the latest release, so the table stays
+// useful even if the GitHub API is unreachable at build time.
+const showUnreleased = import.meta.env.DEV || releaseData === null;
+const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+
+const entries = filterByReleasedMin(
+  (await getCollection('compatibility')).filter(e => e.data.tool === tool),
+  latestVersion,
+  showUnreleased,
+)
+  .sort((a, b) => b.data.order - a.data.order)
+  .map(e => ({
+    version: e.data.version,
+    terragrunt_min: e.data.terragrunt_min,
+    terragrunt_max: effectiveTerragruntMax(e.data.terragrunt_max, latestVersion, showUnreleased),
+  }));
 
 const label = tool === 'opentofu' ? 'OpenTofu' : 'Terraform';
 const baseUrl = 'https://github.com/gruntwork-io/terragrunt/releases/tag/v';
@@ -24,12 +41,12 @@ const baseUrl = 'https://github.com/gruntwork-io/terragrunt/releases/tag/v';
   <tbody>
     {entries.map(e => (
       <tr>
-        <td>{e.data.version}</td>
+        <td>{e.version}</td>
         <td>
-          {e.data.terragrunt_max ? (
-            <><a href={`${baseUrl}${e.data.terragrunt_min}`}>{e.data.terragrunt_min}</a> - <a href={`${baseUrl}${e.data.terragrunt_max}`}>{e.data.terragrunt_max}</a></>
+          {e.terragrunt_max ? (
+            <><a href={`${baseUrl}${e.terragrunt_min}`}>{e.terragrunt_min}</a> - <a href={`${baseUrl}${e.terragrunt_max}`}>{e.terragrunt_max}</a></>
           ) : (
-            <>&gt;= <a href={`${baseUrl}${e.data.terragrunt_min}`}>{e.data.terragrunt_min}</a></>
+            <>&gt;= <a href={`${baseUrl}${e.terragrunt_min}`}>{e.terragrunt_min}</a></>
           )}
         </td>
       </tr>

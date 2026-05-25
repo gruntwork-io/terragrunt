@@ -8,7 +8,6 @@ import (
 
 	"slices"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -206,7 +205,7 @@ func shouldForceForwardTFStdout(args clihelper.Args) bool {
 		return true
 	}
 
-	return collections.ListContainsElement(tfCommands, args.CommandName())
+	return slices.Contains(tfCommands, args.CommandName())
 }
 
 // buildOutWriter returns the writer for the command's stdout.

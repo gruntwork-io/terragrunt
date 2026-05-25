@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -19,6 +20,7 @@ import (
 var backends = backend.Backends{
 	s3.NewBackend(),
 	gcs.NewBackend(),
+	azurerm.NewBackend(),
 }
 
 // Options contains the subset of configuration needed by RemoteState operations.

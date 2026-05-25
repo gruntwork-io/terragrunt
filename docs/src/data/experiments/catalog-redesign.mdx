@@ -16,6 +16,8 @@ The list view is split into `All`, `Modules`, and `Templates` tabs with `All` se
 
 Each list entry shows a metadata row with a component-type pill (module, template), the source URL it was discovered from, and a version pill when a release tag is available, so it is clear which repository or path a component came from.
 
+Pressing `s` on a selected component opens an in-TUI form that prompts for every variable the component exposes (`.tf` variable blocks for modules and templates, `values.*` references for units and stacks). The form is modal: `j`/`k` (or arrows) navigate between fields, `enter` enters edit mode on a text field or toggles a boolean checkbox in place, `esc` returns from edit to navigate, `x` marks an optional field "use default" so it's left out of the generated file, `ctrl+d` finishes, and `esc` from navigate cancels back to the catalog. Only fields the user explicitly sets are written to the generated `terragrunt.hcl` or `terragrunt.values.hcl`; required fields the user never set still produce `# TODO: fill in value` placeholders. Pressing `S` (capital) keeps the original placeholder-only flow for users who want to populate values by editing the generated file.
+
 ### `catalog-redesign` - How to provide feedback
 
 TODO: Add a link to the relevant GitHub discussion or issue.

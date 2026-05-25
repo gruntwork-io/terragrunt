@@ -1,0 +1,26 @@
+---
+version: "v1.0.6"
+category: "experiments-added"
+---
+
+#### `deep-merge` experiment adds a `deep_merge` HCL function
+
+Enable the new [`deep-merge`](/reference/experiments/active#deep-merge) experiment to use the `deep_merge(map1, map2, ...)` HCL function.
+
+`deep_merge` recursively merges map and object values. Later arguments override earlier arguments for overlapping keys, nested maps are merged recursively, lists are appended, and `null` arguments are ignored.
+
+This is useful when composing `inputs` from multiple decoded JSON, YAML, or HCL-derived maps:
+
+```hcl
+locals {
+  config_json_files = sort(fileset(get_terragrunt_dir(), "*.json"))
+  config = deep_merge([
+    for file in local.config_json_files :
+    jsondecode(file("${get_terragrunt_dir()}/${file}"))
+  ]...)
+}
+
+inputs = local.config
+```
+
+Calling `deep_merge` without enabling the `deep-merge` experiment returns an error.

@@ -1,0 +1,10 @@
+---
+version: "v1.0.6"
+category: "bug-fixes"
+---
+
+#### `terragrunt render` no longer crashes on multiple `errors.ignore` blocks with mismatched signals
+
+Rendering a config that defined more than one `errors.ignore` block crashed with an `inconsistent list element types` panic when the `signals` map was populated on one block and absent (or differently typed) on another. The same crash showed up in dependency-output evaluation, since both paths build the same rendered representation of the config.
+
+Each `ignore` block is now rendered with a uniform shape. Indexed access (`errors.ignore[0]`), length, and iteration still work, and the signals map on each block is preserved as written.
