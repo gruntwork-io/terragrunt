@@ -1,0 +1,229 @@
+name: Weekly Coverage Report
+
+on:
+  schedule:
+    # Every Monday at 09:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      window_days:
+        description: 'Compare HEAD against the commit from this many days ago'
+        required: false
+        default: '7'
+
+concurrency:
+  group: coverage-weekly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  weekly:
+    name: Weekly Coverage Diff
+    runs-on: ubuntu-latest
+    env:
+      MISE_PROFILE: cicd
+      GOGC: "400"
+      WINDOW_DAYS: ${{ inputs.window_days || '7' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: 2026.5.12
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve commits
+        id: refs
+        run: |
+          set -euo pipefail
+          CURRENT_SHA="$(git rev-parse HEAD)"
+          PREVIOUS_SHA=""
+          MAX_DAYS=$((WINDOW_DAYS * 2))
+          for d in $(seq "$WINDOW_DAYS" "$MAX_DAYS"); do
+            candidate="$(git rev-list -1 --before="${d} days ago" origin/main || true)"
+            if [[ -n "$candidate" && "$candidate" != "$CURRENT_SHA" ]]; then
+              PREVIOUS_SHA="$candidate"
+              echo "Selected previous SHA at ${d} days ago: ${PREVIOUS_SHA}"
+              break
+            fi
+          done
+          if [[ -z "$PREVIOUS_SHA" ]]; then
+            echo "No commit older than ${WINDOW_DAYS} days within ${MAX_DAYS}-day walkback; reporting current only."
+            echo "same_commit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "same_commit=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "current_sha=${CURRENT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "previous_sha=${PREVIOUS_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Current:  ${CURRENT_SHA}"
+          echo "Previous: ${PREVIOUS_SHA:-<none>}"
+
+      - id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+      - name: Go Build Cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-weekly-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-weekly-
+            ${{ runner.os }}-go-build-
+
+      - name: Go Mod Cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
+
+      - name: Run tests on current HEAD
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ./.github/scripts/coverage/run-tests-json.sh current || true
+          GITHUB_SHA="${{ steps.refs.outputs.current_sha }}" GITHUB_REF="refs/heads/main" \
+            ./.github/scripts/coverage/generate-summary.sh current/coverage.out current/coverage-summary.json
+          GITHUB_SHA="${{ steps.refs.outputs.current_sha }}" GITHUB_REF="refs/heads/main" \
+            ./.github/scripts/coverage/extract-timing.sh current/test-events.ndjson current/timing-summary.json
+
+      - name: Prepare previous checkout
+        if: steps.refs.outputs.same_commit != 'true'
+        env:
+          PREV_SHA: ${{ steps.refs.outputs.previous_sha }}
+        run: |
+          set -euo pipefail
+          git worktree add --detach "../prev" "$PREV_SHA"
+
+      - name: Run tests on previous commit
+        if: steps.refs.outputs.same_commit != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREV_SHA: ${{ steps.refs.outputs.previous_sha }}
+        working-directory: ../prev
+        run: |
+          set -euo pipefail
+          # Prefer the current checkout's coverage scripts so weekly tooling is consistent
+          # even if the previous commit predates them.
+          "$GITHUB_WORKSPACE/.github/scripts/coverage/run-tests-json.sh" previous || true
+          mkdir -p "$GITHUB_WORKSPACE/previous"
+          if [[ -s previous/coverage.out ]]; then
+            GITHUB_SHA="$PREV_SHA" GITHUB_REF="refs/heads/main" \
+              "$GITHUB_WORKSPACE/.github/scripts/coverage/generate-summary.sh" \
+                previous/coverage.out previous/coverage-summary.json
+            cp previous/coverage-summary.json "$GITHUB_WORKSPACE/previous/coverage-summary.json"
+          else
+            echo "::warning::Previous commit produced no coverage output; reporting current only."
+          fi
+          if [[ -s previous/test-events.ndjson ]]; then
+            GITHUB_SHA="$PREV_SHA" GITHUB_REF="refs/heads/main" \
+              "$GITHUB_WORKSPACE/.github/scripts/coverage/extract-timing.sh" \
+                previous/test-events.ndjson previous/timing-summary.json
+            cp previous/timing-summary.json "$GITHUB_WORKSPACE/previous/timing-summary.json"
+          else
+            echo "::warning::Previous commit produced no test events; timing comparison will be baseline-only."
+          fi
+
+      - name: Compare coverage
+        run: |
+          set -euo pipefail
+          PREV="previous/coverage-summary.json"
+          [[ -s "$PREV" ]] || PREV="/nonexistent"
+          ./.github/scripts/coverage/compare-coverage.sh \
+            current/coverage-summary.json \
+            "$PREV" \
+            comparison-report.json
+
+      - name: Compare timing
+        run: |
+          set -euo pipefail
+          PREV="previous/timing-summary.json"
+          [[ -s "$PREV" ]] || PREV="/nonexistent"
+          ./.github/scripts/coverage/compare-timing.sh \
+            current/timing-summary.json \
+            "$PREV" \
+            timing-comparison.json
+
+      - name: Write step summary
+        if: always()
+        run: ./.github/scripts/coverage/write-summary-weekly.sh comparison-report.json timing-comparison.json
+
+      - name: Upload coverage summary (current)
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-summary-current.json
+          path: current/coverage-summary.json
+          retention-days: 90
+
+      - name: Upload coverage summary (previous)
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-summary-previous.json
+          path: previous/coverage-summary.json
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Upload timing summary (current)
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: timing-summary-current.json
+          path: current/timing-summary.json
+          retention-days: 90
+
+      - name: Upload timing summary (previous)
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: timing-summary-previous.json
+          path: previous/timing-summary.json
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Upload comparison-report.json
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: comparison-report.json
+          path: comparison-report.json
+          retention-days: 90
+
+      - name: Upload comparison-report.html
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: comparison-report.html
+          path: comparison-report.html
+          retention-days: 90
+
+      - name: Upload timing-comparison.json
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: timing-comparison.json
+          path: timing-comparison.json
+          retention-days: 90
+
+      - name: Notify Slack
+        if: always() && hashFiles('comparison-report.json') != '' && hashFiles('timing-comparison.json') != '' && env.COVERAGE_SLACK_WEBHOOK_URL != ''
+        env:
+          COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
+          TAG_NAME: "${{ steps.refs.outputs.same_commit == 'true' && format('weekly (current only) {0}', steps.refs.outputs.current_sha) || format('weekly {0}...{1}', steps.refs.outputs.previous_sha, steps.refs.outputs.current_sha) }}"
+          REPO: ${{ github.repository }}
+        run: ./.github/scripts/coverage/notify-slack-weekly.sh comparison-report.json timing-comparison.json
