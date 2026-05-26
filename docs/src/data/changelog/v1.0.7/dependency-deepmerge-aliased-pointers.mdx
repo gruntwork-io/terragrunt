@@ -3,6 +3,6 @@ version: "v1.0.7"
 category: "bug-fixes"
 ---
 
-#### `Dependency.DeepMerge` no longer doubles allowed-commands when both sides share a slice pointer
+#### `mock_outputs_allowed_terraform_commands` no longer duplicates after a `dependency` merge that already shares the list
 
-When `DeepMerge` was called with two `*Dependency` values that aliased the same `MockOutputsAllowedTerraformCommands` slice, the previous code would append the slice to itself, doubling its contents. The merge now short-circuits when the receiver and source point at the same `MockOutputs` or `MockOutputsAllowedTerraformCommands` value. The deep-merge body is also split into `mergeMockOutputs` and `mergeMockOutputsAllowedTerraformCommands` helpers.
+When a `dependency` block was merged into a configuration that already referenced the same `mock_outputs_allowed_terraform_commands` list (for example, after an `include` chain re-applied the same dependency, or after stack `autoinclude` propagation), the list was appended to itself and the resulting allow-list contained every entry twice. The same issue affected `mock_outputs`. Terragrunt now skips the merge when both sides reference the same value, so the effective allow-list matches what the configuration declares.

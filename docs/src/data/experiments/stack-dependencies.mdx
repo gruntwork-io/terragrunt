@@ -127,15 +127,19 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 
 <Since version="1.0.6">
 
-- [x] Catalog source resolution for nested stack copies uses the `cas` experiment via `update_source_with_cas = true`. Relative `source` attributes in catalog `terragrunt.stack.hcl` files are rewritten to `cas::` references at generation time, so the generated tree under `.terragrunt-stack/` is self-contained. Replaces the experimental `.terragrunt-stack-origin` sidecar that was never released.
 - [x] `PartialEval` depth guard (`maxPartialEvalDepth = 10000`) and `IsWhollyKnown` / `IsNull` checks on the fast path and traversal/template/conditional/parens branches, preventing crashes on unknown values or pathological nesting.
 - [x] Typed errors with `Unwrap()` across the package (`FileParseError`, `FileDecodeError`, `IncludeValidationError`, `LocalEvalError`, `MalformedDependencyError`, `AutoIncludeParserStageError`) preserving `hcl.Diagnostics` for source positions.
 - [x] Deterministic cycle reports in `LocalsCycleError.Names` (DFS dep iteration sorted).
 - [x] `resolveStackFilePath` returns `(string, bool)`: callers branch on `isStackCandidate` instead of a sentinel empty string. Backed by a two-arg fuzz that exercises raw/target independently.
 - [x] Same-name stack/unit pair (`stack "foo" { unit "foo" { ... } }`) addressable via `stack.foo.foo.path` and end-to-end covered by integration test.
 - [x] Removed Unicode from `internal/hclparse` source files (ASCII-only); intentional Unicode test fixtures remain.
+
+</Since>
+
+<Since version="1.0.7">
+
+- [x] Catalog source resolution for nested stack copies uses the `cas` experiment via `update_source_with_cas = true`. Relative `source` attributes in catalog `terragrunt.stack.hcl` files are rewritten to `cas::` references at generation time, so the generated tree under `.terragrunt-stack/` is self-contained.
 - [ ] Community feedback on `autoinclude` syntax and merge behavior
-- [ ] Integrate with CAS for generated files
 - [ ] Validate performance at scale
 
 </Since>
