@@ -1,0 +1,8 @@
+---
+version: "v1.0.7"
+category: "bug-fixes"
+---
+
+#### `Dependency.DeepMerge` no longer doubles allowed-commands when both sides share a slice pointer
+
+When `DeepMerge` was called with two `*Dependency` values that aliased the same `MockOutputsAllowedTerraformCommands` slice, the previous code would append the slice to itself, doubling its contents. The merge now short-circuits when the receiver and source point at the same `MockOutputs` or `MockOutputsAllowedTerraformCommands` value. The deep-merge body is also split into `mergeMockOutputs` and `mergeMockOutputsAllowedTerraformCommands` helpers.
