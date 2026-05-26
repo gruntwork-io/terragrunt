@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mgutz/ansi"
+	"charm.land/lipgloss/v2"
 )
 
 // Colorizer is a colorizer for the run summary output.
@@ -31,59 +31,62 @@ type Colorizer struct {
 // NewColorizer creates a new Colorizer.
 func NewColorizer(shouldColor bool) *Colorizer {
 	if !shouldColor {
+		identity := func(s string) string { return s }
+
 		return &Colorizer{
-			headingTitleColorizer: func(s string) string { return s },
-			headingUnitColorizer:  func(s string) string { return s },
-			successColorizer:      func(s string) string { return s },
-			failureColorizer:      func(s string) string { return s },
-			exitColorizer:         func(s string) string { return s },
-			excludeColorizer:      func(s string) string { return s },
-			successUnitColorizer:  func(s string) string { return s },
-			failureUnitColorizer:  func(s string) string { return s },
-			exitUnitColorizer:     func(s string) string { return s },
-			excludeUnitColorizer:  func(s string) string { return s },
-			nanosecondColorizer:   func(s string) string { return s },
-			microsecondColorizer:  func(s string) string { return s },
-			millisecondColorizer:  func(s string) string { return s },
-			secondColorizer:       func(s string) string { return s },
-			minuteColorizer:       func(s string) string { return s },
-			defaultColorizer:      func(s string) string { return s },
-			paddingColorizer:      func(s string) string { return s },
+			headingTitleColorizer: identity,
+			headingUnitColorizer:  identity,
+			successColorizer:      identity,
+			failureColorizer:      identity,
+			exitColorizer:         identity,
+			excludeColorizer:      identity,
+			successUnitColorizer:  identity,
+			failureUnitColorizer:  identity,
+			exitUnitColorizer:     identity,
+			excludeUnitColorizer:  identity,
+			nanosecondColorizer:   identity,
+			microsecondColorizer:  identity,
+			millisecondColorizer:  identity,
+			secondColorizer:       identity,
+			minuteColorizer:       identity,
+			defaultColorizer:      identity,
+			paddingColorizer:      identity,
 		}
 	}
 
-	// Define unit colorizers based on environment variable
-	var successUnitColorizer, failureUnitColorizer, exitUnitColorizer, excludeUnitColorizer func(string) string
-	if shouldColor {
-		successUnitColorizer = ansi.ColorFunc("green+h")
-		failureUnitColorizer = ansi.ColorFunc("red+h")
-		exitUnitColorizer = ansi.ColorFunc("yellow+h")
-		excludeUnitColorizer = ansi.ColorFunc("blue+h")
-	} else {
-		successUnitColorizer = func(s string) string { return s }
-		failureUnitColorizer = func(s string) string { return s }
-		exitUnitColorizer = func(s string) string { return s }
-		excludeUnitColorizer = func(s string) string { return s }
-	}
+	bold := lipgloss.NewStyle().Bold(true)
+
+	boldYellow := bold.Foreground(lipgloss.Color("11"))
+	boldWhite := bold.Foreground(lipgloss.Color("15"))
+	boldGreen := bold.Foreground(lipgloss.Color("10"))
+	boldRed := bold.Foreground(lipgloss.Color("9"))
+	boldBlue := bold.Foreground(lipgloss.Color("12"))
+	boldCyan := bold.Foreground(lipgloss.Color("14"))
+
+	green := lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	red := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	yellow := lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	blue := lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
+	gray := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 
 	return &Colorizer{
-		headingTitleColorizer: ansi.ColorFunc("yellow+bh"),
-		headingUnitColorizer:  ansi.ColorFunc("white+bh"),
-		successColorizer:      ansi.ColorFunc("green+bh"),
-		failureColorizer:      ansi.ColorFunc("red+bh"),
-		exitColorizer:         ansi.ColorFunc("yellow+bh"),
-		excludeColorizer:      ansi.ColorFunc("blue+bh"),
-		successUnitColorizer:  successUnitColorizer,
-		failureUnitColorizer:  failureUnitColorizer,
-		exitUnitColorizer:     exitUnitColorizer,
-		excludeUnitColorizer:  excludeUnitColorizer,
-		nanosecondColorizer:   ansi.ColorFunc("cyan+bh"),
-		microsecondColorizer:  ansi.ColorFunc("cyan+bh"),
-		millisecondColorizer:  ansi.ColorFunc("cyan+bh"),
-		secondColorizer:       ansi.ColorFunc("green+bh"),
-		minuteColorizer:       ansi.ColorFunc("yellow+bh"),
-		defaultColorizer:      ansi.ColorFunc("white+bh"),
-		paddingColorizer:      ansi.ColorFunc("gray"),
+		headingTitleColorizer: func(s string) string { return boldYellow.Render(s) },
+		headingUnitColorizer:  func(s string) string { return boldWhite.Render(s) },
+		successColorizer:      func(s string) string { return boldGreen.Render(s) },
+		failureColorizer:      func(s string) string { return boldRed.Render(s) },
+		exitColorizer:         func(s string) string { return boldYellow.Render(s) },
+		excludeColorizer:      func(s string) string { return boldBlue.Render(s) },
+		successUnitColorizer:  func(s string) string { return green.Render(s) },
+		failureUnitColorizer:  func(s string) string { return red.Render(s) },
+		exitUnitColorizer:     func(s string) string { return yellow.Render(s) },
+		excludeUnitColorizer:  func(s string) string { return blue.Render(s) },
+		nanosecondColorizer:   func(s string) string { return boldCyan.Render(s) },
+		microsecondColorizer:  func(s string) string { return boldCyan.Render(s) },
+		millisecondColorizer:  func(s string) string { return boldCyan.Render(s) },
+		secondColorizer:       func(s string) string { return boldGreen.Render(s) },
+		minuteColorizer:       func(s string) string { return boldYellow.Render(s) },
+		defaultColorizer:      func(s string) string { return boldWhite.Render(s) },
+		paddingColorizer:      func(s string) string { return gray.Render(s) },
 	}
 }
 

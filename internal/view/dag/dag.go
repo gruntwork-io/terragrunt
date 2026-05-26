@@ -10,7 +10,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/tree"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/mgutz/ansi"
 )
 
 // ListedComponent represents a component for display in a DAG tree.
@@ -69,11 +68,16 @@ func NewColorizer(shouldColor bool) *Colorizer {
 		}
 	}
 
+	unitStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+	stackStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
+	headingStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11"))
+	pathStyle := lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("7"))
+
 	return &Colorizer{
-		unitColorizer:    ansi.ColorFunc("blue+bh"),
-		stackColorizer:   ansi.ColorFunc("green+bh"),
-		headingColorizer: ansi.ColorFunc("yellow+bh"),
-		pathColorizer:    ansi.ColorFunc("white+d"),
+		unitColorizer:    func(s string) string { return unitStyle.Render(s) },
+		stackColorizer:   func(s string) string { return stackStyle.Render(s) },
+		headingColorizer: func(s string) string { return headingStyle.Render(s) },
+		pathColorizer:    func(s string) string { return pathStyle.Render(s) },
 	}
 }
 
