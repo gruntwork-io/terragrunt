@@ -99,16 +99,6 @@ type OSCmder interface {
 	OSCmd() *exec.Cmd
 }
 
-// OSExeccer is implemented by Exec values whose Command method returns
-// OSCmder Cmd values (i.e. wrappers around the real os/exec package).
-// Callers that need PTY, signal forwarding, or console-state save/restore
-// can type-assert an Exec to OSExeccer to detect whether the full os/exec
-// feature set is available; the in-memory backend does NOT implement this.
-type OSExeccer interface {
-	Exec
-	OSBacked()
-}
-
 // ExitCode extracts an exit code from err. It returns 0 if err is nil, or -1
 // if err does not carry an exit code.
 func ExitCode(err error) int {
@@ -153,9 +143,6 @@ func (osExec) Command(ctx context.Context, name string, args ...string) Cmd {
 func (osExec) LookPath(file string) (string, error) {
 	return exec.LookPath(file)
 }
-
-// OSBacked is the marker that satisfies OSExeccer.
-func (osExec) OSBacked() {}
 
 type osCmd struct {
 	cmd *exec.Cmd
