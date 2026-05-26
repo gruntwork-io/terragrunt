@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"errors"
@@ -29,6 +30,19 @@ type CASGetter struct {
 	fetchers  map[string]getter.Getter
 	resolvers map[string]cas.SourceResolver
 	Detectors []Detector
+
+	// userDisabledArchive records that the source for the current
+	// request carried an explicit archive=false. Detect sets it; Get
+	// reads it when building the inner fetch URL. CAS injects archive=false
+	// itself so the outer v2 client skips pre-decompression, which means
+	// the URL alone cannot tell a user's "do not extract" from CAS's own
+	// marker. This field keeps them apart.
+	//
+	// Detect always runs immediately before Get within a single outer
+	// client.Get, and production callers build a CASGetter per download
+	// (runner/run/download_source.go), so the value is never read across
+	// concurrent requests. Do not share one CASGetter across goroutines.
+	userDisabledArchive bool
 }
 
 // CASGetterOption mutates a CASGetter at construction time.
@@ -132,7 +146,8 @@ func (g *CASGetter) Mode(_ context.Context, _ *url.URL) (getter.Mode, error) {
 // sources get req.Copy = true so Get takes the StoreLocalDirectory
 // path. Non-git schemes covered by Fetchers get archive=false appended
 // to the URL so the outer client does not pre-decompress before
-// invoking Get.
+// invoking Get; a source that already disabled archiving is recorded in
+// userDisabledArchive so Get can keep the inner fetch from extracting.
 func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 	if req.Forced == SchemeGit {
 		return true, nil
@@ -147,7 +162,7 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 
 	if scheme, src, ok := g.matchGenericScheme(req); ok {
 		req.Forced = scheme
-		req.Src = appendDisableArchive(src)
+		req.Src, g.userDisabledArchive = disableOuterArchive(src)
 
 		return true, nil
 	}
@@ -307,41 +322,55 @@ func (g *CASGetter) lookupFetcher(scheme string) (string, bool) {
 	return "", false
 }
 
-// appendDisableArchive adds archive=false to the URL query, preserving
-// any existing value. The marker tells the outer v2 client to skip its
-// archive-extension pre-decompression so req.Dst reaches Get pointing
-// at the original destination instead of a temporary archive path.
-func appendDisableArchive(rawURL string) string {
+// disableOuterArchive ensures rawURL carries archive=false so the outer
+// v2 client skips its archive-extension pre-decompression and req.Dst
+// reaches Get pointing at the original destination instead of a
+// temporary archive path. It reports whether the caller had already
+// disabled archiving: a pre-existing archive value is left untouched,
+// and the second return is true only when that value parses to a false
+// boolean. Get needs the distinction because the marker CAS injects and
+// a user's explicit archive=false are indistinguishable once the outer
+// client strips the parameter.
+func disableOuterArchive(rawURL string) (string, bool) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return rawURL
+		return rawURL, false
 	}
 
 	q := u.Query()
-	if q.Get("archive") != "" {
-		return rawURL
+
+	if v := q.Get("archive"); v != "" {
+		disabled, perr := strconv.ParseBool(v)
+		return rawURL, perr == nil && !disabled
 	}
 
 	q.Set("archive", "false")
 	u.RawQuery = q.Encode()
 
-	return u.String()
+	return u.String(), false
 }
 
-// stripDisableArchive removes the archive=false marker before handing the
-// URL to the inner client so archive extension detection runs there.
-func stripDisableArchive(u *url.URL) string {
+// innerArchiveURL builds the URL for the inner single-getter client. The
+// outer v2 client consumes and removes the archive parameter before Get
+// runs, so neither CAS's injected marker nor a user's archive=false
+// survives on its own. When userDisabled is set, archive=false is
+// re-applied so the inner client also skips extraction; otherwise the
+// URL carries no archive parameter and the inner client's extension-based
+// detection extracts .tar.gz/.zip sources before ingest.
+func innerArchiveURL(u *url.URL, userDisabled bool) string {
 	if u == nil {
 		return ""
 	}
 
 	clone := *u
 	q := clone.Query()
+	q.Del("archive")
 
-	if q.Get("archive") == "false" {
-		q.Del("archive")
-		clone.RawQuery = q.Encode()
+	if userDisabled {
+		q.Set("archive", "false")
 	}
+
+	clone.RawQuery = q.Encode()
 
 	return clone.String()
 }
@@ -369,9 +398,10 @@ func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
 		cas.WithIncludedGitFiles(g.Opts.IncludedGitFiles))
 }
 
-// getGeneric routes a non-git source through CAS. The archive=false
-// marker Detect injected gets stripped before passing the URL to the
-// inner getter.Client so archive extraction runs there.
+// getGeneric routes a non-git source through CAS. The inner getter.Client
+// performs archive extraction, so the URL passed to it carries archive=false
+// only when the user asked to disable archiving; otherwise the marker
+// Detect injected is dropped so extension-based extraction runs there.
 func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 	scheme, ok := g.lookupFetcher(strings.ToLower(req.Forced))
 	if !ok {
@@ -380,7 +410,7 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 
 	bare := g.fetchers[scheme]
 
-	innerURL := stripDisableArchive(req.URL())
+	innerURL := innerArchiveURL(req.URL(), g.userDisabledArchive)
 
 	opts := *g.Opts
 	opts.Dir = req.Dst
