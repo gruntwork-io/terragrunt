@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
+	"github.com/gruntwork-io/terragrunt/internal/multierror"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -63,7 +64,7 @@ func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParam
 		}
 	}
 
-	return errors.Join(errorsOccured...)
+	return multierror.Join(errorsOccured...)
 }
 
 // ProcessErrorHooks runs error_hook blocks whose OnErrors regex matches one
@@ -134,7 +135,7 @@ func ProcessErrorHooks(
 		}
 	}
 
-	return errors.Join(errorsOccured...)
+	return multierror.Join(errorsOccured...)
 }
 
 // hookErrorMessage extracts command, args and output from the error

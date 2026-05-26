@@ -10,6 +10,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/multierror"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -220,6 +221,6 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			)
 		}
 
-		return errors.Join(errCollector...)
+		return multierror.Join(errCollector...)
 	})
 }
