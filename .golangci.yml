@@ -140,7 +140,7 @@ linters:
       - linters:
           - gocritic
         text: "hugeParam:"
-        path: internal/cli/commands/catalog/tui/
+        path: internal/cli/commands/(catalog|list)/tui/
       # Incrementally linting lines that are too long to ensure that
       # we don't have conflicts on every file in the codebase while
       # trying to get this merged in.

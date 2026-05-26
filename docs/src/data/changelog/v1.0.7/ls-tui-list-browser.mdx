@@ -1,0 +1,14 @@
+---
+version: "v1.0.7"
+category: "experiments-added"
+---
+
+#### `ls-tui` — Interactive browser for `list`
+
+The new `ls-tui` experiment adds a `--tui` flag to `terragrunt list`. With the experiment enabled, `terragrunt list --tui` opens a three-column Terminal User Interface (TUI) browser of your infrastructure estate: the parent directory on the left, the current directory in the middle, and a detail pane on the right.
+
+Move the cursor with `j`/`k` (or the `↑`/`↓` arrow keys), descend into a directory with `l`/`→`/`enter`, go back up with `h`/`←`, and quit with `q`. The highlighted entry is shown in blue, and its path is displayed along the top, abbreviated with `~` when it falls under your home directory.
+
+The detail pane shows metadata for the highlighted entry: its kind, path, module source, and its dependencies, dependents, and the files it reads (shown relative to the unit). Plain directories show a count of the units and stacks they contain.
+
+Running `terragrunt list --tui` without the experiment enabled is an error. Enable it with `--experiment ls-tui` or `TG_EXPERIMENT=ls-tui`.
