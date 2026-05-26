@@ -6,7 +6,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -149,10 +148,10 @@ func testMapFlagApply[K clihelper.MapFlagKeyType, V clihelper.MapFlagValueType](
 
 	assert.Subset(t, expectedValue, actualValue)
 
-	assert.Equal(t, collections.MapJoin(expectedValue, flag.EnvVarSep, flag.KeyValSep), flag.GetValue(), "GetValue()")
+	assert.Equal(t, clihelper.MapJoin(expectedValue, flag.EnvVarSep, flag.KeyValSep), flag.GetValue(), "GetValue()")
 
 	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
-	assert.Equal(t, collections.MapJoin(expectedDefaultValue, flag.EnvVarSep, flag.KeyValSep), flag.GetDefaultText(), "GetDefaultText()")
+	assert.Equal(t, clihelper.MapJoin(expectedDefaultValue, flag.EnvVarSep, flag.KeyValSep), flag.GetDefaultText(), "GetDefaultText()")
 
 	assert.False(t, flag.Value().IsBoolFlag(), "IsBoolFlag()")
 	assert.True(t, flag.TakesValue(), "TakesValue()")

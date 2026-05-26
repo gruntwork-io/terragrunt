@@ -2,14 +2,13 @@ package shell
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
-
-	"github.com/gruntwork-io/go-commons/collections"
-
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 // terraformErrorsMatcher List of errors that we know how to explain to the user. The key is a regex that matches the error message, and the value is the explanation.
@@ -56,5 +55,5 @@ func ExplainError(err error) string {
 		}
 	}
 
-	return strings.Join(collections.Keys(explanations), "\n")
+	return strings.Join(slices.Sorted(maps.Keys(explanations)), "\n")
 }

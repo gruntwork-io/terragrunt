@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -161,6 +162,90 @@ func TestMarkManyAsReadExperiment(t *testing.T) {
 		assert.Contains(t, read, filepath.Join(moduleDir, ".terraform.lock.hcl"))
 		assert.NotContains(t, read, filepath.Join(moduleDir, "README.md"))
 	})
+}
+
+func TestMarkManyAsReadPartialParseSource(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	moduleDir := filepath.Join(root, "modules", "foo")
+	unitDir := filepath.Join(root, "units", "bar")
+
+	writeFile(t, filepath.Join(moduleDir, "main.tf"), "")
+	writeFile(t, filepath.Join(moduleDir, "variables.tf.json"), "{}")
+	writeFile(t, filepath.Join(moduleDir, "README.md"), "")
+
+	configPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	hcl := `terraform { source = "../../modules/foo" }`
+	writeFile(t, configPath, hcl)
+
+	for _, decode := range []config.PartialDecodeSectionType{config.TerraformSource, config.TerraformBlock} {
+		t.Run(fmt.Sprintf("decode_%d", decode), func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+			ctx, pctx := newTestParsingContext(t, configPath)
+			pctx.WorkingDir = unitDir
+			pctx = pctx.WithDecodeList(decode)
+			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MarkManyAsRead))
+
+			out, err := config.PartialParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+			require.NoError(t, err)
+			require.NotNil(t, out)
+			require.NotNil(t, pctx.FilesRead)
+
+			read := pctx.FilesRead.Paths()
+			assert.Contains(t, read, filepath.Join(moduleDir, "main.tf"))
+			assert.Contains(t, read, filepath.Join(moduleDir, "variables.tf.json"))
+			assert.NotContains(t, read, filepath.Join(moduleDir, "README.md"))
+		})
+	}
+}
+
+// TestMarkManyAsReadPartialParseIncludedSource pins that the experiment hook still
+// fires when the terraform source comes from an included parent rather than the
+// leaf unit itself. The check runs after handleInclude, so output.Terraform is
+// populated from the merged parent at the time the experiment is evaluated.
+func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	moduleDir := filepath.Join(root, "modules", "foo")
+	unitDir := filepath.Join(root, "units", "bar")
+
+	writeFile(t, filepath.Join(moduleDir, "main.tf"), "")
+	writeFile(t, filepath.Join(moduleDir, "variables.tf.json"), "{}")
+	writeFile(t, filepath.Join(moduleDir, "README.md"), "")
+
+	// Absolute source in the parent sidesteps relative-path resolution, which
+	// markLocalModuleSourceAsRead anchors to the leaf unit's directory.
+	parentPath := filepath.Join(root, "root.hcl")
+	writeFile(t, parentPath, fmt.Sprintf(`terraform { source = %q }`, moduleDir))
+
+	childPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	writeFile(t, childPath, fmt.Sprintf(`include "root" { path = %q }`, parentPath))
+
+	for _, decode := range []config.PartialDecodeSectionType{config.TerraformSource, config.TerraformBlock} {
+		t.Run(fmt.Sprintf("decode_%d", decode), func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+			ctx, pctx := newTestParsingContext(t, childPath)
+			pctx.WorkingDir = unitDir
+			pctx = pctx.WithDecodeList(decode)
+			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MarkManyAsRead))
+
+			out, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
+			require.NoError(t, err)
+			require.NotNil(t, out)
+			require.NotNil(t, pctx.FilesRead)
+
+			read := pctx.FilesRead.Paths()
+			assert.Contains(t, read, filepath.Join(moduleDir, "main.tf"))
+			assert.Contains(t, read, filepath.Join(moduleDir, "variables.tf.json"))
+			assert.NotContains(t, read, filepath.Join(moduleDir, "README.md"))
+		})
+	}
 }
 
 func writeFile(t *testing.T, path, contents string) {

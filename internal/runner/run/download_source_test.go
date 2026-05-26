@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
-	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
 	"github.com/stretchr/testify/assert"
@@ -134,7 +133,7 @@ func TestAlreadyHaveLatestCodeLocalFilePath(t *testing.T) {
 	t.Parallel()
 
 	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world")
-	downloadDir := "does-not-exist"
+	downloadDir := absPath(t, "does-not-exist")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -143,7 +142,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirDoesNotExist(t *testing.T
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com"
-	downloadDir := "does-not-exist"
+	downloadDir := absPath(t, "does-not-exist")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -152,7 +151,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsNoVersionNoVersionF
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-empty"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-empty")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -161,7 +160,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsNoVersionWithVersio
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-version-file-no-query"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-version-file-no-query")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, true)
 }
@@ -170,7 +169,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionNoVersio
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-empty"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-empty")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -179,7 +178,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-version-file"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-version-file")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -188,7 +187,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 	t.Parallel()
 
 	canonicalURL := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixtures/download-source/download-dir-version-file-tf-code"
+	downloadDir := absPath(t, "../../../test/fixtures/download-source/download-dir-version-file-tf-code")
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, true)
 }
@@ -501,7 +500,7 @@ func createConfig(
 	require.NoError(t, err)
 
 	opts.SourceUpdate = sourceUpdate
-	opts.Env = env.Parse(os.Environ())
+	opts.Env = util.EnvironMap()
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -589,8 +588,8 @@ func copyFolder(t *testing.T, src string, dest string) {
 
 	err := util.CopyFolderContents(
 		l,
-		filepath.FromSlash(src),
-		filepath.FromSlash(dest),
+		absPath(t, filepath.FromSlash(src)),
+		absPath(t, filepath.FromSlash(dest)),
 		".terragrunt-test",
 	)
 	require.NoError(t, err)
@@ -996,7 +995,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	opts.Env = env.Parse(os.Environ())
+	opts.Env = util.EnvironMap()
 
 	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()

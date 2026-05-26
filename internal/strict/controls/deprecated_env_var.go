@@ -12,11 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-const (
-	GlobalEnvVarsCategoryName     = "Global env vars"
-	CommandEnvVarsCategoryNameFmt = "`%s` command env vars"
-)
-
 var _ = strict.Control(new(DeprecatedEnvVar))
 
 // DeprecatedEnvVar is strict control for deprecated environment variables.

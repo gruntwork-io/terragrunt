@@ -89,8 +89,10 @@ func TestDefaultTemplateVariables(t *testing.T) {
 
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, vars, true, true)
 
+	l := logger.CreateLogger()
+
 	emptyDep := &variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	content, err := util.ReadFileAsString(filepath.Join(outputDir, "terragrunt.hcl"))
@@ -101,8 +103,6 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	// read generated HCL file and check if it is parsed correctly
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
-
-	l := logger.CreateLogger()
 
 	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 	cfg, err := config.ReadTerragruntConfig(t.Context(), l, pctx, config.DefaultParserOptions(l, opts.StrictControls))
@@ -178,8 +178,9 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 		[]byte(scaffold.DefaultBoilerplateConfig), 0644))
 
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, vars, true, true)
+	l := logger.CreateLogger()
 	emptyDep := &variables.Dependency{}
-	require.NoError(t, templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep))
+	require.NoError(t, templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep))
 
 	content, err := util.ReadFileAsString(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
@@ -204,8 +205,6 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 	// The generated file should still parse as a valid terragrunt.hcl.
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
-
-	l := logger.CreateLogger()
 
 	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 	cfg, err := config.ReadTerragruntConfig(t.Context(), l, pctx, config.DefaultParserOptions(l, opts.StrictControls))
@@ -593,8 +592,9 @@ shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, false)
 
 	// Process the template
+	l := logger.CreateLogger()
 	emptyDep := &variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	// Verify the file was generated
@@ -651,8 +651,9 @@ shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
+	l := logger.CreateLogger()
 	emptyDep := &variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	// Verify the file was generated
@@ -717,8 +718,9 @@ test_var = "{{ .TestVar }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, true)
 
 	// Process the template
+	l := logger.CreateLogger()
 	emptyDep := &variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	// Verify the template file was generated
@@ -785,8 +787,9 @@ test_var = "{{ .TestVar }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
+	l := logger.CreateLogger()
 	emptyDep := &variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	// Verify the template file was generated
@@ -847,8 +850,9 @@ shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, true)
 
 	// Process the template
+	l := logger.CreateLogger()
 	emptyDep := &variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	// Verify the template file was generated

@@ -3,6 +3,7 @@ package run
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -11,20 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func getExitError(t *testing.T, exitCode int) *exec.ExitError {
-	t.Helper()
-
-	cmd := exec.CommandContext(t.Context(), "sh", "-c", fmt.Sprintf("exit %d", exitCode))
-	err := cmd.Run()
-	require.Error(t, err)
-
-	var exitErr *exec.ExitError
-
-	require.True(t, errors.As(err, &exitErr))
-
-	return exitErr
-}
 
 func TestHookErrorMessage_WithStderr(t *testing.T) {
 	t.Parallel()
@@ -119,3 +106,84 @@ func TestHookErrorMessage_NonProcessError(t *testing.T) {
 	msg := hookErrorMessage("my-hook", err)
 	assert.Equal(t, `Hook "my-hook" failed to execute: exec: "tflint": executable file not found in $PATH`, msg)
 }
+
+// FuzzHookErrorMessage pins the formatter against arbitrary inputs. The
+// formatter dereferences ProcessExecutionError fields, so its contract is
+// "must not panic on any field value." We exercise both wrapped and bare
+// errors via a one-bit selector in the corpus.
+func FuzzHookErrorMessage(f *testing.F) {
+	type seed struct {
+		hookName, command, errMsg, stderr, stdout string
+		args                                      []string
+		exitCode                                  int
+		wrap                                      bool
+	}
+
+	seeds := []seed{
+		{hookName: "lint", command: "tflint", args: []string{"--config", ".tflint.hcl"}, exitCode: 2, stderr: "3 issues", wrap: true},
+		{hookName: "", command: "", args: nil, exitCode: 0, wrap: true},
+		{hookName: "x", errMsg: "raw error", wrap: false},
+		{hookName: "long", command: "go", args: []string{strings.Repeat("a", 1024)}, exitCode: 137, stdout: "out\nput", wrap: true},
+		{hookName: "neg", command: "x", exitCode: -1, wrap: true},
+	}
+
+	for _, s := range seeds {
+		args := strings.Join(s.args, "\x00")
+		f.Add(s.hookName, s.command, args, s.errMsg, s.stderr, s.stdout, s.exitCode, s.wrap)
+	}
+
+	f.Fuzz(func(_ *testing.T,
+		hookName, command, argsJoined, errMsg, stderr, stdout string,
+		exitCode int, wrap bool,
+	) {
+		var args []string
+
+		if argsJoined != "" {
+			args = strings.Split(argsJoined, "\x00")
+		}
+
+		var feed error
+
+		if wrap {
+			var output util.CmdOutput
+
+			output.Stderr.WriteString(stderr)
+			output.Stdout.WriteString(stdout)
+
+			feed = util.ProcessExecutionError{
+				Err:        fuzzExitErr{code: exitCode},
+				Command:    command,
+				Args:       args,
+				WorkingDir: "/tmp",
+				Output:     output,
+			}
+		} else {
+			feed = errors.New(errMsg)
+		}
+
+		// Contract: must not panic for any input.
+		_ = hookErrorMessage(hookName, feed)
+	})
+}
+
+func getExitError(t *testing.T, exitCode int) *exec.ExitError {
+	t.Helper()
+
+	cmd := exec.CommandContext(t.Context(), "sh", "-c", fmt.Sprintf("exit %d", exitCode))
+	err := cmd.Run()
+	require.Error(t, err)
+
+	var exitErr *exec.ExitError
+
+	require.True(t, errors.As(err, &exitErr))
+
+	return exitErr
+}
+
+// fuzzExitErr is a stand-in error that exposes an ExitStatus() so
+// [util.GetExitCode] resolves to the encoded code. It lets the fuzz target
+// avoid the per-iteration cost of shelling out for a real *exec.ExitError.
+type fuzzExitErr struct{ code int }
+
+func (e fuzzExitErr) Error() string            { return fmt.Sprintf("exit status %d", e.code) }
+func (e fuzzExitErr) ExitStatus() (int, error) { return e.code, nil }
