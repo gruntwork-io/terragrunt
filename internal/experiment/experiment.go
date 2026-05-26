@@ -101,6 +101,8 @@ const (
 	// or stack block over a count or for_each, along with the enabled attribute on
 	// unit and stack blocks.
 	BlockIteration = "block-iteration"
+	// LsTUI gates the interactive Miller-columns browser for `terragrunt list --tui`.
+	LsTUI = "ls-tui"
 )
 
 const (
@@ -209,6 +211,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: BlockIteration,
+		},
+		{
+			Name: LsTUI,
 		},
 	}
 }

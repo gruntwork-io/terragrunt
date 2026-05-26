@@ -55,6 +55,9 @@ type Options struct {
 
 	// DAG determines whether to output in DAG format.
 	DAG bool
+
+	// TUI launches the interactive Miller-columns browser.
+	TUI bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {
