@@ -80,6 +80,95 @@ unit "db" {
 	assert.NotNil(t, resolved.RawBody)
 }
 
+// TestParseStackFile_AutoIncludeUsesGeneratedStackDir pins the behavior that
+// unit.*.path inside an autoinclude block resolves against the generated
+// StackDir, not the catalog SourceResolveDir. This is the case when a stack
+// file has been copied from a catalog and a .terragrunt-stack-origin sidecar
+// redirects source resolution: unit paths must still point at the generated
+// location where units will actually land on disk.
+func TestParseStackFile_AutoIncludeUsesGeneratedStackDir(t *testing.T) {
+	t.Parallel()
+
+	const (
+		generatedStackDir = "/generated/us-gov-west-1"
+		catalogSourceDir  = "/catalog/us-gov-west-1"
+	)
+
+	src := `
+unit "s3" {
+  source = "../catalog/units/s3"
+  path   = "s3"
+
+  autoinclude {
+    dependency "kms" {
+      config_path = unit.kms.path
+    }
+  }
+}
+
+unit "kms" {
+  source = "../catalog/units/kms"
+  path   = "kms"
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:              []byte(src),
+		Filename:         "terragrunt.stack.hcl",
+		StackDir:         generatedStackDir,
+		SourceResolveDir: catalogSourceDir,
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "s3")]
+	require.True(t, ok)
+	require.Len(t, resolved.Dependencies, 1)
+
+	expectedPath := filepath.Join(generatedStackDir, ".terragrunt-stack", "kms")
+	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath,
+		"unit.kms.path must resolve to the generated StackDir, not SourceResolveDir")
+}
+
+// TestParseStackFile_SourceResolveDirDefaultsToStackDir pins the backwards-
+// compatible fallback: when SourceResolveDir is empty, unit paths and source
+// resolution both anchor on StackDir.
+func TestParseStackFile_SourceResolveDirDefaultsToStackDir(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "s3" {
+  source = "../catalog/units/s3"
+  path   = "s3"
+
+  autoinclude {
+    dependency "kms" {
+      config_path = unit.kms.path
+    }
+  }
+}
+
+unit "kms" {
+  source = "../catalog/units/kms"
+  path   = "kms"
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "s3")]
+	require.True(t, ok)
+	require.Len(t, resolved.Dependencies, 1)
+
+	assert.Equal(t,
+		filepath.Join(testStackDir, ".terragrunt-stack", "kms"),
+		resolved.Dependencies[0].ConfigPath)
+}
+
 func TestParseStackFile_MultipleDependencies(t *testing.T) {
 	t.Parallel()
 

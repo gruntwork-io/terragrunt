@@ -42,10 +42,29 @@ type ParseStackFileInput struct {
 	Functions map[string]function.Function
 	// Filename is the basename (not full path) used for parse diagnostics.
 	Filename string
-	// StackDir is used to resolve include paths.
+	// StackDir is the directory the stack file currently lives in. Generated
+	// units land in StackDir/.terragrunt-stack/<unit>, so unit.*.path and
+	// stack.*.path are computed against this directory.
 	StackDir string
+	// SourceResolveDir anchors relative `source` strings and include `path`
+	// values against the catalog source directory. Defaults to StackDir when
+	// empty. Set this to the original catalog path when the stack file was
+	// copied from a catalog (see .terragrunt-stack-origin) so source/include
+	// resolution targets the catalog, while unit/stack path refs still resolve
+	// against the generated StackDir.
+	SourceResolveDir string
 	// Src is the raw stack file bytes.
 	Src []byte
+}
+
+// resolveSourceDir returns the dir to use for resolving relative source and
+// include paths, defaulting to StackDir when SourceResolveDir is empty.
+func (i *ParseStackFileInput) resolveSourceDir() string {
+	if i.SourceResolveDir != "" {
+		return i.SourceResolveDir
+	}
+
+	return i.StackDir
 }
 
 // ParseResult holds the output of ParseStackFile.
@@ -79,8 +98,10 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	// srcByFilename tracks source bytes by filename so the generator can slice expression bytes from the correct file even after include merging.
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
-	// Phase 3 resolves include blocks and merges included Remain bodies.
-	mergedRemain, err := mergeIncludes(fs, parsedStackFile, input.StackDir, evalCtx, srcByFilename)
+	sourceResolveDir := input.resolveSourceDir()
+
+	// Phase 3 resolves include blocks and merges included Remain bodies; relative include paths resolve against the catalog source dir, not the generated stack dir.
+	mergedRemain, err := mergeIncludes(fs, parsedStackFile, sourceResolveDir, evalCtx, srcByFilename)
 	if err != nil {
 		return result, err
 	}

@@ -155,13 +155,18 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return AutoIncludeParserStageError{Stage: "eval-context", File: stackFilePath, Err: evalCtxErr}
 		}
 
+		// StackDir must be the GENERATED location so unit.*.path / stack.*.path
+		// resolve to where units actually land. SourceResolveDir carries the
+		// catalog origin so relative `source` strings and include paths still
+		// resolve against the original catalog.
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
-			Src:       stackSrcBytes,
-			Filename:  filepath.Base(stackFilePath),
-			StackDir:  resolveDir,
-			Values:    values,
-			Variables: prodEvalCtx.Variables,
-			Functions: prodEvalCtx.Functions,
+			Src:              stackSrcBytes,
+			Filename:         filepath.Base(stackFilePath),
+			StackDir:         stackSourceDir,
+			SourceResolveDir: resolveDir,
+			Values:           values,
+			Variables:        prodEvalCtx.Variables,
+			Functions:        prodEvalCtx.Functions,
 		})
 		if parseErr != nil {
 			return AutoIncludeParserStageError{Stage: "parse", File: stackFilePath, Err: parseErr}
