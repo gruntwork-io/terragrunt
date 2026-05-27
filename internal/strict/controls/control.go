@@ -2,10 +2,10 @@ package controls
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -100,7 +100,7 @@ func (ctrl *Control) isSuppressed() bool {
 // Evaluate implements `strict.Control` interface.
 func (ctrl *Control) Evaluate(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
-		return errors.Errorf("context error during evaluation: %w", err)
+		return fmt.Errorf("context error during evaluation: %w", err)
 	}
 
 	if ctrl == nil {

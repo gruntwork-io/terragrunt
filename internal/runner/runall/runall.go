@@ -3,6 +3,7 @@ package runall
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
@@ -14,7 +15,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -49,7 +51,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (er
 	tips.GiveStackTargetTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
 
 	if opts.TerraformCommand == "" {
-		return errors.New(MissingCommand{})
+		return MissingCommand{}
 	}
 
 	reason, isDisabled := runAllDisabledCommands[opts.TerraformCommand]
@@ -114,7 +116,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (er
 			Experiments:    opts.Experiments,
 		})
 		if err != nil {
-			return errors.Errorf("failed to create worktrees: %w", err)
+			return fmt.Errorf("failed to create worktrees: %w", err)
 		}
 
 		defer func() {
@@ -139,7 +141,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (er
 				return clean.CleanStacks(l, opts)
 			})
 			if errClean != nil {
-				return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, errClean)
+				return fmt.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, errClean)
 			}
 		}
 
@@ -154,7 +156,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (er
 
 		// Handle any errors during stack generation
 		if err != nil {
-			return errors.Errorf("failed to generate stack file: %w", err)
+			return fmt.Errorf("failed to generate stack file: %w", err)
 		}
 	} else {
 		l.Debugf("Skipping stack generation in %s", opts.WorkingDir)

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -38,7 +37,7 @@ func ParseVariables(l log.Logger, experiments experiment.Experiments, strictCont
 	// list all tf files
 	tfFiles, err := util.ListTfFiles(directoryPath, walkWithSymlinks)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	parser := hclparse.NewParser(DefaultParserOptions(l, strictControls)...)
@@ -102,17 +101,17 @@ func ParseVariables(l log.Logger, experiments experiment.Experiments, strictCont
 						if defaultValue != nil {
 							jsonBytes, err := ctyjson.Marshal(*defaultValue, cty.DynamicPseudoType)
 							if err != nil {
-								return nil, errors.New(err)
+								return nil, err
 							}
 
 							var ctyJSONOutput ctyJSONValue
 							if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
-								return nil, errors.New(err)
+								return nil, err
 							}
 
 							jsonBytes, err = json.Marshal(ctyJSONOutput.Value)
 							if err != nil {
-								return nil, errors.New(err)
+								return nil, err
 							}
 
 							defaultValueText = string(jsonBytes)

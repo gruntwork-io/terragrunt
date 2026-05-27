@@ -2,13 +2,13 @@ package plaintext
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"text/tabwriter"
 	"text/template"
 
 	"maps"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/view"
 )
@@ -57,7 +57,7 @@ func (render *Render) List(controls strict.Controls) (string, error) {
 		"controls": controls,
 	}, nil)
 	if err != nil {
-		return "", errors.Errorf("failed to render controls list: %w", err)
+		return "", fmt.Errorf("failed to render controls list: %w", err)
 	}
 
 	return result, nil
@@ -83,11 +83,11 @@ func (render *Render) formatOutput(t *template.Template, data any) (string, erro
 	tabOut := newTabFlusher(out)
 
 	if err := t.ExecuteTemplate(tabOut, "template", data); err != nil {
-		return "", errors.Errorf("failed to execute template: %w", err)
+		return "", fmt.Errorf("failed to execute template: %w", err)
 	}
 
 	if err := tabOut.Flush(); err != nil {
-		return "", errors.Errorf("failed to flush output: %w", err)
+		return "", fmt.Errorf("failed to flush output: %w", err)
 	}
 
 	return out.String(), nil

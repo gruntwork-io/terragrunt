@@ -2,6 +2,7 @@ package shell_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	osexec "github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -18,6 +20,28 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
+
+// TestRunCommandPTYRequiresOSBackedExec verifies the OSCmder unwrap pattern:
+// requesting PTY mode with an in-memory backend returns vexec.ErrNotOSBacked
+// rather than attempting to spawn a real subprocess through the mock.
+func TestRunCommandPTYRequiresOSBackedExec(t *testing.T) {
+	t.Parallel()
+
+	memExec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		return vexec.Result{}
+	})
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	_, runErr := shell.RunCommandWithOutput(
+		t.Context(), l, memExec, configbridge.ShellRunOptsFromOpts(terragruntOptions),
+		"", false, true, "echo", "hi",
+	)
+	require.Error(t, runErr)
+	assert.ErrorIs(t, runErr, osexec.ErrPTYRequiresOSBackend)
+}
 
 func TestRunShellCommand(t *testing.T) {
 	t.Parallel()

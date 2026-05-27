@@ -21,7 +21,6 @@ The generated filename depends on the component kind:
 This experiment enables:
 
 - **`unit.<name>.path`** and **`stack.<name>.path`** variables in `terragrunt.stack.hcl` for referencing sibling component paths
-- **`stack.<name>.<unit_name>.path`** for referencing individual units within a nested stack (fine-grained dependency)
 - **`dependency` blocks targeting stack directories**: aggregated outputs from all units in the stack (`dependency.stack_name.outputs.unit_name.output_key`)
 - **Automatic deep merge** of `terragrunt.autoinclude.hcl` into unit configurations (autoinclude wins)
 - **Stack dependency expansion** in the run queue: depending on a stack waits until all its units complete
@@ -46,36 +45,6 @@ unit "app" {
 
     inputs = {
       vpc_id = dependency.vpc.outputs.vpc_id
-    }
-  }
-}
-```
-
-#### Dependencies on units within a nested stack
-
-```hcl
-# terragrunt.stack.hcl
-stack "stack_w_outputs" {
-  source = "../catalog/stacks/stack-w-outputs"
-  path   = "stack-w-outputs"
-}
-
-unit "unit_w_inputs" {
-  source = "../catalog/units/unit-w-inputs"
-  path   = "unit-w-inputs"
-
-  autoinclude {
-    dependency "unit_w_outputs" {
-      config_path = stack.stack_w_outputs.unit_w_outputs.path
-
-      mock_outputs_allowed_terraform_commands = ["plan"]
-      mock_outputs = {
-        val = "fake-val"
-      }
-    }
-
-    inputs = {
-      val = dependency.unit_w_outputs.outputs.val
     }
   }
 }
@@ -132,7 +101,6 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 - [x] Typed errors with `Unwrap()` across the package (`FileParseError`, `FileDecodeError`, `IncludeValidationError`, `LocalEvalError`, `MalformedDependencyError`, `AutoIncludeParserStageError`) preserving `hcl.Diagnostics` for source positions.
 - [x] Deterministic cycle reports in `LocalsCycleError.Names` (DFS dep iteration sorted).
 - [x] `resolveStackFilePath` returns `(string, bool)`: callers branch on `isStackCandidate` instead of a sentinel empty string. Backed by a two-arg fuzz that exercises raw/target independently.
-- [x] Same-name stack/unit pair (`stack "foo" { unit "foo" { ... } }`) addressable via `stack.foo.foo.path` and end-to-end covered by integration test.
 - [x] Removed Unicode from `internal/hclparse` source files (ASCII-only); intentional Unicode test fixtures remain.
 
 </Since>

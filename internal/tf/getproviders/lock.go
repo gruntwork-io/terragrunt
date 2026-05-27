@@ -13,7 +13,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/hashicorp/go-version"
@@ -33,14 +32,14 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 	if util.FileExists(filename) {
 		content, err := os.ReadFile(filename)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		var diags hcl.Diagnostics
 
 		file, diags = hclwrite.ParseConfig(content, filename, hcl.Pos{Line: 1, Column: 1})
 		if diags.HasErrors() {
-			return errors.New(diags)
+			return diags
 		}
 	}
 
@@ -50,7 +49,7 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -274,7 +273,7 @@ func getAttributeValueAsSlice(attr *hclwrite.Attribute) ([]string, error) {
 	var val []string
 
 	if err := json.Unmarshal(valBytes, &val); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return val, nil
@@ -312,12 +311,12 @@ func UpdateLockfileConstraints(ctx context.Context, workingDir string, constrain
 
 	content, err := os.ReadFile(filename)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	file, diags := hclwrite.ParseConfig(content, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return errors.New(diags)
+		return diags
 	}
 
 	updated := false
@@ -361,7 +360,7 @@ func UpdateLockfileConstraints(ctx context.Context, workingDir string, constrain
 	if updated {
 		const ownerWriteGlobalReadPerms = 0644
 		if err := os.WriteFile(filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 

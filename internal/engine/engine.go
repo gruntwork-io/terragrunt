@@ -30,9 +30,10 @@ import (
 
 	"google.golang.org/grpc/credentials/insecure"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt-engine-go/engine"
 	"github.com/gruntwork-io/terragrunt-engine-go/proto"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/hashicorp/go-plugin"
@@ -100,7 +101,7 @@ func Run(
 ) (*util.CmdOutput, error) {
 	engineClients, err := engineClientsFromContext(ctx)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	workingDir := execOptions.WorkingDir
@@ -117,12 +118,12 @@ func Run(
 		if !found {
 			// download engine if not available
 			if err = downloadEngine(runCtx, l, execOptions); err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			terragruntEngine, client, createEngineErr := createEngine(runCtx, l, e, execOptions)
 			if createEngineErr != nil {
-				return errors.New(createEngineErr)
+				return createEngineErr
 			}
 
 			engineClients.Store(workingDir, &engineInstance{
@@ -134,13 +135,13 @@ func Run(
 			instance, _ = engineClients.Load(workingDir)
 
 			if err = initialize(runCtx, l, execOptions, terragruntEngine); err != nil {
-				return errors.New(err)
+				return err
 			}
 		}
 
 		engInst, ok := instance.(*engineInstance)
 		if !ok {
-			return errors.Errorf("failed to fetch engine instance %s", workingDir)
+			return fmt.Errorf("failed to fetch engine instance %s", workingDir)
 		}
 
 		terragruntEngine := engInst.engineClient
@@ -149,7 +150,7 @@ func Run(
 
 		output, invokeErr = invoke(runCtx, l, execOptions, terragruntEngine)
 		if invokeErr != nil {
-			return errors.New(invokeErr)
+			return invokeErr
 		}
 
 		return nil
@@ -189,8 +190,8 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		// If source is empty, we cannot download the engine
 		// This indicates an engine block was configured but source was not provided
 		if e.Source == "" {
-			return errors.Errorf(
-				"engine block is configured but source is empty. Please provide an engine source or remove the engine block",
+			return errors.New(
+				"engine block is configured but source is empty, please provide an engine source or remove the engine block",
 			)
 		}
 
@@ -199,7 +200,7 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 			if !strings.Contains(e.Source, "://") {
 				tag, err := lastReleaseVersion(ctx, execOptions)
 				if err != nil {
-					return errors.New(err)
+					return err
 				}
 
 				e.Version = tag
@@ -208,11 +209,11 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 
 		path, err := engineDir(execOptions)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		if ensureErr := util.EnsureDirectory(path); ensureErr != nil {
-			return errors.New(ensureErr)
+			return ensureErr
 		}
 
 		localEngineFile := filepath.Join(path, engineFileName(e))
@@ -220,7 +221,7 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		// lock downloading process for only one instance
 		locks, err := downloadLocksFromContext(ctx)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 		// locking by file where engine is downloaded
 		// however, it will not help in case of multiple parallel Terragrunt runs
@@ -255,7 +256,7 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 
 		result, err := downloadClient.DownloadReleaseAssets(ctx, assets)
 		if err != nil {
-			return errors.Errorf("failed to download engine assets: %w", err)
+			return fmt.Errorf("failed to download engine assets: %w", err)
 		}
 
 		// Update file paths from result
@@ -267,14 +268,14 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 			l.Infof("Verifying checksum for %s", downloadFile)
 
 			if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
-				return errors.New(err)
+				return err
 			}
 		} else {
 			l.Warnf("Skipping verification for %s", downloadFile)
 		}
 
 		if err := extractArchive(l, downloadFile, localEngineFile); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		l.Infof("Engine available as %s", path)
@@ -288,7 +289,7 @@ func lastReleaseVersion(ctx context.Context, opts *ExecutionOptions) (string, er
 
 	versionCache, err := engineVersionsCacheFromContext(ctx)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	cacheKey := "github_release_" + repository
@@ -300,7 +301,7 @@ func lastReleaseVersion(ctx context.Context, opts *ExecutionOptions) (string, er
 
 	tag, err := githubClient.GetLatestReleaseTag(ctx, repository)
 	if err != nil {
-		return "", errors.Errorf("failed to get latest release for repository %s: %w", repository, err)
+		return "", fmt.Errorf("failed to get latest release for repository %s: %w", repository, err)
 	}
 
 	versionCache.Put(ctx, cacheKey, tag)
@@ -313,7 +314,7 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 		l.Info("Downloaded file is not an archive, no extraction needed")
 		// move file directly if it is not an archive
 		if err := os.Rename(downloadFile, engineFile); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		return nil
@@ -323,7 +324,7 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 
 	tempDir, err := os.MkdirTemp(path, "temp-")
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	defer func() {
@@ -333,13 +334,13 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 	}()
 	// extract archive
 	if err = vfs.NewZipDecompressor().Unzip(l, vfs.NewOSFS(), tempDir, downloadFile, 0); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	// process files
 	files, err := os.ReadDir(tempDir)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	l.Infof("Engine extracted to %s", path)
@@ -348,7 +349,7 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 		// handle case where archive contains a single file, most of the cases
 		singleFile := filepath.Join(tempDir, files[0].Name())
 		if err := os.Rename(singleFile, engineFile); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		return nil
@@ -360,7 +361,7 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 
 		dstPath := filepath.Join(path, file.Name())
 		if err := os.Rename(srcPath, dstPath); err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 
@@ -392,7 +393,7 @@ func engineDir(opts *ExecutionOptions) (string, error) {
 
 	cacheDir, err := util.EnsureCacheDir()
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	return filepath.Join(
@@ -505,7 +506,7 @@ func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experime
 	// iterate over all engine instances and shutdown
 	engineClients, err := engineClientsFromContext(ctx)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	engineClients.Range(func(key, value any) bool {
@@ -585,12 +586,12 @@ func createEngine(
 	execOptions *ExecutionOptions,
 ) (*proto.EngineClient, *plugin.Client, error) {
 	if execOptions.EngineConfig == nil {
-		return nil, nil, errors.Errorf("engine options are nil")
+		return nil, nil, errors.New("engine options are nil")
 	}
 
 	// If source is empty, we cannot determine the engine file path
 	if execOptions.EngineConfig.Source == "" {
-		return nil, nil, errors.Errorf("engine source is empty, cannot create engine")
+		return nil, nil, errors.New("engine source is empty, cannot create engine")
 	}
 
 	var (
@@ -605,7 +606,7 @@ func createEngine(
 	}, func(ctx context.Context) error {
 		path, err := engineDir(execOptions)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		localEnginePath := filepath.Join(path, engineFileName(execOptions.EngineConfig))
@@ -617,7 +618,7 @@ func createEngine(
 		if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 			util.FileExists(localChecksumSigFile) {
 			if err = verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
-				return errors.New(err)
+				return err
 			}
 		} else {
 			l.Warnf("Skipping verification for %s", localEnginePath)
@@ -665,7 +666,7 @@ func createEngine(
 		// hashicorp/go-plugin's ClientConfig requires a concrete *exec.Cmd.
 		osCmder, ok := cmd.(vexec.OSCmder)
 		if !ok {
-			return errors.Errorf("engine plugin spawn: %w", vexec.ErrNotOSBacked)
+			return fmt.Errorf("engine plugin spawn: %w", vexec.ErrNotOSBacked)
 		}
 
 		client := plugin.NewClient(&plugin.ClientConfig{
@@ -687,12 +688,12 @@ func createEngine(
 
 		rpcClient, err := client.Client()
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		rawClient, err := rpcClient.Dispense("plugin")
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		terragruntEngine := rawClient.(proto.EngineClient)
@@ -725,7 +726,7 @@ func invoke(
 
 		meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		response, err := (*client).Run(ctx, &proto.RunRequest{
@@ -737,7 +738,7 @@ func invoke(
 			EnvVars:           runOptions.Env,
 		})
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		// Determine log levels based on headless mode (similar to buildOutWriter/buildErrWriter)
@@ -793,13 +794,13 @@ func invoke(
 			case *proto.RunResponse_Stdout:
 				if resp.Stdout != nil {
 					if err = processStream(resp.Stdout.GetContent(), &stdoutLineBuf, stdout); err != nil {
-						return errors.New(err)
+						return err
 					}
 				}
 			case *proto.RunResponse_Stderr:
 				if resp.Stderr != nil {
 					if err = processStream(resp.Stderr.GetContent(), &stderrLineBuf, stderr); err != nil {
-						return errors.New(err)
+						return err
 					}
 				}
 			case *proto.RunResponse_ExitResult:
@@ -816,18 +817,18 @@ func invoke(
 		}
 
 		if err = flushBuffer(&stdoutLineBuf, stdout); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		if err = flushBuffer(&stderrLineBuf, stderr); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		l.Debugf("Engine execution done in %v", runOptions.WorkingDir)
 
 		if resultCode != 0 {
 			err = util.ProcessExecutionError{
-				Err:             errors.Errorf("command failed with exit code %d", resultCode),
+				Err:             fmt.Errorf("command failed with exit code %d", resultCode),
 				Output:          output,
 				WorkingDir:      runOptions.WorkingDir,
 				RootWorkingDir:  runOptions.RootWorkingDir,
@@ -837,7 +838,7 @@ func invoke(
 				DisableSummary:  runOptions.Writers.LogDisableErrorSummary,
 			}
 
-			return errors.New(err)
+			return err
 		}
 
 		result = &output
@@ -858,7 +859,7 @@ func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
 
 		if ch == '\n' {
 			if _, err := fmt.Fprint(output, lineBuf.String()); err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			lineBuf.Reset()
@@ -872,7 +873,7 @@ func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
 func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
 	if lineBuf.Len() > 0 {
 		if _, err := fmt.Fprint(output, lineBuf.String()); err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 
@@ -888,7 +889,7 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 	}, func(ctx context.Context) error {
 		meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		l.Debugf("Running init for engine in %s", runOptions.WorkingDir)
@@ -899,7 +900,7 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 			Meta:       meta,
 		})
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		l.Debugf("Reading init output for engine in %s", runOptions.WorkingDir)
@@ -931,7 +932,7 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 					exitCode := int(resp.ExitResult.GetCode())
 					if exitCode != 0 {
 						l.Errorf("Engine init failed with exit code %d", exitCode)
-						return nil, errors.Errorf("%w with exit code %d", ErrEngineInitFailed, exitCode)
+						return nil, fmt.Errorf("%w with exit code %d", ErrEngineInitFailed, exitCode)
 					}
 				}
 			case *proto.InitResponse_Log:
@@ -961,7 +962,7 @@ func shutdown(
 	}, func(ctx context.Context) error {
 		meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		request, err := (*terragruntEngine).Shutdown(ctx, &proto.ShutdownRequest{
@@ -970,7 +971,7 @@ func shutdown(
 			EnvVars:    runOptions.Env,
 		})
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		l.Debugf("Reading shutdown output for engine in %s", runOptions.WorkingDir)
@@ -1007,7 +1008,7 @@ func shutdown(
 					exitCode := int(resp.ExitResult.GetCode())
 					if exitCode != 0 {
 						l.Errorf("Engine shutdown failed with exit code %d", exitCode)
-						return nil, errors.Errorf("%w with exit code %d", ErrEngineShutdownFailed, exitCode)
+						return nil, fmt.Errorf("%w with exit code %d", ErrEngineShutdownFailed, exitCode)
 					}
 				}
 			case *proto.ShutdownResponse_Log:
@@ -1050,18 +1051,18 @@ func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output out
 		if response.Stdout != "" {
 			if forceStdErr { // redirect stdout to stderr
 				if _, err := cmdStderr.Write([]byte(response.Stdout)); err != nil {
-					return errors.New(err)
+					return err
 				}
 			} else {
 				if _, err := cmdStdout.Write([]byte(response.Stdout)); err != nil {
-					return errors.New(err)
+					return err
 				}
 			}
 		}
 
 		if response.Stderr != "" {
 			if _, err := cmdStderr.Write([]byte(response.Stderr)); err != nil {
-				return errors.New(err)
+				return err
 			}
 		}
 	}
@@ -1102,7 +1103,7 @@ func ConvertMetaToProtobuf(meta map[string]any) (map[string]*anypb.Any, error) {
 func detectFileType(l log.Logger, filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	defer func() {
@@ -1116,7 +1117,7 @@ func detectFileType(l log.Logger, filePath string) (string, error) {
 	header := make([]byte, headerSize)
 
 	if _, err := file.Read(header); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	switch {

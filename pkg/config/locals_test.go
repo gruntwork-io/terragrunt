@@ -8,7 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/gocty"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -102,9 +103,8 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 	_, err = config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
 	require.Error(t, err)
 
-	switch errors.Unwrap(err).(type) { //nolint:errorlint
-	case config.CouldNotEvaluateAllLocalsError:
-	default:
+	var target config.CouldNotEvaluateAllLocalsError
+	if !errors.As(err, &target) {
 		t.Fatalf("Did not get expected error: %s", err)
 	}
 }

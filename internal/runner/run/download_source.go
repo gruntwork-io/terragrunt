@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -164,7 +164,7 @@ func DownloadTerraformSourceIfNecessary(
 		l.Debugf("The --source-update flag is set, so deleting the temporary folder %s before downloading source.", terraformSource.DownloadDir)
 
 		if err := opts.FS.RemoveAll(terraformSource.DownloadDir); err != nil {
-			return false, errors.New(err)
+			return false, err
 		}
 	} else {
 		alreadyLatest, err := AlreadyHaveLatestCode(l, terraformSource, opts)
@@ -196,7 +196,7 @@ func DownloadTerraformSourceIfNecessary(
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
 	versionFileExists, err := vfs.FileExists(opts.FS, terraformSource.VersionFile)
 	if err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	if versionFileExists {
@@ -278,7 +278,7 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *Optio
 	for _, path := range []string{terraformSource.DownloadDir, terraformSource.WorkingDir, terraformSource.VersionFile} {
 		exists, err := vfs.FileExists(opts.FS, path)
 		if err != nil {
-			return false, errors.New(err)
+			return false, err
 		}
 
 		if !exists {
@@ -288,7 +288,7 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *Optio
 
 	hasFiles, err := util.DirContainsTFFiles(terraformSource.WorkingDir)
 	if err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	if !hasFiles {
@@ -350,10 +350,10 @@ func downloadSource(
 	allowCAS := opts.Experiments.Evaluate(experiment.CAS) && !opts.NoCAS
 
 	if cfg.Terraform.UpdateSourceWithCAS && !allowCAS {
-		return errors.New(&cas.UpdateSourceWithCASRequiresCASError{
+		return &cas.UpdateSourceWithCASRequiresCASError{
 			BlockType: "terraform",
 			Path:      opts.TerragruntConfigPath,
-		})
+		}
 	}
 
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)

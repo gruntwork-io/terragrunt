@@ -1,7 +1,6 @@
 package gcs
 
 import (
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
 )
 
@@ -40,7 +39,7 @@ func (cfg *ExtendedRemoteStateConfigGCS) Validate() error {
 	// so we check it here to make sure we have handle to the bucket
 	// before we start validating the rest of the configuration.
 	if bucketName == "" {
-		return errors.New(MissingRequiredGCSRemoteStateConfig("bucket"))
+		return MissingRequiredGCSRemoteStateConfig("bucket")
 	}
 
 	return nil

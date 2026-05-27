@@ -8,7 +8,6 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -47,7 +46,7 @@ type Meter struct {
 func NewMeter(ctx context.Context, appName, appVersion string, writer io.Writer, opts *Options) (*Meter, error) {
 	exporter, err := NewMetricsExporter(ctx, writer, opts)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	if exporter == nil {
@@ -56,7 +55,7 @@ func NewMeter(ctx context.Context, appName, appVersion string, writer io.Writer,
 
 	provider, err := newMetricsProvider(exporter, appName, appVersion)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	otel.SetMeterProvider(provider)
@@ -82,7 +81,7 @@ func (meter *Meter) Time(
 
 	histogram, err := meter.Int64Histogram(CleanMetricName(name + "_duration"))
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	startTime := time.Now()
@@ -156,7 +155,7 @@ func newMetricsProvider(exp metric.Exporter, appName, appVersion string) (*metri
 		),
 	)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	meterProvider := metric.NewMeterProvider(

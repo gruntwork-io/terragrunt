@@ -32,7 +32,9 @@ var (
 	ErrStderrAlreadySet = errors.New("vexec: Stderr already set")
 	// ErrProcessNotStarted is returned from Signal before Start.
 	ErrProcessNotStarted = errors.New("vexec: process not started")
-	// ErrNotOSBacked reports that a Cmd does not satisfy OSCmder.
+	// ErrNotOSBacked reports that a Cmd does not satisfy OSCmder. Callers that
+	// need a concrete *exec.Cmd (e.g. to interoperate with libraries that do
+	// not accept the Cmd interface) can match this with errors.Is.
 	ErrNotOSBacked = errors.New("vexec: Cmd is not OS-backed")
 )
 
@@ -89,9 +91,10 @@ type ExitCoder interface {
 	ExitCode() int
 }
 
-// OSCmder exposes the underlying *exec.Cmd of an OS-backed Cmd. It is
-// intended as an escape hatch for callers that must pass the concrete type
-// to a library that does not accept the Cmd interface.
+// OSCmder exposes the underlying *exec.Cmd of an OS-backed Cmd. Use it as an
+// escape hatch when a Cmd must be passed to a library that does not accept
+// the Cmd interface, or when a feature is only available on the OS backend
+// (PTY, signal forwarding). The in-memory backend does NOT implement this.
 type OSCmder interface {
 	OSCmd() *exec.Cmd
 }
@@ -155,8 +158,6 @@ func (c *osCmd) SetWaitDelay(d time.Duration) { c.cmd.WaitDelay = d }
 
 func (c *osCmd) SetCancel(fn func() error) { c.cmd.Cancel = fn }
 
-func (c *osCmd) OSCmd() *exec.Cmd { return c.cmd }
-
 func (c *osCmd) Signal(sig os.Signal) error {
 	if c.cmd.Process == nil {
 		return ErrProcessNotStarted
@@ -171,6 +172,7 @@ func (c *osCmd) Wait() error                     { return c.cmd.Wait() }
 func (c *osCmd) Output() ([]byte, error)         { return c.cmd.Output() }
 func (c *osCmd) CombinedOutput() ([]byte, error) { return c.cmd.CombinedOutput() }
 func (c *osCmd) ProcessState() *os.ProcessState  { return c.cmd.ProcessState }
+func (c *osCmd) OSCmd() *exec.Cmd                { return c.cmd }
 
 // Invocation describes a single command dispatched through the in-memory
 // backend. Handlers inspect it to decide how to respond.

@@ -3,7 +3,6 @@ package view
 import (
 	"encoding/json"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 )
 
@@ -24,7 +23,7 @@ func (render *JSONRender) ShowConfigPath(filenames []string) (string, error) {
 func (render *JSONRender) toJSON(val any) (string, error) {
 	jsonBytes, err := json.Marshal(val)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	if len(jsonBytes) == 0 {

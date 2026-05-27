@@ -2,13 +2,13 @@ package run_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -82,7 +82,7 @@ func TestProcessHooks_SkipsHookWhenIfFalse(t *testing.T) {
 func TestProcessHooks_RunOnErrorGate(t *testing.T) {
 	t.Parallel()
 
-	priorErr := new(errors.MultiError).Append(errors.New("prior failure"))
+	priorErr := []error{errors.New("prior failure")}
 
 	testCases := []struct {
 		name        string
@@ -261,7 +261,7 @@ func TestProcessErrorHooks_MatchesOnErrorsRegex(t *testing.T) {
 	exec := vexec.NewMemExec(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 
-	priorErrs := new(errors.MultiError).Append(errors.New("oh no: permission denied on resource"))
+	priorErrs := []error{errors.New("oh no: permission denied on resource")}
 
 	hooks := []runcfg.ErrorHook{
 		{
