@@ -9,7 +9,6 @@ require (
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/aws/aws-sdk-go-v2 v1.41.7
 	github.com/creack/pty v1.1.24
-	github.com/fatih/structs v1.1.0
 	github.com/gitsight/go-vcsurl v1.0.1
 	github.com/go-errors/errors v1.5.1
 	github.com/gofrs/flock v0.13.0
@@ -35,9 +34,8 @@ require (
 	github.com/labstack/echo/v4 v4.15.2
 	github.com/mattn/go-isatty v0.0.22
 	github.com/mattn/go-zglob v0.0.6
-	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
-	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db
-	github.com/mitchellh/go-homedir v1.1.0
+	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
+	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c

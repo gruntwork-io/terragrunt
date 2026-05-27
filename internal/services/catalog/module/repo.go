@@ -379,12 +379,17 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, o
 			return err
 		}
 
+		venv, err := cas.OSVenv()
+		if err != nil {
+			return err
+		}
+
 		cloneOpts := cas.CloneOptions{
 			Dir:              repo.path,
 			IncludedGitFiles: includedGitFiles,
 		}
 
-		clientOpts = append(clientOpts, getter.WithCAS(c, &cloneOpts))
+		clientOpts = append(clientOpts, getter.WithCAS(c, venv, &cloneOpts))
 	}
 
 	client := getter.NewClient(clientOpts...)
