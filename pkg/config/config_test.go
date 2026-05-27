@@ -2005,6 +2005,58 @@ func TestWriteToCatalogFields(t *testing.T) {
 	assert.Contains(t, rendered, "no_hooks")
 }
 
+func TestWriteToExecutionWeight(t *testing.T) {
+	t.Parallel()
+
+	weight := 10
+	cfg := &config.TerragruntConfig{
+		ExecutionWeight: &weight,
+	}
+
+	var buf bytes.Buffer
+
+	_, writeErr := cfg.WriteTo(&buf)
+	require.NoError(t, writeErr)
+
+	rendered := buf.String()
+	assert.Contains(t, rendered, "execution_weight")
+	assert.Contains(t, rendered, "10")
+}
+
+func TestParseTerragruntConfigExecutionWeight(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+execution_weight = 10
+`
+
+	l := createLogger()
+
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	require.NotNil(t, terragruntConfig.ExecutionWeight)
+	assert.Equal(t, 10, *terragruntConfig.ExecutionWeight)
+}
+
+func TestParseTerragruntConfigExecutionWeightNotSet(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+}
+`
+
+	l := createLogger()
+
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	assert.Nil(t, terragruntConfig.ExecutionWeight, "execution_weight should be nil when not set")
+}
+
 func createLogger() log.Logger {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
