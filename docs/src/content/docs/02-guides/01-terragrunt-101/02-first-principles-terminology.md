@@ -142,17 +142,19 @@ A [**DAG**](/getting-started/terminology/#directed-acyclic-graph-dag) is how Ter
 
 Because Terragrunt builds and leverages a DAG, it can reliably schedule concurrent runs for units that can safely run concurrently (as they don't depend on the results of other pending runs). It can also reliably schedule the runs in the right order, as dependencies will always run before dependents for plan and apply operations, and dependents will always run before dependencies for destroy operations.
 
-#### Think of it like a build pipeline
+#### Think of it like doing the chores
 
-In a CI/CD pipeline, you can't deploy before tests pass, and tests can't run before the code compiles:
+Imagine you're doing the dishes and the laundry at the same time. Each has its own ordered sequence of steps:
 
 ```text
-Compile → Test → Deploy
+Scrape dishes → Load dishwasher → Wash → Dry → Put away
+
+Load washer → Wash → Load dryer → Dry → Fold → Put away
 ```
 
-Independent stages can run in parallel, but dependent stages must wait.
+Within each chore the order is fixed — you can't dry the dishes before they've been washed, and you can't fold clothes before they're dry. But the two chores don't depend on each other, so they can happen in parallel: while the dishwasher is running, you can load the washing machine.
 
-Terragrunt works the same way. If your app server needs a VPC to exist first, Terragrunt ensures the VPC is created before provisioning the app server—and can parallelize units that have no dependencies on each other.
+Terragrunt works the same way. If your app server needs a VPC to exist first, Terragrunt ensures the VPC is created before provisioning the app server. When there is no such dependency relationship blocking provisioning, Terragrunt runs units concurrently.
 
 #### How Terragrunt uses the DAG
 
