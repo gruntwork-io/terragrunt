@@ -14,7 +14,7 @@ After completing this module, you'll be able to:
 | :------------------------------------------ | :------------------------------------ |
 | **Explain** what problems Terragrunt solves | IaC Orchestration, DRY IaC            |
 | **Define** core terminology                 | Units, stacks, includes, dependencies |
-| **Describe** orchestration                  | How Terragrunt coordinates runs  |
+| **Describe** orchestration                  | How Terragrunt coordinates runs       |
 | **Explain** blast radius                    | Why it matters for safe deployments   |
 
 ## Why Terragrunt Exists
@@ -96,7 +96,7 @@ Terragrunt supports **two types**:
 
 | Type                | Description                                                                  |
 | :------------------ | :--------------------------------------------------------------------------- |
-| **Implicit stacks** | Created implicitly through directory organization              |
+| **Implicit stacks** | Created implicitly through directory organization                            |
 | **Explicit stacks** | Defined in `terragrunt.stack.hcl` files that generate units programmatically |
 
 ---
@@ -105,10 +105,10 @@ Terragrunt supports **two types**:
 
 Terragrunt provides **two mechanisms** for defining [dependency](/getting-started/terminology/#dependency) relationships between units:
 
-| Block              | Purpose                             | When to Use                                              |
-| :----------------- | :---------------------------------- | :------------------------------------------------------- |
-| [**`dependency`** ](/reference/hcl/blocks/#dependency)  | Retrieves outputs from another unit | When you need **outputs** from one unit in another          |
-| [**`dependencies`**](/reference/hcl/blocks/#dependencies) | Defines ordering relationships      | When units must run in order but **don't exchange data** |
+| Block                                                       | Purpose                             | When to Use                                              |
+| :---------------------------------------------------------- | :---------------------------------- | :------------------------------------------------------- |
+| [**`dependency`**](/reference/hcl/blocks/#dependency)       | Retrieves outputs from another unit | When you need **outputs** from one unit in another       |
+| [**`dependencies`**](/reference/hcl/blocks/#dependencies)   | Defines ordering relationships      | When units must run in order but **don't exchange data** |
 
 Terragrunt reads these declarations to build the directed acyclic graph (DAG) which is used to determine the order in which it executes OpenTofu/Terraform.
 
@@ -136,7 +136,7 @@ A [**DAG**](/getting-started/terminology/#directed-acyclic-graph-dag) is how Ter
 
 | Word         | Meaning                        | Example                                       |
 | :----------- | :----------------------------- | :-------------------------------------------- |
-| **Directed** | Relationships flow one way     | A → B means "A depends on B" |
+| **Directed** | Relationships flow one way     | A → B means "A depends on B"                  |
 | **Acyclic**  | No circular dependencies       | You can't have A → B → C → back to A          |
 | **Graph**    | A structure of connected nodes | Similar to a project dependency chart         |
 
