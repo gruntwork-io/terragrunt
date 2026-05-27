@@ -2,6 +2,7 @@ package redesign_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -38,6 +39,19 @@ func drainFormCmds(cmd tea.Cmd) tea.Msg {
 	}
 
 	return nil
+}
+
+// lineIndexOf returns the index of the first line in view that contains
+// substr, or -1 when none does. Used to assert a field's vertical
+// position in the rendered form is stable across state changes.
+func lineIndexOf(view, substr string) int {
+	for i, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, substr) {
+			return i
+		}
+	}
+
+	return -1
 }
 
 // pressJ etc. are tiny ergonomic helpers so the modal test sequences stay
@@ -660,6 +674,86 @@ func TestFormStatusLineClearsOnceRequiredFieldsSet(t *testing.T) {
 
 	assert.NotContains(t, f.View(), "required field",
 		"the status line should disappear once every required field is set")
+}
+
+func TestFormErrorRowDoesNotShiftLayout(t *testing.T) {
+	t.Parallel()
+
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "tier", Required: false, Literal: true, TypeStr: "string"},
+	})
+	f.SetSize(120, 40)
+
+	// Record where a downstream field sits before any error is shown. The
+	// total view height is always the terminal height (the body is padded
+	// to a fixed bodyHeight), so the meaningful "shift" is fields reflowing
+	// within the body, not the overall height.
+	before := lineIndexOf(f.View(), "tier")
+	require.GreaterOrEqual(t, before, 0, "the tier field should be visible before the submit")
+
+	// A blocked submit flags every required field inline. Because each
+	// field reserves its error row whether or not an error is present, the
+	// required fields above tier gain no extra height, so tier must not
+	// move down.
+	f, _ = f.Update(pressS())
+	require.NotEmpty(t, f.Field(0).ValidationErr, "the submit should have flagged the required fields")
+
+	assert.Equal(t, before, lineIndexOf(f.View(), "tier"),
+		"reserving each field's error row should keep downstream fields from shifting when errors appear")
+}
+
+func TestFormForceSubmitWritesDespiteMissingRequired(t *testing.T) {
+	t.Parallel()
+
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "tier", Literal: true, TypeStr: "string", Initial: "basic"},
+	})
+	f.SetSize(120, 40)
+
+	// ctrl+d force-submits without filling anything, bypassing the
+	// required-field check that `s` enforces.
+	updated, cmd := f.Update(pressCtrlD())
+	require.True(t, updated.Submitted(), "ctrl+d should submit even with required fields unset")
+
+	msg := drainFormCmds(cmd)
+	sub, ok := msg.(redesign.FormSubmitMsg)
+	require.True(t, ok, "expected FormSubmitMsg, got %T", msg)
+
+	assert.Empty(t, sub.Values,
+		"unset fields are omitted from the submit map; the missing required field becomes a TODO at write time")
+}
+
+func TestFormUnsetReshowsMissingRequiredCount(t *testing.T) {
+	t.Parallel()
+
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
+	})
+	f.SetSize(120, 40)
+
+	// Blocked submit shows the line, then fill the field to clear it.
+	f, _ = f.Update(pressS())
+	require.Contains(t, f.View(), "required field", "the line should appear after the blocked submit")
+
+	f, _ = f.Update(pressEnter())
+
+	for _, r := range "us-east-1" {
+		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	f, _ = f.Update(pressEsc())
+	require.NotContains(t, f.View(), "required field", "filling the field should clear the line")
+
+	// Unsetting the now-set required field makes it missing again, and the
+	// status line's live count should bring the message back.
+	f, _ = f.Update(pressX())
+
+	require.False(t, f.Field(0).Set, "x should unset the required field")
+	assert.Contains(t, f.View(), "1 required field missing",
+		"unsetting a required field should re-show the missing-required status line")
 }
 
 func TestFormFilterEntryReturnsFocusCmd(t *testing.T) {
