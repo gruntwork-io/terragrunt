@@ -1,6 +1,8 @@
 package shared
 
 import (
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -8,6 +10,10 @@ import (
 
 const (
 	ParallelismFlagName = "parallelism"
+)
+
+var (
+	errInvalidParallelism = errors.New("must be positive")
 )
 
 // NewParallelismFlag creates a flag for specifying parallelism level.
@@ -21,6 +27,13 @@ func NewParallelismFlag(opts *options.TerragruntOptions) *flags.Flag {
 			EnvVars:     tgPrefix.EnvVars(ParallelismFlagName),
 			Destination: &opts.Parallelism,
 			Usage:       "Parallelism for --all commands.",
+			Setter: func(value int) error {
+				if value <= 0 {
+					return errInvalidParallelism
+				}
+
+				return nil
+			},
 		},
 		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("parallelism"), opts.StrictControls),
 	)
