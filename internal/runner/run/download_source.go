@@ -402,7 +402,7 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 		return false, err
 	}
 
-	c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth), cas.WithFS(opts.FS))
+	c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth))
 	if err != nil {
 		l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
 		return false, nil
