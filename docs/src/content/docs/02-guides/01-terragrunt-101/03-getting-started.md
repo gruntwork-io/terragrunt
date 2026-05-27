@@ -12,7 +12,7 @@ By the end of this module, you'll be able to:
 
 | Skill                      | What You'll Learn                            |
 | :------------------------- | :------------------------------------------- |
-| **Install & configure**    | Set up Terragrunt with OpenTofu or Terraform |
+| **Install Terragrunt**     | Set up Terragrunt with OpenTofu              |
 | **Create `root.hcl`**      | Build shared configuration                   |
 | **Use catalog & scaffold** | Quickly create units from modules            |
 | **Write configurations**   | Author basic `terragrunt.hcl` files          |
@@ -31,7 +31,7 @@ You have a few options for installing Terragrunt:
 | **Homebrew** (macOS/Linux) | `brew install terragrunt`                              |
 | **Chocolatey** (Windows)   | `choco install terragrunt`                             |
 | **tenv**                   | `tenv tg install latest`                               |
-| **Direct download**        | `curl -sL https://docs.terragrunt.com/install \| bash` |
+| **Direct download**        | `curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install \| bash` |
 
 Pick whatever works for your setup. Our engineers at Gruntwork use **mise**!
 
