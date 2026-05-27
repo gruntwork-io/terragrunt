@@ -83,11 +83,14 @@ type terraformConfigSourceOnly struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
-// terragruntFlags is a struct that can be used to only decode the flag attributes (prevent_destroy)
+// terragruntFlags is a struct that can be used to only decode the flag attributes (prevent_destroy, execution_weight).
+// execution_weight is included here because discovery partial-parses configs via TerragruntFlags
+// and stores the result on each unit before the Runner Pool reads ExecutionWeight() for admission.
 type terragruntFlags struct {
 	IamRole             *string  `hcl:"iam_role,attr"`
 	IamWebIdentityToken *string  `hcl:"iam_web_identity_token,attr"`
 	PreventDestroy      *bool    `hcl:"prevent_destroy,attr"`
+	ExecutionWeight     *int     `hcl:"execution_weight,attr"`
 	Remain              hcl.Body `hcl:",remain"`
 }
 
@@ -514,6 +517,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 			if decoded.PreventDestroy != nil {
 				output.PreventDestroy = decoded.PreventDestroy
+			}
+
+			if decoded.ExecutionWeight != nil {
+				output.ExecutionWeight = decoded.ExecutionWeight
 			}
 
 			if decoded.IamRole != nil {
