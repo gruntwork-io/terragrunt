@@ -12,9 +12,9 @@ After completing this module, you'll be able to:
 
 | Objective                                   | Key Concepts                          |
 | :------------------------------------------ | :------------------------------------ |
-| **Explain** what problems Terragrunt solves | DRY IaC, IaC Orchestration            |
+| **Explain** what problems Terragrunt solves | IaC Orchestration, DRY IaC            |
 | **Define** core terminology                 | Units, stacks, includes, dependencies |
-| **Describe** orchestration                  | How Terragrunt coordinates execution  |
+| **Describe** orchestration                  | How Terragrunt coordinates runs  |
 | **Explain** blast radius                    | Why it matters for safe deployments   |
 
 ## Why Terragrunt Exists
@@ -31,12 +31,12 @@ It **doesn't replace** them. Instead, it **coordinates** how and when your infra
 
 Terragrunt builds a **Directed Acyclic Graph (DAG)** to:
 
-- Coordinate deployments across multiple state files
-- Execute units in the **correct dependency order**
+- Coordinate deployments across multiple OpenTofu/Terraform root modules with their own state files
+- Run units in the **correct dependency order**
 
 #### 2. Eliminating Repetition (DRY)
 
-Write shared configuration **once** in parent files, then **inherit** it everywhere through includes and stack definitions.
+Write shared configuration **once**, then **reuse** them through includes and stack definitions.
 
 #### 3. Segmenting State for Smaller Blast Radius
 
@@ -48,16 +48,18 @@ Split infrastructure into **independent units** with separate state files to:
 
 #### 4. Automating Remote State Backend
 
-Terragrunt **automatically creates and configures**:
+Terragrunt **automatically creates and configures** backend resources, including:
 
 - S3 buckets
+- GCS buckets
+- Azure blob stores [(coming soon)](/reference/experiments/active/#azure-backend)
 - DynamoDB tables
 
-This eliminates manual backend setup.
+This eliminates manual backend bootstrapping before using backends for OpenTofu/Terraform state.
 
 #### 5. Generating Providers and Backends Dynamically
 
-Terragrunt generates provider and backend configuration **at runtime** based on your environment—no need to hardcode these blocks in every module.
+Terragrunt generates provider and backend configuration **dynamically** based on your environment. This removes the need to hardcode these blocks in every root module.
 
 ---
 
@@ -69,7 +71,7 @@ Terragrunt then:
 
 - **Instantiates** those patterns with specific configurations
 - **Wires** them together by passing outputs between units
-- **Executes** them in the correct dependency order
+- **Runs** them in the correct dependency order
 
 > Modules define ***what*** to build.
 > Terragrunt defines ***how*** and ***when***.
@@ -78,9 +80,9 @@ Terragrunt then:
 
 ### Units
 
-A **unit** is a single instance of infrastructure with its own state file.
+A [**unit**](/getting-started/terminology/#unit) is a single instance of infrastructure with its own state file.
 
-Terragrunt detects units by looking for `terragrunt.hcl` files. Each unit is **self-contained** and represents the **smallest thing you can deploy**.
+Terragrunt detects units by looking for directories containing `terragrunt.hcl` files. Each unit is **self-contained** and represents the **smallest unit of infrastructure you want to deploy** with Terragrunt.
 
 > Common examples of units include a single VPC, a single database instance, or an application service.
 
@@ -88,49 +90,57 @@ Terragrunt detects units by looking for `terragrunt.hcl` files. Each unit is **s
 
 ### Stacks
 
-A **stack** is a collection of units managed together.
+A [**stack**](/getting-started/terminology/#stack) is a collection of units managed together.
 
 Terragrunt supports **two types**:
 
 | Type                | Description                                                                  |
 | :------------------ | :--------------------------------------------------------------------------- |
-| **Implicit stacks** | Created through directory organization *(traditional approach)*              |
+| **Implicit stacks** | Created implicitly through directory organization              |
 | **Explicit stacks** | Defined in `terragrunt.stack.hcl` files that generate units programmatically |
 
 ---
 
 ### Dependencies
 
-Terragrunt provides **two mechanisms** for defining relationships between units:
+Terragrunt provides **two mechanisms** for defining [dependency](/getting-started/terminology/#dependency) relationships between units:
 
 | Block              | Purpose                             | When to Use                                              |
 | :----------------- | :---------------------------------- | :------------------------------------------------------- |
-| **`dependency`**   | Retrieves outputs from another unit | When you need **data** from one unit in another          |
-| **`dependencies`** | Defines ordering relationships      | When units must run in order but **don't exchange data** |
+| [**`dependency`** ](/reference/hcl/blocks/#dependency)  | Retrieves outputs from another unit | When you need **outputs** from one unit in another          |
+| [**`dependencies`**](/reference/hcl/blocks/#dependencies) | Defines ordering relationships      | When units must run in order but **don't exchange data** |
 
 Terragrunt reads these declarations to build the directed acyclic graph (DAG) which is used to determine the order in which it executes OpenTofu/Terraform.
+
+:::tip
+In practice, you'll typically only need the `dependency` block. It handles ordering on its own, and most of the time you're defining a dependency relationship precisely because one unit needs to read outputs from another. Reach for `dependencies` only when units must run in a specific order but **don't** exchange any outputs.
+:::
 
 ---
 
 ### Includes
 
-**Includes** let one `terragrunt.hcl` file pull in another file as partial configuration.
+**Includes** let one `terragrunt.hcl` file merge in another file as partial configuration.
 
 This is how you **share common settings** and keep your configs **DRY**.
+
+:::tip
+Support for this in stacks is coming soon — see the [`stack-dependencies`](/reference/experiments/active/#stack-dependencies) experiment.
+:::
 
 ---
 
 ### Directed Acyclic Graph (DAG)
 
-A **DAG** is how Terragrunt determines execution order. Let's break down the term:
+A [**DAG**](/getting-started/terminology/#directed-acyclic-graph-dag) is how Terragrunt determines the order in which units run. Let's break down the term:
 
 | Word         | Meaning                        | Example                                       |
 | :----------- | :----------------------------- | :-------------------------------------------- |
-| **Directed** | Relationships flow one way     | A → B means "A must complete before B starts" |
+| **Directed** | Relationships flow one way     | A → B means "A depends on B" |
 | **Acyclic**  | No circular dependencies       | You can't have A → B → C → back to A          |
 | **Graph**    | A structure of connected nodes | Similar to a project dependency chart         |
 
-Because Terragrunt explicitly builds a DAG, it can easily calculate independent "paths" (without mutual dependencies) that can safely run in parallel to speed up overall execution.
+Because Terragrunt builds and leverages a DAG, it can reliably schedule concurrent runs for units that can safely run concurrently (as they don't depend on the results of other pending runs). It can also reliably schedule the runs in the right order, as dependencies will always run before dependents for plan and apply operations, and dependents will always run before dependencies for destroy operations.
 
 #### Think of it like a build pipeline
 
