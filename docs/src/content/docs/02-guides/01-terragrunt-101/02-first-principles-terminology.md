@@ -73,8 +73,10 @@ Terragrunt then:
 - **Wires** them together by passing outputs between units
 - **Runs** them in the correct dependency order
 
-> Modules define ***what*** to build.
-> Terragrunt defines ***how*** and ***when***.
+:::tip
+Modules define ***what*** to build.
+Terragrunt defines ***how*** and ***when***.
+:::
 
 ## Core Terminology
 
@@ -84,7 +86,9 @@ A [**unit**](/getting-started/terminology/#unit) is a single instance of infrast
 
 Terragrunt detects units by looking for directories containing `terragrunt.hcl` files. Each unit is **self-contained** and represents the **smallest unit of infrastructure you want to deploy** with Terragrunt.
 
+:::tip
 > Common examples of units include a single VPC, a single database instance, or an application service.
+:::
 
 ---
 
@@ -112,9 +116,7 @@ Terragrunt provides **two mechanisms** for defining [dependency](/getting-starte
 
 Terragrunt reads these declarations to build the directed acyclic graph (DAG) which is used to determine the order in which it executes OpenTofu/Terraform.
 
-:::tip
 In practice, you'll typically only need the `dependency` block. It handles ordering on its own, and most of the time you're defining a dependency relationship precisely because one unit needs to read outputs from another. Reach for `dependencies` only when units must run in a specific order but **don't** exchange any outputs.
-:::
 
 ---
 
@@ -124,9 +126,7 @@ In practice, you'll typically only need the `dependency` block. It handles order
 
 This is how you **share common settings** and keep your configs **DRY**.
 
-:::tip
-Support for this in stacks is coming soon — see the [`stack-dependencies`](/reference/experiments/active/#stack-dependencies) experiment.
-:::
+Support for this in stacks is coming soon — see the [`stack-dependencies`](/reference/experiments/active/#stack-dependencies) experiment for more information.
 
 ---
 
@@ -161,8 +161,8 @@ Terragrunt works the same way. If your app server needs a VPC to exist first, Te
 When you run `terragrunt run --all apply`, Terragrunt:
 
 1. **Discovers** all units in the current directory tree
-2. **Builds** a DAG from declared dependencies
-3. **Executes** units in topological order, parallelizing where possible
+2. **Builds** a [Run Queue](https://docs.terragrunt.com/getting-started/terminology/#run-queue), respecting the DAG from declared dependencies
+3. **Runs** units in topological order in the [Runner Pool](https://docs.terragrunt.com/getting-started/terminology/#runner-pool), parallelizing where possible
 
 When you **destroy**, the order reverses—dependents are removed before their dependencies.
 
@@ -172,8 +172,10 @@ Your **current working directory** defines your blast radius.
 
 As you navigate the filesystem you are changing what infrastructure you can affect.
 
+:::tip
 > This design encourages **smaller units** over monolithic configurations.
 > **Smaller** is quicker, easier, and safer.
+:::
 
 ---
 
