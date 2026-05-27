@@ -1,0 +1,10 @@
+---
+version: "v1.0.7"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: `.terragrunt-stack-origin` marker disabled
+
+The `.terragrunt-stack-origin` sidecar that v1.0.6 wrote next to copied nested stack files is no longer produced when the `stack-dependencies` experiment is enabled. Bare relative `../../units/...` paths inside catalog `terragrunt.stack.hcl` files no longer resolve against the original catalog directory.
+
+To keep relative `source` paths working in catalog stack files, set `update_source_with_cas = true` on each `unit` and `stack` block (the `cas` experiment must also be enabled). Relative attributes are rewritten to `cas::` references at generation time, so the tree under `.terragrunt-stack/` is self-contained without a sidecar.

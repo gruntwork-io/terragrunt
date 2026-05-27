@@ -1,8 +1,0 @@
----
-version: "v1.0.7"
-category: "bug-fixes"
----
-
-#### `mock_outputs_allowed_terraform_commands` no longer duplicates after a `dependency` merge that already shares the list
-
-When a `dependency` block was merged into a configuration that already referenced the same `mock_outputs_allowed_terraform_commands` list (for example, after an `include` chain re-applied the same dependency, or after stack `autoinclude` propagation), the list was appended to itself and the resulting allow-list contained every entry twice. The same issue affected `mock_outputs`. Terragrunt now skips the merge when both sides reference the same value, so the effective allow-list matches what the configuration declares.
