@@ -6,6 +6,8 @@ sidebar:
   order: 3
 ---
 
+import { Steps, FileTree } from '@astrojs/starlight/components';
+
 ## Learning Objectives
 
 By the end of this module, you'll be able to:
@@ -133,7 +135,7 @@ inputs = {
 
 #### `terraform` block
 
-Tells Terragrunt **where to find** your OpenTofu or Terraform module.
+The [`terraform` block](/reference/hcl/blocks/#terraform) tells Terragrunt **where to find** your OpenTofu or Terraform module.
 
 You can point it at:
 
@@ -145,17 +147,19 @@ You can point it at:
 
 #### `include` block
 
-Pulls in configuration from **parent files**.
+The [`include` block](/reference/hcl/blocks/#include) pulls in configuration from [**includes**](/reference/hcl/#included-configurations).
 
 This is how you share settings like remote state configuration across many units *without copying and pasting*.
 
-> We'll cover include patterns and merge strategies in depth in [**Module 4**](/guides/terragrunt-101/blocks/).
+:::tip
+We'll cover include patterns and merge strategies in depth in [**Module 4**](/guides/terragrunt-101/blocks/).
+:::
 
 ---
 
 #### `inputs` attribute
 
-Passes **variables** to your module.
+The [`inputs` attribute](/reference/hcl/attributes/#inputs) passes **variables** to your module.
 
 Note that `inputs` is an attribute (`inputs = { ... }`), not a block.
 
@@ -167,12 +171,12 @@ Terragrunt passes variables to OpenTofu by setting the [`TF_VAR_$name`](https://
 
 You'll also see these blocks in more complex configurations:
 
-| Block              | Purpose                                                                                  |
-| :----------------- | :--------------------------------------------------------------------------------------- |
-| **`locals`**       | Reusable expressions within the file                                                     |
-| **`generate`**     | Creating files dynamically (like provider configurations)                                |
-| **`dependency`**   | Pulling outputs from other units                                                         |
-| **`remote_state`** | Configuring your state backend *(covered in [Module 4](/guides/terragrunt-101/blocks/))* |
+| Block                                                     | Purpose                                                                                  |
+| :-------------------------------------------------------- | :--------------------------------------------------------------------------------------- |
+| [**`locals`**](/reference/hcl/blocks/#locals)             | Reusable expressions within the file                                                     |
+| [**`generate`**](/reference/hcl/blocks/#generate)         | Creating files dynamically (like provider configurations)                                |
+| [**`dependency`**](/reference/hcl/blocks/#dependency)     | Pulling outputs from other units                                                         |
+| [**`remote_state`**](/reference/hcl/blocks/#remote_state) | Configuring your state backend *(covered in [Module 4](/guides/terragrunt-101/blocks/))* |
 
 ## Running Commands
 
@@ -188,7 +192,9 @@ Terragrunt commands mirror what you already know from OpenTofu and Terraform:
 | `terragrunt destroy` | Destroy resources                |
 | `terragrunt output`  | Display outputs                  |
 
-> **Note:** As a quality of life feature, Terragrunt **auto-initializes** when needed. You rarely need to run `terragrunt init` yourself.
+:::tip
+**Note:** As a quality of life feature, Terragrunt **auto-initializes** when needed. You rarely need to run `terragrunt init` yourself.
+:::
 
 ---
 
@@ -230,19 +236,21 @@ terragrunt render              # Output as HCL
 terragrunt render --json       # Output as JSON (easier to parse)
 ```
 
-> When your configuration isn't behaving as expected, `render` helps you see **how includes are merged** and what final values your inputs resolve to.
+:::tip
+When your configuration isn't behaving as expected, `render` helps you see **how includes are merged** and what final values your inputs resolve to.
+:::
 
 ## The Catalog and Scaffold Commands
 
-One of Terragrunt's most useful features for getting started quickly is the **catalog**.
+One of Terragrunt's most useful features for infrastructure self-service is the [**catalog**](https://docs.terragrunt.com/features/catalog/).
 
-Instead of writing `terragrunt.hcl` files from scratch, you can **scaffold them directly** from a catalog of modules.
+Instead of writing Terragrunt configurations from scratch, you can **scaffold them directly** from a catalog of re-usable components.
 
 ---
 
 ### Browsing the Catalog
 
-The `terragrunt catalog` command opens an **interactive browser** for exploring available modules:
+The `terragrunt catalog` command opens an **interactive browser** for exploring available components:
 
 ```bash
 terragrunt catalog https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example
@@ -250,11 +258,13 @@ terragrunt catalog https://github.com/gruntwork-io/terragrunt-infrastructure-mod
 
 This launches a terminal UI where you can:
 
-- **Browse** modules
+- **Browse** components
 - **Read** their documentation
 - **Scaffold** them into your project
 
-> The catalog is a great way to **discover** what's available and understand how modules are structured.
+:::tip
+The catalog is a great way to **discover** what's available and understand how modules are structured.
+:::
 
 ---
 
@@ -273,7 +283,9 @@ catalog {
 
 With this in place, running `terragrunt catalog` *(without a URL)* uses your configured sources automatically.
 
-> **Platform Engineering Tip:** Define a curated set of module blueprints for your team. This **standardizes** which modules get used and makes discovery easy for your teammates.
+:::tip
+**Platform Engineering Tip:** Define a curated set of module blueprints for your team. This **standardizes** which modules get used and makes discovery easy for your teammates.
+:::
 
 ### Scaffolding Modules Directly
 
@@ -291,7 +303,9 @@ Terragrunt generates a `terragrunt.hcl` file with:
 | `inputs` attribute       | All module variables, commented out with descriptions |
 | Placeholder values       | Ready for you to fill in                              |
 
-> This saves you from having to look up variable names and types manually. You get a **working starting point** that you can customize.
+:::tip
+This saves you from having to look up variable names and types manually. You get a **working starting point** that you can customize.
+:::
 
 ---
 
@@ -312,7 +326,9 @@ Before any commands run, Terragrunt parses your configuration in a **specific or
 | **3** | `dependency`    | Dependency blocks are resolved; outputs are fetched from remote state |
 | **4** | Everything else | `inputs`, `terraform`, `generate`, etc. are processed                 |
 
-> This ordering matters because **each step can reference values from previous steps**.
+:::tip
+This ordering matters because **each step can reference values from previous steps**.
+:::
 
 For example:
 
@@ -325,13 +341,19 @@ For example:
 
 After parsing completes, running `terragrunt plan` or `terragrunt apply` triggers:
 
-| Step  | Action                                                                          |
-| :---: | :------------------------------------------------------------------------------ |
-| **1** | **Download** — If the source is remote, Terragrunt downloads it to the cache    |
-| **2** | **Copy** — If the source is local, Terragrunt copies it to the cache            |
-| **3** | **Generate** — Any `generate` blocks create files in the cache directory        |
-| **4** | **Initialize** — Terragrunt runs `tofu init` (or `terraform init`) in the cache |
-| **5** | **Execute** — The actual plan/apply/destroy runs inside the cache directory     |
+<Steps>
+
+1. **Download** — If the source is remote, Terragrunt downloads it to the cache
+
+2. **Copy** — If the source is local, Terragrunt copies it to the cache
+
+3. **Generate** — Any `generate` blocks create files in the cache directory
+
+4. **Initialize** — Terragrunt runs `tofu init` (or `terraform init`) in the cache
+
+5. **Execute** — The actual plan/apply/destroy runs inside the cache directory
+
+</Steps>
 
 This is why you'll see output like:
 
@@ -340,7 +362,9 @@ INFO   Running command: tofu init
 INFO   Running command: tofu plan
 ```
 
-> Each line corresponds to a step above. `init` runs once the source is staged and `generate` blocks are written, then `plan` or `apply` executes against that prepared directory.
+:::tip
+Each line corresponds to a step above. `init` runs once the source is staged and `generate` blocks are written, then `plan` or `apply` executes against that prepared directory.
+:::
 
 ---
 
@@ -380,21 +404,25 @@ Instead, it creates a working directory inside `.terragrunt-cache` where all the
 
 Here's what a typical `.terragrunt-cache` directory looks like:
 
-```text
-.terragrunt-cache/
-└── qWeRtY1234/                  # Hash based on source URL
-    └── aBcDeF5678/              # Hash based on terragrunt.hcl path
-        └── module_path/         # Subdirectory if `source` has many modules
-            ├── backend.tf       # Generated by remote_state block
-            ├── provider.tf      # Generated by generate block
-            ├── main.tf          # Copied from the source module
-            ├── variables.tf     # Copied from the source module
-            ├── outputs.tf       # Copied from the source module
-            └── .terraform/      # OpenTofu/Terraform's own working directory
-                └── providers/
-```
+<FileTree>
 
-> The nested hash directories let Terragrunt cache **multiple different module sources** without collisions.
+- .terragrunt-cache/
+  - qWeRtY1234/ (Hash based on source URL)
+    - aBcDeF5678/ (Hash based on `terragrunt.hcl` path)
+      - module_path/ (Subdirectory if `source` has many modules)
+        - backend.tf (Generated by `remote_state` block)
+        - provider.tf (Generated by `generate` block)
+        - main.tf (Copied from the source module)
+        - variables.tf (Copied from the source module)
+        - outputs.tf (Copied from the source module)
+        - .terraform/ (OpenTofu/Terraform's own working directory)
+          - providers/
+
+</FileTree>
+
+:::tip
+The nested hash directories let Terragrunt cache **multiple different module sources** without collisions.
+:::
 
 ---
 
@@ -406,6 +434,7 @@ You should **never commit** `.terragrunt-cache` to version control:
 
 ```bash
 # .gitignore
+
 .terragrunt-cache/
 ```
 
@@ -431,10 +460,11 @@ find . -type d -name ".terragrunt-cache" -exec rm -rf {} +
 
 When troubleshooting, `cd` into the cache directory and run OpenTofu commands directly.
 
-> This lets you **inspect the generated files** and see exactly what Terragrunt assembled.
+:::tip
+This lets you **inspect the generated files** and see exactly what Terragrunt assembled.
+:::
 
-You can also use the `--inputs-debug` flag of Terragrunt from the unit directory to generate a debug.tfvars.
-This will fully render all inputs Terragrunt would use, so you can experiment with Tofu directly.
+You can also use the `--inputs-debug` flag of Terragrunt from the unit directory to generate a debug.tfvars. This will fully render all inputs Terragrunt would use, so you can experiment with OpenTofu directly.
 
 ```bash
 terragrunt plan --inputs-debug
@@ -448,22 +478,24 @@ Here's the project structure we recommend.
 
 It organizes things by **account**, **region**, **environment**, and **resource type**:
 
-```text
-infrastructure-live/
-├── root.hcl
-└── prod-account/
-    ├── account.hcl
-    └── us-east-1/
-        ├── region.hcl
-        └── prod/
-            ├── env.hcl
-            ├── networking/
-            │   └── vpc/
-            │       └── terragrunt.hcl
-            └── services/
-                └── eks/
-                    └── terragrunt.hcl
-```
+<FileTree>
+
+- infrastructure-live/
+  - root.hcl
+  - prod-account/
+    - account.hcl
+    - us-east-1/
+      - region.hcl
+      - prod/
+        - env.hcl
+        - networking/
+          - vpc/
+            - terragrunt.hcl
+        - services/
+          - eks/
+            - terragrunt.hcl
+
+</FileTree>
 
 ---
 
