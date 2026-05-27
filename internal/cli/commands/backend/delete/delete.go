@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -39,17 +40,16 @@ func runDelete(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		}
 
 		if !enabled {
-			return errors.Errorf(
+			return fmt.Errorf(
 				"bucket is not versioned, refusing to delete backend state."+
 					" If you are sure you want to delete the backend state anyways, use the --%s flag",
-				ForceBackendDeleteFlagName,
-			)
+				ForceBackendDeleteFlagName)
 		}
 	}
 
 	if opts.DeleteBucket {
 		// TODO: Do an extra check before commenting out the code. //return remoteState.DeleteBucket(ctx, opts)
-		return errors.Errorf("flag -%s is not supported yet", BucketFlagName)
+		return fmt.Errorf("flag -%s is not supported yet", BucketFlagName)
 	}
 
 	return remoteState.Delete(ctx, l, configbridge.RemoteStateOptsFromOpts(opts))

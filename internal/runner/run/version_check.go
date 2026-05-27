@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -101,7 +100,7 @@ func parseVersionFromCache(cachedData string) (tfimpl.Type, *version.Version, er
 
 	parts := strings.SplitN(cachedData, ":", expectedParts)
 	if len(parts) != expectedParts {
-		return tfimpl.Unknown, nil, errors.New(InvalidTerraformVersionSyntax(cachedData))
+		return tfimpl.Unknown, nil, InvalidTerraformVersionSyntax(cachedData)
 	}
 
 	implStr := strings.ToLower(parts[0])
@@ -200,7 +199,7 @@ func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, cons
 	}
 
 	if !versionConstraint.Check(checkedVersion) {
-		return errors.New(InvalidTerragruntVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
+		return InvalidTerragruntVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint}
 	}
 
 	return nil
@@ -215,7 +214,7 @@ func CheckTerraformVersionMeetsConstraint(currentVersion *version.Version, const
 	}
 
 	if !versionConstraint.Check(currentVersion) {
-		return errors.New(InvalidTerraformVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
+		return InvalidTerraformVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint}
 	}
 
 	return nil
@@ -226,7 +225,7 @@ func ParseTerraformVersion(versionCommandOutput string) (*version.Version, error
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
 	if len(matches) != versionParts {
-		return nil, errors.New(InvalidTerraformVersionSyntax(versionCommandOutput))
+		return nil, InvalidTerraformVersionSyntax(versionCommandOutput)
 	}
 
 	return version.NewVersion(matches[2])
@@ -237,7 +236,7 @@ func parseTerraformImplementationType(versionCommandOutput string) (tfimpl.Type,
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
 	if len(matches) != versionParts {
-		return tfimpl.Unknown, errors.New(InvalidTerraformVersionSyntax(versionCommandOutput))
+		return tfimpl.Unknown, InvalidTerraformVersionSyntax(versionCommandOutput)
 	}
 
 	rawType := strings.ToLower(matches[1])

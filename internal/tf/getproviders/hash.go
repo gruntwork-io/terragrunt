@@ -5,11 +5,11 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"golang.org/x/mod/sumdb/dirhash"
 )
 
@@ -37,18 +37,18 @@ func (scheme HashScheme) New(value string) Hash {
 func PackageHashLegacyZipSHA(path string) (Hash, error) {
 	archivePath, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	file, err := os.Open(archivePath)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 	defer file.Close()
 
 	hash := sha256.New()
 	if _, err = io.Copy(hash, file); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	gotHash := hash.Sum(nil)
@@ -70,9 +70,9 @@ func PackageHashV1(path string) (Hash, error) {
 	}
 
 	if fileInfo, err := os.Stat(packageDir); err != nil {
-		return "", errors.New(err)
+		return "", err
 	} else if !fileInfo.IsDir() {
-		return "", errors.Errorf("packageDir is not a directory %q", packageDir)
+		return "", fmt.Errorf("packageDir is not a directory %q", packageDir)
 	}
 
 	s, err := dirhash.HashDir(packageDir, "", dirhash.Hash1)

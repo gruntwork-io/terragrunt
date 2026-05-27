@@ -19,7 +19,8 @@ import (
 
 	urlhelper "github.com/hashicorp/go-getter/v2/helper/url"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -41,18 +42,18 @@ func FileOrData(maybePath string) (string, error) {
 	// and a leading `~` is far more likely to be a path than literal data.
 	expandedMaybePath, err := expandHome(maybePath)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	if IsFile(expandedMaybePath) {
 		contents, err := os.ReadFile(expandedMaybePath)
 		if err != nil {
-			return "", errors.New(err)
+			return "", err
 		}
 
 		return string(contents), nil
 	} else if IsDir(expandedMaybePath) {
-		return "", errors.New(PathIsNotFile{path: expandedMaybePath})
+		return "", PathIsNotFile{path: expandedMaybePath}
 	}
 
 	return expandedMaybePath, nil
@@ -73,11 +74,11 @@ func FileNotExists(path string) bool {
 // EnsureDirectory creates a directory at this path if it does not exist, or error if the path exists and is a file.
 func EnsureDirectory(path string) error {
 	if FileExists(path) && IsFile(path) {
-		return errors.New(PathIsNotDirectory{path})
+		return PathIsNotDirectory{path}
 	} else if !FileExists(path) {
 		const ownerReadWriteExecutePerms = 0o700
 
-		return errors.New(os.MkdirAll(path, ownerReadWriteExecutePerms))
+		return os.MkdirAll(path, ownerReadWriteExecutePerms)
 	}
 
 	return nil
@@ -145,7 +146,7 @@ func GrepFilesWithSuffix(fsys vfs.FS, regex *regexp.Regexp, rootDir, suffix stri
 		return nil
 	})
 	if err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	return found, nil
@@ -265,7 +266,7 @@ func IsFile(path string) bool {
 func ReadFileAsString(path string) (string, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
-		return "", errors.Errorf("error reading file at path %s: %w", path, err)
+		return "", fmt.Errorf("error reading file at path %s: %w", path, err)
 	}
 
 	return string(bytes), nil
@@ -298,7 +299,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	absoluteExpandGlob, err := glob.LegacyExpand(absoluteGlobPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	for _, absoluteExpandGlobPath := range absoluteExpandGlob {
@@ -316,7 +317,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 		if IsDir(absoluteExpandGlobPath) {
 			dirExpandGlob, err := expandGlobPath(source, absoluteExpandGlobPath+"/*")
 			if err != nil {
-				return nil, errors.New(err)
+				return nil, err
 			}
 
 			includeExpandedGlobs = append(includeExpandedGlobs, dirExpandGlob...)
@@ -386,7 +387,7 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 
 		expandGlob, err := expandGlobPath(source, globPath)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		includeExpandedGlobs = append(includeExpandedGlobs, expandGlob...)
@@ -399,7 +400,7 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 
 		expandGlob, err := expandGlobPath(source, globPath)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
@@ -462,16 +463,16 @@ func copyFolderContentsFast(
 
 	const ownerReadWriteExecutePerms = 0o700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	manifest := NewFileManifest(destination, manifestFile)
 	if err := manifest.Clean(l); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if err := manifest.Create(); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	defer func() {
@@ -495,7 +496,7 @@ func copyFolderContentsFast(
 
 		rel, err := filepath.Rel(source, absolutePath)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		rel = filepath.ToSlash(rel)
@@ -510,7 +511,7 @@ func copyFolderContentsFast(
 		if !isDir && d.Type()&fs.ModeSymlink != 0 {
 			targetInfo, err := os.Stat(absolutePath)
 			if err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			isDir = targetInfo.IsDir()
@@ -556,18 +557,18 @@ func copyFolderContentsFast(
 		if isDir {
 			info, err := d.Info()
 			if err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			// A sibling file-copy worker may have created `dest`
 			// already with default perms. Chmod forces the source's
 			// mode.
 			if err := os.MkdirAll(dest, info.Mode().Perm()); err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			if err := os.Chmod(dest, info.Mode().Perm()); err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			return nil
@@ -575,7 +576,7 @@ func copyFolderContentsFast(
 
 		parentDir := filepath.Dir(dest)
 		if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		if err := CopyFile(absolutePath, dest); err != nil {
@@ -589,7 +590,7 @@ func copyFolderContentsFast(
 	}
 
 	if err := vfs.WalkDirParallel(vfs.NewOSFS(), source, walkFn, vfs.WithFollowSymlinks()); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -670,7 +671,7 @@ func compileIncludePatterns(patterns []string) (includePatterns, error) {
 
 	match, err := glob.Compile("{" + strings.Join(matchParts, ",") + "}")
 	if err != nil {
-		return includePatterns{}, errors.New(err)
+		return includePatterns{}, err
 	}
 
 	out.match = match
@@ -678,7 +679,7 @@ func compileIncludePatterns(patterns []string) (includePatterns, error) {
 	if len(ancestorParts) > 0 {
 		ancestor, err := glob.Compile("{" + strings.Join(ancestorParts, ",") + "}")
 		if err != nil {
-			return includePatterns{}, errors.New(err)
+			return includePatterns{}, err
 		}
 
 		out.ancestor = ancestor
@@ -716,7 +717,7 @@ func compileExcludePattern(patterns []string) (glob.Matcher, error) {
 
 	matcher, err := glob.Compile("{" + strings.Join(parts, ",") + "}")
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return matcher, nil
@@ -730,16 +731,16 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 
 	const ownerReadWriteExecutePerms = 0o700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	manifest := NewFileManifest(destination, manifestFile)
 	if err := manifest.Clean(l); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if err := manifest.Create(); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	defer func(manifest *fileManifest) {
@@ -754,7 +755,7 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
 	files, err := filepath.Glob(source + "/*")
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	for _, file := range files {
@@ -772,11 +773,11 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 		if IsDir(file) {
 			info, err := os.Lstat(file)
 			if err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			if err := os.MkdirAll(dest, info.Mode()); err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			if err := CopyFolderContentsWithFilter(l, file, dest, manifestFile, filter); err != nil {
@@ -791,7 +792,7 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 
 			const ownerReadWriteExecutePerms = 0o700
 			if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			if err := CopyFile(file, dest); err != nil {
@@ -813,7 +814,7 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 func CopyFolderToTemp(source string, tempPrefix string, filter func(path string) bool) (string, error) {
 	dest, err := os.MkdirTemp("", tempPrefix)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	if err := CopyFolderContentsWithFilter(log.New(), source, dest, ".copymanifest", filter); err != nil {
@@ -913,11 +914,11 @@ func assertCopyPathsSafe(source, destination string, filter func(absolutePath st
 		}
 	}
 
-	return errors.New(CopyDestinationInsideSourceError{
+	return CopyDestinationInsideSourceError{
 		Source:      source,
 		Destination: destination,
 		RelDest:     relDest,
-	})
+	}
 }
 
 // IsSymLink returns true if the given file is a symbolic link
@@ -946,12 +947,12 @@ func TerragruntExcludes(path string) bool {
 func CopyFile(source string, destination string) error {
 	file, err := os.Open(source)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	err = WriteFileWithSamePermissions(source, destination, file)
 
-	return errors.New(errors.Join(err, file.Close()))
+	return errors.Join(err, file.Close())
 }
 
 // WriteFileWithSamePermissions writes a file to the given destination with the given contents
@@ -959,12 +960,12 @@ func CopyFile(source string, destination string) error {
 func WriteFileWithSamePermissions(source string, destination string, contents io.Reader) error {
 	fileInfo, err := os.Stat(source)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	// CAS may place read-only files at the destination, which would block a plain open.
 	if err := os.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return errors.New(err)
+		return err
 	}
 
 	file, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileInfo.Mode())
@@ -1072,7 +1073,7 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 
 	manifestRelPath, ok := cleanRootRelPath(manifest.ManifestFile)
 	if !ok {
-		return errors.Errorf("manifest path %q must stay inside %q", manifest.ManifestFile, rootDir)
+		return fmt.Errorf("manifest path %q must stay inside %q", manifest.ManifestFile, rootDir)
 	}
 
 	return manifest.clean(l, vfs.NewOSFS(), rootDir, manifestRelPath)
@@ -1476,13 +1477,13 @@ func IsDirectoryEmpty(dirPath string) (bool, error) {
 func EnsureCacheDir() (string, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	cacheDir = filepath.Join(cacheDir, "terragrunt")
 
 	if err := os.MkdirAll(cacheDir, os.ModePerm); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	return cacheDir, nil
@@ -1493,7 +1494,7 @@ func EnsureTempDir() (string, error) {
 	tempDir := filepath.Join(os.TempDir(), "terragrunt")
 
 	if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	return tempDir, nil
@@ -1591,7 +1592,7 @@ func MatchSha256Checksum(file, filename []byte) []byte {
 func FileSHA256(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 	defer file.Close() //nolint:errcheck
 
@@ -1601,7 +1602,7 @@ func FileSHA256(filePath string) ([]byte, error) {
 	for {
 		n, err := file.Read(buffer)
 		if err != nil && err != io.EOF {
-			return nil, errors.New(err)
+			return nil, err
 		}
 
 		if n == 0 {
@@ -1609,7 +1610,7 @@ func FileSHA256(filePath string) ([]byte, error) {
 		}
 
 		if _, err := hash.Write(buffer[:n]); err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 	}
 
@@ -1650,9 +1651,6 @@ func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
 			}
 		}),
 	)
-	if err != nil {
-		err = errors.New(err)
-	}
 
 	return num, err
 }
@@ -1661,12 +1659,12 @@ func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
 func evalRealPathForWalkDir(currentPath string) (string, bool, error) {
 	realPath, err := filepath.EvalSymlinks(currentPath)
 	if err != nil {
-		return "", false, errors.Errorf("failed to evaluate symlinks for %s: %w", currentPath, err)
+		return "", false, fmt.Errorf("failed to evaluate symlinks for %s: %w", currentPath, err)
 	}
 
 	realInfo, err := os.Stat(realPath)
 	if err != nil {
-		return "", false, errors.Errorf("failed to describe file %s: %w", realPath, err)
+		return "", false, fmt.Errorf("failed to describe file %s: %w", realPath, err)
 	}
 
 	return realPath, realInfo.IsDir(), nil
@@ -1704,7 +1702,7 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 			// Convert the current physical path to a logical path relative to the walk root
 			rel, err := filepath.Rel(pair.physical, currentPath)
 			if err != nil {
-				return errors.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
+				return fmt.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
 			}
 
 			logicalPath := filepath.Join(pair.logical, rel)
@@ -1748,7 +1746,7 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		return errors.Errorf("failed to evaluate symlinks for %s: %w", root, err)
+		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
 	}
 
 	// Start the walk from the root directory
@@ -1901,7 +1899,7 @@ func (manifest *fileManifest) cleanManifestEntry(l log.Logger, fsys vfs.FS, root
 	}
 
 	if err := removeManifestEntry(l, fsys, rootDir, rel); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	return "", nil
@@ -2025,15 +2023,15 @@ func manifestRootExistsWithoutSymlinks(fsys vfs.FS, rootDir string) (bool, error
 	}
 
 	if err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 {
-		return false, errors.Errorf("manifest folder %q must not contain symlinks", rootDir)
+		return false, fmt.Errorf("manifest folder %q must not contain symlinks", rootDir)
 	}
 
 	if !info.IsDir() {
-		return false, errors.Errorf("manifest folder %q must be a directory", rootDir)
+		return false, fmt.Errorf("manifest folder %q must be a directory", rootDir)
 	}
 
 	return true, nil

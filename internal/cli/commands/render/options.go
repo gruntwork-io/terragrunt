@@ -1,7 +1,8 @@
 package render
 
 import (
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 

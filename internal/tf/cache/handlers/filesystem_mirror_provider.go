@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -96,11 +95,11 @@ func (handler *FilesystemMirrorProviderHandler) readMirrorData(filename string, 
 
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if err := json.Unmarshal(data, value); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil

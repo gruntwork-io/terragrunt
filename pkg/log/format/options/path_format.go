@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -128,7 +127,7 @@ func NewRelativePather(baseDir string) (*RelativePather, error) {
 
 		relPath, err := filepath.Rel(baseDir, absPath)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 
 		reversIndex--

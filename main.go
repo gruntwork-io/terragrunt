@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -35,12 +36,22 @@ func main() {
 	}
 
 	defer func() {
-		if opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode) {
-			errors.Recover(checkForErrorsAndExit(l, exitCode.GetFinalDetailedExitCode()))
+		rec := recover()
+		if rec == nil {
 			return
 		}
 
-		errors.Recover(checkForErrorsAndExit(l, exitCode.GetFinalExitCode()))
+		err, isErr := rec.(error)
+		if !isErr {
+			err = fmt.Errorf("%v", rec)
+		}
+
+		if opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode) {
+			checkForErrorsAndExit(l, exitCode.GetFinalDetailedExitCode())(err)
+			return
+		}
+
+		checkForErrorsAndExit(l, exitCode.GetFinalExitCode())(err)
 	}()
 
 	app := cli.NewApp(l, opts)
@@ -72,10 +83,6 @@ func checkForErrorsAndExit(l log.Logger, exitCode int) func(error) {
 		}
 
 		l.Error(err.Error())
-
-		if errStack := errors.ErrorStack(err); errStack != "" {
-			l.Trace(errStack)
-		}
 
 		// exit with the underlying error code
 		exitCoder, exitCodeErr := util.GetExitCode(err)

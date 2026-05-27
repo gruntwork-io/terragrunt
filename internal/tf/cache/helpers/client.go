@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	svchost "github.com/hashicorp/terraform-svchost"
 	"github.com/puzpuzpuz/xsync/v4"
@@ -36,7 +35,7 @@ func (client *Client) Do(ctx context.Context, method, reqURL string, value any) 
 
 	req, err := http.NewRequestWithContext(ctx, method, reqURL, nil)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if client.credsSource != nil {
@@ -48,13 +47,13 @@ func (client *Client) Do(ctx context.Context, method, reqURL string, value any) 
 
 	resp, err := client.Client.Do(req)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
 	bodyBytes, err := decodeResponse(resp)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	client.cache.Store(reqURL, bodyBytes)
@@ -68,7 +67,7 @@ func unmarshalBody(data []byte, value any) error {
 	}
 
 	if err := json.Unmarshal(data, value); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -86,7 +85,7 @@ func decodeResponse(resp *http.Response) ([]byte, error) {
 
 	bodyBytes, err := io.ReadAll(buffer)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	resp.Body = io.NopCloser(buffer)

@@ -1,6 +1,7 @@
 package options
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -8,7 +9,6 @@ import (
 	"sync"
 
 	"charm.land/lipgloss/v2"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/puzpuzpuz/xsync/v4"
 )
@@ -108,7 +108,7 @@ func (val *ColorList) Parse(str string) error {
 	}
 
 	if err := val.MapValue.Parse(str); err != nil {
-		return errors.Errorf("available values: 0..255,%s", strings.Join(slices.Collect(maps.Values(val.list)), ","))
+		return fmt.Errorf("available values: 0..255,%s", strings.Join(slices.Collect(maps.Values(val.list)), ","))
 	}
 
 	return nil

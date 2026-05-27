@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
@@ -26,14 +27,14 @@ func ParseProviderConstraints(impl tfimpl.Type, workingDir string) (ProviderCons
 
 	tfFiles, err := filepath.Glob(filepath.Join(workingDir, "*.tf"))
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	allFiles = append(allFiles, tfFiles...)
 
 	tofuFiles, err := filepath.Glob(filepath.Join(workingDir, "*.tofu"))
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	allFiles = append(allFiles, tofuFiles...)
@@ -64,13 +65,13 @@ func parseProviderConstraintsFromFile(impl tfimpl.Type, filename string) (Provid
 
 	content, err := os.ReadFile(filename)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	// Parse the HCL file
 	file, diags := hclsyntax.ParseConfig(content, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, errors.New(diags)
+		return nil, diags
 	}
 
 	// Walk through the file looking for terraform blocks with required_providers

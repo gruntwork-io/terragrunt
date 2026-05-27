@@ -1,11 +1,11 @@
 package tf
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 )
@@ -43,12 +43,12 @@ func ParseLogFunc(msgPrefix string, returnError bool) writer.WriterParseFunc {
 
 func ParseLog(str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, err error) {
 	if !tfLogTimeLevelMsgReg.MatchString(str) {
-		return str, nil, nil, errors.Errorf("could not parse string %q: does not match a known format", str)
+		return str, nil, nil, fmt.Errorf("could not parse string %q: does not match a known format", str)
 	}
 
 	match := tfLogTimeLevelMsgReg.FindStringSubmatch(str)
 	if len(match) != parseLogNumberOfValues {
-		return str, nil, nil, errors.Errorf("could not parse string %q: does not match a known format", str)
+		return str, nil, nil, fmt.Errorf("could not parse string %q: does not match a known format", str)
 	}
 
 	timeStr, levelStr, msg := match[1], match[2], match[3]
@@ -56,7 +56,7 @@ func ParseLog(str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, 
 	if levelStr != "" {
 		level, err := log.ParseLevel(strings.ToLower(levelStr))
 		if err != nil {
-			return str, nil, nil, errors.Errorf("could not parse level %q: %w", levelStr, err)
+			return str, nil, nil, fmt.Errorf("could not parse level %q: %w", levelStr, err)
 		}
 
 		ptrLevel = &level
@@ -65,7 +65,7 @@ func ParseLog(str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, 
 	if timeStr != "" {
 		time, err := time.Parse(logTimestampFormat, timeStr)
 		if err != nil {
-			return str, nil, nil, errors.Errorf("could not parse time %q: %w", timeStr, err)
+			return str, nil, nil, fmt.Errorf("could not parse time %q: %w", timeStr, err)
 		}
 
 		ptrTime = &time

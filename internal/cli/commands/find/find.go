@@ -10,9 +10,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -36,7 +37,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		Experiments:       opts.Experiments,
 	})
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	// We do worktree generation here instead of in the discovery constructor
@@ -49,7 +50,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		Experiments:    opts.Experiments,
 	})
 	if worktreeErr != nil {
-		return errors.Errorf("failed to create worktrees: %w", worktreeErr)
+		return fmt.Errorf("failed to create worktrees: %w", worktreeErr)
 	}
 
 	defer func() {
@@ -98,7 +99,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 			return nil
 		})
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 	default:
 		// This should never happen, because of validation in the command.
@@ -117,7 +118,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return nil
 	})
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	switch opts.Format {
@@ -227,12 +228,12 @@ func discoveredToFound(l log.Logger, components component.Components, opts *Opti
 func outputJSON(opts *Options, components FoundComponents) error {
 	jsonBytes, err := json.MarshalIndent(components, "", "  ")
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	_, err = opts.Writers.Writer.Write(append(jsonBytes, []byte("\n")...))
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -309,7 +310,7 @@ func outputText(l log.Logger, opts *Options, components FoundComponents) error {
 
 	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
 
-	return errors.New(err)
+	return err
 }
 
 // shouldColor returns true if the output should be colored.

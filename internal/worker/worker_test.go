@@ -6,7 +6,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -83,9 +84,9 @@ func TestSomeTasksReturnErrors(t *testing.T) {
 	errs := wp.Wait()
 	require.Error(t, errs)
 
-	var multiErr *errors.MultiError
-	require.True(t, errors.As(errs, &multiErr), "expected *errors.MultiError, got %T", errs)
-	require.Len(t, multiErr.WrappedErrors(), 5, "expected exactly 5 errors, got %d", len(multiErr.WrappedErrors()))
+	unwrapper, ok := errs.(interface{ Unwrap() []error })
+	require.True(t, ok, "expected joined error, got %T", errs)
+	require.Len(t, unwrapper.Unwrap(), 5, "expected exactly 5 errors, got %d", len(unwrapper.Unwrap()))
 
 	if atomic.LoadInt32(&successCount) != 5 {
 		t.Errorf("expected successCount to be 5, got %d", successCount)

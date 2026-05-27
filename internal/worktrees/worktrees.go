@@ -14,8 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
@@ -150,7 +151,7 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 						continue
 					}
 
-					return errors.Errorf(
+					return fmt.Errorf(
 						"failed to remove Git worktree for reference %s (%s): %w",
 						worktree.Ref,
 						worktree.Path,
@@ -293,7 +294,7 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 		case config.DefaultTerragruntConfigPath:
 			expr, err := filter.NewPathFilter(dir)
 			if err != nil {
-				return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+				return nil, nil, fmt.Errorf("failed to create path filter for %s: %w", dir, err)
 			}
 
 			toExpressions = append(toExpressions, expr)
@@ -303,7 +304,7 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
 				expr, err := filter.NewPathFilter(dir)
 				if err != nil {
-					return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+					return nil, nil, fmt.Errorf("failed to create path filter for %s: %w", dir, err)
 				}
 
 				toExpressions = append(toExpressions, expr)
@@ -315,7 +316,7 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 			// tracked using a reading filter.
 			expr, err := filter.NewAttributeExpression(filter.AttributeReading, path)
 			if err != nil {
-				return nil, nil, errors.Errorf("failed to create reading filter for %s: %w", path, err)
+				return nil, nil, fmt.Errorf("failed to create reading filter for %s: %w", path, err)
 			}
 
 			toExpressions = append(toExpressions, expr)
@@ -369,7 +370,7 @@ func NewWorktrees(
 
 	gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
 	if err != nil {
-		return nil, errors.Errorf("failed to create Git runner for worktree creation: %w", err)
+		return nil, fmt.Errorf("failed to create Git runner for worktree creation: %w", err)
 	}
 
 	gitRunner = gitRunner.WithWorkDir(workingDir)
@@ -518,19 +519,19 @@ func expandDiffPaths(paths []string, toPath string, primaryExprs, fallbackExprs 
 		case config.DefaultTerragruntConfigPath:
 			expr, err := filter.NewPathFilter(dir)
 			if err != nil {
-				return errors.Errorf("failed to create path filter for %s: %w", dir, err)
+				return fmt.Errorf("failed to create path filter for %s: %w", dir, err)
 			}
 
 			*primaryExprs = append(*primaryExprs, expr)
 		case config.DefaultStackFile:
 			dirExpr, err := filter.NewPathFilter(dir)
 			if err != nil {
-				return errors.Errorf("failed to create path filter for %s: %w", dir, err)
+				return fmt.Errorf("failed to create path filter for %s: %w", dir, err)
 			}
 
 			globExpr, err := filter.NewPathFilter(filepath.Join(dir, "**"))
 			if err != nil {
-				return errors.Errorf("failed to create path filter for %s/**: %w", dir, err)
+				return fmt.Errorf("failed to create path filter for %s/**: %w", dir, err)
 			}
 
 			*primaryExprs = append(*primaryExprs, dirExpr, globExpr)
@@ -538,7 +539,7 @@ func expandDiffPaths(paths []string, toPath string, primaryExprs, fallbackExprs 
 			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
 				expr, err := filter.NewPathFilter(dir)
 				if err != nil {
-					return errors.Errorf("failed to create path filter for %s: %w", dir, err)
+					return fmt.Errorf("failed to create path filter for %s: %w", dir, err)
 				}
 
 				*fallbackExprs = append(*fallbackExprs, expr)
@@ -583,7 +584,7 @@ func createGitWorktrees(
 	for _, ref := range gitRefs {
 		tmpDir, err := os.MkdirTemp("", "terragrunt-worktree-"+sanitizeRef(ref)+"-*")
 		if err != nil {
-			errs = append(errs, errors.Errorf("failed to create temporary directory for worktree: %w", err))
+			errs = append(errs, fmt.Errorf("failed to create temporary directory for worktree: %w", err))
 
 			continue
 		}
@@ -597,7 +598,7 @@ func createGitWorktrees(
 				l.Warnf("failed to clean worktree directory %s: %v", origTmpDir, cleanErr)
 			}
 
-			errs = append(errs, errors.Errorf("failed to evaluate symlinks for temporary directory: %w", err))
+			errs = append(errs, fmt.Errorf("failed to evaluate symlinks for temporary directory: %w", err))
 
 			continue
 		}
@@ -622,7 +623,7 @@ func createGitWorktrees(
 				l.Warnf("failed to clean worktree directory %s: %v", tmpDir, cleanErr)
 			}
 
-			errs = append(errs, errors.Errorf("failed to create Git worktree for reference %s: %w", ref, err))
+			errs = append(errs, fmt.Errorf("failed to create Git worktree for reference %s: %w", ref, err))
 
 			continue
 		}

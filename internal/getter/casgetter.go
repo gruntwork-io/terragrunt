@@ -6,8 +6,9 @@ import (
 	"net/url"
 	"strings"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
 )

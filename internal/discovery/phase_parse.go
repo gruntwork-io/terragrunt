@@ -2,15 +2,17 @@ package discovery
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -351,7 +353,7 @@ func parseComponent(
 
 		if parseOpts.DiscoveryAuthProviderCmd {
 			if _, err := creds.ObtainCredsForParsing(ctx, l, parseOpts.AuthProviderCmd, parseOpts.Env, shellOpts); err != nil {
-				return errors.Errorf("obtaining auth provider credentials for %s: %w", parseOpts.TerragruntConfigPath, err)
+				return fmt.Errorf("obtaining auth provider credentials for %s: %w", parseOpts.TerragruntConfigPath, err)
 			}
 		}
 
