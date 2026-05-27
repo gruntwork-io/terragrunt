@@ -160,7 +160,7 @@ Terragrunt works the same way. If your app server needs a VPC to exist first, Te
 
 When you run `terragrunt run --all apply`, Terragrunt:
 
-1. **Scans** all units in the current directory tree
+1. **Discovers** all units in the current directory tree
 2. **Builds** a DAG from declared dependencies
 3. **Executes** units in topological order, parallelizing where possible
 
