@@ -84,6 +84,55 @@ func NewController(q *queue.Queue, units []*component.Unit, opts ...ControllerOp
 	return dr
 }
 
+// weightedSemaphore tracks in-flight weight against a budget (--parallelism).
+// When all units have weight 1, it behaves identically to a channel-based semaphore.
+type weightedSemaphore struct {
+	mu       sync.Mutex
+	cond     *sync.Cond
+	budget   int
+	inflight int
+}
+
+func newWeightedSemaphore(budget int) *weightedSemaphore {
+	ws := &weightedSemaphore{budget: budget}
+	ws.cond = sync.NewCond(&ws.mu)
+
+	return ws
+}
+
+// acquire blocks until inflight + weight <= budget, or until the unit can run solo
+// (weight > budget and inflight == 0). This prevents oversized units from deadlocking.
+func (ws *weightedSemaphore) acquire(weight int) {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+
+	for {
+		// Normal case: unit fits within remaining budget
+		if ws.inflight+weight <= ws.budget {
+			ws.inflight += weight
+
+			return
+		}
+
+		// Oversized unit: weight exceeds budget, run solo when pool is empty
+		if weight > ws.budget && ws.inflight == 0 {
+			ws.inflight += weight
+
+			return
+		}
+
+		ws.cond.Wait()
+	}
+}
+
+// release returns weight to the budget and wakes waiters.
+func (ws *weightedSemaphore) release(weight int) {
+	ws.mu.Lock()
+	ws.inflight -= weight
+	ws.mu.Unlock()
+	ws.cond.Broadcast()
+}
+
 // Run executes the Queue return error summarizing all entries that failed to run.
 func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_controller", map[string]any{
@@ -94,7 +143,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 	}, func(childCtx context.Context) error {
 		var (
 			wg      sync.WaitGroup
-			sem     = make(chan struct{}, dr.concurrency)
+			sem     = newWeightedSemaphore(dr.concurrency)
 			results = xsync.NewMap[string, error]()
 		)
 
@@ -121,15 +170,21 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					continue
 				}
 
-				l.Debugf("Runner Pool Controller: running %s", e.Component.Path())
+				// Look up unit weight for budget-based admission
+				weight := 1
+				if unit, ok := dr.unitsMap[e.Component.Path()]; ok {
+					weight = unit.ExecutionWeight()
+				}
 
-				sem <- struct{}{}
+				sem.acquire(weight)
+
+				l.Debugf("Runner Pool Controller: running %s (weight %d)", e.Component.Path(), weight)
 
 				wg.Add(1)
 
-				go func(ent *queue.Entry) {
+				go func(ent *queue.Entry, w int) {
 					defer func() {
-						<-sem
+						sem.release(w)
 						wg.Done()
 
 						select {
@@ -160,7 +215,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 					l.Debugf("Runner Pool Controller: %s succeeded", ent.Component.Path())
 					dr.q.SetEntryStatus(ent, queue.StatusSucceeded)
-				}(e)
+				}(e, weight)
 			}
 
 			if dr.q.Finished() {
