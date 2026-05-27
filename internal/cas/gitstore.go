@@ -25,30 +25,24 @@ const (
 )
 
 // GitStore keeps one bare git repository per remote URL on disk so CAS cache
-// misses can issue an incremental git fetch instead of a full shallow clone.
+// misses can issue an incremental fetch instead of a fresh shallow clone.
+//
 // Each per-URL repository is gated by an exclusive flock because pack-file
-// writes are not safe to interleave with concurrent reads of the same repo.
-// EnsureRef waits up to gitStoreLockTimeout for the lock; on context
-// cancellation or timeout the caller can fall back to a temporary clone
-// rather than block indefinitely on a hung holder. After acquiring the
-// lock, EnsureRef re-checks for the requested object so a unit that simply
-// waited out a peer's fetch can proceed without re-doing the work.
-// The flock is held from EnsureRef return until the caller releases it.
+// writes are not safe to interleave with concurrent reads. EnsureRef waits up
+// to [gitStoreLockTimeout] before giving up so the caller can fall back to a
+// temporary clone rather than block indefinitely on a hung holder.
 type GitStore struct {
-	runner   *git.GitRunner
 	rootPath string
 }
 
-// GitStoreRepo is a locked handle to a per-URL bare repository. The
-// caller has exclusive access to the underlying repo until [GitStoreRepo.Unlock]
-// is called; failing to release the lock blocks subsequent fetches
-// against the same URL.
+// GitStoreRepo is a locked handle to a per-URL bare repository. The caller
+// has exclusive access until [GitStoreRepo.Unlock] returns; failing to
+// release the lock blocks every subsequent fetch against the same URL.
 type GitStoreRepo struct {
 	unlocker vfs.Unlocker
 
-	// url records the URL acquire was called with so Release can
-	// include it in unlock-failure log messages without callers
-	// re-threading it.
+	// url is the source URL, kept so Release can name it in
+	// unlock-failure logs without callers re-threading it.
 	url string
 
 	// Path is the bare repository path, suitable for
@@ -61,61 +55,39 @@ type GitStoreRepo struct {
 	Hash string
 }
 
-// Unlock releases the per-URL flock held by this repo handle and
-// returns any unlock error to the caller.
+// Unlock releases the per-URL flock and returns any unlock error.
 func (r *GitStoreRepo) Unlock() error {
 	return r.unlocker.Unlock()
 }
 
-// Release unlocks the repo handle, logging unlock failures against the
-// originating URL. Intended for `defer repo.Release(l)`; callers that
-// need the unlock error directly should call [GitStoreRepo.Unlock] instead.
+// Release unlocks and logs any unlock error against the originating URL.
+// Intended for `defer repo.Release(l)`; callers that need the error
+// directly should use [GitStoreRepo.Unlock].
 func (r *GitStoreRepo) Release(l log.Logger) {
 	if err := r.unlocker.Unlock(); err != nil {
 		l.Warnf("git store: failed to release lock for %s: %v", r.url, err)
 	}
 }
 
-// NewGitStore returns a [GitStore] rooted at rootPath, creating the directory
-// on fs if needed. The filesystem is not retained; callers pass one explicitly
-// to [GitStore.EnsureRef] and [GitStore.EnsureCommit].
-//
-// The git store shells out to `git`, which only sees the real disk. Callers
-// must pass an OS-backed [vfs.FS] from [vfs.NewOSFS]; an in-memory backing
-// returns [ErrGitStoreFSNotOS].
-func NewGitStore(fs vfs.FS, runner *git.GitRunner, rootPath string) (*GitStore, error) {
-	if !vfs.IsOSFS(fs) {
-		return nil, ErrGitStoreFSNotOS
-	}
-
-	if err := fs.MkdirAll(rootPath, DefaultDirPerms); err != nil {
-		return nil, fmt.Errorf("create git store at %s: %w", rootPath, errors.Join(ErrGitStorePath, err))
-	}
-
-	return &GitStore{
-		runner:   runner,
-		rootPath: rootPath,
-	}, nil
+// NewGitStore returns a [GitStore] rooted at rootPath. The directory is
+// created lazily on first write.
+func NewGitStore(rootPath string) *GitStore {
+	return &GitStore{rootPath: rootPath}
 }
 
 // EnsureRef ensures the bare repository for url contains the object at
-// hash, fetching ref at the requested depth if it does not.
-//
-// On success the returned repo's Path is suitable for
-// [git.GitRunner.WithWorkDir], and the caller must release the embedded
-// flock with [GitStoreRepo.Unlock] (or [GitStoreRepo.Release]) once done
-// reading objects.
-//
-// On failure the lock is released before returning so callers can take
-// a different code path without managing the lock themselves.
+// hash, fetching ref at the requested depth on a cache miss. The returned
+// handle holds the per-URL flock; the caller must release it via
+// [GitStoreRepo.Unlock] or [GitStoreRepo.Release]. On error the lock is
+// released before returning.
 func (s *GitStore) EnsureRef(
 	ctx context.Context,
 	l log.Logger,
-	fs vfs.FS,
+	v Venv,
 	url, ref, hash string,
 	depth int,
 ) (*GitStoreRepo, error) {
-	session, err := s.acquire(ctx, fs, l, url)
+	session, err := s.acquire(ctx, v, l, url)
 	if err != nil {
 		return nil, err
 	}
@@ -152,42 +124,25 @@ func (s *GitStore) EnsureRef(
 
 // EnsureCommit ensures the bare repository for url contains a commit
 // reachable from rawRef and returns its canonical full hash via
-// [GitStoreRepo.Hash].
+// [GitStoreRepo.Hash]. Any rawRef `git rev-parse` accepts works.
 //
-// rawRef may be a full SHA-1 (40 hex chars), full SHA-256 (64 hex
-// chars), or an abbreviated SHA that disambiguates inside the repo.
-// Resolution runs `git rev-parse <ref>^{commit}` against the per-URL
-// bare repository, so any form git accepts works.
+// If knownHash is non-empty (typically from [GitStore.ProbeCachedCommit])
+// the cache-hit path verifies it with [git.GitRunner.HasObject] and skips
+// rev-parse. On a cache miss the bare repo fetches every branch with no
+// --depth; fetching by raw SHA would require `uploadpack.allowAnySHA1InWant`,
+// which is not universally enabled on git servers. An unresolvable rawRef
+// after the fetch surfaces as [git.WrappedError] wrapping
+// [git.ErrNoMatchingReference] so callers can match it with [errors.Is].
 //
-// If knownHash is non-empty, it is taken as the canonical hash of
-// rawRef (typically from a prior [GitStore.ProbeCachedCommit] call).
-// Presence is verified via [git.GitRunner.HasObject] and rev-parse
-// is skipped on the cache-hit path. Pass "" to canonicalize via
-// rev-parse.
-//
-// Behavior:
-//
-//  1. If the commit is already cached in the bare repo, no network
-//     call is made.
-//  2. Otherwise the bare repo is updated with a full-history fetch of
-//     every ref (no `--depth`). Tags are included so commits reachable
-//     only via tags resolve without a second fetch. Fetching by raw SHA
-//     is avoided because it requires `uploadpack.allowAnySHA1InWant`,
-//     which is not universally enabled on git servers.
-//  3. If rev-parse still cannot resolve rawRef after the fetch, a
-//     [git.WrappedError] wrapping [git.ErrNoMatchingReference] is
-//     returned so callers can use [errors.Is] for the same condition
-//     `git ls-remote` surfaces for symbolic refs.
-//
-// On success the caller must release the lock via [GitStoreRepo.Unlock]
-// or [GitStoreRepo.Release], matching the contract of [GitStore.EnsureRef].
+// Lock contract matches [GitStore.EnsureRef]: callers must release on
+// success, the lock is released for them on error.
 func (s *GitStore) EnsureCommit(
 	ctx context.Context,
 	l log.Logger,
-	fs vfs.FS,
+	v Venv,
 	url, rawRef, knownHash string,
 ) (*GitStoreRepo, error) {
-	session, err := s.acquire(ctx, fs, l, url)
+	session, err := s.acquire(ctx, v, l, url)
 	if err != nil {
 		return nil, err
 	}
@@ -230,12 +185,10 @@ func (s *GitStore) EnsureCommit(
 	return session.keep(), nil
 }
 
-// ensureKnownCommit handles the [GitStore.EnsureCommit] cache-hit path
-// when the caller has already canonicalized rawRef via
-// [GitStore.ProbeCachedCommit]. Presence of knownHash is verified
-// with [git.GitRunner.HasObject], skipping the rev-parse spawn. On
-// miss (e.g. a peer ran git-gc between the lock-free probe and the
-// locked verify) a full-history fetch runs and presence is rechecked.
+// ensureKnownCommit handles the [GitStore.EnsureCommit] path where the
+// caller has already canonicalized rawRef. A locked miss (a peer ran
+// git-gc between the lock-free probe and this verify) triggers a
+// full-history fetch and a recheck.
 func (s *GitStore) ensureKnownCommit(
 	ctx context.Context,
 	session *repoSession,
@@ -273,34 +226,30 @@ func (s *GitStore) ensureKnownCommit(
 	return session.keep(), nil
 }
 
-// ProbeCachedCommit returns the canonical commit hash if rawRef
-// resolves to a commit already stored in the per-URL bare repository
-// for url and rawRef is a prefix of that hash. Returns ok=false in
-// any other case (no bare repo yet, unresolvable ref, or a name that
-// resolved through ref lookup such as a hex-named branch whose tip
-// is a different commit).
+// ProbeCachedCommit returns the canonical commit hash when rawRef is a
+// prefix of a commit already stored in the per-URL bare repository, and
+// ok=false otherwise (no bare repo, unresolvable ref, or a name that
+// happened to resolve through ref lookup, such as a hex-named branch).
 //
-// Panics if fs is not OS-backed. git only sees the real disk, so a
-// non-OS backing cannot satisfy the probe.
+// The probe is lock-free: rev-parse only reads pack indices and refs,
+// both updated atomically by git. Acquiring the per-URL flock here would
+// queue every probe behind any in-flight fetch and erase the offline
+// win.
 //
-// The probe is lock-free on purpose. The per-URL flock serializes
-// fetches so concurrent pack-file writes do not interleave, but
-// rev-parse only reads pack indices and refs, both of which git
-// updates atomically. Acquiring the flock for a read would queue the
-// probe behind any in-flight fetch and erase the offline win.
-func (s *GitStore) ProbeCachedCommit(ctx context.Context, fs vfs.FS, url, rawRef string) (string, bool) {
-	if !vfs.IsOSFS(fs) {
+// Panics when v.FS is not OS-backed; git only sees the real disk.
+func (s *GitStore) ProbeCachedCommit(ctx context.Context, v Venv, url, rawRef string) (string, bool) {
+	if !vfs.IsOSFS(v.FS) {
 		panic(ErrGitStoreFSNotOS)
 	}
 
 	_, repoPath, _ := s.repoPaths(url)
 
-	initialized, err := bareRepoInitialized(fs, repoPath)
+	initialized, err := bareRepoInitialized(v.FS, repoPath)
 	if err != nil || !initialized {
 		return "", false
 	}
 
-	hash, err := s.runner.WithWorkDir(repoPath).RevParseCommit(ctx, rawRef)
+	hash, err := v.Git.WithWorkDir(repoPath).RevParseCommit(ctx, rawRef)
 	if err != nil {
 		return "", false
 	}
@@ -346,11 +295,10 @@ func bareRepoInitialized(fs vfs.FS, repoPath string) (bool, error) {
 	return vfs.FileExists(fs, filepath.Join(repoPath, "HEAD"))
 }
 
-// repoSession bundles everything a [GitStore.acquire] caller needs
-// to operate on a per-URL bare repository: the [GitStoreRepo] handle
-// (the locked thing), a runner pointed at it, and a deferred-cleanup
-// helper. Callers defer cleanup(); keep() promotes the handle so the
-// lock survives until the caller releases it explicitly.
+// repoSession bundles the locked repo handle, the runner pointed at it,
+// and a deferred-cleanup helper. Callers `defer session.cleanup()` to
+// release the lock on error and call `session.keep()` to promote the
+// handle on success.
 type repoSession struct {
 	l      log.Logger
 	repo   *GitStoreRepo
@@ -358,16 +306,14 @@ type repoSession struct {
 	kept   bool
 }
 
-// keep promotes the session's repo handle to the caller. After keep
-// the deferred cleanup is a no-op and the caller owns the lock until
-// it invokes [GitStoreRepo.Unlock] or [GitStoreRepo.Release].
+// keep promotes the handle so cleanup is a no-op and the caller owns
+// the lock until [GitStoreRepo.Unlock] or [GitStoreRepo.Release].
 func (s *repoSession) keep() *GitStoreRepo {
 	s.kept = true
 	return s.repo
 }
 
-// cleanup releases the lock unless keep was called. Intended for
-// `defer session.cleanup()`.
+// cleanup releases the lock unless keep was called.
 func (s *repoSession) cleanup() {
 	if s.kept {
 		return
@@ -376,28 +322,28 @@ func (s *repoSession) cleanup() {
 	s.repo.Release(s.l)
 }
 
-// acquire claims the per-URL flock for url, prepares the bare-repo
-// directory, and returns a [repoSession] carrying the locked handle
-// and a runner pointed at it. The caller defers session.cleanup();
-// session.keep() promotes the handle so the lock survives.
-//
-// `git init --bare` is invoked only on first use of a store entry;
-// subsequent calls detect the existing HEAD and skip the spawn.
-func (s *GitStore) acquire(ctx context.Context, fs vfs.FS, l log.Logger, url string) (*repoSession, error) {
-	if !vfs.IsOSFS(fs) {
+// acquire claims the per-URL flock and returns a [repoSession] carrying
+// the locked handle. `git init --bare` runs only on first use of a store
+// entry; subsequent calls detect HEAD and skip the spawn.
+func (s *GitStore) acquire(ctx context.Context, v Venv, l log.Logger, url string) (*repoSession, error) {
+	if !vfs.IsOSFS(v.FS) {
 		return nil, ErrGitStoreFSNotOS
+	}
+
+	if err := v.FS.MkdirAll(s.rootPath, DefaultDirPerms); err != nil {
+		return nil, fmt.Errorf("create git store at %s: %w", s.rootPath, errors.Join(ErrGitStorePath, err))
 	}
 
 	dir, repoPath, lockPath := s.repoPaths(url)
 
-	if err := fs.MkdirAll(dir, DefaultDirPerms); err != nil {
+	if err := v.FS.MkdirAll(dir, DefaultDirPerms); err != nil {
 		return nil, fmt.Errorf("create git store entry %s: %w", dir, errors.Join(ErrGitStorePath, err))
 	}
 
 	lockCtx, cancel := context.WithTimeout(ctx, gitStoreLockTimeout)
 	defer cancel()
 
-	unlocker, err := vfs.LockContext(lockCtx, fs, lockPath)
+	unlocker, err := vfs.LockContext(lockCtx, v.FS, lockPath)
 	if err != nil {
 		return nil, fmt.Errorf("lock git store for %s: %w", url, errors.Join(ErrGitStoreLock, err))
 	}
@@ -405,15 +351,15 @@ func (s *GitStore) acquire(ctx context.Context, fs vfs.FS, l log.Logger, url str
 	session := &repoSession{
 		l:      l,
 		repo:   &GitStoreRepo{unlocker: unlocker, url: url, Path: repoPath},
-		runner: s.runner.WithWorkDir(repoPath),
+		runner: v.Git.WithWorkDir(repoPath),
 	}
 
-	if err := fs.MkdirAll(repoPath, DefaultDirPerms); err != nil {
+	if err := v.FS.MkdirAll(repoPath, DefaultDirPerms); err != nil {
 		session.cleanup()
 		return nil, fmt.Errorf("create bare repo dir %s: %w", repoPath, errors.Join(ErrGitStorePath, err))
 	}
 
-	initialized, err := bareRepoInitialized(fs, repoPath)
+	initialized, err := bareRepoInitialized(v.FS, repoPath)
 	if err != nil {
 		session.cleanup()
 		return nil, fmt.Errorf("inspect bare repo %s: %w", repoPath, errors.Join(ErrGitStorePath, err))

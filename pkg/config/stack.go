@@ -164,16 +164,9 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		return err
 	}
 
-	var casInstance *cas.CAS
-
-	if casEnabled {
-		if err := cas.ValidateCASCloneDepth(pctx.CASCloneDepth); err != nil {
-			return err
-		}
-
-		instance, ok := makeCAS(l, pctx.CASCloneDepth)
-		casInstance = instance
-		casEnabled = ok
+	cs, err := setupCAS(l, casEnabled, pctx.CASCloneDepth)
+	if err != nil {
+		return err
 	}
 
 	genOpts := generateOpts{
@@ -187,8 +180,9 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		targetDir:       stackTargetDir,
 		autoIncludes:    autoIncludes,
 		stackSrcBytes:   stackSrcBytes,
-		casEnabled:      casEnabled,
-		casInstance:     casInstance,
+		casEnabled:      cs.Enabled,
+		casInstance:     cs.Instance,
+		casVenv:         cs.Venv,
 		strictControls:  pctx.StrictControls,
 	}
 
@@ -235,21 +229,51 @@ func validateUpdateSourceWithCAS(stackFile *StackConfig, stackFilePath string, c
 	return nil
 }
 
-// makeCAS initializes a CAS instance for stack generation, returning (nil, false) and logging a warning on failure.
-func makeCAS(l log.Logger, cloneDepth int) (*cas.CAS, bool) {
+// casSetup is the result of setupCAS: the CAS instance and Venv that
+// stack/unit generation threads through every CAS call, plus the
+// Enabled flag callers gate CAS features on. Enabled is false either
+// because casEnabled started false or because construction failed and
+// the warning was already logged.
+type casSetup struct {
+	Instance *cas.CAS
+	Venv     cas.Venv
+	Enabled  bool
+}
+
+// setupCAS prepares the CAS bundle for stack generation. A non-nil
+// error is reserved for user-facing misconfiguration (invalid clone
+// depth); transient setup failures log a warning and return an
+// Enabled=false bundle so the caller falls through to the standard
+// getter.
+func setupCAS(l log.Logger, enabled bool, cloneDepth int) (casSetup, error) {
+	if !enabled {
+		return casSetup{}, nil
+	}
+
+	if err := cas.ValidateCASCloneDepth(cloneDepth); err != nil {
+		return casSetup{}, err
+	}
+
 	c, err := cas.New(cas.WithCloneDepth(cloneDepth))
 	if err != nil {
 		l.Warnf("Failed to initialize CAS for stack generation: %v. CAS features disabled.", err)
-		return nil, false
+		return casSetup{}, nil
 	}
 
-	return c, true
+	v, err := cas.OSVenv()
+	if err != nil {
+		l.Warnf("Failed to initialize CAS environment: %v. CAS features disabled.", err)
+		return casSetup{}, nil
+	}
+
+	return casSetup{Instance: c, Venv: v, Enabled: true}, nil
 }
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
 	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
 	casInstance     *cas.CAS
+	casVenv         cas.Venv
 	sourceMap       map[string]string
 	strictControls  strict.Controls
 	rootWorkingDir  string
@@ -523,7 +547,7 @@ func fetchComponentSource(
 			matOpts = append(matOpts, cas.WithForceCopy())
 		}
 
-		if err := opts.casInstance.MaterializeTree(ctx, l, hash, dest, matOpts...); err != nil {
+		if err := opts.casInstance.MaterializeTree(ctx, l, opts.casVenv, hash, dest, matOpts...); err != nil {
 			return errors.Errorf("Failed to materialize CAS tree for %s %s: %w", kindStr, cmp.name, err)
 		}
 
@@ -571,7 +595,7 @@ func fetchViaCAS(
 ) error {
 	resolvedSource := resolveLocalCASSource(l, sourceDir, source)
 
-	result, err := opts.casInstance.ProcessStackComponent(ctx, l, resolvedSource, kindStr)
+	result, err := opts.casInstance.ProcessStackComponent(ctx, l, opts.casVenv, resolvedSource, kindStr)
 	if err != nil {
 		return err
 	}
