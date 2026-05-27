@@ -3,7 +3,6 @@ package hclparse
 import (
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -67,7 +66,7 @@ func (file *File) Decode(out any, evalContext *hcl.EvalContext) (err error) {
 
 	diags := gohcl.DecodeBody(file.Body, evalContext, out)
 	if err := file.HandleDiagnostics(diags); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -83,7 +82,7 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	// We use PartialContent here, because we are only interested in parsing out the catalog block.
 	parsed, _, diags := file.Body.PartialContent(catalogSchema)
 	if err := file.HandleDiagnostics(diags); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	extractedBlocks := []*Block{}
@@ -98,13 +97,11 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	}
 
 	if len(extractedBlocks) > 1 && !isMultipleAllowed {
-		return nil, errors.New(
-			&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  fmt.Sprintf("Multiple %s block", name),
-				Detail:   fmt.Sprintf(multipleBlockDetailFmt, name),
-			},
-		)
+		return nil, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Multiple %s block", name),
+			Detail:   fmt.Sprintf(multipleBlockDetailFmt, name),
+		}
 	}
 
 	return extractedBlocks, nil
@@ -114,7 +111,7 @@ func (file *File) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := file.Body.JustAttributes()
 
 	if err := file.HandleDiagnostics(diags); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	attrs := NewAttributes(file, hclAttrs)

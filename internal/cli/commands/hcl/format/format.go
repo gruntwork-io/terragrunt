@@ -24,7 +24,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 
@@ -46,7 +46,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	if stdIn {
 		if targetFile != "" {
-			return errors.Errorf("both stdin and path flags are specified")
+			return errors.New("both stdin and path flags are specified")
 		}
 
 		return formatFromStdin(l, opts)
@@ -102,14 +102,14 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return nil
 	})
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	var components component.Components
 
 	components, err = filters.EvaluateOnFiles(l, files, workingDir)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	g, _ := errgroup.WithContext(ctx)
@@ -228,13 +228,13 @@ func formatTgHCL(l log.Logger, opts *options.TerragruntOptions, tgHclFile string
 	info, err := os.Stat(tgHclFile)
 	if err != nil {
 		l.Errorf("Error retrieving file info of %s", tgHclFile)
-		return errors.Errorf("failed to get file info for %s: %w", tgHclFile, err)
+		return fmt.Errorf("failed to get file info for %s: %w", tgHclFile, err)
 	}
 
 	contents, err := os.ReadFile(tgHclFile)
 	if err != nil {
 		l.Errorf("Error reading %s", tgHclFile)
-		return errors.Errorf("failed to read %s: %w", tgHclFile, err)
+		return fmt.Errorf("failed to read %s: %w", tgHclFile, err)
 	}
 
 	err = checkErrors(l, l.Formatter().DisabledColors(), contents, tgHclFile)
@@ -276,7 +276,7 @@ func checkErrors(l log.Logger, disableColor bool, contents []byte, tgHclFile str
 
 	err := diagWriter.WriteDiagnostics(diags)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if diags.HasErrors() {

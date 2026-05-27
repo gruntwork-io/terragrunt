@@ -10,9 +10,10 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -123,11 +124,11 @@ func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error
 	b, err := json.MarshalIndent(group, "", "  ")
 	if err != nil {
 		l.Errorf("JSON error marshalling info")
-		return errors.New(err)
+		return err
 	}
 
 	if _, err := fmt.Fprintf(opts.Writers.Writer, "%s\n", b); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil

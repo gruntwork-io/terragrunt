@@ -11,10 +11,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -358,7 +359,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 		if !filepath.IsAbs(terragruntConfigPath) {
 			absPath, err := filepath.Abs(terragruntConfigPath)
 			if err != nil {
-				return nil, errors.New(err)
+				return nil, err
 			}
 
 			terragruntConfigPath = absPath
@@ -392,7 +393,7 @@ func NewTerragruntOptionsForTest(
 
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).Errorf("%v\n", errors.New(err))
+		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).Errorf("%v\n", err)
 
 		return nil, err
 	}
@@ -673,7 +674,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 			case <-time.After(time.Duration(action.RetrySleepSecs) * time.Second):
 				// try again
 			case <-ctx.Done():
-				return errors.New(ctx.Err())
+				return ctx.Err()
 			}
 
 			currentAttempt++

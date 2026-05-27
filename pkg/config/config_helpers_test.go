@@ -11,9 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -1064,8 +1065,7 @@ func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
 	_, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
 
-	var multiErr *errors.MultiError
-	require.ErrorAs(t, err, &multiErr)
+	require.Error(t, err)
 	require.ErrorContains(t, err, `Call to function "deep_merge" failed: Expected param of type map or object but got string.`)
 }
 

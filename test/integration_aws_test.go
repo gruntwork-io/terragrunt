@@ -37,7 +37,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 )
 

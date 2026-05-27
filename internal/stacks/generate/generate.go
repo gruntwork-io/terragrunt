@@ -3,15 +3,17 @@ package generate
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"sync"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
@@ -72,7 +74,7 @@ func (g *Generator) GenerateStacks(
 
 	foundFiles, err := ListStackFiles(ctx, l, opts, wts)
 	if err != nil {
-		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
+		return fmt.Errorf("failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
 
 	if len(foundFiles) == 0 {
@@ -94,7 +96,7 @@ func (g *Generator) GenerateStacks(
 	const maxLevel = 1024
 	for level := range maxLevel {
 		if level == maxLevel-1 {
-			return errors.Errorf("Cycle detected: maximum level (%d) exceeded", maxLevel)
+			return fmt.Errorf("cycle detected: maximum level (%d) exceeded", maxLevel)
 		}
 
 		levelNodes := getNodesAtLevel(stackTrees, level)
@@ -191,7 +193,7 @@ func discoverAndAddNewNodes(
 ) error {
 	newFiles, listErr := ListStackFiles(ctx, l, opts, worktrees)
 	if listErr != nil {
-		return errors.Errorf("Failed to list stack files after level %d: %w", minLevel-1, listErr)
+		return fmt.Errorf("failed to list stack files after level %d: %w", minLevel-1, listErr)
 	}
 
 	addNewNodesToGraph(l, dependencyGraph, newFiles, generatedFiles, workingDir)
@@ -334,17 +336,17 @@ func ListStackFiles(
 		Experiments: opts.Experiments,
 	})
 	if err != nil {
-		return nil, errors.Errorf("Failed to create discovery for stack generate: %w", err)
+		return nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
 	}
 
 	discoveredComponents, err := d.Discover(ctx, l, opts)
 	if err != nil {
-		return nil, errors.Errorf("Failed to discover stack files: %w", err)
+		return nil, fmt.Errorf("failed to discover stack files: %w", err)
 	}
 
 	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees)
 	if err != nil {
-		return nil, errors.Errorf("Failed to get worktree stacks to generate: %w", err)
+		return nil, fmt.Errorf("failed to get worktree stacks to generate: %w", err)
 	}
 
 	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
@@ -390,19 +392,19 @@ func ListStackFilesWithExcludes(
 		Experiments: opts.Experiments,
 	})
 	if err != nil {
-		return nil, nil, errors.Errorf("Failed to create discovery for stack generate: %w", err)
+		return nil, nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
 	}
 
 	d = d.WithParseExclude().WithSuppressParseErrors()
 
 	discoveredComponents, err := d.Discover(ctx, l, opts)
 	if err != nil {
-		return nil, nil, errors.Errorf("Failed to discover stack files: %w", err)
+		return nil, nil, fmt.Errorf("failed to discover stack files: %w", err)
 	}
 
 	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees)
 	if err != nil {
-		return nil, nil, errors.Errorf("Failed to get worktree stacks to generate: %w", err)
+		return nil, nil, fmt.Errorf("failed to get worktree stacks to generate: %w", err)
 	}
 
 	foundFiles, excludedPaths, err := collectStackAndExcludedPaths(discoveredComponents, opts.WorkingDir)
@@ -533,7 +535,7 @@ func worktreeStacksToGenerate(
 	for _, pair := range w.WorktreePairs {
 		_, toFilters, err := pair.Expand()
 		if err != nil {
-			return nil, errors.Errorf("failed to expand worktree pair: %w", err)
+			return nil, fmt.Errorf("failed to expand worktree pair: %w", err)
 		}
 
 		parseExpr, requiresParse := toFilters.RequiresParse()
@@ -659,7 +661,7 @@ func discoverStacks(
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
-		return nil, errors.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
+		return nil, fmt.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
 	}
 
 	for _, c := range components {

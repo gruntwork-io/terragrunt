@@ -2,6 +2,8 @@ package discovery
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
@@ -11,7 +13,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -256,7 +257,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 		}
 
 		if !config.IsValidConfigPath(dependency.ConfigPath) {
-			errs = append(errs, errors.Errorf(
+			errs = append(errs, fmt.Errorf(
 				"skipping dependency %q in %q: "+
 					"config_path could not be resolved",
 				dependency.Name, c.Path()))

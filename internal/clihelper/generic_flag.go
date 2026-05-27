@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -185,7 +184,7 @@ func (val *genericVar[T]) Set(str string) error {
 	case *bool:
 		v, err := strconv.ParseBool(str)
 		if err != nil {
-			return errors.New(InvalidValueError{underlyingError: err, msg: `must be one of: "0", "1", "f", "t", "false", "true"`})
+			return InvalidValueError{underlyingError: err, msg: `must be one of: "0", "1", "f", "t", "false", "true"`}
 		}
 
 		*dest = v
@@ -193,7 +192,7 @@ func (val *genericVar[T]) Set(str string) error {
 	case *int:
 		v, err := strconv.ParseInt(str, 0, strconv.IntSize)
 		if err != nil {
-			return errors.New(InvalidValueError{underlyingError: err, msg: "must be 32-bit integer"})
+			return InvalidValueError{underlyingError: err, msg: "must be 32-bit integer"}
 		}
 
 		*dest = int(v)
@@ -201,7 +200,7 @@ func (val *genericVar[T]) Set(str string) error {
 	case *uint:
 		v, err := strconv.ParseUint(str, 10, 64)
 		if err != nil {
-			return errors.New(InvalidValueError{underlyingError: err, msg: "must be 32-bit unsigned integer"})
+			return InvalidValueError{underlyingError: err, msg: "must be 32-bit unsigned integer"}
 		}
 
 		*dest = uint(v)
@@ -209,13 +208,13 @@ func (val *genericVar[T]) Set(str string) error {
 	case *int64:
 		v, err := strconv.ParseInt(str, 0, 64)
 		if err != nil {
-			return errors.New(InvalidValueError{underlyingError: err, msg: "must be 64-bit integer"})
+			return InvalidValueError{underlyingError: err, msg: "must be 64-bit integer"}
 		}
 
 		*dest = v
 
 	default:
-		return errors.Errorf("flag type %T is undefined", dest)
+		return fmt.Errorf("flag type %T is undefined", dest)
 	}
 
 	return nil

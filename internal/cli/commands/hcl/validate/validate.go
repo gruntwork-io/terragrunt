@@ -23,8 +23,9 @@ import (
 
 	"maps"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -42,18 +43,18 @@ const splitCount = 2
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
-			return errors.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputsFlagName)
+			return fmt.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputsFlagName)
 		}
 
 		if opts.HCLValidateJSONOutput {
-			return errors.Errorf("specifying both -%s and -%s is invalid", JSONFlagName, InputsFlagName)
+			return fmt.Errorf("specifying both -%s and -%s is invalid", JSONFlagName, InputsFlagName)
 		}
 
 		return RunValidateInputs(ctx, l, opts)
 	}
 
 	if opts.HCLValidateStrict {
-		return errors.Errorf("specifying -%s without -%s is invalid", StrictFlagName, InputsFlagName)
+		return fmt.Errorf("specifying -%s without -%s is invalid", StrictFlagName, InputsFlagName)
 	}
 
 	return RunValidate(ctx, l, opts)
@@ -95,7 +96,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		Experiments: opts.Experiments,
 	})
 	if err != nil {
-		return processDiagnostics(l, opts, diags, errors.New(err))
+		return processDiagnostics(l, opts, diags, err)
 	}
 
 	// We do worktree generation here instead of in the discovery constructor
@@ -104,7 +105,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	worktrees, parseErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
 	if parseErr != nil {
-		return errors.Errorf("failed to create worktrees: %w", parseErr)
+		return fmt.Errorf("failed to create worktrees: %w", parseErr)
 	}
 
 	defer func() {
@@ -118,7 +119,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
-		return processDiagnostics(l, opts, diags, errors.New(err))
+		return processDiagnostics(l, opts, diags, err)
 	}
 
 	parseOptions := []hclparse.Option{diagnosticsHandler}
@@ -137,7 +138,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
-				parseErrs = append(parseErrs, errors.New(err))
+				parseErrs = append(parseErrs, err)
 			}
 
 			parser = parser.WithParseOption(parseOptions)
@@ -147,12 +148,12 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 			file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(stackFilePath)
 			if err != nil {
-				parseErrs = append(parseErrs, errors.New(err))
+				parseErrs = append(parseErrs, err)
 				continue
 			}
 
 			if _, err := config.ParseStackConfig(ctx, l, parser, file, values); err != nil {
-				parseErrs = append(parseErrs, errors.New(err))
+				parseErrs = append(parseErrs, err)
 			}
 
 			continue
@@ -168,7 +169,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
 		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
-			parseErrs = append(parseErrs, errors.New(err))
+			parseErrs = append(parseErrs, err)
 		}
 	}
 
@@ -203,7 +204,7 @@ func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags dia
 		return err
 	}
 
-	diagError := errors.Errorf("%d HCL validation error(s) found", len(diags))
+	diagError := fmt.Errorf("%d HCL validation error(s) found", len(diags))
 
 	// If diagnostics exist and no other error was returned,
 	// return a synthetic error to mark validation as failed and
@@ -250,7 +251,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 
 		worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
 		if worktreeErr != nil {
-			return errors.Errorf("failed to create worktrees: %w", worktreeErr)
+			return fmt.Errorf("failed to create worktrees: %w", worktreeErr)
 		}
 
 		defer func() {

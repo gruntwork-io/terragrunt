@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -187,7 +186,7 @@ func GitRepoTags(ctx context.Context, l log.Logger, env map[string]string, worki
 
 	output, err := RunCommandWithOutput(ctx, l, vexec.NewOSExec(), gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	var tags []string

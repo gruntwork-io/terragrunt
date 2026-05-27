@@ -3,10 +3,12 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/controllers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/middleware"
@@ -94,7 +96,7 @@ func (server *Server) Listen(ctx context.Context) (net.Listener, error) {
 
 	ln, err := lc.Listen(ctx, "tcp", server.Addr())
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	server.Server.Addr = ln.Addr().String()
@@ -127,14 +129,14 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 		defer cancel()
 
 		if err := server.Shutdown(shutdownCtx); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		return nil
 	})
 
 	if err := server.Server.Serve(ln); err != nil && err != http.ErrServerClosed {
-		return errors.Errorf("error starting terragrunt cache server: %w", err)
+		return fmt.Errorf("error starting terragrunt cache server: %w", err)
 	}
 
 	defer server.logger.Infof("Terragrunt Cache server stopped")

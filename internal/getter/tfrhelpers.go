@@ -11,7 +11,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-cleanhttp"
@@ -86,11 +87,11 @@ func GetModuleRegistryURLBasePath(ctx context.Context, l log.Logger, httpClient 
 
 	var respJSON RegistryServicePath
 	if err := json.Unmarshal(bodyData, &respJSON); err != nil {
-		return "", errors.New(ServiceDiscoveryErr{reason: fmt.Sprintf("Error parsing response body %s: %s", string(bodyData), err)})
+		return "", ServiceDiscoveryErr{reason: fmt.Sprintf("Error parsing response body %s: %s", string(bodyData), err)}
 	}
 
 	if respJSON.ModulesPath == "" {
-		return "", errors.New(ServiceDiscoveryErr{reason: "modules.v1 missing in discovery response"})
+		return "", ServiceDiscoveryErr{reason: "modules.v1 missing in discovery response"}
 	}
 
 	return respJSON.ModulesPath, nil
@@ -101,7 +102,7 @@ func GetModuleRegistryURLBasePath(ctx context.Context, l log.Logger, httpClient 
 func GetTerraformGetHeader(ctx context.Context, l log.Logger, httpClient *http.Client, url *url.URL) (string, error) {
 	body, header, err := httpGETAndGetResponse(ctx, l, httpClient, url)
 	if err != nil {
-		return "", errors.New(ModuleDownloadErr{sourceURL: url.String(), details: "error receiving HTTP data"})
+		return "", ModuleDownloadErr{sourceURL: url.String(), details: "error receiving HTTP data"}
 	}
 
 	terraformGet := header.Get("X-Terraform-Get")
@@ -111,10 +112,10 @@ func GetTerraformGetHeader(ctx context.Context, l log.Logger, httpClient *http.C
 
 	var responseJSON map[string]string
 	if err := json.Unmarshal(body, &responseJSON); err != nil {
-		return "", errors.New(ModuleDownloadErr{
+		return "", ModuleDownloadErr{
 			sourceURL: url.String(),
 			details:   fmt.Sprintf("Error parsing response body %s: %s", string(body), err),
-		})
+		}
 	}
 
 	terraformGet = responseJSON["location"]
@@ -122,10 +123,10 @@ func GetTerraformGetHeader(ctx context.Context, l log.Logger, httpClient *http.C
 		return terraformGet, nil
 	}
 
-	return "", errors.New(ModuleDownloadErr{
+	return "", ModuleDownloadErr{
 		sourceURL: url.String(),
 		details:   "no source URL was returned in header X-Terraform-Get and in location response from download URL",
-	})
+	}
 }
 
 // GetDownloadURLFromHeader resolves a relative X-Terraform-Get value
@@ -301,7 +302,7 @@ func httpGETAndGetResponse(ctx context.Context, l log.Logger, httpClient *http.C
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, nil, errors.New(RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode})
+		return nil, nil, RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode}
 	}
 
 	bodyData, err := io.ReadAll(resp.Body)

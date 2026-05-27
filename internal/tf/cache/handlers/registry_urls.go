@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
 )
 
 const (
@@ -41,18 +41,18 @@ func DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, erro
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
 	switch resp.StatusCode {
 	case http.StatusNotFound, http.StatusInternalServerError:
-		return nil, errors.New(NotFoundWellKnownURLError{wellKnownURL})
+		return nil, NotFoundWellKnownURLError{wellKnownURL}
 	case http.StatusOK:
 	default:
 		return nil, fmt.Errorf("%s returned %s", url, resp.Status)
@@ -60,12 +60,12 @@ func DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, erro
 
 	content, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	urls := new(RegistryURLs)
 	if err := json.Unmarshal(content, urls); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return urls, nil

@@ -22,7 +22,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
@@ -301,7 +300,7 @@ func runCommand(
 				AllocatePseudoTty: cmdOpts.NeedsPTY,
 			})
 			if err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			*cmdOpts.Output = *cmdOutput
@@ -335,7 +334,7 @@ func runCommand(
 			DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
 		}
 
-		return errors.New(err)
+		return err
 	}
 
 	cancelShutdown := cmd.RegisterGracefullyShutdown(ctx, l)
@@ -353,7 +352,7 @@ func runCommand(
 			DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
 		}
 
-		return errors.New(err)
+		return err
 	}
 
 	return nil
