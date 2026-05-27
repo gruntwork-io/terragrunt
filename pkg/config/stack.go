@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -149,7 +150,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		}
 
 		// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
-		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, scopedLogger, stackFilePath)
+		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, scopedLogger, vexec.NewOSExec(), stackFilePath)
 		if evalCtxErr != nil {
 			return AutoIncludeParserStageError{Stage: "eval-context", File: stackFilePath, Err: evalCtxErr}
 		}
@@ -835,7 +836,7 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, errors.New(err)
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -1018,7 +1019,7 @@ func ReadValues(ctx context.Context, pctx *ParsingContext, l log.Logger, directo
 		return nil, errors.New(err)
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}

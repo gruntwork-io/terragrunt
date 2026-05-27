@@ -1,6 +1,8 @@
 package config
 
-import "github.com/gruntwork-io/terragrunt/internal/strict"
+import (
+	"github.com/gruntwork-io/terragrunt/internal/strict"
+)
 
 // Option is a functional option for NewParsingContext.
 type Option func(*ParsingContext)
