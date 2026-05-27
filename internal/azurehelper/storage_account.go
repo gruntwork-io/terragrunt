@@ -1,9 +1,10 @@
-// Package azurehelper -- storage account management.
+// Storage account management.
 //
 // StorageAccountClient wraps Azure's armstorage AccountsClient and
 // BlobServicesClient to expose the small set of operations Terragrunt's
 // remote-state bootstrap needs: existence check, idempotent create,
 // blob versioning + soft-delete configuration, key listing, and delete.
+
 package azurehelper
 
 import (

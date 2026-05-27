@@ -1,10 +1,11 @@
-// Package azurehelper -- blob and container data-plane operations.
+// Blob and container data-plane operations.
 //
 // BlobClient wraps azblob.Client and exposes the small data-plane surface
 // the remote-state backend needs (containers, blobs, listing, copy). It
 // also remembers an optional bound container so callers fetching state
 // files by key (e.g. PR 3's dependency-fetch path) do not have to repeat
 // the container on every call.
+
 package azurehelper
 
 import (

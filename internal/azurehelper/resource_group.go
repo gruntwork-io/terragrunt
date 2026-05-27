@@ -1,8 +1,9 @@
-// Package azurehelper -- resource group management.
+// Resource group management.
 //
 // ResourceGroupClient wraps Azure's armresources ResourceGroupsClient and
 // exposes existence checks and the small CRUD surface the remote-state
 // bootstrap needs (create-if-missing, delete).
+
 package azurehelper
 
 import (
