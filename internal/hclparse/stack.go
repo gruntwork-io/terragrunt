@@ -10,8 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
-	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 // stackFileName is the canonical filename of a Terragrunt stack file.
@@ -66,30 +66,22 @@ type StackBlockHCL struct {
 	Name         string          `hcl:",label"`
 }
 
-// ComponentRef holds name, path, and child refs.
+// ComponentRef is a top-level unit or stack ref injected into the eval context
+// as `unit.<name>` or `stack.<name>`. Each ref carries its label and its
+// generated path; only the path is exposed in HCL.
 type ComponentRef struct {
-	Name      string
-	Path      string
-	ChildRefs []ComponentRef
+	Name string
+	Path string
 }
 
-// BuildComponentRefMap converts component refs into an HCL object injected as the `unit` or `stack` variable in the eval context.
-// Empty input returns EmptyObjectVal so typos surface as "Unsupported attribute" diagnostics.
+// BuildComponentRefMap converts component refs into an HCL object injected as
+// the `unit` or `stack` variable in the eval context. Empty input returns
+// EmptyObjectVal so typos surface as "Unsupported attribute" diagnostics.
 //
-// Output shape for units:
-//
-//	{
-//	  "unit_name": { "name": "unit_name", "path": "../relative/path" }
-//	}
-//
-// Output shape for stacks with discovered children:
+// Output shape:
 //
 //	{
-//	  "stack_name": {
-//	    "name": "stack_name",
-//	    "path": "/abs/path",
-//	    "unit_name": { "name": "unit_name", "path": "/abs/path/to/unit" }
-//	  }
+//	  "<name>": { "path": "<generated path>" }
 //	}
 func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	if len(refs) == 0 {
@@ -99,28 +91,12 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	refMap := make(map[string]cty.Value, len(refs))
 
 	for _, ref := range refs {
-		refMap[ref.Name] = buildRefAttrs(ref)
+		refMap[ref.Name] = cty.ObjectVal(map[string]cty.Value{
+			"path": cty.StringVal(ref.Path),
+		})
 	}
 
 	return cty.ObjectVal(refMap)
-}
-
-// buildRefAttrs converts one ComponentRef and nested refs recursively; reserved keys "name" and "path" hold the component's own values.
-func buildRefAttrs(ref ComponentRef) cty.Value {
-	attrs := map[string]cty.Value{
-		"name": cty.StringVal(ref.Name),
-		"path": cty.StringVal(ref.Path),
-	}
-
-	for _, child := range ref.ChildRefs {
-		if child.Name == "name" || child.Name == "path" {
-			continue
-		}
-
-		attrs[child.Name] = buildRefAttrs(child)
-	}
-
-	return cty.ObjectVal(attrs)
 }
 
 // unitPathOnlyHCL is the discovery shape for unit name and path.
@@ -177,7 +153,11 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 }
 
 // UnitPathsFromStackDir returns generated unit paths from discovery parsing.
-func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
+// funcs is the HCL function map used while decoding the stack file; production
+// callers build it via config.EarlyStackParseFunctions. The map must be
+// non-nil but may be empty (tests that exercise only literal attributes can
+// pass an empty map).
+func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function.Function) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
 	}
@@ -186,10 +166,14 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 		panic("hclparse.UnitPathsFromStackDir: stackDir is empty")
 	}
 
+	if funcs == nil {
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: funcs is nil (stackDir=%q)", stackDir))
+	}
+
 	stackDir = util.ResolvePath(stackDir)
 	stackFile := filepath.Join(stackDir, stackFileName)
 
-	units, _, err := decodeDiscovery(fs, stackDir, stackFile)
+	units, _, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
 	if err != nil {
 		return nil, err
 	}
@@ -212,75 +196,11 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 	return paths, nil
 }
 
-// maxDiscoverDepth bounds recursion when walking nested stack catalogs during best-effort discovery; nested stack ref enrichment beyond this depth returns nil ChildRefs.
-const maxDiscoverDepth = 1000
-
-// DiscoverStackChildUnits enriches a stack ComponentRef with nested unit refs for stack.<name>.<unit>.path resolution; best-effort, returns nil ChildRefs on any read/parse failure.
-func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
-	if fs == nil {
-		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: fs is nil (stackSourceDir=%q, stackGenDir=%q)", stackSourceDir, stackGenDir))
-	}
-
-	if stackSourceDir == "" {
-		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: stackSourceDir is empty (stackGenDir=%q)", stackGenDir))
-	}
-
-	if stackGenDir == "" {
-		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: stackGenDir is empty (stackSourceDir=%q)", stackSourceDir))
-	}
-
-	return discoverStackChildUnitsWithDepth(fs, stackSourceDir, stackGenDir, 0)
-}
-
-func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir string, depth int) []ComponentRef {
-	if depth > maxDiscoverDepth {
-		return nil
-	}
-
-	stackFile := filepath.Join(stackSourceDir, stackFileName)
-
-	units, stacks, err := decodeDiscovery(fs, stackSourceDir, stackFile)
-	if err != nil || (units == nil && stacks == nil) {
-		return nil
-	}
-
-	childTargetDir := filepath.Join(stackGenDir, StackDir)
-	refs := make([]ComponentRef, 0, len(units)+len(stacks))
-
-	for _, u := range units {
-		unitPath := filepath.Join(childTargetDir, u.Path)
-		if u.NoStack != nil && *u.NoStack {
-			unitPath = filepath.Join(stackGenDir, u.Path)
-		}
-
-		refs = append(refs, ComponentRef{Name: u.Name, Path: unitPath})
-	}
-
-	for _, s := range stacks {
-		nestedGenPath := filepath.Join(childTargetDir, s.Path)
-		if s.NoStack != nil && *s.NoStack {
-			nestedGenPath = filepath.Join(stackGenDir, s.Path)
-		}
-
-		ref := ComponentRef{Name: s.Name, Path: nestedGenPath}
-
-		// Only recurse when source resolves against the stdlib eval context; unresolvable sources skip silently and surface later as "Unsupported attribute".
-		if nestedSourceDir, ok := resolveStackSource(s.Source, stackSourceDir); ok {
-			if !filepath.IsAbs(nestedSourceDir) {
-				nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
-			}
-
-			ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1)
-		}
-
-		refs = append(refs, ref)
-	}
-
-	return refs
-}
-
 // decodeDiscovery parses discovery targets and returns path-only unit and stack data.
-func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
+//
+// funcs is the function map injected into the discovery eval context; callers
+// must supply a non-nil map (validated at the public entrypoint).
+func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]function.Function) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
 		if errors.Is(err, iofs.ErrNotExist) {
@@ -295,7 +215,10 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string) ([]*unitPathOnlyHCL,
 		return nil, nil, err
 	}
 
-	evalCtx := stdlibEvalContext(stackDir)
+	evalCtx := &hcl.EvalContext{
+		Functions: funcs,
+		Variables: map[string]cty.Value{},
+	}
 
 	if parsedFile.Locals != nil {
 		if err := evaluateLocals(parsedFile.Locals.Remain, evalCtx); err != nil {
@@ -348,50 +271,4 @@ func validateDiscoveryUniqueNames(units []*unitPathOnlyHCL, stacks []*stackPathO
 	}
 
 	return errors.Join(errs...)
-}
-
-// resolveStackSource returns the source string for nested stack discovery; falls back to stdlib eval against baseDir, otherwise ("", false).
-func resolveStackSource(expr hcl.Expression, baseDir string) (string, bool) {
-	if s, ok := literalString(expr); ok {
-		return s, true
-	}
-
-	if expr == nil {
-		return "", false
-	}
-
-	val, diags := expr.Value(stdlibEvalContext(baseDir))
-	if diags.HasErrors() || val.IsNull() || !val.IsKnown() || val.Type() != cty.String {
-		return "", false
-	}
-
-	return val.AsString(), true
-}
-
-// literalString returns (val, true) only when expr is a plain string literal.
-func literalString(expr hcl.Expression) (string, bool) {
-	if expr == nil {
-		return "", false
-	}
-
-	if len(expr.Variables()) > 0 {
-		return "", false
-	}
-
-	val, diags := expr.Value(nil)
-	if diags.HasErrors() || val.IsNull() || !val.IsKnown() || val.Type() != cty.String {
-		return "", false
-	}
-
-	return val.AsString(), true
-}
-
-// stdlibEvalContext returns a stdlib-only eval context for discovery.
-func stdlibEvalContext(baseDir string) *hcl.EvalContext {
-	tfscope := tflang.Scope{BaseDir: baseDir}
-
-	return &hcl.EvalContext{
-		Functions: tfscope.Functions(),
-		Variables: map[string]cty.Value{},
-	}
 }
