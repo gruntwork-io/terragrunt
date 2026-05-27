@@ -175,17 +175,25 @@ type TrackInclude struct {
 
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this ctx that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
-func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l log.Logger, configPath string) (*hcl.EvalContext, error) {
+//
+// The vexec.Exec parameter is captured by the run_cmd HCL function closure so
+// that subprocess execution flows through the caller-supplied backend (real
+// os/exec in production, in-memory mock in tests). It is not used by any
+// other HCL function.
+func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l log.Logger, e vexec.Exec, configPath string) (*hcl.EvalContext, error) {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(configPath),
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		FuncNameFindInParentFolders:                     wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, FindInParentFolders),
-		FuncNamePathRelativeToInclude:                   wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeToInclude),
-		FuncNamePathRelativeFromInclude:                 wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeFromInclude),
-		FuncNameGetEnv:                                  wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, getEnvironmentVariable),
-		FuncNameRunCmd:                                  wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, RunCommand),
+		FuncNameFindInParentFolders:     wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, FindInParentFolders),
+		FuncNamePathRelativeToInclude:   wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeToInclude),
+		FuncNamePathRelativeFromInclude: wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeFromInclude),
+		FuncNameGetEnv:                  wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, getEnvironmentVariable),
+		FuncNameRunCmd: wrapStringSliceToStringAsFuncImpl(ctx, pctx, l,
+			func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
+				return RunCommand(ctx, pctx, l, e, params)
+			}),
 		FuncNameReadTerragruntConfig:                    readTerragruntConfigAsFuncImpl(ctx, pctx, l),
 		FuncNameGetPlatform:                             wrapVoidToStringAsFuncImpl(ctx, pctx, l, getPlatform),
 		FuncNameGetRepoRoot:                             wrapVoidToStringAsFuncImpl(ctx, pctx, l, getRepoRoot),
@@ -360,14 +368,17 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 }
 
 // RunCommand is a helper function that runs a command and returns the stdout as the interpolation
-// for each `run_cmd` in locals section, function is called twice
-// result
-func RunCommand(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) (string, error) {
-	return runCommandImpl(ctx, pctx, l, args)
+// for each `run_cmd` in locals section, function is called twice result.
+//
+// The vexec.Exec parameter selects the subprocess backend. Production callers
+// pass vexec.NewOSExec() (or the value threaded through createTerragruntEvalContext);
+// tests can pass a vexec.NewMemExec mock to intercept subprocess invocations.
+func RunCommand(ctx context.Context, pctx *ParsingContext, l log.Logger, e vexec.Exec, args []string) (string, error) {
+	return runCommandImpl(ctx, pctx, l, e, args)
 }
 
 // runCommandImpl contains the actual implementation of RunCommand
-func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) (string, error) {
+func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, e vexec.Exec, args []string) (string, error) {
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	runCommandCache := cache.ContextCache[*RunCmdCacheEntry](ctx, RunCmdCacheContextKey)
@@ -411,6 +422,11 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		}
 	}
 
+	// Re-check after option-stripping; otherwise args[0] / args[1:] below panics.
+	if len(args) == 0 {
+		return "", errors.New(EmptyStringNotAllowedError("command parameter to the run_cmd function (only option flags were supplied)"))
+	}
+
 	// To avoid re-run of the same run_cmd command, is used in memory cache for command results, with caching key path + arguments
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
@@ -448,7 +464,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	cmdOutput, err := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		vexec.NewOSExec(),
+		e,
 		shellRunOptsFromPctx(pctx),
 		currentPath,
 		true,

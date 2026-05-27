@@ -1,10 +1,10 @@
 package config_test
 
 import (
+	"reflect"
 	"sort"
 	"testing"
 
-	"github.com/fatih/structs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -148,8 +148,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test the root properties
-	testConfigStructInfo := structs.New(testConfig)
-	testConfigFields := testConfigStructInfo.Names()
+	testConfigFields := structFieldNames(testConfig)
 	checked := map[string]bool{} // used to track which fields of the ctyMap were seen
 
 	for _, field := range testConfigFields {
@@ -243,8 +242,7 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test the root properties
-	testConfigStructInfo := structs.New(testConfig)
-	testConfigFields := testConfigStructInfo.Names()
+	testConfigFields := structFieldNames(testConfig)
 	checked := map[string]bool{} // used to track which fields of the ctyMap were seen
 
 	for _, field := range testConfigFields {
@@ -273,11 +271,9 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 		"Mutable":             true,
 	}
 
-	terraformConfigStructInfo := structs.New(config.TerraformConfig{})
-
 	var terraformConfigFields []string
 
-	for _, name := range terraformConfigStructInfo.Names() {
+	for _, name := range structFieldNames(config.TerraformConfig{}) {
 		if omitWhenNilFields[name] {
 			continue
 		}
@@ -287,8 +283,7 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 
 	sort.Strings(terraformConfigFields)
 
-	ctyTerraformConfigStructInfo := structs.New(config.CtyTerraformConfig{})
-	ctyTerraformConfigFields := ctyTerraformConfigStructInfo.Names()
+	ctyTerraformConfigFields := structFieldNames(config.CtyTerraformConfig{})
 	sort.Strings(ctyTerraformConfigFields)
 	assert.Equal(t, terraformConfigFields, ctyTerraformConfigFields)
 }
@@ -406,4 +401,25 @@ func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, boo
 		// This should not execute
 		return "", false
 	}
+}
+
+// structFieldNames returns the exported field names declared on v's struct
+// type. v may be a struct value or a pointer to one. Embedded fields appear
+// under the embedded type's name, matching fatih/structs' behavior.
+func structFieldNames(v any) []string {
+	t := reflect.TypeOf(v)
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+
+	names := make([]string, 0, t.NumField())
+
+	for i := range t.NumField() {
+		f := t.Field(i)
+		if f.IsExported() {
+			names = append(names, f.Name)
+		}
+	}
+
+	return names
 }

@@ -153,10 +153,13 @@ func TestProcessStackComponent_RewritesStackSources(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	// Source mimics what a stack generates: <repo-url>//<subdir>?ref=<branch>
 	source := repoURL + "//stacks/my-stack?ref=main"
 
-	result, err := c.ProcessStackComponent(t.Context(), l, source, "stack")
+	result, err := c.ProcessStackComponent(t.Context(), l, v, source, "stack")
 	require.NoError(t, err)
 
 	defer result.Cleanup()
@@ -189,9 +192,12 @@ func TestProcessStackComponent_RewritesUnitSources(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	source := repoURL + "//stacks/my-stack?ref=main"
 
-	result, err := c.ProcessStackComponent(t.Context(), l, source, "stack")
+	result, err := c.ProcessStackComponent(t.Context(), l, v, source, "stack")
 	require.NoError(t, err)
 
 	defer result.Cleanup()
@@ -233,9 +239,12 @@ func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	source := repoURL + "//stacks/my-stack?ref=main"
 
-	result, err := c.ProcessStackComponent(ctx, l, source, "stack")
+	result, err := c.ProcessStackComponent(ctx, l, v, source, "stack")
 	require.NoError(t, err)
 
 	defer result.Cleanup()
@@ -268,11 +277,11 @@ func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
 
 	// The synthetic tree should be stored in the synth store
 	synthStore := cas.NewStore(filepath.Join(storePath, "synth", "trees"))
-	assert.False(t, synthStore.NeedsWrite(hash), "synthetic tree should exist in synth store")
+	assert.False(t, synthStore.NeedsWrite(v, hash), "synthetic tree should exist in synth store")
 
 	// Verify the tree can be read and contains entries
 	synthContent := cas.NewContent(synthStore)
-	treeData, err := synthContent.Read(hash)
+	treeData, err := synthContent.Read(v, hash)
 	require.NoError(t, err)
 	assert.NotEmpty(t, treeData, "synthetic tree data should not be empty")
 }
@@ -283,6 +292,9 @@ func TestProcessStackComponent_DeterministicOutput(t *testing.T) {
 	repoURL := startStackTestServer(t)
 	l := logger.CreateLogger()
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	readStackFile := func() string {
 		storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 		c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
@@ -290,7 +302,7 @@ func TestProcessStackComponent_DeterministicOutput(t *testing.T) {
 
 		source := repoURL + "//stacks/my-stack?ref=main"
 
-		result, err := c.ProcessStackComponent(t.Context(), l, source, "stack")
+		result, err := c.ProcessStackComponent(t.Context(), l, v, source, "stack")
 		require.NoError(t, err)
 
 		defer result.Cleanup()
@@ -305,7 +317,7 @@ func TestProcessStackComponent_DeterministicOutput(t *testing.T) {
 	first := readStackFile()
 	second := readStackFile()
 
-	// Both runs should produce identical output — the CAS hashes are
+	// Both runs should produce identical output. The CAS hashes are
 	// deterministic based on ref + path, so regeneration must not produce diffs.
 	assert.Equal(t, first, second, "processing the same source twice should produce identical output")
 }
@@ -321,9 +333,12 @@ func TestProcessStackComponent_MaterializeSynthTree(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	source := repoURL + "//stacks/my-stack?ref=main"
 
-	result, err := c.ProcessStackComponent(ctx, l, source, "stack")
+	result, err := c.ProcessStackComponent(ctx, l, v, source, "stack")
 	require.NoError(t, err)
 
 	defer result.Cleanup()
@@ -353,7 +368,7 @@ func TestProcessStackComponent_MaterializeSynthTree(t *testing.T) {
 
 	// Materialize the synthetic tree to a new directory
 	destDir := helpers.TmpDirWOSymlinks(t)
-	err = c.MaterializeTree(ctx, l, hash, destDir)
+	err = c.MaterializeTree(ctx, l, v, hash, destDir)
 	require.NoError(t, err)
 
 	// The materialized tree should contain the unit's terragrunt.hcl
@@ -370,9 +385,12 @@ func TestProcessStackComponent_InvalidRefFails(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	source := repoURL + "//stacks/my-stack?ref=nonexistent-tag"
 
-	_, err = c.ProcessStackComponent(t.Context(), l, source, "stack")
+	_, err = c.ProcessStackComponent(t.Context(), l, v, source, "stack")
 	require.Error(t, err, "should fail when ref does not exist")
 }
 
@@ -386,9 +404,12 @@ func TestProcessStackComponent_InvalidSubdirFails(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	source := repoURL + "//nonexistent/path?ref=main"
 
-	_, err = c.ProcessStackComponent(t.Context(), l, source, "stack")
+	_, err = c.ProcessStackComponent(t.Context(), l, v, source, "stack")
 	require.Error(t, err, "should fail when subdir does not exist")
 }
 
@@ -403,9 +424,12 @@ func TestProcessStackComponent_BlobsStoredInCAS(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	source := repoURL + "//stacks/my-stack?ref=main"
 
-	result, err := c.ProcessStackComponent(ctx, l, source, "stack")
+	result, err := c.ProcessStackComponent(ctx, l, v, source, "stack")
 	require.NoError(t, err)
 
 	defer result.Cleanup()
@@ -436,9 +460,12 @@ func TestProcessStackComponent_AcceptsExplicitGitPrefix(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	source := "git::" + repoURL + "//stacks/my-stack?ref=main"
 
-	result, err := c.ProcessStackComponent(t.Context(), l, source, "stack")
+	result, err := c.ProcessStackComponent(t.Context(), l, v, source, "stack")
 	require.NoError(t, err)
 
 	defer result.Cleanup()
@@ -455,11 +482,14 @@ func TestProcessStackComponent_ShorthandSourceReachesClone(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	// Bogus org so the network call fails fast. The error shape proves the
 	// shorthand was rewritten and reached `git ls-remote`.
 	source := "github.com/gruntwork-io-this-org-does-not-exist/repo?ref=main"
 
-	_, err = c.ProcessStackComponent(t.Context(), l, source, "stack")
+	_, err = c.ProcessStackComponent(t.Context(), l, v, source, "stack")
 	require.Error(t, err)
 	require.ErrorIs(t, err, git.ErrCommandSpawn, "failure must come from a spawned git command")
 

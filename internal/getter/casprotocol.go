@@ -16,14 +16,23 @@ import (
 type CASProtocolGetter struct {
 	CAS     *cas.CAS
 	Logger  log.Logger
+	Venv    cas.Venv
 	Mutable bool
 }
 
 // NewCASProtocolGetter creates a new CASProtocolGetter.
-func NewCASProtocolGetter(l log.Logger, c *cas.CAS) *CASProtocolGetter {
+//
+// Requires v.FS: Get dispatches to [cas.CAS.MaterializeTree], which
+// reads and links through v.FS. v.Git is not consulted because
+// materialization is a pure FS operation. Panics with
+// [cas.ErrVenvFSUnset] when v.FS is nil.
+func NewCASProtocolGetter(l log.Logger, c *cas.CAS, v cas.Venv) *CASProtocolGetter {
+	v.RequireFS()
+
 	return &CASProtocolGetter{
 		CAS:    c,
 		Logger: l,
+		Venv:   v,
 	}
 }
 
@@ -41,7 +50,7 @@ func (g *CASProtocolGetter) Get(ctx context.Context, req *getter.Request) error 
 		linkOpts = append(linkOpts, cas.WithForceCopy())
 	}
 
-	return g.CAS.MaterializeTree(ctx, g.Logger, hash, req.Dst, linkOpts...)
+	return g.CAS.MaterializeTree(ctx, g.Logger, g.Venv, hash, req.Dst, linkOpts...)
 }
 
 // GetFile is not supported for the CAS protocol getter.

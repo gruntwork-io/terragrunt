@@ -26,28 +26,32 @@ func TestMaterializeTree_FromSynthStore(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
 	// Store a blob in the blob store
 	blobData := []byte("hello world\n")
 	blobHash := "abc123"
 
 	blobContent := cas.NewContent(blobStore)
-	require.NoError(t, blobContent.Store(nil, blobHash, blobData))
+	require.NoError(t, blobContent.Store(l, v, blobHash, blobData))
 
 	// Store a synthetic tree that references the blob
 	treeData := []byte("100644 blob abc123\tREADME.md\n")
 	treeHash := "synth999"
 
 	synthContent := cas.NewContent(synthStore)
-	require.NoError(t, synthContent.Store(nil, treeHash, treeData))
+	require.NoError(t, synthContent.Store(l, v, treeHash, treeData))
 
 	// Build a CAS instance using the same store paths
 	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
-	l := logger.CreateLogger()
 
-	err = c.MaterializeTree(t.Context(), l, treeHash, destDir)
+	err = c.MaterializeTree(t.Context(), l, v, treeHash, destDir)
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(filepath.Join(destDir, "README.md"))
@@ -68,26 +72,30 @@ func TestMaterializeTree_FromGitTreeStore(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
 	blobData := []byte("module content\n")
 	blobHash := "blob111"
 
 	blobContent := cas.NewContent(blobStore)
-	require.NoError(t, blobContent.Store(nil, blobHash, blobData))
+	require.NoError(t, blobContent.Store(l, v, blobHash, blobData))
 
 	// Store a tree in the git tree store (not synth)
 	treeData := []byte("100644 blob blob111\tmain.tf\n")
 	treeHash := "tree222"
 
 	treeContent := cas.NewContent(treeStore)
-	require.NoError(t, treeContent.Store(nil, treeHash, treeData))
+	require.NoError(t, treeContent.Store(l, v, treeHash, treeData))
 
 	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
-	l := logger.CreateLogger()
 
-	err = c.MaterializeTree(t.Context(), l, treeHash, destDir)
+	err = c.MaterializeTree(t.Context(), l, v, treeHash, destDir)
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(filepath.Join(destDir, "main.tf"))
@@ -103,10 +111,13 @@ func TestMaterializeTree_NotFound(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	destDir := helpers.TmpDirWOSymlinks(t)
 	l := logger.CreateLogger()
 
-	err = c.MaterializeTree(t.Context(), l, "nonexistent", destDir)
+	err = c.MaterializeTree(t.Context(), l, v, "nonexistent", destDir)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, cas.ErrTreeNotFound)
 }
@@ -124,30 +135,34 @@ func TestMaterializeTree_SynthTakesPrecedence(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
 	blobA := []byte("synth version\n")
 	blobB := []byte("git version\n")
 
 	blobContent := cas.NewContent(blobStore)
-	require.NoError(t, blobContent.Store(nil, "blobA", blobA))
-	require.NoError(t, blobContent.Store(nil, "blobB", blobB))
+	require.NoError(t, blobContent.Store(l, v, "blobA", blobA))
+	require.NoError(t, blobContent.Store(l, v, "blobB", blobB))
 
 	hash := "samehash"
 
 	// Store in synth store (references blobA)
 	synthContent := cas.NewContent(synthStore)
-	require.NoError(t, synthContent.Store(nil, hash, []byte("100644 blob blobA\tfile.txt\n")))
+	require.NoError(t, synthContent.Store(l, v, hash, []byte("100644 blob blobA\tfile.txt\n")))
 
 	// Store in git tree store (references blobB)
 	gitContent := cas.NewContent(treeStore)
-	require.NoError(t, gitContent.Store(nil, hash, []byte("100644 blob blobB\tfile.txt\n")))
+	require.NoError(t, gitContent.Store(l, v, hash, []byte("100644 blob blobB\tfile.txt\n")))
 
 	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
-	l := logger.CreateLogger()
 
-	err = c.MaterializeTree(t.Context(), l, hash, destDir)
+	err = c.MaterializeTree(t.Context(), l, v, hash, destDir)
 	require.NoError(t, err)
 
 	// Synth store is checked first, so the synth version should win
@@ -189,23 +204,27 @@ func TestCASProtocolGetterGet(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
 	fileContent := []byte("resource {}\n")
 	fileHash := "file123"
 
 	blobContent := cas.NewContent(blobStore)
-	require.NoError(t, blobContent.Store(nil, fileHash, fileContent))
+	require.NoError(t, blobContent.Store(l, v, fileHash, fileContent))
 
 	treeHash := "tree456"
 	treeData := []byte("100644 blob file123\tmain.tf\n")
 
 	synthContent := cas.NewContent(synthStore)
-	require.NoError(t, synthContent.Store(nil, treeHash, treeData))
+	require.NoError(t, synthContent.Store(l, v, treeHash, treeData))
 
 	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
-	l := logger.CreateLogger()
-	g := getter.NewCASProtocolGetter(l, c)
+	g := getter.NewCASProtocolGetter(l, c, v)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
 
@@ -241,23 +260,27 @@ func TestCASProtocolGetterGet_Mutable(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
 	fileContent := []byte("resource {}\n")
 	fileHash := "filemut1"
 
 	blobContent := cas.NewContent(blobStore)
-	require.NoError(t, blobContent.Store(nil, fileHash, fileContent))
+	require.NoError(t, blobContent.Store(l, v, fileHash, fileContent))
 
 	treeHash := "treemut1"
 	treeData := []byte("100644 blob filemut1\tmain.tf\n")
 
 	synthContent := cas.NewContent(synthStore)
-	require.NoError(t, synthContent.Store(nil, treeHash, treeData))
+	require.NoError(t, synthContent.Store(l, v, treeHash, treeData))
 
 	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
-	l := logger.CreateLogger()
-	g := getter.NewCASProtocolGetter(l, c)
+	g := getter.NewCASProtocolGetter(l, c, v)
 	g.Mutable = true
 
 	destDir := helpers.TmpDirWOSymlinks(t)
@@ -290,8 +313,11 @@ func TestCASProtocolGetterGet_InvalidRef(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	l := logger.CreateLogger()
-	g := getter.NewCASProtocolGetter(l, c)
+	g := getter.NewCASProtocolGetter(l, c, v)
 
 	req := &getter.Request{
 		Src: "badprefix:abc123",

@@ -17,7 +17,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/mgutz/ansi"
+
+	"charm.land/lipgloss/v2"
 )
 
 // Run runs the find command.
@@ -254,10 +255,14 @@ func NewColorizer(shouldColor bool) *Colorizer {
 		}
 	}
 
+	unitStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+	stackStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
+	pathStyle := lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("7"))
+
 	return &Colorizer{
-		unitColorizer:  ansi.ColorFunc("blue+bh"),
-		stackColorizer: ansi.ColorFunc("green+bh"),
-		pathColorizer:  ansi.ColorFunc("white+d"),
+		unitColorizer:  func(s string) string { return unitStyle.Render(s) },
+		stackColorizer: func(s string) string { return stackStyle.Render(s) },
+		pathColorizer:  func(s string) string { return pathStyle.Render(s) },
 	}
 }
 

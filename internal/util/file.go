@@ -23,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mitchellh/go-homedir"
 )
 
 const (
@@ -38,9 +37,9 @@ const (
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
 // itself. This will return an error if the given path is a directory.
 func FileOrData(maybePath string) (string, error) {
-	// We can blindly pass in maybePath to homedir.Expand, because homedir.Expand only does something if the first
-	// character is ~, and if it is, there is a high chance of it being a path instead of data contents.
-	expandedMaybePath, err := homedir.Expand(maybePath)
+	// Blindly call expandHome: it's a no-op for anything that doesn't start with `~`,
+	// and a leading `~` is far more likely to be a path than literal data.
+	expandedMaybePath, err := expandHome(maybePath)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -1867,6 +1866,26 @@ func SkipDirIfIgnorable(dir string) error {
 	}
 
 	return nil
+}
+
+// expandHome resolves a leading `~` (with no user qualifier) to the current
+// user's home directory. Anything else is returned unchanged. `~user/...` is
+// rejected because per-user lookup is platform-specific and not needed here.
+func expandHome(path string) (string, error) {
+	if path == "" || path[0] != '~' {
+		return path, nil
+	}
+
+	if len(path) > 1 && path[1] != '/' && path[1] != filepath.Separator {
+		return "", errors.New("cannot expand user-specific home dir")
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(home, path[1:]), nil
 }
 
 func (manifest *fileManifest) cleanManifestEntry(l log.Logger, fsys vfs.FS, rootDir string, entry fileManifestEntry) (string, error) {
