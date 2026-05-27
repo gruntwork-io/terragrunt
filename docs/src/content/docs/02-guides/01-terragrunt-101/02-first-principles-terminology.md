@@ -87,7 +87,7 @@ A [**unit**](/getting-started/terminology/#unit) is a single instance of infrast
 Terragrunt detects units by looking for directories containing `terragrunt.hcl` files. Each unit is **self-contained** and represents the **smallest unit of infrastructure you want to deploy** with Terragrunt.
 
 :::tip
-> Common examples of units include a single VPC, a single database instance, or an application service.
+Common examples of units include a single VPC, a single database instance, or an application service.
 :::
 
 ---
@@ -192,8 +192,8 @@ Your **current working directory** defines your blast radius.
 As you navigate the filesystem you are changing what infrastructure you can affect.
 
 :::tip
-> This design encourages **smaller units** over large monolithic configurations.
-> **Smaller** is faster, simpler, and safer.
+This design encourages **smaller units** over large monolithic configurations.
+**Smaller** is faster, simpler, and safer.
 :::
 
 ---

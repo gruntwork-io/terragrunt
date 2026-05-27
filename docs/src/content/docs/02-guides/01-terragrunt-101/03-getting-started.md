@@ -77,7 +77,7 @@ awscli = "latest"
 When anyone enters the project directory, mise **automatically activates** these versions.
 
 :::tip
-> This prevents "works on my machine" issues and makes version upgrades **explicit** in your version control.
+This prevents "works on my machine" issues and makes version upgrades **explicit** in your version control.
 :::
 
 To install the versions specified in `.mise.toml`:
