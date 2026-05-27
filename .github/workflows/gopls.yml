@@ -50,7 +50,7 @@ jobs:
       - name: Create issue for problems found
         id: create_issue_for_problems
         if: steps.gopls_run.outputs.has_fixes == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           FIXED_FILES_PATH: ${{ steps.gopls_run.outputs.fixed_files_path }}
           OUTPUT_FILE_PATH: ${{ steps.gopls_run.outputs.output_file_path }}
@@ -63,7 +63,7 @@ jobs:
 
       - name: Create pull request for fixes
         if: steps.check-changes.outputs.has_changes == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           ISSUE_NUMBER: ${{ steps.create_issue_for_problems.outputs.issue_number }}
           FIXED_FILES_PATH: ${{ steps.gopls_run.outputs.fixed_files_path }}
