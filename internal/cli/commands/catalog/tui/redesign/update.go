@@ -378,7 +378,7 @@ const (
 // formatActionFailure renders a bordered callout describing a failed
 // scaffold or copy action. action is a verb phrase ("scaffolding component",
 // "copying component"). The message is stashed on the model so RunRedesign
-// can print it after the alt screen is restored — tea.Printf lines emitted
+// can print it after the alt screen is restored; tea.Printf lines emitted
 // during alt-screen are discarded on exit.
 func formatActionFailure(action string, err error) string {
 	heading := lipgloss.NewStyle().

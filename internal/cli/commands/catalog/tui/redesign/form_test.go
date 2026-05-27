@@ -45,6 +45,8 @@ func drainFormCmds(cmd tea.Cmd) tea.Msg {
 func pressJ() tea.KeyPressMsg        { return tea.KeyPressMsg{Code: 'j', Text: "j"} }
 func pressK() tea.KeyPressMsg        { return tea.KeyPressMsg{Code: 'k', Text: "k"} }
 func pressX() tea.KeyPressMsg        { return tea.KeyPressMsg{Code: 'x', Text: "x"} }
+func pressS() tea.KeyPressMsg        { return tea.KeyPressMsg{Code: 's', Text: "s"} }
+func pressR() tea.KeyPressMsg        { return tea.KeyPressMsg{Code: 'r', Text: "r"} }
 func pressEnter() tea.KeyPressMsg    { return tea.KeyPressMsg{Code: tea.KeyEnter} }
 func pressEsc() tea.KeyPressMsg      { return tea.KeyPressMsg{Code: tea.KeyEscape} }
 func pressCtrlD() tea.KeyPressMsg    { return tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl} }
@@ -233,7 +235,7 @@ func TestFormXIsNoOpWhenAlreadyUnset(t *testing.T) {
 		"x on an already-unset field should remain a no-op (one-way unset)")
 }
 
-func TestFormCapitalXUnsetsAllOptionalsAndLeavesRequired(t *testing.T) {
+func TestFormResetUnsetsAllFieldsAndClearsErrors(t *testing.T) {
 	t.Parallel()
 
 	f := redesign.NewFormModel(nil, []redesign.FormField{
@@ -243,10 +245,9 @@ func TestFormCapitalXUnsetsAllOptionalsAndLeavesRequired(t *testing.T) {
 	})
 	f.SetSize(120, 40)
 
-	// Set all three fields.
-	f, _ = f.Update(pressEnter()) // edit region
-	f, _ = f.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
-	f, _ = f.Update(pressEsc())
+	// Set the optional fields but leave the required one blank, then run a
+	// checked submit so the required field gets flagged and the status
+	// line appears.
 	f, _ = f.Update(pressJ())
 	f, _ = f.Update(pressEnter()) // edit tier
 	f, _ = f.Update(tea.KeyPressMsg{Code: 'p', Text: "p"})
@@ -256,21 +257,27 @@ func TestFormCapitalXUnsetsAllOptionalsAndLeavesRequired(t *testing.T) {
 	f, _ = f.Update(pressEnter()) // toggle
 	f, _ = f.Update(pressEsc())
 
-	require.True(t, f.Field(0).Set)
+	f, _ = f.Update(pressS())
+
 	require.True(t, f.Field(1).Set)
 	require.True(t, f.Field(2).Set)
+	require.NotEmpty(t, f.Field(0).ValidationErr, "the unset required field should be flagged after a checked submit")
+	require.Contains(t, f.View(), "required field", "the status line should be visible before reset")
 
-	f, _ = f.Update(tea.KeyPressMsg{Code: 'X', Text: "X"})
+	f, _ = f.Update(pressR())
 
-	assert.True(t, f.Field(0).Set, "required fields should keep their Set state")
-	assert.False(t, f.Field(1).Set, "optional text field should be unset by X")
-	assert.False(t, f.Field(2).Set, "optional checkbox should be unset by X")
+	assert.False(t, f.Field(0).Set, "reset should unset required fields too")
+	assert.False(t, f.Field(1).Set, "reset should unset optional fields")
+	assert.False(t, f.Field(2).Set, "reset should unset optional checkboxes")
+	assert.Empty(t, f.Field(0).ValidationErr, "reset should clear every field's validation error")
+	assert.NotContains(t, f.View(), "required field",
+		"reset should suppress the missing-required status line")
 
-	// Input/Bool are preserved for the unset optionals.
+	// Input/Bool are preserved so prior edits are recoverable.
 	assert.Equal(t, "basicp", f.Field(1).Input.Value())
 }
 
-func TestFormXIsNoOpOnRequired(t *testing.T) {
+func TestFormXUnsetsRequiredAndClearsError(t *testing.T) {
 	t.Parallel()
 
 	f := redesign.NewFormModel(nil, []redesign.FormField{
@@ -285,11 +292,13 @@ func TestFormXIsNoOpOnRequired(t *testing.T) {
 
 	require.True(t, f.Field(0).Set)
 
-	// x must not flip Required fields.
+	// x now unsets required fields as well, clearing any error and
+	// preserving the input for recovery.
 	f, _ = f.Update(pressX())
-	assert.True(t, f.Field(0).Set, "required fields can't be marked unset")
+	assert.False(t, f.Field(0).Set, "x should unset a required field")
+	assert.Empty(t, f.Field(0).ValidationErr, "x should clear the field's validation error")
 	assert.Equal(t, "a", f.Field(0).Input.Value(),
-		"the input value should be preserved when x is ignored")
+		"the input value should be preserved when the field is unset")
 }
 
 func TestFormSubmitOmitsUnsetFields(t *testing.T) {
@@ -499,8 +508,8 @@ func TestFormValidationOnExitAcceptsReferences(t *testing.T) {
 func TestFormValidationDoesNotFireMidTyping(t *testing.T) {
 	t.Parallel()
 
-	// Eben specifically called out distracting partial-syntax errors
-	// flashing while typing. Confirm no validation error appears until
+	// Review called out distracting partial-syntax errors flashing
+	// while typing. Confirm no validation error appears until
 	// the user signals they're done (esc, or a future tab to the next
 	// field).
 	f := redesign.NewFormModel(nil, []redesign.FormField{
@@ -592,6 +601,65 @@ func TestFormFilterNarrowsAndNavigates(t *testing.T) {
 	assert.Contains(t, f.Field(f.Cursor()).Name, "vpc",
 		"j should walk to the next matching field, skipping non-matches")
 	assert.NotEqual(t, startCursor, f.Cursor())
+}
+
+func TestFormCheckedSubmitReportsMissingRequiredCount(t *testing.T) {
+	t.Parallel()
+
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "tier", Required: false, Literal: true, TypeStr: "string"},
+	})
+	f.SetSize(120, 40)
+
+	updated, cmd := f.Update(pressS())
+
+	assert.False(t, updated.Submitted(), "checked submit must not submit while required fields are unset")
+	assert.Nil(t, drainFormCmds(cmd), "no submit message should fire when required fields are missing")
+	assert.Equal(t, 0, updated.Cursor(), "the cursor should jump to the first missing required field")
+	assert.Contains(t, updated.View(), "2 required fields missing",
+		"the bottom status line should report the count of missing required fields")
+	assert.NotEmpty(t, updated.Field(0).ValidationErr, "each unset required field stays flagged inline")
+	assert.NotEmpty(t, updated.Field(1).ValidationErr)
+}
+
+func TestFormStatusLineClearsOnceRequiredFieldsSet(t *testing.T) {
+	t.Parallel()
+
+	f := redesign.NewFormModel(nil, []redesign.FormField{
+		{Name: "region", Required: true, Literal: true, TypeStr: "string"},
+		{Name: "vpc_id", Required: true, Literal: true, TypeStr: "string"},
+	})
+	f.SetSize(120, 40)
+
+	f, _ = f.Update(pressS())
+	require.Contains(t, f.View(), "required field", "the status line should appear after a blocked submit")
+
+	// Fill the first required field (region): enter edit, type, blur.
+	f, _ = f.Update(pressEnter())
+
+	for _, r := range "us-east-1" {
+		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	f, _ = f.Update(pressEsc())
+
+	assert.Contains(t, f.View(), "1 required field missing",
+		"with one required field still unset the count should read singular")
+
+	// Fill the second required field (vpc_id).
+	f, _ = f.Update(pressJ())
+	f, _ = f.Update(pressEnter())
+
+	for _, r := range "vpc-123" {
+		f, _ = f.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	f, _ = f.Update(pressEsc())
+
+	assert.NotContains(t, f.View(), "required field",
+		"the status line should disappear once every required field is set")
 }
 
 func TestFormFilterEntryReturnsFocusCmd(t *testing.T) {

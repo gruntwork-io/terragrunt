@@ -156,7 +156,7 @@ type navigateKeyMap struct {
 	GoToEnd       key.Binding
 	Interact      key.Binding
 	Unset         key.Binding
-	UnsetAll      key.Binding
+	Reset         key.Binding
 	Filter        key.Binding
 	NextTab       key.Binding
 	PrevTab       key.Binding
@@ -213,14 +213,21 @@ type FormModel struct {
 	submitted    bool
 	detailOpen   bool
 	detailCursor int
+	// requiredErrShown flips to true once the user attempts a checked
+	// submit (the `s` shortcut) while required fields are still unset. It
+	// gates the bottom status line so the missing-required count only
+	// appears after that first blocked attempt, not from the start. The
+	// line auto-hides again once every required field is set, since the
+	// render also requires a live missingRequiredCount() > 0.
+	requiredErrShown bool
 	// userNavigated flips to true the first time the user moves the
 	// cursor with a navigation key (j/k, arrows, home/end, page nav, or
 	// tab-in-edit field jump). While false, every category change or
 	// filter mutation snaps the cursor onto the first visible field
 	// instead of preserving the prior position, mirroring how the list
 	// view treats freshly-inserted items. Tab (category cycle), `/`
-	// (filter), `?` (detail), and the submit / cancel keys don't count
-	// — they restructure the visible set or open an overlay, neither of
+	// (filter), `?` (detail), and the submit / cancel keys don't count;
+	// they restructure the visible set or open an overlay, neither of
 	// which signals "park me on this specific field".
 	userNavigated bool
 }
@@ -332,11 +339,11 @@ func newNavigateKeyMap() navigateKeyMap {
 		),
 		Unset: key.NewBinding(
 			key.WithKeys("x"),
-			key.WithHelp("x", "reset to default (X reset all)"),
+			key.WithHelp("x", "unset"),
 		),
-		UnsetAll: key.NewBinding(
-			key.WithKeys("X"),
-			key.WithHelp("X", "reset all to default"),
+		Reset: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "reset form"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("/"),
@@ -640,12 +647,14 @@ func (f *FormModel) computeBodyHeight() {
 	// one top blank for breathing room, one between the header and the
 	// tab bar, and one between the tab bar and the body. Pagination,
 	// header, tab bar, and hint are counted via their rendered heights
-	// below; filter is only included when it'll actually appear.
+	// below; filter and status are only included when they'll appear.
 	const reservedRows = 3
 
+	// The filter line, when shown, carries a trailing blank row beneath it
+	// (see viewBase), so it costs its own height plus one.
 	filterHeight := 0
 	if filterLine := f.renderFilterLine(); filterLine != "" {
-		filterHeight = lipgloss.Height(filterLine)
+		filterHeight = lipgloss.Height(filterLine) + 1
 	}
 
 	used := reservedRows +
@@ -653,6 +662,7 @@ func (f *FormModel) computeBodyHeight() {
 		lipgloss.Height(f.renderTabBar()) +
 		filterHeight +
 		1 + // pagination row (always reserved, blank when one page)
+		1 + // status row (always reserved, blank when nothing missing)
 		lipgloss.Height(f.renderHint())
 
 	f.bodyHeight = max(f.height-used, 1)
@@ -1050,7 +1060,9 @@ func (f *FormModel) submitChecked() (*FormModel, tea.Cmd) {
 	}
 
 	if missing := f.firstMissingRequired(); missing >= 0 {
+		f.requiredErrShown = true
 		f.setCursor(missing)
+
 		return f, nil
 	}
 
@@ -1059,9 +1071,9 @@ func (f *FormModel) submitChecked() (*FormModel, tea.Cmd) {
 
 // firstMissingRequired marks each unset required field with a "required
 // value missing" validation error and returns the index of the first such
-// field, or -1 when every required field has been set. The first unset
-// field also gets a ctrl+d hint appended so the user discovers the
-// force-submit escape hatch without it taking up help-area real estate.
+// field, or -1 when every required field has been set. The ctrl+d escape
+// hatch isn't advertised here; the bottom status line (renderStatusLine)
+// carries that hint once for the whole form.
 func (f *FormModel) firstMissingRequired() int {
 	missing := -1
 
@@ -1075,11 +1087,25 @@ func (f *FormModel) firstMissingRequired() int {
 
 		if missing < 0 {
 			missing = i
-			fld.ValidationErr += " (press ctrl+d to scaffold anyway)"
 		}
 	}
 
 	return missing
+}
+
+// missingRequiredCount returns how many required fields are still unset,
+// without mutating any field state. renderStatusLine uses it for the live
+// count so the status line auto-clears as the user fills required values.
+func (f *FormModel) missingRequiredCount() int {
+	count := 0
+
+	for i := range f.fields {
+		if f.fields[i].Required && !f.fields[i].Set {
+			count++
+		}
+	}
+
+	return count
 }
 
 // Update handles a single tea.Msg and returns the (possibly mutated) form
@@ -1219,8 +1245,8 @@ func (f *FormModel) updateNavigate(msg tea.Msg) (*FormModel, tea.Cmd) {
 		f.jumpCursor(true)
 	case key.Matches(keyMsg, f.navKeys.Interact):
 		return f.interact()
-	case key.Matches(keyMsg, f.navKeys.UnsetAll):
-		f.unsetAllFields()
+	case key.Matches(keyMsg, f.navKeys.Reset):
+		f.resetForm()
 	case key.Matches(keyMsg, f.navKeys.Unset):
 		f.unsetField(f.cursor)
 	}
@@ -1357,7 +1383,7 @@ func (f *FormModel) setCategory(c formCategory) {
 // current filter would render. Called after every filter-query and
 // category change so the focused-field highlight stays aligned with
 // what the user sees. While the user has yet to navigate with j/k/
-// arrows, the cursor always snaps to the first visible field — same
+// arrows, the cursor always snaps to the first visible field, the same
 // pattern the list view uses, so a freshly-opened form (or one whose
 // only interaction has been tab/filter) keeps focus pinned to the top
 // of whatever slice is on screen.
@@ -1491,18 +1517,19 @@ func (f *FormModel) interact() (*FormModel, tea.Cmd) {
 	return f, f.enterEdit()
 }
 
-// unsetField marks the focused optional field as "use default" so it is
-// left out of the generated file. The call is a no-op on required fields
-// (the user owes the form a value either way) and on fields that are
-// already unset (no toggling: x only unsets). The field's Input and Bool
-// stay as the user left them, so re-entering edit picks up where they
-// last were instead of jumping back to a blank slate.
+// unsetField clears the focused field's value, marking it unset so an
+// optional field falls back to its source default and a required field
+// reads as missing again. Any validation error on the field is cleared
+// too. The call is a no-op on a field that's already unset (x only
+// unsets, it never toggles). The field's Input and Bool stay as the user
+// left them, so re-entering edit picks up where they last were instead of
+// jumping back to a blank slate.
 //
 // updateNavigate guarantees a valid cursor before calling, so there's no
 // bounds check here.
 func (f *FormModel) unsetField(i int) {
 	fld := &f.fields[i]
-	if fld.Required || !fld.Set {
+	if !fld.Set {
 		return
 	}
 
@@ -1510,20 +1537,18 @@ func (f *FormModel) unsetField(i int) {
 	fld.ValidationErr = ""
 }
 
-// unsetAllFields marks every optional Set field as "use default" in one
-// pass. Required fields and already-unset optionals are skipped. Input
-// and Bool state is preserved so the user can recover prior edits by
-// re-entering edit mode.
-func (f *FormModel) unsetAllFields() {
+// resetForm returns the whole form to its pristine state: every field
+// (required and optional) is unset, every validation error is cleared,
+// and the missing-required status line is suppressed until the next
+// blocked submit. Input and Bool state is preserved so the user can
+// recover prior edits by re-entering edit mode.
+func (f *FormModel) resetForm() {
 	for i := range f.fields {
-		fld := &f.fields[i]
-		if fld.Required || !fld.Set {
-			continue
-		}
-
-		fld.Set = false
-		fld.ValidationErr = ""
+		f.fields[i].Set = false
+		f.fields[i].ValidationErr = ""
 	}
+
+	f.requiredErrShown = false
 }
 
 // toggleBool flips a checkbox field's value between true and false and
@@ -1610,10 +1635,6 @@ var (
 
 	formErrorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF5555"))
-
-	formErrorBoldStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FF5555")).
-				Bold(true)
 
 	// Set bool values get a clear positive/negative color so the user
 	// can see at a glance which checkboxes they flipped. True is fixed;
@@ -1777,8 +1798,8 @@ const EnvScaffoldFalseStyle = "TG_TMP_CATALOG_SCAFFOLD_FALSE_STYLE"
 // `false` value. The selection is read from [EnvScaffoldFalseStyle] on
 // every call so the user can flip variants between launches without
 // recompiling. Default is "neutral" because it's the only variant that
-// fully eliminates the warning vibe Eben flagged. Once a winner is
-// agreed on, drop this helper and inline the chosen style.
+// fully eliminates the false-as-warning read flagged in review. Once a
+// winner is agreed on, drop this helper and inline the chosen style.
 func falseStyle() lipgloss.Style {
 	switch os.Getenv(EnvScaffoldFalseStyle) {
 	case "muted":
@@ -1811,20 +1832,23 @@ func (f *FormModel) viewBase() string {
 	header := f.renderHeader()
 	tabBar := f.renderTabBar()
 	filterLine := f.renderFilterLine()
+	statusLine := f.renderStatusLine()
 	hint := f.renderHint()
 	pagination := f.renderPagination()
 	body := padToHeight(f.renderBody(), f.bodyHeight)
 
-	// Lay out: blank top, header, blank, tab bar, blank, [filter], body,
-	// pagination, hint. filterLine is optional and only takes a row when
-	// shown; pagination always claims its row (blank when there's only
-	// one page).
+	// Lay out: blank top, header, blank, tab bar, blank, [filter, blank],
+	// body, pagination, status, hint. The filter line is optional and only
+	// takes rows when shown, with a blank row beneath it so the first field
+	// doesn't crowd the input. Pagination and the status line always claim
+	// their row (blank when there's only one page / no missing-required
+	// message) so neither one's appearance shifts the rest of the form.
 	rows := []string{"", header, "", tabBar, ""}
 	if filterLine != "" {
-		rows = append(rows, filterLine)
+		rows = append(rows, filterLine, "")
 	}
 
-	rows = append(rows, body, pagination, hint)
+	rows = append(rows, body, pagination, statusLine, hint)
 
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
@@ -2000,6 +2024,7 @@ func (f *FormModel) hintBindings() []key.Binding {
 		f.navKeys.Filter,
 		f.navKeys.Interact,
 		f.navKeys.Unset,
+		f.navKeys.Reset,
 		f.navKeys.SubmitChecked,
 		cancel,
 	}
@@ -2245,6 +2270,33 @@ func (f *FormModel) renderFilterLine() string {
 	return ""
 }
 
+// renderStatusLine renders the form-level status row that sits just above
+// the keybinding hint. It surfaces a single missing-required summary once
+// the user has attempted a checked submit (the `s` shortcut) and required
+// fields are still unset, naming the count and the ctrl+d force-submit
+// escape hatch. It returns "" until that first blocked attempt and again
+// once every required field is set; viewBase still reserves the row in both
+// cases, so the message's appearance never shifts the rest of the form.
+func (f *FormModel) renderStatusLine() string {
+	if !f.requiredErrShown {
+		return ""
+	}
+
+	missing := f.missingRequiredCount()
+	if missing == 0 {
+		return ""
+	}
+
+	noun := "field"
+	if missing > 1 {
+		noun = "fields"
+	}
+
+	msg := fmt.Sprintf("%d required %s missing. Press ctrl+d to scaffold anyway.", missing, noun)
+
+	return "  " + formErrorStyle.Render(msg)
+}
+
 // renderField composes one field card: name (with focus highlight + req
 // tag), type meta, optional description, the value widget, and any
 // validation error. The focused field gets a colored vertical bar running
@@ -2293,8 +2345,14 @@ func (f *FormModel) renderField(i int) string {
 
 	lines = append(lines, prefix+formMetaStyle.Render("value: ")+f.renderFieldValue(fld, focused))
 
+	// The error row is always present so a field's height stays constant
+	// whether or not it carries a validation error; otherwise the whole
+	// list reflows the moment errors appear (e.g. after a blocked submit).
+	// When there's no error the row renders empty.
 	if fld.ValidationErr != "" {
 		lines = append(lines, prefix+formErrorStyle.Render(fld.ValidationErr))
+	} else {
+		lines = append(lines, "")
 	}
 
 	return strings.Join(lines, "\n")
@@ -2303,19 +2361,16 @@ func (f *FormModel) renderField(i int) string {
 // cursorPrefix returns the two-character indent for a focused field's
 // line: a colored vertical bar followed by a space. Unfocused fields use
 // two spaces (`"  "`), so the leading column lines up across the form.
-// The bar's color reflects the mode (cyan in navigate, yellow in edit)
-// or flips to red when the focused field carries a validation error.
+// The bar's color reflects the mode (cyan in navigate, yellow in edit);
+// validation errors surface in the inline error row, never on the cursor.
 func (f *FormModel) cursorPrefix() string {
 	return f.cursorPlainStyle().Render("│") + " "
 }
 
 // cursorBoldStyle returns the bold variant of the cursor color so the
-// focused field's name color matches the bar.
+// focused field's name color matches the bar: cyan in navigate mode,
+// yellow in edit mode.
 func (f *FormModel) cursorBoldStyle() lipgloss.Style {
-	if f.focusedHasError() {
-		return formErrorBoldStyle
-	}
-
 	if f.mode == editMode {
 		return formEditCursorBoldStyle
 	}
@@ -2326,36 +2381,11 @@ func (f *FormModel) cursorBoldStyle() lipgloss.Style {
 // cursorPlainStyle is the non-bold counterpart to cursorBoldStyle, used
 // for the vertical bar character.
 func (f *FormModel) cursorPlainStyle() lipgloss.Style {
-	if f.focusedHasError() {
-		return formErrorStyle
-	}
-
 	if f.mode == editMode {
 		return formEditCursorStyle
 	}
 
 	return formNavCursorStyle
-}
-
-// focusedHasError reports whether the currently focused field's stored
-// validation error should drive the cursor color. Unset fields are
-// excluded in navigate mode because their value is irrelevant: the
-// source default will apply at write time regardless of what's typed.
-func (f *FormModel) focusedHasError() bool {
-	if f.cursor < 0 || f.cursor >= len(f.fields) {
-		return false
-	}
-
-	fld := f.fields[f.cursor]
-	if fld.ValidationErr == "" {
-		return false
-	}
-
-	if f.mode == navigateMode && !fld.Set {
-		return false
-	}
-
-	return true
 }
 
 // descLineWidth returns the column count available for a description

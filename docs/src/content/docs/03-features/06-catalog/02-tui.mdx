@@ -255,10 +255,10 @@ The form opens in *navigate* mode. Pressing `enter` on a text field switches to 
 | `home`, `ctrl+a` | Jump to the first field |
 | `end`, `ctrl+e` | Jump to the last field |
 | `enter`, `i` | Enter edit mode on a text field, or toggle a checkbox |
-| `x` | Reset the focused optional field to its source default |
-| `X` | Reset every optional field to its source default |
+| `x` | Unset the focused field, clearing its value and any error (optional fields fall back to their source default; required fields read as missing again) |
+| `r` | Reset the whole form: unset every field and clear all errors |
 | `/` | Filter fields by name |
-| `s` | Scaffold; if any required field is unset, the form prompts you to press `ctrl+d` to write anyway |
+| `s` | Scaffold; if any required field is unset, the cursor jumps to the first one and a status line reports how many are missing, prompting you to press `ctrl+d` to write anyway |
 | `ctrl+d` | Scaffold immediately, leaving unset required fields as `# TODO` |
 | `esc` | Cancel and return to the previous view |
 
