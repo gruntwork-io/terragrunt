@@ -369,9 +369,7 @@ func TestPartialEval_FunctionCallArgumentsArePartiallyEvaluated(t *testing.T) {
 	})
 	evalCtx.Variables["stack"] = cty.ObjectVal(map[string]cty.Value{
 		"network": cty.ObjectVal(map[string]cty.Value{
-			"app": cty.ObjectVal(map[string]cty.Value{
-				"path": cty.StringVal("/abs/network/app"),
-			}),
+			"path": cty.StringVal("/abs/network"),
 		}),
 	})
 
@@ -388,10 +386,10 @@ func TestPartialEval_FunctionCallArgumentsArePartiallyEvaluated(t *testing.T) {
 			excludes: []string{"unit.vpc.path"},
 		},
 		{
-			name:     "stack child ref argument",
-			hcl:      `val = format("%s/foo", stack.network.app.path)`,
-			contains: []string{`format("%s/foo", "/abs/network/app")`},
-			excludes: []string{"stack.network.app.path"},
+			name:     "stack ref argument",
+			hcl:      `val = format("%s/foo", stack.network.path)`,
+			contains: []string{`format("%s/foo", "/abs/network")`},
+			excludes: []string{"stack.network.path"},
 		},
 		{
 			name:     "template interpolation",

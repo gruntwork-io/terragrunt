@@ -50,7 +50,6 @@ type ParseStackFileInput struct {
 
 // ParseResult holds the output of ParseStackFile.
 type ParseResult struct {
-	// AutoIncludes stores resolved autoincludes by component key.
 	AutoIncludes map[string]*AutoIncludeResolved
 	Units        []*UnitBlockHCL
 	Stacks       []*StackBlockHCL
@@ -103,15 +102,11 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		return result, err
 	}
 
-	// Build unit/stack refs and inject them into the eval context.
 	stackTargetDir := filepath.Join(input.StackDir, StackDir)
-	unitRefs := buildUnitRefs(decoded.Units, stackTargetDir)
-	stackRefs := buildStackRefs(fs, decoded.Stacks, input.StackDir, stackTargetDir)
+	evalCtx.Variables[varUnit] = BuildComponentRefMap(buildUnitRefs(decoded.Units, stackTargetDir))
+	evalCtx.Variables[varStack] = BuildComponentRefMap(buildStackRefs(decoded.Stacks, stackTargetDir))
 
-	evalCtx.Variables[varUnit] = BuildComponentRefMap(unitRefs)
-	evalCtx.Variables[varStack] = BuildComponentRefMap(stackRefs)
-
-	autoIncludes, err := resolveAutoIncludes(decoded, evalCtx, srcByFilename)
+	autoIncludes, err := resolveAutoIncludes(decoded.Units, decoded.Stacks, evalCtx, srcByFilename)
 	if err != nil {
 		return result, err
 	}
@@ -223,8 +218,8 @@ func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef 
 	return refs
 }
 
-// buildStackRefs builds component refs for stack blocks; ChildRefs come from best-effort nested-stack discovery.
-func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir string) []ComponentRef {
+// buildStackRefs builds top-level component refs for stack blocks.
+func buildStackRefs(stacks []*StackBlockHCL, stackTargetDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
 	for _, s := range stacks {
@@ -233,17 +228,7 @@ func buildStackRefs(fs vfs.FS, stacks []*StackBlockHCL, stackDir, stackTargetDir
 			stackGenPath = filepath.Join(filepath.Dir(stackTargetDir), s.Path)
 		}
 
-		ref := ComponentRef{Name: s.Name, Path: stackGenPath}
-
-		// Always attempt nested discovery; remote sources fail vfs.ReadFile and yield no refs.
-		sourceDir := s.Source
-		if !filepath.IsAbs(sourceDir) {
-			sourceDir = filepath.Join(stackDir, sourceDir)
-		}
-
-		ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, 0)
-
-		refs = append(refs, ref)
+		refs = append(refs, ComponentRef{Name: s.Name, Path: stackGenPath})
 	}
 
 	return refs
@@ -483,10 +468,10 @@ func AutoIncludeKey(kind AutoIncludeKind, name string) string {
 }
 
 // resolveAutoIncludes resolves autoinclude blocks for all units and stacks; keys are namespaced as "unit:name" and "stack:name".
-func resolveAutoIncludes(decoded *unitsAndStacksHCL, evalCtx *hcl.EvalContext, srcByFilename map[string][]byte) (map[string]*AutoIncludeResolved, error) {
+func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx *hcl.EvalContext, srcByFilename map[string][]byte) (map[string]*AutoIncludeResolved, error) {
 	autoIncludes := make(map[string]*AutoIncludeResolved)
 
-	for _, unit := range decoded.Units {
+	for _, unit := range units {
 		if unit.AutoInclude == nil {
 			continue
 		}
@@ -501,7 +486,7 @@ func resolveAutoIncludes(decoded *unitsAndStacksHCL, evalCtx *hcl.EvalContext, s
 		}
 	}
 
-	for _, stack := range decoded.Stacks {
+	for _, stack := range stacks {
 		if stack.AutoInclude == nil {
 			continue
 		}

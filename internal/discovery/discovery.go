@@ -530,7 +530,7 @@ func (d *Discovery) buildComponentDependencies(
 	}
 
 	if opts.Experiments.Evaluate(experiment.StackDependencies) {
-		depPaths, err = stackDependencyPaths(vfs.NewOSFS(), depPaths, c)
+		depPaths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), opts, depPaths, c)
 		if err != nil {
 			return err
 		}
