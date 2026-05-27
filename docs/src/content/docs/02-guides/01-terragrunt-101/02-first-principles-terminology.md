@@ -146,10 +146,29 @@ Because Terragrunt builds and leverages a DAG, it can reliably schedule concurre
 
 Imagine you're doing the dishes and the laundry at the same time. Each has its own ordered sequence of steps:
 
-```text
-Scrape dishes → Load dishwasher → Wash → Dry → Put away
+```d2
+direction: right
 
-Load washer → Wash → Load dryer → Dry → Fold → Put away
+dishes: Dishes {
+  scrape: Scrape dishes
+  load: Load dishwasher
+  wash: Wash
+  dry: Dry
+  away: Put away
+
+  scrape -> load -> wash -> dry -> away
+}
+
+laundry: Laundry {
+  load: Load washer
+  wash: Wash
+  load_dryer: Load dryer
+  dry: Dry
+  fold: Fold
+  away: Put away
+
+  load -> wash -> load_dryer -> dry -> fold -> away
+}
 ```
 
 Within each chore the order is fixed — you can't dry the dishes before they've been washed, and you can't fold clothes before they're dry. But the two chores don't depend on each other, so they can happen in parallel: while the dishwasher is running, you can load the washing machine.

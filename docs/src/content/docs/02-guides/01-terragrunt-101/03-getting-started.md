@@ -15,7 +15,7 @@ By the end of this module, you'll be able to:
 | **Install Terragrunt**     | Set up Terragrunt with OpenTofu              |
 | **Create `root.hcl`**      | Build shared configuration                   |
 | **Use catalog & scaffold** | Quickly create units from modules            |
-| **Write configurations**   | Author basic `terragrunt.hcl` files          |
+| **Write configurations**   | Author basic unit configurations             |
 | **Run commands**           | Execute `plan`, `apply`, and `destroy`       |
 | **Understand the cache**   | How `.terragrunt-cache` works                |
 
@@ -66,6 +66,8 @@ mise use -g awscli
 Create a `.mise.toml` file in your project root to ensure everyone uses the same versions:
 
 ```toml
+# .mise.toml
+
 [tools]
 terragrunt = "1.0.3"
 opentofu = "1.11.5"
@@ -74,7 +76,9 @@ awscli = "latest"
 
 When anyone enters the project directory, mise **automatically activates** these versions.
 
+:::tip
 > This prevents "works on my machine" issues and makes version upgrades **explicit** in your version control.
+:::
 
 To install the versions specified in `.mise.toml`:
 
