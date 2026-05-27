@@ -1,7 +1,3 @@
-// Package azurehelper provides helpers for interacting with Azure services
-// (storage accounts, blob containers, RBAC). It mirrors the layout of
-// internal/awshelper and internal/gcphelper: a flat package, no interfaces
-// or factory abstractions, builder pattern for credential/client construction.
 package azurehelper
 
 import (

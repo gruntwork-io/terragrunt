@@ -1,8 +1,9 @@
-// Package azurehelper -- role-assignment helpers.
+// Role-assignment helpers.
 //
 // RBACClient wraps Azure's armauthorization RoleAssignmentsClient and
 // exposes the small surface needed to bootstrap data-plane access for
 // the remote-state backend (assign idempotently, list, and remove).
+
 package azurehelper
 
 import (
