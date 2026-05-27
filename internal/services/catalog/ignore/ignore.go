@@ -7,12 +7,12 @@ package ignore
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"path/filepath"
 	"strings"
 
-	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
@@ -43,7 +43,7 @@ func Load(fsys vfs.FS, repoPath string) (*Matcher, error) {
 			return &Matcher{}, nil
 		}
 
-		return nil, tgerrors.New(err)
+		return nil, err
 	}
 
 	return parseAndClose(f)
@@ -55,7 +55,7 @@ func Load(fsys vfs.FS, repoPath string) (*Matcher, error) {
 func LoadFile(fsys vfs.FS, path string) (*Matcher, error) {
 	f, err := fsys.Open(path)
 	if err != nil {
-		return nil, tgerrors.New(err)
+		return nil, err
 	}
 
 	return parseAndClose(f)
@@ -74,7 +74,7 @@ func (m *Matcher) Merge(other *Matcher) {
 func parseAndClose(f vfs.File) (m *Matcher, err error) {
 	defer func() {
 		if cerr := f.Close(); cerr != nil && err == nil {
-			err = tgerrors.New(cerr)
+			err = cerr
 		}
 	}()
 
@@ -109,14 +109,14 @@ func Parse(r io.Reader) (*Matcher, error) {
 
 		g, err := glob.Compile(line)
 		if err != nil {
-			return nil, tgerrors.Errorf("%s line %d: invalid pattern %q: %w", FileName, lineNo, line, err)
+			return nil, fmt.Errorf("%s line %d: invalid pattern %q: %w", FileName, lineNo, line, err)
 		}
 
 		m.rules = append(m.rules, rule{glob: g, negate: negate, raw: line})
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, tgerrors.New(err)
+		return nil, err
 	}
 
 	return m, nil

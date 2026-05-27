@@ -1,9 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
 )
 
 // ValidateStackConfig validates a StackConfigFile instance according to the rules:
@@ -23,17 +24,17 @@ func ValidateStackConfig(config *StackConfigFile) error {
 		return errors.New("stack config must contain at least one unit or stack")
 	}
 
-	validationErrors := &errors.MultiError{}
+	var validationErrors []error
 
 	if err := validateUnits(config.Units); err != nil {
-		validationErrors = validationErrors.Append(err)
+		validationErrors = append(validationErrors, err)
 	}
 
 	if err := validateStacks(config.Stacks); err != nil {
-		validationErrors = validationErrors.Append(err)
+		validationErrors = append(validationErrors, err)
 	}
 
-	return validationErrors.ErrorOrNil()
+	return errors.Join(validationErrors...)
 }
 
 // validateUnits validates all units in the configuration
@@ -55,7 +56,7 @@ func validateStacks(stacks []*Stack) error {
 // validateConfigElementsGeneric is a generic function to validate configuration elements
 // It takes a slice of elements, the element type name, and a function to extract name, path, and source from an element
 func validateConfigElementsGeneric(elements any, elementType string, getValues func(element any, index int) (name, path, source string)) error {
-	validationErrors := &errors.MultiError{}
+	var validationErrors []error
 
 	var slice []any
 
@@ -80,7 +81,7 @@ func validateConfigElementsGeneric(elements any, elementType string, getValues f
 
 	for i, element := range slice {
 		if element == nil {
-			validationErrors = validationErrors.Append(errors.Errorf("%s at index %d is nil", elementType, i))
+			validationErrors = append(validationErrors, fmt.Errorf("%s at index %d is nil", elementType, i))
 			continue
 		}
 
@@ -91,24 +92,24 @@ func validateConfigElementsGeneric(elements any, elementType string, getValues f
 
 		// Validate name, source, and path
 		if name == "" {
-			validationErrors = validationErrors.Append(errors.Errorf("%s at index %d has empty name", elementType, i))
+			validationErrors = append(validationErrors, fmt.Errorf("%s at index %d has empty name", elementType, i))
 		}
 
 		if source == "" {
-			validationErrors = validationErrors.Append(errors.Errorf("%s '%s' has empty source", elementType, name))
+			validationErrors = append(validationErrors, fmt.Errorf("%s '%s' has empty source", elementType, name))
 		}
 
 		if path == "" {
-			validationErrors = validationErrors.Append(errors.Errorf("%s '%s' has empty path", elementType, name))
+			validationErrors = append(validationErrors, fmt.Errorf("%s '%s' has empty path", elementType, name))
 		}
 
 		// Check for duplicates
 		if names[name] {
-			validationErrors = validationErrors.Append(errors.Errorf("duplicate %s name found: '%s'", elementType, name))
+			validationErrors = append(validationErrors, fmt.Errorf("duplicate %s name found: '%s'", elementType, name))
 		}
 
 		if paths[path] {
-			validationErrors = validationErrors.Append(errors.Errorf("duplicate %s path found: '%s'", elementType, path))
+			validationErrors = append(validationErrors, fmt.Errorf("duplicate %s path found: '%s'", elementType, path))
 		}
 
 		// Save non-empty values for uniqueness check
@@ -121,5 +122,5 @@ func validateConfigElementsGeneric(elements any, elementType string, getValues f
 		}
 	}
 
-	return validationErrors.ErrorOrNil()
+	return errors.Join(validationErrors...)
 }

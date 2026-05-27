@@ -2,10 +2,10 @@
 package clean
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -19,13 +19,13 @@ func CleanStacks(l log.Logger, opts *options.TerragruntOptions) error {
 		return nil
 	}
 
-	errs := &errors.MultiError{}
+	var errs []error
 
 	walkFn := func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			l.Warnf("Error accessing path %s: %v", path, walkErr)
 
-			errs = errs.Append(walkErr)
+			errs = append(errs, walkErr)
 
 			return nil
 		}
@@ -41,7 +41,7 @@ func CleanStacks(l log.Logger, opts *options.TerragruntOptions) error {
 			if rmErr := os.RemoveAll(path); rmErr != nil {
 				l.Errorf("Failed to delete stack directory %s: %v", relPath, rmErr)
 
-				errs = errs.Append(rmErr)
+				errs = append(errs, rmErr)
 			}
 
 			return filepath.SkipDir
@@ -50,8 +50,8 @@ func CleanStacks(l log.Logger, opts *options.TerragruntOptions) error {
 		return nil
 	}
 	if walkErr := filepath.WalkDir(opts.WorkingDir, walkFn); walkErr != nil {
-		errs = errs.Append(walkErr)
+		errs = append(errs, walkErr)
 	}
 
-	return errs.ErrorOrNil()
+	return errors.Join(errs...)
 }

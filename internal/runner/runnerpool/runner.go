@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -114,7 +113,7 @@ func BuildUnitOpts(l log.Logger, stackOpts *options.TerragruntOptions, unit *com
 				unitConfig,
 			)
 			if sourceErr != nil {
-				return nil, nil, tgerrors.Errorf("failed to compute source for unit %s: %w", unit.DisplayPath(), sourceErr)
+				return nil, nil, fmt.Errorf("failed to compute source for unit %s: %w", unit.DisplayPath(), sourceErr)
 			}
 
 			if unitSource != "" {
@@ -414,7 +413,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 		// Build per-unit opts and logger on demand
 		unitOpts, unitLogger, err := BuildUnitOpts(l, stackOpts, u)
 		if err != nil {
-			return tgerrors.Errorf("failed to build opts for unit %s: %w", u.Path(), err)
+			return fmt.Errorf("failed to build opts for unit %s: %w", u.Path(), err)
 		}
 
 		// Sync CLI args from stackOpts into unit opts

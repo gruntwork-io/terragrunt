@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 )
 
@@ -208,7 +207,7 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 
 	for _, arg := range args {
 		if arg.Type() != cty.String {
-			return nil, errors.New(InvalidParameterTypeError{Expected: "string", Actual: arg.Type().FriendlyName()})
+			return nil, InvalidParameterTypeError{Expected: "string", Actual: arg.Type().FriendlyName()}
 		}
 
 		out = append(out, arg.AsString())
@@ -259,7 +258,7 @@ func deepMergeMapValuesAsFuncImpl(pctx *ParsingContext) function.Function {
 		Type: function.StaticReturnType(cty.DynamicPseudoType),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			if !pctx.Experiments.Evaluate(experiment.DeepMerge) {
-				return cty.NilVal, errors.New(DeepMergeRequiresExperimentError{ConfigPath: pctx.TerragruntConfigPath})
+				return cty.NilVal, DeepMergeRequiresExperimentError{ConfigPath: pctx.TerragruntConfigPath}
 			}
 
 			outVal := cty.EmptyObjectVal
@@ -270,9 +269,8 @@ func deepMergeMapValuesAsFuncImpl(pctx *ParsingContext) function.Function {
 				}
 
 				if !arg.Type().IsMapType() && !arg.Type().IsObjectType() {
-					return cty.NilVal, errors.New(
-						InvalidParameterTypeError{Expected: "map or object", Actual: arg.Type().FriendlyName()},
-					)
+					return cty.NilVal,
+						InvalidParameterTypeError{Expected: "map or object", Actual: arg.Type().FriendlyName()}
 				}
 
 				merged, err := deepMergeCtyMaps(outVal, arg)
@@ -399,11 +397,11 @@ func includeConfigAsCtyVal(ctx context.Context, pctx *ParsingContext, l log.Logg
 func CtyToStruct(ctyValue cty.Value, target any) error {
 	jsonBytes, err := ctyjson.Marshal(ctyValue, ctyValue.Type())
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if err := json.Unmarshal(jsonBytes, target); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil

@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"errors"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -97,7 +98,7 @@ func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 
 	err := client.WaitForTableToBeActiveWithRandomSleep(t.Context(), l, tableName, retries, 1*time.Millisecond, 500*time.Millisecond)
 
-	errorMatchs := errors.IsError(err, s3backend.TableActiveRetriesExceeded{TableName: tableName, Retries: retries})
+	errorMatchs := errors.Is(err, s3backend.TableActiveRetriesExceeded{TableName: tableName, Retries: retries})
 	assert.True(t, errorMatchs, "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 

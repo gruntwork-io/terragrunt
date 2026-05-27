@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/mitchellh/go-wordwrap"
@@ -140,7 +139,7 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 	// this is where we put the text of a native Go error it may not always
 	// be pure text that lends itself well to word-wrapping.
 	if _, err := fmt.Fprintf(&buf, "%s\n\n", render.styled(&boldStyle, diag.Summary)); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	sourceSnippets, err := render.SourceSnippets(diag)
@@ -160,12 +159,12 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 				}
 
 				if _, err := fmt.Fprintf(&buf, "%s\n", line); err != nil {
-					return "", errors.New(err)
+					return "", err
 				}
 			}
 		} else {
 			if _, err := fmt.Fprintf(&buf, "%s\n", diag.Detail); err != nil {
-				return "", errors.New(err)
+				return "", err
 			}
 		}
 	}
@@ -222,7 +221,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 	}
 
 	if _, err := fmt.Fprintf(buf, "  on %s line %d%s:\n", diag.Range.Filename, diag.Range.Start.Line, contextStr); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	// Split the snippet and render the highlighted section with underlines
@@ -262,7 +261,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 			snippet.StartLine+i,
 			line,
 		); err != nil {
-			return "", errors.New(err)
+			return "", err
 		}
 	}
 
@@ -285,7 +284,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 				render.styled(&darkGrayStyle, "│"),
 				render.styled(&boldStyle, callInfo.CalledAs),
 			); err != nil {
-				return "", errors.New(err)
+				return "", err
 			}
 
 			for i, param := range callInfo.Signature.Params {
@@ -314,7 +313,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 				render.styled(&boldStyle, value.Traversal),
 				value.Statement,
 			); err != nil {
-				return "", errors.New(err)
+				return "", err
 			}
 		}
 	}

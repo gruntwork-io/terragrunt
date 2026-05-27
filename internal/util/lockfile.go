@@ -1,10 +1,10 @@
 package util
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/gofrs/flock"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 type Lockfile struct {
@@ -23,12 +23,12 @@ func (lockfile *Lockfile) Unlock() error {
 	}
 
 	if err := lockfile.Flock.Unlock(); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if FileExists(lockfile.Path()) {
 		if err := os.Remove(lockfile.Path()); err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 
@@ -37,9 +37,9 @@ func (lockfile *Lockfile) Unlock() error {
 
 func (lockfile *Lockfile) TryLock() error {
 	if locked, err := lockfile.Flock.TryLock(); err != nil {
-		return errors.New(err)
+		return err
 	} else if !locked {
-		return errors.Errorf("unable to lock file %s", lockfile.Path())
+		return fmt.Errorf("unable to lock file %s", lockfile.Path())
 	}
 
 	return nil

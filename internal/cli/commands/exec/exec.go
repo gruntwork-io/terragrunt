@@ -2,10 +2,10 @@ package exec
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -86,7 +86,7 @@ func runTargetCommand(
 			ctx, l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(opts), dir, false, false, command, cmdArgs...,
 		)
 		if err != nil {
-			return errors.Errorf("failed to run command in directory %s: %w", dir, err)
+			return fmt.Errorf("failed to run command in directory %s: %w", dir, err)
 		}
 
 		return nil

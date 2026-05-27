@@ -4,6 +4,7 @@ package exec
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -13,8 +14,9 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
 
+	"errors"
+
 	"github.com/creack/pty"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -34,12 +36,12 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 	// value so that it can be updated.
 	pseudoTerminal, err := pty.Start(cmd)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	defer func() {
 		if closeErr := pseudoTerminal.Close(); closeErr != nil {
-			closeErr = errors.Errorf("Error closing pty: %w", closeErr)
+			closeErr = fmt.Errorf("error closing pty: %w", closeErr)
 
 			// Only overwrite the previous error if there was no error since this error has lower priority than any
 			// errors in the main routine
@@ -58,7 +60,7 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 	go func() {
 		for range ch {
 			if inheritSizeErr := pty.InheritSize(os.Stdin, pseudoTerminal); inheritSizeErr != nil {
-				inheritSizeErr = errors.Errorf("Error resizing pty: %w", inheritSizeErr)
+				inheritSizeErr = fmt.Errorf("error resizing pty: %w", inheritSizeErr)
 
 				// We don't propagate this error upstream because it does not affect normal operation of the command
 				logger.Error(inheritSizeErr)
@@ -71,12 +73,12 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 	// Set stdin in raw mode so that we preserve readline properties
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	defer func() {
 		if restoreErr := term.Restore(int(os.Stdin.Fd()), oldState); restoreErr != nil {
-			restoreErr = errors.Errorf("error restoring terminal state: %w", restoreErr)
+			restoreErr = fmt.Errorf("error restoring terminal state: %w", restoreErr)
 
 			// Only overwrite the previous error if there was no error since this error has lower priority than any
 			// errors in the main routine
@@ -100,7 +102,7 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 		defer cancel()
 
 		if _, err := util.Copy(ctx, cmdStdout, pseudoTerminal); err != nil {
-			return errors.Errorf("error forwarding stdout: %w", err)
+			return fmt.Errorf("error forwarding stdout: %w", err)
 		}
 
 		return nil
@@ -111,14 +113,14 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 		defer cancel()
 
 		if _, err := util.Copy(ctx, pseudoTerminal, os.Stdin); err != nil {
-			return errors.Errorf("error forwarding stdin: %w", err)
+			return fmt.Errorf("error forwarding stdin: %w", err)
 		}
 
 		return nil
 	})
 
-	if err := errGroup.Wait(); err != nil && !errors.IsError(err, io.EOF) && !errors.IsContextCanceled(err) {
-		return errors.New(err)
+	if err := errGroup.Wait(); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
+		return err
 	}
 
 	return nil

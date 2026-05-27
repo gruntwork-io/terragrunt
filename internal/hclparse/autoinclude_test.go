@@ -44,7 +44,6 @@ dependency "vpc" {
 			"unit": cty.ObjectVal(map[string]cty.Value{
 				"vpc": cty.ObjectVal(map[string]cty.Value{
 					"path": cty.StringVal("../vpc"),
-					"name": cty.StringVal("vpc"),
 				}),
 			}),
 			"stack": cty.EmptyObjectVal,
@@ -162,11 +161,9 @@ dependency "db" {
 			"unit": cty.ObjectVal(map[string]cty.Value{
 				"vpc": cty.ObjectVal(map[string]cty.Value{
 					"path": cty.StringVal("../vpc"),
-					"name": cty.StringVal("vpc"),
 				}),
 				"database": cty.ObjectVal(map[string]cty.Value{
 					"path": cty.StringVal("../database"),
-					"name": cty.StringVal("database"),
 				}),
 			}),
 			"stack": cty.EmptyObjectVal,
@@ -203,7 +200,6 @@ dependency "networking" {
 			"stack": cty.ObjectVal(map[string]cty.Value{
 				"networking": cty.ObjectVal(map[string]cty.Value{
 					"path": cty.StringVal("../networking"),
-					"name": cty.StringVal("networking"),
 				}),
 			}),
 		},
@@ -247,7 +243,6 @@ inputs = {
 			"unit": cty.ObjectVal(map[string]cty.Value{
 				"vpc": cty.ObjectVal(map[string]cty.Value{
 					"path": cty.StringVal("/abs/path/to/.terragrunt-stack/vpc"),
-					"name": cty.StringVal("vpc"),
 				}),
 			}),
 			"stack": cty.EmptyObjectVal,

@@ -31,25 +31,3 @@ unit "app_stack_dep" {
     }
   }
 }
-
-# Unit that depends on a specific unit within the stack
-unit "app_unit_in_stack" {
-  source = "../units/app"
-  path   = "app-unit-in-stack"
-
-  autoinclude {
-    dependency "vpc" {
-      config_path = stack.networking.vpc.path
-
-      mock_outputs_allowed_terraform_commands = ["plan"]
-      mock_outputs = {
-        vpc_id = "mock-vpc-id"
-      }
-    }
-
-    inputs = {
-      env    = local.env
-      vpc_id = dependency.vpc.outputs.vpc_id
-    }
-  }
-}

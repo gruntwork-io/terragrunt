@@ -17,7 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
@@ -178,7 +179,7 @@ func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getprovid
 	}
 
 	if _, err := hex.Decode(checksum[:], []byte(cache.SHA256Sum)); err != nil {
-		return nil, errors.Errorf("registry response includes invalid SHA256 hash %q for provider %q: %w", cache.SHA256Sum, cache.Provider, err)
+		return nil, fmt.Errorf("registry response includes invalid SHA256 hash %q for provider %q: %w", cache.SHA256Sum, cache.Provider, err)
 	}
 
 	checks := []getproviders.PackageAuthentication{
@@ -318,7 +319,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	exists, err := vfs.FileExists(fs, cache.packageDir)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if exists {
@@ -335,19 +336,19 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if err := fs.MkdirAll(filepath.Dir(cache.packageDir), os.ModePerm); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	userProviderExists, err := vfs.FileExists(fs, cache.userProviderDir)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if userProviderExists {
 		cache.logger.Debugf("Create symlink file %s to %s", cache.packageDir, cache.userProviderDir)
 
 		if err := vfs.Symlink(fs, cache.userProviderDir, cache.packageDir); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		cache.logger.Infof("Cached %s from user plugins directory", cache.Provider)
@@ -356,12 +357,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if cache.DownloadURL == "" {
-		return errors.Errorf("not found provider download url")
+		return errors.New("not found provider download url")
 	}
 
 	downloadURLIsLocalFile, err := cache.isLocalFile(fs, cache.DownloadURL)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if downloadURLIsLocalFile {
@@ -409,7 +410,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	if cache.credsSource == nil {
@@ -434,7 +435,7 @@ func RemoveStaleSymlink(fs vfs.FS, path string) error {
 			return nil
 		}
 
-		return errors.Errorf("failed to inspect provider package path %q: %w", path, err)
+		return fmt.Errorf("failed to inspect provider package path %q: %w", path, err)
 	}
 
 	if info.Mode()&os.ModeSymlink == 0 {
@@ -442,7 +443,7 @@ func RemoveStaleSymlink(fs vfs.FS, path string) error {
 	}
 
 	if err := fs.Remove(path); err != nil {
-		return errors.Errorf("failed to clear stale provider package symlink %q: %w", path, err)
+		return fmt.Errorf("failed to clear stale provider package symlink %q: %w", path, err)
 	}
 
 	return nil
@@ -454,14 +455,14 @@ func (cache *ProviderCache) removeArchive() error {
 	if cache.archiveCached {
 		exists, err := vfs.FileExists(fs, cache.archivePath)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		if exists {
 			cache.logger.Debugf("Remove provider cached archive %s", cache.archivePath)
 
 			if err := fs.Remove(cache.archivePath); err != nil {
-				return errors.New(err)
+				return err
 			}
 		}
 	}
@@ -484,13 +485,13 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 	lockfile := util.NewLockfile(cache.lockfilePath)
 
 	if err := cache.ProviderService.FS().MkdirAll(filepath.Dir(cache.lockfilePath), os.ModePerm); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	if err := util.DoWithRetry(ctx, "Acquiring lock file "+cache.lockfilePath, maxRetriesLockFile, retryDelayLockFile, cache.logger, log.DebugLevel, func(ctx context.Context) error {
 		return lockfile.TryLock()
 	}); err != nil {
-		return nil, errors.Errorf("unable to acquire lock file %s (already locked?) try to remove the file manually: %w", cache.lockfilePath, err)
+		return nil, fmt.Errorf("unable to acquire lock file %s (already locked?) try to remove the file manually: %w", cache.lockfilePath, err)
 	}
 
 	return lockfile, nil
@@ -570,7 +571,7 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 
 	var (
 		providers []getproviders.Provider
-		errs      = &errors.MultiError{}
+		errs      []error
 	)
 
 	service.logger.Debugf("Waiting for cache ready with requestID: %s", requestID)
@@ -588,7 +589,7 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 
 	for _, provider := range caches {
 		if provider.err != nil {
-			errs = errs.Append(fmt.Errorf("unable to cache provider: %s, err: %w", provider, provider.err))
+			errs = append(errs, fmt.Errorf("unable to cache provider: %s, err: %w", provider, provider.err))
 			service.logger.Errorf("Provider cache error for %s: %v", provider, provider.err)
 		}
 
@@ -602,7 +603,7 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 
 	service.logger.Debugf("Returning %d ready providers for requestID: %s", len(providers), requestID)
 
-	return providers, errs.ErrorOrNil()
+	return providers, errors.Join(errs...)
 }
 
 // CacheProvider starts caching the given provider using non-blocking approach.
@@ -667,13 +668,13 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 // Run is responsible to handle a new caching requestID and removing temporary files upon completion.
 func (service *ProviderService) Run(ctx context.Context) error {
 	if service.cacheDir == "" {
-		return errors.Errorf("provider cache directory not specified")
+		return errors.New("provider cache directory not specified")
 	}
 
 	service.logger.Debugf("Starting provider cache service with cache dir: %q", service.cacheDir)
 
 	if err := service.FS().MkdirAll(service.cacheDir, os.ModePerm); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	tempDir, err := util.EnsureTempDir()
@@ -684,7 +685,11 @@ func (service *ProviderService) Run(ctx context.Context) error {
 	service.tempDir = filepath.Join(tempDir, "providers")
 	service.logger.Debugf("Provider cache service temp dir: %s", service.tempDir)
 
-	errs := &errors.MultiError{}
+	var (
+		errs   []error
+		errsMu sync.Mutex
+	)
+
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	service.logger.Debugf("Provider cache service is ready to process requests")
@@ -694,12 +699,18 @@ func (service *ProviderService) Run(ctx context.Context) error {
 		case cache := <-service.providerCacheWarmUpCh:
 			service.logger.Debugf("Received provider cache request for: %s", cache.Provider)
 			errGroup.Go(func() error {
-				if err := service.startProviderCaching(ctx, cache); err != nil {
-					service.logger.Errorf("Failed to start provider caching for %s: %v", cache.Provider, err)
-					errs = errs.Append(err)
-				} else {
+				err := service.startProviderCaching(ctx, cache)
+				if err == nil {
 					service.logger.Debugf("Successfully started provider caching for %s", cache.Provider)
+					return nil
 				}
+
+				service.logger.Errorf("Failed to start provider caching for %s: %v", cache.Provider, err)
+
+				errsMu.Lock()
+				defer errsMu.Unlock()
+
+				errs = append(errs, err)
 
 				return nil
 			})
@@ -707,16 +718,16 @@ func (service *ProviderService) Run(ctx context.Context) error {
 			service.logger.Debugf("Provider cache service shutting down...")
 
 			if err := errGroup.Wait(); err != nil {
-				errs = errs.Append(err)
+				errs = append(errs, err)
 			}
 
 			if err := service.providerCaches.removeArchive(); err != nil {
-				errs = errs.Append(err)
+				errs = append(errs, err)
 			}
 
 			service.logger.Debugf("Provider cache service shutdown complete")
 
-			return errs.ErrorOrNil()
+			return errors.Join(errs...)
 		}
 	}
 }

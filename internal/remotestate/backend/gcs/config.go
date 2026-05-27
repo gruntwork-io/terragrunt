@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -62,11 +61,11 @@ func (cfg Config) ParseExtendedGCSConfig() (*ExtendedRemoteStateConfigGCS, error
 	)
 
 	if err := mapstructure.WeakDecode(cfg, &gcsConfig); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	if err := mapstructure.WeakDecode(cfg, &extendedConfig); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	extendedConfig.RemoteStateConfigGCS = gcsConfig

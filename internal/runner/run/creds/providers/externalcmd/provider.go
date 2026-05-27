@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
@@ -72,7 +71,7 @@ func (provider *Provider) fetchCredentials(ctx context.Context, l log.Logger) (*
 	// Normalize Windows paths before parsing - shellwords treats backslashes as escape characters
 	parts, err := parser.Parse(filepath.ToSlash(provider.authProviderCmd))
 	if err != nil {
-		return nil, errors.Errorf("failed to parse auth provider command: %w", err)
+		return nil, fmt.Errorf("failed to parse auth provider command: %w", err)
 	}
 
 	command := parts[0]
@@ -91,16 +90,15 @@ func (provider *Provider) fetchCredentials(ctx context.Context, l log.Logger) (*
 	}
 
 	if output.Stdout.String() == "" {
-		return nil, errors.Errorf(
+		return nil, fmt.Errorf(
 			"command %s completed successfully, but the response does not contain JSON string",
-			provider.authProviderCmd,
-		)
+			provider.authProviderCmd)
 	}
 
 	resp := &Response{Envs: make(map[string]string)}
 
 	if err := json.Unmarshal(output.Stdout.Bytes(), resp); err != nil {
-		return nil, errors.Errorf("command %s returned a response with invalid JSON format", command)
+		return nil, fmt.Errorf("command %s returned a response with invalid JSON format", command)
 	}
 
 	creds := &providers.Credentials{
