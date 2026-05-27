@@ -39,9 +39,13 @@ func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParam
 		return nil
 	}
 
-	var errorsOccured []error
-
 	l.Debugf("Detected %d Hooks", len(p.Hooks))
+
+	// Seed with the errors from earlier stages and append as hooks fail, so each
+	// hook's run condition sees the failures before it. The errors from this call
+	// are everything past priorCount.
+	allPreviousErrors := slices.Clone(p.PreviousExecErrors)
+	priorCount := len(allPreviousErrors)
 
 	for i := range p.Hooks {
 		curHook := &p.Hooks[i]
@@ -50,7 +54,6 @@ func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParam
 			continue
 		}
 
-		allPreviousErrors := append(slices.Clone(p.PreviousExecErrors), errorsOccured...)
 		if shouldRunHook(curHook, p.Opts, allPreviousErrors) {
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
@@ -59,12 +62,12 @@ func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParam
 				return runHook(ctx, l, v, p.Opts, p.Cfg, curHook)
 			})
 			if err != nil {
-				errorsOccured = append(errorsOccured, err)
+				allPreviousErrors = append(allPreviousErrors, err)
 			}
 		}
 	}
 
-	return multierror.Join(errorsOccured...)
+	return multierror.Join(allPreviousErrors[priorCount:]...)
 }
 
 // ProcessErrorHooks runs error_hook blocks whose OnErrors regex matches one
@@ -90,8 +93,7 @@ func ProcessErrorHooks(
 		errorMessage := e.Error()
 		// Process execution errors carry stdout that hook patterns need to match against.
 		// https://github.com/gruntwork-io/terragrunt/issues/2045
-		var processError util.ProcessExecutionError
-		if errors.As(e, &processError) {
+		if processError, ok := errors.AsType[util.ProcessExecutionError](e); ok {
 			errorMessage = fmt.Sprintf("%s\n%s", processError.Error(), processError.Output.Stdout.String())
 		}
 

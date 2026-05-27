@@ -16,12 +16,17 @@ type Error struct {
 	errs []error
 }
 
+// maxFlattenDepth caps the recursion in flatten so a deeply nested error chain
+// cannot exhaust the stack. An aggregate reached at the cap is kept as one leaf.
+// Its own Error method still renders what it wraps.
+const maxFlattenDepth = 100
+
 // Join collects the non-nil errors into a single [Error], flattening any nested
 // aggregates (including errors produced by [errors.Join] and by Join itself) so
 // that every error renders as a single top-level bullet. It returns nil when every
 // given error is nil, mirroring [errors.Join].
 func Join(errs ...error) error {
-	flat := flatten(errs)
+	flat := flatten(errs, 0)
 	if len(flat) == 0 {
 		return nil
 	}
@@ -51,7 +56,7 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%d errors occurred:\n\n%s\n", len(strs), body)
 }
 
-func flatten(errs []error) []error {
+func flatten(errs []error, depth int) []error {
 	var flat []error
 
 	for _, err := range errs {
@@ -59,8 +64,8 @@ func flatten(errs []error) []error {
 			continue
 		}
 
-		if joined, ok := err.(interface{ Unwrap() []error }); ok {
-			flat = append(flat, flatten(joined.Unwrap())...)
+		if joined, ok := err.(interface{ Unwrap() []error }); ok && depth < maxFlattenDepth {
+			flat = append(flat, flatten(joined.Unwrap(), depth+1)...)
 			continue
 		}
 

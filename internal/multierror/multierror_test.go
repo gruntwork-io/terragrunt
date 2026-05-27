@@ -63,6 +63,19 @@ func TestJoinPreservesErrorsIsAndAs(t *testing.T) {
 	require.ErrorAs(t, multierror.Join(&customError{}), &target)
 }
 
+func TestJoinBoundsRecursionDepth(t *testing.T) {
+	t.Parallel()
+
+	err := errors.New("leaf")
+	for range 10_000 {
+		err = errors.Join(err)
+	}
+
+	joined := multierror.Join(err)
+	require.Error(t, joined)
+	require.ErrorContains(t, joined, "leaf")
+}
+
 type customError struct{}
 
 func (*customError) Error() string { return "custom" }
