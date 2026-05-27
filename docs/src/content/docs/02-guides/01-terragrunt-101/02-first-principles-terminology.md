@@ -173,8 +173,8 @@ Your **current working directory** defines your blast radius.
 As you navigate the filesystem you are changing what infrastructure you can affect.
 
 :::tip
-> This design encourages **smaller units** over monolithic configurations.
-> **Smaller** is quicker, easier, and safer.
+> This design encourages **smaller units** over large monolithic configurations.
+> **Smaller** is faster, simpler, and safer.
 :::
 
 ---
