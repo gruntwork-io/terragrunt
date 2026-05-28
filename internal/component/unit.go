@@ -68,11 +68,11 @@ func (u *Unit) Config() *config.TerragruntConfig {
 	return u.cfg
 }
 
-// ExecutionWeight returns the execution weight for this unit.
+// RunWeight returns the execution weight for this unit.
 // Defaults to 1 when unset, zero, or negative.
-func (u *Unit) ExecutionWeight() int {
-	if u.cfg != nil && u.cfg.ExecutionWeight != nil && *u.cfg.ExecutionWeight >= 1 {
-		return *u.cfg.ExecutionWeight
+func (u *Unit) RunWeight() int {
+	if u.cfg != nil && u.cfg.RunWeight != nil && *u.cfg.RunWeight >= 1 {
+		return *u.cfg.RunWeight
 	}
 
 	return 1

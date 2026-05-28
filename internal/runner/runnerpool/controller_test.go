@@ -292,14 +292,14 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 	}
 }
 
-// buildWeightedUnits creates units with execution_weight set via config.
+// buildWeightedUnits creates units with run_weight set via config.
 func buildWeightedUnits(paths []string, weights map[string]int, depMap map[string][]string) []*component.Unit {
 	unitMap := make(map[string]*component.Unit)
 
 	for _, path := range paths {
 		u := component.NewUnit(path)
 		if w, ok := weights[path]; ok {
-			cfg := &config.TerragruntConfig{ExecutionWeight: &w}
+			cfg := &config.TerragruntConfig{RunWeight: &w}
 			u.WithConfig(cfg)
 		}
 
@@ -323,21 +323,39 @@ func buildWeightedUnits(paths []string, weights map[string]int, depMap map[strin
 	return units
 }
 
+// runWeightedController is a helper that wires up units into a queue and controller, then runs it.
+func runWeightedController(t *testing.T, units []*component.Unit, concurrency int, runner runnerpool.UnitRunner) error {
+	t.Helper()
+
+	components := make(component.Components, len(units))
+	for i, u := range units {
+		components[i] = u
+	}
+
+	q, err := queue.NewQueue(components)
+	require.NoError(t, err)
+
+	ctrl := runnerpool.NewController(
+		q,
+		units,
+		runnerpool.WithRunner(runner),
+		runnerpool.WithMaxConcurrency(concurrency),
+	)
+
+	return ctrl.Run(t.Context(), logger.CreateLogger())
+}
+
 func TestRunnerPool_DefaultWeightBackwardsCompat(t *testing.T) {
 	t.Parallel()
 
-	// Units without execution_weight should default to 1, preserving existing behavior.
-	// With parallelism=3, all 3 units should be able to run concurrently.
-	units := buildComponentUnits(
-		[]string{"A", "B", "C"},
-		map[string][]string{},
-	)
+	// Units without run_weight should default to 1, preserving existing behavior.
+	units := buildComponentUnits([]string{"A", "B", "C"}, map[string][]string{})
 
 	var maxConcurrent atomic.Int32
 
 	var current atomic.Int32
 
-	runner := func(ctx context.Context, u *component.Unit) error {
+	err := runWeightedController(t, units, 3, func(ctx context.Context, u *component.Unit) error {
 		val := current.Add(1)
 		for {
 			old := maxConcurrent.Load()
@@ -350,23 +368,7 @@ func TestRunnerPool_DefaultWeightBackwardsCompat(t *testing.T) {
 		current.Add(-1)
 
 		return nil
-	}
-
-	components := make(component.Components, len(units))
-	for i, u := range units {
-		components[i] = u
-	}
-
-	q, err := queue.NewQueue(components)
-	require.NoError(t, err)
-
-	dagRunner := runnerpool.NewController(
-		q,
-		units,
-		runnerpool.WithRunner(runner),
-		runnerpool.WithMaxConcurrency(3),
-	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	})
 	require.NoError(t, err)
 	assert.Equal(t, int32(3), maxConcurrent.Load(), "All 3 default-weight units should run concurrently with budget 3")
 }
@@ -375,19 +377,9 @@ func TestRunnerPool_WeightedBudgetAdmission(t *testing.T) {
 	t.Parallel()
 
 	// Budget=10, heavy units weight=5, light units weight=1.
-	// All units are independent (no deps).
-	// Heavy units: at most 2 concurrent (5+5=10).
-	// We verify the pool never exceeds the budget.
 	units := buildWeightedUnits(
 		[]string{"heavy1", "heavy2", "heavy3", "light1", "light2", "light3"},
-		map[string]int{
-			"heavy1": 5,
-			"heavy2": 5,
-			"heavy3": 5,
-			"light1": 1,
-			"light2": 1,
-			"light3": 1,
-		},
+		map[string]int{"heavy1": 5, "heavy2": 5, "heavy3": 5, "light1": 1, "light2": 1, "light3": 1},
 		map[string][]string{},
 	)
 
@@ -395,8 +387,8 @@ func TestRunnerPool_WeightedBudgetAdmission(t *testing.T) {
 
 	var maxWeight, currentWeight int
 
-	runner := func(ctx context.Context, u *component.Unit) error {
-		w := u.ExecutionWeight()
+	err := runWeightedController(t, units, 10, func(ctx context.Context, u *component.Unit) error {
+		w := u.RunWeight()
 
 		mu.Lock()
 		currentWeight += w
@@ -416,23 +408,7 @@ func TestRunnerPool_WeightedBudgetAdmission(t *testing.T) {
 		mu.Unlock()
 
 		return nil
-	}
-
-	components := make(component.Components, len(units))
-	for i, u := range units {
-		components[i] = u
-	}
-
-	q, err := queue.NewQueue(components)
-	require.NoError(t, err)
-
-	dagRunner := runnerpool.NewController(
-		q,
-		units,
-		runnerpool.WithRunner(runner),
-		runnerpool.WithMaxConcurrency(10),
-	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	})
 	require.NoError(t, err)
 	assert.LessOrEqual(t, maxWeight, 10, "Peak in-flight weight must not exceed budget")
 	assert.Greater(t, maxWeight, 1, "Should have achieved some concurrency")
@@ -444,36 +420,17 @@ func TestRunnerPool_OversizedWeightRunsSolo(t *testing.T) {
 	// A unit with weight > budget should still run (solo, when pool is empty).
 	units := buildWeightedUnits(
 		[]string{"huge", "small"},
-		map[string]int{
-			"huge":  20,
-			"small": 1,
-		},
+		map[string]int{"huge": 20, "small": 1},
 		map[string][]string{},
 	)
 
 	var executedPaths sync.Map
 
-	runner := func(ctx context.Context, u *component.Unit) error {
+	err := runWeightedController(t, units, 5, func(ctx context.Context, u *component.Unit) error {
 		executedPaths.Store(u.Path(), true)
 
 		return nil
-	}
-
-	components := make(component.Components, len(units))
-	for i, u := range units {
-		components[i] = u
-	}
-
-	q, err := queue.NewQueue(components)
-	require.NoError(t, err)
-
-	dagRunner := runnerpool.NewController(
-		q,
-		units,
-		runnerpool.WithRunner(runner),
-		runnerpool.WithMaxConcurrency(5),
-	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	})
 	require.NoError(t, err)
 
 	_, hugeRan := executedPaths.Load("huge")

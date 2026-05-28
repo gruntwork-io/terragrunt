@@ -2005,12 +2005,12 @@ func TestWriteToCatalogFields(t *testing.T) {
 	assert.Contains(t, rendered, "no_hooks")
 }
 
-func TestWriteToExecutionWeight(t *testing.T) {
+func TestWriteToRunWeight(t *testing.T) {
 	t.Parallel()
 
 	weight := 10
 	cfg := &config.TerragruntConfig{
-		ExecutionWeight: &weight,
+		RunWeight: &weight,
 	}
 
 	var buf bytes.Buffer
@@ -2019,15 +2019,15 @@ func TestWriteToExecutionWeight(t *testing.T) {
 	require.NoError(t, writeErr)
 
 	rendered := buf.String()
-	assert.Contains(t, rendered, "execution_weight")
+	assert.Contains(t, rendered, "run_weight")
 	assert.Contains(t, rendered, "10")
 }
 
-func TestParseTerragruntConfigExecutionWeight(t *testing.T) {
+func TestParseTerragruntConfigRunWeight(t *testing.T) {
 	t.Parallel()
 
 	cfg := `
-execution_weight = 10
+run_weight = 10
 `
 
 	l := createLogger()
@@ -2036,11 +2036,11 @@ execution_weight = 10
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
-	require.NotNil(t, terragruntConfig.ExecutionWeight)
-	assert.Equal(t, 10, *terragruntConfig.ExecutionWeight)
+	require.NotNil(t, terragruntConfig.RunWeight)
+	assert.Equal(t, 10, *terragruntConfig.RunWeight)
 }
 
-func TestParseTerragruntConfigExecutionWeightNotSet(t *testing.T) {
+func TestParseTerragruntConfigRunWeightNotSet(t *testing.T) {
 	t.Parallel()
 
 	cfg := `
@@ -2054,7 +2054,7 @@ terraform {
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
-	assert.Nil(t, terragruntConfig.ExecutionWeight, "execution_weight should be nil when not set")
+	assert.Nil(t, terragruntConfig.RunWeight, "run_weight should be nil when not set")
 }
 
 func createLogger() log.Logger {

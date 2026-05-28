@@ -303,8 +303,8 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		cfg.PreventDestroy = sourceConfig.PreventDestroy
 	}
 
-	if sourceConfig.ExecutionWeight != nil {
-		cfg.ExecutionWeight = sourceConfig.ExecutionWeight
+	if sourceConfig.RunWeight != nil {
+		cfg.RunWeight = sourceConfig.RunWeight
 	}
 
 	if sourceConfig.TerragruntVersionConstraint != "" {
@@ -429,8 +429,8 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		cfg.PreventDestroy = sourceConfig.PreventDestroy
 	}
 
-	if sourceConfig.ExecutionWeight != nil {
-		cfg.ExecutionWeight = sourceConfig.ExecutionWeight
+	if sourceConfig.RunWeight != nil {
+		cfg.RunWeight = sourceConfig.RunWeight
 	}
 
 	if sourceConfig.TerragruntVersionConstraint != "" {

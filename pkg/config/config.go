@@ -71,7 +71,7 @@ const (
 	MetadataDependency                  = "dependency"
 	MetadataDownloadDir                 = "download_dir"
 	MetadataPreventDestroy              = "prevent_destroy"
-	MetadataExecutionWeight             = "execution_weight"
+	MetadataRunWeight             = "run_weight"
 	MetadataIamRole                     = "iam_role"
 	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
@@ -153,7 +153,7 @@ type TerragruntConfig struct {
 	Dependencies                *ModuleDependencies
 	Exclude                     *ExcludeConfig
 	PreventDestroy              *bool
-	ExecutionWeight             *int
+	RunWeight             *int
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	IamAssumeRoleDuration       *int64
 	Inputs                      map[string]any
@@ -622,8 +622,8 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 		rootBody.SetAttributeValue("prevent_destroy", cfgAsCty.GetAttr("prevent_destroy"))
 	}
 
-	if cfg.ExecutionWeight != nil {
-		rootBody.SetAttributeValue("execution_weight", cfgAsCty.GetAttr("execution_weight"))
+	if cfg.RunWeight != nil {
+		rootBody.SetAttributeValue("run_weight", cfgAsCty.GetAttr("run_weight"))
 	}
 
 	if cfg.IamRole != "" {
@@ -675,7 +675,7 @@ type terragruntConfigFile struct {
 	Dependencies             *ModuleDependencies `hcl:"dependencies,block"`
 	DownloadDir              *string             `hcl:"download_dir,attr"`
 	PreventDestroy           *bool               `hcl:"prevent_destroy,attr"`
-	ExecutionWeight          *int                `hcl:"execution_weight,attr"`
+	RunWeight          *int                `hcl:"run_weight,attr"`
 	IamRole                  *string             `hcl:"iam_role,attr"`
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
@@ -1814,9 +1814,9 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 		terragruntConfig.SetFieldMetadata(MetadataPreventDestroy, defaultMetadata)
 	}
 
-	if terragruntConfigFromFile.ExecutionWeight != nil {
-		terragruntConfig.ExecutionWeight = terragruntConfigFromFile.ExecutionWeight
-		terragruntConfig.SetFieldMetadata(MetadataExecutionWeight, defaultMetadata)
+	if terragruntConfigFromFile.RunWeight != nil {
+		terragruntConfig.RunWeight = terragruntConfigFromFile.RunWeight
+		terragruntConfig.SetFieldMetadata(MetadataRunWeight, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.IamRole != nil {

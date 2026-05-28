@@ -173,7 +173,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 				// Look up unit weight for budget-based admission
 				weight := 1
 				if unit, ok := dr.unitsMap[e.Component.Path()]; ok {
-					weight = unit.ExecutionWeight()
+					weight = unit.RunWeight()
 				}
 
 				sem.acquire(weight)

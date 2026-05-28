@@ -94,13 +94,13 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataPreventDestroy] = goboolToCty(*config.PreventDestroy)
 	}
 
-	if config.ExecutionWeight != nil {
-		executionWeightCty, err := GoTypeToCty(*config.ExecutionWeight)
+	if config.RunWeight != nil {
+		executionWeightCty, err := GoTypeToCty(*config.RunWeight)
 		if err != nil {
 			return cty.NilVal, err
 		}
 
-		output[MetadataExecutionWeight] = executionWeightCty
+		output[MetadataRunWeight] = executionWeightCty
 	}
 
 	dependencyCty, err := dependencyBlocksAsCty(config.TerragruntDependencies)
@@ -194,8 +194,8 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		}
 	}
 
-	if config.ExecutionWeight != nil {
-		if err := wrapWithMetadata(config, *config.ExecutionWeight, MetadataExecutionWeight, &output); err != nil {
+	if config.RunWeight != nil {
+		if err := wrapWithMetadata(config, *config.RunWeight, MetadataRunWeight, &output); err != nil {
 			return cty.NilVal, err
 		}
 	}
