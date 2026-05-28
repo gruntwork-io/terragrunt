@@ -7,6 +7,7 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
 
 Terragrunt HCL configuration uses [attributes](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#attribute-definitions) when there are values that need to be defined for Terragrunt as a whole.
 
@@ -135,6 +136,30 @@ terraform {
 
 prevent_destroy = true
 ```
+
+## run_weight
+
+<Aside type="caution">
+This attribute requires the `run-weight` [experiment](/reference/experiments) to be enabled.
+</Aside>
+
+The `run_weight` attribute sets the scheduling weight for a unit when using [`--parallelism`](/reference/cli/commands/run#parallelism) with [`run --all`](/reference/cli/commands/run#all). Terragrunt reinterprets the parallelism value as a weight budget: a unit is admitted only when the sum of in-flight weights plus the candidate's weight is within the budget.
+
+Units without `run_weight` default to `1`, preserving existing behavior. This is useful when a fleet contains a mix of heavyweight units (e.g. EKS clusters that consume significant memory and API quota) and lightweight units (e.g. IAM roles, parameter store entries) that can safely run with higher concurrency.
+
+Example:
+
+```hcl
+# terragrunt.hcl
+
+run_weight = 5
+```
+
+With `--parallelism=10`, the pool admits at most 2 units of weight 5 concurrently (5+5=10), or 1 heavy unit alongside 5 lightweight units (5+1+1+1+1+1=10).
+
+If a unit's weight exceeds the parallelism budget, it runs solo when the pool is empty to avoid deadlocking the run queue. Values less than 1 are clamped to 1.
+
+See the [Run Queue](/features/stacks/run-queue#weighted-parallelism) documentation for more details.
 
 ## iam_role
 
