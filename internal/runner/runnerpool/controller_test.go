@@ -439,3 +439,50 @@ func TestRunnerPool_OversizedWeightRunsSolo(t *testing.T) {
 	assert.True(t, smallRan, "Small unit should also execute")
 }
 
+func TestRunnerPool_HeavyUnitDoesNotBlockLightUnits(t *testing.T) {
+	t.Parallel()
+
+	// Budget=10. All units independent (no deps).
+	// first(3) runs and holds 3 of 10. heavy(9) can't fit (3+9=12 > 10) but
+	// light units (1 each) should skip ahead since they do fit (3+1=4 <= 10).
+	// Without skip-ahead logic, heavy would block the loop and light units would starve.
+	units := buildWeightedUnits(
+		[]string{"first", "heavy", "light1", "light2"},
+		map[string]int{"first": 3, "heavy": 9, "light1": 1, "light2": 1},
+		map[string][]string{},
+	)
+
+	var mu sync.Mutex
+
+	var maxWeight, currentWeight int
+
+	lightRanWhileFirstRunning := false
+
+	err := runWeightedController(t, units, 10, func(ctx context.Context, u *component.Unit) error {
+		w := u.RunWeight()
+
+		mu.Lock()
+		currentWeight += w
+		if currentWeight > maxWeight {
+			maxWeight = currentWeight
+		}
+
+		// If a light unit is running while first is still in-flight, skip-ahead worked
+		if w == 1 && currentWeight > 1 {
+			lightRanWhileFirstRunning = true
+		}
+
+		mu.Unlock()
+
+		time.Sleep(50 * time.Millisecond)
+
+		mu.Lock()
+		currentWeight -= w
+		mu.Unlock()
+
+		return nil
+	})
+	require.NoError(t, err)
+	assert.True(t, lightRanWhileFirstRunning, "Light units should run concurrently with first, not blocked behind heavy")
+}
+

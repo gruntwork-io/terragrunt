@@ -88,49 +88,55 @@ func NewController(q *queue.Queue, units []*component.Unit, opts ...ControllerOp
 // When all units have weight 1, it behaves identically to a channel-based semaphore.
 type weightedSemaphore struct {
 	mu       sync.Mutex
-	cond     *sync.Cond
 	budget   int
 	inflight int
+	// releaseCh is signaled whenever a unit finishes and budget is freed.
+	// The controller selects on this alongside readyCh and ctx.Done().
+	releaseCh chan struct{}
 }
 
 func newWeightedSemaphore(budget int) *weightedSemaphore {
-	ws := &weightedSemaphore{budget: budget}
-	ws.cond = sync.NewCond(&ws.mu)
-
-	return ws
-}
-
-// acquire blocks until inflight + weight <= budget, or until the unit can run solo
-// (weight > budget and inflight == 0). This prevents oversized units from deadlocking.
-func (ws *weightedSemaphore) acquire(weight int) {
-	ws.mu.Lock()
-	defer ws.mu.Unlock()
-
-	for {
-		// Normal case: unit fits within remaining budget
-		if ws.inflight+weight <= ws.budget {
-			ws.inflight += weight
-
-			return
-		}
-
-		// Oversized unit: weight exceeds budget, run solo when pool is empty
-		if weight > ws.budget && ws.inflight == 0 {
-			ws.inflight += weight
-
-			return
-		}
-
-		ws.cond.Wait()
+	return &weightedSemaphore{
+		budget:    budget,
+		releaseCh: make(chan struct{}, 1),
 	}
 }
 
-// release returns weight to the budget and wakes waiters.
+// tryAcquire attempts to reserve weight without blocking. Returns true if
+// the unit was admitted. Handles two cases:
+//   - Normal: inflight + weight <= budget
+//   - Oversized: weight > budget but inflight == 0 (run solo to avoid deadlock)
+func (ws *weightedSemaphore) tryAcquire(weight int) bool {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+
+	if ws.inflight+weight <= ws.budget {
+		ws.inflight += weight
+
+		return true
+	}
+
+	// Oversized unit: weight exceeds budget, run solo when pool is empty
+	if weight > ws.budget && ws.inflight == 0 {
+		ws.inflight += weight
+
+		return true
+	}
+
+	return false
+}
+
+// release returns weight to the budget and signals that capacity is available.
 func (ws *weightedSemaphore) release(weight int) {
 	ws.mu.Lock()
 	ws.inflight -= weight
 	ws.mu.Unlock()
-	ws.cond.Broadcast()
+
+	// Non-blocking signal so the scheduling loop re-evaluates deferred entries.
+	select {
+	case ws.releaseCh <- struct{}{}:
+	default:
+	}
 }
 
 // Run executes the Queue return error summarizing all entries that failed to run.
@@ -164,6 +170,8 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			readyEntries := dr.q.GetReadyWithDependencies(l)
 			l.Debugf("Runner Pool Controller: found %d readyEntries tasks", len(readyEntries))
 
+			admitted := 0
+
 			for _, e := range readyEntries {
 				if !dr.q.ClaimForRunning(e) {
 					l.Debugf("Runner Pool Controller: skipping %s; fail-fast cancelled before dispatch", e.Component.Path())
@@ -176,7 +184,16 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					weight = unit.RunWeight()
 				}
 
-				sem.acquire(weight)
+				if !sem.tryAcquire(weight) {
+					// Doesn't fit in remaining budget. Unclaim so it returns to
+					// Ready status and can be retried once capacity frees up.
+					dr.q.SetEntryStatus(e, queue.StatusReady)
+					l.Debugf("Runner Pool Controller: deferring %s (weight %d); insufficient budget", e.Component.Path(), weight)
+
+					continue
+				}
+
+				admitted++
 
 				l.Debugf("Runner Pool Controller: running %s (weight %d)", e.Component.Path(), weight)
 
@@ -222,8 +239,11 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 				break
 			}
 
+			// Wait for either: new entries becoming ready (dependency resolved),
+			// budget being freed (a running unit finished), or context cancellation.
 			select {
 			case <-dr.readyCh:
+			case <-sem.releaseCh:
 			case <-childCtx.Done():
 				wg.Wait()
 				return nil
