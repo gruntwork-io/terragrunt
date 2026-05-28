@@ -10,5 +10,5 @@ remote_state {
 }
 
 terraform {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixture?ref=v0.21.0"
+  source = "git::__MIRROR_URL__//test/fixtures/terragrunt?ref=v0.93.2"
 }
