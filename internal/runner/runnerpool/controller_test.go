@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -347,144 +348,152 @@ func runWeightedController(t *testing.T, units []*component.Unit, concurrency in
 func TestRunnerPool_DefaultWeightBackwardsCompatWithRacing(t *testing.T) {
 	t.Parallel()
 
-	// Units without run_weight should default to 1, preserving existing behavior.
-	units := buildComponentUnits([]string{"A", "B", "C"}, map[string][]string{})
+	synctest.Test(t, func(t *testing.T) {
+		// Units without run_weight should default to 1, preserving existing behavior.
+		units := buildComponentUnits([]string{"A", "B", "C"}, map[string][]string{})
 
-	var mu sync.Mutex
+		var mu sync.Mutex
 
-	var current, maxConcurrent int
+		var current, maxConcurrent int
 
-	err := runWeightedController(t, units, 3, func(ctx context.Context, u *component.Unit) error {
-		mu.Lock()
-		current++
-		if current > maxConcurrent {
-			maxConcurrent = current
-		}
+		err := runWeightedController(t, units, 3, func(ctx context.Context, u *component.Unit) error {
+			mu.Lock()
+			current++
+			if current > maxConcurrent {
+				maxConcurrent = current
+			}
 
-		mu.Unlock()
+			mu.Unlock()
 
-		time.Sleep(50 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
-		mu.Lock()
-		current--
-		mu.Unlock()
+			mu.Lock()
+			current--
+			mu.Unlock()
 
-		return nil
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 3, maxConcurrent, "All 3 default-weight units should run concurrently with budget 3")
 	})
-	require.NoError(t, err)
-	assert.Equal(t, 3, maxConcurrent, "All 3 default-weight units should run concurrently with budget 3")
 }
 
 func TestRunnerPool_WeightedBudgetAdmissionWithRacing(t *testing.T) {
 	t.Parallel()
 
-	// Budget=10, heavy units weight=5, light units weight=1.
-	units := buildWeightedUnits(
-		[]string{"heavy1", "heavy2", "heavy3", "light1", "light2", "light3"},
-		map[string]int{"heavy1": 5, "heavy2": 5, "heavy3": 5, "light1": 1, "light2": 1, "light3": 1},
-		map[string][]string{},
-	)
+	synctest.Test(t, func(t *testing.T) {
+		// Budget=10, heavy units weight=5, light units weight=1.
+		units := buildWeightedUnits(
+			[]string{"heavy1", "heavy2", "heavy3", "light1", "light2", "light3"},
+			map[string]int{"heavy1": 5, "heavy2": 5, "heavy3": 5, "light1": 1, "light2": 1, "light3": 1},
+			map[string][]string{},
+		)
 
-	var mu sync.Mutex
+		var mu sync.Mutex
 
-	var maxWeight, currentWeight int
+		var maxWeight, currentWeight int
 
-	err := runWeightedController(t, units, 10, func(ctx context.Context, u *component.Unit) error {
-		w := u.RunWeight()
+		err := runWeightedController(t, units, 10, func(ctx context.Context, u *component.Unit) error {
+			w := u.RunWeight()
 
-		mu.Lock()
-		currentWeight += w
-		if currentWeight > maxWeight {
-			maxWeight = currentWeight
-		}
+			mu.Lock()
+			currentWeight += w
+			if currentWeight > maxWeight {
+				maxWeight = currentWeight
+			}
 
-		cw := currentWeight
-		mu.Unlock()
+			cw := currentWeight
+			mu.Unlock()
 
-		assert.LessOrEqual(t, cw, 10, "In-flight weight should never exceed budget of 10")
+			assert.LessOrEqual(t, cw, 10, "In-flight weight should never exceed budget of 10")
 
-		time.Sleep(50 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
-		mu.Lock()
-		currentWeight -= w
-		mu.Unlock()
+			mu.Lock()
+			currentWeight -= w
+			mu.Unlock()
 
-		return nil
+			return nil
+		})
+		require.NoError(t, err)
+		assert.LessOrEqual(t, maxWeight, 10, "Peak in-flight weight must not exceed budget")
+		assert.Greater(t, maxWeight, 1, "Should have achieved some concurrency")
 	})
-	require.NoError(t, err)
-	assert.LessOrEqual(t, maxWeight, 10, "Peak in-flight weight must not exceed budget")
-	assert.Greater(t, maxWeight, 1, "Should have achieved some concurrency")
 }
 
 func TestRunnerPool_OversizedWeightRunsSoloWithRacing(t *testing.T) {
 	t.Parallel()
 
-	// A unit with weight > budget should still run (solo, when pool is empty).
-	units := buildWeightedUnits(
-		[]string{"huge", "small"},
-		map[string]int{"huge": 20, "small": 1},
-		map[string][]string{},
-	)
+	synctest.Test(t, func(t *testing.T) {
+		// A unit with weight > budget should still run (solo, when pool is empty).
+		units := buildWeightedUnits(
+			[]string{"huge", "small"},
+			map[string]int{"huge": 20, "small": 1},
+			map[string][]string{},
+		)
 
-	var executedPaths sync.Map
+		var executedPaths sync.Map
 
-	err := runWeightedController(t, units, 5, func(ctx context.Context, u *component.Unit) error {
-		executedPaths.Store(u.Path(), true)
+		err := runWeightedController(t, units, 5, func(ctx context.Context, u *component.Unit) error {
+			executedPaths.Store(u.Path(), true)
 
-		return nil
+			return nil
+		})
+		require.NoError(t, err)
+
+		_, hugeRan := executedPaths.Load("huge")
+		_, smallRan := executedPaths.Load("small")
+		assert.True(t, hugeRan, "Oversized unit should still execute")
+		assert.True(t, smallRan, "Small unit should also execute")
 	})
-	require.NoError(t, err)
-
-	_, hugeRan := executedPaths.Load("huge")
-	_, smallRan := executedPaths.Load("small")
-	assert.True(t, hugeRan, "Oversized unit should still execute")
-	assert.True(t, smallRan, "Small unit should also execute")
 }
 
 func TestRunnerPool_HeavyUnitDoesNotBlockLightUnitsWithRacing(t *testing.T) {
 	t.Parallel()
 
-	// Budget=10. All units independent (no deps).
-	// first(3) runs and holds 3 of 10. heavy(9) can't fit (3+9=12 > 10) but
-	// light units (1 each) should skip ahead since they do fit (3+1=4 <= 10).
-	// Without skip-ahead logic, heavy would block the loop and light units would starve.
-	units := buildWeightedUnits(
-		[]string{"first", "heavy", "light1", "light2"},
-		map[string]int{"first": 3, "heavy": 9, "light1": 1, "light2": 1},
-		map[string][]string{},
-	)
+	synctest.Test(t, func(t *testing.T) {
+		// Budget=10. All units independent (no deps).
+		// first(3) runs and holds 3 of 10. heavy(9) can't fit (3+9=12 > 10) but
+		// light units (1 each) should skip ahead since they do fit (3+1=4 <= 10).
+		// Without skip-ahead logic, heavy would block the loop and light units would starve.
+		units := buildWeightedUnits(
+			[]string{"first", "heavy", "light1", "light2"},
+			map[string]int{"first": 3, "heavy": 9, "light1": 1, "light2": 1},
+			map[string][]string{},
+		)
 
-	var mu sync.Mutex
+		var mu sync.Mutex
 
-	var maxWeight, currentWeight int
+		var maxWeight, currentWeight int
 
-	lightRanWhileFirstRunning := false
+		lightRanWhileFirstRunning := false
 
-	err := runWeightedController(t, units, 10, func(ctx context.Context, u *component.Unit) error {
-		w := u.RunWeight()
+		err := runWeightedController(t, units, 10, func(ctx context.Context, u *component.Unit) error {
+			w := u.RunWeight()
 
-		mu.Lock()
-		currentWeight += w
-		if currentWeight > maxWeight {
-			maxWeight = currentWeight
-		}
+			mu.Lock()
+			currentWeight += w
+			if currentWeight > maxWeight {
+				maxWeight = currentWeight
+			}
 
-		// If a light unit is running while first is still in-flight, skip-ahead worked
-		if w == 1 && currentWeight > 1 {
-			lightRanWhileFirstRunning = true
-		}
+			// If a light unit is running while first is still in-flight, skip-ahead worked
+			if w == 1 && currentWeight > 1 {
+				lightRanWhileFirstRunning = true
+			}
 
-		mu.Unlock()
+			mu.Unlock()
 
-		time.Sleep(50 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
-		mu.Lock()
-		currentWeight -= w
-		mu.Unlock()
+			mu.Lock()
+			currentWeight -= w
+			mu.Unlock()
 
-		return nil
+			return nil
+		})
+		require.NoError(t, err)
+		assert.True(t, lightRanWhileFirstRunning, "Light units should run concurrently with first, not blocked behind heavy")
 	})
-	require.NoError(t, err)
-	assert.True(t, lightRanWhileFirstRunning, "Light units should run concurrently with first, not blocked behind heavy")
 }
 
