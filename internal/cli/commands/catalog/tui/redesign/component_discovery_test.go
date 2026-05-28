@@ -23,7 +23,7 @@ const (
 )
 
 // TestDiscoverComponents_WithCustomFS proves discovery runs against an
-// injected vfs.FS — the same in-memory FS that materialized the fixture is
+// injected vfs.FS, the same in-memory FS that materialized the fixture, is
 // passed to module.NewRepo (so .git/config and .git/HEAD are read from
 // memory) and to ComponentDiscovery (so the walk runs against memory).
 func TestDiscoverComponents_WithCustomFS(t *testing.T) {
