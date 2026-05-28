@@ -219,7 +219,7 @@ func classifyDir(fsys vfs.FS, dir string) (ComponentKind, bool, error) {
 
 // isSkippableDir reports whether a directory name should not be descended
 // into during component discovery. Skipping all dot-prefixed dirs covers .git,
-// .terraform, .terragrunt-cache, .boilerplate, and similar — their contents
+// .terraform, .terragrunt-cache, .boilerplate, and similar; their contents
 // either can't be components or are reached through their parent.
 func isSkippableDir(name string) bool {
 	return strings.HasPrefix(name, ".")

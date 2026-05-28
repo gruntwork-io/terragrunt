@@ -42,11 +42,11 @@ func FuzzHCLStringHelpers(f *testing.F) {
 
 		if len(args) != 2 {
 			require.Error(t, swErr, "startswith with %d args must error", len(args))
-			requireErrorAs[config.WrongNumberOfParamsError](t, swErr)
+			require.ErrorAs(t, swErr, new(config.WrongNumberOfParamsError))
 			require.Error(t, ewErr, "endswith with %d args must error", len(args))
-			requireErrorAs[config.WrongNumberOfParamsError](t, ewErr)
+			require.ErrorAs(t, ewErr, new(config.WrongNumberOfParamsError))
 			require.Error(t, scErr, "strcontains with %d args must error", len(args))
-			requireErrorAs[config.WrongNumberOfParamsError](t, scErr)
+			require.ErrorAs(t, scErr, new(config.WrongNumberOfParamsError))
 
 			return
 		}
@@ -135,13 +135,13 @@ func FuzzHCLRunCommand(f *testing.F) {
 		switch {
 		case conflict:
 			require.Error(t, err, "expected ConflictingRunCmdCacheOptionsError for %q", raw)
-			requireErrorAs[config.ConflictingRunCmdCacheOptionsError](t, err)
+			require.ErrorAs(t, err, new(config.ConflictingRunCmdCacheOptionsError))
 			require.Empty(t, out)
 			require.Equal(t, int32(0), calls.Load(),
 				"exec must not run on the conflict path (got %d calls)", calls.Load())
 		case len(stripped) == 0:
 			require.Error(t, err, "expected EmptyStringNotAllowedError for %q", raw)
-			requireErrorAs[config.EmptyStringNotAllowedError](t, err)
+			require.ErrorAs(t, err, new(config.EmptyStringNotAllowedError))
 			require.Empty(t, out)
 			require.Equal(t, int32(0), calls.Load(),
 				"exec must not run on the empty-args path (got %d calls)", calls.Load())
