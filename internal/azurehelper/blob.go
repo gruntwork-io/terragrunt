@@ -3,8 +3,7 @@
 // BlobClient wraps azblob.Client and exposes the small data-plane surface
 // the remote-state backend needs (containers, blobs, listing, copy). It
 // also remembers an optional bound container so callers fetching state
-// files by key (e.g. PR 3's dependency-fetch path) do not have to repeat
-// the container on every call.
+// files by key do not have to repeat the container on every call.
 
 package azurehelper
 
@@ -258,8 +257,7 @@ func (c *BlobClient) DeleteBlob(ctx context.Context, container, key string) erro
 }
 
 // GetObject downloads a blob from the bound container by key. Convenience
-// wrapper for callers that have already bound a container via
-// BindContainer (e.g. PR 3's dependency-fetch path).
+// wrapper for callers that have already bound a container via BindContainer.
 func (c *BlobClient) GetObject(ctx context.Context, key string) (io.ReadCloser, error) {
 	if c.container == "" {
 		return nil, ErrNoContainerBound

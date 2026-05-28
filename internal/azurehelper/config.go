@@ -242,12 +242,11 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 }
 
 // BuildBlobClient is a convenience that calls Build and then constructs a
-// BlobClient from the resulting AzureConfig. Most callers — including the
-// PR 3 backend wiring — only need a BlobClient and benefit from a single
-// entry point. If the session config carries a non-empty ContainerName, it
-// is bound on the returned client so callers can immediately use
-// container-scoped methods (e.g., GetObject, ListBlobsBound) without an
-// extra BindContainer call.
+// BlobClient from the resulting AzureConfig. Most callers only need a
+// BlobClient and benefit from a single entry point. If the session config
+// carries a non-empty ContainerName, it is bound on the returned client so
+// callers can immediately use container-scoped methods (e.g., GetObject,
+// ListBlobsBound) without an extra BindContainer call.
 func (b *AzureConfigBuilder) BuildBlobClient(ctx context.Context, l log.Logger) (*BlobClient, error) {
 	cfg, err := b.Build(ctx, l)
 	if err != nil {
