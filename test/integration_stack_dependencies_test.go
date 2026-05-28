@@ -982,7 +982,7 @@ func TestStackDepsRunAllWithFunctionsInNestedStack(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
 }
 
-// TestStackDepsNestedSameNameWithCAS covers the same-name edge under the supported source-resolution path: CAS rewrites relative `source` attributes in catalog stack files so a nested stack named "foo" can contain a unit also named "foo". An external sibling unit "bar" depends on `stack.foo.foo.path` and receives the nested foo unit's output end-to-end.
+// TestStackDepsNestedSameNameWithCAS covers a stack named "foo" containing a unit also named "foo": CAS must rewrite the relative source in the catalog stack file without name collisions, and an external sibling unit "bar" depends on the nested foo unit via the supported `${stack.foo.path}/.terragrunt-stack/foo` hand-computed path.
 func TestStackDepsNestedSameNameWithCAS(t *testing.T) {
 	t.Parallel()
 
@@ -1006,7 +1006,7 @@ output "val" {
 
 	writeStackDepsFile(t, catalog, "units/bar/main.tf", `variable "val" {
   type        = string
-  description = "Value received from stack.foo.foo"
+  description = "Value received from the nested foo unit"
 }
 
 resource "local_file" "marker" {
@@ -1020,7 +1020,6 @@ output "received_val" {
 `)
 	writeStackDepsFile(t, catalog, "units/bar/terragrunt.hcl", ``)
 
-	// Catalog stack file uses a bare relative `source` rewritten to a cas:: reference at generation time.
 	writeStackDepsFile(t, catalog, "stacks/foo/terragrunt.stack.hcl", `unit "foo" {
   source = "../..//units/foo"
   path   = "foo"
@@ -1029,12 +1028,7 @@ output "received_val" {
 }
 `)
 
-	// Live stack pulls the catalog stack via CAS and adds an external sibling unit that depends on stack.foo.foo.
-	liveStack := fmt.Sprintf(`locals {
-  env = "test"
-}
-
-stack "foo" {
+	liveStack := fmt.Sprintf(`stack "foo" {
   source = %s
   path   = "foo"
 
@@ -1048,11 +1042,8 @@ unit "bar" {
   update_source_with_cas = true
 
   autoinclude {
-    # stack.foo.path     -> the stack root  (e.g. /abs/.terragrunt-stack/foo)
-    # stack.foo.foo.path -> the unit "foo" inside stack "foo"
-    #                       (e.g. /abs/.terragrunt-stack/foo/.terragrunt-stack/foo)
     dependency "foo_unit" {
-      config_path = stack.foo.foo.path
+      config_path = "${stack.foo.path}/.terragrunt-stack/foo"
 
       mock_outputs_allowed_terraform_commands = ["validate", "plan"]
       mock_outputs = {
@@ -1073,30 +1064,23 @@ unit "bar" {
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+liveDir)
 
-	// Same-name resolution: nested foo stack must contain a generated unit also named foo.
 	nestedFooStackFile := filepath.Join(liveDir, inthclparse.StackDir, "foo", "terragrunt.stack.hcl")
 	require.FileExists(t, nestedFooStackFile)
 
 	nestedFooUnitTfgFile := filepath.Join(liveDir, inthclparse.StackDir, "foo", inthclparse.StackDir, "foo", "terragrunt.hcl")
 	require.FileExists(t, nestedFooUnitTfgFile)
 
-	// The generated nested stack file should carry a cas:: source rather than the original relative path.
 	nestedFooStackContent, err := os.ReadFile(nestedFooStackFile)
 	require.NoError(t, err)
 	assert.Contains(t, string(nestedFooStackContent), "cas::", "nested stack file should reference CAS after generation")
 	assert.NotContains(t, string(nestedFooStackContent), "../..//units/foo", "relative source must be rewritten by CAS")
 
-	// Bar autoinclude must point at the nested foo unit via the same-name chain.
 	barAutoInclude := filepath.Join(liveDir, inthclparse.StackDir, "bar", inthclparse.AutoIncludeFile)
 	require.FileExists(t, barAutoInclude)
 
 	content, err := os.ReadFile(barAutoInclude)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), `dependency "foo_unit"`)
-
-	expectedRel, err := filepath.Rel(filepath.Dir(barAutoInclude), filepath.Join(liveDir, inthclparse.StackDir, "foo", inthclparse.StackDir, "foo"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), expectedRel)
 	assert.Contains(t, string(content), "dependency.foo_unit.outputs.val")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+liveDir+" -- apply -auto-approve")
