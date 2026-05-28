@@ -358,6 +358,7 @@ func TestRunnerPool_DefaultWeightBackwardsCompatWithRacing(t *testing.T) {
 
 		err := runWeightedController(t, units, 3, func(ctx context.Context, u *component.Unit) error {
 			mu.Lock()
+
 			current++
 			if current > maxConcurrent {
 				maxConcurrent = current
@@ -397,6 +398,7 @@ func TestRunnerPool_WeightedBudgetAdmissionWithRacing(t *testing.T) {
 			w := u.RunWeight()
 
 			mu.Lock()
+
 			currentWeight += w
 			if currentWeight > maxWeight {
 				maxWeight = currentWeight
@@ -443,6 +445,7 @@ func TestRunnerPool_OversizedWeightRunsSoloWithRacing(t *testing.T) {
 
 		_, hugeRan := executedPaths.Load("huge")
 		_, smallRan := executedPaths.Load("small")
+
 		assert.True(t, hugeRan, "Oversized unit should still execute")
 		assert.True(t, smallRan, "Small unit should also execute")
 	})
@@ -472,6 +475,7 @@ func TestRunnerPool_HeavyUnitDoesNotBlockLightUnitsWithRacing(t *testing.T) {
 			w := u.RunWeight()
 
 			mu.Lock()
+
 			currentWeight += w
 			if currentWeight > maxWeight {
 				maxWeight = currentWeight
@@ -496,4 +500,3 @@ func TestRunnerPool_HeavyUnitDoesNotBlockLightUnitsWithRacing(t *testing.T) {
 		assert.True(t, lightRanWhileFirstRunning, "Light units should run concurrently with first, not blocked behind heavy")
 	})
 }
-

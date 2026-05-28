@@ -71,7 +71,7 @@ const (
 	MetadataDependency                  = "dependency"
 	MetadataDownloadDir                 = "download_dir"
 	MetadataPreventDestroy              = "prevent_destroy"
-	MetadataRunWeight             = "run_weight"
+	MetadataRunWeight                   = "run_weight"
 	MetadataIamRole                     = "iam_role"
 	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
@@ -153,7 +153,7 @@ type TerragruntConfig struct {
 	Dependencies                *ModuleDependencies
 	Exclude                     *ExcludeConfig
 	PreventDestroy              *bool
-	RunWeight             *int
+	RunWeight                   *int
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	IamAssumeRoleDuration       *int64
 	Inputs                      map[string]any
@@ -675,7 +675,7 @@ type terragruntConfigFile struct {
 	Dependencies             *ModuleDependencies `hcl:"dependencies,block"`
 	DownloadDir              *string             `hcl:"download_dir,attr"`
 	PreventDestroy           *bool               `hcl:"prevent_destroy,attr"`
-	RunWeight          *int                `hcl:"run_weight,attr"`
+	RunWeight                *int                `hcl:"run_weight,attr"`
 	IamRole                  *string             `hcl:"iam_role,attr"`
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`

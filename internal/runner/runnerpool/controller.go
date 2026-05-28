@@ -87,12 +87,10 @@ func NewController(q *queue.Queue, units []*component.Unit, opts ...ControllerOp
 // weightedSemaphore tracks in-flight weight against a budget (--parallelism).
 // When all units have weight 1, it behaves identically to a channel-based semaphore.
 type weightedSemaphore struct {
-	mu       sync.Mutex
-	budget   int
-	inflight int
-	// releaseCh is signaled whenever a unit finishes and budget is freed.
-	// The controller selects on this alongside readyCh and ctx.Done().
 	releaseCh chan struct{}
+	budget    int
+	inflight  int
+	mu        sync.Mutex
 }
 
 func newWeightedSemaphore(budget int) *weightedSemaphore {

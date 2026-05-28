@@ -90,7 +90,7 @@ type terragruntFlags struct {
 	IamRole             *string  `hcl:"iam_role,attr"`
 	IamWebIdentityToken *string  `hcl:"iam_web_identity_token,attr"`
 	PreventDestroy      *bool    `hcl:"prevent_destroy,attr"`
-	RunWeight     *int     `hcl:"run_weight,attr"`
+	RunWeight           *int     `hcl:"run_weight,attr"`
 	Remain              hcl.Body `hcl:",remain"`
 }
 

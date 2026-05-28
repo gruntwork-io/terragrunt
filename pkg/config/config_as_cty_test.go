@@ -85,9 +85,9 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		Dependencies: &config.ModuleDependencies{
 			Paths: []string{"foo"},
 		},
-		DownloadDir:     ".terragrunt-cache",
-		PreventDestroy:  &testTrue,
-		RunWeight: &testWeight,
+		DownloadDir:    ".terragrunt-cache",
+		PreventDestroy: &testTrue,
+		RunWeight:      &testWeight,
 		IamRole:        "terragruntRole",
 		Inputs: map[string]any{
 			"aws_region": "us-east-1",
