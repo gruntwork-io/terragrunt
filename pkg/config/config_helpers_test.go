@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"errors"
-
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
