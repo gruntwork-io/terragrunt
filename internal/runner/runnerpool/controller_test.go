@@ -438,29 +438,27 @@ func TestRunnerPool_WeightedBudgetAdmissionWithRacing(t *testing.T) {
 func TestRunnerPool_OversizedWeightRunsSoloWithRacing(t *testing.T) {
 	t.Parallel()
 
-	synctest.Test(t, func(t *testing.T) {
-		// A unit with weight > budget should still run (solo, when pool is empty).
-		units := buildWeightedUnits(
-			[]string{"huge", "small"},
-			map[string]int{"huge": 20, "small": 1},
-			map[string][]string{},
-		)
+	// A unit with weight > budget should still run (solo, when pool is empty).
+	units := buildWeightedUnits(
+		[]string{"huge", "small"},
+		map[string]int{"huge": 20, "small": 1},
+		map[string][]string{},
+	)
 
-		var executedPaths sync.Map
+	var executedPaths sync.Map
 
-		err := runWeightedController(t, units, 5, func(ctx context.Context, u *component.Unit) error {
-			executedPaths.Store(u.Path(), true)
+	err := runWeightedController(t, units, 5, func(ctx context.Context, u *component.Unit) error {
+		executedPaths.Store(u.Path(), true)
 
-			return nil
-		}, runWeightExperimentOpts())
-		require.NoError(t, err)
+		return nil
+	}, runWeightExperimentOpts())
+	require.NoError(t, err)
 
-		_, hugeRan := executedPaths.Load("huge")
-		_, smallRan := executedPaths.Load("small")
+	_, hugeRan := executedPaths.Load("huge")
+	_, smallRan := executedPaths.Load("small")
 
-		assert.True(t, hugeRan, "Oversized unit should still execute")
-		assert.True(t, smallRan, "Small unit should also execute")
-	})
+	assert.True(t, hugeRan, "Oversized unit should still execute")
+	assert.True(t, smallRan, "Small unit should also execute")
 }
 
 func TestRunnerPool_HeavyUnitDoesNotBlockLightUnitsWithRacing(t *testing.T) {
