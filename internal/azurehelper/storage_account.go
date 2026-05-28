@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 
-	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -86,35 +85,35 @@ type StorageAccountClient struct {
 // the ARM control plane).
 func NewStorageAccountClient(cfg *AzureConfig) (*StorageAccountClient, error) {
 	if cfg == nil {
-		return nil, tgerrors.Errorf("azure config is required")
+		return nil, ErrAzureConfigRequired
 	}
 
 	if cfg.SubscriptionID == "" {
-		return nil, tgerrors.Errorf("subscription_id is required for storage account management")
+		return nil, ErrSubscriptionIDRequired
 	}
 
 	if cfg.Credential == nil {
-		return nil, tgerrors.Errorf("storage account management requires a token credential (SAS-token / access-key auth is data-plane only)")
+		return nil, errors.New("storage account management requires a token credential (SAS-token / access-key auth is data-plane only)")
 	}
 
 	if cfg.AccountName == "" {
-		return nil, tgerrors.Errorf("storage account name is required")
+		return nil, ErrStorageAccountRequired
 	}
 
 	if cfg.ResourceGroup == "" {
-		return nil, tgerrors.Errorf("resource group name is required for storage account management")
+		return nil, ErrResourceGroupNameRequired
 	}
 
 	armOpts := &arm.ClientOptions{ClientOptions: cfg.ClientOptions}
 
 	accounts, err := armstorage.NewAccountsClient(cfg.SubscriptionID, cfg.Credential, armOpts)
 	if err != nil {
-		return nil, tgerrors.Errorf("creating armstorage accounts client: %w", err)
+		return nil, fmt.Errorf("creating armstorage accounts client: %w", err)
 	}
 
 	blobServices, err := armstorage.NewBlobServicesClient(cfg.SubscriptionID, cfg.Credential, armOpts)
 	if err != nil {
-		return nil, tgerrors.Errorf("creating armstorage blob services client: %w", err)
+		return nil, fmt.Errorf("creating armstorage blob services client: %w", err)
 	}
 
 	return &StorageAccountClient{
@@ -145,7 +144,7 @@ func (c *StorageAccountClient) Exists(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	return false, WrapError(err, fmt.Sprintf("get storage account %q", c.accountName))
+	return false, fmt.Errorf("get storage account %q: %w", c.accountName, err)
 }
 
 // Create creates the storage account described by in. cfg.Name and
@@ -159,19 +158,19 @@ func (c *StorageAccountClient) Exists(ctx context.Context) (bool, error) {
 // the (now-existing) account in place for the caller to retry or clean up.
 func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *StorageAccountConfig) error {
 	if in == nil {
-		return tgerrors.Errorf("StorageAccountConfig is required")
+		return ErrStorageAccountConfigRequired
 	}
 
 	if in.Name != "" && in.Name != c.accountName {
-		return tgerrors.Errorf("StorageAccountConfig.Name %q does not match client account name %q", in.Name, c.accountName)
+		return fmt.Errorf("storage account name %q does not match client account name %q", in.Name, c.accountName)
 	}
 
 	if in.ResourceGroupName != "" && in.ResourceGroupName != c.resourceGroup {
-		return tgerrors.Errorf("StorageAccountConfig.ResourceGroupName %q does not match client resource group %q", in.ResourceGroupName, c.resourceGroup)
+		return fmt.Errorf("storage account resource group %q does not match client resource group %q", in.ResourceGroupName, c.resourceGroup)
 	}
 
 	if in.Location == "" {
-		return tgerrors.Errorf("Location is required to create storage account %q", c.accountName)
+		return fmt.Errorf("location is required to create storage account %q", c.accountName)
 	}
 
 	in.withDefaults()
@@ -199,11 +198,11 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 
 	poller, err := c.accounts.BeginCreate(ctx, c.resourceGroup, c.accountName, params, nil)
 	if err != nil {
-		return WrapError(err, fmt.Sprintf("begin create storage account %q", c.accountName))
+		return fmt.Errorf("begin create storage account %q: %w", c.accountName, err)
 	}
 
 	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
-		return WrapError(err, fmt.Sprintf("create storage account %q", c.accountName))
+		return fmt.Errorf("create storage account %q: %w", c.accountName, err)
 	}
 
 	if in.EnableVersioning {
@@ -225,7 +224,7 @@ func (c *StorageAccountClient) Delete(ctx context.Context, l log.Logger) error {
 			return nil
 		}
 
-		return WrapError(err, fmt.Sprintf("delete storage account %q", c.accountName))
+		return fmt.Errorf("delete storage account %q: %w", c.accountName, err)
 	}
 
 	return nil
@@ -244,7 +243,7 @@ func (c *StorageAccountClient) EnableVersioning(ctx context.Context, l log.Logge
 	}
 
 	if _, err := c.blobServices.SetServiceProperties(ctx, c.resourceGroup, c.accountName, props, nil); err != nil {
-		return WrapError(err, fmt.Sprintf("enable versioning on %q", c.accountName))
+		return fmt.Errorf("enable versioning on %q: %w", c.accountName, err)
 	}
 
 	return nil
@@ -254,7 +253,7 @@ func (c *StorageAccountClient) EnableVersioning(ctx context.Context, l log.Logge
 func (c *StorageAccountClient) IsVersioningEnabled(ctx context.Context) (bool, error) {
 	resp, err := c.blobServices.GetServiceProperties(ctx, c.resourceGroup, c.accountName, nil)
 	if err != nil {
-		return false, WrapError(err, fmt.Sprintf("get blob service properties for %q", c.accountName))
+		return false, fmt.Errorf("get blob service properties for %q: %w", c.accountName, err)
 	}
 
 	if resp.BlobServiceProperties.BlobServiceProperties == nil {
@@ -296,7 +295,7 @@ func (c *StorageAccountClient) EnableSoftDelete(ctx context.Context, l log.Logge
 	}
 
 	if _, err := c.blobServices.SetServiceProperties(ctx, c.resourceGroup, c.accountName, props, nil); err != nil {
-		return WrapError(err, fmt.Sprintf("enable soft delete on %q", c.accountName))
+		return fmt.Errorf("enable soft delete on %q: %w", c.accountName, err)
 	}
 
 	return nil
@@ -308,11 +307,11 @@ func (c *StorageAccountClient) EnableSoftDelete(ctx context.Context, l log.Logge
 func (c *StorageAccountClient) GetKeys(ctx context.Context) ([]string, error) {
 	resp, err := c.accounts.ListKeys(ctx, c.resourceGroup, c.accountName, nil)
 	if err != nil {
-		return nil, WrapError(err, fmt.Sprintf("list keys for %q", c.accountName))
+		return nil, fmt.Errorf("list keys for %q: %w", c.accountName, err)
 	}
 
 	if len(resp.Keys) == 0 {
-		return nil, tgerrors.Errorf("no access keys returned for storage account %q", c.accountName)
+		return nil, fmt.Errorf("%w %q", ErrNoAccessKeysReturned, c.accountName)
 	}
 
 	keys := make([]string, 0, len(resp.Keys))
@@ -324,7 +323,7 @@ func (c *StorageAccountClient) GetKeys(ctx context.Context) ([]string, error) {
 	}
 
 	if len(keys) == 0 {
-		return nil, tgerrors.Errorf("storage account %q returned keys but all values were empty", c.accountName)
+		return nil, fmt.Errorf("%w (account %q)", ErrAllAccessKeysEmpty, c.accountName)
 	}
 
 	return keys, nil
@@ -374,7 +373,7 @@ func accessTierValue(s string) (*armstorage.AccessTier, error) {
 	case "Premium":
 		return to.Ptr(armstorage.AccessTierPremium), nil
 	default:
-		return nil, tgerrors.Errorf("unknown access tier %q (want Hot, Cool, or Premium)", s)
+		return nil, &UnknownAccessTierError{Tier: s}
 	}
 }
 
