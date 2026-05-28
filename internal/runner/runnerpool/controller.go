@@ -133,6 +133,14 @@ func (ws *weightedSemaphore) tryAcquire(weight int) bool {
 	return false
 }
 
+// remaining returns the budget not currently consumed by in-flight units.
+func (ws *weightedSemaphore) remaining() int {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+
+	return ws.budget - ws.inflight
+}
+
 // release returns weight to the budget and signals that capacity is available.
 func (ws *weightedSemaphore) release(weight int) {
 	ws.mu.Lock()
@@ -177,8 +185,6 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			readyEntries := dr.q.GetReadyWithDependencies(l)
 			l.Debugf("Runner Pool Controller: found %d readyEntries tasks", len(readyEntries))
 
-			admitted := 0
-
 			for _, e := range readyEntries {
 				if !dr.q.ClaimForRunning(e) {
 					l.Debugf("Runner Pool Controller: skipping %s; fail-fast cancelled before dispatch", e.Component.Path())
@@ -200,14 +206,14 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					// Doesn't fit in remaining budget. Unclaim so it returns to
 					// Ready status and can be retried once capacity frees up.
 					dr.q.SetEntryStatus(e, queue.StatusReady)
-					l.Debugf("Runner Pool Controller: deferring %s (weight %d); insufficient budget", e.Component.Path(), weight)
+					l.Debugf("Runner Pool Controller: deferring %s (weight %d, remaining %d); insufficient budget",
+						e.Component.Path(), weight, sem.remaining())
 
 					continue
 				}
 
-				admitted++
-
-				l.Debugf("Runner Pool Controller: running %s (weight %d)", e.Component.Path(), weight)
+				l.Debugf("Runner Pool Controller: running %s (weight %d, remaining %d)",
+					e.Component.Path(), weight, sem.remaining())
 
 				wg.Add(1)
 
