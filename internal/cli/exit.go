@@ -2,8 +2,8 @@ package cli
 
 import (
 	"context"
+	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -58,8 +58,4 @@ func logRunError(l log.Logger, args []string, version string, err error, reporte
 	}
 
 	l.Error(err.Error())
-
-	if errStack := errors.ErrorStack(err); errStack != "" {
-		l.Trace(errStack)
-	}
 }

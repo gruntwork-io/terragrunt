@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/stretchr/testify/assert"
@@ -46,8 +47,7 @@ func TestExplainError(t *testing.T) {
 			output := util.CmdOutput{}
 			output.Stderr = *bytes.NewBufferString(tt.errorOutput)
 
-			errs := new(errors.MultiError)
-			errs = errs.Append(util.ProcessExecutionError{
+			errs := errors.Join(util.ProcessExecutionError{
 				Err:    errors.New(""),
 				Output: output,
 			})

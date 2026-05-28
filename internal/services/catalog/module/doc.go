@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 const (
@@ -136,7 +134,7 @@ func FindDoc(dir string) (*Doc, error) {
 
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	for _, file := range files {
@@ -165,7 +163,7 @@ func FindDoc(dir string) (*Doc, error) {
 
 	contentByte, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	rawContent := string(contentByte)

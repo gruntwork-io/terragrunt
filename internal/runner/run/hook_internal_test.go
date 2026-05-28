@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ func TestHookErrorMessage_WithStderr(t *testing.T) {
 		Output:     output,
 	}
 
-	msg := hookErrorMessage("my-lint", errors.New(err))
+	msg := hookErrorMessage("my-lint", err)
 	assert.Contains(t, msg, `Hook "my-lint"`)
 	assert.Contains(t, msg, "tflint --config .tflint.hcl")
 	assert.Contains(t, msg, "non-zero exit code 2")
@@ -48,7 +49,7 @@ func TestHookErrorMessage_StdoutFallback(t *testing.T) {
 		Output:     output,
 	}
 
-	msg := hookErrorMessage("lint-hook", errors.New(err))
+	msg := hookErrorMessage("lint-hook", err)
 	assert.Contains(t, msg, `Hook "lint-hook"`)
 	assert.Contains(t, msg, "custom-lint --fix")
 	assert.Contains(t, msg, "non-zero exit code 1")
@@ -65,7 +66,7 @@ func TestHookErrorMessage_NoOutput(t *testing.T) {
 		WorkingDir: "/tmp",
 	}
 
-	msg := hookErrorMessage("my-hook", errors.New(err))
+	msg := hookErrorMessage("my-hook", err)
 	assert.Contains(t, msg, `Hook "my-hook"`)
 	assert.Contains(t, msg, "check -strict")
 	assert.Contains(t, msg, "non-zero exit code 3")
@@ -88,10 +89,10 @@ func TestHookErrorMessage_TflintWrapped(t *testing.T) {
 	// Simulate the real tflint error chain: ErrorRunningTflint wraps ProcessExecutionError
 	tflintErr := tflint.ErrorRunningTflint{
 		Args: []string{"tflint", "--config", ".tflint.hcl"},
-		Err:  errors.New(processErr),
+		Err:  processErr,
 	}
 
-	msg := hookErrorMessage("tflint", errors.New(tflintErr))
+	msg := hookErrorMessage("tflint", tflintErr)
 	assert.Contains(t, msg, `Hook "tflint"`)
 	assert.Contains(t, msg, "tflint --config .tflint.hcl")
 	assert.Contains(t, msg, "non-zero exit code 2")
@@ -175,7 +176,7 @@ func getExitError(t *testing.T, exitCode int) *exec.ExitError {
 
 	var exitErr *exec.ExitError
 
-	require.True(t, errors.As(err, &exitErr))
+	require.ErrorAs(t, err, &exitErr)
 
 	return exitErr
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
@@ -190,7 +189,7 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, tfOpts *
 
 	file, err := os.CreateTemp("", "*.tfstate")
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	defer func() {
@@ -198,7 +197,7 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, tfOpts *
 	}()
 
 	if _, err := file.Write(output.Stdout.Bytes()); err != nil {
-		return file.Name(), errors.New(err)
+		return file.Name(), err
 	}
 
 	return file.Name(), nil

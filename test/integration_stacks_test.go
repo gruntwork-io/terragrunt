@@ -1262,7 +1262,7 @@ func TestStacksGenerateIncorrectSource(t *testing.T) {
 	)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Failed to fetch unit api")
+	assert.Contains(t, err.Error(), "failed to fetch unit api")
 }
 
 func TestStacksGenerateRelativePathError(t *testing.T) {
@@ -1563,7 +1563,7 @@ func TestStackUnitValidation(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Validation failed for unit v1")
+	assert.Contains(t, err.Error(), "validation failed for unit v1")
 	assert.Contains(t, err.Error(), "expected unit to generate with terragrunt.hcl file at root of generated directory")
 }
 
@@ -1596,7 +1596,7 @@ func TestStackValidation(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
 	require.Error(t, err)
 
-	assert.Contains(t, err.Error(), "Validation failed for stack stack-v1")
+	assert.Contains(t, err.Error(), "validation failed for stack stack-v1")
 	assert.Contains(
 		t,
 		err.Error(),

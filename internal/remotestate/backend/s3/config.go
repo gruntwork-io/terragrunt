@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -107,11 +106,11 @@ func (cfg Config) ParseExtendedS3Config() (*ExtendedRemoteStateConfigS3, error) 
 	)
 
 	if err := mapstructure.WeakDecode(cfg, &s3Config); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	if err := mapstructure.WeakDecode(cfg, &extendedConfig); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	_, targetPrefixExists := cfg[configAccessloggingTargetPrefixKey]

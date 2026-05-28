@@ -3,13 +3,14 @@ package git
 import (
 	"path/filepath"
 
+	"errors"
+
 	"github.com/go-git/go-billy/v6/osfs"
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/cache"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/go-git/go-git/v6/storage/filesystem"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // GoOpenGitDir opens a Git repository using the `go-git` library, but chroots to the `.git` directory if present.

@@ -6,7 +6,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
@@ -289,7 +288,7 @@ func TestFindConfigInProject(t *testing.T) {
 
 				var notFound tflint.ConfigNotFound
 
-				assert.True(t, errors.As(err, &notFound), "expected ConfigNotFound, got %T", err)
+				require.ErrorAs(t, err, &notFound, "expected ConfigNotFound, got %T", err)
 				assert.Empty(t, got)
 
 				return
@@ -403,7 +402,7 @@ func TestRunTflintWithOpts_InitFailureWraps(t *testing.T) {
 
 	var wrapped tflint.ErrorRunningTflint
 
-	require.True(t, errors.As(err, &wrapped), "expected ErrorRunningTflint, got %T", err)
+	require.ErrorAs(t, err, &wrapped, "expected ErrorRunningTflint, got %T", err)
 	assert.Contains(t, wrapped.Args, "--init")
 }
 
@@ -431,7 +430,7 @@ func TestRunTflintWithOpts_LintFailureWraps(t *testing.T) {
 
 	var wrapped tflint.ErrorRunningTflint
 
-	require.True(t, errors.As(err, &wrapped), "expected ErrorRunningTflint, got %T", err)
+	require.ErrorAs(t, err, &wrapped, "expected ErrorRunningTflint, got %T", err)
 	assert.NotContains(t, wrapped.Args, "--init")
 }
 
@@ -454,7 +453,7 @@ func TestRunTflintWithOpts_MissingConfigSurfacesNotFound(t *testing.T) {
 
 	var notFound tflint.ConfigNotFound
 
-	assert.True(t, errors.As(err, &notFound), "expected ConfigNotFound, got %T", err)
+	assert.ErrorAs(t, err, &notFound, "expected ConfigNotFound, got %T", err)
 }
 
 // runWithOpts wires the standard test fixture so each test does not have to

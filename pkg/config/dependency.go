@@ -31,7 +31,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -207,7 +206,7 @@ func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
 func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File) (*cty.Value, error) {
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +234,7 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 				continue
 			}
 
-			return nil, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
+			return nil, DependencyInvalidConfigPathError{DependencyName: dep.Name}
 		}
 	}
 
@@ -296,7 +295,7 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 				continue
 			}
 
-			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
+			return &updatedDependencies, DependencyInvalidConfigPathError{DependencyName: dep.Name}
 		}
 
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), pctx.TerragruntConfigPath)
@@ -345,7 +344,7 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 		inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
 		if err != nil {
-			return nil, errors.Errorf("failed to convert inputs for dependency %q: %w", dep.Name, err)
+			return nil, fmt.Errorf("failed to convert inputs for dependency %q: %w", dep.Name, err)
 		}
 
 		cachedValue := dependencyOutputCache{
@@ -407,7 +406,7 @@ func checkForDependencyBlockCycles(ctx context.Context, pctx *ParsingContext, l 
 				continue
 			}
 
-			return errors.New(DependencyInvalidConfigPathError{DependencyName: dependency.Name})
+			return DependencyInvalidConfigPathError{DependencyName: dependency.Name}
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
@@ -447,7 +446,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 
 	if slices.Contains(*currentTraversalPaths, dependencyPath) {
-		return errors.New(DependencyCycleError(append(*currentTraversalPaths, dependencyPath)))
+		return DependencyCycleError(append(*currentTraversalPaths, dependencyPath))
 	}
 
 	*currentTraversalPaths = append(*currentTraversalPaths, dependencyPath)
@@ -522,7 +521,7 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 
 			// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
 			if err := dependencyConfig.setRenderedOutputs(ctx, pctx, l); err != nil {
-				return errors.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
+				return fmt.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
 			}
 
 			if dependencyConfig.RenderedOutputs != nil {
@@ -582,7 +581,7 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 		err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
 	}
 
-	return &convertedOutput, errors.New(err)
+	return &convertedOutput, err
 }
 
 // This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
@@ -618,7 +617,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 			case DeepMergeMapOnly:
 				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
 			default:
-				return nil, errors.New(InvalidMergeStrategyTypeError(mockMergeStrategy))
+				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
 			}
 		} else if !isEmpty {
 			return outputVal, err
@@ -695,7 +694,7 @@ func getTerragruntOutput(
 	}
 
 	if !util.FileExists(targetConfigPath) {
-		return nil, true, errors.New(DependencyConfigNotFound{Path: targetConfigPath})
+		return nil, true, DependencyConfigNotFound{Path: targetConfigPath}
 	}
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, targetConfigPath)
@@ -731,7 +730,7 @@ func getTerragruntOutput(
 		err = TerragruntOutputEncodingError{Path: targetConfigPath, Err: err}
 	}
 
-	return &convertedOutput, isEmpty, errors.New(err)
+	return &convertedOutput, isEmpty, err
 }
 
 // collectStackUnitOutputs aggregates per-unit outputs keyed by unit name for dependency.<stack>.outputs.<unit>.<key> resolution.
@@ -750,18 +749,18 @@ func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
 		if err != nil {
-			return nil, errors.Errorf("stack unit %s output fetch failed: %w", unit.Name, err)
+			return nil, fmt.Errorf("stack unit %s output fetch failed: %w", unit.Name, err)
 		}
 
 		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
 		if err != nil {
-			return nil, errors.Errorf("stack unit %s output parse failed: %w", unit.Name, err)
+			return nil, fmt.Errorf("stack unit %s output parse failed: %w", unit.Name, err)
 		}
 
 		if len(outputMap) > 0 {
 			convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
 			if err != nil {
-				return nil, errors.Errorf("stack unit %s output convert failed: %w", unit.Name, err)
+				return nil, fmt.Errorf("stack unit %s output convert failed: %w", unit.Name, err)
 			}
 
 			unitOutputs[unit.Name] = convertedOutput
@@ -799,18 +798,18 @@ func tryGetStackOutput(
 	// mirroring the GenerateStackFile flow so stacks using values.* work.
 	stackValues, err := ReadValues(ctx, pctx, l, stackDir)
 	if err != nil {
-		return nil, true, errors.Errorf("failed to read values for stack %s: %w", stackFilePath, err)
+		return nil, true, fmt.Errorf("failed to read values for stack %s: %w", stackFilePath, err)
 	}
 
 	// Parse the stack config to discover units
 	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, stackValues)
 	if err != nil {
-		return nil, true, errors.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
+		return nil, true, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
 	unitOutputs, err := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
 	if err != nil {
-		return nil, true, errors.Errorf("failed to collect stack unit outputs for %s: %w", stackFilePath, err)
+		return nil, true, fmt.Errorf("failed to collect stack unit outputs for %s: %w", stackFilePath, err)
 	}
 
 	if len(unitOutputs) == 0 {
@@ -945,7 +944,7 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 		// To make parsing robust to either, isolate the first JSON object in the buffer.
 		trimmed, trimErr := extractFirstJSONObject(fetched)
 		if trimErr != nil {
-			return errors.New(TerragruntOutputParsingError{Path: targetConfig, Err: trimErr})
+			return TerragruntOutputParsingError{Path: targetConfig, Err: trimErr}
 		}
 
 		newJSONBytes = trimmed
@@ -1507,12 +1506,12 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 	err = run.Run(ctx, l, runOpts, report.NewReport(), runCfg, credsGetter)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	err = stdoutBufferWriter.Flush()
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	jsonString := strings.TrimSpace(stdoutBuffer.String())
@@ -1563,7 +1562,7 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 
 	err := json.Unmarshal(jsonBytes, &outputs)
 	if err != nil {
-		return nil, errors.New(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
+		return nil, TerragruntOutputParsingError{Path: targetConfigPath, Err: err}
 	}
 
 	flattenedOutput := map[string]cty.Value{}
@@ -1571,12 +1570,12 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 	for k, v := range outputs {
 		outputType, err := ctyjson.UnmarshalType(v.Type)
 		if err != nil {
-			return nil, errors.New(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
+			return nil, TerragruntOutputParsingError{Path: targetConfigPath, Err: err}
 		}
 
 		outputVal, err := ctyjson.Unmarshal(v.Value, outputType)
 		if err != nil {
-			return nil, errors.New(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
+			return nil, TerragruntOutputParsingError{Path: targetConfigPath, Err: err}
 		}
 
 		flattenedOutput[k] = outputVal

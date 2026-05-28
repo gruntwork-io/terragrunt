@@ -9,10 +9,11 @@ import (
 
 	"github.com/puzpuzpuz/xsync/v4"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
@@ -340,7 +341,7 @@ func (o *Options) RunWithErrorHandling(
 			select {
 			case <-time.After(time.Duration(action.RetrySleepSecs) * time.Second):
 			case <-ctx.Done():
-				return errors.New(ctx.Err())
+				return ctx.Err()
 			}
 
 			currentAttempt++

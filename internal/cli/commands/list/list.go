@@ -10,11 +10,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
+	"errors"
+
 	"charm.land/lipgloss/v2/tree"
 	"github.com/charmbracelet/x/term"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
@@ -37,7 +38,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		Experiments:       opts.Experiments,
 	})
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	// We do worktree generation here instead of in the discovery constructor
@@ -50,7 +51,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		Experiments:    opts.Experiments,
 	})
 	if worktreeErr != nil {
-		return errors.Errorf("failed to create worktrees: %w", worktreeErr)
+		return fmt.Errorf("failed to create worktrees: %w", worktreeErr)
 	}
 
 	defer func() {
@@ -103,7 +104,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 			return nil
 		})
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 	default:
 		// This should never happen, because of validation in the command.
@@ -126,7 +127,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return nil
 	})
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	switch opts.Format {
@@ -273,7 +274,7 @@ func renderLong(opts *Options, components dag.ListedComponents, c *dag.Colorizer
 
 	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
 
-	return errors.New(err)
+	return err
 }
 
 // buildLongHeadings renders the headings for the long format.
@@ -322,7 +323,7 @@ func renderTabular(opts *Options, components dag.ListedComponents, c *dag.Colori
 
 	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
 
-	return errors.New(err)
+	return err
 }
 
 // outputTree outputs the discovered components in tree format.
@@ -412,7 +413,7 @@ func renderTree(opts *Options, components dag.ListedComponents, s *dag.TreeStyle
 
 	_, err := opts.Writers.Writer.Write([]byte(t.String() + "\n"))
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -507,5 +508,5 @@ func renderDot(opts *Options, components dag.ListedComponents) error {
 
 	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
 
-	return errors.New(err)
+	return err
 }

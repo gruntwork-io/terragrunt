@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
@@ -68,7 +67,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	if opts.TerraformCommand == "" {
-		return errors.New(run.MissingCommand{})
+		return run.MissingCommand{}
 	}
 
 	// Early exit for version command to avoid expensive setup

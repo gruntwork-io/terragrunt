@@ -9,7 +9,6 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -160,7 +159,8 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) error {
 	logger.Debug("Running command without PTY")
 
 	if err := cmd.Start(); err != nil {
-		return errors.New(err)
+		return err
 	}
+
 	return nil
 }

@@ -1,11 +1,13 @@
 package filter_test
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -508,7 +510,7 @@ func renderParseError(query string) (string, error) {
 
 	var parseErr filter.ParseError
 	if !errors.As(err, &parseErr) {
-		return "", errors.Errorf("expected ParseError but got: %v", err)
+		return "", fmt.Errorf("expected ParseError but got: %w", err)
 	}
 
 	// Render without colors for consistent golden testing

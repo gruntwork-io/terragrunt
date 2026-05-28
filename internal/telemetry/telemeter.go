@@ -6,7 +6,6 @@ import (
 	"io"
 	"runtime/debug"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -22,12 +21,12 @@ func NewTelemeter(
 ) (*Telemeter, error) {
 	tracer, err := NewTracer(ctx, l, appName, appVersion, writer, opts)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	meter, err := NewMeter(ctx, appName, appVersion, writer, opts)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return &Telemeter{
@@ -45,7 +44,7 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 
 	if tlm.Tracer != nil && tlm.Tracer.provider != nil {
 		if err := tlm.Tracer.provider.Shutdown(ctx); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		tlm.Tracer.provider = nil
@@ -53,7 +52,7 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 
 	if tlm.Meter != nil && tlm.Meter.provider != nil {
 		if err := tlm.Meter.provider.Shutdown(ctx); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		tlm.Meter.provider = nil

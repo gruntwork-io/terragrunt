@@ -1,15 +1,15 @@
 package options
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"charm.land/lipgloss/v2"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mgutz/ansi"
 	"github.com/puzpuzpuz/xsync/v4"
 )
 
@@ -108,7 +108,7 @@ func (val *ColorList) Parse(str string) error {
 	}
 
 	if err := val.MapValue.Parse(str); err != nil {
-		return errors.Errorf("available values: 0..255,%s", strings.Join(slices.Collect(maps.Values(val.list)), ","))
+		return fmt.Errorf("available values: 0..255,%s", strings.Join(slices.Collect(maps.Values(val.list)), ","))
 	}
 
 	return nil
@@ -134,8 +134,82 @@ func (scheme ColorScheme) Compile() compiledColorScheme {
 
 type ColorStyle string
 
+// ColorFunc parses the style spec and returns a function that wraps text in
+// the corresponding ANSI escape codes. The spec is either a decimal index in
+// `0..255` (256-color palette) or a named color (`black`, `red`, `green`,
+// `yellow`, `blue`, `magenta`, `cyan`, `white`, `gray`) optionally followed
+// by `+<attrs>` where attrs is any subset of `b` (bold), `h` (bright; bumps
+// the base palette index by 8 when 0..7), or `d` (faint). An empty or
+// unrecognised spec yields an identity colorizer.
 func (val ColorStyle) ColorFunc() ColorFunc {
-	return ansi.ColorFunc(string(val))
+	style := parseColorStyle(string(val))
+
+	return func(s string) string {
+		return style.Render(s)
+	}
+}
+
+// ansiBrightOffset converts a 0..7 standard ANSI palette index to its 8..15
+// bright counterpart.
+const ansiBrightOffset = 8
+
+// ANSI palette indices for the historical color names accepted by this package.
+const (
+	ansiBlack = iota
+	ansiRed
+	ansiGreen
+	ansiYellow
+	ansiBlue
+	ansiMagenta
+	ansiCyan
+	ansiWhite
+	ansiGray // bright black
+)
+
+// ansiBaseColors maps the historical color names accepted by this package to
+// their corresponding ANSI palette index.
+var ansiBaseColors = map[string]int{ //nolint:gochecknoglobals
+	"black":   ansiBlack,
+	"red":     ansiRed,
+	"green":   ansiGreen,
+	"yellow":  ansiYellow,
+	"blue":    ansiBlue,
+	"magenta": ansiMagenta,
+	"cyan":    ansiCyan,
+	"white":   ansiWhite,
+	"gray":    ansiGray,
+}
+
+func parseColorStyle(spec string) lipgloss.Style {
+	style := lipgloss.NewStyle()
+	if spec == "" {
+		return style
+	}
+
+	if idx, err := strconv.Atoi(spec); err == nil && idx >= 0 && idx <= 255 {
+		return style.Foreground(lipgloss.Color(strconv.Itoa(idx)))
+	}
+
+	name, attrs, _ := strings.Cut(spec, "+")
+
+	base, ok := ansiBaseColors[name]
+	if !ok {
+		return style
+	}
+
+	if strings.ContainsRune(attrs, 'h') && base < ansiBrightOffset {
+		base += ansiBrightOffset
+	}
+
+	if strings.ContainsRune(attrs, 'b') {
+		style = style.Bold(true)
+	}
+
+	if strings.ContainsRune(attrs, 'd') {
+		style = style.Faint(true)
+	}
+
+	return style.Foreground(lipgloss.Color(strconv.Itoa(base)))
 }
 
 type ColorFunc func(string) string

@@ -3,10 +3,13 @@ package awshelper
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"errors"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -15,7 +18,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go-v2/service/sts/types"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -54,7 +56,7 @@ func (f tokenFetcher) FetchToken(_ context.Context) ([]byte, error) {
 
 	token, err := os.ReadFile(string(f))
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return token, nil
@@ -128,7 +130,7 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 
 	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
 	if err != nil {
-		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
+		return aws.Config{}, fmt.Errorf("error loading AWS config: %w", err)
 	}
 
 	if createCredentialsFromEnv(b.env) != nil {
@@ -158,7 +160,7 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 func (b *AWSConfigBuilder) BuildS3Client(ctx context.Context, l log.Logger) (*s3.Client, error) {
 	cfg, err := b.Build(ctx, l)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	if b.sessionConfig == nil {
@@ -247,7 +249,7 @@ func AssumeIamRole(
 		config.WithAppID("terragrunt/"+version.GetVersion()),
 	)
 	if err != nil {
-		return nil, errors.Errorf("Error loading AWS config: %w", err)
+		return nil, fmt.Errorf("error loading AWS config: %w", err)
 	}
 
 	stsClient := sts.NewFromConfig(cfg)
@@ -266,7 +268,7 @@ func AssumeIamRole(
 		// Use sts AssumeRoleWithWebIdentity
 		tb, err := tokenFetcher(iamRoleOpts.WebIdentityToken).FetchToken(ctx)
 		if err != nil {
-			return nil, errors.Errorf("Error reading web identity token file: %w", err)
+			return nil, fmt.Errorf("error reading web identity token file: %w", err)
 		}
 
 		input := &sts.AssumeRoleWithWebIdentityInput{
@@ -278,7 +280,7 @@ func AssumeIamRole(
 
 		result, err := stsClient.AssumeRoleWithWebIdentity(ctx, input)
 		if err != nil {
-			return nil, errors.Errorf("Error assuming role with web identity: %w", err)
+			return nil, fmt.Errorf("error assuming role with web identity: %w", err)
 		}
 
 		return result.Credentials, nil
@@ -297,7 +299,7 @@ func AssumeIamRole(
 
 	result, err := stsClient.AssumeRole(ctx, input)
 	if err != nil {
-		return nil, errors.Errorf("Error assuming role: %w", err)
+		return nil, fmt.Errorf("error assuming role: %w", err)
 	}
 
 	return result.Credentials, nil
@@ -325,13 +327,13 @@ func GetAWSPartition(ctx context.Context, cfg *aws.Config) (string, error) {
 	// Extract partition from ARN
 	arn := aws.ToString(result.Arn)
 	if arn == "" {
-		return "", errors.New("Empty ARN returned from GetCallerIdentity")
+		return "", errors.New("empty ARN returned from GetCallerIdentity")
 	}
 
 	// ARN format: arn:partition:service:region:account:resource
 	parts := strings.Split(arn, ":")
 	if len(parts) < minARNParts {
-		return "", errors.Errorf("Invalid ARN format: %s", arn)
+		return "", fmt.Errorf("invalid ARN format: %s", arn)
 	}
 
 	return parts[1], nil

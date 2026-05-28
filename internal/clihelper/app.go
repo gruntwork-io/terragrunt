@@ -6,7 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -225,12 +226,12 @@ func (app *App) setupAutocomplete(arguments []string) error {
 
 	// Autocomplete requires the "Name" to be set so that we know what command to setup the autocomplete on.
 	if app.Name == "" {
-		return errors.Errorf("internal error: App.Name must be specified for autocomplete to work")
+		return errors.New("internal error: App.Name must be specified for autocomplete to work")
 	}
 
 	// If both install and uninstall flags are specified, then error
 	if isAutocompleteInstall && isAutocompleteUninstall {
-		return errors.Errorf("either the autocomplete install or uninstall flag may be specified, but not both")
+		return errors.New("either the autocomplete install or uninstall flag may be specified, but not both")
 	}
 
 	// If the install flag is specified, perform the install or uninstall and exit

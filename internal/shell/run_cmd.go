@@ -22,7 +22,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
@@ -218,10 +217,9 @@ func RunCommandWithOutput(
 			exitCode := 0
 
 			if runErr != nil {
+				exitCode = -1
 				if code, codeErr := util.GetExitCode(runErr); codeErr == nil {
 					exitCode = code
-				} else {
-					exitCode = -1
 				}
 			}
 
@@ -302,7 +300,7 @@ func runCommand(
 				AllocatePseudoTty: cmdOpts.NeedsPTY,
 			})
 			if err != nil {
-				return errors.New(err)
+				return err
 			}
 
 			*cmdOpts.Output = *cmdOutput
@@ -321,7 +319,7 @@ func runCommand(
 		exec.WithForwardSignalDelay(SignalForwardingDelay),
 	)
 
-	// Save/restore console mode around subprocess — Windows subprocesses can reset it.
+	// Save/restore console mode around subprocess - Windows subprocesses can reset it.
 	savedConsole := exec.SaveConsoleState()
 	defer savedConsole.Restore()
 
@@ -336,7 +334,7 @@ func runCommand(
 			DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
 		}
 
-		return errors.New(err)
+		return err
 	}
 
 	cancelShutdown := cmd.RegisterGracefullyShutdown(ctx, l)
@@ -354,7 +352,7 @@ func runCommand(
 			DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
 		}
 
-		return errors.New(err)
+		return err
 	}
 
 	return nil
