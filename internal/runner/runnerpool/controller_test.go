@@ -344,7 +344,7 @@ func runWeightedController(t *testing.T, units []*component.Unit, concurrency in
 	return ctrl.Run(t.Context(), logger.CreateLogger())
 }
 
-func TestRunnerPool_DefaultWeightBackwardsCompat(t *testing.T) {
+func TestRunnerPool_DefaultWeightBackwardsCompatWithRacing(t *testing.T) {
 	t.Parallel()
 
 	// Units without run_weight should default to 1, preserving existing behavior.
@@ -375,7 +375,7 @@ func TestRunnerPool_DefaultWeightBackwardsCompat(t *testing.T) {
 	assert.Equal(t, 3, maxConcurrent, "All 3 default-weight units should run concurrently with budget 3")
 }
 
-func TestRunnerPool_WeightedBudgetAdmission(t *testing.T) {
+func TestRunnerPool_WeightedBudgetAdmissionWithRacing(t *testing.T) {
 	t.Parallel()
 
 	// Budget=10, heavy units weight=5, light units weight=1.
@@ -416,7 +416,7 @@ func TestRunnerPool_WeightedBudgetAdmission(t *testing.T) {
 	assert.Greater(t, maxWeight, 1, "Should have achieved some concurrency")
 }
 
-func TestRunnerPool_OversizedWeightRunsSolo(t *testing.T) {
+func TestRunnerPool_OversizedWeightRunsSoloWithRacing(t *testing.T) {
 	t.Parallel()
 
 	// A unit with weight > budget should still run (solo, when pool is empty).
@@ -441,7 +441,7 @@ func TestRunnerPool_OversizedWeightRunsSolo(t *testing.T) {
 	assert.True(t, smallRan, "Small unit should also execute")
 }
 
-func TestRunnerPool_HeavyUnitDoesNotBlockLightUnits(t *testing.T) {
+func TestRunnerPool_HeavyUnitDoesNotBlockLightUnitsWithRacing(t *testing.T) {
 	t.Parallel()
 
 	// Budget=10. All units independent (no deps).
