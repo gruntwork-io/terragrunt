@@ -132,6 +132,67 @@ reviews:
         variable expansion that influences `bash -c` invocations;
         unquoted command-substitution in commands that touch credentials.
 
+    # Tier 3 - unknown-unknowns: heuristic scan applied to every file in
+    # the diff, independent of language. Catches changes that pass the
+    # signature-based rules above but still do not belong in the PR.
+    - path: '**/*'
+      instructions: >-
+        UNKNOWN-UNKNOWNS SCAN. Independently of the file-type-specific
+        checks above, ask of every hunk: "Can I articulate why this hunk
+        exists from the PR title, description, and surrounding code?" If
+        not, flag the hunk at HIGH and require the maintainer to explain
+        its intent before merge. "I do not understand this change" is
+        itself a valid finding.
+        Specifically scan added lines for:
+        (1) Strings, identifiers, or comments in a script different from
+        the rest of the file, OR mixed-script identifiers where some
+        characters are visually-confusable homoglyphs (Cyrillic, Greek,
+        or full-width characters that look like ASCII letters).
+        Homoglyph swaps in imports, package names, function calls, or
+        URL hosts are an established substitution attack vector.
+        (2) Newly hard-coded URLs, hostnames, IP addresses, mail
+        addresses, webhook endpoints, or bot-token-shaped strings
+        (Discord, Telegram, Slack, generic UUIDs that look like keys).
+        Cross-check the host against the project's existing
+        infrastructure before approving; a brand-new outbound
+        destination added in source code is an exfiltration / C2 vector
+        regardless of file type.
+        (3) High-entropy literals matching AWS access-key IDs,
+        GCP service-account JSON, Azure connection-strings, generic
+        bearer tokens, JWT-shaped strings, SSH private keys, or
+        PEM-block patterns. Real secrets in a PR are a P0 finding even
+        if redacted on the next push.
+        (4) Removal of an input-validation check, authentication check,
+        authorization check, signature check, integrity check,
+        rate-limit check, allow-list filter, or assertion in test code.
+        One deleted line that silently weakens a boundary deserves more
+        scrutiny than ten added lines.
+        (5) Newly added linter / scanner / type-checker suppressions
+        (`// nolint`, `//gosec:disable`, `// nosec`, `// eslint-disable`,
+        `# noqa`, `# pylint: disable`, `# type: ignore`, `@ts-ignore`,
+        `@ts-nocheck`, `# pragma: no cover`, `# checkov:skip`,
+        `# tfsec:ignore`, `# trivy:ignore`, `#nosec`). Each suppression
+        hides what the suppressed tool would have caught; require the
+        maintainer to justify each one per-line, not per-file.
+        (6) Disabled, skipped, or weakened tests: `t.Skip`,
+        `testing.Short`-gated returns, `xit` / `xdescribe`,
+        `@pytest.mark.skip`, `@Disabled`, an existing security test
+        whose regex was loosened, an assertion whose tolerance was
+        widened, or a mock that replaces a previously-real code path.
+        (7) Code paths gated on an environment variable, a specific
+        hostname, a specific date or time window, a build-tag, or a
+        debug flag that the rest of the PR does not exercise.
+        Conditional payloads and time-bombs are how malicious code
+        stays dormant until merge.
+        (8) New `TODO` / `FIXME` / `HACK` / `XXX` comment paired with a
+        deferred safety or correctness concern. Flag at MEDIUM and ask
+        the maintainer to either resolve in the PR or link a tracking
+        issue in the comment.
+        Whenever any of (1) through (8) triggers, post a review comment
+        citing the exact `file:line` and pattern and explicitly state
+        which signature triggered. Do NOT auto-approve a PR that
+        contains an unresolved (1) through (7) finding.
+
   # Diff-shape heuristics that aren't expressible as a file glob.
   tone_instructions: >-
     Before evaluating any PR, run these triage checks and surface the
@@ -150,6 +211,47 @@ reviews:
     commit subject.
     (d) If this is the author's first-ever PR to the repo, raise the bar
     for any non-source-code file (config, CI, lockfile, install script).
+    (e) Title-vs-diff coherence: enumerate every file changed and decide
+    whether each one is plausibly justified by the stated PR scope. Any
+    file that cannot be mapped to the title or description is a
+    SCOPE-CREEP / SMUGGLING signal. Flag at HIGH and require the
+    maintainer to justify per-file before merge.
+    (f) Commit-subject hygiene: if a commit subject is a single generic
+    word (`fix`, `update`, `wip`, `chore`, `cleanup`, `tweak`, `style`)
+    and the commit modifies a security-sensitive file (build config,
+    CI, lockfile, install script, auth or crypto code), inspect the
+    full diff line-by-line and do NOT trust the subject as a summary
+    of intent.
+    (g) Multi-author / force-push: if the PR has commits from more than
+    one author identity, or the branch shows force-push history
+    rewriting, raise the review bar and confirm every author is a known
+    contributor before approving.
+    (h) Lockfile-vs-manifest mismatch: if `package-lock.json`,
+    `yarn.lock`, `pnpm-lock.yaml`, `bun.lockb`, `go.sum`, `Cargo.lock`,
+    `Pipfile.lock`, `poetry.lock`, or equivalent changes by more than
+    ~20 lines while the corresponding manifest (`package.json`,
+    `go.mod`, `Cargo.toml`, `Pipfile`, `pyproject.toml`) shows no
+    proportional dep edits, flag at HIGH. Transitive dep swaps without
+    a manifest change are a documented lockfile-injection vector.
+    (i) New-host inventory: list every URL host, IP address, and mail
+    domain introduced in added lines that was NOT present on the target
+    branch. Surface the list in the review summary so a human reviewer
+    can sanity-check each new outbound destination before merge.
+    (j) Unknown-unknowns gate: ask, of the diff as a whole, "Does
+    anything here look unexplained or potentially malicious?" If there
+    is any hunk you cannot map to a sentence in the PR title or
+    description, do not auto-approve. Ask the maintainer "what is the
+    intent of `<file>:<line range>`?" and treat absence of an answer
+    as a HIGH finding. The point of this check is to catch attacks that
+    pass every signature-based rule above by being novel.
+    (k) Generated-file plausibility: if the PR adds or replaces a
+    minified bundle, a vendored third-party file, a base64 blob, an
+    SVG with embedded `<script>`, or any file whose human-reviewability
+    is effectively zero, require the maintainer to (i) name the
+    upstream source commit, (ii) describe the reproduction command,
+    and (iii) confirm no manual edits were applied. Treat unreviewable
+    binary or minified content as opaque payload until proven
+    otherwise.
 
   # Auto-label suspicious PRs.
   labeling_instructions:
@@ -165,6 +267,20 @@ reviews:
         whitespace churn across unrelated files). When this label is
         applied, ALSO post a CRITICAL review comment citing the specific
         file:line and pattern, and recommend BLOCK.
+
+    - label: "security:unexplained-content"
+      instructions: >-
+        Apply when the PR contains content that cannot be mapped to the
+        PR title or description: files outside the stated scope, hunks
+        with no articulable purpose, newly added outbound URLs / hosts /
+        IP addresses, environment-gated or date-gated conditional code
+        paths, removed safety checks without a justification in the PR
+        body, newly added linter or scanner suppressions, weakened or
+        skipped tests, homoglyph / mixed-script identifiers, or
+        unreviewable binary / minified / base64 payloads. When this
+        label is applied, ALSO post one review comment per unexplained
+        hunk citing `file:line` and asking the maintainer to explain
+        the intent. Do NOT auto-approve while this label is present.
 
   tools:
     languagetool:
