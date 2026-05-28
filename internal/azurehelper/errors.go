@@ -3,133 +3,152 @@ package azurehelper
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-
-	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
-// ErrorClass is a coarse classification of an Azure error, useful for retry
-// decisions and user-facing messages.
-type ErrorClass string
-
-const (
-	ErrorClassUnknown        ErrorClass = "unknown"
-	ErrorClassAuthentication ErrorClass = "authentication"
-	ErrorClassPermission     ErrorClass = "permission"
-	ErrorClassNotFound       ErrorClass = "not_found"
-	ErrorClassConflict       ErrorClass = "conflict"
-	ErrorClassThrottling     ErrorClass = "throttling"
-	ErrorClassTransient      ErrorClass = "transient"
-	ErrorClassInvalidRequest ErrorClass = "invalid_request"
+// Sentinel errors for input validation. Match with errors.Is.
+var (
+	ErrAzureConfigRequired          = errors.New("azure config is required")
+	ErrStorageAccountRequired       = errors.New("storage account name is required")
+	ErrContainerNameRequired        = errors.New("container name is required")
+	ErrBlobKeyRequired              = errors.New("container name and blob key are required")
+	ErrNoContainerBound             = errors.New("BlobClient has no container bound; call BindContainer first or use GetBlob")
+	ErrCopyBlobArgsRequired         = errors.New("source and destination container/key are required")
+	ErrSubscriptionIDRequired       = errors.New("subscription_id is required")
+	ErrResourceGroupNameRequired    = errors.New("resource group name is required")
+	ErrScopePrincipalRoleArgs       = errors.New("scope, principal_id, and role_definition_id are required")
+	ErrStorageAccountConfigRequired = errors.New("storage account config is required")
+	ErrLocationRequiredForRG        = errors.New("location is required to create resource group")
+	ErrNoAccessKeysReturned         = errors.New("no access keys returned for storage account")
+	ErrAllAccessKeysEmpty           = errors.New("storage account returned keys but all values were empty")
 )
 
-// ClassifyError returns a coarse ErrorClass for an Azure error based on the
-// HTTP status code and Azure error code in an azcore.ResponseError. Returns
-// ErrorClassUnknown for non-Azure errors or when no useful information is
-// available.
-func ClassifyError(err error) ErrorClass {
-	if err == nil {
-		return ErrorClassUnknown
-	}
+// CredentialMissingError is returned when a token-credential auth method
+// is requested but cfg.Credential is nil. Match with errors.As.
+type CredentialMissingError struct {
+	Method AuthMethod
+}
 
-	var respErr *azcore.ResponseError
-	if !errors.As(err, &respErr) {
-		return ErrorClassUnknown
-	}
+func (e *CredentialMissingError) Error() string {
+	return fmt.Sprintf("azure config has no credential for method %q", e.Method)
+}
 
-	switch respErr.StatusCode {
-	case http.StatusUnauthorized:
-		return ErrorClassAuthentication
-	case http.StatusForbidden:
-		return ErrorClassPermission
-	case http.StatusNotFound:
-		return ErrorClassNotFound
-	case http.StatusConflict:
-		return ErrorClassConflict
-	case http.StatusTooManyRequests:
-		return ErrorClassThrottling
-	case http.StatusBadRequest:
-		return ErrorClassInvalidRequest
-	}
+// UnsupportedAuthMethodError is returned when cfg.Method is not one of the
+// supported AuthMethod constants. Match with errors.As.
+type UnsupportedAuthMethodError struct {
+	Method AuthMethod
+}
 
-	if respErr.StatusCode >= http.StatusInternalServerError {
-		return ErrorClassTransient
-	}
+func (e *UnsupportedAuthMethodError) Error() string {
+	return fmt.Sprintf("unsupported azure auth method %q", e.Method)
+}
 
-	return ErrorClassUnknown
+// UnsupportedAuthForOpError is returned when an auth method is unsuitable
+// for a given operation (e.g. SAS-token auth attempting RBAC operations).
+type UnsupportedAuthForOpError struct {
+	Method    AuthMethod
+	Operation string
+}
+
+func (e *UnsupportedAuthForOpError) Error() string {
+	return fmt.Sprintf("%s require a token credential (auth method %q is not supported)", e.Operation, e.Method)
+}
+
+// InvalidPrincipalIDError is returned when an RBAC principal_id is not a UUID.
+type InvalidPrincipalIDError struct {
+	PrincipalID string
+}
+
+func (e *InvalidPrincipalIDError) Error() string {
+	return fmt.Sprintf("principal_id must be a UUID, got %q", e.PrincipalID)
+}
+
+// UnknownCloudEnvironmentError is returned for an unrecognised CloudEnvironment string.
+type UnknownCloudEnvironmentError struct {
+	Name string
+}
+
+func (e *UnknownCloudEnvironmentError) Error() string {
+	return fmt.Sprintf("unknown cloud environment %q (want one of: public, government, china)", e.Name)
+}
+
+// UnknownAccessTierError is returned for a StorageAccountConfig.AccessTier
+// outside the supported set.
+type UnknownAccessTierError struct {
+	Tier string
+}
+
+func (e *UnknownAccessTierError) Error() string {
+	return fmt.Sprintf("unknown access tier %q (want Hot, Cool, or Premium)", e.Tier)
 }
 
 // IsRetryable reports whether the error is one a caller may retry. This covers
 // throttling (429), transient 5xx, and network-style errors that did not yield
-// an azcore.ResponseError at all (treated as transient).
+// an azcore.ResponseError at all (treated as transient). Context cancellation
+// and deadline-exceeded are caller-driven and are never retryable.
 func IsRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	// Context cancellation / deadline are caller-driven; never retry.
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 
 	var respErr *azcore.ResponseError
 	if !errors.As(err, &respErr) {
-		// No HTTP response - likely a network or DNS error.
 		return true
 	}
 
-	switch ClassifyError(err) {
-	case ErrorClassThrottling, ErrorClassTransient:
+	if respErr.StatusCode == http.StatusTooManyRequests {
 		return true
-	case ErrorClassUnknown,
-		ErrorClassAuthentication,
-		ErrorClassPermission,
-		ErrorClassNotFound,
-		ErrorClassConflict,
-		ErrorClassInvalidRequest:
-		return false
+	}
+
+	if respErr.StatusCode >= http.StatusInternalServerError {
+		return true
 	}
 
 	return false
 }
 
-// IsNotFound reports whether the error represents a 404 / ResourceNotFound
-// from an Azure API.
+// IsNotFound reports whether the error represents a 404 / ResourceNotFound /
+// ContainerNotFound / BlobNotFound from an Azure API. Use this for idempotent
+// "already-gone" paths where the specific kind of resource is not significant
+// (e.g. role-assignment cleanup). For container- or blob-specific code paths,
+// match the response code directly with errors.As + respErr.ErrorCode so that
+// a "blob not found" error isn't silently treated as "container not found".
 func IsNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
 
 	var respErr *azcore.ResponseError
-	if errors.As(err, &respErr) {
-		if respErr.StatusCode == http.StatusNotFound {
-			return true
-		}
+	if !errors.As(err, &respErr) {
+		return false
+	}
 
-		if strings.EqualFold(respErr.ErrorCode, "ResourceNotFound") ||
-			strings.EqualFold(respErr.ErrorCode, "ContainerNotFound") ||
-			strings.EqualFold(respErr.ErrorCode, "BlobNotFound") {
-			return true
-		}
+	if respErr.StatusCode == http.StatusNotFound {
+		return true
+	}
+
+	switch {
+	case strings.EqualFold(respErr.ErrorCode, "ResourceNotFound"),
+		strings.EqualFold(respErr.ErrorCode, "ContainerNotFound"),
+		strings.EqualFold(respErr.ErrorCode, "BlobNotFound"):
+		return true
 	}
 
 	return false
 }
 
-// WrapError wraps err with the Terragrunt internal errors package so the
-// caller's stack trace is preserved, prefixing it with op for context.
-// Returns nil if err is nil.
-func WrapError(err error, op string) error {
-	if err == nil {
-		return nil
-	}
-
-	if op == "" {
-		return tgerrors.New(err)
-	}
-
-	return tgerrors.Errorf("%s: %w", op, err)
+// isErrorCode reports whether err is an azcore.ResponseError with the given
+// ErrorCode (case-insensitive). Use for narrow checks at call sites that
+// distinguish e.g. "ContainerNotFound" from "BlobNotFound".
+func isErrorCode(err error, code string) bool {
+	var respErr *azcore.ResponseError
+	return errors.As(err, &respErr) && strings.EqualFold(respErr.ErrorCode, code)
 }

@@ -8,7 +8,8 @@ package azurehelper
 
 import (
 	"context"
-	stderrors "errors"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/google/uuid"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -53,22 +53,22 @@ type RBACClient struct {
 // data-plane only and cannot manage RBAC).
 func NewRBACClient(cfg *AzureConfig) (*RBACClient, error) {
 	if cfg == nil {
-		return nil, errors.Errorf("azure config is required")
+		return nil, ErrAzureConfigRequired
 	}
 
 	if cfg.SubscriptionID == "" {
-		return nil, errors.Errorf("subscription_id is required for RBAC operations")
+		return nil, ErrSubscriptionIDRequired
 	}
 
 	if cfg.Credential == nil {
-		return nil, errors.Errorf("RBAC operations require a token credential (auth method %q is not supported)", cfg.Method)
+		return nil, &UnsupportedAuthForOpError{Method: cfg.Method, Operation: "RBAC operations"}
 	}
 
 	clientFactory, err := armauthorization.NewClientFactory(cfg.SubscriptionID, cfg.Credential, &arm.ClientOptions{
 		ClientOptions: cfg.ClientOptions,
 	})
 	if err != nil {
-		return nil, errors.Errorf("creating armauthorization client factory: %w", err)
+		return nil, fmt.Errorf("creating armauthorization client factory: %w", err)
 	}
 
 	return &RBACClient{
@@ -96,11 +96,11 @@ type AssignRoleInput struct {
 // nil — the operation is idempotent.
 func (c *RBACClient) AssignRole(ctx context.Context, l log.Logger, in AssignRoleInput) error {
 	if in.Scope == "" || in.PrincipalID == "" || in.RoleDefinitionID == "" {
-		return errors.Errorf("scope, principal_id, and role_definition_id are required")
+		return ErrScopePrincipalRoleArgs
 	}
 
 	if _, err := uuid.Parse(in.PrincipalID); err != nil {
-		return errors.Errorf("principal_id must be a UUID, got %q", in.PrincipalID)
+		return &InvalidPrincipalIDError{PrincipalID: in.PrincipalID}
 	}
 
 	principalType := in.PrincipalType
@@ -133,18 +133,18 @@ func (c *RBACClient) AssignRole(ctx context.Context, l log.Logger, in AssignRole
 		return nil
 	}
 
-	return WrapError(err, "creating role assignment")
+	return fmt.Errorf("creating role assignment: %w", err)
 }
 
 // HasRoleAssignment reports whether principalID already holds the role
 // identified by roleDefinitionID at scope.
 func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, roleDefinitionID string) (bool, error) {
 	if scope == "" || principalID == "" || roleDefinitionID == "" {
-		return false, errors.Errorf("scope, principal_id, and role_definition_id are required")
+		return false, ErrScopePrincipalRoleArgs
 	}
 
 	if _, err := uuid.Parse(principalID); err != nil {
-		return false, errors.Errorf("principal_id must be a UUID, got %q", principalID)
+		return false, &InvalidPrincipalIDError{PrincipalID: principalID}
 	}
 
 	roleDefSuffix := "/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionID
@@ -155,7 +155,7 @@ func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, 
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return false, WrapError(err, "listing role assignments")
+			return false, fmt.Errorf("listing role assignments: %w", err)
 		}
 
 		for _, ra := range page.Value {
@@ -179,11 +179,11 @@ func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, 
 // reruns.
 func (c *RBACClient) AssignRoleIfMissing(ctx context.Context, l log.Logger, in AssignRoleInput) error {
 	if in.Scope == "" || in.PrincipalID == "" || in.RoleDefinitionID == "" {
-		return errors.Errorf("scope, principal_id, and role_definition_id are required")
+		return ErrScopePrincipalRoleArgs
 	}
 
 	if _, err := uuid.Parse(in.PrincipalID); err != nil {
-		return errors.Errorf("principal_id must be a UUID, got %q", in.PrincipalID)
+		return &InvalidPrincipalIDError{PrincipalID: in.PrincipalID}
 	}
 
 	has, err := c.HasRoleAssignment(ctx, in.Scope, in.PrincipalID, in.RoleDefinitionID)
@@ -208,11 +208,11 @@ func (c *RBACClient) AssignRoleIfMissing(ctx context.Context, l log.Logger, in A
 // them are deleted; the first delete error encountered is returned.
 func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, principalID, roleDefinitionID string) error {
 	if scope == "" || principalID == "" || roleDefinitionID == "" {
-		return errors.Errorf("scope, principal_id, and role_definition_id are required")
+		return ErrScopePrincipalRoleArgs
 	}
 
 	if _, err := uuid.Parse(principalID); err != nil {
-		return errors.Errorf("principal_id must be a UUID, got %q", principalID)
+		return &InvalidPrincipalIDError{PrincipalID: principalID}
 	}
 
 	roleDefSuffix := "/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionID
@@ -228,7 +228,7 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return WrapError(err, "listing role assignments for removal")
+			return fmt.Errorf("listing role assignments for removal: %w", err)
 		}
 
 		for _, ra := range page.Value {
@@ -247,7 +247,7 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 				}
 
 				if firstErr == nil {
-					firstErr = WrapError(err, "deleting role assignment "+*ra.ID)
+					firstErr = fmt.Errorf("deleting role assignment %s: %w", *ra.ID, err)
 				}
 
 				continue
@@ -276,7 +276,7 @@ func isAlreadyAssigned(err error) bool {
 	}
 
 	var respErr *azcore.ResponseError
-	if !stderrors.As(err, &respErr) {
+	if !errors.As(err, &respErr) {
 		return false
 	}
 

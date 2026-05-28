@@ -8,12 +8,12 @@ package azurehelper
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -28,22 +28,22 @@ type ResourceGroupClient struct {
 // data-plane only.
 func NewResourceGroupClient(cfg *AzureConfig) (*ResourceGroupClient, error) {
 	if cfg == nil {
-		return nil, errors.Errorf("azure config is required")
+		return nil, ErrAzureConfigRequired
 	}
 
 	if cfg.SubscriptionID == "" {
-		return nil, errors.Errorf("subscription_id is required for resource group operations")
+		return nil, ErrSubscriptionIDRequired
 	}
 
 	if cfg.Credential == nil {
-		return nil, errors.Errorf("resource group operations require a token credential (auth method %q is not supported)", cfg.Method)
+		return nil, &UnsupportedAuthForOpError{Method: cfg.Method, Operation: "resource group operations"}
 	}
 
 	client, err := armresources.NewResourceGroupsClient(cfg.SubscriptionID, cfg.Credential, &arm.ClientOptions{
 		ClientOptions: cfg.ClientOptions,
 	})
 	if err != nil {
-		return nil, errors.Errorf("creating resource groups client: %w", err)
+		return nil, fmt.Errorf("creating resource groups client: %w", err)
 	}
 
 	return &ResourceGroupClient{client: client, subscriptionID: cfg.SubscriptionID}, nil
@@ -52,7 +52,7 @@ func NewResourceGroupClient(cfg *AzureConfig) (*ResourceGroupClient, error) {
 // Exists reports whether the named resource group exists in the subscription.
 func (c *ResourceGroupClient) Exists(ctx context.Context, name string) (bool, error) {
 	if name == "" {
-		return false, errors.Errorf("resource group name is required")
+		return false, ErrResourceGroupNameRequired
 	}
 
 	resp, err := c.client.CheckExistence(ctx, name, nil)
@@ -61,7 +61,7 @@ func (c *ResourceGroupClient) Exists(ctx context.Context, name string) (bool, er
 			return false, nil
 		}
 
-		return false, WrapError(err, "checking resource group existence")
+		return false, fmt.Errorf("checking resource group existence: %w", err)
 	}
 
 	return resp.Success, nil
@@ -73,7 +73,7 @@ func (c *ResourceGroupClient) Exists(ctx context.Context, name string) (bool, er
 // geographic default, mirroring StorageAccountClient.Create.
 func (c *ResourceGroupClient) CreateIfNecessary(ctx context.Context, l log.Logger, name, location string) error {
 	if name == "" {
-		return errors.Errorf("resource group name is required")
+		return ErrResourceGroupNameRequired
 	}
 
 	exists, err := c.Exists(ctx, name)
@@ -87,14 +87,14 @@ func (c *ResourceGroupClient) CreateIfNecessary(ctx context.Context, l log.Logge
 	}
 
 	if location == "" {
-		return errors.Errorf("location is required to create resource group %q", name)
+		return fmt.Errorf("%w %q", ErrLocationRequiredForRG, name)
 	}
 
 	_, err = c.client.CreateOrUpdate(ctx, name, armresources.ResourceGroup{
 		Location: to.Ptr(location),
 	}, nil)
 	if err != nil {
-		return WrapError(err, "creating resource group "+name)
+		return fmt.Errorf("creating resource group %s: %w", name, err)
 	}
 
 	l.Debugf("azurehelper: created resource group %s in %s", name, location)
@@ -106,7 +106,7 @@ func (c *ResourceGroupClient) CreateIfNecessary(ctx context.Context, l log.Logge
 // operation to complete. Missing resource groups return nil.
 func (c *ResourceGroupClient) Delete(ctx context.Context, l log.Logger, name string) error {
 	if name == "" {
-		return errors.Errorf("resource group name is required")
+		return ErrResourceGroupNameRequired
 	}
 
 	poller, err := c.client.BeginDelete(ctx, name, nil)
@@ -115,7 +115,7 @@ func (c *ResourceGroupClient) Delete(ctx context.Context, l log.Logger, name str
 			return nil
 		}
 
-		return WrapError(err, "starting resource group delete "+name)
+		return fmt.Errorf("starting resource group delete %s: %w", name, err)
 	}
 
 	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
@@ -123,7 +123,7 @@ func (c *ResourceGroupClient) Delete(ctx context.Context, l log.Logger, name str
 			return nil
 		}
 
-		return WrapError(err, "waiting for resource group delete "+name)
+		return fmt.Errorf("waiting for resource group delete %s: %w", name, err)
 	}
 
 	l.Debugf("azurehelper: deleted resource group %s", name)

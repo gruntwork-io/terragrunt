@@ -10,6 +10,7 @@ package azurehelper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -17,8 +18,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	azblobcontainer "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // BlobClient is a thin wrapper around azblob.Client that records the storage
@@ -52,11 +51,11 @@ type BlobClient struct {
 // the suffix is derived from cfg.CloudConfig.
 func NewBlobClient(_ context.Context, cfg *AzureConfig, endpointSuffix string) (*BlobClient, error) {
 	if cfg == nil {
-		return nil, errors.Errorf("azure config is required")
+		return nil, ErrAzureConfigRequired
 	}
 
 	if cfg.AccountName == "" {
-		return nil, errors.Errorf("storage account name is required")
+		return nil, ErrStorageAccountRequired
 	}
 
 	suffix := endpointSuffix
@@ -82,22 +81,22 @@ func NewBlobClient(_ context.Context, cfg *AzureConfig, endpointSuffix string) (
 
 		cred, err = azblob.NewSharedKeyCredential(cfg.AccountName, cfg.AccessKey)
 		if err != nil {
-			return nil, errors.Errorf("creating shared key credential: %w", err)
+			return nil, fmt.Errorf("creating shared key credential: %w", err)
 		}
 
 		client, err = azblob.NewClientWithSharedKeyCredential(url, cred, clientOpts)
 	case AuthMethodServicePrincipal, AuthMethodOIDC, AuthMethodMSI, AuthMethodAzureAD:
 		if cfg.Credential == nil {
-			return nil, errors.Errorf("azure config has no credential for method %q", cfg.Method)
+			return nil, &CredentialMissingError{Method: cfg.Method}
 		}
 
 		client, err = azblob.NewClient(url, cfg.Credential, clientOpts)
 	default:
-		return nil, errors.Errorf("unsupported azure auth method %q", cfg.Method)
+		return nil, &UnsupportedAuthMethodError{Method: cfg.Method}
 	}
 
 	if err != nil {
-		return nil, errors.Errorf("creating blob client: %w", err)
+		return nil, fmt.Errorf("creating blob client: %w", err)
 	}
 
 	return &BlobClient{
@@ -135,7 +134,7 @@ func (c *BlobClient) Container() string { return c.container }
 // are returned wrapped.
 func (c *BlobClient) ContainerExists(ctx context.Context, name string) (bool, error) {
 	if name == "" {
-		return false, errors.Errorf("container name is required")
+		return false, ErrContainerNameRequired
 	}
 
 	_, err := c.client.ServiceClient().NewContainerClient(name).GetProperties(ctx, nil)
@@ -143,18 +142,18 @@ func (c *BlobClient) ContainerExists(ctx context.Context, name string) (bool, er
 		return true, nil
 	}
 
-	if IsNotFound(err) {
+	if isErrorCode(err, "ContainerNotFound") {
 		return false, nil
 	}
 
-	return false, WrapError(err, "checking container existence")
+	return false, fmt.Errorf("checking container existence: %w", err)
 }
 
 // CreateContainer creates the container. If it already exists, this returns
 // nil (no-op). Other errors are returned wrapped.
 func (c *BlobClient) CreateContainer(ctx context.Context, name string) error {
 	if name == "" {
-		return errors.Errorf("container name is required")
+		return ErrContainerNameRequired
 	}
 
 	_, err := c.client.CreateContainer(ctx, name, nil)
@@ -168,7 +167,7 @@ func (c *BlobClient) CreateContainer(ctx context.Context, name string) error {
 		return nil
 	}
 
-	return WrapError(err, "creating container "+name)
+	return fmt.Errorf("creating container %s: %w", name, err)
 }
 
 // CreateContainerIfNecessary is a convenience for the common "ensure exists"
@@ -189,27 +188,27 @@ func (c *BlobClient) CreateContainerIfNecessary(ctx context.Context, name string
 // DeleteContainer deletes the named container. Missing containers return nil.
 func (c *BlobClient) DeleteContainer(ctx context.Context, name string) error {
 	if name == "" {
-		return errors.Errorf("container name is required")
+		return ErrContainerNameRequired
 	}
 
 	_, err := c.client.ServiceClient().NewContainerClient(name).Delete(ctx, nil)
-	if err == nil || IsNotFound(err) {
+	if err == nil || isErrorCode(err, "ContainerNotFound") {
 		return nil
 	}
 
-	return WrapError(err, "deleting container "+name)
+	return fmt.Errorf("deleting container %s: %w", name, err)
 }
 
 // GetBlob downloads a blob and returns its body as an io.ReadCloser. Caller
 // must Close the returned reader.
 func (c *BlobClient) GetBlob(ctx context.Context, container, key string) (io.ReadCloser, error) {
 	if container == "" || key == "" {
-		return nil, errors.Errorf("container name and blob key are required")
+		return nil, ErrBlobKeyRequired
 	}
 
 	resp, err := c.client.DownloadStream(ctx, container, key, nil)
 	if err != nil {
-		return nil, WrapError(err, "downloading blob "+container+"/"+key)
+		return nil, fmt.Errorf("downloading blob %s/%s: %w", container, key, err)
 	}
 
 	return resp.Body, nil
@@ -218,12 +217,12 @@ func (c *BlobClient) GetBlob(ctx context.Context, container, key string) (io.Rea
 // PutBlob uploads data to a block blob, overwriting any existing blob.
 func (c *BlobClient) PutBlob(ctx context.Context, container, key string, data []byte) error {
 	if container == "" || key == "" {
-		return errors.Errorf("container name and blob key are required")
+		return ErrBlobKeyRequired
 	}
 
 	blockBlob := c.client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(key)
 	if _, err := blockBlob.UploadBuffer(ctx, data, nil); err != nil {
-		return WrapError(err, "uploading blob "+container+"/"+key)
+		return fmt.Errorf("uploading blob %s/%s: %w", container, key, err)
 	}
 
 	return nil
@@ -233,12 +232,12 @@ func (c *BlobClient) PutBlob(ctx context.Context, container, key string, data []
 // the full payload into memory.
 func (c *BlobClient) PutBlobFromReader(ctx context.Context, container, key string, reader io.Reader) error {
 	if container == "" || key == "" {
-		return errors.Errorf("container name and blob key are required")
+		return ErrBlobKeyRequired
 	}
 
 	blockBlob := c.client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(key)
 	if _, err := blockBlob.UploadStream(ctx, reader, nil); err != nil {
-		return WrapError(err, "uploading blob "+container+"/"+key)
+		return fmt.Errorf("uploading blob %s/%s: %w", container, key, err)
 	}
 
 	return nil
@@ -247,15 +246,15 @@ func (c *BlobClient) PutBlobFromReader(ctx context.Context, container, key strin
 // DeleteBlob deletes the named blob. Missing blobs return nil.
 func (c *BlobClient) DeleteBlob(ctx context.Context, container, key string) error {
 	if container == "" || key == "" {
-		return errors.Errorf("container name and blob key are required")
+		return ErrBlobKeyRequired
 	}
 
 	_, err := c.client.DeleteBlob(ctx, container, key, nil)
-	if err == nil || IsNotFound(err) {
+	if err == nil || isErrorCode(err, "BlobNotFound") {
 		return nil
 	}
 
-	return WrapError(err, "deleting blob "+container+"/"+key)
+	return fmt.Errorf("deleting blob %s/%s: %w", container, key, err)
 }
 
 // GetObject downloads a blob from the bound container by key. Convenience
@@ -263,7 +262,7 @@ func (c *BlobClient) DeleteBlob(ctx context.Context, container, key string) erro
 // BindContainer (e.g. PR 3's dependency-fetch path).
 func (c *BlobClient) GetObject(ctx context.Context, key string) (io.ReadCloser, error) {
 	if c.container == "" {
-		return nil, errors.Errorf("BlobClient has no container bound; call BindContainer first or use GetBlob")
+		return nil, ErrNoContainerBound
 	}
 
 	return c.GetBlob(ctx, c.container, key)
@@ -275,7 +274,7 @@ func (c *BlobClient) GetObject(ctx context.Context, key string) (io.ReadCloser, 
 // memory, so callers should expect O(N) memory in the number of blobs.
 func (c *BlobClient) ListBlobs(ctx context.Context, container, prefix string) ([]string, error) {
 	if container == "" {
-		return nil, errors.Errorf("container name is required")
+		return nil, ErrContainerNameRequired
 	}
 
 	cc := c.client.ServiceClient().NewContainerClient(container)
@@ -292,7 +291,7 @@ func (c *BlobClient) ListBlobs(ctx context.Context, container, prefix string) ([
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, WrapError(err, "listing blobs in "+container)
+			return nil, fmt.Errorf("listing blobs in %s: %w", container, err)
 		}
 
 		for _, item := range page.Segment.BlobItems {
@@ -315,7 +314,7 @@ func (c *BlobClient) ListBlobs(ctx context.Context, container, prefix string) ([
 // to block on completion should poll the destination blob's CopyStatus.
 func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstContainer, dstKey string) error {
 	if srcContainer == "" || srcKey == "" || dstContainer == "" || dstKey == "" {
-		return errors.Errorf("source and destination container/key are required")
+		return ErrCopyBlobArgsRequired
 	}
 
 	srcURL := fmt.Sprintf("https://%s.blob.%s/%s/%s",
@@ -323,7 +322,7 @@ func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstCont
 
 	dst := c.client.ServiceClient().NewContainerClient(dstContainer).NewBlobClient(dstKey)
 	if _, err := dst.StartCopyFromURL(ctx, srcURL, nil); err != nil {
-		return WrapError(err, fmt.Sprintf("copying blob %s/%s to %s/%s", srcContainer, srcKey, dstContainer, dstKey))
+		return fmt.Errorf("copying blob %s/%s to %s/%s: %w", srcContainer, srcKey, dstContainer, dstKey, err)
 	}
 
 	return nil

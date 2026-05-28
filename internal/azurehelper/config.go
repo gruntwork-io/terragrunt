@@ -2,6 +2,8 @@ package azurehelper
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -9,7 +11,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -176,7 +177,7 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 			&azidentity.ClientSecretCredentialOptions{ClientOptions: clientOpts},
 		)
 		if err != nil {
-			return nil, errors.Errorf("creating service principal credential: %w", err)
+			return nil, fmt.Errorf("creating service principal credential: %w", err)
 		}
 
 		out.Method = AuthMethodServicePrincipal
@@ -194,7 +195,7 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 
 		cred, err := azidentity.NewManagedIdentityCredential(opts)
 		if err != nil {
-			return nil, errors.Errorf("creating managed identity credential: %w", err)
+			return nil, fmt.Errorf("creating managed identity credential: %w", err)
 		}
 
 		out.Method = AuthMethodMSI
@@ -212,7 +213,7 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 			TokenFilePath: resolved.OIDCTokenFilePath,
 		})
 		if err != nil {
-			return nil, errors.Errorf("creating OIDC workload identity credential: %w", err)
+			return nil, fmt.Errorf("creating OIDC workload identity credential: %w", err)
 		}
 
 		out.Method = AuthMethodOIDC
@@ -228,7 +229,7 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 			TenantID:      resolved.TenantID,
 		})
 		if err != nil {
-			return nil, errors.Errorf("creating default Azure credential: %w", err)
+			return nil, fmt.Errorf("creating default Azure credential: %w", err)
 		}
 
 		out.Method = AuthMethodAzureAD
@@ -286,9 +287,9 @@ func (b *AzureConfigBuilder) BuildStorageAccountClient(ctx context.Context, l lo
 
 	switch {
 	case preflight.SasToken != "":
-		return nil, errors.Errorf("storage account management requires a token credential, not a SAS token")
+		return nil, errors.New("storage account management requires a token credential, not a SAS token")
 	case preflight.AccessKey != "":
-		return nil, errors.Errorf("storage account management requires a token credential, not an access key")
+		return nil, errors.New("storage account management requires a token credential, not an access key")
 	}
 
 	cfg, err := b.Build(ctx, l)
@@ -394,7 +395,7 @@ func cloudConfigForEnvironment(name string) (cloud.Configuration, error) {
 	case "china", "azurechina", "azurechinacloud":
 		return cloud.AzureChina, nil
 	default:
-		return cloud.Configuration{}, errors.Errorf("unknown cloud environment %q (want one of: public, government, china)", name)
+		return cloud.Configuration{}, &UnknownCloudEnvironmentError{Name: name}
 	}
 }
 
@@ -403,7 +404,7 @@ func validate(out *AzureConfig, cfg *AzureSessionConfig) error {
 	// SAS token is data-plane only; subscription not required.
 	if out.Method == AuthMethodSasToken {
 		if cfg.StorageAccountName == "" {
-			return errors.Errorf("storage_account_name is required for SAS token authentication")
+			return errors.New("storage_account_name is required for SAS token authentication")
 		}
 
 		return nil
@@ -412,19 +413,19 @@ func validate(out *AzureConfig, cfg *AzureSessionConfig) error {
 	// Access key is data-plane only and is bound to a specific account; subscription not required.
 	if out.Method == AuthMethodAccessKey {
 		if cfg.StorageAccountName == "" {
-			return errors.Errorf("storage_account_name is required for access key authentication")
+			return errors.New("storage_account_name is required for access key authentication")
 		}
 
 		return nil
 	}
 
 	if out.SubscriptionID == "" {
-		return errors.Errorf("subscription_id is required (set via config, ARM_SUBSCRIPTION_ID, or AZURE_SUBSCRIPTION_ID)")
+		return errors.New("subscription_id is required (set via config, ARM_SUBSCRIPTION_ID, or AZURE_SUBSCRIPTION_ID)")
 	}
 
 	if out.Method == AuthMethodServicePrincipal {
 		if cfg.TenantID == "" || cfg.ClientID == "" || cfg.ClientSecret == "" {
-			return errors.Errorf("service principal authentication requires tenant_id, client_id, and client_secret")
+			return errors.New("service principal authentication requires tenant_id, client_id, and client_secret")
 		}
 	}
 
