@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -62,7 +63,10 @@ func NewBlobClient(_ context.Context, cfg *AzureConfig, endpointSuffix string) (
 		suffix = endpointSuffixForCloud(cfg)
 	}
 
-	url := fmt.Sprintf("https://%s.blob.%s", cfg.AccountName, suffix)
+	serviceURL := (&url.URL{
+		Scheme: "https",
+		Host:   fmt.Sprintf("%s.blob.%s", cfg.AccountName, suffix),
+	}).String()
 	clientOpts := &azblob.ClientOptions{ClientOptions: cfg.ClientOptions}
 
 	var (
@@ -72,9 +76,13 @@ func NewBlobClient(_ context.Context, cfg *AzureConfig, endpointSuffix string) (
 
 	switch cfg.Method {
 	case AuthMethodSasToken:
-		sas := strings.TrimPrefix(cfg.SasToken, "?")
+		sasURL := (&url.URL{
+			Scheme:   "https",
+			Host:     fmt.Sprintf("%s.blob.%s", cfg.AccountName, suffix),
+			RawQuery: strings.TrimPrefix(cfg.SasToken, "?"),
+		}).String()
 
-		client, err = azblob.NewClientWithNoCredential(url+"?"+sas, clientOpts)
+		client, err = azblob.NewClientWithNoCredential(sasURL, clientOpts)
 	case AuthMethodAccessKey:
 		var cred *azblob.SharedKeyCredential
 
@@ -83,13 +91,13 @@ func NewBlobClient(_ context.Context, cfg *AzureConfig, endpointSuffix string) (
 			return nil, fmt.Errorf("creating shared key credential: %w", err)
 		}
 
-		client, err = azblob.NewClientWithSharedKeyCredential(url, cred, clientOpts)
+		client, err = azblob.NewClientWithSharedKeyCredential(serviceURL, cred, clientOpts)
 	case AuthMethodServicePrincipal, AuthMethodOIDC, AuthMethodMSI, AuthMethodAzureAD:
 		if cfg.Credential == nil {
 			return nil, &CredentialMissingError{Method: cfg.Method}
 		}
 
-		client, err = azblob.NewClient(url, cfg.Credential, clientOpts)
+		client, err = azblob.NewClient(serviceURL, cfg.Credential, clientOpts)
 	default:
 		return nil, &UnsupportedAuthMethodError{Method: cfg.Method}
 	}
@@ -315,8 +323,11 @@ func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstCont
 		return ErrCopyBlobArgsRequired
 	}
 
-	srcURL := fmt.Sprintf("https://%s.blob.%s/%s/%s",
-		c.accountName, c.endpointSuffix, srcContainer, srcKey)
+	srcURL := (&url.URL{
+		Scheme: "https",
+		Host:   fmt.Sprintf("%s.blob.%s", c.accountName, c.endpointSuffix),
+		Path:   "/" + srcContainer + "/" + srcKey,
+	}).String()
 
 	dst := c.client.ServiceClient().NewContainerClient(dstContainer).NewBlobClient(dstKey)
 	if _, err := dst.StartCopyFromURL(ctx, srcURL, nil); err != nil {
