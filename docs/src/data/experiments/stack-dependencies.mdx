@@ -102,8 +102,13 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 - [x] Deterministic cycle reports in `LocalsCycleError.Names` (DFS dep iteration sorted).
 - [x] `resolveStackFilePath` returns `(string, bool)`: callers branch on `isStackCandidate` instead of a sentinel empty string. Backed by a two-arg fuzz that exercises raw/target independently.
 - [x] Removed Unicode from `internal/hclparse` source files (ASCII-only); intentional Unicode test fixtures remain.
+
+</Since>
+
+<Since version="1.0.7">
+
+- [x] The `.terragrunt-stack-origin` marker file is no longer written when nested stack files are copied into `.terragrunt-stack/<name>/`. Use `update_source_with_cas = true` (with the `cas` experiment enabled) on `unit` and `stack` blocks to keep relative `source` paths working in catalog stack files; relative attributes are rewritten to `cas::` references at generation time so the generated tree is self-contained.
 - [ ] Community feedback on `autoinclude` syntax and merge behavior
-- [ ] Integrate with CAS for generated files
 - [ ] Validate performance at scale
 
 </Since>
