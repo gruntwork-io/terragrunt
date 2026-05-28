@@ -8,6 +8,8 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Terragrunt's "Run Queue" is the mechanism it uses to manage the run order and concurrency when running OpenTofu/Terraform commands across multiple Terragrunt [units](/features/units). This is particularly relevant when using the [`run --all`](/reference/cli/commands/run#all) or [`run --graph`](/reference/cli/commands/run#graph) commands.
 
@@ -187,8 +189,14 @@ This will tell Terragrunt to run all units in the directory `subtree` except tho
 
 ## Weighted Parallelism
 
-<Aside type="caution">
-This feature requires the `run-weight` [experiment](/reference/experiments) to be enabled.
+<Before version="1.0.7">
+Coming soon in v1.0.7.
+</Before>
+
+<Since version="1.0.7">
+
+<Aside type="tip">
+This feature requires the [`run-weight`](/reference/experiments/active#run-weight) experiment. Enable it with `--experiment run-weight`.
 </Aside>
 
 By default, `--parallelism=N` treats every unit as occupying one slot, so N units run concurrently. The `run_weight` attribute lets you assign a relative cost to each unit, turning the parallelism value into a weight budget.
@@ -219,6 +227,8 @@ If a unit's weight exceeds the parallelism budget (e.g. `run_weight = 20` with `
 ### Choosing weights
 
 Weights are unitless and relative. Assign them based on whatever is your binding constraint — memory, API rate limits, CPU, or any other resource. The same model is used by Make's `-l`, Bazel's resource tags, and Nix's `max-jobs`.
+
+</Since>
 
 ## Important Considerations
 
