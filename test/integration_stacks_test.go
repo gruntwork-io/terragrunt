@@ -2462,11 +2462,14 @@ func TestCASInStacks(t *testing.T) {
 	unitStr := string(unitConfigContent)
 
 	// CAS digests depend on the resolved git ref and repo paths; assert exact file shape using the emitted hashes.
+	// Stack blocks always materialize the leaf directory directly, so the rewritten ref has no "//subdir" tail.
+	// Only the terraform.source inside the unit preserves the "//" tail so sibling files in the synthetic tree remain reachable.
 	casSHA1Quoted := regexp.MustCompile(`"cas::sha1:([a-f0-9]{40})"`)
 	stackMatch := casSHA1Quoted.FindStringSubmatch(stackStr)
 	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha1 reference in a quoted source attribute")
 
-	unitMatch := casSHA1Quoted.FindStringSubmatch(unitStr)
+	casSHA1QuotedUnit := regexp.MustCompile(`"cas::sha1:([a-f0-9]{40})//modules/baz"`)
+	unitMatch := casSHA1QuotedUnit.FindStringSubmatch(unitStr)
 	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha1 reference in a quoted source attribute")
 
 	wantStack := fmt.Sprintf(`unit "bar" {
@@ -2478,7 +2481,7 @@ func TestCASInStacks(t *testing.T) {
 `, stackMatch[1])
 
 	wantUnit := fmt.Sprintf(`terraform {
-  source = "cas::sha1:%s"
+  source = "cas::sha1:%s//modules/baz"
 
   update_source_with_cas = true
 }
@@ -2641,12 +2644,14 @@ func TestCASInStacksLocalSource(t *testing.T) {
 	unitStr := string(unitConfigContent)
 
 	// Local sources are content-addressed with SHA-256.
-	casSHA256Quoted := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})"`)
-
-	stackMatch := casSHA256Quoted.FindStringSubmatch(stackStr)
+	// Stack blocks always materialize the leaf directory directly, so the rewritten ref has no "//subdir" tail.
+	// Only the terraform.source inside the unit preserves the "//" tail so sibling files in the synthetic tree remain reachable.
+	casSHA256QuotedStack := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})"`)
+	stackMatch := casSHA256QuotedStack.FindStringSubmatch(stackStr)
 	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha256 reference")
 
-	unitMatch := casSHA256Quoted.FindStringSubmatch(unitStr)
+	casSHA256QuotedUnit := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})//modules/baz"`)
+	unitMatch := casSHA256QuotedUnit.FindStringSubmatch(unitStr)
 	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha256 reference")
 
 	wantStack := fmt.Sprintf(`unit "bar" {
@@ -2658,7 +2663,7 @@ func TestCASInStacksLocalSource(t *testing.T) {
 `, stackMatch[1])
 
 	wantUnit := fmt.Sprintf(`terraform {
-  source = "cas::sha256:%s"
+  source = "cas::sha256:%s//modules/baz"
 
   update_source_with_cas = true
 }
