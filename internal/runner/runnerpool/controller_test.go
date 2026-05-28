@@ -3,7 +3,6 @@ package runnerpool_test
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -351,26 +350,29 @@ func TestRunnerPool_DefaultWeightBackwardsCompat(t *testing.T) {
 	// Units without run_weight should default to 1, preserving existing behavior.
 	units := buildComponentUnits([]string{"A", "B", "C"}, map[string][]string{})
 
-	var maxConcurrent atomic.Int32
+	var mu sync.Mutex
 
-	var current atomic.Int32
+	var current, maxConcurrent int
 
 	err := runWeightedController(t, units, 3, func(ctx context.Context, u *component.Unit) error {
-		val := current.Add(1)
-		for {
-			old := maxConcurrent.Load()
-			if val <= old || maxConcurrent.CompareAndSwap(old, val) {
-				break
-			}
+		mu.Lock()
+		current++
+		if current > maxConcurrent {
+			maxConcurrent = current
 		}
 
+		mu.Unlock()
+
 		time.Sleep(50 * time.Millisecond)
-		current.Add(-1)
+
+		mu.Lock()
+		current--
+		mu.Unlock()
 
 		return nil
 	})
 	require.NoError(t, err)
-	assert.Equal(t, int32(3), maxConcurrent.Load(), "All 3 default-weight units should run concurrently with budget 3")
+	assert.Equal(t, 3, maxConcurrent, "All 3 default-weight units should run concurrently with budget 3")
 }
 
 func TestRunnerPool_WeightedBudgetAdmission(t *testing.T) {
