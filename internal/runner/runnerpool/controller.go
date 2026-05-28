@@ -10,6 +10,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/multierror"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -31,6 +32,7 @@ type Controller struct {
 	runner      UnitRunner
 	readyCh     chan struct{}
 	unitsMap    map[string]*component.Unit
+	experiments experiment.Experiments
 	concurrency int
 }
 
@@ -41,6 +43,13 @@ type ControllerOption func(*Controller)
 func WithRunner(runner UnitRunner) ControllerOption {
 	return func(dr *Controller) {
 		dr.runner = runner
+	}
+}
+
+// WithExperiments sets the experiments for the Controller.
+func WithExperiments(experiments experiment.Experiments) ControllerOption {
+	return func(dr *Controller) {
+		dr.experiments = experiments
 	}
 }
 
@@ -176,10 +185,15 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					continue
 				}
 
-				// Look up unit weight for budget-based admission
+				// Look up unit weight for budget-based admission.
+				// Only used when the run-weight experiment is enabled;
+				// otherwise all units have weight 1 (preserving existing behavior).
 				weight := 1
-				if unit, ok := dr.unitsMap[e.Component.Path()]; ok {
-					weight = unit.RunWeight()
+
+				if dr.experiments.Evaluate(experiment.RunWeight) {
+					if unit, ok := dr.unitsMap[e.Component.Path()]; ok {
+						weight = unit.RunWeight()
+					}
 				}
 
 				if !sem.tryAcquire(weight) {

@@ -523,6 +523,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 		rnr.Stack.Units,
 		WithRunner(task),
 		WithMaxConcurrency(stackOpts.Parallelism),
+		WithExperiments(stackOpts.Experiments),
 	)
 
 	err := controller.Run(ctx, l)

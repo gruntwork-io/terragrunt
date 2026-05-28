@@ -12,6 +12,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -324,7 +325,7 @@ func buildWeightedUnits(paths []string, weights map[string]int, depMap map[strin
 }
 
 // runWeightedController is a helper that wires up units into a queue and controller, then runs it.
-func runWeightedController(t *testing.T, units []*component.Unit, concurrency int, runner runnerpool.UnitRunner) error {
+func runWeightedController(t *testing.T, units []*component.Unit, concurrency int, runner runnerpool.UnitRunner, opts ...runnerpool.ControllerOption) error {
 	t.Helper()
 
 	components := make(component.Components, len(units))
@@ -335,14 +336,25 @@ func runWeightedController(t *testing.T, units []*component.Unit, concurrency in
 	q, err := queue.NewQueue(components)
 	require.NoError(t, err)
 
+	allOpts := make([]runnerpool.ControllerOption, 0, 2+len(opts))
+	allOpts = append(allOpts, runnerpool.WithRunner(runner), runnerpool.WithMaxConcurrency(concurrency))
+	allOpts = append(allOpts, opts...)
+
 	ctrl := runnerpool.NewController(
 		q,
 		units,
-		runnerpool.WithRunner(runner),
-		runnerpool.WithMaxConcurrency(concurrency),
+		allOpts...,
 	)
 
 	return ctrl.Run(t.Context(), logger.CreateLogger())
+}
+
+// runWeightExperimentOpts returns a ControllerOption that enables the run-weight experiment.
+func runWeightExperimentOpts() runnerpool.ControllerOption {
+	exps := experiment.NewExperiments()
+	_ = exps.EnableExperiment(experiment.RunWeight)
+
+	return runnerpool.WithExperiments(exps)
 }
 
 func TestRunnerPool_DefaultWeightBackwardsCompatWithRacing(t *testing.T) {
@@ -416,7 +428,7 @@ func TestRunnerPool_WeightedBudgetAdmissionWithRacing(t *testing.T) {
 			mu.Unlock()
 
 			return nil
-		})
+		}, runWeightExperimentOpts())
 		require.NoError(t, err)
 		assert.LessOrEqual(t, maxWeight, 10, "Peak in-flight weight must not exceed budget")
 		assert.Greater(t, maxWeight, 1, "Should have achieved some concurrency")
@@ -440,7 +452,7 @@ func TestRunnerPool_OversizedWeightRunsSoloWithRacing(t *testing.T) {
 			executedPaths.Store(u.Path(), true)
 
 			return nil
-		})
+		}, runWeightExperimentOpts())
 		require.NoError(t, err)
 
 		_, hugeRan := executedPaths.Load("huge")
@@ -495,7 +507,7 @@ func TestRunnerPool_HeavyUnitDoesNotBlockLightUnitsWithRacing(t *testing.T) {
 			mu.Unlock()
 
 			return nil
-		})
+		}, runWeightExperimentOpts())
 		require.NoError(t, err)
 		assert.True(t, lightRanWhileFirstRunning, "Light units should run concurrently with first, not blocked behind heavy")
 	})
