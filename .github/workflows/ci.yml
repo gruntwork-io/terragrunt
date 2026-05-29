@@ -9,48 +9,56 @@ concurrency:
 
 jobs:
   lint:
+    if: false # TEMP: disabled to iterate on Windows base tests; revert before review
     uses: ./.github/workflows/lint.yml
     permissions:
       contents: read
     secrets: inherit
 
   precommit:
+    if: false # TEMP: disabled to iterate on Windows base tests; revert before review
     uses: ./.github/workflows/precommit.yml
     permissions:
       contents: read
     secrets: inherit
 
   codespell:
+    if: false # TEMP: disabled to iterate on Windows base tests; revert before review
     uses: ./.github/workflows/codespell.yml
     permissions:
       contents: read
     secrets: inherit
 
   go_mod_tidy_check:
+    if: false # TEMP: disabled to iterate on Windows base tests; revert before review
     uses: ./.github/workflows/go-mod-tidy-check.yml
     permissions:
       contents: read
     secrets: inherit
 
   markdownlint:
+    if: false # TEMP: disabled to iterate on Windows base tests; revert before review
     uses: ./.github/workflows/markdownlint.yml
     permissions:
       contents: read
     secrets: inherit
 
   install_script_test:
+    if: false # TEMP: disabled to iterate on Windows base tests; revert before review
     uses: ./.github/workflows/install-script-test.yml
     permissions:
       contents: read
     secrets: inherit
 
   license_check:
+    if: false # TEMP: disabled to iterate on Windows base tests; revert before review
     uses: ./.github/workflows/license-check.yml
     permissions:
       contents: read
     secrets: inherit
 
   fuzz:
+    if: false # TEMP: disabled to iterate on Windows base tests; revert before review
     uses: ./.github/workflows/fuzz.yml
     permissions:
       contents: read
@@ -60,7 +68,8 @@ jobs:
   # markdownlint, license_check, install_script_test) run in parallel and are enforced
   # by branch protection rules, not by job dependencies.
   base_tests:
-    needs: [lint, precommit, go_mod_tidy_check]
+    # TEMP: dropped `needs: [lint, precommit, go_mod_tidy_check]` so this runs while those
+    # jobs are disabled. Restore the needs line before review.
     uses: ./.github/workflows/base-test.yml
     permissions:
       contents: read
@@ -68,6 +77,7 @@ jobs:
     secrets: inherit
 
   build:
+    if: false # TEMP: disabled to iterate on Windows base tests; revert before review
     needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build.yml
     with:
@@ -123,6 +133,7 @@ jobs:
     secrets: inherit
 
   integration_tests:
+    if: false # TEMP: disabled to iterate on Windows base tests; revert before review
     needs: [base_tests, build]
     uses: ./.github/workflows/integration-test.yml
     permissions:
@@ -131,6 +142,7 @@ jobs:
     secrets: inherit
 
   oidc_integration_tests:
+    if: false # TEMP: disabled to iterate on Windows base tests; revert before review
     needs: [base_tests, build]
     uses: ./.github/workflows/oidc-integration-test.yml
     permissions:
