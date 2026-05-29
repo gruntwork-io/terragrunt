@@ -62,7 +62,7 @@ jobs:
 
       - name: Run Tests
         id: run-tests
-        run: ./.github/scripts/coverage/run-tests-json.sh .
+        run: ./.github/scripts/coverage/coverage-report.sh run .
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -70,12 +70,12 @@ jobs:
 
       - name: Generate Coverage Summary
         if: always() && matrix.os == 'ubuntu'
-        run: ./.github/scripts/coverage/generate-summary.sh
+        run: ./.github/scripts/coverage/coverage-report.sh summary
         shell: bash
 
       - name: Extract Timing Summary
         if: always() && matrix.os == 'ubuntu'
-        run: ./.github/scripts/coverage/extract-timing.sh test-events.ndjson timing-summary.json
+        run: ./.github/scripts/coverage/coverage-report.sh timing test-events.ndjson timing-summary.json
         shell: bash
 
       - name: Upload test-events.ndjson

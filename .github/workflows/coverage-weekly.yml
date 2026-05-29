@@ -95,11 +95,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          ./.github/scripts/coverage/run-tests-json.sh current || true
+          ./.github/scripts/coverage/coverage-report.sh run current || true
           GITHUB_SHA="${{ steps.refs.outputs.current_sha }}" GITHUB_REF="refs/heads/main" \
-            ./.github/scripts/coverage/generate-summary.sh current/coverage.out current/coverage-summary.json
+            ./.github/scripts/coverage/coverage-report.sh summary current/coverage.out current/coverage-summary.json
           GITHUB_SHA="${{ steps.refs.outputs.current_sha }}" GITHUB_REF="refs/heads/main" \
-            ./.github/scripts/coverage/extract-timing.sh current/test-events.ndjson current/timing-summary.json
+            ./.github/scripts/coverage/coverage-report.sh timing current/test-events.ndjson current/timing-summary.json
 
       - name: Prepare previous checkout
         if: steps.refs.outputs.same_commit != 'true'
@@ -117,22 +117,21 @@ jobs:
         working-directory: ../prev
         run: |
           set -euo pipefail
-          # Prefer the current checkout's coverage scripts so weekly tooling is consistent
-          # even if the previous commit predates them.
-          "$GITHUB_WORKSPACE/.github/scripts/coverage/run-tests-json.sh" previous || true
+          # Prefer the current checkout's coverage script so weekly tooling is consistent
+          # even if the previous commit predates it.
+          REPORT="$GITHUB_WORKSPACE/.github/scripts/coverage/coverage-report.sh"
+          "$REPORT" run previous || true
           mkdir -p "$GITHUB_WORKSPACE/previous"
           if [[ -s previous/coverage.out ]]; then
             GITHUB_SHA="$PREV_SHA" GITHUB_REF="refs/heads/main" \
-              "$GITHUB_WORKSPACE/.github/scripts/coverage/generate-summary.sh" \
-                previous/coverage.out previous/coverage-summary.json
+              "$REPORT" summary previous/coverage.out previous/coverage-summary.json
             cp previous/coverage-summary.json "$GITHUB_WORKSPACE/previous/coverage-summary.json"
           else
             echo "::warning::Previous commit produced no coverage output; reporting current only."
           fi
           if [[ -s previous/test-events.ndjson ]]; then
             GITHUB_SHA="$PREV_SHA" GITHUB_REF="refs/heads/main" \
-              "$GITHUB_WORKSPACE/.github/scripts/coverage/extract-timing.sh" \
-                previous/test-events.ndjson previous/timing-summary.json
+              "$REPORT" timing previous/test-events.ndjson previous/timing-summary.json
             cp previous/timing-summary.json "$GITHUB_WORKSPACE/previous/timing-summary.json"
           else
             echo "::warning::Previous commit produced no test events; timing comparison will be baseline-only."
@@ -143,7 +142,7 @@ jobs:
           set -euo pipefail
           PREV="previous/coverage-summary.json"
           [[ -s "$PREV" ]] || PREV="/nonexistent"
-          ./.github/scripts/coverage/compare-coverage.sh \
+          ./.github/scripts/coverage/coverage-report.sh compare-coverage \
             current/coverage-summary.json \
             "$PREV" \
             comparison-report.json
@@ -153,14 +152,14 @@ jobs:
           set -euo pipefail
           PREV="previous/timing-summary.json"
           [[ -s "$PREV" ]] || PREV="/nonexistent"
-          ./.github/scripts/coverage/compare-timing.sh \
+          ./.github/scripts/coverage/coverage-report.sh compare-timing \
             current/timing-summary.json \
             "$PREV" \
             timing-comparison.json
 
       - name: Write step summary
         if: always()
-        run: ./.github/scripts/coverage/write-summary-weekly.sh comparison-report.json timing-comparison.json
+        run: ./.github/scripts/coverage/coverage-report.sh render comparison-report.json timing-comparison.json
 
       - name: Upload coverage summary (current)
         if: always()
@@ -226,4 +225,4 @@ jobs:
           COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
           TAG_NAME: "${{ steps.refs.outputs.same_commit == 'true' && format('weekly (current only) {0}', steps.refs.outputs.current_sha) || format('weekly {0}...{1}', steps.refs.outputs.previous_sha, steps.refs.outputs.current_sha) }}"
           REPO: ${{ github.repository }}
-        run: ./.github/scripts/coverage/notify-slack-weekly.sh comparison-report.json timing-comparison.json
+        run: ./.github/scripts/coverage/coverage-report.sh notify comparison-report.json timing-comparison.json
