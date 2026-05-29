@@ -30,13 +30,22 @@ if [[ ! -f "$EVENTS" ]]; then
 	exit 1
 fi
 
-# jq builds the aggregate in a single pass. Filtered to terminal events only.
-# Package row: Test field absent/empty. Test row: Test field non-empty.
-TIMING_JSON=$(jq -s --raw-input '
-	split("\n")
-	| map(select(length > 0) | fromjson)
-	| map(select(.Action == "pass" or .Action == "fail" or .Action == "skip"))
-	| reduce .[] as $e (
+# jq builds the aggregate in a single streaming pass, reading events from the file
+# and writing straight to OUTPUT. Metadata is folded in via small --arg values so
+# nothing large crosses the command line (a prior version passed the whole aggregate
+# through --argjson and hit ARG_MAX on the full suite).
+# Filtered to terminal events only: package row has Test absent/empty; test row has
+# Test non-empty. Malformed (non-JSON) lines are skipped via fromjson?.
+jq -n --raw-input \
+	--arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+	--arg commit "${GITHUB_SHA:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}" \
+	--arg ref "${GITHUB_REF:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)}" '
+	reduce (
+		inputs
+		| select(length > 0)
+		| fromjson?
+		| select(.Action == "pass" or .Action == "fail" or .Action == "skip")
+	) as $e (
 		{packages: {}};
 		if ($e.Test // "") == "" then
 			.packages[$e.Package] = (
@@ -51,14 +60,8 @@ TIMING_JSON=$(jq -s --raw-input '
 		end
 	)
 	| .total_sec = ([.packages[].wall_sec] | add // 0)
-' "$EVENTS")
-
-jq -n \
-	--arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-	--arg commit "${GITHUB_SHA:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}" \
-	--arg ref "${GITHUB_REF:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)}" \
-	--argjson body "$TIMING_JSON" \
-	'$body + {generated_at: $ts, commit: $commit, ref: $ref}' >"$OUTPUT"
+	| . + {generated_at: $ts, commit: $commit, ref: $ref}
+' "$EVENTS" >"$OUTPUT"
 
 echo "=== Timing summary ==="
 TOTAL=$(jq -r '.total_sec' "$OUTPUT")
