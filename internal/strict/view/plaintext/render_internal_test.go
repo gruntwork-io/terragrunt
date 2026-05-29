@@ -2,10 +2,10 @@ package plaintext
 
 import (
 	"context"
+	"errors"
 	"io"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/stretchr/testify/require"
 )

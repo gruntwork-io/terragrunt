@@ -96,6 +96,11 @@ type Model struct {
 	userNavigated       bool
 	hasDarkBG           bool
 	mdRendererDark      bool
+	// softWrap toggles glamour's word-wrap in the pager view. Default true
+	// matches the prior behavior; the `w` key flips it so users reading a
+	// README with intentionally long lines (ascii diagrams, wide tables)
+	// can see them as-authored.
+	softWrap bool
 }
 
 // NewModelStreaming creates a Model with a single initial entry and a channel
@@ -130,6 +135,13 @@ func (m Model) ActiveTab() TabKind {
 // strip renders a "(loading...)" suffix.
 func (m Model) Loading() bool {
 	return m.loading
+}
+
+// SoftWrap reports whether the pager's glamour renderer wraps long
+// lines at terminal width. Exposed for tests that drive the `w` key
+// and verify the toggle.
+func (m Model) SoftWrap() bool {
+	return m.softWrap
 }
 
 // ExitMessage returns the styled post-exit message the model set while
@@ -354,5 +366,8 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []li
 		// Matches lipgloss.HasDarkBackground's fallback. Corrected on the
 		// first tea.BackgroundColorMsg.
 		hasDarkBG: true,
+		// Soft-wrap on by default keeps glamour wrapping at terminal width
+		// like before; `w` flips it.
+		softWrap: true,
 	}
 }

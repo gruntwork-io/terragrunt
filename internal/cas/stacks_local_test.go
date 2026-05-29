@@ -83,7 +83,10 @@ func TestProcessStackComponent_LocalSource_RewritesUnitSources(t *testing.T) {
 	contentStr := string(content)
 
 	assert.Contains(t, contentStr, "cas::sha256:", "unit terraform source should be rewritten to a SHA-256 CAS ref")
-	assert.NotContains(t, contentStr, "modules/vpc", "module path should not appear in the rewritten source")
+	// The terraform.source uses "//", so the rewritten CAS ref must preserve
+	// the "//subdir" tail. The synthetic tree is rooted at the resolved base
+	// directory so sibling files stay reachable from the materialized unit.
+	assert.Contains(t, contentStr, "//modules/vpc", "rewritten CAS ref should preserve the //subdir tail")
 }
 
 func TestProcessStackComponent_LocalSource_DoesNotMutateInput(t *testing.T) {

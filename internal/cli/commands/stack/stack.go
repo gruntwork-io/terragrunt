@@ -2,6 +2,7 @@ package stack
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
@@ -45,7 +45,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			return clean.CleanStacks(l, opts)
 		})
 		if err != nil {
-			return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
+			return fmt.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
 		}
 	}
 
@@ -65,7 +65,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			Experiments:    opts.Experiments,
 		})
 		if err != nil {
-			return errors.Errorf("failed to create worktrees: %w", err)
+			return fmt.Errorf("failed to create worktrees: %w", err)
 		}
 
 		defer func() {
@@ -121,7 +121,7 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		return err
 	})
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	// Filter outputs based on index key
@@ -132,17 +132,17 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 	switch opts.StackOutputFormat {
 	default:
 		if err := PrintOutputs(opts.Writers.Writer, filteredOutputs); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 	case rawOutputFormat:
 		if err := PrintRawOutputs(opts, opts.Writers.Writer, filteredOutputs); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 	case jsonOutputFormat:
 		if err := PrintJSONOutput(opts.Writers.Writer, filteredOutputs); err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 
@@ -197,7 +197,7 @@ func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 		return clean.CleanStacks(l, opts)
 	})
 	if err != nil {
-		return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
+		return fmt.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
 	}
 
 	return nil

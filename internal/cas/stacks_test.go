@@ -220,12 +220,120 @@ func TestProcessStackComponent_RewritesUnitSources(t *testing.T) {
 
 	assert.Contains(t, contentStr, "cas::", "unit terraform source should be rewritten to CAS ref")
 	assert.Contains(t, contentStr, "sha1:", "CAS ref should name the hash algorithm")
-	assert.NotContains(
+	// When the original terraform.source uses "//", the rewritten CAS ref must
+	// carry the same "//subdir" tail so the synthetic tree's surrounding files
+	// (e.g. sibling modules referenced via "../sibling") stay reachable after
+	// materialization.
+	assert.Contains(
 		t,
 		contentStr,
-		"modules/vpc",
-		"module path should not appear in the cas:: URL when using a synthetic tree",
+		"//modules/vpc",
+		"rewritten CAS ref should preserve the original //subdir tail",
 	)
+}
+
+// TestProcessStackComponent_UnitSourceSyntheticTreeContainsSiblings verifies
+// that a unit's terraform.source written with "//" produces a synthetic tree
+// rooted at the resolved base directory, so sibling modules referenced via
+// relative paths (e.g. `module "x" { source = "../sibling" }`) are present
+// alongside the target module.
+func TestProcessStackComponent_UnitSourceSyntheticTreeContainsSiblings(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	repoURL := startStackTestServer(t)
+	l := logger.CreateLogger()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	require.NoError(t, err)
+
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	source := repoURL + "//stacks/my-stack?ref=main"
+
+	result, err := c.ProcessStackComponent(ctx, l, v, source, "stack")
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	repoRoot := filepath.Dir(filepath.Dir(result.ContentDir))
+	unitFile := filepath.Join(repoRoot, "units", "my-service", "terragrunt.hcl")
+
+	content, err := os.ReadFile(unitFile)
+	require.NoError(t, err)
+
+	rewrittenSource, _, err := cas.ReadTerraformSourceInfo(content)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(rewrittenSource, "cas::"), "rewritten source should be a CAS ref")
+
+	withoutPrefix := strings.TrimPrefix(rewrittenSource, "cas::")
+	baseRef, subdir, found := strings.Cut(withoutPrefix, "//")
+	require.True(t, found, "rewritten source should carry a //subdir tail")
+	assert.Equal(t, "modules/vpc", subdir)
+
+	hash, err := cas.ParseCASRef(baseRef)
+	require.NoError(t, err)
+
+	synthStore := cas.NewStore(filepath.Join(storePath, "synth", "trees"))
+	synthContent := cas.NewContent(synthStore)
+	treeData, err := synthContent.Read(v, hash)
+	require.NoError(t, err)
+
+	tree := string(treeData)
+	assert.Contains(t, tree, "modules/vpc/main.tf", "synthetic tree must include the target module")
+	assert.Contains(t, tree, "modules/sibling/main.tf", "synthetic tree must include siblings reachable via relative refs")
+}
+
+// TestProcessStackComponent_UnitSourceWithoutDoubleSlash pins the shallow-tree
+// behavior for terraform.source values that omit "//". The synthetic tree
+// should contain only the leaf module's files and the rewritten CAS ref must
+// have no //subdir tail.
+func TestProcessStackComponent_UnitSourceWithoutDoubleSlash(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	repoURL := startStackTestServer(t)
+	l := logger.CreateLogger()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
+	require.NoError(t, err)
+
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	source := repoURL + "//stacks/my-stack?ref=main"
+
+	result, err := c.ProcessStackComponent(ctx, l, v, source, "stack")
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	repoRoot := filepath.Dir(filepath.Dir(result.ContentDir))
+	leafUnitFile := filepath.Join(repoRoot, "units", "leaf-service", "terragrunt.hcl")
+
+	content, err := os.ReadFile(leafUnitFile)
+	require.NoError(t, err)
+
+	rewrittenSource, _, err := cas.ReadTerraformSourceInfo(content)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(rewrittenSource, "cas::"), "leaf unit source should be rewritten to CAS ref")
+	assert.NotContains(t, rewrittenSource, "//modules", "leaf rewrite must not synthesize a //subdir tail")
+
+	hash, err := cas.ParseCASRef(strings.TrimPrefix(rewrittenSource, "cas::"))
+	require.NoError(t, err)
+
+	synthStore := cas.NewStore(filepath.Join(storePath, "synth", "trees"))
+	synthContent := cas.NewContent(synthStore)
+	treeData, err := synthContent.Read(v, hash)
+	require.NoError(t, err)
+
+	tree := string(treeData)
+	assert.Contains(t, tree, "main.tf", "leaf tree should include the module's own files")
+	assert.NotContains(t, tree, "modules/vpc", "leaf tree should not include the surrounding repo structure")
+	assert.NotContains(t, tree, "modules/sibling", "leaf tree should not pull in siblings")
 }
 
 func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {

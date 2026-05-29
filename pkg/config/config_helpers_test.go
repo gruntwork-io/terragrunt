@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -29,33 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
-
-// assertErrorType checks that the error chain contains an error of the same type as expectedErr.
-// Used by table-driven tests where the expected type is known only at runtime;
-// for static call sites prefer the type-parameterized requireErrorAs helper.
-func assertErrorType(t *testing.T, expectedErr, actualErr error) bool {
-	t.Helper()
-
-	target := reflect.New(reflect.TypeOf(expectedErr)).Interface()
-	if errors.As(actualErr, target) {
-		return true
-	}
-
-	return assert.Fail(t, "error type mismatch", "expected error of type %T in chain, but got %T", expectedErr, actualErr)
-}
-
-// requireErrorAs unwraps err looking for a value of type T and fails the test when none is found.
-// Type-parameterized wrapper over errors.As; prefer over assertErrorType when the target type is
-// known statically.
-func requireErrorAs[T error](t *testing.T, err error) T {
-	t.Helper()
-
-	var target T
-
-	require.ErrorAs(t, err, &target)
-
-	return target
-}
 
 func TestPathRelativeToInclude(t *testing.T) {
 	t.Parallel()
@@ -197,7 +168,7 @@ func TestRunCommand(t *testing.T) {
 	homeDir := os.Getenv("HOME")
 
 	testCases := []struct {
-		expectedErr    error
+		expectErr      func(t *testing.T, err error)
 		configPath     string
 		expectedOutput string
 		params         []string
@@ -253,18 +224,27 @@ func TestRunCommand(t *testing.T) {
 			expectedOutput: "foo",
 		},
 		{
-			params:      []string{"--terragrunt-no-cache", "--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:  homeDir,
-			expectedErr: config.ConflictingRunCmdCacheOptionsError{},
+			params:     []string{"--terragrunt-no-cache", "--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			configPath: homeDir,
+			expectErr: func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorAs(t, err, new(config.ConflictingRunCmdCacheOptionsError))
+			},
 		},
 		{
-			params:      []string{"--terragrunt-global-cache", "--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:  homeDir,
-			expectedErr: config.ConflictingRunCmdCacheOptionsError{},
+			params:     []string{"--terragrunt-global-cache", "--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			configPath: homeDir,
+			expectErr: func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorAs(t, err, new(config.ConflictingRunCmdCacheOptionsError))
+			},
 		},
 		{
-			configPath:  homeDir,
-			expectedErr: config.EmptyStringNotAllowedError("{run_cmd()}"),
+			configPath: homeDir,
+			expectErr: func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorAs(t, err, new(config.EmptyStringNotAllowedError))
+			},
 		},
 	}
 	for _, tc := range testCases {
@@ -275,14 +255,15 @@ func TestRunCommand(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, tc.configPath)
 
 			actualOutput, actualErr := config.RunCommand(ctx, pctx, l, vexec.NewOSExec(), tc.params)
-			if tc.expectedErr != nil {
-				if assert.Error(t, actualErr) {
-					assertErrorType(t, tc.expectedErr, actualErr)
-				}
-			} else {
-				require.NoError(t, actualErr)
-				assert.Equal(t, tc.expectedOutput, actualOutput)
+			if tc.expectErr != nil {
+				require.Error(t, actualErr)
+				tc.expectErr(t, actualErr)
+
+				return
 			}
+
+			require.NoError(t, actualErr)
+			assert.Equal(t, tc.expectedOutput, actualOutput)
 		})
 	}
 }
@@ -303,8 +284,13 @@ func absPath(t *testing.T, path string) string {
 func TestFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
+	expectParentFileNotFound := func(t *testing.T, err error) {
+		t.Helper()
+		require.ErrorAs(t, err, new(config.ParentFileNotFoundError))
+	}
+
 	testCases := []struct {
-		expectedErr       error
+		expectErr         func(t *testing.T, err error)
 		configPath        string
 		name              string
 		expectedPath      string
@@ -328,7 +314,7 @@ func TestFindInParentFolders(t *testing.T) {
 			params:            []string{"root.hcl"},
 			configPath:        absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "no-terragrunt-in-root", "child", "sub-child", config.DefaultTerragruntConfigPath)),
 			maxFoldersToCheck: 3,
-			expectedErr:       config.ParentFileNotFoundError{},
+			expectErr:         expectParentFileNotFound,
 		},
 		{
 			name:         "multiple-terragrunt-in-parents",
@@ -367,14 +353,14 @@ func TestFindInParentFolders(t *testing.T) {
 			expectedPath: absPath(t, "../../test/fixtures/parent-folders/with-params/tfwork"),
 		},
 		{
-			name:        "not-found",
-			configPath:  "/",
-			expectedErr: config.ParentFileNotFoundError{},
+			name:       "not-found",
+			configPath: "/",
+			expectErr:  expectParentFileNotFound,
 		},
 		{
-			name:        "not-found-with-path",
-			configPath:  "/fake/path",
-			expectedErr: config.ParentFileNotFoundError{},
+			name:       "not-found-with-path",
+			configPath: "/fake/path",
+			expectErr:  expectParentFileNotFound,
 		},
 		{
 			name:         "fallback",
@@ -396,14 +382,15 @@ func TestFindInParentFolders(t *testing.T) {
 			}
 
 			actualPath, actualErr := config.FindInParentFolders(ctx, pctx, l, tc.params)
-			if tc.expectedErr != nil {
-				if assert.Error(t, actualErr) {
-					assertErrorType(t, tc.expectedErr, actualErr)
-				}
-			} else {
-				require.NoError(t, actualErr)
-				assert.Equal(t, tc.expectedPath, actualPath)
+			if tc.expectErr != nil {
+				require.Error(t, actualErr)
+				tc.expectErr(t, actualErr)
+
+				return
 			}
+
+			require.NoError(t, actualErr)
+			assert.Equal(t, tc.expectedPath, actualPath)
 		})
 	}
 }
@@ -1064,8 +1051,7 @@ func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
 	_, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
 
-	var multiErr *errors.MultiError
-	require.ErrorAs(t, err, &multiErr)
+	require.Error(t, err)
 	require.ErrorContains(t, err, `Call to function "deep_merge" failed: Expected param of type map or object but got string.`)
 }
 
@@ -1639,7 +1625,7 @@ func TestStartsWithArityRegression(t *testing.T) {
 			require.NotPanics(t, func() {
 				_, err := config.StartsWith(ctx, pctx, tc.args)
 				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
-				requireErrorAs[config.WrongNumberOfParamsError](t, err)
+				require.ErrorAs(t, err, new(config.WrongNumberOfParamsError))
 			}, "startswith with %d args must not panic", len(tc.args))
 		})
 	}
@@ -1667,7 +1653,7 @@ func TestEndsWithArityRegression(t *testing.T) {
 			require.NotPanics(t, func() {
 				_, err := config.EndsWith(ctx, pctx, tc.args)
 				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
-				requireErrorAs[config.WrongNumberOfParamsError](t, err)
+				require.ErrorAs(t, err, new(config.WrongNumberOfParamsError))
 			}, "endswith with %d args must not panic", len(tc.args))
 		})
 	}
@@ -1695,7 +1681,7 @@ func TestStrContainsArityRegression(t *testing.T) {
 			require.NotPanics(t, func() {
 				_, err := config.StrContains(ctx, pctx, tc.args)
 				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
-				requireErrorAs[config.WrongNumberOfParamsError](t, err)
+				require.ErrorAs(t, err, new(config.WrongNumberOfParamsError))
 			}, "strcontains with %d args must not panic", len(tc.args))
 		})
 	}
@@ -1727,7 +1713,7 @@ func TestRunCommandOptionsOnlyArityRegression(t *testing.T) {
 			require.NotPanics(t, func() {
 				_, err := config.RunCommand(ctx, pctx, l, vexec.NewOSExec(), tc.params)
 				require.Error(t, err, "must return error when only option flags are supplied (%v)", tc.params)
-				requireErrorAs[config.EmptyStringNotAllowedError](t, err)
+				require.ErrorAs(t, err, new(config.EmptyStringNotAllowedError))
 			}, "run_cmd with options-only %v must not panic", tc.params)
 		})
 	}

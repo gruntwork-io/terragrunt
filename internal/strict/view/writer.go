@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 )
 
@@ -45,7 +44,7 @@ func (writer *Writer) DetailControl(control strict.Control) error {
 
 func (writer *Writer) output(output string) error {
 	if _, err := fmt.Fprint(writer, output); err != nil {
-		return errors.Errorf("failed to write output: %w", err)
+		return fmt.Errorf("failed to write output: %w", err)
 	}
 
 	return nil

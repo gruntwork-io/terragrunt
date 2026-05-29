@@ -13,7 +13,6 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
@@ -216,10 +215,10 @@ func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 // Returns an error if the maximum depth would be exceeded.
 func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 	if ctx.ParseDepth > MaxParseDepth {
-		return nil, errors.New(MaxParseDepthError{
+		return nil, MaxParseDepthError{
 			Depth: ctx.ParseDepth,
 			Max:   MaxParseDepth,
-		})
+		}
 	}
 
 	c := ctx.Clone()

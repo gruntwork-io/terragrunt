@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"

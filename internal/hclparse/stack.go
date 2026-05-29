@@ -5,7 +5,8 @@ import (
 	iofs "io/fs"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"

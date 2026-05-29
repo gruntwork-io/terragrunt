@@ -8,7 +8,8 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -217,10 +218,10 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 	}
 
 	if _, err := r.FS.Stat(sourcePath); err != nil {
-		return errors.New(ModuleDownloadErr{
+		return ModuleDownloadErr{
 			sourceURL: sourceURL,
 			details:   fmt.Sprintf("could not stat download path %s: %s", sourcePath, err),
-		})
+		}
 	}
 
 	if err := r.FS.RemoveAll(dstPath); err != nil {
@@ -251,12 +252,12 @@ func (r *RegistryGetter) resolveVersion(ctx context.Context, queryValues url.Val
 	versionList, hasVersion := queryValues[versionQueryKey]
 
 	if hasVersion && len(versionList) != 1 {
-		return "", errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
+		return "", MalformedRegistryURLErr{reason: "more than one version query"}
 	}
 
 	if hasVersion {
 		if versionList[0] == "" {
-			return "", errors.New(MalformedRegistryURLErr{reason: "version query is empty"})
+			return "", MalformedRegistryURLErr{reason: "version query is empty"}
 		}
 
 		return versionList[0], nil

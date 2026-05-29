@@ -1,7 +1,8 @@
 package list
 
 import (
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -76,7 +77,7 @@ func (o *Options) Validate() error {
 	}
 
 	if len(errs) > 0 {
-		return errors.New(errors.Join(errs...))
+		return errors.Join(errs...)
 	}
 
 	return nil

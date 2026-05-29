@@ -13,11 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
@@ -484,11 +485,11 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		},
 		{
 			logCustomFormat: "%time(color=green) %level %wrong",
-			expectedErr:     errors.Errorf(`invalid value "%%time(color=green) %%level %%wrong" for flag -log-custom-format: invalid placeholder name "wrong", available names: %s`, strings.Join(placeholders.NewPlaceholderRegister().Names(), ",")),
+			expectedErr:     fmt.Errorf(`invalid value "%%time(color=green) %%level %%wrong" for flag -log-custom-format: invalid placeholder name "wrong", available names: %s`, strings.Join(placeholders.NewPlaceholderRegister().Names(), ",")),
 		},
 		{
 			logCustomFormat: "%time(colorr=green) %level",
-			expectedErr:     errors.Errorf(`invalid value "%%time(colorr=green) %%level" for flag -log-custom-format: placeholder "time", invalid option name "colorr", available names: %s`, strings.Join(placeholders.Time().Options().Names(), ",")),
+			expectedErr:     fmt.Errorf(`invalid value "%%time(colorr=green) %%level" for flag -log-custom-format: placeholder "time", invalid option name "colorr", available names: %s`, strings.Join(placeholders.Time().Options().Names(), ",")),
 		},
 		{
 			logCustomFormat: "%time(color=green) %level(format=tinyy)",
@@ -1276,7 +1277,8 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 func TestInvalidSource(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureNotExistingSource)
 	generateTestCase := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
@@ -3706,7 +3708,8 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownload)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureDownload)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureAutoInit)
 
@@ -3850,7 +3853,7 @@ func TestModulePathInPlanErrorMessage(t *testing.T) {
 	require.Error(t, err)
 	output := stdout + "\n" + stderr + "\n" + err.Error() + "\n"
 
-	assert.Contains(t, output, "error occurred")
+	assert.Contains(t, output, "resolving dependency")
 }
 
 func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
@@ -4355,7 +4358,8 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 func TestLogFormatJSONOutput(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureNotExistingSource)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 
@@ -4385,7 +4389,8 @@ func TestLogFormatJSONOutput(t *testing.T) {
 		msgs = append(msgs, msg)
 	}
 
-	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.83.2")
+	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::"+mirror.URL)
+	assert.Contains(t, strings.Join(msgs, ""), "ref=v0.83.2")
 }
 
 func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {

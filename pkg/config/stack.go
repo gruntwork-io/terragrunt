@@ -30,19 +30,18 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 const (
 	// StackDir aliases inthclparse.StackDir so external callers (internal/stacks/output, etc.) keep their existing import path without a second source of truth.
-	StackDir = inthclparse.StackDir
-	// stackOriginFile is the sidecar recording the catalog source dir of a copied stack file.
-	stackOriginFile = ".terragrunt-stack-origin"
-	valuesFile      = "terragrunt.values.hcl"
-	manifestName    = ".terragrunt-stack-manifest"
-	unitDirPerm     = 0755
-	valueFilePerm   = 0644
+	StackDir      = inthclparse.StackDir
+	valuesFile    = "terragrunt.values.hcl"
+	manifestName  = ".terragrunt-stack-manifest"
+	unitDirPerm   = 0755
+	valueFilePerm = 0644
 )
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
@@ -96,25 +95,16 @@ type Stack struct {
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
 func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, pool *worker.Pool, stackFilePath string) error {
-	// resolveDir anchors relative source paths; falls back to stackSourceDir unless a .terragrunt-stack-origin sidecar redirects it.
 	stackSourceDir := filepath.Dir(stackFilePath)
-	resolveDir := stackSourceDir
-	stackDepsEnabled := pctx.Experiments.Evaluate(experiment.StackDependencies)
-
-	if stackDepsEnabled {
-		if origin := ReadStackOrigin(vfs.NewOSFS(), stackSourceDir); origin != "" {
-			resolveDir = origin
-		}
-	}
 
 	values, err := ReadValues(ctx, pctx, l, stackSourceDir)
 	if err != nil {
-		return errors.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
+		return fmt.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
 	}
 
 	stackFile, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, values)
 	if err != nil {
-		return errors.Errorf("Failed to read stack file %s in %s %w", stackFilePath, stackSourceDir, err)
+		return fmt.Errorf("failed to read stack file %s in %s %w", stackFilePath, stackSourceDir, err)
 	}
 
 	stackTargetDir := filepath.Join(stackSourceDir, StackDir)
@@ -133,14 +123,14 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return AutoIncludeParserStageError{
 				Stage: "autoinclude-parser",
 				File:  stackFilePath,
-				Err:   errors.Errorf("stack autoinclude is only supported for HCL stack files, not JSON: %s", stackFilePath),
+				Err:   fmt.Errorf("stack autoinclude is only supported for HCL stack files, not JSON: %s", stackFilePath),
 			}
 		}
 
 		// stackSrcBytes is read separately for the autoinclude parser, which slices expression byte ranges from the original file when generating terragrunt.autoinclude.hcl.
 		stackSrcBytes, err = os.ReadFile(stackFilePath)
 		if err != nil {
-			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
+			return fmt.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 		}
 
 		// Rescope the parsing context to the stack file so terragrunt functions resolve paths relative to it instead of the root caller.
@@ -158,7 +148,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
 			Src:       stackSrcBytes,
 			Filename:  filepath.Base(stackFilePath),
-			StackDir:  resolveDir,
+			StackDir:  stackSourceDir,
 			Values:    values,
 			Variables: prodEvalCtx.Variables,
 			Functions: prodEvalCtx.Functions,
@@ -182,21 +172,20 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	}
 
 	genOpts := generateOpts{
-		rootWorkingDir:   pctx.RootWorkingDir,
-		logShowAbsPaths:  pctx.Writers.LogShowAbsPaths,
-		sourceMap:        pctx.SourceMap,
-		noStackValidate:  pctx.NoStackValidate,
-		stackConfigPath:  pctx.TerragruntStackConfigPath,
-		sourceFile:       stackFilePath,
-		sourceDir:        resolveDir,
-		targetDir:        stackTargetDir,
-		autoIncludes:     autoIncludes,
-		stackSrcBytes:    stackSrcBytes,
-		casEnabled:       cs.Enabled,
-		casInstance:      cs.Instance,
-		casVenv:          cs.Venv,
-		strictControls:   pctx.StrictControls,
-		stackDepsEnabled: stackDepsEnabled,
+		rootWorkingDir:  pctx.RootWorkingDir,
+		logShowAbsPaths: pctx.Writers.LogShowAbsPaths,
+		sourceMap:       pctx.SourceMap,
+		noStackValidate: pctx.NoStackValidate,
+		stackConfigPath: pctx.TerragruntStackConfigPath,
+		sourceFile:      stackFilePath,
+		sourceDir:       stackSourceDir,
+		targetDir:       stackTargetDir,
+		autoIncludes:    autoIncludes,
+		stackSrcBytes:   stackSrcBytes,
+		casEnabled:      cs.Enabled,
+		casInstance:     cs.Instance,
+		casVenv:         cs.Venv,
+		strictControls:  pctx.StrictControls,
 	}
 
 	if err := generateUnits(ctx, l, &genOpts, pool, stackFile.Units); err != nil {
@@ -221,21 +210,21 @@ func validateUpdateSourceWithCAS(stackFile *StackConfig, stackFilePath string, c
 
 	for _, unit := range stackFile.Units {
 		if unit.UpdateSourceWithCAS != nil && *unit.UpdateSourceWithCAS {
-			return errors.New(&cas.UpdateSourceWithCASRequiresCASError{
+			return &cas.UpdateSourceWithCASRequiresCASError{
 				BlockType: "unit",
 				Name:      unit.Name,
 				Path:      stackFilePath,
-			})
+			}
 		}
 	}
 
 	for _, stack := range stackFile.Stacks {
 		if stack.UpdateSourceWithCAS != nil && *stack.UpdateSourceWithCAS {
-			return errors.New(&cas.UpdateSourceWithCASRequiresCASError{
+			return &cas.UpdateSourceWithCASRequiresCASError{
 				BlockType: "stack",
 				Name:      stack.Name,
 				Path:      stackFilePath,
-			})
+			}
 		}
 	}
 
@@ -284,21 +273,20 @@ func setupCAS(l log.Logger, enabled bool, cloneDepth int) (casSetup, error) {
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
-	autoIncludes     map[string]*inthclparse.AutoIncludeResolved
-	casInstance      *cas.CAS
-	casVenv          cas.Venv
-	sourceMap        map[string]string
-	strictControls   strict.Controls
-	rootWorkingDir   string
-	stackConfigPath  string
-	sourceFile       string
-	sourceDir        string
-	targetDir        string
-	stackSrcBytes    []byte
-	logShowAbsPaths  bool
-	noStackValidate  bool
-	casEnabled       bool
-	stackDepsEnabled bool
+	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
+	casInstance     *cas.CAS
+	casVenv         cas.Venv
+	sourceMap       map[string]string
+	strictControls  strict.Controls
+	rootWorkingDir  string
+	stackConfigPath string
+	sourceFile      string
+	sourceDir       string
+	targetDir       string
+	stackSrcBytes   []byte
+	logShowAbsPaths bool
+	noStackValidate bool
+	casEnabled      bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -396,7 +384,7 @@ type componentToGenerate struct {
 // resolveDestPath builds and validates the destination path for a generated component.
 func resolveDestPath(cmp *componentToGenerate, opts *generateOpts) (string, error) {
 	if filepath.IsAbs(cmp.path) {
-		return "", errors.Errorf("path %s must be relative", cmp.path)
+		return "", fmt.Errorf("path %s must be relative", cmp.path)
 	}
 
 	// Compute destination: noStack components go to parent of targetDir,
@@ -412,7 +400,7 @@ func resolveDestPath(cmp *componentToGenerate, opts *generateOpts) (string, erro
 	// instead of strings.HasPrefix to avoid prefix-overlap bypasses.
 	rel, err := filepath.Rel(filepath.Clean(baseDir), dest)
 	if err != nil || strings.HasPrefix(rel, "..") {
-		return "", errors.Errorf("%s destination path '%s' is outside of the stack directory '%s'", cmp.name, dest, baseDir)
+		return "", fmt.Errorf("%s destination path '%s' is outside of the stack directory '%s'", cmp.name, dest, baseDir)
 	}
 
 	return dest, nil
@@ -446,9 +434,11 @@ func validateGeneratedComponent(l log.Logger, cmp *componentToGenerate, opts *ge
 	if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
 		if opts.noStackValidate {
 			l.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
-		} else {
-			return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
+
+			return nil
 		}
+
+		return fmt.Errorf("validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
 	}
 
 	return nil
@@ -473,7 +463,7 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 	l.Infof("Generating %s for %s %s in %s", inthclparse.AutoIncludeFileNameForKind(kind), kind, cmp.name, util.RelPathForLog(opts.rootWorkingDir, dest, opts.logShowAbsPaths))
 
 	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, resolved.SourceBytes, resolved.EvalCtx); err != nil {
-		return errors.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
+		return fmt.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
 	}
 
 	return nil
@@ -485,7 +475,7 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 	// Adjust source path using the provided source mapping configuration if available
 	source, err := adjustSourceWithMap(opts.sourceMap, source, opts.stackConfigPath)
 	if err != nil {
-		return errors.Errorf("failed to adjust source %s: %w", cmp.source, err)
+		return fmt.Errorf("failed to adjust source %s: %w", cmp.source, err)
 	}
 
 	dest, err := resolveDestPath(cmp, opts)
@@ -508,13 +498,8 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		return err
 	}
 
-	// Record the catalog source dir as a sidecar so nested recursion resolves relative paths against the original catalog.
-	if cmp.kind == stackKind && opts.stackDepsEnabled {
-		writeStackOrigin(l, cmp.sourceDir, source, dest)
-	}
-
 	if err := writeValues(l, cmp.values, dest); err != nil {
-		return errors.Errorf("failed to write values %v %w", cmp.name, err)
+		return fmt.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
 	return generateAutoInclude(l, opts, cmp, dest)
@@ -544,11 +529,11 @@ func fetchComponentSource(
 
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
-			return errors.Errorf("cas:: source on %s %q requires the 'cas' experiment to be enabled", kindStr, cmp.name)
+			return fmt.Errorf("cas:: source on %s %q requires the 'cas' experiment to be enabled", kindStr, cmp.name)
 		}
 
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
-			return errors.Errorf("Failed to create directory %s for %s %w", dest, cmp.name, err)
+			return fmt.Errorf("failed to create directory %s for %s %w", dest, cmp.name, err)
 		}
 
 		// Strip the cas:: prefix and parse the hash
@@ -556,7 +541,7 @@ func fetchComponentSource(
 
 		hash, err := cas.ParseCASRef(casRef)
 		if err != nil {
-			return errors.Errorf("Failed to parse CAS reference for %s %s: %w", kindStr, cmp.name, err)
+			return fmt.Errorf("failed to parse CAS reference for %s %s: %w", kindStr, cmp.name, err)
 		}
 
 		var matOpts []cas.LinkTreeOption
@@ -565,7 +550,7 @@ func fetchComponentSource(
 		}
 
 		if err := opts.casInstance.MaterializeTree(ctx, l, opts.casVenv, hash, dest, matOpts...); err != nil {
-			return errors.Errorf("Failed to materialize CAS tree for %s %s: %w", kindStr, cmp.name, err)
+			return fmt.Errorf("failed to materialize CAS tree for %s %s: %w", kindStr, cmp.name, err)
 		}
 
 		return nil
@@ -581,8 +566,8 @@ func fetchComponentSource(
 	}
 
 	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
-		return errors.Errorf(
-			"Failed to fetch %s %s\n"+
+		return fmt.Errorf(
+			"failed to fetch %s %s\n"+
 				"  Source:      %s\n"+
 				"  Destination: %s\n\n"+
 				"Troubleshooting:\n"+
@@ -673,80 +658,33 @@ func isCASProtocol(source string) bool {
 // contents of the source directory to the destination. If remote, it fetches the
 // source and stores it in the destination directory.
 func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, dest string) error {
-	if isLocal(l, sourceDir, src) {
-		// check if src is absolute path, if not, join with sourceDir
-		var localSrc string
-
-		if filepath.IsAbs(src) {
-			localSrc = src
-		} else {
-			localSrc = filepath.Join(sourceDir, src)
-		}
-
-		localSrc = filepath.Clean(localSrc)
-
-		if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
-			return true
-		}); err != nil {
-			return errors.Errorf("Failed to copy %s to %s %w", localSrc, dest, err)
-		}
-	} else {
+	if !isLocal(l, sourceDir, src) {
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
-			return errors.Errorf("Failed to create directory %s for %s %w", dest, identifier, err)
+			return fmt.Errorf("failed to create directory %s for %s %w", dest, identifier, err)
 		}
 
 		if _, err := getter.GetAny(ctx, dest, src); err != nil {
-			return errors.Errorf("Failed to fetch %s %s for %s %w", src, dest, identifier, err)
+			return fmt.Errorf("failed to fetch %s %s for %s %w", src, dest, identifier, err)
 		}
+
+		return nil
+	}
+
+	localSrc := src
+
+	if !filepath.IsAbs(src) {
+		localSrc = filepath.Join(sourceDir, src)
+	}
+
+	localSrc = filepath.Clean(localSrc)
+
+	if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
+		return true
+	}); err != nil {
+		return fmt.Errorf("failed to copy %s to %s %w", localSrc, dest, err)
 	}
 
 	return nil
-}
-
-// ReadStackOrigin returns the absolute catalog source dir from the .terragrunt-stack-origin sidecar, or "" if missing/malformed.
-func ReadStackOrigin(fsys vfs.FS, stackDir string) string {
-	data, err := vfs.ReadFile(fsys, filepath.Join(stackDir, stackOriginFile))
-	if err != nil {
-		return ""
-	}
-
-	origin := strings.TrimSpace(string(data))
-	if origin == "" {
-		return ""
-	}
-
-	origin = filepath.Clean(origin)
-	if !filepath.IsAbs(origin) {
-		return ""
-	}
-
-	info, err := fsys.Stat(origin)
-	if err != nil || !info.IsDir() {
-		return ""
-	}
-
-	return origin
-}
-
-// writeStackOrigin records the catalog source dir in a sidecar so nested recursion resolves relative paths against the original catalog.
-func writeStackOrigin(l log.Logger, sourceDir, source, dest string) {
-	if !isLocal(l, sourceDir, source) {
-		return
-	}
-
-	localSrc := source
-	if !filepath.IsAbs(localSrc) {
-		localSrc = filepath.Join(sourceDir, localSrc)
-	}
-
-	absOrigin, err := filepath.Abs(localSrc)
-	if err != nil {
-		return
-	}
-
-	if err := os.WriteFile(filepath.Join(dest, stackOriginFile), []byte(absOrigin), valueFilePerm); err != nil {
-		l.Debugf("failed to write %s in %s: %v", stackOriginFile, dest, err)
-	}
 }
 
 // isLocal determines if a given source path is local or remote.
@@ -776,12 +714,12 @@ func (u *Unit) ReadOutputs(ctx context.Context, l log.Logger, pctx *ParsingConte
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, configPath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	outputMap, err := TerraformOutputJSONToCtyValueMap(configPath, jsonBytes)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return outputMap, nil
@@ -799,7 +737,7 @@ func ReadStackConfigFile(ctx context.Context, l log.Logger, pctx *ParsingContext
 
 	file, err := hclparse.NewParser(stackPctx.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return ParseStackConfig(ctx, l, stackPctx, file, values)
@@ -820,7 +758,7 @@ func ReadStackConfigString(
 
 	hclFile, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return ParseStackConfig(ctx, l, pctx, hclFile, values)
@@ -833,17 +771,17 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 	}
 
 	if err := processLocals(ctx, l, parser, file); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	config := &StackConfigFile{}
 	if decodeErr := file.Decode(config, evalParsingContext); decodeErr != nil {
-		return nil, errors.New(decodeErr)
+		return nil, decodeErr
 	}
 
 	// Process include blocks when the stack-dependencies experiment is enabled.
@@ -860,7 +798,7 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 
 		localsParsed, err = ctyhelper.ParseCtyValueToMap(*parser.Locals)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 	}
 
@@ -871,7 +809,7 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 	}
 
 	if err := ValidateStackConfig(config); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return stackConfig, nil
@@ -890,20 +828,20 @@ func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCt
 
 		incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(includePath)
 		if err != nil {
-			return errors.Errorf("failed to read include %q: %w", inc.Name, err)
+			return fmt.Errorf("failed to read include %q: %w", inc.Name, err)
 		}
 
 		included := &StackConfigFile{}
 		if decodeErr := incFile.Decode(included, evalCtx); decodeErr != nil {
-			return errors.Errorf("failed to decode include %q: %w", inc.Name, decodeErr)
+			return fmt.Errorf("failed to decode include %q: %w", inc.Name, decodeErr)
 		}
 
 		if included.Locals != nil {
-			return errors.Errorf("included stack file %q must not define locals", inc.Name)
+			return fmt.Errorf("included stack file %q must not define locals", inc.Name)
 		}
 
 		if len(included.Includes) > 0 {
-			return errors.Errorf("included stack file %q must not define nested includes", inc.Name)
+			return fmt.Errorf("included stack file %q must not define nested includes", inc.Name)
 		}
 
 		config.Units = append(config.Units, included.Units...)
@@ -955,7 +893,7 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 	valType := values.Type()
 
 	if !valType.IsObjectType() && !valType.IsMapType() {
-		return errors.Errorf("writeValues: expected object or map, got %s", valType.FriendlyName())
+		return fmt.Errorf("writeValues: expected object or map, got %s", valType.FriendlyName())
 	}
 
 	if directory == "" {
@@ -963,7 +901,7 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 	}
 
 	if err := os.MkdirAll(directory, unitDirPerm); err != nil {
-		return errors.Errorf("failed to create directory %s: %w", directory, err)
+		return fmt.Errorf("failed to create directory %s: %w", directory, err)
 	}
 
 	l.Debugf("Writing values file in %s", directory)
@@ -994,7 +932,7 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 	}
 
 	if err := os.WriteFile(filePath, file.Bytes(), valueFilePerm); err != nil {
-		return errors.Errorf("failed to write values file %s: %w", filePath, err)
+		return fmt.Errorf("failed to write values file %s: %w", filePath, err)
 	}
 
 	return nil
@@ -1016,18 +954,18 @@ func ReadValues(ctx context.Context, pctx *ParsingContext, l log.Logger, directo
 
 	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	values := map[string]cty.Value{}
 
 	if err := file.Decode(&values, evalParsingContext); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	result := cty.ObjectVal(values)
@@ -1039,7 +977,7 @@ func ReadValues(ctx context.Context, pctx *ParsingContext, l log.Logger, directo
 func processLocals(ctx context.Context, l log.Logger, parser *ParsingContext, file *hclparse.File) error {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if len(localsBlock) == 0 {
@@ -1047,12 +985,12 @@ func processLocals(ctx context.Context, l log.Logger, parser *ParsingContext, fi
 	}
 
 	if len(localsBlock) > 1 {
-		return errors.New(fmt.Sprintf("up to one locals block is allowed per stack file, but found %d in %s", len(localsBlock), file.ConfigPath))
+		return fmt.Errorf("up to one locals block is allowed per stack file, but found %d in %s", len(localsBlock), file.ConfigPath)
 	}
 
 	attrs, err := localsBlock[0].JustAttributes()
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	evaluatedLocals := map[string]cty.Value{}
@@ -1062,7 +1000,7 @@ func processLocals(ctx context.Context, l log.Logger, parser *ParsingContext, fi
 		if iterations > MaxIter {
 			// Reached maximum supported iterations, which is most likely an infinite loop bug so cut the iteration
 			// short and return an error.
-			return errors.New(MaxIterError{})
+			return MaxIterError{}
 		}
 
 		var evalErr error
@@ -1078,13 +1016,13 @@ func processLocals(ctx context.Context, l log.Logger, parser *ParsingContext, fi
 		if evalErr != nil {
 			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(parser.RootWorkingDir, file.ConfigPath, parser.Writers.LogShowAbsPaths))
 
-			return errors.New(evalErr)
+			return evalErr
 		}
 	}
 
 	localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	parser.Locals = &localsAsCtyVal

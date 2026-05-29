@@ -5,7 +5,6 @@ import (
 	"io"
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 )
 
@@ -58,7 +57,7 @@ func (writer *Writer) ShowConfigPath(diags diagnostic.Diagnostics) error {
 
 func (writer *Writer) output(output string) error {
 	if _, err := fmt.Fprint(writer, output); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil

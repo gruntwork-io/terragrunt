@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -101,7 +100,7 @@ func AdjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 
 	// if both URL and subdir are missing, something went terribly wrong
 	if moduleURL == "" && moduleSubdir == "" {
-		return "", errors.New(InvalidSourceURLWithMapError{ModulePath: modulePath, ModuleSourceURL: source})
+		return "", InvalidSourceURLWithMapError{ModulePath: modulePath, ModuleSourceURL: source}
 	}
 
 	// If module URL is missing, return the source as is as it will not match anything in the map.
@@ -186,7 +185,7 @@ func GetModulePathFromSourceURL(sourceURL string) (string, error) {
 	// then something went wrong with regex (invalid source string)
 	const matchedPats = 2
 	if len(matches) != matchedPats {
-		return "", errors.New(ParsingModulePathError{ModuleSourceURL: sourceURL})
+		return "", ParsingModulePathError{ModuleSourceURL: sourceURL}
 	}
 
 	return matches[1], nil
@@ -250,14 +249,14 @@ func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
 
 		// Validate retry settings
 		if retryBlock.MaxAttempts < 1 {
-			return nil, errors.Errorf(
+			return nil, fmt.Errorf(
 				"cannot have less than 1 max retry in errors.retry %q, but you specified %d",
 				retryBlock.Label, retryBlock.MaxAttempts,
 			)
 		}
 
 		if retryBlock.SleepIntervalSec < 0 {
-			return nil, errors.Errorf(
+			return nil, fmt.Errorf(
 				"cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d",
 				retryBlock.Label, retryBlock.SleepIntervalSec,
 			)
@@ -268,7 +267,7 @@ func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
 		for _, pattern := range retryBlock.RetryableErrors {
 			value, err := errorsPattern(pattern)
 			if err != nil {
-				return nil, errors.Errorf("invalid retry pattern %q in block %q: %w",
+				return nil, fmt.Errorf("invalid retry pattern %q in block %q: %w",
 					pattern, retryBlock.Label, err)
 			}
 
@@ -306,7 +305,7 @@ func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
 		for _, pattern := range ignoreBlock.IgnorableErrors {
 			value, err := errorsPattern(pattern)
 			if err != nil {
-				return nil, errors.Errorf("invalid ignore pattern %q in block %q: %w",
+				return nil, fmt.Errorf("invalid ignore pattern %q in block %q: %w",
 					pattern, ignoreBlock.Label, err)
 			}
 

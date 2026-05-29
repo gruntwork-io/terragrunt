@@ -3,7 +3,7 @@ package runall
 import (
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
 )
 
 type RunAllDisabledErr struct {

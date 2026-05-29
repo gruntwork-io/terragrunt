@@ -249,8 +249,9 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 func TestRunnerPoolRemoteSource(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.StartTerragruntMirror(t)
 	helpers.CleanupTerraformFolder(t, testFixtureRunnerPoolRemoteSource)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunnerPoolRemoteSource)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureRunnerPoolRemoteSource)
 	testPath := filepath.Join(tmpEnvPath, testFixtureRunnerPoolRemoteSource)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+"  -- apply")
@@ -262,18 +263,19 @@ func TestRunnerPoolRemoteSource(t *testing.T) {
 func TestRunnerPoolSourceMap(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.StartTerragruntMirror(t)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureSourceMapSlashes)
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all --non-interactive "+
-			"--source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=github.com/gruntwork-io/terragrunt.git?ref=v0.85.0 "+
+			"--source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::"+mirror.URL+"?ref=v0.85.0 "+
 			"--working-dir "+testPath+" -- apply ",
 	)
 	require.NoError(t, err)
 	// Verify that source map values are used
-	require.Contains(t, stderr, "configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.85.0")
+	require.Contains(t, stderr, "configurations from git::"+mirror.URL+"?ref=v0.85.0")
 }
 
 // TestAuthProviderParallelExecution verifies that --auth-provider-cmd is executed in parallel

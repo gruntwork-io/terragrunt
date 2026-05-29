@@ -4,8 +4,10 @@ package test_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -978,4 +980,174 @@ func TestStackDepsRunAllWithFunctionsInNestedStack(t *testing.T) {
 	assert.Contains(t, vpcOutput, "vpc-from-nested-stack")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+}
+
+// TestStackDepsNestedSameNameWithCAS covers a stack named "foo" containing a unit also named "foo": CAS must rewrite the relative source in the catalog stack file without name collisions, and an external sibling unit "bar" depends on the nested foo unit via the supported `${stack.foo.path}/.terragrunt-stack/foo` hand-computed path.
+func TestStackDepsNestedSameNameWithCAS(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	catalog := helpers.TmpDirWOSymlinks(t)
+	liveDir := helpers.TmpDirWOSymlinks(t)
+
+	writeStackDepsFile(t, catalog, "units/foo/main.tf", `resource "local_file" "marker" {
+  content  = "Hello from unit foo inside stack foo!"
+  filename = "${path.module}/output.txt"
+}
+
+output "val" {
+  value = "from-stack-foo-unit-foo"
+}
+`)
+	writeStackDepsFile(t, catalog, "units/foo/terragrunt.hcl", ``)
+
+	writeStackDepsFile(t, catalog, "units/bar/main.tf", `variable "val" {
+  type        = string
+  description = "Value received from the nested foo unit"
+}
+
+resource "local_file" "marker" {
+  content  = "Received: ${var.val}"
+  filename = "${path.module}/input.txt"
+}
+
+output "received_val" {
+  value = var.val
+}
+`)
+	writeStackDepsFile(t, catalog, "units/bar/terragrunt.hcl", ``)
+
+	writeStackDepsFile(t, catalog, "stacks/foo/terragrunt.stack.hcl", `unit "foo" {
+  source = "../..//units/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`)
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = %s
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+
+unit "bar" {
+  source = %s
+  path   = "bar"
+
+  update_source_with_cas = true
+
+  autoinclude {
+    dependency "foo_unit" {
+      config_path = "${stack.foo.path}/.terragrunt-stack/foo"
+
+      mock_outputs_allowed_terraform_commands = ["validate", "plan"]
+      mock_outputs = {
+        val = "fake-val"
+      }
+    }
+
+    inputs = {
+      val = dependency.foo_unit.outputs.val
+    }
+  }
+}
+`,
+		strconv.Quote(filepath.ToSlash(catalog)+"//stacks/foo"),
+		strconv.Quote(filepath.ToSlash(catalog)+"//units/bar"),
+	)
+	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+liveDir)
+
+	nestedFooStackFile := filepath.Join(liveDir, inthclparse.StackDir, "foo", "terragrunt.stack.hcl")
+	require.FileExists(t, nestedFooStackFile)
+
+	nestedFooUnitTfgFile := filepath.Join(liveDir, inthclparse.StackDir, "foo", inthclparse.StackDir, "foo", "terragrunt.hcl")
+	require.FileExists(t, nestedFooUnitTfgFile)
+
+	nestedFooStackContent, err := os.ReadFile(nestedFooStackFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(nestedFooStackContent), "cas::", "nested stack file should reference CAS after generation")
+	assert.NotContains(t, string(nestedFooStackContent), "../..//units/foo", "relative source must be rewritten by CAS")
+
+	barAutoInclude := filepath.Join(liveDir, inthclparse.StackDir, "bar", inthclparse.AutoIncludeFile)
+	require.FileExists(t, barAutoInclude)
+
+	content, err := os.ReadFile(barAutoInclude)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `dependency "foo_unit"`)
+	assert.Contains(t, string(content), "dependency.foo_unit.outputs.val")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+liveDir+" -- apply -auto-approve")
+
+	barInputPath := helpers.FindCachedFile(t, filepath.Join(liveDir, inthclparse.StackDir, "bar"), "input.txt")
+	barInputContent, err := os.ReadFile(barInputPath)
+	require.NoError(t, err)
+	assert.Equal(t, "Received: from-stack-foo-unit-foo", string(barInputContent))
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+liveDir+" -- destroy -auto-approve")
+}
+
+// TestStackDepsRelativeCatalogSourceRewrittenByCAS pins the supported flow for relative source paths inside catalog stack files: under the cas + stack-dependencies experiments, a nested catalog stack file using `source = "../..//units/foo"` is rewritten by CAS to a cas:: reference, so the generated copy under .terragrunt-stack is self-contained and does not require any sidecar metadata.
+func TestStackDepsRelativeCatalogSourceRewrittenByCAS(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	catalog := helpers.TmpDirWOSymlinks(t)
+	liveDir := helpers.TmpDirWOSymlinks(t)
+
+	writeStackDepsFile(t, catalog, "units/baz/main.tf", `output "value" { value = "baz" }`)
+	writeStackDepsFile(t, catalog, "units/baz/terragrunt.hcl", ``)
+
+	writeStackDepsFile(t, catalog, "stacks/inner/terragrunt.stack.hcl", `unit "baz" {
+  source = "../..//units/baz"
+  path   = "baz"
+
+  update_source_with_cas = true
+}
+`)
+
+	liveStack := fmt.Sprintf(`stack "inner" {
+  source = %s
+  path   = "inner"
+
+  update_source_with_cas = true
+}
+`, strconv.Quote(filepath.ToSlash(catalog)+"//stacks/inner"))
+	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+liveDir)
+
+	nestedStackFile := filepath.Join(liveDir, inthclparse.StackDir, "inner", "terragrunt.stack.hcl")
+	require.FileExists(t, nestedStackFile)
+
+	// CAS must rewrite the relative source in the copied catalog stack file so the generated copy is self-contained.
+	body, err := os.ReadFile(nestedStackFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "cas::", "nested stack file must reference CAS after generation")
+	assert.NotContains(t, string(body), "../..//units/baz", "relative source must be rewritten by CAS")
+
+	// No sidecar file should be written next to the copied stack.
+	assert.NoFileExists(t, filepath.Join(liveDir, inthclparse.StackDir, "inner", ".terragrunt-stack-origin"),
+		"sidecar must not be written; CAS is the supported source-resolution path")
+
+	// And the nested unit must materialize under the recursion target.
+	require.FileExists(t, filepath.Join(liveDir, inthclparse.StackDir, "inner", inthclparse.StackDir, "baz", "terragrunt.hcl"))
+}
+
+// writeStackDepsFile writes body to root/rel, creating parent dirs as needed; test fails on any error.
+func writeStackDepsFile(t *testing.T, root, rel, body string) {
+	t.Helper()
+
+	full := filepath.Join(root, rel)
+	require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
+	require.NoError(t, os.WriteFile(full, []byte(body), 0644))
 }

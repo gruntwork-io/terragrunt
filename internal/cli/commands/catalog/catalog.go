@@ -3,8 +3,9 @@ package catalog
 import (
 	"context"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/pkg/log"

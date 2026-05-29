@@ -8,7 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -145,7 +146,7 @@ func TestListModules_ErrorFromNewRepo(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
-	expectedErr := errors.Errorf("failed to clone repo")
+	expectedErr := errors.New("failed to clone repo")
 	mockNewRepo := func(ctx context.Context, logger log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
 		return nil, expectedErr
 	}

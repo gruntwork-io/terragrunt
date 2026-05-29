@@ -2,8 +2,6 @@ package options
 
 import (
 	"encoding/json"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // EscapeOptionName is the option name.
@@ -32,7 +30,7 @@ func (option *EscapeOption) Format(_ *Data, val any) (any, error) {
 
 	jsonStr, err := json.Marshal(val)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	// Trim the beginning and trailing " character.
