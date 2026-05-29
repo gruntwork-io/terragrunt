@@ -152,7 +152,7 @@ jobs:
       - name: "Setup Docker"
         if: runner.os == 'Linux'
         id: set-up-docker
-        uses: docker/setup-docker-action@1a6edb0ba9ac496f6850236981f15d8f9a82254d # v5
+        uses: docker/setup-docker-action@b2189fbf2a6592b51fee7cdd93ee2bfaeba733db # v5
 
       - name: "Save space on node"
         if: runner.os != 'Windows'
@@ -267,7 +267,7 @@ jobs:
             result.xml
 
       - name: Display Test Results (${{ matrix.integration.name }})
-        uses: mikepenz/action-junit-report@49b2ca06f62aa7ef83ae6769a2179271e160d8e4 # v6
+        uses: mikepenz/action-junit-report@3a81627bfac62268172037048872e8ebd4207e6d # v6
         if: always()
         with:
           report_paths: result.xml

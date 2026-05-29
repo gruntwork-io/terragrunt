@@ -5,8 +5,16 @@ import {
   isReleased,
   parsePullRequests,
   prepareForGitHub,
+  pullRequestsFromCommits,
   pullRequestsToMarkdown,
 } from "./changelog";
+
+function commit(message: string, login: string | null, name?: string) {
+  return {
+    commit: { message, author: name ? { name } : null },
+    author: login === null ? null : { login },
+  };
+}
 
 const SITE = "https://terragrunt.gruntwork.io";
 
@@ -99,6 +107,57 @@ describe("pullRequestsToMarkdown", () => {
     expect(md).toContain("### ✨ Features");
     expect(md).toContain("[@alice](https://github.com/alice)");
     expect(md).toContain("[#1](https://github.com/o/r/pull/1)");
+  });
+});
+
+describe("pullRequestsFromCommits", () => {
+  test("groups commits by type and strips the PR-number suffix from titles", () => {
+    const groups = pullRequestsFromCommits(
+      [
+        commit("feat: add a thing (#1)", "alice"),
+        commit("fix(parser): tighten regex (#2)", "bob"),
+        commit("feat!: rip out the old API (#3)", "carol"),
+      ],
+      "gruntwork-io",
+      "terragrunt",
+    );
+
+    expect(groups.map((g) => g.type.key)).toEqual(["breaking", "feat", "fix"]);
+    expect(groups[1].items[0].title).toBe("feat: add a thing");
+  });
+
+  test("derives prNumber and prUrl from the suffix", () => {
+    const [group] = pullRequestsFromCommits(
+      [commit("fix: a bug (#6218)", "alice")],
+      "gruntwork-io",
+      "terragrunt",
+    );
+
+    expect(group.items[0].prNumber).toBe(6218);
+    expect(group.items[0].prUrl).toBe(
+      "https://github.com/gruntwork-io/terragrunt/pull/6218",
+    );
+  });
+
+  test("skips commits without a PR-number suffix", () => {
+    const groups = pullRequestsFromCommits(
+      [commit("fix: direct push, no PR", "alice"), commit("feat: real PR (#7)", "bob")],
+      "gruntwork-io",
+      "terragrunt",
+    );
+
+    const titles = groups.flatMap((g) => g.items.map((i) => i.title));
+    expect(titles).toEqual(["feat: real PR"]);
+  });
+
+  test("falls back to the git author name when the GitHub login is missing", () => {
+    const [group] = pullRequestsFromCommits(
+      [commit("fix: a bug (#8)", null, "Detached Committer")],
+      "gruntwork-io",
+      "terragrunt",
+    );
+
+    expect(group.items[0].author).toBe("Detached Committer");
   });
 });
 
