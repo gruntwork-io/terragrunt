@@ -312,7 +312,7 @@ cmd_compare_timing() {
 		echo "No previous timing data found - emitting current-only report."
 		jq '{
 			baseline: true,
-			current_total_sec: .total_sec,
+			current_total_sec: ((.total_sec * 10 | round) / 10),
 			previous_total_sec: null,
 			total_delta_sec: null,
 			slow_packages: (
@@ -400,8 +400,8 @@ cmd_compare_timing() {
 
 		{
 			baseline: false,
-			current_total_sec: ($c.total_sec // 0),
-			previous_total_sec: ($p.total_sec // 0),
+			current_total_sec: ((($c.total_sec // 0) * 10 | round) / 10),
+			previous_total_sec: ((($p.total_sec // 0) * 10 | round) / 10),
 			total_delta_sec: ((($c.total_sec // 0) - ($p.total_sec // 0)) * 10 | round / 10),
 			slow_packages: $slow_packages,
 			top_regressions: $top_regressions
@@ -546,6 +546,19 @@ cmd_notify() {
 	local repo="${REPO:-gruntwork-io/terragrunt}"
 	local run_url="${GITHUB_SERVER_URL:-https://github.com}/${repo}/actions/runs/${GITHUB_RUN_ID:-0}"
 
+	# Header: one dated line per endpoint rather than a single prev...current line.
+	local cur_sha="${CURRENT_SHA:-}" cur_date="${CURRENT_DATE:-unknown}"
+	local prev_sha="${PREVIOUS_SHA:-}" prev_date="${PREVIOUS_DATE:-unknown}"
+	local header="*Weekly Coverage + Runtime: terragrunt*"
+	if [[ -n "$cur_sha" && -n "$prev_sha" ]]; then
+		header+=$'\n'"From: ${prev_date} ${prev_sha}"
+		header+=$'\n'"To: ${cur_date} ${cur_sha}"
+	elif [[ -n "$cur_sha" ]]; then
+		header+=$'\n'"At: ${cur_date} ${cur_sha}"
+	else
+		header="*Weekly Coverage + Runtime: terragrunt ${tag}*"
+	fi
+
 	if [[ ! -f "$cov" ]]; then
 		echo "Error: coverage report '$cov' not found" >&2
 		exit 1
@@ -557,7 +570,7 @@ cmd_notify() {
 
 	local payload
 	payload=$(jq -n \
-		--arg tag "$tag" \
+		--arg header "$header" \
 		--arg run_url "$run_url" \
 		--slurpfile cov "$cov" \
 		--slurpfile tim "$tim" '
@@ -603,7 +616,7 @@ cmd_notify() {
 
 		{
 			text: (
-				"*Weekly Coverage + Runtime: terragrunt \($tag)*\n\n"
+				($header + "\n\n")
 				+ $cov_block
 				+ "\n\n" + $rt_line
 				+ (if $slow_pkgs != "" then "\n\n" + $slow_pkgs else "" end)

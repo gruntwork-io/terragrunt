@@ -81,10 +81,15 @@ jobs:
           else
             echo "same_commit=false" >> "$GITHUB_OUTPUT"
           fi
+          CURRENT_DATE="$(git show -s --format=%cs "$CURRENT_SHA" 2>/dev/null || echo unknown)"
+          PREVIOUS_DATE=""
+          [[ -n "$PREVIOUS_SHA" ]] && PREVIOUS_DATE="$(git show -s --format=%cs "$PREVIOUS_SHA" 2>/dev/null || echo unknown)"
           echo "current_sha=${CURRENT_SHA}" >> "$GITHUB_OUTPUT"
           echo "previous_sha=${PREVIOUS_SHA}" >> "$GITHUB_OUTPUT"
-          echo "Current:  ${CURRENT_SHA}"
-          echo "Previous: ${PREVIOUS_SHA:-<none>}"
+          echo "current_date=${CURRENT_DATE}" >> "$GITHUB_OUTPUT"
+          echo "previous_date=${PREVIOUS_DATE}" >> "$GITHUB_OUTPUT"
+          echo "Current:  ${CURRENT_DATE} ${CURRENT_SHA}"
+          echo "Previous: ${PREVIOUS_DATE:-<none>} ${PREVIOUS_SHA:-<none>}"
 
       - id: go-cache-paths
         run: |
@@ -243,6 +248,9 @@ jobs:
         if: always() && hashFiles('comparison-report.json') != '' && hashFiles('timing-comparison.json') != '' && env.COVERAGE_SLACK_WEBHOOK_URL != ''
         env:
           COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
-          TAG_NAME: "${{ steps.refs.outputs.same_commit == 'true' && format('weekly (current only) {0}', steps.refs.outputs.current_sha) || format('weekly {0}...{1}', steps.refs.outputs.previous_sha, steps.refs.outputs.current_sha) }}"
+          CURRENT_SHA: ${{ steps.refs.outputs.current_sha }}
+          CURRENT_DATE: ${{ steps.refs.outputs.current_date }}
+          PREVIOUS_SHA: ${{ steps.refs.outputs.previous_sha }}
+          PREVIOUS_DATE: ${{ steps.refs.outputs.previous_date }}
           REPO: ${{ github.repository }}
         run: ./.github/scripts/coverage/coverage-report.sh notify comparison-report.json timing-comparison.json
