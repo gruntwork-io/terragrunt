@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # Resolve the "current" and "previous" commits for the weekly coverage diff and
 # write them (plus their dates) to $GITHUB_OUTPUT.
@@ -10,8 +11,6 @@
 # Env:
 #   WINDOW_DAYS     Days back for the baseline (default: 7).
 #   GITHUB_OUTPUT   Actions output file (defaults to stdout when run locally).
-
-set -euo pipefail
 
 WINDOW_DAYS="${WINDOW_DAYS:-7}"
 OUTPUT="${GITHUB_OUTPUT:-/dev/stdout}"
