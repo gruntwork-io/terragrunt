@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu, macos]
+        os: [ubuntu, macos, windows]
     env:
       MISE_PROFILE: cicd
       # Reduce GC frequency (default 100) to speed up builds/tests at cost of higher memory
@@ -55,10 +55,15 @@ jobs:
       - name: Terragrunt Provider Cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
-          path: ${{ runner.os == 'Linux' && '~/.cache/terragrunt' || '~/Library/Caches/terragrunt' }}
+          path: ${{ runner.os == 'Linux' && '~/.cache/terragrunt' || runner.os == 'Windows' && '~/AppData/Local/terragrunt' || '~/Library/Caches/terragrunt' }}
           key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
           restore-keys: |
             ${{ runner.os }}-terragrunt-provider-cache-
+
+      - name: Windows Setup
+        if: runner.os == 'Windows'
+        run: pwsh -File ./.github/scripts/setup/windows-setup.ps1
+        shell: pwsh
 
       - name: Run Tests
         id: run-tests

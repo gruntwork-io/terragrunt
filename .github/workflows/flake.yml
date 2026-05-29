@@ -20,6 +20,10 @@ jobs:
             os: macos
             count: 3
             timeout: 45m
+          - name: Windows Base tests
+            os: windows
+            count: 3
+            timeout: 45m
 
     env:
       MISE_PROFILE: cicd
@@ -50,11 +54,16 @@ jobs:
             ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.flake.os }}-amd64
 
+      - name: Windows Setup
+        if: runner.os == 'Windows'
+        run: pwsh -File ./.github/scripts/setup/windows-setup.ps1
+        shell: pwsh
+
       - name: Run Tests
         id: run-tests
         run: |
-          set -o pipefail
-          go test -v ./... -count=${COUNT} -timeout ${TIMEOUT} | tee >(go-junit-report -set-exit-code > result.xml)
+          go test -v ./... -count=${COUNT} -timeout ${TIMEOUT} | tee test_output.log
+          go-junit-report -set-exit-code < test_output.log > result.xml
         shell: bash
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
