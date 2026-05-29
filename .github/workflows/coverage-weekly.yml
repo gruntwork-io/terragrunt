@@ -10,10 +10,20 @@ on:
         description: 'Compare HEAD against the commit from this many days ago'
         required: false
         default: '7'
+      packages:
+        description: 'Go packages to test (default: ./...). Scope (e.g. ./internal/strict/...) for a fast end-to-end check.'
+        required: false
+        default: ''
+  # TEMPORARY: run the report end to end from this branch before it lands on the
+  # default branch (workflow_dispatch only works once the file is on main). Remove
+  # this push trigger after the feature merges.
+  push:
+    branches:
+      - OSS-2283-long-tests-reporting
 
 concurrency:
-  group: coverage-weekly
-  cancel-in-progress: false
+  group: coverage-weekly-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -27,12 +37,14 @@ jobs:
       MISE_PROFILE: cicd
       GOGC: "400"
       WINDOW_DAYS: ${{ inputs.window_days || '7' }}
+      WEEKLY_PKGS: ${{ inputs.packages || vars.WEEKLY_PKGS || '' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          ref: main
+          # The commit that triggered the run: branch HEAD on push/dispatch, main on schedule.
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Use mise to install dependencies
@@ -47,10 +59,16 @@ jobs:
         run: |
           set -euo pipefail
           CURRENT_SHA="$(git rev-parse HEAD)"
+          # Baseline walks back the trunk (origin/main). Fetch it in case this run was
+          # triggered from a branch where origin/main is not present locally.
+          git fetch --no-tags --prune origin main || true
+          BASE_REF="origin/main"
+          git rev-parse --verify "$BASE_REF" >/dev/null 2>&1 || BASE_REF="HEAD"
+          echo "Baseline ref: ${BASE_REF}"
           PREVIOUS_SHA=""
           MAX_DAYS=$((WINDOW_DAYS * 2))
           for d in $(seq "$WINDOW_DAYS" "$MAX_DAYS"); do
-            candidate="$(git rev-list -1 --before="${d} days ago" origin/main || true)"
+            candidate="$(git rev-list -1 --before="${d} days ago" "$BASE_REF" || true)"
             if [[ -n "$candidate" && "$candidate" != "$CURRENT_SHA" ]]; then
               PREVIOUS_SHA="$candidate"
               echo "Selected previous SHA at ${d} days ago: ${PREVIOUS_SHA}"
@@ -95,7 +113,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          ./.github/scripts/coverage/coverage-report.sh run current || true
+          # shellcheck disable=SC2086  # WEEKLY_PKGS is an intentional space-separated package list
+          ./.github/scripts/coverage/coverage-report.sh run current $WEEKLY_PKGS || true
           GITHUB_SHA="${{ steps.refs.outputs.current_sha }}" GITHUB_REF="refs/heads/main" \
             ./.github/scripts/coverage/coverage-report.sh summary current/coverage.out current/coverage-summary.json
           GITHUB_SHA="${{ steps.refs.outputs.current_sha }}" GITHUB_REF="refs/heads/main" \
@@ -120,7 +139,8 @@ jobs:
           # Prefer the current checkout's coverage script so weekly tooling is consistent
           # even if the previous commit predates it.
           REPORT="$GITHUB_WORKSPACE/.github/scripts/coverage/coverage-report.sh"
-          "$REPORT" run previous || true
+          # shellcheck disable=SC2086  # WEEKLY_PKGS is an intentional space-separated package list
+          "$REPORT" run previous $WEEKLY_PKGS || true
           mkdir -p "$GITHUB_WORKSPACE/previous"
           if [[ -s previous/coverage.out ]]; then
             GITHUB_SHA="$PREV_SHA" GITHUB_REF="refs/heads/main" \
