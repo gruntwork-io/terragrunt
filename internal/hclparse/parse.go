@@ -27,9 +27,18 @@ const (
 	// HCL variable root names used in eval context.
 	varLocal      = "local"
 	varValues     = "values"
-	varUnit       = "unit"
-	varStack      = "stack"
 	varDependency = blockDependency
+)
+
+const (
+	// VarUnit is the eval-context variable root name under which top-level unit path
+	// references are exposed (unit.<name>.path). Exported so pkg/config can inject the
+	// same variable when decoding terragrunt.stack.hcl values.
+	VarUnit = "unit"
+	// VarStack is the eval-context variable root name under which top-level stack path
+	// references are exposed (stack.<name>.path). Exported so pkg/config can inject the
+	// same variable when decoding terragrunt.stack.hcl values.
+	VarStack = "stack"
 )
 
 // ParseStackFileInput holds the input for ParseStackFile.
@@ -102,9 +111,8 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		return result, err
 	}
 
-	stackTargetDir := filepath.Join(input.StackDir, StackDir)
-	evalCtx.Variables[varUnit] = BuildComponentRefMap(buildUnitRefs(decoded.Units, stackTargetDir))
-	evalCtx.Variables[varStack] = BuildComponentRefMap(buildStackRefs(decoded.Stacks, stackTargetDir))
+	evalCtx.Variables[VarUnit] = BuildComponentRefMap(buildUnitRefs(decoded.Units, input.StackDir))
+	evalCtx.Variables[VarStack] = BuildComponentRefMap(buildStackRefs(decoded.Stacks, input.StackDir))
 
 	autoIncludes, err := resolveAutoIncludes(decoded.Units, decoded.Stacks, evalCtx, srcByFilename)
 	if err != nil {
@@ -163,7 +171,7 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 
 	// Strip namespaces the phased parser populates itself so unevaluated refs fail loudly instead of leaking caller values.
 	maps.DeleteFunc(evalCtx.Variables, func(name string, _ cty.Value) bool {
-		return name == varLocal || name == varUnit || name == varStack || name == varValues
+		return name == varLocal || name == VarUnit || name == VarStack || name == varValues
 	})
 
 	if input.Values != nil {
@@ -203,32 +211,22 @@ func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 }
 
 // buildUnitRefs builds component refs for unit blocks; no_dot_terragrunt_stack hoists the unit out of .terragrunt-stack.
-func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef {
+func buildUnitRefs(units []*UnitBlockHCL, stackDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(units))
 
 	for _, u := range units {
-		unitPath := filepath.Join(stackTargetDir, u.Path)
-		if u.NoStack != nil && *u.NoStack {
-			unitPath = filepath.Join(filepath.Dir(stackTargetDir), u.Path)
-		}
-
-		refs = append(refs, ComponentRef{Name: u.Name, Path: unitPath})
+		refs = append(refs, ComponentRef{Name: u.Name, Path: u.GeneratedPath(stackDir)})
 	}
 
 	return refs
 }
 
 // buildStackRefs builds top-level component refs for stack blocks.
-func buildStackRefs(stacks []*StackBlockHCL, stackTargetDir string) []ComponentRef {
+func buildStackRefs(stacks []*StackBlockHCL, stackDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
 	for _, s := range stacks {
-		stackGenPath := filepath.Join(stackTargetDir, s.Path)
-		if s.NoStack != nil && *s.NoStack {
-			stackGenPath = filepath.Join(filepath.Dir(stackTargetDir), s.Path)
-		}
-
-		refs = append(refs, ComponentRef{Name: s.Name, Path: stackGenPath})
+		refs = append(refs, ComponentRef{Name: s.Name, Path: s.GeneratedPath(stackDir)})
 	}
 
 	return refs

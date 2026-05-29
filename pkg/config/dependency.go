@@ -762,7 +762,7 @@ func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Lo
 	unitOutputs := make(map[string]cty.Value)
 
 	for _, unit := range units {
-		unitDir := GetUnitDir(stackDir, unit)
+		unitDir := unit.GeneratedPath(stackDir)
 		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 
 		if !util.FileExists(unitConfigPath) {
