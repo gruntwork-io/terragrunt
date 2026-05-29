@@ -4,22 +4,6 @@ on:
   schedule:
     # Every Monday at 09:00 UTC
     - cron: '0 9 * * 1'
-  workflow_dispatch:
-    inputs:
-      window_days:
-        description: 'Compare HEAD against the commit from this many days ago'
-        required: false
-        default: '7'
-      packages:
-        description: 'Go packages to test (default: ./...). Scope (e.g. ./internal/strict/...) for a fast end-to-end check.'
-        required: false
-        default: ''
-  # TEMPORARY: run the report end to end from this branch before it lands on the
-  # default branch (workflow_dispatch only works once the file is on main). Remove
-  # this push trigger after the feature merges.
-  push:
-    branches:
-      - OSS-2283-long-tests-reporting
 
 concurrency:
   group: coverage-weekly-${{ github.ref }}
@@ -36,14 +20,14 @@ jobs:
     env:
       MISE_PROFILE: cicd
       GOGC: "400"
-      WINDOW_DAYS: ${{ inputs.window_days || '7' }}
-      WEEKLY_PKGS: ${{ inputs.packages || vars.WEEKLY_PKGS || '' }}
+      WINDOW_DAYS: "7"
+      WEEKLY_PKGS: ${{ vars.WEEKLY_PKGS || '' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          # The commit that triggered the run: branch HEAD on push/dispatch, main on schedule.
+          # The trunk commit that triggered the scheduled run.
           ref: ${{ github.sha }}
           fetch-depth: 0
 
