@@ -7,7 +7,7 @@ import "fmt"
 type MissingRequiredAzureRMRemoteStateConfig string
 
 func (configName MissingRequiredAzureRMRemoteStateConfig) Error() string {
-	return "Missing required AzureRM remote state configuration " + string(configName)
+	return "missing required AzureRM remote state configuration " + string(configName)
 }
 
 // ExperimentNotEnabledError is returned when an azurerm backend lifecycle

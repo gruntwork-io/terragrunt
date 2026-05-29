@@ -9,7 +9,6 @@
 package azurerm_test
 
 import (
-	"context"
 	"encoding/base64"
 	"strings"
 	"testing"
@@ -79,7 +78,7 @@ func extConfigForAuth(t *testing.T, extra map[string]any) *azurerm.ExtendedRemot
 func TestNewClient_SASTokenIsDataPlaneOnly(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	opts := clientTestOpts(t)
 
@@ -108,7 +107,7 @@ func TestNewClient_SASTokenIsDataPlaneOnly(t *testing.T) {
 func TestNewClient_AccessKeyIsDataPlaneOnly(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	opts := clientTestOpts(t)
 
@@ -132,7 +131,7 @@ func TestNewClient_AccessKeyIsDataPlaneOnly(t *testing.T) {
 func TestClient_EnsureBlobDataOwner_NoOps(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	opts := clientTestOpts(t)
 
@@ -166,7 +165,7 @@ func TestClient_EnsureBlobDataOwner_NoOps(t *testing.T) {
 func TestClient_EnsureStorageAccount_SkipFlag(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	opts := clientTestOpts(t)
 
@@ -189,7 +188,7 @@ func TestClient_EnsureStorageAccount_SkipFlag(t *testing.T) {
 func TestClient_MoveBlob_NoOpWhenSrcEqualsDst(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	opts := clientTestOpts(t)
 
@@ -210,7 +209,7 @@ func TestClient_MoveBlob_NoOpWhenSrcEqualsDst(t *testing.T) {
 func TestClient_Close(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	opts := clientTestOpts(t)
 
@@ -283,7 +282,7 @@ func TestErrors_MissingRequiredAzureRMRemoteStateConfig(t *testing.T) {
 	err := azurerm.MissingRequiredAzureRMRemoteStateConfig("storage_account_name")
 
 	assert.Contains(t, err.Error(), "storage_account_name")
-	assert.Contains(t, err.Error(), "Missing required AzureRM")
+	assert.Contains(t, err.Error(), "missing required AzureRM")
 }
 
 // TestErrors_ExperimentNotEnabledError verifies the error string mentions
@@ -303,7 +302,7 @@ func TestErrors_ExperimentNotEnabledError(t *testing.T) {
 func TestClient_EnsureContainer_SkipFlag(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	opts := clientTestOpts(t)
 
@@ -327,7 +326,7 @@ func TestClient_EnsureContainer_SkipFlag(t *testing.T) {
 func TestBackend_NeedsBootstrap_AllSkipsReturnsFalse(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	b := azurerm.NewBackend()
 	opts := clientTestOpts(t)
@@ -352,7 +351,7 @@ func TestBackend_NeedsBootstrap_AllSkipsReturnsFalse(t *testing.T) {
 func TestBackend_Migrate_RejectsCrossAccount(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	b := azurerm.NewBackend()
 	opts := clientTestOpts(t)
@@ -381,7 +380,7 @@ func TestBackend_Migrate_RejectsCrossAccount(t *testing.T) {
 func TestBackend_Lifecycle_SurfaceConfigErrors(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	b := azurerm.NewBackend()
 	opts := clientTestOpts(t)

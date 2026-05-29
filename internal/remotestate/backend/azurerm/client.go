@@ -304,10 +304,10 @@ func (c *Client) MoveBlob(ctx context.Context, srcContainer, srcKey, dstContaine
 	return c.blob.EnsureBlobDeleted(ctx, srcContainer, srcKey)
 }
 
-// DeleteBlobIfExists deletes a single blob. Idempotent: delegates to
+// EnsureBlobDeleted deletes a single blob. Idempotent: delegates to
 // azurehelper.BlobClient.EnsureBlobDeleted, which treats BlobNotFound as
 // success so this wrapper returns nil for already-missing blobs.
-func (c *Client) DeleteBlobIfExists(ctx context.Context, container, key string) error {
+func (c *Client) EnsureBlobDeleted(ctx context.Context, container, key string) error {
 	return c.blob.EnsureBlobDeleted(ctx, container, key)
 }
 

@@ -1,9 +1,10 @@
 package azurerm_test
 
 import (
-	"context"
-	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -28,9 +29,7 @@ func enabledExperimentOpts(t *testing.T) *backend.Options {
 	t.Helper()
 
 	exps := experiment.NewExperiments()
-	if err := exps.EnableExperiment(experiment.AzureBackend); err != nil {
-		t.Fatalf("EnableExperiment: %v", err)
-	}
+	require.NoError(t, exps.EnableExperiment(experiment.AzureBackend), "EnableExperiment")
 
 	return &backend.Options{Experiments: exps}
 }
@@ -38,9 +37,7 @@ func enabledExperimentOpts(t *testing.T) *backend.Options {
 func TestBackendName(t *testing.T) {
 	t.Parallel()
 
-	if got := azurerm.NewBackend().Name(); got != azurerm.BackendName {
-		t.Fatalf("Name() = %q, want %q", got, azurerm.BackendName)
-	}
+	assert.Equal(t, azurerm.BackendName, azurerm.NewBackend().Name())
 }
 
 // TestBackend_LifecycleGatedByExperiment asserts that every lifecycle entry
@@ -52,7 +49,7 @@ func TestBackendName(t *testing.T) {
 func TestBackend_LifecycleGatedByExperiment(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	b := azurerm.NewBackend()
 	cfg := validBackendConfig()
@@ -63,10 +60,7 @@ func TestBackend_LifecycleGatedByExperiment(t *testing.T) {
 
 		needs, err := b.NeedsBootstrap(ctx, l, cfg, opts)
 		assertExperimentNotEnabled(t, err)
-
-		if needs {
-			t.Errorf("NeedsBootstrap = true, want false on disabled experiment")
-		}
+		assert.False(t, needs, "NeedsBootstrap should be false on disabled experiment")
 	})
 
 	t.Run("Bootstrap", func(t *testing.T) {
@@ -79,10 +73,7 @@ func TestBackend_LifecycleGatedByExperiment(t *testing.T) {
 
 		on, err := b.IsVersionControlEnabled(ctx, l, cfg, opts)
 		assertExperimentNotEnabled(t, err)
-
-		if on {
-			t.Errorf("IsVersionControlEnabled = true, want false on disabled experiment")
-		}
+		assert.False(t, on, "IsVersionControlEnabled should be false on disabled experiment")
 	})
 
 	t.Run("Migrate", func(t *testing.T) {
@@ -108,22 +99,18 @@ func TestBackend_LifecycleGatedByExperiment(t *testing.T) {
 func TestBackend_LifecycleEnabledExperimentSurfaceConfigErrors(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	l := logger.CreateLogger()
 	b := azurerm.NewBackend()
 	opts := enabledExperimentOpts(t)
 	emptyCfg := backend.Config{}
 
 	err := b.Bootstrap(ctx, l, emptyCfg, opts)
-	if err == nil {
-		t.Fatal("Bootstrap with empty config: want error, got nil")
-	}
+	require.Error(t, err, "Bootstrap with empty config should error")
 
 	var notEnabled azurerm.ExperimentNotEnabledError
-
-	if errors.As(err, &notEnabled) {
-		t.Errorf("Bootstrap returned ExperimentNotEnabledError when experiment was enabled: %v", err)
-	}
+	assert.NotErrorAs(t, err, &notEnabled,
+		"Bootstrap returned ExperimentNotEnabledError when experiment was enabled: %v", err)
 }
 
 // TestBackend_GetTFInitArgsAvailableWithoutExperiment confirms the
@@ -135,24 +122,15 @@ func TestBackend_GetTFInitArgsAvailableWithoutExperiment(t *testing.T) {
 
 	args := azurerm.NewBackend().GetTFInitArgs(validBackendConfig())
 
-	if got := args[keyStorageAccount]; got != testStorageAccount {
-		t.Errorf("storage_account_name = %v, want %s", got, testStorageAccount)
-	}
-
-	if _, ok := args["location"]; ok {
-		t.Errorf("expected terragrunt-only location key to be filtered out")
-	}
+	assert.Equal(t, testStorageAccount, args[keyStorageAccount])
+	assert.NotContains(t, args, "location", "terragrunt-only location key should be filtered out")
 }
 
 func assertExperimentNotEnabled(t *testing.T, err error) {
 	t.Helper()
 
-	if err == nil {
-		t.Fatal("expected ExperimentNotEnabledError, got nil")
-	}
+	require.Error(t, err, "expected ExperimentNotEnabledError")
 
 	var target azurerm.ExperimentNotEnabledError
-	if !errors.As(err, &target) {
-		t.Fatalf("expected ExperimentNotEnabledError, got %T: %v", err, err)
-	}
+	require.ErrorAs(t, err, &target, "expected ExperimentNotEnabledError, got %T: %v", err, err)
 }

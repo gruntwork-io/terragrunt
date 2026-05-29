@@ -252,7 +252,7 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backen
 		return nil
 	}
 
-	return client.DeleteBlobIfExists(ctx, extCfg.RemoteStateConfigAzureRM.ContainerName, extCfg.RemoteStateConfigAzureRM.Key)
+	return client.EnsureBlobDeleted(ctx, extCfg.RemoteStateConfigAzureRM.ContainerName, extCfg.RemoteStateConfigAzureRM.Key)
 }
 
 // DeleteBucket deletes the configured container (and the storage account
