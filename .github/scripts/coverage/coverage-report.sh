@@ -621,17 +621,17 @@ cmd_notify() {
 cmd_local() {
 	if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 		cat <<-'HELP'
-		Usage: coverage-report.sh local
+			Usage: coverage-report.sh local
 
-		Env knobs (all optional):
-		  REPO_URL      Repo to clone. Default: canonical GitHub URL. Use a local
-		                path for a fast, offline run.
-		  REF           Branch/tag/SHA checked out as "current". Default: main.
-		  WINDOW_DAYS   Days back for the "previous" baseline. Default: 7.
-		  PKGS          Package set to test. Default: ./... (full suite).
-		                Set e.g. "./pkg/log/..." for a fast harness smoke run.
-		  TEST_TIMEOUT  go test -timeout value. Default: 45m.
-		  WORKDIR       Scratch dir. Default: a fresh mktemp dir (kept).
+			Env knobs (all optional):
+			  REPO_URL      Repo to clone. Default: canonical GitHub URL. Use a local
+			                path for a fast, offline run.
+			  REF           Branch/tag/SHA checked out as "current". Default: main.
+			  WINDOW_DAYS   Days back for the "previous" baseline. Default: 7.
+			  PKGS          Package set to test. Default: ./... (full suite).
+			                Set e.g. "./pkg/log/..." for a fast harness smoke run.
+			  TEST_TIMEOUT  go test -timeout value. Default: 45m.
+			  WORKDIR       Scratch dir. Default: a fresh mktemp dir (kept).
 		HELP
 		return 0
 	fi
@@ -676,16 +676,16 @@ cmd_local() {
 	echo "previous: ${prev:-<none; baseline-only>}"
 
 	echo "=== Run current ==="
-	( cd "$src" && GITHUB_SHA="$cur" GITHUB_REF="$ref" "$report" run "$out_cur" "${pkgs[@]}" ) || true
-	( cd "$src" && GITHUB_SHA="$cur" GITHUB_REF="$ref" "$report" summary "$out_cur/coverage.out" "$out_cur/coverage-summary.json" )
+	(cd "$src" && GITHUB_SHA="$cur" GITHUB_REF="$ref" "$report" run "$out_cur" "${pkgs[@]}") || true
+	(cd "$src" && GITHUB_SHA="$cur" GITHUB_REF="$ref" "$report" summary "$out_cur/coverage.out" "$out_cur/coverage-summary.json")
 	GITHUB_SHA="$cur" GITHUB_REF="$ref" "$report" timing "$out_cur/test-events.ndjson" "$out_cur/timing-summary.json"
 
 	if [[ -n "$prev" ]]; then
 		echo "=== Run previous ==="
 		git -C "$src" worktree add --detach "$prevsrc" "$prev"
-		( cd "$prevsrc" && GITHUB_SHA="$prev" GITHUB_REF="$ref" "$report" run "$out_prev" "${pkgs[@]}" ) || true
+		(cd "$prevsrc" && GITHUB_SHA="$prev" GITHUB_REF="$ref" "$report" run "$out_prev" "${pkgs[@]}") || true
 		if [[ -s "$out_prev/coverage.out" ]]; then
-			( cd "$prevsrc" && GITHUB_SHA="$prev" GITHUB_REF="$ref" "$report" summary "$out_prev/coverage.out" "$out_prev/coverage-summary.json" ) || true
+			(cd "$prevsrc" && GITHUB_SHA="$prev" GITHUB_REF="$ref" "$report" summary "$out_prev/coverage.out" "$out_prev/coverage-summary.json") || true
 		fi
 		if [[ -s "$out_prev/test-events.ndjson" ]]; then
 			GITHUB_SHA="$prev" GITHUB_REF="$ref" "$report" timing "$out_prev/test-events.ndjson" "$out_prev/timing-summary.json" || true
@@ -718,20 +718,20 @@ main() {
 	local cmd="${1:-}"
 	shift || true
 	case "$cmd" in
-		run) cmd_run "$@" ;;
-		summary) cmd_summary "$@" ;;
-		timing) cmd_timing "$@" ;;
-		compare-coverage) cmd_compare_coverage "$@" ;;
-		compare-timing) cmd_compare_timing "$@" ;;
-		render) cmd_render "$@" ;;
-		notify) cmd_notify "$@" ;;
-		local) cmd_local "$@" ;;
-		"" | -h | --help | help) usage ;;
-		*)
-			echo "Unknown subcommand: $cmd" >&2
-			usage >&2
-			exit 1
-			;;
+	run) cmd_run "$@" ;;
+	summary) cmd_summary "$@" ;;
+	timing) cmd_timing "$@" ;;
+	compare-coverage) cmd_compare_coverage "$@" ;;
+	compare-timing) cmd_compare_timing "$@" ;;
+	render) cmd_render "$@" ;;
+	notify) cmd_notify "$@" ;;
+	local) cmd_local "$@" ;;
+	"" | -h | --help | help) usage ;;
+	*)
+		echo "Unknown subcommand: $cmd" >&2
+		usage >&2
+		exit 1
+		;;
 	esac
 }
 
