@@ -120,7 +120,7 @@ func TestBlobMethods_RequireNames(t *testing.T) {
 	require.Error(t, err, "ContainerExists(\"\") should error")
 
 	require.Error(t, c.CreateContainer(ctx, ""), "CreateContainer(\"\") should error")
-	require.Error(t, c.DeleteContainer(ctx, ""), "DeleteContainer(\"\") should error")
+	require.Error(t, c.EnsureContainerDeleted(ctx, ""), "EnsureContainerDeleted(\"\") should error")
 
 	_, err = c.GetBlob(ctx, "", "k")
 	require.Error(t, err, "GetBlob with empty container should error")
@@ -261,7 +261,7 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 	t.Cleanup(func() {
 		// t.Context() is cancelled by the time cleanup runs; use a fresh
 		// context so the teardown actually attempts to remove the container.
-		_ = bc.DeleteContainer(context.Background(), container)
+		_ = bc.EnsureContainerDeleted(context.Background(), container)
 	})
 
 	exists, err := bc.ContainerExists(ctx, container)
