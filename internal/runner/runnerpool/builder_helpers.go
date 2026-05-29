@@ -223,10 +223,7 @@ func checkUnitVersionConstraints(
 	// This is almost definitely already parsed, but we'll check just in case.
 	if unitConfig == nil {
 		configCtx, pctx := configbridge.NewParsingContext(ctx, l, unitOpts)
-		pctx = pctx.WithDecodeList(
-			config.TerragruntVersionConstraints,
-			config.FeatureFlagsBlock,
-		)
+		pctx = pctx.WithDecodeList(config.TerragruntVersionConstraints)
 
 		var err error
 

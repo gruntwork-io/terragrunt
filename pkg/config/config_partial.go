@@ -170,7 +170,7 @@ func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, f
 	// stored in shared command options.
 	mergedFeatureFlags, err := mergeIncludedFeatureFlags(ctx, pctx, l, trackInclude, tgFlags.FeatureFlags)
 	if err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	flagsAsCtyVal, err := flagsAsCty(pctx, mergedFeatureFlags)
@@ -238,8 +238,7 @@ func mergeIncludedFeatureFlags(ctx context.Context, pctx *ParsingContext, l log.
 func mergeFeatureFlagConfig(l log.Logger, mergeStrategy MergeStrategyType, baseConfig *TerragruntConfig, includeFlags FeatureFlags) (*TerragruntConfig, error) {
 	includeOnlyConfig := &TerragruntConfig{FeatureFlags: includeFlags}
 
-	// TODO: Remove lint suppression
-	switch mergeStrategy { //nolint:exhaustive
+	switch mergeStrategy {
 	case ShallowMerge:
 		if err := includeOnlyConfig.Merge(l, baseConfig); err != nil {
 			return nil, err
