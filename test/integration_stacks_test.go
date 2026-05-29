@@ -259,9 +259,9 @@ func TestStacksRunParseErrorNotSilentlySkipped(t *testing.T) {
 func TestStacksGenerateRemote(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
@@ -372,9 +372,9 @@ func TestStacksApply(t *testing.T) {
 func TestStacksApplyRemote(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --non-interactive --working-dir "+rootPath)
@@ -1153,7 +1153,7 @@ func TestStackApplyStrictIncludeWithFilter(t *testing.T) {
 func TestStacksSourceMap(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 
 	// prepare local path to do override of source url
 	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
@@ -1172,7 +1172,7 @@ func TestStacksSourceMap(t *testing.T) {
 
 	// prepare local environment with remote to use source map to replace
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	// generate path with replacement of local source with local path
@@ -1634,9 +1634,9 @@ func validateNoStackDirs(t *testing.T, rootPath string) {
 func TestStacksSelfInclude(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStackSelfInclude)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureStackSelfInclude)
+	tmpEnvPath := mirror.RenderFixture(testFixtureStackSelfInclude)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackSelfInclude, "live")
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
