@@ -122,14 +122,13 @@ func (c *Client) DoesStorageAccountExist(ctx context.Context) (bool, error) {
 	return c.storageAccount.Exists(ctx)
 }
 
-// EnsureStorageAccount ensures the configured storage account
-// exists. It first ensures the resource group exists (unless the caller
-// has set skip_resource_group_creation), then creates the account if
-// missing. The method is a no-op when skip_storage_account_creation is set.
-//
-// FailIfBucketCreationRequired short-circuits with backend.BucketCreationNotAllowed
-// when creation would otherwise be needed; opts.NonInteractive is honoured
-// when prompting the user.
+// EnsureStorageAccount ensures the configured storage account exists.
+// No-op when skip_storage_account_creation is set or the account already
+// exists. When creation is required: returns backend.BucketCreationNotAllowed
+// if opts.FailIfBucketCreationRequired is set; otherwise prompts the operator
+// (honouring opts.NonInteractive), then ensures the resource group exists
+// (unless skip_resource_group_creation is set), and finally creates the
+// account.
 func (c *Client) EnsureStorageAccount(ctx context.Context, l log.Logger, opts *backend.Options) error {
 	if c.SkipStorageAccountCreation {
 		return nil
@@ -283,11 +282,13 @@ func (c *Client) EnsureContainer(ctx context.Context, l log.Logger, opts *backen
 	return c.blob.EnsureContainer(ctx, c.RemoteStateConfigAzureRM.ContainerName)
 }
 
-// MoveBlob copies srcKey within the bound container to dstContainer/dstKey,
-// waits for the server-side copy to complete, and then deletes the source
-// blob. CopyBlob is server-side and may be asynchronous for large blobs;
-// the wait avoids a race where the source is deleted before the copy is
-// fully committed.
+// MoveBlob copies srcContainer/srcKey to dstContainer/dstKey, waits for the
+// server-side copy to complete, and then deletes the source blob. CopyBlob
+// is server-side and may be asynchronous for large blobs; the wait avoids a
+// race where the source is deleted before the copy is fully committed.
+//
+// The delete step is idempotent: if the source blob is already gone, the
+// move still reports success.
 func (c *Client) MoveBlob(ctx context.Context, srcContainer, srcKey, dstContainer, dstKey string) error {
 	if srcContainer == dstContainer && srcKey == dstKey {
 		return nil
@@ -304,16 +305,14 @@ func (c *Client) MoveBlob(ctx context.Context, srcContainer, srcKey, dstContaine
 	return c.blob.EnsureBlobDeleted(ctx, srcContainer, srcKey)
 }
 
-// EnsureBlobDeleted deletes a single blob. Idempotent: delegates to
-// azurehelper.BlobClient.EnsureBlobDeleted, which treats BlobNotFound as
-// success so this wrapper returns nil for already-missing blobs.
+// EnsureBlobDeleted deletes a single blob; idempotent on BlobNotFound.
 func (c *Client) EnsureBlobDeleted(ctx context.Context, container, key string) error {
 	return c.blob.EnsureBlobDeleted(ctx, container, key)
 }
 
-// DeleteContainer deletes the configured container. Missing containers
-// return nil.
-func (c *Client) DeleteContainer(ctx context.Context) error {
+// EnsureContainerDeleted deletes the configured container. Idempotent:
+// returns nil if the container is already gone.
+func (c *Client) EnsureContainerDeleted(ctx context.Context) error {
 	return c.blob.EnsureContainerDeleted(ctx, c.RemoteStateConfigAzureRM.ContainerName)
 }
 

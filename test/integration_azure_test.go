@@ -342,7 +342,7 @@ func newAzureBlobClient(t *testing.T, env azureTestEnv, res azureTestResources) 
 		Build(ctx, l)
 	require.NoError(t, err)
 
-	bc, err := azurehelper.NewBlobClient(ctx, azCfg, "")
+	bc, err := azurehelper.NewBlobClient(azCfg)
 	require.NoError(t, err)
 
 	return bc
@@ -530,10 +530,10 @@ func TestAzureBackendBootstrapAssignRBAC(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
-	require.NoError(t, client.AssignBlobDataOwnerIfNecessary(ctx, l, principal))
+	require.NoError(t, client.EnsureBlobDataOwner(ctx, l, principal))
 
 	// Idempotency: a second call must succeed (HasRoleAssignment short-circuit).
-	require.NoError(t, client.AssignBlobDataOwnerIfNecessary(ctx, l, principal))
+	require.NoError(t, client.EnsureBlobDataOwner(ctx, l, principal))
 }
 
 // TestAzureBackendBootstrapSkipFlags verifies that
@@ -924,13 +924,13 @@ func TestAzureBlobOperations(t *testing.T) {
 			Build(ctx, l)
 		require.NoError(t, err)
 
-		bc, err := azurehelper.NewBlobClient(ctx, azCfg, "")
+		bc, err := azurehelper.NewBlobClient(azCfg)
 		require.NoError(t, err)
 		blob = bc
 
-		require.NoError(t, blob.CreateContainerIfNecessary(ctx, res.Container))
+		require.NoError(t, blob.EnsureContainer(ctx, res.Container))
 		t.Cleanup(func() {
-			if err := blob.DeleteContainer(context.Background(), res.Container); err != nil {
+			if err := blob.EnsureContainerDeleted(context.Background(), res.Container); err != nil {
 				t.Logf("[cleanup %s] delete container %q: %v", t.Name(), res.Container, err)
 			}
 		})
@@ -954,7 +954,7 @@ func TestAzureBlobOperations(t *testing.T) {
 	require.NoError(t, blob.PutBlob(ctx, res.Container, blobKey, payload))
 
 	// List should see it.
-	names, err := blob.ListBlobs(ctx, res.Container, "integration/")
+	names, err := blob.ListBlobs(ctx, res.Container, azurehelper.WithPrefix("integration/"))
 	require.NoError(t, err)
 	assert.Contains(t, names, blobKey, "ListBlobs must return the blob just put")
 
@@ -968,9 +968,9 @@ func TestAzureBlobOperations(t *testing.T) {
 	assert.Equal(t, payload, got, "GetBlob must return exactly what PutBlob wrote")
 
 	// Delete is observable.
-	require.NoError(t, blob.DeleteBlob(ctx, res.Container, blobKey))
+	require.NoError(t, blob.EnsureBlobDeleted(ctx, res.Container, blobKey))
 
-	names, err = blob.ListBlobs(ctx, res.Container, "integration/")
+	names, err = blob.ListBlobs(ctx, res.Container, azurehelper.WithPrefix("integration/"))
 	require.NoError(t, err)
 	assert.NotContains(t, names, blobKey, "ListBlobs must not return the blob after DeleteBlob")
 }

@@ -86,7 +86,7 @@ func reserveAzureE2EResources(t *testing.T, env azureTestEnv, mode azureE2EAuthM
 
 	blob := newAzureBlobClientWithAccessKey(t, env, res, mode.AccessKey)
 	t.Cleanup(func() {
-		if err := blob.DeleteContainer(context.Background(), res.Container); err != nil {
+		if err := blob.EnsureContainerDeleted(context.Background(), res.Container); err != nil {
 			t.Logf("[cleanup %s] delete container %q: %v", t.Name(), res.Container, err)
 		}
 	})
@@ -109,7 +109,7 @@ func newAzureBlobClientWithAccessKey(t *testing.T, env azureTestEnv, res azureTe
 		Build(ctx, logger.CreateLogger())
 	require.NoError(t, err)
 
-	b, err := azurehelper.NewBlobClient(ctx, azCfg, "")
+	b, err := azurehelper.NewBlobClient(azCfg)
 	require.NoError(t, err)
 
 	return b
@@ -211,7 +211,7 @@ func TestAzureBackendCLIInitApplyState(t *testing.T) {
 		blob = newAzureBlobClient(t, env, res)
 	}
 
-	names, err := blob.ListBlobs(ctx, res.Container, "")
+	names, err := blob.ListBlobs(ctx, res.Container)
 	require.NoError(t, err)
 	require.Contains(t, names, expectedKey, "state blob %q missing from container; saw %v", expectedKey, names)
 
@@ -400,7 +400,7 @@ func TestAzureBackendNeedsBootstrapMatrix(t *testing.T) {
 
 	// 3) Delete just the container — must report needs bootstrap again.
 	blob := newAzureBlobClient(t, env, res)
-	require.NoError(t, blob.DeleteContainer(ctx, res.Container))
+	require.NoError(t, blob.EnsureContainerDeleted(ctx, res.Container))
 
 	// Invalidate the backend's in-process init cache so the next call
 	// actually queries Azure. NewBackend gives us a fresh instance.

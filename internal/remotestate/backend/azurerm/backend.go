@@ -295,7 +295,7 @@ func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig 
 		return nil
 	}
 
-	if err := client.DeleteContainer(ctx); err != nil {
+	if err := client.EnsureContainerDeleted(ctx); err != nil {
 		return err
 	}
 
