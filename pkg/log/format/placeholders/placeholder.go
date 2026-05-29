@@ -4,7 +4,6 @@ package placeholders
 import (
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/options"
 )
 
@@ -145,12 +144,12 @@ func Parse(str string) (Placeholders, error) {
 
 		placeholder, str = placeholderRegister.findPlaceholder(str)
 		if placeholder == nil {
-			return nil, errors.New(NewInvalidPlaceholderNameError(str, placeholderRegister))
+			return nil, NewInvalidPlaceholderNameError(str, placeholderRegister)
 		}
 
 		str, err = placeholder.Options().Configure(str)
 		if err != nil {
-			return nil, errors.New(NewInvalidPlaceholderOptionError(placeholder, err))
+			return nil, NewInvalidPlaceholderOptionError(placeholder, err)
 		}
 
 		placeholders = append(placeholders, placeholder)

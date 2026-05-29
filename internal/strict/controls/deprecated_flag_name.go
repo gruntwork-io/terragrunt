@@ -2,10 +2,10 @@ package controls
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -79,7 +79,7 @@ func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 			return nil
 		}
 
-		return errors.Errorf(ctrl.ErrorFmt, valueName, flagName)
+		return fmt.Errorf(ctrl.ErrorFmt, valueName, flagName)
 	}
 
 	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.isSuppressed() {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,8 +13,10 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/paginator"
 	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -21,6 +24,13 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
+
+// descPreviewLines bounds how many lines of a field's comment render
+// next to the field when it isn't focused. Long comments past this
+// count get an `…` marker so the user knows to press ? for the full
+// text. Focused fields render the description in full so the user can
+// read context while editing.
+const descPreviewLines = 2
 
 // formMode is the form's modal state. The form opens in navigate mode;
 // `enter` on a text field switches to edit mode, and `esc` from edit mode
@@ -44,6 +54,55 @@ const (
 	filterTyping
 	filterApplied
 )
+
+// formCategory partitions the field list into All / Required / Optional,
+// driven by tab / shift+tab in navigate mode. The text filter (`/`) is
+// ANDed with the category so the user can narrow Required-only with a
+// substring search and the cursor walks the intersection.
+type formCategory int
+
+const (
+	categoryAll formCategory = iota
+	categoryRequired
+	categoryOptional
+	numFormCategories
+)
+
+// String returns the visible tab label.
+func (c formCategory) String() string {
+	switch c {
+	case categoryRequired:
+		return "Required"
+	case categoryOptional:
+		return "Optional"
+	case categoryAll, numFormCategories:
+	}
+
+	return "All"
+}
+
+// next cycles to the following category, wrapping past the last entry.
+func (c formCategory) next() formCategory {
+	return (c + 1) % numFormCategories
+}
+
+// prev cycles to the previous category, wrapping past the first entry.
+func (c formCategory) prev() formCategory {
+	return (c + numFormCategories - 1) % numFormCategories
+}
+
+// matches reports whether the given field belongs in this category.
+func (c formCategory) matches(fld *FormField) bool {
+	switch c {
+	case categoryRequired:
+		return fld.Required
+	case categoryOptional:
+		return !fld.Required
+	case categoryAll, numFormCategories:
+	}
+
+	return true
+}
 
 // FormField captures the prompt and current value of one discovered
 // variable. Placeholder is the ghost text shown when the input is empty;
@@ -85,7 +144,9 @@ type FormField struct {
 // navigateKeyMap groups the navigate-mode bindings. These mirror the
 // list-view conventions used elsewhere in the catalog TUI: j/k (and
 // arrows) for line moves, h/l (with pgup/pgdn aliases) for page moves,
-// home/end for jump-to-end, and `/` for filter.
+// home/end for jump-to-end, `/` for filter, and tab/shift+tab for
+// cycling the category tabs (same convention the list view uses for
+// All / Modules / Templates / ...).
 type navigateKeyMap struct {
 	Next          key.Binding
 	Prev          key.Binding
@@ -95,20 +156,29 @@ type navigateKeyMap struct {
 	GoToEnd       key.Binding
 	Interact      key.Binding
 	Unset         key.Binding
-	UnsetAll      key.Binding
+	Reset         key.Binding
 	Filter        key.Binding
+	NextTab       key.Binding
+	PrevTab       key.Binding
+	Detail        key.Binding
 	SubmitChecked key.Binding
 	Submit        key.Binding
 	Cancel        key.Binding
 }
 
 // editKeyMap groups the edit-mode bindings. Most keypresses on a text
-// field fall through to the focused textinput; ExitEdit, Submit, and
-// Toggle (bool-only) are intercepted.
+// field fall through to the focused textinput; ExitEdit, Submit, Toggle
+// (bool-only), and the tab-to-next/prev field bindings are intercepted.
+// Tab in edit mode commits the current value (running validation), then
+// jumps to the next visible field and reopens edit mode, so a typist can
+// fill out the form without dropping back to navigate between each
+// field.
 type editKeyMap struct {
-	ExitEdit key.Binding
-	Submit   key.Binding
-	Toggle   key.Binding
+	ExitEdit  key.Binding
+	Submit    key.Binding
+	Toggle    key.Binding
+	NextField key.Binding
+	PrevField key.Binding
 }
 
 // FormModel is the interactive value-collection view shown when the user
@@ -123,22 +193,43 @@ type editKeyMap struct {
 //
 //nolint:govet // field order chosen for readability over alignment
 type FormModel struct {
-	component   *Component
-	fields      []FormField
-	navKeys     navigateKeyMap
-	editKeys    editKeyMap
-	filterInput textinput.Model
-	help        help.Model
-	paginator   paginator.Model
-	editPreEdit string
-	mode        formMode
-	filter      filterState
-	cursor      int
-	pageStart   int
-	bodyHeight  int
-	width       int
-	height      int
-	submitted   bool
+	component    *Component
+	fields       []FormField
+	navKeys      navigateKeyMap
+	editKeys     editKeyMap
+	filterInput  textinput.Model
+	help         help.Model
+	paginator    paginator.Model
+	detailView   viewport.Model
+	editPreEdit  string
+	mode         formMode
+	filter       filterState
+	category     formCategory
+	cursor       int
+	pageStart    int
+	bodyHeight   int
+	width        int
+	height       int
+	submitted    bool
+	detailOpen   bool
+	detailCursor int
+	// requiredErrShown flips to true once the user attempts a checked
+	// submit (the `s` shortcut) while required fields are still unset. It
+	// gates the bottom status line so the missing-required count only
+	// appears after that first blocked attempt, not from the start. The
+	// line auto-hides again once every required field is set, since the
+	// render also requires a live missingRequiredCount() > 0.
+	requiredErrShown bool
+	// userNavigated flips to true the first time the user moves the
+	// cursor with a navigation key (j/k, arrows, home/end, page nav, or
+	// tab-in-edit field jump). While false, every category change or
+	// filter mutation snaps the cursor onto the first visible field
+	// instead of preserving the prior position, mirroring how the list
+	// view treats freshly-inserted items. Tab (category cycle), `/`
+	// (filter), `?` (detail), and the submit / cancel keys don't count;
+	// they restructure the visible set or open an overlay, neither of
+	// which signals "park me on this specific field".
+	userNavigated bool
 }
 
 // FormSubmitMsg carries the collected values from a completed form back to
@@ -163,6 +254,13 @@ func (f *FormModel) Cursor() int {
 // submission the form ignores further input.
 func (f *FormModel) Submitted() bool {
 	return f.submitted
+}
+
+// DetailOpen reports whether the field-detail overlay is currently
+// visible. Exposed for tests that drive `?` and verify the overlay's
+// lifecycle.
+func (f *FormModel) DetailOpen() bool {
+	return f.detailOpen
 }
 
 // Field returns a copy of the i-th field, for tests and renderers that
@@ -205,6 +303,7 @@ func NewFormModel(c *Component, fields []FormField) *FormModel {
 		filterInput: filter,
 		help:        help.New(),
 		paginator:   p,
+		detailView:  viewport.New(),
 	}
 }
 
@@ -240,23 +339,35 @@ func newNavigateKeyMap() navigateKeyMap {
 		),
 		Unset: key.NewBinding(
 			key.WithKeys("x"),
-			key.WithHelp("x", "use default"),
+			key.WithHelp("x", "unset"),
 		),
-		UnsetAll: key.NewBinding(
-			key.WithKeys("X"),
-			key.WithHelp("X", "use default (all)"),
+		Reset: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "reset form"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("/"),
 			key.WithHelp("/", "filter"),
+		),
+		NextTab: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "next tab"),
+		),
+		PrevTab: key.NewBinding(
+			key.WithKeys("shift+tab"),
+			key.WithHelp("shift+tab", "prev tab"),
+		),
+		Detail: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "detail"),
 		),
 		SubmitChecked: key.NewBinding(
 			key.WithKeys("s"),
 			key.WithHelp("s", "scaffold"),
 		),
 		Submit: key.NewBinding(
-			key.WithKeys("S", "ctrl+d"),
-			key.WithHelp("S", "scaffold (skip checks)"),
+			key.WithKeys("ctrl+d"),
+			key.WithHelp("ctrl+d", "scaffold (skip checks)"),
 		),
 		Cancel: key.NewBinding(
 			key.WithKeys("esc"),
@@ -278,6 +389,14 @@ func newEditKeyMap() editKeyMap {
 		Toggle: key.NewBinding(
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "toggle"),
+		),
+		NextField: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "next field"),
+		),
+		PrevField: key.NewBinding(
+			key.WithKeys("shift+tab"),
+			key.WithHelp("shift+tab", "prev field"),
 		),
 	}
 }
@@ -508,6 +627,10 @@ func (f *FormModel) SetSize(w, h int) {
 	f.help.SetWidth(w)
 
 	f.syncLayout()
+
+	if f.detailOpen {
+		f.refreshDetailContent()
+	}
 }
 
 // computeBodyHeight derives the rows available for field cards from the
@@ -521,20 +644,25 @@ func (f *FormModel) computeBodyHeight() {
 	}
 
 	// reservedRows counts the literal blank rows in View()'s row list:
-	// one top blank for breathing room and one between the header and
-	// the body. Pagination and hint are counted via their rendered
-	// heights below; filter is only included when it'll actually appear.
-	const reservedRows = 2
+	// one top blank for breathing room, one between the header and the
+	// tab bar, and one between the tab bar and the body. Pagination,
+	// header, tab bar, and hint are counted via their rendered heights
+	// below; filter and status are only included when they'll appear.
+	const reservedRows = 3
 
+	// The filter line, when shown, carries a trailing blank row beneath it
+	// (see viewBase), so it costs its own height plus one.
 	filterHeight := 0
 	if filterLine := f.renderFilterLine(); filterLine != "" {
-		filterHeight = lipgloss.Height(filterLine)
+		filterHeight = lipgloss.Height(filterLine) + 1
 	}
 
 	used := reservedRows +
 		lipgloss.Height(f.renderHeader()) +
+		lipgloss.Height(f.renderTabBar()) +
 		filterHeight +
 		1 + // pagination row (always reserved, blank when one page)
+		1 + // status row (always reserved, blank when nothing missing)
 		lipgloss.Height(f.renderHint())
 
 	f.bodyHeight = max(f.height-used, 1)
@@ -557,45 +685,64 @@ func (f *FormModel) setCursor(i int) {
 }
 
 // visibleIndices returns the indices the cursor is allowed to land on.
-// With no filter the cursor walks every field; with the filter active
-// (typing or applied) it walks only matching fields, so j/k skips over
-// non-matches.
+// The active category narrows the set first (All passes everything,
+// Required/Optional drop the other half); when the filter is active and
+// the user has typed a non-empty query, the remaining names also have to
+// contain the substring. j/k walks whatever survives both filters.
 func (f *FormModel) visibleIndices() []int {
-	if f.filter == filterInactive {
-		return f.allIndices()
+	matches := f.categoryIndices()
+
+	query := f.filterQuery()
+	if f.filter == filterInactive || query == "" {
+		return matches
 	}
 
-	query := strings.ToLower(strings.TrimSpace(f.filterInput.Value()))
-	if query == "" {
-		return f.allIndices()
-	}
+	out := matches[:0:0]
 
-	matches := make([]int, 0, len(f.fields))
-
-	for i := range f.fields {
+	for _, i := range matches {
 		if strings.Contains(strings.ToLower(f.fields[i].Name), query) {
-			matches = append(matches, i)
+			out = append(out, i)
 		}
 	}
 
-	return matches
+	return out
 }
 
 // renderIndices returns the indices renderBody should emit. With the
-// filter open but no query typed yet, every field is rendered (dimmed,
-// so the user sees the full inventory before they narrow it). Once any
-// query character is typed, the body collapses to matching fields only,
-// matching the list view's "all dim then narrow" filter UX.
+// filter open but no query typed yet, every category-visible field is
+// rendered (dimmed) so the user sees the full inventory before they
+// narrow it further. Once any query character is typed the body
+// collapses to the intersection of the category and the substring
+// match, matching the list view's "all dim then narrow" filter UX.
 func (f *FormModel) renderIndices() []int {
 	if f.filter == filterInactive {
-		return f.allIndices()
+		return f.categoryIndices()
 	}
 
 	if f.filterQuery() == "" {
-		return f.allIndices()
+		return f.categoryIndices()
 	}
 
 	return f.visibleIndices()
+}
+
+// categoryIndices returns the indices of fields included by the active
+// category tab, in declaration order. All preserves the full list;
+// Required and Optional drop the other half.
+func (f *FormModel) categoryIndices() []int {
+	if f.category == categoryAll {
+		return f.allIndices()
+	}
+
+	out := make([]int, 0, len(f.fields))
+
+	for i := range f.fields {
+		if f.category.matches(&f.fields[i]) {
+			out = append(out, i)
+		}
+	}
+
+	return out
 }
 
 // filterQuery returns the trimmed, lowercased query string when the
@@ -637,7 +784,9 @@ func (f *FormModel) cursorVisiblePos(visible []int) int {
 
 // moveCursor walks the cursor delta positions through visibleIndices,
 // clamping at either end. Used by j/k (delta ±1) and h/l/pgup/pgdn
-// (delta ±pageSize).
+// (delta ±pageSize). Marks the form as user-navigated so subsequent
+// category or filter changes preserve the cursor instead of snapping
+// back to the first visible field.
 func (f *FormModel) moveCursor(delta int) {
 	visible := f.visibleIndices()
 	if len(visible) == 0 {
@@ -650,6 +799,7 @@ func (f *FormModel) moveCursor(delta int) {
 	}
 
 	f.cursor = visible[pos]
+	f.userNavigated = true
 }
 
 // jumpCursor moves the cursor to the first or last visible field. Used by
@@ -660,12 +810,13 @@ func (f *FormModel) jumpCursor(toEnd bool) {
 		return
 	}
 
+	target := visible[0]
 	if toEnd {
-		f.cursor = visible[len(visible)-1]
-		return
+		target = visible[len(visible)-1]
 	}
 
-	f.cursor = visible[0]
+	f.cursor = target
+	f.userNavigated = true
 }
 
 // nextPage advances the cursor (and pageStart) to the first field of the
@@ -683,6 +834,7 @@ func (f *FormModel) nextPage() {
 
 	f.pageStart = end
 	f.cursor = rendered[end]
+	f.userNavigated = true
 }
 
 // prevPage moves the cursor (and pageStart) to the first field of the
@@ -695,6 +847,7 @@ func (f *FormModel) prevPage() {
 
 	f.pageStart = f.prevPageStart(f.pageStart, rendered)
 	f.cursor = rendered[f.pageStart]
+	f.userNavigated = true
 }
 
 // enterEdit transitions navigate to edit on the focused field. For text
@@ -724,10 +877,12 @@ func (f *FormModel) enterEdit() tea.Cmd {
 
 // exitEdit transitions edit to navigate. For text fields, if the input
 // value changed during the edit session the field is marked Set so
-// values() emits it. Bool fields don't track edit-session changes (each
-// toggle commits via toggleBool), so we only reset the mode flag here.
-// Only called after a successful enterEdit, so len(f.fields) > 0 is
-// guaranteed.
+// values() emits it, and validation runs once now (the "on blur" model)
+// so a typo surfaces as the user steps away from the field rather than
+// flickering on every keystroke. Bool fields don't track edit-session
+// changes (each toggle commits via toggleBool), so we only reset the
+// mode flag here. Only called after a successful enterEdit, so
+// len(f.fields) > 0 is guaranteed.
 func (f *FormModel) exitEdit() {
 	fld := &f.fields[f.cursor]
 
@@ -737,6 +892,7 @@ func (f *FormModel) exitEdit() {
 		}
 
 		fld.Input.Blur()
+		f.refreshValidationErr(f.cursor)
 	}
 
 	f.editPreEdit = ""
@@ -904,7 +1060,9 @@ func (f *FormModel) submitChecked() (*FormModel, tea.Cmd) {
 	}
 
 	if missing := f.firstMissingRequired(); missing >= 0 {
+		f.requiredErrShown = true
 		f.setCursor(missing)
+
 		return f, nil
 	}
 
@@ -913,7 +1071,9 @@ func (f *FormModel) submitChecked() (*FormModel, tea.Cmd) {
 
 // firstMissingRequired marks each unset required field with a "required
 // value missing" validation error and returns the index of the first such
-// field, or -1 when every required field has been set.
+// field, or -1 when every required field has been set. The ctrl+d escape
+// hatch isn't advertised here; the bottom status line (renderStatusLine)
+// carries that hint once for the whole form.
 func (f *FormModel) firstMissingRequired() int {
 	missing := -1
 
@@ -933,6 +1093,21 @@ func (f *FormModel) firstMissingRequired() int {
 	return missing
 }
 
+// missingRequiredCount returns how many required fields are still unset,
+// without mutating any field state. renderStatusLine uses it for the live
+// count so the status line auto-clears as the user fills required values.
+func (f *FormModel) missingRequiredCount() int {
+	count := 0
+
+	for i := range f.fields {
+		if f.fields[i].Required && !f.fields[i].Set {
+			count++
+		}
+	}
+
+	return count
+}
+
 // Update handles a single tea.Msg and returns the (possibly mutated) form
 // plus any command to fire. The dispatcher splits on mode: navigate mode
 // consumes keypresses for movement, mode entry, and set toggling, while
@@ -950,7 +1125,14 @@ func (f *FormModel) Update(msg tea.Msg) (*FormModel, tea.Cmd) {
 }
 
 // dispatch routes an incoming message to the mode-appropriate handler.
+// The detail overlay (opened by `?` from navigate mode) intercepts input
+// first so its esc/`?` close and scroll keys take precedence over the
+// underlying form's bindings.
 func (f *FormModel) dispatch(msg tea.Msg) (*FormModel, tea.Cmd) {
+	if f.detailOpen {
+		return f.updateDetail(msg)
+	}
+
 	if f.mode == editMode {
 		return f.updateEdit(msg)
 	}
@@ -1031,6 +1213,15 @@ func (f *FormModel) updateNavigate(msg tea.Msg) (*FormModel, tea.Cmd) {
 		return f.submit()
 	case key.Matches(keyMsg, f.navKeys.Filter):
 		return f, f.beginFilter()
+	case key.Matches(keyMsg, f.navKeys.NextTab):
+		f.setCategory(f.category.next())
+		return f, nil
+	case key.Matches(keyMsg, f.navKeys.PrevTab):
+		f.setCategory(f.category.prev())
+		return f, nil
+	case key.Matches(keyMsg, f.navKeys.Detail):
+		f.openDetail()
+		return f, nil
 	}
 
 	// The remaining bindings all operate on the focused field; on an
@@ -1054,8 +1245,8 @@ func (f *FormModel) updateNavigate(msg tea.Msg) (*FormModel, tea.Cmd) {
 		f.jumpCursor(true)
 	case key.Matches(keyMsg, f.navKeys.Interact):
 		return f.interact()
-	case key.Matches(keyMsg, f.navKeys.UnsetAll):
-		f.unsetAllFields()
+	case key.Matches(keyMsg, f.navKeys.Reset):
+		f.resetForm()
 	case key.Matches(keyMsg, f.navKeys.Unset):
 		f.unsetField(f.cursor)
 	}
@@ -1119,12 +1310,91 @@ func (f *FormModel) clearFilter() {
 	f.filter = filterInactive
 }
 
+// openDetail opens the field-detail overlay anchored on the currently
+// focused field. The overlay shows the field's name, type, full
+// description, and current value in a scrollable viewport so the user
+// can read long comments that don't fit next to the field. No-op on an
+// empty form.
+func (f *FormModel) openDetail() {
+	if len(f.fields) == 0 {
+		return
+	}
+
+	f.detailOpen = true
+	f.detailCursor = f.cursor
+	f.refreshDetailContent()
+}
+
+// closeDetail dismisses the overlay and returns control to the
+// underlying form mode (navigate or edit, whichever was active when the
+// overlay was opened).
+func (f *FormModel) closeDetail() {
+	f.detailOpen = false
+}
+
+// refreshDetailContent rebuilds the overlay's scrollable body from the
+// currently anchored field. Called on open and whenever the focused
+// field changes underneath an already-open overlay.
+func (f *FormModel) refreshDetailContent() {
+	if !f.detailOpen || f.detailCursor < 0 || f.detailCursor >= len(f.fields) {
+		return
+	}
+
+	w, h := f.detailOverlaySize()
+	f.detailView.SetWidth(w - detailContentPadding*2)
+	f.detailView.SetHeight(max(h-detailChromeRows, 1))
+	f.detailView.SetContent(f.renderDetailBody(f.detailCursor))
+	f.detailView.GotoTop()
+}
+
+// updateDetail handles input while the overlay is open. esc or ? closes
+// the overlay; everything else (arrow keys, pgup/pgdn) feeds the
+// viewport so the user can scroll a long comment.
+func (f *FormModel) updateDetail(msg tea.Msg) (*FormModel, tea.Cmd) {
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		switch {
+		case key.Matches(keyMsg, f.editKeys.ExitEdit),
+			key.Matches(keyMsg, f.navKeys.Detail):
+			f.closeDetail()
+			return f, nil
+		}
+	}
+
+	vp, cmd := f.detailView.Update(msg)
+	f.detailView = vp
+
+	return f, cmd
+}
+
+// setCategory switches the active category tab and reconciles the
+// cursor + paging state so the focused field stays visible (or snaps to
+// the first field of the new category when the old focus drops out).
+func (f *FormModel) setCategory(c formCategory) {
+	if c == f.category {
+		return
+	}
+
+	f.category = c
+	f.pageStart = 0
+	f.snapCursorToVisible()
+}
+
 // snapCursorToVisible ensures the cursor points at a field that the
-// current filter would render. Called after every filter-query change so
-// the focused-field highlight stays aligned with what the user sees.
+// current filter would render. Called after every filter-query and
+// category change so the focused-field highlight stays aligned with
+// what the user sees. While the user has yet to navigate with j/k/
+// arrows, the cursor always snaps to the first visible field, the same
+// pattern the list view uses, so a freshly-opened form (or one whose
+// only interaction has been tab/filter) keeps focus pinned to the top
+// of whatever slice is on screen.
 func (f *FormModel) snapCursorToVisible() {
 	visible := f.visibleIndices()
 	if len(visible) == 0 {
+		return
+	}
+
+	if !f.userNavigated {
+		f.cursor = visible[0]
 		return
 	}
 
@@ -1137,10 +1407,12 @@ func (f *FormModel) snapCursorToVisible() {
 
 // updateEdit handles keypresses while the form is in edit mode. esc
 // returns to navigate mode (committing any change as Set=true on text
-// fields); ctrl+d submits the form after a forced edit-to-navigate
-// transition. On bool fields, enter toggles the value in place so the
-// user can flip it as many times as they like before pressing esc.
-// Everything else on a text field is forwarded to the focused textinput.
+// fields and running validation on the just-edited value); ctrl+d
+// submits the form after a forced edit-to-navigate transition. On bool
+// fields, enter toggles the value in place so the user can flip it as
+// many times as they like before pressing esc. Everything else on a
+// text field is forwarded to the focused textinput; validation does not
+// fire until the user moves focus away.
 //
 // A short-circuit guard at the top covers the (currently unreachable)
 // case of an out-of-range cursor: interact() refuses to enter edit mode
@@ -1160,10 +1432,23 @@ func (f *FormModel) updateEdit(msg tea.Msg) (*FormModel, tea.Cmd) {
 			return f, nil
 		case key.Matches(keyMsg, f.editKeys.Submit):
 			return f.submit()
+		case key.Matches(keyMsg, f.editKeys.NextField):
+			return f, f.tabToField(1)
+		case key.Matches(keyMsg, f.editKeys.PrevField):
+			return f, f.tabToField(-1)
 		}
 
-		if fld.Checkbox && key.Matches(keyMsg, f.editKeys.Toggle) {
-			f.toggleBool(f.cursor)
+		if key.Matches(keyMsg, f.editKeys.Toggle) {
+			if fld.Checkbox {
+				f.toggleBool(f.cursor)
+				return f, nil
+			}
+
+			// On a text/HCL field, enter is the symmetric counterpart
+			// to the enter that brought the user into edit mode: commit
+			// and return to navigate, same as esc.
+			f.exitEdit()
+
 			return f, nil
 		}
 	}
@@ -1177,15 +1462,40 @@ func (f *FormModel) updateEdit(msg tea.Msg) (*FormModel, tea.Cmd) {
 	ti, cmd := fld.Input.Update(msg)
 	fld.Input = ti
 
-	f.refreshValidationErr(f.cursor)
-
 	return f, cmd
 }
 
+// tabToField commits the current edit (running on-blur validation via
+// exitEdit), advances the cursor delta positions through the visible
+// field list, and immediately re-enters edit mode on the new field. The
+// user stays in edit mode the whole way, so a long form fills out like a
+// web form rather than requiring esc / move / enter between each field.
+// When the cursor is already at the boundary the move is a no-op and
+// the user stays where they are with the original field re-focused.
+func (f *FormModel) tabToField(delta int) tea.Cmd {
+	visible := f.visibleIndices()
+	if len(visible) == 0 {
+		return nil
+	}
+
+	pos := f.cursorVisiblePos(visible)
+	target := pos + delta
+
+	if target < 0 || target >= len(visible) {
+		return nil
+	}
+
+	f.exitEdit()
+	f.cursor = visible[target]
+	f.userNavigated = true
+
+	return f.enterEdit()
+}
+
 // refreshValidationErr re-runs validateField on the i-th field and stores
-// the result. Called after every keystroke in edit mode (so the cursor
-// bar turns red the moment the value goes off-type) and on enterEdit (so
-// a previously-broken value surfaces immediately).
+// the result. Called on focus changes (enterEdit, exitEdit, tab-move)
+// rather than on every keystroke so partial syntax mid-typing doesn't
+// flash a long error message under the field.
 func (f *FormModel) refreshValidationErr(i int) {
 	if err := f.validateField(i); err != nil {
 		f.fields[i].ValidationErr = err.Error()
@@ -1207,18 +1517,19 @@ func (f *FormModel) interact() (*FormModel, tea.Cmd) {
 	return f, f.enterEdit()
 }
 
-// unsetField marks the focused optional field as "use default" so it is
-// left out of the generated file. The call is a no-op on required fields
-// (the user owes the form a value either way) and on fields that are
-// already unset (no toggling: x only unsets). The field's Input and Bool
-// stay as the user left them, so re-entering edit picks up where they
-// last were instead of jumping back to a blank slate.
+// unsetField clears the focused field's value, marking it unset so an
+// optional field falls back to its source default and a required field
+// reads as missing again. Any validation error on the field is cleared
+// too. The call is a no-op on a field that's already unset (x only
+// unsets, it never toggles). The field's Input and Bool stay as the user
+// left them, so re-entering edit picks up where they last were instead of
+// jumping back to a blank slate.
 //
 // updateNavigate guarantees a valid cursor before calling, so there's no
 // bounds check here.
 func (f *FormModel) unsetField(i int) {
 	fld := &f.fields[i]
-	if fld.Required || !fld.Set {
+	if !fld.Set {
 		return
 	}
 
@@ -1226,20 +1537,18 @@ func (f *FormModel) unsetField(i int) {
 	fld.ValidationErr = ""
 }
 
-// unsetAllFields marks every optional Set field as "use default" in one
-// pass. Required fields and already-unset optionals are skipped. Input
-// and Bool state is preserved so the user can recover prior edits by
-// re-entering edit mode.
-func (f *FormModel) unsetAllFields() {
+// resetForm returns the whole form to its pristine state: every field
+// (required and optional) is unset, every validation error is cleared,
+// and the missing-required status line is suppressed until the next
+// blocked submit. Input and Bool state is preserved so the user can
+// recover prior edits by re-entering edit mode.
+func (f *FormModel) resetForm() {
 	for i := range f.fields {
-		fld := &f.fields[i]
-		if fld.Required || !fld.Set {
-			continue
-		}
-
-		fld.Set = false
-		fld.ValidationErr = ""
+		f.fields[i].Set = false
+		f.fields[i].ValidationErr = ""
 	}
+
+	f.requiredErrShown = false
 }
 
 // toggleBool flips a checkbox field's value between true and false and
@@ -1289,6 +1598,12 @@ var (
 				Foreground(lipgloss.Color("#A8ACB1")).
 				Render(" optional")
 
+	// Inactive tab style mirrors RenderTabBar's tabBarInactiveStyle so
+	// the form's tab strip blends with the list view's.
+	formInactiveTabStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#6C7086")).
+				Padding(0, 1)
+
 	formMetaStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#A8ACB1"))
 
@@ -1321,18 +1636,32 @@ var (
 	formErrorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF5555"))
 
-	formErrorBoldStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FF5555")).
-				Bold(true)
-
 	// Set bool values get a clear positive/negative color so the user
-	// can see at a glance which checkboxes they flipped.
+	// can see at a glance which checkboxes they flipped. True is fixed;
+	// false ships three variants (selectable via [EnvScaffoldFalseStyle])
+	// while we workshop which reads best alongside the required-red tag
+	// and validation-error red. Once a winner is picked the env knob and
+	// the unused variants get deleted; see TODO in [falseStyle].
 	formBoolTrueStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#50FA7B")).
 				Bold(true)
 
-	formBoolFalseStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FF5555")).
+	// neutral: same muted gray as `(default)` / `(unset)`. Removes any
+	// warning vibe; false reads as a plain value alongside true.
+	formBoolFalseNeutralStyle = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("#A8ACB1")).
+					Bold(true)
+
+	// muted: keeps the red family but desaturates it deeply so it no
+	// longer competes with the required/error red.
+	formBoolFalseMutedStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#7A2A2A")).
+				Bold(true)
+
+	// cool: pairs green true with a cool cyan false, reserving red for
+	// required/error semantics only.
+	formBoolFalseCoolStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#63C5DA")).
 				Bold(true)
 
 	formDefaultHintStyle = lipgloss.NewStyle().
@@ -1361,7 +1690,63 @@ var (
 const (
 	formPaginationBullet  = "•"
 	formPaginationLeftPad = 2
+
+	// detailContentPadding is the inner padding (left + right) inside the
+	// overlay box; subtracted from the box width to size the viewport.
+	detailContentPadding = 2
+
+	// detailChromeRows accounts for the overlay's title row, the blank
+	// row beneath it, the bottom hint row, and the box border on each
+	// side. Subtracted from the overlay height to size the viewport.
+	detailChromeRows = 5
 )
+
+// Overlay styles. The overlay is drawn over the form body, so it needs
+// a solid background and a clear border to read against any column of
+// field cards behind it.
+var (
+	formDetailBoxStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("#63C5DA")).
+				Background(lipgloss.Color("#11161C")).
+				Padding(0, detailContentPadding)
+
+	formDetailTitleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#63C5DA"))
+
+	formDetailHintStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#6C7086")).
+				Italic(true)
+)
+
+// formActiveTabStyle returns the bold pill style for the focused
+// category tab. All gets the neutral title palette; Required and
+// Optional reuse the same red/gray accents the field-level tags use, so
+// the tab and tag colors agree.
+func formActiveTabStyle(c formCategory) lipgloss.Style {
+	switch c {
+	case categoryRequired:
+		return lipgloss.NewStyle().
+			Background(lipgloss.Color("#3A1F22")).
+			Foreground(lipgloss.Color("#FF8888")).
+			Bold(true).
+			Padding(0, 1)
+	case categoryOptional:
+		return lipgloss.NewStyle().
+			Background(lipgloss.Color("#2A2E36")).
+			Foreground(lipgloss.Color("#A8ACB1")).
+			Bold(true).
+			Padding(0, 1)
+	case categoryAll, numFormCategories:
+	}
+
+	return lipgloss.NewStyle().
+		Background(lipgloss.Color(titleBackgroundColor)).
+		Foreground(lipgloss.Color(titleForegroundColor)).
+		Bold(true).
+		Padding(0, 1)
+}
 
 // typeStyle picks the color used to render an HCL type label. Primitives
 // get distinct shades; collections (list, set, tuple) and structures
@@ -1389,39 +1774,199 @@ func typeStyle(typeStr string) lipgloss.Style {
 	return formTypeStyle
 }
 
-// renderCheckbox produces the visual for a Set bool-mode field. True
-// renders green and false red so the user can scan the form and see the
-// set choices without re-reading each field's value.
+// renderCheckbox produces the visual for a Set bool-mode field. True is
+// rendered in fixed green; false picks one of three workshop variants
+// (see [falseStyle]) so reviewers can compare them side by side without
+// a rebuild.
 func renderCheckbox(checked bool) string {
 	if checked {
 		return formBoolTrueStyle.Render("[x] true")
 	}
 
-	return formBoolFalseStyle.Render("[ ] false")
+	return falseStyle().Render("[ ] false")
+}
+
+// EnvScaffoldFalseStyle is a temporary, undocumented environment variable
+// used during development to A/B the three checkbox `false` color variants.
+// Do NOT rely on it: it can be removed or have its name changed at any time
+// without notice and is not part of Terragrunt's user-facing configuration
+// surface. Once a winner is picked, drop this constant, the helper that
+// reads it, and the two unused style variants.
+const EnvScaffoldFalseStyle = "TG_TMP_CATALOG_SCAFFOLD_FALSE_STYLE"
+
+// falseStyle resolves which of the three workshop variants renders the
+// `false` value. The selection is read from [EnvScaffoldFalseStyle] on
+// every call so the user can flip variants between launches without
+// recompiling. Default is "neutral" because it's the only variant that
+// fully eliminates the false-as-warning read flagged in review. Once a
+// winner is agreed on, drop this helper and inline the chosen style.
+func falseStyle() lipgloss.Style {
+	switch os.Getenv(EnvScaffoldFalseStyle) {
+	case "muted":
+		return formBoolFalseMutedStyle
+	case "cool":
+		return formBoolFalseCoolStyle
+	}
+
+	return formBoolFalseNeutralStyle
 }
 
 // View renders the form. When the rendered body exceeds the available
 // height the viewport scrolls it; the cursor is kept on-screen by
 // adjusting the y-offset to track the focused field. A blank top row
-// mirrors the list view's breathing room above the tab bar.
+// mirrors the list view's breathing room above the tab bar. When the
+// detail overlay is open it replaces the form view with a centered
+// detail box; closing the overlay restores the previous layout in one
+// frame.
 func (f *FormModel) View() string {
+	if f.detailOpen {
+		return centerInCanvas(f.renderDetailOverlay(), f.width, f.height)
+	}
+
+	return f.viewBase()
+}
+
+// viewBase produces the underlying form layout, without the detail
+// overlay. Extracted so View() can composite the overlay on top.
+func (f *FormModel) viewBase() string {
 	header := f.renderHeader()
+	tabBar := f.renderTabBar()
 	filterLine := f.renderFilterLine()
+	statusLine := f.renderStatusLine()
 	hint := f.renderHint()
 	pagination := f.renderPagination()
 	body := padToHeight(f.renderBody(), f.bodyHeight)
 
-	// Lay out: blank top, header, blank, [filter], body, pagination, hint.
-	// filterLine is optional and only takes a row when shown; pagination
-	// always claims its row (blank when there's only one page).
-	rows := []string{"", header, ""}
+	// Lay out: blank top, header, blank, tab bar, blank, [filter, blank],
+	// body, pagination, status, hint. The filter line is optional and only
+	// takes rows when shown, with a blank row beneath it so the first field
+	// doesn't crowd the input. Pagination and the status line always claim
+	// their row (blank when there's only one page / no missing-required
+	// message) so neither one's appearance shifts the rest of the form.
+	rows := []string{"", header, "", tabBar, ""}
 	if filterLine != "" {
-		rows = append(rows, filterLine)
+		rows = append(rows, filterLine, "")
 	}
 
-	rows = append(rows, body, pagination, hint)
+	rows = append(rows, body, pagination, statusLine, hint)
 
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+// detailOverlaySize returns the overlay box's outer dimensions (width
+// and height including border). The box is sized to roughly two thirds
+// of the form's footprint, with a minimum that keeps it readable on
+// small terminals and a maximum that leaves a margin of whitespace
+// around the box so the underlying form's edges are still visible.
+func (f *FormModel) detailOverlaySize() (int, int) {
+	const (
+		minW           = 40
+		minH           = 10
+		outsideMargin  = 4
+		denominator    = 3
+		fractionOfHost = 2
+	)
+
+	w := min(max(f.width*fractionOfHost/denominator, minW), f.width-outsideMargin)
+	h := min(max(f.height*fractionOfHost/denominator, minH), f.height-outsideMargin)
+
+	return w, h
+}
+
+// renderDetailOverlay renders the boxed overlay shown when the user
+// presses `?`. The title strip carries the field name and tag, the
+// scrollable body carries the full description, and the hint row at
+// the bottom describes how to close.
+func (f *FormModel) renderDetailOverlay() string {
+	if f.detailCursor < 0 || f.detailCursor >= len(f.fields) {
+		return ""
+	}
+
+	fld := &f.fields[f.detailCursor]
+
+	tag := formFieldOptionalTag
+	if fld.Required {
+		tag = formFieldRequiredTag
+	}
+
+	title := formDetailTitleStyle.Render(fld.Name) + tag
+	typeLine := formMetaStyle.Render("type: ") + typeStyle(fld.TypeStr).Render(fld.TypeStr)
+	hint := formDetailHintStyle.Render("? close • ↑↓ scroll")
+
+	body := f.detailView.View()
+
+	rows := []string{title, typeLine, "", body, hint}
+
+	w, h := f.detailOverlaySize()
+
+	// The rounded border claims one column on each side; subtract it so
+	// the box's outer footprint matches detailOverlaySize().
+	const borderEdges = 2
+
+	return formDetailBoxStyle.
+		Width(w - borderEdges).
+		Height(h - borderEdges).
+		Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
+}
+
+// renderDetailBody composes the scrollable body shown inside the
+// overlay: the full field description (when present) followed by the
+// current value rendered the same way the field card does. Empty
+// descriptions still render the value line so the overlay never looks
+// blank.
+func (f *FormModel) renderDetailBody(i int) string {
+	fld := &f.fields[i]
+
+	parts := []string{}
+	if fld.Description != "" {
+		parts = append(parts, formDescStyle.Render(fld.Description), "")
+	}
+
+	parts = append(parts, formMetaStyle.Render("value: ")+f.renderFieldValue(fld, false))
+
+	if fld.ValidationErr != "" {
+		parts = append(parts, formErrorStyle.Render(fld.ValidationErr))
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+// centerInCanvas paints content centered within a w by h canvas of
+// whitespace. Used when the detail overlay takes over the screen so the
+// box sits cleanly in the middle of the form area.
+func centerInCanvas(content string, w, h int) string {
+	if content == "" {
+		return ""
+	}
+
+	return lipgloss.Place(
+		w, h,
+		lipgloss.Center, lipgloss.Center,
+		content,
+		lipgloss.WithWhitespaceChars(" "),
+	)
+}
+
+// renderTabBar produces the All / Required / Optional category strip
+// styled like the list view's RenderTabBar. The active tab gets a bold
+// pill in a category-appropriate color so the user can tell at a glance
+// which slice of fields is on screen.
+func (f *FormModel) renderTabBar() string {
+	parts := make([]string, 0, int(numFormCategories))
+
+	for i := range int(numFormCategories) {
+		c := formCategory(i)
+		label := c.String()
+
+		if c == f.category {
+			parts = append(parts, formActiveTabStyle(c).Render(label))
+			continue
+		}
+
+		parts = append(parts, formInactiveTabStyle.Render(label))
+	}
+
+	return strings.Join(parts, " ")
 }
 
 // renderHeader is the title strip identifying the component being
@@ -1444,11 +1989,11 @@ func (f *FormModel) renderHint() string {
 
 // hintBindings returns the bindings visible in the hint bar for the
 // current form state. Edit mode shows the few keys that get the user
-// back out; the filter-typing state shows just enter/esc; navigate mode
-// shows the full nav + action set.
+// back out plus tab for next-field; the filter-typing state shows just
+// enter/esc; navigate mode shows the full nav + action set.
 func (f *FormModel) hintBindings() []key.Binding {
 	if f.mode == editMode {
-		bindings := []key.Binding{f.editKeys.ExitEdit}
+		bindings := []key.Binding{f.editKeys.ExitEdit, f.editKeys.NextField}
 
 		if f.cursor >= 0 && f.cursor < len(f.fields) && f.fields[f.cursor].Checkbox {
 			bindings = append(bindings, f.editKeys.Toggle)
@@ -1475,12 +2020,12 @@ func (f *FormModel) hintBindings() []key.Binding {
 	return []key.Binding{
 		f.navKeys.Next,
 		f.navKeys.Prev,
+		f.navKeys.NextTab,
 		f.navKeys.Filter,
 		f.navKeys.Interact,
 		f.navKeys.Unset,
-		f.navKeys.UnsetAll,
+		f.navKeys.Reset,
 		f.navKeys.SubmitChecked,
-		f.navKeys.Submit,
 		cancel,
 	}
 }
@@ -1725,6 +2270,33 @@ func (f *FormModel) renderFilterLine() string {
 	return ""
 }
 
+// renderStatusLine renders the form-level status row that sits just above
+// the keybinding hint. It surfaces a single missing-required summary once
+// the user has attempted a checked submit (the `s` shortcut) and required
+// fields are still unset, naming the count and the ctrl+d force-submit
+// escape hatch. It returns "" until that first blocked attempt and again
+// once every required field is set; viewBase still reserves the row in both
+// cases, so the message's appearance never shifts the rest of the form.
+func (f *FormModel) renderStatusLine() string {
+	if !f.requiredErrShown {
+		return ""
+	}
+
+	missing := f.missingRequiredCount()
+	if missing == 0 {
+		return ""
+	}
+
+	noun := "field"
+	if missing > 1 {
+		noun = "fields"
+	}
+
+	msg := fmt.Sprintf("%d required %s missing. Press ctrl+d to scaffold anyway.", missing, noun)
+
+	return "  " + formErrorStyle.Render(msg)
+}
+
 // renderField composes one field card: name (with focus highlight + req
 // tag), type meta, optional description, the value widget, and any
 // validation error. The focused field gets a colored vertical bar running
@@ -1763,13 +2335,24 @@ func (f *FormModel) renderField(i int) string {
 	}
 
 	if fld.Description != "" {
-		lines = append(lines, prefixEveryLine(formDescStyle.Render(fld.Description), prefix))
+		desc := fld.Description
+		if !focused {
+			desc = truncateDescription(desc, descPreviewLines, f.descLineWidth())
+		}
+
+		lines = append(lines, prefixEveryLine(formDescStyle.Render(desc), prefix))
 	}
 
 	lines = append(lines, prefix+formMetaStyle.Render("value: ")+f.renderFieldValue(fld, focused))
 
+	// The error row is always present so a field's height stays constant
+	// whether or not it carries a validation error; otherwise the whole
+	// list reflows the moment errors appear (e.g. after a blocked submit).
+	// When there's no error the row renders empty.
 	if fld.ValidationErr != "" {
 		lines = append(lines, prefix+formErrorStyle.Render(fld.ValidationErr))
+	} else {
+		lines = append(lines, "")
 	}
 
 	return strings.Join(lines, "\n")
@@ -1778,19 +2361,16 @@ func (f *FormModel) renderField(i int) string {
 // cursorPrefix returns the two-character indent for a focused field's
 // line: a colored vertical bar followed by a space. Unfocused fields use
 // two spaces (`"  "`), so the leading column lines up across the form.
-// The bar's color reflects the mode (cyan in navigate, yellow in edit)
-// or flips to red when the focused field carries a validation error.
+// The bar's color reflects the mode (cyan in navigate, yellow in edit);
+// validation errors surface in the inline error row, never on the cursor.
 func (f *FormModel) cursorPrefix() string {
 	return f.cursorPlainStyle().Render("│") + " "
 }
 
 // cursorBoldStyle returns the bold variant of the cursor color so the
-// focused field's name color matches the bar.
+// focused field's name color matches the bar: cyan in navigate mode,
+// yellow in edit mode.
 func (f *FormModel) cursorBoldStyle() lipgloss.Style {
-	if f.focusedHasError() {
-		return formErrorBoldStyle
-	}
-
 	if f.mode == editMode {
 		return formEditCursorBoldStyle
 	}
@@ -1801,10 +2381,6 @@ func (f *FormModel) cursorBoldStyle() lipgloss.Style {
 // cursorPlainStyle is the non-bold counterpart to cursorBoldStyle, used
 // for the vertical bar character.
 func (f *FormModel) cursorPlainStyle() lipgloss.Style {
-	if f.focusedHasError() {
-		return formErrorStyle
-	}
-
 	if f.mode == editMode {
 		return formEditCursorStyle
 	}
@@ -1812,25 +2388,61 @@ func (f *FormModel) cursorPlainStyle() lipgloss.Style {
 	return formNavCursorStyle
 }
 
-// focusedHasError reports whether the currently focused field's stored
-// validation error should drive the cursor color. Unset fields are
-// excluded in navigate mode because their value is irrelevant: the
-// source default will apply at write time regardless of what's typed.
-func (f *FormModel) focusedHasError() bool {
-	if f.cursor < 0 || f.cursor >= len(f.fields) {
-		return false
+// descLineWidth returns the column count available for a description
+// line, after subtracting the cursor prefix that every field row carries.
+// Falls back to a sensible minimum when the form's width isn't set yet
+// (e.g. during construction before SetSize fires).
+func (f *FormModel) descLineWidth() int {
+	const (
+		prefixCols = 2
+		minWidth   = 20
+	)
+
+	w := f.width - prefixCols
+	if w < minWidth {
+		return minWidth
 	}
 
-	fld := f.fields[f.cursor]
-	if fld.ValidationErr == "" {
-		return false
+	return w
+}
+
+// truncateDescription wraps the description on whitespace boundaries
+// (so a multi-line author-formatted comment renders as-authored) and
+// returns at most `lines` lines. The final line gets an `…` suffix when
+// content was dropped, signaling that pressing `?` will reveal the
+// rest. Lines longer than `width` get truncated with `…` too.
+func truncateDescription(desc string, lines, width int) string {
+	if lines <= 0 || desc == "" {
+		return desc
 	}
 
-	if f.mode == navigateMode && !fld.Set {
-		return false
+	parts := strings.Split(desc, "\n")
+	truncated := false
+
+	if len(parts) > lines {
+		parts = parts[:lines]
+		truncated = true
 	}
 
-	return true
+	for i, line := range parts {
+		if ansi.StringWidth(line) > width {
+			parts[i] = ansi.Truncate(line, width, "…")
+			truncated = true
+		}
+	}
+
+	if truncated {
+		last := parts[len(parts)-1]
+		if !strings.HasSuffix(last, "…") {
+			if ansi.StringWidth(last)+1 > width {
+				parts[len(parts)-1] = ansi.Truncate(last, width-1, "") + "…"
+			} else {
+				parts[len(parts)-1] = last + "…"
+			}
+		}
+	}
+
+	return strings.Join(parts, "\n")
 }
 
 // prefixEveryLine prepends prefix to every line of s. Used to extend the

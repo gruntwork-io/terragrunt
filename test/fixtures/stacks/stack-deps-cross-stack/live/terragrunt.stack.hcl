@@ -15,14 +15,16 @@ unit "app" {
     dependency "network" {
       config_path = stack.network.path
 
-      mock_outputs_allowed_terraform_commands = ["validate", "plan", "apply", "destroy"]
+      mock_outputs_allowed_terraform_commands = ["validate", "plan"]
       mock_outputs = {
-        vpc_id = "mock-vpc"
+        vpc = {
+          vpc_id = "mock-vpc"
+        }
       }
     }
 
     inputs = {
-      vpc_id = dependency.network.outputs.vpc_id
+      vpc_id = dependency.network.outputs.vpc.vpc_id
     }
   }
 }

@@ -12,7 +12,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 

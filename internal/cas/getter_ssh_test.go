@@ -51,11 +51,14 @@ func TestSSHCASGetterGet(t *testing.T) {
 			c, err := cas.New(cas.WithStorePath(storePath))
 			require.NoError(t, err)
 
+			v, err := cas.OSVenv()
+			require.NoError(t, err)
+
 			opts := &cas.CloneOptions{
 				Branch: "main",
 			}
 			l := logger.CreateLogger()
-			g := getter.NewCASGetter(l, c, opts)
+			g := getter.NewCASGetter(l, c, v, opts)
 			client := getter.Client{
 				Getters: []getter.Getter{g},
 			}

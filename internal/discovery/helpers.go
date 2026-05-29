@@ -1,6 +1,9 @@
 package discovery
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
@@ -9,12 +12,13 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -253,7 +257,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 		}
 
 		if !config.IsValidConfigPath(dependency.ConfigPath) {
-			errs = append(errs, errors.Errorf(
+			errs = append(errs, fmt.Errorf(
 				"skipping dependency %q in %q: "+
 					"config_path could not be resolved",
 				dependency.Name, c.Path()))
@@ -295,7 +299,14 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 // stackDependencyPaths returns additional dependency paths from autoinclude
 // files and expands stack directory paths into constituent unit paths.
 // Only called when the StackDependencies experiment is enabled.
-func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) ([]string, error) {
+func stackDependencyPaths(
+	ctx context.Context,
+	l log.Logger,
+	fs vfs.FS,
+	opts *options.TerragruntOptions,
+	depPaths []string,
+	c component.Component,
+) ([]string, error) {
 	// Add dependencies declared in autoinclude files.
 	autoIncludeDeps, err := inthclparse.AutoIncludeDependencyPaths(fs, c.Path())
 	if err != nil {
@@ -305,6 +316,8 @@ func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) (
 	for _, dep := range autoIncludeDeps {
 		depPaths = append(depPaths, util.ResolvePath(dep))
 	}
+
+	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 
 	// Expand stack dependency paths to individual unit paths.
 	expanded := make([]string, 0, len(depPaths))
@@ -325,7 +338,12 @@ func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) (
 			continue
 		}
 
-		unitPaths, err := inthclparse.UnitPathsFromStackDir(fs, depPath)
+		discoveryFuncs, fnErr := config.EarlyStackParseFunctions(ctx, l, depPath, pctx)
+		if fnErr != nil {
+			return nil, NewStackDependencyExpansionError(depPath, fnErr)
+		}
+
+		unitPaths, err := inthclparse.UnitPathsFromStackDir(fs, depPath, discoveryFuncs)
 		if err != nil {
 			return nil, NewStackDependencyExpansionError(depPath, err)
 		}

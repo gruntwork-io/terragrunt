@@ -16,10 +16,9 @@ func TestKeyDelegateKeyMapShortHelp(t *testing.T) {
 	km := tui.NewDelegateKeyMap()
 	got := km.ShortHelp()
 
-	require.Len(t, got, 3)
+	require.Len(t, got, 2)
 	assert.Equal(t, km.Choose, got[0])
 	assert.Equal(t, km.ScaffoldInteractive, got[1])
-	assert.Equal(t, km.ScaffoldPlaceholder, got[2])
 
 	for i, b := range got {
 		assert.NotEmpty(t, b.Keys(), "binding %d has no keys", i)
@@ -33,19 +32,20 @@ func TestKeyDelegateKeyMapFullHelp(t *testing.T) {
 	got := km.FullHelp()
 
 	require.Len(t, got, 1)
-	require.Len(t, got[0], 3)
+	require.Len(t, got[0], 2)
 	assert.Equal(t, km.Choose, got[0][0])
 	assert.Equal(t, km.ScaffoldInteractive, got[0][1])
-	assert.Equal(t, km.ScaffoldPlaceholder, got[0][2])
 }
 
-func TestKeyDelegateKeyMapSeparatesLowerAndUpperS(t *testing.T) {
+func TestKeyDelegateScaffoldBoundToLowerS(t *testing.T) {
 	t.Parallel()
 
+	// The previous design split scaffold across `s` (validated) and `S`
+	// (skip checks). The skip-checks path now lives inside the form on
+	// ctrl+d, so the list/pager only exposes the lowercase entry point.
 	km := tui.NewDelegateKeyMap()
 
 	assert.Equal(t, []string{"s"}, km.ScaffoldInteractive.Keys())
-	assert.Equal(t, []string{"S"}, km.ScaffoldPlaceholder.Keys())
 }
 
 func TestKeyPagerKeyMapShortHelp(t *testing.T) {
@@ -63,7 +63,7 @@ func TestKeyPagerKeyMapShortHelp(t *testing.T) {
 		km.NavigationBack,
 		km.Choose,
 		km.ScaffoldInteractive,
-		km.ScaffoldPlaceholder,
+		km.ToggleWrap,
 		km.Help,
 		km.Quit,
 	}
@@ -96,17 +96,19 @@ func TestKeyPagerKeyMapFullHelp(t *testing.T) {
 	assert.Equal(t, km.ScaffoldInteractive, got[1][3])
 
 	require.Len(t, got[2], 4)
-	assert.Equal(t, km.ScaffoldPlaceholder, got[2][0])
+	assert.Equal(t, km.ToggleWrap, got[2][0])
 	assert.Equal(t, km.Help, got[2][1])
 	assert.Equal(t, km.Quit, got[2][2])
 	assert.Equal(t, km.ForceQuit, got[2][3])
 }
 
-func TestKeyPagerKeyMapSeparatesLowerAndUpperS(t *testing.T) {
+func TestKeyPagerScaffoldBoundToLowerS(t *testing.T) {
 	t.Parallel()
 
+	// Pager mirrors the list: only the lowercase scaffold entry point;
+	// skip-required lives inside the form on ctrl+d.
 	km := tui.NewPagerKeyMap()
 
 	assert.Equal(t, []string{"s"}, km.ScaffoldInteractive.Keys())
-	assert.Equal(t, []string{"S"}, km.ScaffoldPlaceholder.Keys())
+	assert.Equal(t, []string{"w"}, km.ToggleWrap.Keys())
 }

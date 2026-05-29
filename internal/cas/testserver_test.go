@@ -46,9 +46,11 @@ func startTestServer(t *testing.T) string {
 //
 // The repo layout is:
 //
-//	stacks/my-stack/terragrunt.stack.hcl   — stack file with update_source_with_cas
-//	units/my-service/terragrunt.hcl        — unit file with update_source_with_cas
-//	modules/vpc/main.tf                    — plain Terraform module
+//	stacks/my-stack/terragrunt.stack.hcl   stack file with update_source_with_cas
+//	units/my-service/terragrunt.hcl        unit with `//` terraform.source
+//	units/leaf-service/terragrunt.hcl      unit with no-`//` terraform.source
+//	modules/vpc/main.tf                    plain Terraform module
+//	modules/sibling/main.tf                sibling module reachable from vpc via "../sibling"
 func startStackTestServer(t *testing.T) string {
 	t.Helper()
 
@@ -56,13 +58,21 @@ func startStackTestServer(t *testing.T) string {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
 
-	// Stack file that references a sibling unit via relative path with //.
+	// Stack file that references sibling units via relative paths with //.
 	stackHCL := []byte(`unit "service" {
   source = "../..//units/my-service"
 
   update_source_with_cas = true
 
   path = "service"
+}
+
+unit "leaf" {
+  source = "../..//units/leaf-service"
+
+  update_source_with_cas = true
+
+  path = "leaf"
 }
 
 unit "plain" {
@@ -72,7 +82,8 @@ unit "plain" {
 `)
 	require.NoError(t, srv.CommitFile("stacks/my-stack/terragrunt.stack.hcl", stackHCL, "add stack file"))
 
-	// Unit file whose terraform.source references a module via relative path.
+	// Unit file whose terraform.source references a module via "//" so the
+	// synthetic tree retains the surrounding repo structure.
 	unitHCL := []byte(`terraform {
   source = "../..//modules/vpc"
 
@@ -81,15 +92,32 @@ unit "plain" {
 `)
 	require.NoError(t, srv.CommitFile("units/my-service/terragrunt.hcl", unitHCL, "add unit file"))
 
-	// Plain unit (no CAS flag) — should remain unchanged after processing.
+	// Unit file whose terraform.source omits "//". The synthetic tree must
+	// stay scoped to the leaf module and the rewritten ref must carry no
+	// "//subdir" tail.
+	leafUnitHCL := []byte(`terraform {
+  source = "../../modules/vpc"
+
+  update_source_with_cas = true
+}
+`)
+	require.NoError(t, srv.CommitFile("units/leaf-service/terragrunt.hcl", leafUnitHCL, "add leaf unit"))
+
+	// Plain unit (no CAS flag) should remain unchanged after processing.
 	plainUnitHCL := []byte(`terraform {
   source = "../../modules/vpc"
 }
 `)
 	require.NoError(t, srv.CommitFile("units/plain-service/terragrunt.hcl", plainUnitHCL, "add plain unit"))
 
-	// Terraform module referenced by the unit.
-	require.NoError(t, srv.CommitFile("modules/vpc/main.tf", []byte(`resource "aws_vpc" "main" {
+	// OpenTofu/Terraform module referenced by the unit. It cross-references a
+	// sibling module via a relative path, which only resolves if the synthetic
+	// tree retains the surrounding repo structure.
+	require.NoError(t, srv.CommitFile("modules/vpc/main.tf", []byte(`module "sibling" {
+  source = "../sibling"
+}
+
+resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 }
 `), "add vpc module"))
@@ -98,6 +126,12 @@ unit "plain" {
   type = string
 }
 `), "add vpc variables"))
+
+	// Sibling module that the vpc module references via "../sibling".
+	require.NoError(t, srv.CommitFile("modules/sibling/main.tf", []byte(`output "name" {
+  value = "sibling"
+}
+`), "add sibling module"))
 
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)

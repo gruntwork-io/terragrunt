@@ -12,7 +12,6 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
@@ -50,7 +49,7 @@ func NewTracer(
 ) (*Tracer, error) {
 	spanExporter, err := NewTraceExporter(ctx, writer, opts)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	if spanExporter == nil { // no exporter
@@ -59,7 +58,7 @@ func NewTracer(
 
 	provider, err := newTraceProvider(spanExporter, appName, appVersion, opts)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	otel.SetTracerProvider(provider)
@@ -81,7 +80,7 @@ func NewTracer(
 
 		parsedFlag, err := strconv.Atoi(traceFlagsStr)
 		if err != nil {
-			return nil, errors.Errorf("invalid trace flags: %w", err)
+			return nil, fmt.Errorf("invalid trace flags: %w", err)
 		}
 
 		traceFlags := trace.FlagsSampled
@@ -91,12 +90,12 @@ func NewTracer(
 
 		traceID, err := trace.TraceIDFromHex(traceIDHex)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 
 		spanID, err := trace.SpanIDFromHex(spanIDHex)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 
 		parentTraceID = &traceID
@@ -130,7 +129,7 @@ func newTraceProvider(
 		),
 	)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	exporterType := traceExporterType(opts.TraceExporter)

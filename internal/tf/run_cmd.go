@@ -9,7 +9,6 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
@@ -168,7 +167,7 @@ func isCommandThatNeedsPty(args []string) (bool, error) {
 
 	fi, err := os.Stdin.Stat()
 	if err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	// if there is data in the stdin, then the terraform console is used in non-interactive mode, for example `echo "1 + 5" | terragrunt console`.

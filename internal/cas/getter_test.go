@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -44,8 +45,7 @@ func TestCASGetterDetect(t *testing.T) {
 
 	tmp := helpers.TmpDirWOSymlinks(t)
 
-	os.MkdirAll(filepath.Join(tmp, "fake-module"), 0755)
-	os.WriteFile(filepath.Join(tmp, "fake-module", "main.tf"), []byte(""), 0644)
+	require.NoError(t, vfs.WriteFile(g.Venv.FS, filepath.Join(tmp, "fake-module", "main.tf"), []byte(""), 0644))
 
 	tests := []struct {
 		expectedErr error
@@ -107,13 +107,16 @@ func TestCASGetterGet(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	opts := &cas.CloneOptions{
 		Depth: -1,
 	}
 
 	l := logger.CreateLogger()
 
-	g := getter.NewCASGetter(l, c, opts)
+	g := getter.NewCASGetter(l, c, v, opts)
 	client := getter.Client{
 		Getters: []getter.Getter{g},
 	}
@@ -157,22 +160,22 @@ func TestCASGetterLocalDir(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
 	opts := &cas.CloneOptions{
 		Branch: "main",
 	}
 
 	l := logger.CreateLogger()
 
-	g := getter.NewCASGetter(l, c, opts)
+	g := getter.NewCASGetter(l, c, v, opts)
 
 	fakeModule := filepath.Join(tmp, "fake-module")
-	os.MkdirAll(fakeModule, 0755)
-
 	fakeModuleSubdir := filepath.Join(fakeModule, "subdir")
-	os.MkdirAll(fakeModuleSubdir, 0755)
 
-	os.WriteFile(filepath.Join(fakeModule, "main.tf"), []byte(""), 0644)
-	os.WriteFile(filepath.Join(fakeModuleSubdir, "subfile.tf"), []byte(""), 0644)
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(fakeModule, "main.tf"), []byte(""), 0644))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(fakeModuleSubdir, "subfile.tf"), []byte(""), 0644))
 
 	fakeDest := filepath.Join(tmp, "fake-dest")
 
@@ -211,5 +214,8 @@ func newTestCASGetter(t *testing.T, opts *cas.CloneOptions) *getter.CASGetter {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	return getter.NewCASGetter(logger.CreateLogger(), c, opts)
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	return getter.NewCASGetter(logger.CreateLogger(), c, v, opts)
 }

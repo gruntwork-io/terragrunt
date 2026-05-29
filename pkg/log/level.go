@@ -1,11 +1,11 @@
 package log
 
 import (
+	"fmt"
 	"strings"
 
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -92,7 +92,7 @@ func ParseLevel(str string) (Level, error) {
 		}
 	}
 
-	return Level(0), errors.Errorf("invalid level %q, supported levels: %s", str, AllLevels)
+	return Level(0), fmt.Errorf("invalid level %q, supported levels: %s", str, AllLevels)
 }
 
 // String implements fmt.Stringer.
@@ -131,7 +131,7 @@ func (level Level) ShortName() string {
 func (level *Level) UnmarshalText(text []byte) error {
 	lvl, err := ParseLevel(string(text))
 	if err != nil {
-		return errors.Errorf("invalid: %q", string(text))
+		return fmt.Errorf("invalid: %q", string(text))
 	}
 
 	*level = lvl
@@ -145,7 +145,7 @@ func (level Level) MarshalText() ([]byte, error) {
 		return []byte(name), nil
 	}
 
-	return nil, errors.Errorf("invalid: %q", level)
+	return nil, fmt.Errorf("invalid: %q", level)
 }
 
 // ToLogrusLevel converts our `Level` to `logrus.Level`.

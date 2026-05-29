@@ -2,9 +2,9 @@ package strict_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/stretchr/testify/assert"

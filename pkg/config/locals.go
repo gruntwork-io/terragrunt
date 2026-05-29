@@ -10,8 +10,10 @@ import (
 
 	"maps"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -56,7 +58,7 @@ func EvaluateLocalsBlock(ctx context.Context, pctx *ParsingContext, l log.Logger
 		if iterations > MaxIter {
 			// Reached maximum supported iterations, which is most likely an infinite loop bug so cut the iteration
 			// short an return an error.
-			return nil, errors.New(MaxIterError{})
+			return nil, MaxIterError{}
 		}
 
 		var err error
@@ -79,17 +81,17 @@ func EvaluateLocalsBlock(ctx context.Context, pctx *ParsingContext, l log.Logger
 		// This is an error because we couldn't evaluate all locals
 		l.Debugf("Not all locals could be evaluated:")
 
-		var errs *errors.MultiError
+		var errs []error
 
 		for _, attr := range attrs {
 			diags := canEvaluateLocals(attr.Expr, evaluatedLocals)
 			if err := file.HandleDiagnostics(diags); err != nil {
-				errs = errs.Append(err)
+				errs = append(errs, err)
 			}
 		}
 
-		if err := errs.ErrorOrNil(); err != nil {
-			return nil, errors.New(CouldNotEvaluateAllLocalsError{Err: err})
+		if err := errors.Join(errs...); err != nil {
+			return nil, CouldNotEvaluateAllLocalsError{Err: err}
 		}
 	}
 
@@ -118,7 +120,7 @@ func attemptEvaluateLocals(
 
 	pctx.Locals = &localsAsCtyVal
 
-	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
 		l.Errorf("Could not convert include to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
 		return nil, evaluatedLocals, false, err
@@ -133,13 +135,13 @@ func attemptEvaluateLocals(
 	newEvaluatedLocals = make(map[string]cty.Value, len(evaluatedLocals))
 	maps.Copy(newEvaluatedLocals, evaluatedLocals)
 
-	errs := &errors.MultiError{}
+	var errs []error
 
 	for _, attr := range attrs {
 		if diags := canEvaluateLocals(attr.Expr, evaluatedLocals); !diags.HasErrors() {
 			evaluatedVal, err := attr.Value(evalCtx)
 			if err != nil {
-				errs = errs.Append(err)
+				errs = append(errs, err)
 				continue
 			}
 
@@ -159,7 +161,7 @@ func attemptEvaluateLocals(
 		strings.Join(newlyEvaluatedLocalNames, ", "),
 	)
 
-	return unevaluatedAttrs, newEvaluatedLocals, evaluated, errs.ErrorOrNil()
+	return unevaluatedAttrs, newEvaluatedLocals, evaluated, errors.Join(errs...)
 }
 
 // canEvaluateLocals determines if the local expression can be evaluated. An expression can be evaluated if one of the

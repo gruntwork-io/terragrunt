@@ -16,9 +16,10 @@ import (
 
 	"maps"
 
+	"errors"
+
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -160,7 +161,7 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 
 	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, registryNamesForHandlers)
 	if err != nil {
-		return errors.Errorf("creating provider handlers failed: %w", err)
+		return fmt.Errorf("creating provider handlers failed: %w", err)
 	}
 
 	// Pre-populate discovery cache for custom hosts using service URLs from user config.
@@ -477,12 +478,12 @@ func (pc *ProviderCache) saveCLIConfig(cfg *cliconfig.Config, filename string) e
 
 	cfgDirExists, err := vfs.FileExists(fs, cfgDir)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if !cfgDirExists {
 		if err := fs.MkdirAll(cfgDir, os.ModePerm); err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 

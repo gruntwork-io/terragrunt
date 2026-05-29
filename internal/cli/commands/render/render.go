@@ -9,10 +9,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -159,7 +160,7 @@ func renderJSON(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error
 
 	_, err = opts.Writers.Writer.Write(jsonBytes)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -180,7 +181,7 @@ func writeRendered(l log.Logger, opts *Options, data []byte) error {
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(outPath, data, ownerWriteGlobalReadPerms); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -193,17 +194,17 @@ func writeRendered(l log.Logger, opts *Options, data []byte) error {
 func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 	jsonBytesIntermediate, err := ctyjson.Marshal(ctyVal, cty.DynamicPseudoType)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	var ctyJSONOutput ctyhelper.CtyJSONOutput
 	if err = json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	jsonBytes, err := json.Marshal(ctyJSONOutput.Value)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	jsonBytes = append(jsonBytes, '\n')

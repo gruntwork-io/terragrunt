@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -115,7 +114,7 @@ func (flag *flagValueGetter) EnvSet(val string) error {
 		flag.value.Reset()
 		flag.envHasBeenSet = true
 	} else if !flag.multipleSet {
-		err = errors.New(ErrMultipleTimesSettingEnvVar)
+		err = ErrMultipleTimesSettingEnvVar
 	}
 
 	flag.name = flag.valueName
@@ -135,7 +134,7 @@ func (flag *flagValueGetter) Set(val string) error {
 		flag.value.Reset()
 		flag.hasBeenSet = true
 	} else if !flag.multipleSet {
-		err = errors.New(ErrMultipleTimesSettingFlag)
+		err = ErrMultipleTimesSettingFlag
 	}
 
 	flag.name = flag.valueName
@@ -279,7 +278,7 @@ func ApplyFlag(flag Flag, set *libflag.FlagSet) error {
 			}
 
 			if err := flag.Value().Getter(name).EnvSet(val); err != nil {
-				return errors.Errorf("invalid value %q for env var %s: %w", val, name, err)
+				return fmt.Errorf("invalid value %q for env var %s: %w", val, name, err)
 			}
 		}
 	}

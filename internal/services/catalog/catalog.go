@@ -9,6 +9,7 @@ package catalog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,7 +18,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -131,20 +131,20 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 
 		catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 		if err != nil {
-			return errors.Errorf("failed to read catalog configuration: %w", err)
+			return fmt.Errorf("failed to read catalog configuration: %w", err)
 		}
 
 		if catalogCfg != nil && len(catalogCfg.URLs) > 0 {
 			repoURLs = catalogCfg.URLs
 		} else {
-			return errors.Errorf("no catalog URLs provided")
+			return errors.New("no catalog URLs provided")
 		}
 	}
 
 	// Remove duplicates
 	repoURLs = util.RemoveDuplicates(repoURLs)
 	if len(repoURLs) == 0 || (len(repoURLs) == 1 && repoURLs[0] == "") {
-		return errors.Errorf("no valid repository URLs specified after configuration and flag processing")
+		return errors.New("no valid repository URLs specified after configuration and flag processing")
 	}
 
 	var allModules module.Modules
@@ -209,11 +209,11 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 	s.mu.Unlock()
 
 	if len(errs) > 0 {
-		return errors.Errorf("failed to find modules in some repositories: %v", errs)
+		return fmt.Errorf("failed to find modules in some repositories: %v", errs)
 	}
 
 	if len(allModules) == 0 {
-		return errors.Errorf("no modules found in any of the configured repositories")
+		return errors.New("no modules found in any of the configured repositories")
 	}
 
 	return nil
@@ -248,12 +248,12 @@ func (s *catalogServiceImpl) LoadStreamingURL(ctx context.Context, l log.Logger,
 		RootWorkingDir:   s.opts.RootWorkingDir,
 	})
 	if err != nil {
-		return errors.Errorf("failed to initialize repository %s: %w", repoURL, err)
+		return fmt.Errorf("failed to initialize repository %s: %w", repoURL, err)
 	}
 
 	repoModules, err := repo.FindModules(ctx, l, fsys)
 	if err != nil {
-		return errors.Errorf("failed to find modules in repository %s: %w", repoURL, err)
+		return fmt.Errorf("failed to find modules in repository %s: %w", repoURL, err)
 	}
 
 	l.Debugf("Found %d module(s) in repository %q", len(repoModules), repoURL)

@@ -2,8 +2,6 @@ package filter
 
 import (
 	"fmt"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // ErrorCode categorizes parse errors for hint lookup.
@@ -55,12 +53,12 @@ func (e ParseError) Error() string {
 
 // NewParseError creates a new ParseError with the given message and position.
 func NewParseError(message string, position int) error {
-	return errors.New(ParseError{Message: message, Position: position})
+	return ParseError{Message: message, Position: position}
 }
 
 // NewParseErrorWithContext creates a new ParseError with full context for rich diagnostics.
 func NewParseErrorWithContext(title, message string, position, errorPosition int, query, tokenLiteral string, tokenLength int, code ErrorCode) error {
-	return errors.New(ParseError{
+	return ParseError{
 		Title:         title,
 		Message:       message,
 		Position:      position,
@@ -69,7 +67,7 @@ func NewParseErrorWithContext(title, message string, position, errorPosition int
 		TokenLiteral:  tokenLiteral,
 		TokenLength:   tokenLength,
 		ErrorCode:     code,
-	})
+	}
 }
 
 // EvaluationError represents an error that occurred during evaluation.
@@ -88,12 +86,12 @@ func (e EvaluationError) Error() string {
 
 // NewEvaluationError creates a new EvaluationError with the given message.
 func NewEvaluationError(message string) error {
-	return errors.New(EvaluationError{Message: message})
+	return EvaluationError{Message: message}
 }
 
 // NewEvaluationErrorWithCause creates a new EvaluationError with the given message and cause.
 func NewEvaluationErrorWithCause(message string, cause error) error {
-	return errors.New(EvaluationError{Message: message, Cause: cause})
+	return EvaluationError{Message: message, Cause: cause}
 }
 
 // FilterQueryRequiresDiscoveryError is an error that is returned when a filter query requires discovery of Terragrunt configurations.

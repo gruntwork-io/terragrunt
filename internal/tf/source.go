@@ -14,7 +14,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -161,13 +160,13 @@ func (src Source) WriteVersionFile(l log.Logger) error {
 		// This ensures we attempt to redownload the source next time.
 		version, err = util.GenerateRandomSha256()
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 
 	const ownerReadWriteGroupReadPerms = 0640
 
-	return errors.New(os.WriteFile(src.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
+	return os.WriteFile(src.VersionFile, []byte(version), ownerReadWriteGroupReadPerms)
 }
 
 // NewSource takes the given source path and create a Source struct from it, including the folder where the source should
@@ -250,7 +249,7 @@ func ToSourceURL(source string, workingDir string) (*url.URL, error) {
 	// bitbucket, etc.).
 	rawSourceURLWithGetter, err := getter.Detect(source, workingDir)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return parseSourceURL(rawSourceURLWithGetter)
@@ -279,7 +278,7 @@ func normalizeSourceURL(source string, workingDir string) (string, error) {
 	for _, detector := range detectors {
 		_, ok, err := detector.Detect(newSource, workingDir)
 		if err != nil {
-			return source, errors.New(err)
+			return source, err
 		}
 
 		if ok {
@@ -306,7 +305,7 @@ func parseSourceURL(source string) (*url.URL, error) {
 	// Parse the URL without the getter prefix
 	canonicalSourceURL, err := getter.URLParse(rawSourceURL)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	// Reattach the "getter" prefix as part of the scheme
@@ -326,13 +325,29 @@ func IsLocalSource(sourceURL *url.URL) bool {
 // (//), which typically represents the root of a modules repo (e.g. github.com/foo/infrastructure-modules) and the
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
 // sourceUrl and the path is an empty string.
+//
+// A cas:: reference parses as an opaque URL (scheme "cas::sha1", opaque
+// "<hash>//modules/foo"), so the "//" is split out of the opaque component
+// rather than the path.
 func SplitSourceURL(l log.Logger, sourceURL *url.URL) (*url.URL, string, error) {
+	if sourceURL.Opaque != "" {
+		opaqueSplitOnDoubleSlash := strings.SplitN(sourceURL.Opaque, "//", 2) //nolint:mnd
+		if len(opaqueSplitOnDoubleSlash) > 1 {
+			rootSourceURL := *sourceURL
+			rootSourceURL.Opaque = opaqueSplitOnDoubleSlash[0]
+
+			return &rootSourceURL, opaqueSplitOnDoubleSlash[1], nil
+		}
+
+		return sourceURL, "", nil
+	}
+
 	pathSplitOnDoubleSlash := strings.SplitN(sourceURL.Path, "//", 2) //nolint:mnd
 
 	if len(pathSplitOnDoubleSlash) > 1 {
 		sourceURLModifiedPath, err := parseSourceURL(sourceURL.String())
 		if err != nil {
-			return nil, "", errors.New(err)
+			return nil, "", err
 		}
 
 		sourceURLModifiedPath.Path = pathSplitOnDoubleSlash[0]
@@ -362,7 +377,7 @@ func SplitSourceURL(l log.Logger, sourceURL *url.URL) (*url.URL, string, error) 
 func encodeSourceName(sourceURL *url.URL) (string, error) {
 	sourceURLNoQuery, err := parseSourceURL(sourceURL.String())
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	sourceURLNoQuery.RawQuery = ""

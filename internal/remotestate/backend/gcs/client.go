@@ -6,8 +6,9 @@ import (
 	"path"
 	"time"
 
+	"errors"
+
 	"cloud.google.com/go/storage"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -60,12 +61,12 @@ func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, l log.Logg
 
 	// A project must be specified in order for terragrunt to automatically create a storage bucket.
 	if client.Project == "" {
-		return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
+		return MissingRequiredGCSRemoteStateConfig("project")
 	}
 
 	// A location must be specified in order for terragrunt to automatically create a storage bucket.
 	if client.Location == "" {
-		return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
+		return MissingRequiredGCSRemoteStateConfig("location")
 	}
 
 	l.Debugf("Remote state GCS bucket %s does not exist. Attempting to create it", bucketName)
@@ -104,7 +105,7 @@ func (client *Client) CheckIfGCSVersioningEnabled(ctx context.Context, l log.Log
 	attrs, err := bucket.Attrs(ctx)
 	if err != nil {
 		// ErrBucketNotExist
-		return false, errors.New(err)
+		return false, err
 	}
 
 	if !attrs.VersioningEnabled {
@@ -150,7 +151,7 @@ func (client *Client) AddLabelsToGCSBucket(ctx context.Context, l log.Logger, bu
 
 	_, err := bucket.Update(ctx, bucketAttrs)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -189,7 +190,7 @@ func (client *Client) CreateGCSBucket(ctx context.Context, l log.Logger, bucketN
 	}
 
 	if err := bucket.Create(ctx, projectID, bucketAttrs); err != nil {
-		return errors.Errorf("error creating GCS bucket %s: %w", bucketName, err)
+		return fmt.Errorf("error creating GCS bucket %s: %w", bucketName, err)
 	}
 
 	return nil
@@ -214,7 +215,7 @@ func (client *Client) WaitUntilGCSBucketExists(ctx context.Context, l log.Logger
 		}
 	}
 
-	return errors.New(MaxRetriesWaitingForGCSBucketExceeded(bucketName))
+	return MaxRetriesWaitingForGCSBucketExceeded(bucketName)
 }
 
 // DoesGCSBucketExist returns true if the GCS bucket specified in the given config exists and the current user has the
@@ -262,7 +263,7 @@ func (client *Client) DeleteGCSBucket(ctx context.Context, l log.Logger, bucketN
 	l.Debugf("Deleting GCS bucket %s", bucketName)
 
 	if err := bucket.Delete(ctx); err != nil {
-		return errors.Errorf("error deleting GCS bucket %s: %w", bucketName, err)
+		return fmt.Errorf("error deleting GCS bucket %s: %w", bucketName, err)
 	}
 
 	l.Debugf("Deleted GCS bucket %s", bucketName)
@@ -284,7 +285,7 @@ func (client *Client) WaitUntilGCSBucketDeleted(ctx context.Context, l log.Logge
 		}
 	}
 
-	return errors.New(MaxRetriesWaitingForGCSBucketExceeded(bucketName))
+	return MaxRetriesWaitingForGCSBucketExceeded(bucketName)
 }
 
 // DeleteGCSObjectIfNecessary deletes the bucket objects with the given prefix if they exist.
@@ -316,13 +317,13 @@ func (client *Client) DeleteGCSObjects(ctx context.Context, l log.Logger, bucket
 				break
 			}
 
-			return errors.Errorf("failed to get GCS object attrs: %w", err)
+			return fmt.Errorf("failed to get GCS object attrs: %w", err)
 		}
 
 		l.Debugf("Deleting GCS object %s with generation %d in bucket %s", attrs.Name, attrs.Generation, bucketName)
 
 		if err := bucket.Object(attrs.Name).Generation(attrs.Generation).Delete(ctx); err != nil {
-			return errors.Errorf("failed to delete object %s with generation %d in bucket %s: %w", attrs.Name, attrs.Generation, bucketName, err)
+			return fmt.Errorf("failed to delete object %s with generation %d in bucket %s: %w", attrs.Name, attrs.Generation, bucketName, err)
 		}
 	}
 
@@ -338,7 +339,7 @@ func (client *Client) MoveGCSObjectIfNecessary(ctx context.Context, l log.Logger
 	if exists, err := client.DoesGCSObjectExist(ctx, dstBucketName, dstKey); err != nil {
 		return err
 	} else if exists {
-		return errors.Errorf("destination GCS bucket %s object %s already exists", dstBucketName, dstKey)
+		return fmt.Errorf("destination GCS bucket %s object %s already exists", dstBucketName, dstKey)
 	}
 
 	description := fmt.Sprintf("Move GCS bucket object from %s to %s", path.Join(srcBucketName, srcKey), path.Join(dstBucketName, dstKey))
@@ -392,7 +393,7 @@ func (client *Client) CopyGCSBucketObject(ctx context.Context, l log.Logger, src
 	dst := client.Bucket(dstBucketName).Object(dstKey)
 
 	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
-		return errors.Errorf("failed to copy object: %w", err)
+		return fmt.Errorf("failed to copy object: %w", err)
 	}
 
 	return nil

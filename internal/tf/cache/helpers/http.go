@@ -12,7 +12,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
@@ -21,7 +20,7 @@ func Fetch(ctx context.Context, req *http.Request, dst io.Writer) error {
 
 	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
@@ -35,9 +34,9 @@ func Fetch(ctx context.Context, req *http.Request, dst io.Writer) error {
 	}
 
 	if written, err := util.Copy(ctx, dst, reader); err != nil {
-		return errors.New(err)
+		return err
 	} else if resp.ContentLength != -1 && written != resp.ContentLength {
-		return errors.Errorf("incorrect response size: expected %d bytes, but got %d bytes", resp.ContentLength, written)
+		return fmt.Errorf("incorrect response size: expected %d bytes, but got %d bytes", resp.ContentLength, written)
 	}
 
 	return nil
@@ -47,7 +46,7 @@ func Fetch(ctx context.Context, req *http.Request, dst io.Writer) error {
 func FetchToFile(ctx context.Context, req *http.Request, dst string) error {
 	file, err := os.Create(dst)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 	defer file.Close() //nolint:errcheck
 
@@ -56,7 +55,7 @@ func FetchToFile(ctx context.Context, req *http.Request, dst string) error {
 	}
 
 	if err := file.Sync(); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -92,7 +91,7 @@ func ResponseBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	buffer := new(bytes.Buffer)
 
 	if _, err := buffer.ReadFrom(reader); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return buffer, nil
@@ -110,7 +109,7 @@ func ModifyJSONBody(resp *http.Response, value any, fn func() error) error {
 
 	decoder := json.NewDecoder(buffer)
 	if err := decoder.Decode(value); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if fn == nil {
@@ -123,7 +122,7 @@ func ModifyJSONBody(resp *http.Response, value any, fn func() error) error {
 
 	encoder := json.NewEncoder(buffer)
 	if err := encoder.Encode(value); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	resp.Body = io.NopCloser(buffer)

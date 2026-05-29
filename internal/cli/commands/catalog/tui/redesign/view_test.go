@@ -321,7 +321,7 @@ func TestWelcomeStreamingFlowWithRacing(t *testing.T) {
 // runUntilQuiet dispatches initialCmd into the synctest bubble and applies
 // every message it produces (and the transitive cmds those messages return)
 // until budget elapses without new activity. Used by tests that need
-// post-Init state transitions to actually update the model — unlike
+// post-Init state transitions to actually update the model, unlike
 // driveModel's settle loop, which discards trailing messages so background
 // tickers can finish cleanly.
 func runUntilQuiet(t *testing.T, m tea.Model, initialCmd tea.Cmd, budget time.Duration) tea.Model {
