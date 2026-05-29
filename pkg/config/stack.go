@@ -803,9 +803,16 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, decodeErr
 	}
 
-	// Process include blocks when the stack-dependencies experiment is enabled.
+	// Process include blocks and merge any generated stack-level autoinclude file
+	// when the stack-dependencies experiment is enabled.
 	if parser.Experiments.Evaluate(experiment.StackDependencies) {
-		if err := processStackConfigIncludes(config, filepath.Dir(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
+		stackDir := filepath.Dir(file.ConfigPath)
+
+		if err := processStackConfigIncludes(config, stackDir, evalParsingContext, parser.ParserOptions); err != nil {
+			return nil, err
+		}
+
+		if err := mergeStackAutoIncludeFile(config, stackDir, filepath.Base(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
 			return nil, err
 		}
 	}
@@ -937,6 +944,45 @@ func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCt
 
 		seen[s.Name] = struct{}{}
 	}
+
+	return nil
+}
+
+// mergeStackAutoIncludeFile merges a generated terragrunt.autoinclude.stack.hcl, if present
+// beside the stack file, into the stack config. Units and stacks injected by a parent stack's
+// autoinclude block materialize in the nested stack the same way a unit's
+// terragrunt.autoinclude.hcl merges into its terragrunt.hcl via [mergeAutoIncludeIfPresent].
+func mergeStackAutoIncludeFile(config *StackConfigFile, stackDir, stackFileName string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
+	// Never merge the autoinclude file into itself.
+	if stackFileName == inthclparse.AutoIncludeStackFile {
+		return nil
+	}
+
+	autoIncludePath := filepath.Join(stackDir, inthclparse.AutoIncludeStackFile)
+	if !util.FileExists(autoIncludePath) {
+		return nil
+	}
+
+	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(autoIncludePath)
+	if err != nil {
+		return fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
+	}
+
+	included := &StackConfigFile{}
+	if decodeErr := incFile.Decode(included, evalCtx); decodeErr != nil {
+		return fmt.Errorf("failed to decode stack autoinclude %q: %w", autoIncludePath, decodeErr)
+	}
+
+	if included.Locals != nil {
+		return fmt.Errorf("stack autoinclude %q must not define locals", autoIncludePath)
+	}
+
+	if len(included.Includes) > 0 {
+		return fmt.Errorf("stack autoinclude %q must not define include blocks", autoIncludePath)
+	}
+
+	config.Units = append(config.Units, included.Units...)
+	config.Stacks = append(config.Stacks, included.Stacks...)
 
 	return nil
 }

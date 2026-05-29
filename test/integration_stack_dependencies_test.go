@@ -41,6 +41,7 @@ const (
 	testFixtureStackDepsMergePrecedence          = "fixtures/stacks/stack-deps-merge-precedence"
 	testFixtureStackDepsArbitraryOverride        = "fixtures/stacks/stack-deps-arbitrary-override"
 	testFixtureStackDepsStackAutoInclude         = "fixtures/stacks/stack-deps-stack-autoinclude"
+	testFixtureStackDepsStackAutoIncludeNested   = "fixtures/stacks/stack-deps-stack-autoinclude-nested"
 	testFixtureStackDepsCrossLevelValues         = "fixtures/stacks/stack-deps-cross-level-values"
 )
 
@@ -1329,8 +1330,6 @@ func TestStackDepsStackLevelAutoInclude(t *testing.T) {
 func TestStackDepsStackLevelAutoIncludeMergedIntoNestedStack(t *testing.T) {
 	t.Parallel()
 
-	t.Skip("stack-level autoinclude is generated but not yet merged into the nested stack")
-
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackAutoInclude)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoInclude)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoInclude)
@@ -1349,6 +1348,56 @@ func TestStackDepsStackLevelAutoIncludeMergedIntoNestedStack(t *testing.T) {
 	nestedStackDir := filepath.Join(rootPath, inthclparse.StackDir, "networking", inthclparse.StackDir)
 	assert.DirExists(t, filepath.Join(nestedStackDir, "extra"),
 		"the unit injected via the stack-level autoinclude must materialize in the nested stack")
+
+	// The merged unit must also be discoverable, proving the merge feeds downstream
+	// tooling (find/run), not just the on-disk directory copy.
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --json --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var components []findComponent
+	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
+
+	foundExtra := false
+
+	for _, c := range components {
+		if c.Type == "unit" && filepath.Base(c.Path) == "extra" {
+			foundExtra = true
+			break
+		}
+	}
+
+	assert.True(t, foundExtra, "the autoinclude-injected extra unit must be discoverable")
+}
+
+// TestStackDepsStackLevelAutoIncludeInjectsNestedStack verifies that a stack-level
+// autoinclude can inject a nested stack (not just a unit). The injected stack must
+// itself be re-discovered and expanded by the level-by-level generator, so its units
+// materialize one level deeper than the autoinclude target.
+func TestStackDepsStackLevelAutoIncludeInjectsNestedStack(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackAutoIncludeNested)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncludeNested)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncludeNested)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	// The autoinclude-injected "more" stack must merge into the networking stack and then
+	// expand its own units a level deeper.
+	moreStackDir := filepath.Join(rootPath, inthclparse.StackDir, "networking", inthclparse.StackDir, "more")
+	assert.DirExists(t, moreStackDir,
+		"the stack injected via the stack-level autoinclude must materialize in the nested stack")
+	assert.DirExists(t, filepath.Join(moreStackDir, inthclparse.StackDir, "deep"),
+		"the autoinclude-injected nested stack must expand its own units")
 }
 
 // TestStackDepsCrossLevelViaValues verifies a dependency between units at
