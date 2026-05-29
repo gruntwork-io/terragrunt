@@ -14,12 +14,6 @@ on:
         description: 'Go packages to test (default: ./...). Scope (e.g. ./internal/strict/...) for a fast end-to-end check.'
         required: false
         default: ''
-  # TEMPORARY: run the report end to end from this branch before it lands on the
-  # default branch (workflow_dispatch only works once the file is on main). Remove
-  # this push trigger after the feature merges.
-  push:
-    branches:
-      - OSS-2283-long-tests-reporting
 
 concurrency:
   group: coverage-weekly-${{ github.ref }}
