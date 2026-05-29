@@ -44,12 +44,10 @@ type BlobClient struct {
 // NewBlobClient builds an *azblob.Client from an AzureConfig and returns it
 // wrapped in BlobClient. SAS-token configs use the no-credential constructor;
 // access-key configs use a shared key credential; all other methods use the
-// AzureConfig.Credential as a token credential.
-//
-// endpointSuffix selects the blob endpoint host (e.g. "core.windows.net" for
-// Azure public cloud, "core.usgovcloudapi.net" for US Government). When empty,
-// the suffix is derived from cfg.CloudConfig.
-func NewBlobClient(_ context.Context, cfg *AzureConfig, endpointSuffix string) (*BlobClient, error) {
+// AzureConfig.Credential as a token credential. The blob endpoint host
+// (e.g. "core.windows.net" / "core.usgovcloudapi.net") is derived from
+// cfg.CloudConfig.
+func NewBlobClient(cfg *AzureConfig) (*BlobClient, error) {
 	if cfg == nil {
 		return nil, ErrAzureConfigRequired
 	}
@@ -58,10 +56,7 @@ func NewBlobClient(_ context.Context, cfg *AzureConfig, endpointSuffix string) (
 		return nil, ErrStorageAccountRequired
 	}
 
-	suffix := endpointSuffix
-	if suffix == "" {
-		suffix = endpointSuffixForCloud(cfg)
-	}
+	suffix := endpointSuffixForCloud(cfg)
 
 	client, err := newAzblobClient(cfg, suffix)
 	if err != nil {
@@ -190,9 +185,9 @@ func (c *BlobClient) CreateContainer(ctx context.Context, name string) error {
 	return fmt.Errorf("creating container %s: %w", name, err)
 }
 
-// CreateContainerIfNecessary is a convenience for the common "ensure exists"
-// pattern: checks existence first, then creates only if missing.
-func (c *BlobClient) CreateContainerIfNecessary(ctx context.Context, name string) error {
+// EnsureContainer checks existence first, then creates only if missing.
+// Idempotent.
+func (c *BlobClient) EnsureContainer(ctx context.Context, name string) error {
 	exists, err := c.ContainerExists(ctx, name)
 	if err != nil {
 		return err
@@ -263,8 +258,9 @@ func (c *BlobClient) PutBlobFromReader(ctx context.Context, container, key strin
 	return nil
 }
 
-// DeleteBlob deletes the named blob. Missing blobs return nil.
-func (c *BlobClient) DeleteBlob(ctx context.Context, container, key string) error {
+// EnsureBlobDeleted deletes the named blob. Idempotent: returns nil if the
+// blob is already gone (BlobNotFound).
+func (c *BlobClient) EnsureBlobDeleted(ctx context.Context, container, key string) error {
 	if container == "" || key == "" {
 		return ErrBlobKeyRequired
 	}
@@ -287,23 +283,40 @@ func (c *BlobClient) GetObject(ctx context.Context, key string) (io.ReadCloser, 
 	return c.GetBlob(ctx, c.container, key)
 }
 
-// ListBlobs returns the keys of all blobs in container whose names start
-// with prefix. Pass an empty prefix to enumerate the entire container.
-// Pages through ListBlobsFlat results; the full set is materialised in
-// memory, so callers should expect O(N) memory in the number of blobs.
-func (c *BlobClient) ListBlobs(ctx context.Context, container, prefix string) ([]string, error) {
+// ListBlobsOption configures ListBlobs.
+type ListBlobsOption func(*listBlobsOptions)
+
+type listBlobsOptions struct {
+	prefix string
+}
+
+// WithPrefix restricts ListBlobs to blob names beginning with prefix.
+func WithPrefix(prefix string) ListBlobsOption {
+	return func(o *listBlobsOptions) { o.prefix = prefix }
+}
+
+// ListBlobs returns the keys of all blobs in container, optionally filtered
+// by a WithPrefix option. Pages through ListBlobsFlat results; the full set
+// is materialised in memory, so callers should expect O(N) memory in the
+// number of blobs.
+func (c *BlobClient) ListBlobs(ctx context.Context, container string, opts ...ListBlobsOption) ([]string, error) {
 	if container == "" {
 		return nil, ErrContainerNameRequired
 	}
 
-	cc := c.client.ServiceClient().NewContainerClient(container)
-
-	opts := &azblobcontainer.ListBlobsFlatOptions{}
-	if prefix != "" {
-		opts.Prefix = &prefix
+	o := &listBlobsOptions{}
+	for _, opt := range opts {
+		opt(o)
 	}
 
-	pager := cc.NewListBlobsFlatPager(opts)
+	cc := c.client.ServiceClient().NewContainerClient(container)
+
+	flatOpts := &azblobcontainer.ListBlobsFlatOptions{}
+	if o.prefix != "" {
+		flatOpts.Prefix = &o.prefix
+	}
+
+	pager := cc.NewListBlobsFlatPager(flatOpts)
 
 	var out []string
 

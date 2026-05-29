@@ -67,11 +67,11 @@ func (c *ResourceGroupClient) Exists(ctx context.Context, name string) (bool, er
 	return resp.Success, nil
 }
 
-// CreateIfNecessary creates a resource group at location if it does not
+// EnsureResourceGroup creates a resource group at location if it does not
 // already exist. location is required when the resource group does not
 // yet exist; an empty location yields an error rather than a silent
 // geographic default, mirroring StorageAccountClient.Create.
-func (c *ResourceGroupClient) CreateIfNecessary(ctx context.Context, l log.Logger, name, location string) error {
+func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Logger, name, location string) error {
 	if name == "" {
 		return ErrResourceGroupNameRequired
 	}
