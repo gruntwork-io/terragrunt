@@ -356,7 +356,7 @@ func implicitStackOutput(
 		return cty.NilVal, nil
 	}
 
-	outputs := xsync.NewMapOf[string, cty.Value]()
+	outputs := xsync.NewMap[string, cty.Value]()
 
 	wp := worker.NewWorkerPool(opts.Parallelism)
 	defer wp.Stop()
