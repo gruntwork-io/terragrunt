@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -136,7 +135,7 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig bac
 		}
 	}()
 
-	if err := client.CreateStorageAccountIfNecessary(ctx, l, opts); err != nil {
+	if err := client.EnsureStorageAccount(ctx, l, opts); err != nil {
 		return err
 	}
 
@@ -146,7 +145,7 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig bac
 		}
 	}
 
-	if err := client.CreateContainerIfNecessary(ctx, l, opts); err != nil {
+	if err := client.EnsureContainer(ctx, l, opts); err != nil {
 		return err
 	}
 
@@ -200,7 +199,7 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, d
 	}
 
 	if srcCfg.RemoteStateConfigAzureRM.StorageAccountName != dstCfg.RemoteStateConfigAzureRM.StorageAccountName {
-		return errors.Errorf("azurerm migrate: cross-account migration is not supported (src=%s, dst=%s)",
+		return fmt.Errorf("azurerm migrate: cross-account migration is not supported (src=%s, dst=%s)",
 			srcCfg.RemoteStateConfigAzureRM.StorageAccountName, dstCfg.RemoteStateConfigAzureRM.StorageAccountName)
 	}
 

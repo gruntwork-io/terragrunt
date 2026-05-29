@@ -280,7 +280,7 @@ type SoftDeletePolicy struct {
 func (c *StorageAccountClient) GetSoftDeletePolicy(ctx context.Context) (SoftDeletePolicy, error) {
 	resp, err := c.blobServices.GetServiceProperties(ctx, c.resourceGroup, c.accountName, nil)
 	if err != nil {
-		return SoftDeletePolicy{}, WrapError(err, fmt.Sprintf("get blob service properties for %q", c.accountName))
+		return SoftDeletePolicy{}, fmt.Errorf("get blob service properties for %q: %w", c.accountName, err)
 	}
 
 	out := SoftDeletePolicy{}

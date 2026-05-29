@@ -99,7 +99,7 @@ func TestNewClient_SASTokenIsDataPlaneOnly(t *testing.T) {
 	requireDataPlaneOnly(t, err)
 
 	requireDataPlaneOnly(t, c.DeleteStorageAccount(ctx, l))
-	requireDataPlaneOnly(t, c.CreateStorageAccountIfNecessary(ctx, l, opts))
+	requireDataPlaneOnly(t, c.EnsureStorageAccount(ctx, l, opts))
 }
 
 // TestNewClient_AccessKeyIsDataPlaneOnly mirrors the SAS-token case for
@@ -125,11 +125,11 @@ func TestNewClient_AccessKeyIsDataPlaneOnly(t *testing.T) {
 	requireDataPlaneOnly(t, err)
 }
 
-// TestClient_AssignBlobDataOwnerIfNecessary_NoOps covers the two early
-// returns in AssignBlobDataOwnerIfNecessary: the AssignBlobDataOwner
+// TestClient_EnsureBlobDataOwner_NoOps covers the two early
+// returns in EnsureBlobDataOwner: the AssignBlobDataOwner
 // flag being false, and an empty principal ID. Both must succeed without
 // touching the (nil) RBAC client.
-func TestClient_AssignBlobDataOwnerIfNecessary_NoOps(t *testing.T) {
+func TestClient_EnsureBlobDataOwner_NoOps(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -148,22 +148,22 @@ func TestClient_AssignBlobDataOwnerIfNecessary_NoOps(t *testing.T) {
 	t.Cleanup(func() { assert.NoError(t, c.Close()) })
 
 	// Flag off: no-op even with a principal ID.
-	require.NoError(t, c.AssignBlobDataOwnerIfNecessary(ctx, l, "00000000-0000-0000-0000-000000000000"))
+	require.NoError(t, c.EnsureBlobDataOwner(ctx, l, "00000000-0000-0000-0000-000000000000"))
 
 	// Flag on but empty principal: still a no-op.
 	ext.AssignBlobDataOwner = true
 
-	require.NoError(t, c.AssignBlobDataOwnerIfNecessary(ctx, l, ""))
+	require.NoError(t, c.EnsureBlobDataOwner(ctx, l, ""))
 
 	// Flag on + principal: now the control-plane gate must fire.
-	err = c.AssignBlobDataOwnerIfNecessary(ctx, l, "00000000-0000-0000-0000-000000000000")
+	err = c.EnsureBlobDataOwner(ctx, l, "00000000-0000-0000-0000-000000000000")
 	requireDataPlaneOnly(t, err)
 }
 
-// TestClient_CreateStorageAccountIfNecessary_SkipFlag verifies the
+// TestClient_EnsureStorageAccount_SkipFlag verifies the
 // skip_storage_account_creation short-circuit returns nil before any
 // control-plane call is attempted, even on a data-plane-only client.
-func TestClient_CreateStorageAccountIfNecessary_SkipFlag(t *testing.T) {
+func TestClient_EnsureStorageAccount_SkipFlag(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -180,7 +180,7 @@ func TestClient_CreateStorageAccountIfNecessary_SkipFlag(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, c.Close()) })
 
-	require.NoError(t, c.CreateStorageAccountIfNecessary(ctx, l, opts))
+	require.NoError(t, c.EnsureStorageAccount(ctx, l, opts))
 }
 
 // TestClient_MoveBlob_NoOpWhenSrcEqualsDst verifies the early return when
@@ -297,10 +297,10 @@ func TestErrors_ExperimentNotEnabledError(t *testing.T) {
 	assert.Contains(t, err.Error(), "experimental")
 }
 
-// TestClient_CreateContainerIfNecessary_SkipFlag verifies the
+// TestClient_EnsureContainer_SkipFlag verifies the
 // skip_container_creation short-circuit returns nil before any
 // data-plane call is attempted.
-func TestClient_CreateContainerIfNecessary_SkipFlag(t *testing.T) {
+func TestClient_EnsureContainer_SkipFlag(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -317,7 +317,7 @@ func TestClient_CreateContainerIfNecessary_SkipFlag(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, c.Close()) })
 
-	require.NoError(t, c.CreateContainerIfNecessary(ctx, l, opts))
+	require.NoError(t, c.EnsureContainer(ctx, l, opts))
 }
 
 // TestBackend_NeedsBootstrap_AllSkipsReturnsFalse exercises the

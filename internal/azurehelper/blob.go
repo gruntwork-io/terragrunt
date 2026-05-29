@@ -384,7 +384,7 @@ func (c *BlobClient) WaitForCopy(ctx context.Context, dstContainer, dstKey strin
 	for {
 		props, err := dst.GetProperties(ctx, nil)
 		if err != nil {
-			return WrapError(err, fmt.Sprintf("polling copy status of %s/%s", dstContainer, dstKey))
+			return fmt.Errorf("polling copy status of %s/%s: %w", dstContainer, dstKey, err)
 		}
 
 		if props.CopyStatus == nil {
@@ -400,14 +400,14 @@ func (c *BlobClient) WaitForCopy(ctx context.Context, dstContainer, dstKey strin
 				desc = *props.CopyStatusDescription
 			}
 
-			return errors.Errorf("copy of %s/%s ended in state %s: %s", dstContainer, dstKey, *props.CopyStatus, desc)
+			return fmt.Errorf("copy of %s/%s ended in state %s: %s", dstContainer, dstKey, *props.CopyStatus, desc)
 		case blob.CopyStatusTypePending:
 			// keep polling
 		}
 
 		select {
 		case <-ctx.Done():
-			return errors.Errorf("context cancelled while waiting for copy of %s/%s: %w", dstContainer, dstKey, ctx.Err())
+			return fmt.Errorf("context cancelled while waiting for copy of %s/%s: %w", dstContainer, dstKey, ctx.Err())
 		case <-time.After(pollInterval):
 		}
 	}

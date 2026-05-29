@@ -2,7 +2,6 @@ package azurerm
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // terragruntOnlyConfigs lists configuration keys that are consumed by
@@ -90,20 +89,20 @@ func (cfg *ExtendedRemoteStateConfigAzureRM) Validate() error {
 	rsc := &cfg.RemoteStateConfigAzureRM
 
 	if rsc.StorageAccountName == "" {
-		return errors.New(MissingRequiredAzureRMRemoteStateConfig("storage_account_name"))
+		return MissingRequiredAzureRMRemoteStateConfig("storage_account_name")
 	}
 
 	if rsc.ContainerName == "" {
-		return errors.New(MissingRequiredAzureRMRemoteStateConfig("container_name"))
+		return MissingRequiredAzureRMRemoteStateConfig("container_name")
 	}
 
 	if rsc.Key == "" {
-		return errors.New(MissingRequiredAzureRMRemoteStateConfig("key"))
+		return MissingRequiredAzureRMRemoteStateConfig("key")
 	}
 
 	armOpsRequired := !cfg.SkipResourceGroupCreation || !cfg.SkipStorageAccountCreation
 	if armOpsRequired && rsc.ResourceGroupName == "" {
-		return errors.New(MissingRequiredAzureRMRemoteStateConfig("resource_group_name"))
+		return MissingRequiredAzureRMRemoteStateConfig("resource_group_name")
 	}
 
 	return nil

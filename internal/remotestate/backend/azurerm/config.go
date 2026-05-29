@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -68,11 +67,11 @@ func (cfg Config) ParseExtendedAzureRMConfig() (*ExtendedRemoteStateConfigAzureR
 	)
 
 	if err := mapstructure.WeakDecode(cfg, &azureCfg); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	if err := mapstructure.WeakDecode(cfg, &extendedCfg); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	extendedCfg.RemoteStateConfigAzureRM = azureCfg

@@ -8,10 +8,10 @@ package azurerm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -41,11 +41,11 @@ func NewClient(
 	opts *backend.Options,
 ) (*Client, error) {
 	if cfg == nil {
-		return nil, errors.Errorf("azurerm: ExtendedRemoteStateConfigAzureRM is required")
+		return nil, errors.New("azurerm: ExtendedRemoteStateConfigAzureRM is required")
 	}
 
 	if opts == nil {
-		return nil, errors.Errorf("azurerm: backend.Options is required")
+		return nil, errors.New("azurerm: backend.Options is required")
 	}
 
 	azCfg, err := azurehelper.NewAzureConfigBuilder().
@@ -56,7 +56,7 @@ func NewClient(
 		return nil, err
 	}
 
-	blob, err := azurehelper.NewBlobClient(ctx, azCfg, "")
+	blob, err := azurehelper.NewBlobClient(azCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (c *Client) Close() error { return nil }
 // that manage storage accounts, resource groups, or RBAC.
 func (c *Client) requireControlPlane(op string) error {
 	if c.storageAccount == nil {
-		return errors.Errorf("%s requires a token credential; auth method %q is data-plane only", op, c.azCfg.Method)
+		return fmt.Errorf("%s requires a token credential; auth method %q is data-plane only", op, c.azCfg.Method)
 	}
 
 	return nil
@@ -122,7 +122,7 @@ func (c *Client) DoesStorageAccountExist(ctx context.Context) (bool, error) {
 	return c.storageAccount.Exists(ctx)
 }
 
-// CreateStorageAccountIfNecessary ensures the configured storage account
+// EnsureStorageAccount ensures the configured storage account
 // exists. It first ensures the resource group exists (unless the caller
 // has set skip_resource_group_creation), then creates the account if
 // missing. The method is a no-op when skip_storage_account_creation is set.
@@ -130,7 +130,7 @@ func (c *Client) DoesStorageAccountExist(ctx context.Context) (bool, error) {
 // FailIfBucketCreationRequired short-circuits with backend.BucketCreationNotAllowed
 // when creation would otherwise be needed; opts.NonInteractive is honoured
 // when prompting the user.
-func (c *Client) CreateStorageAccountIfNecessary(ctx context.Context, l log.Logger, opts *backend.Options) error {
+func (c *Client) EnsureStorageAccount(ctx context.Context, l log.Logger, opts *backend.Options) error {
 	if c.SkipStorageAccountCreation {
 		return nil
 	}
@@ -149,7 +149,7 @@ func (c *Client) CreateStorageAccountIfNecessary(ctx context.Context, l log.Logg
 	}
 
 	if c.Location == "" {
-		return errors.New(MissingRequiredAzureRMRemoteStateConfig("location"))
+		return MissingRequiredAzureRMRemoteStateConfig("location")
 	}
 
 	if opts.FailIfBucketCreationRequired {
@@ -212,10 +212,10 @@ func (c *Client) ensureResourceGroup(ctx context.Context, l log.Logger) error {
 	}
 
 	if c.RemoteStateConfigAzureRM.ResourceGroupName == "" {
-		return errors.New(MissingRequiredAzureRMRemoteStateConfig("resource_group_name"))
+		return MissingRequiredAzureRMRemoteStateConfig("resource_group_name")
 	}
 
-	return c.resourceGroup.CreateIfNecessary(ctx, l, c.RemoteStateConfigAzureRM.ResourceGroupName, c.Location)
+	return c.resourceGroup.EnsureResourceGroup(ctx, l, c.RemoteStateConfigAzureRM.ResourceGroupName, c.Location)
 }
 
 // IsVersioningEnabled returns true if blob versioning is enabled on the
@@ -246,9 +246,9 @@ func (c *Client) DoesContainerExist(ctx context.Context) (bool, error) {
 	return c.blob.ContainerExists(ctx, c.RemoteStateConfigAzureRM.ContainerName)
 }
 
-// CreateContainerIfNecessary ensures the configured container exists. The
+// EnsureContainer ensures the configured container exists. The
 // method is a no-op when skip_container_creation is set.
-func (c *Client) CreateContainerIfNecessary(ctx context.Context, l log.Logger, opts *backend.Options) error {
+func (c *Client) EnsureContainer(ctx context.Context, l log.Logger, opts *backend.Options) error {
 	if c.SkipContainerCreation {
 		return nil
 	}
@@ -280,7 +280,7 @@ func (c *Client) CreateContainerIfNecessary(ctx context.Context, l log.Logger, o
 		return nil
 	}
 
-	return c.blob.CreateContainerIfNecessary(ctx, c.RemoteStateConfigAzureRM.ContainerName)
+	return c.blob.EnsureContainer(ctx, c.RemoteStateConfigAzureRM.ContainerName)
 }
 
 // MoveBlob copies srcKey within the bound container to dstContainer/dstKey,
@@ -301,18 +301,20 @@ func (c *Client) MoveBlob(ctx context.Context, srcContainer, srcKey, dstContaine
 		return err
 	}
 
-	return c.blob.DeleteBlob(ctx, srcContainer, srcKey)
+	return c.blob.EnsureBlobDeleted(ctx, srcContainer, srcKey)
 }
 
-// DeleteBlobIfExists deletes a single blob. Missing blobs return nil.
+// DeleteBlobIfExists deletes a single blob. Idempotent: delegates to
+// azurehelper.BlobClient.EnsureBlobDeleted, which treats BlobNotFound as
+// success so this wrapper returns nil for already-missing blobs.
 func (c *Client) DeleteBlobIfExists(ctx context.Context, container, key string) error {
-	return c.blob.DeleteBlob(ctx, container, key)
+	return c.blob.EnsureBlobDeleted(ctx, container, key)
 }
 
 // DeleteContainer deletes the configured container. Missing containers
 // return nil.
 func (c *Client) DeleteContainer(ctx context.Context) error {
-	return c.blob.DeleteContainer(ctx, c.RemoteStateConfigAzureRM.ContainerName)
+	return c.blob.EnsureContainerDeleted(ctx, c.RemoteStateConfigAzureRM.ContainerName)
 }
 
 // DeleteStorageAccount deletes the configured storage account. Returns an
@@ -325,10 +327,10 @@ func (c *Client) DeleteStorageAccount(ctx context.Context, l log.Logger) error {
 	return c.storageAccount.Delete(ctx, l)
 }
 
-// AssignBlobDataOwnerIfNecessary assigns the Storage Blob Data Owner role
+// EnsureBlobDataOwner assigns the Storage Blob Data Owner role
 // on the configured storage account to the supplied principal. No-op when
 // assign_storage_blob_data_owner is false or principalID is empty.
-func (c *Client) AssignBlobDataOwnerIfNecessary(ctx context.Context, l log.Logger, principalID string) error {
+func (c *Client) EnsureBlobDataOwner(ctx context.Context, l log.Logger, principalID string) error {
 	if !c.AssignBlobDataOwner || principalID == "" {
 		return nil
 	}
