@@ -238,6 +238,8 @@ func mergeFeatureFlagConfig(l log.Logger, mergeStrategy MergeStrategyType, baseC
 	includeOnlyConfig := &TerragruntConfig{FeatureFlags: includeFlags}
 
 	switch mergeStrategy {
+	case NoMerge:
+		return baseConfig, nil
 	case ShallowMerge:
 		if err := includeOnlyConfig.Merge(l, baseConfig); err != nil {
 			return nil, err
