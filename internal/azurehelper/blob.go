@@ -25,9 +25,9 @@ import (
 // NewBlobClient.
 //
 // A BlobClient may optionally be bound to a default container via
-// BindContainer. Methods like GetObject and ListBlobsBound use that bound
-// container so callers (e.g. the dependency-fetch path that asks for a
-// state file by key) do not need to repeat the container on every call.
+// BindContainer. GetObject uses that bound container so callers (e.g. the
+// dependency-fetch path that asks for a state file by key) do not need to
+// repeat the container on every call.
 //
 // BlobClient is not safe for concurrent use when callers invoke
 // BindContainer: the bound container is stored on the receiver. Construct
@@ -339,6 +339,11 @@ func (c *BlobClient) ListBlobs(ctx context.Context, container string, opts ...Li
 // CopyBlob copies srcKey from srcContainer to dstKey in dstContainer using
 // the server-side StartCopyFromURL API. Both blobs must live in the same
 // storage account that this client is bound to.
+//
+// Container and key arguments are the unescaped logical names; CopyBlob
+// percent-encodes the path internally when constructing the source URL.
+// Callers must not pre-encode (e.g. pass "folder%2Fkey") — the resulting
+// URL would double-encode.
 //
 // The copy is initiated synchronously (StartCopyFromURL returns once Azure
 // accepts the request) but Azure may complete the copy asynchronously for
