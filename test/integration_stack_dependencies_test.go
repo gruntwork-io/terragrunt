@@ -1359,8 +1359,6 @@ func TestStackDepsStackLevelAutoIncludeMergedIntoNestedStack(t *testing.T) {
 func TestStackDepsCrossLevelViaValues(t *testing.T) {
 	t.Parallel()
 
-	t.Skip("unit.*.path is not yet available in a stack block's values")
-
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsCrossLevelValues)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsCrossLevelValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsCrossLevelValues)
