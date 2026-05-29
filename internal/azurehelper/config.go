@@ -253,7 +253,7 @@ func (b *AzureConfigBuilder) BuildBlobClient(ctx context.Context, l log.Logger) 
 		return nil, err
 	}
 
-	client, err := NewBlobClient(ctx, cfg, "")
+	client, err := NewBlobClient(cfg)
 	if err != nil {
 		return nil, err
 	}

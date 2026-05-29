@@ -68,8 +68,8 @@ func TestResourceGroup_RequiresName(t *testing.T) {
 		t.Error("Exists with empty name should error")
 	}
 
-	if err := c.CreateIfNecessary(context.Background(), log.New(), "", "eastus"); err == nil {
-		t.Error("CreateIfNecessary with empty name should error")
+	if err := c.EnsureResourceGroup(context.Background(), log.New(), "", "eastus"); err == nil {
+		t.Error("EnsureResourceGroup with empty name should error")
 	}
 
 	if err := c.Delete(context.Background(), log.New(), ""); err == nil {
@@ -109,24 +109,24 @@ func TestResourceGroup_Exists_False(t *testing.T) {
 	}
 }
 
-func TestResourceGroup_CreateIfNecessary_RequiresLocation(t *testing.T) {
+func TestResourceGroup_EnsureResourceGroup_RequiresLocation(t *testing.T) {
 	t.Parallel()
 	// 404 → not exists → location validation kicks in.
 	c := newTestResourceGroupClient(t, &stubTransport{status: http.StatusNotFound, body: jsonBody(map[string]any{
 		"error": map[string]any{"code": "ResourceGroupNotFound"},
 	})})
 
-	if err := c.CreateIfNecessary(context.Background(), log.New(), "rg", ""); err == nil {
-		t.Error("CreateIfNecessary with empty location on missing RG should error")
+	if err := c.EnsureResourceGroup(context.Background(), log.New(), "rg", ""); err == nil {
+		t.Error("EnsureResourceGroup with empty location on missing RG should error")
 	}
 }
 
-func TestResourceGroup_CreateIfNecessary_NoopWhenExists(t *testing.T) {
+func TestResourceGroup_EnsureResourceGroup_NoopWhenExists(t *testing.T) {
 	t.Parallel()
 	// 204 → exists → CreateOrUpdate must not be called, and missing location is fine.
 	c := newTestResourceGroupClient(t, &stubTransport{status: http.StatusNoContent, body: nil})
 
-	if err := c.CreateIfNecessary(context.Background(), log.New(), "rg", ""); err != nil {
-		t.Errorf("CreateIfNecessary on existing RG: %v", err)
+	if err := c.EnsureResourceGroup(context.Background(), log.New(), "rg", ""); err != nil {
+		t.Errorf("EnsureResourceGroup on existing RG: %v", err)
 	}
 }

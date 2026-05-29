@@ -23,29 +23,29 @@ import (
 func TestNewBlobClient_NilConfig(t *testing.T) {
 	t.Parallel()
 
-	_, err := azurehelper.NewBlobClient(t.Context(), nil, "")
+	_, err := azurehelper.NewBlobClient(nil)
 	require.Error(t, err, "expected error for nil config")
 }
 
 func TestNewBlobClient_MissingAccountName(t *testing.T) {
 	t.Parallel()
 
-	_, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodSasToken,
 		SasToken:      testSASToken,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	}, "")
+	})
 	require.Error(t, err, "expected error for missing storage account name")
 }
 
 func TestNewBlobClient_NoCredentialForTokenMethod(t *testing.T) {
 	t.Parallel()
 
-	_, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodAzureAD,
 		AccountName:   testAccount,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	}, "")
+	})
 	require.Error(t, err, "expected error when token-method config has no credential")
 }
 
@@ -54,24 +54,24 @@ func TestNewBlobClient_OIDCMissingTokenSource(t *testing.T) {
 	// A user that asks for OIDC auth but never wired a token source through
 	// the builder lands here with Method=OIDC and a nil Credential. The
 	// blob constructor must reject this rather than panic dereferencing.
-	_, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodOIDC,
 		AccountName:   testAccount,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	}, "")
+	})
 	require.Error(t, err, "expected error when OIDC config has no credential")
 }
 
 func TestNewBlobClient_SasToken(t *testing.T) {
 	t.Parallel()
 
-	c, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	c, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodSasToken,
 		SasToken:      "?sv=2023-01-01&sig=x",
 		AccountName:   testAccount,
 		CloudConfig:   cloud.AzurePublic,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	}, "")
+	})
 	require.NoError(t, err)
 	assert.Equal(t, testAccount, c.AccountName())
 	assert.NotNil(t, c.AzClient())
@@ -80,13 +80,13 @@ func TestNewBlobClient_SasToken(t *testing.T) {
 func TestNewBlobClient_AccessKey(t *testing.T) {
 	t.Parallel()
 
-	c, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	c, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodAccessKey,
 		AccessKey:     "dGVzdGtleQ==", // base64("testkey")
 		AccountName:   testAccount,
 		CloudConfig:   cloud.AzurePublic,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	}, "")
+	})
 	require.NoError(t, err)
 	assert.Equal(t, testAccount, c.AccountName())
 }
@@ -94,36 +94,24 @@ func TestNewBlobClient_AccessKey(t *testing.T) {
 func TestNewBlobClient_AccessKeyInvalidBase64(t *testing.T) {
 	t.Parallel()
 
-	_, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodAccessKey,
 		AccessKey:     "!!!not-base64!!!",
 		AccountName:   testAccount,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	}, "")
+	})
 	require.Error(t, err, "expected error for invalid base64 access key")
-}
-
-func TestNewBlobClient_EndpointSuffixOverride(t *testing.T) {
-	t.Parallel()
-
-	_, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
-		Method:        azurehelper.AuthMethodSasToken,
-		SasToken:      testSASToken,
-		AccountName:   testAccount,
-		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	}, "core.usgovcloudapi.net")
-	require.NoError(t, err)
 }
 
 func TestBlobMethods_RequireNames(t *testing.T) {
 	t.Parallel()
 
-	c, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	c, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodSasToken,
 		SasToken:      testSASToken,
 		AccountName:   testAccount,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	}, "")
+	})
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -142,45 +130,45 @@ func TestBlobMethods_RequireNames(t *testing.T) {
 
 	require.Error(t, c.PutBlob(ctx, "", "k", nil), "PutBlob with empty container should error")
 	require.Error(t, c.PutBlobFromReader(ctx, "c", "", nil), "PutBlobFromReader with empty key should error")
-	require.Error(t, c.DeleteBlob(ctx, "", "k"), "DeleteBlob with empty container should error")
-	require.Error(t, c.CreateContainerIfNecessary(ctx, ""), "CreateContainerIfNecessary(\"\") should error")
+	require.Error(t, c.EnsureBlobDeleted(ctx, "", "k"), "EnsureBlobDeleted with empty container should error")
+	require.Error(t, c.EnsureContainer(ctx, ""), "EnsureContainer(\"\") should error")
 }
 
 func TestNewBlobClient_GovernmentCloud(t *testing.T) {
 	t.Parallel()
 
-	_, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodSasToken,
 		SasToken:      testSASToken,
 		AccountName:   testAccount,
 		CloudConfig:   cloud.AzureGovernment,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzureGovernment},
-	}, "")
+	})
 	require.NoError(t, err, "government cloud client")
 }
 
 func TestNewBlobClient_ChinaCloud(t *testing.T) {
 	t.Parallel()
 
-	_, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodSasToken,
 		SasToken:      testSASToken,
 		AccountName:   testAccount,
 		CloudConfig:   cloud.AzureChina,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzureChina},
-	}, "")
+	})
 	require.NoError(t, err, "china cloud client")
 }
 
 func TestBlobClient_BindAndGetObject(t *testing.T) {
 	t.Parallel()
 
-	c, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	c, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodSasToken,
 		SasToken:      testSASToken,
 		AccountName:   testAccount,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	}, "")
+	})
 	require.NoError(t, err)
 	assert.Empty(t, c.Container(), "Container() before bind should be empty")
 
@@ -195,27 +183,27 @@ func TestBlobClient_BindAndGetObject(t *testing.T) {
 func TestBlobClient_ListBlobs_RequiresContainer(t *testing.T) {
 	t.Parallel()
 
-	c, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	c, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodSasToken,
 		SasToken:      testSASToken,
 		AccountName:   testAccount,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	}, "")
+	})
 	require.NoError(t, err)
 
-	_, err = c.ListBlobs(t.Context(), "", "")
+	_, err = c.ListBlobs(t.Context(), "")
 	require.Error(t, err, "ListBlobs with empty container should error")
 }
 
 func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
 	t.Parallel()
 
-	c, err := azurehelper.NewBlobClient(t.Context(), &azurehelper.AzureConfig{
+	c, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodSasToken,
 		SasToken:      testSASToken,
 		AccountName:   testAccount,
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	}, "")
+	})
 	require.NoError(t, err)
 
 	cases := [][4]string{
@@ -257,7 +245,7 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 		Build(ctx, log.New())
 	require.NoError(t, err, "Build config")
 
-	bc, err := azurehelper.NewBlobClient(ctx, cfg, "")
+	bc, err := azurehelper.NewBlobClient(cfg)
 	require.NoError(t, err, "NewBlobClient")
 
 	suffix := make([]byte, 4)
@@ -302,18 +290,18 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 	assert.Equal(t, payload, got2, "GetObject payload mismatch")
 
 	// Exercise ListBlobs and CopyBlob.
-	names, err := bc.ListBlobs(ctx, container, "")
+	names, err := bc.ListBlobs(ctx, container)
 	require.NoError(t, err, "ListBlobs")
 	assert.Contains(t, names, key, "ListBlobs did not include %q", key)
 
 	copyKey := "roundtrip-copy.txt"
 	require.NoError(t, bc.CopyBlob(ctx, container, key, container, copyKey), "CopyBlob")
 
-	if err := bc.DeleteBlob(ctx, container, copyKey); err != nil {
-		t.Logf("cleanup DeleteBlob(copy): %v", err)
+	if err := bc.EnsureBlobDeleted(ctx, container, copyKey); err != nil {
+		t.Logf("cleanup EnsureBlobDeleted(copy): %v", err)
 	}
 
-	require.NoError(t, bc.DeleteBlob(ctx, container, key), "DeleteBlob")
+	require.NoError(t, bc.EnsureBlobDeleted(ctx, container, key), "EnsureBlobDeleted")
 	// Idempotent delete of already-deleted blob should succeed.
-	require.NoError(t, bc.DeleteBlob(ctx, container, key), "DeleteBlob (idempotent)")
+	require.NoError(t, bc.EnsureBlobDeleted(ctx, container, key), "EnsureBlobDeleted (idempotent)")
 }
