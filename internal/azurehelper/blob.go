@@ -200,8 +200,9 @@ func (c *BlobClient) EnsureContainer(ctx context.Context, name string) error {
 	return c.CreateContainer(ctx, name)
 }
 
-// DeleteContainer deletes the named container. Missing containers return nil.
-func (c *BlobClient) DeleteContainer(ctx context.Context, name string) error {
+// EnsureContainerDeleted deletes the named container. Idempotent: returns
+// nil if the container is already gone (ContainerNotFound).
+func (c *BlobClient) EnsureContainerDeleted(ctx context.Context, name string) error {
 	if name == "" {
 		return ErrContainerNameRequired
 	}
