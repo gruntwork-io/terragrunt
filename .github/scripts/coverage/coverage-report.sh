@@ -6,6 +6,8 @@
 #   run <out-dir> [packages...]      Run the suite with -json. Writes coverage.out,
 #                                    test-events.ndjson and result.xml into <out-dir>.
 #                                    Packages default to ./... (the full suite).
+#   collect <out-dir> [packages...]  run + summary + timing in one call (tolerates
+#                                    test failures); produces both summaries.
 #   summary <cover.out> <out.json>   Roll a cover profile into per-package coverage
 #                                    JSON + an HTML report. Args default to
 #                                    coverage.out / coverage-summary.json.
@@ -35,7 +37,7 @@ now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 this_commit() { echo "${GITHUB_SHA:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}"; }
 this_ref() { echo "${GITHUB_REF:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)}"; }
 
-# run -------------------------------------------------------------------------
+# run
 # Runs the unit-test suite and emits coverage.out, test-events.ndjson (raw
 # `go test -json`) and result.xml (JUnit) into <out-dir>. Exit code propagates
 # the underlying `go test` status.
@@ -62,7 +64,7 @@ cmd_run() {
 	return "$status"
 }
 
-# summary ---------------------------------------------------------------------
+# summary
 cmd_summary() {
 	local cover="${1:-coverage.out}" output="${2:-coverage-summary.json}"
 	if [[ ! -f "$cover" ]]; then
@@ -115,7 +117,7 @@ cmd_summary() {
 	echo "HTML report: $html_output"
 }
 
-# timing ----------------------------------------------------------------------
+# timing
 # Streams events from the file in a single jq pass, folding metadata in via small
 # --arg values (passing the whole aggregate through --argjson hits ARG_MAX on the
 # full suite). Package row has Test absent/empty; test row has Test non-empty.
@@ -167,7 +169,7 @@ cmd_timing() {
 	echo "Written to $output"
 }
 
-# compare-coverage ------------------------------------------------------------
+# compare-coverage
 cmd_compare_coverage() {
 	local current="${1:?Usage: coverage-report.sh compare-coverage <current.json> <previous.json> [output.json]}"
 	local previous="${2:?Usage: coverage-report.sh compare-coverage <current.json> <previous.json> [output.json]}"
@@ -179,7 +181,7 @@ cmd_compare_coverage() {
 		exit 1
 	fi
 
-	if [[ ! -f "$previous" ]]; then
+	if [[ ! -s "$previous" ]]; then
 		echo "No previous coverage data found: establishing baseline."
 		jq -n --argjson curr "$(cat "$current")" '{baseline: true, current_total: $curr.total_pct, previous_total: null, total_delta: null, top_drops: [], top_gains: []}' >"$output"
 		return 0
@@ -297,7 +299,7 @@ cmd_compare_coverage() {
 	echo "HTML report: $html_output"
 }
 
-# compare-timing --------------------------------------------------------------
+# compare-timing
 cmd_compare_timing() {
 	local current="${1:?Usage: coverage-report.sh compare-timing <current.json> <previous.json> [output.json]}"
 	local previous="${2:?Usage: coverage-report.sh compare-timing <current.json> <previous.json> [output.json]}"
@@ -308,7 +310,7 @@ cmd_compare_timing() {
 		exit 1
 	fi
 
-	if [[ ! -f "$previous" ]]; then
+	if [[ ! -s "$previous" ]]; then
 		echo "No previous timing data found - emitting current-only report."
 		jq '{
 			baseline: true,
@@ -425,7 +427,7 @@ cmd_compare_timing() {
 	echo "Written to $output"
 }
 
-# render ----------------------------------------------------------------------
+# render
 cmd_render() {
 	local cov="${1:?Usage: coverage-report.sh render <coverage-report.json> <timing-report.json>}"
 	local tim="${2:?Usage: coverage-report.sh render <coverage-report.json> <timing-report.json>}"
@@ -537,7 +539,7 @@ cmd_render() {
 	fi
 }
 
-# notify ----------------------------------------------------------------------
+# notify
 cmd_notify() {
 	local webhook="${COVERAGE_SLACK_WEBHOOK_URL:?Required environment variable COVERAGE_SLACK_WEBHOOK_URL}"
 	local cov="${1:?Usage: coverage-report.sh notify <coverage-report.json> <timing-report.json>}"
@@ -629,7 +631,7 @@ cmd_notify() {
 	echo "Slack notification sent."
 }
 
-# local -----------------------------------------------------------------------
+# local
 # Clone a fresh copy and reproduce the whole weekly report locally.
 cmd_local() {
 	if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -726,12 +728,36 @@ cmd_local() {
 	echo "  current/coverage-summary.html"
 }
 
-# dispatch --------------------------------------------------------------------
+# collect
+# Convenience for CI: run the suite into <out-dir>, then roll up coverage and
+# timing from whatever it produced. Test failures do not abort the rollups, so a
+# red suite still yields a report.
+cmd_collect() {
+	local out="${1:?Usage: coverage-report.sh collect <out-dir> [packages...]}"
+	shift
+
+	cmd_run "$out" "$@" || echo "Tests reported failures; continuing with collected data." >&2
+
+	if [[ -s "$out/coverage.out" ]]; then
+		cmd_summary "$out/coverage.out" "$out/coverage-summary.json"
+	else
+		echo "No coverage profile at $out/coverage.out; skipping summary." >&2
+	fi
+
+	if [[ -s "$out/test-events.ndjson" ]]; then
+		cmd_timing "$out/test-events.ndjson" "$out/timing-summary.json"
+	else
+		echo "No test events at $out/test-events.ndjson; skipping timing." >&2
+	fi
+}
+
+# dispatch
 main() {
 	local cmd="${1:-}"
 	shift || true
 	case "$cmd" in
 	run) cmd_run "$@" ;;
+	collect) cmd_collect "$@" ;;
 	summary) cmd_summary "$@" ;;
 	timing) cmd_timing "$@" ;;
 	compare-coverage) cmd_compare_coverage "$@" ;;
