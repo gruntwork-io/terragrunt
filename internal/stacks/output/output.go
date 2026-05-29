@@ -162,7 +162,7 @@ func StackOutput(
 		}
 
 		for _, unit := range stackFile.Units {
-			unitDir := config.GetUnitDir(dir, unit)
+			unitDir := unit.GeneratedPath(dir)
 
 			// Excluded units are fully omitted from the final output, matching stack run behavior.
 			if _, excluded := excludedPaths[filepath.Clean(unitDir)]; excluded {
