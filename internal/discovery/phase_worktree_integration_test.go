@@ -2016,6 +2016,8 @@ func TestWorktreePhase_Integration_StackReadingRespectsExclusion(t *testing.T) {
 	err = os.MkdirAll(landMineDir, 0o755)
 	require.NoError(t, err)
 
+	// markerFile is interpolated into the stack HCL below. HCL treats backslash as an escape
+	// in string literals, so it is embedded with filepath.ToSlash to stay valid on Windows.
 	markerFile := filepath.Join(tmpDir, "land-mine-parsed.marker")
 
 	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), []byte(fmt.Sprintf(`
@@ -2027,7 +2029,7 @@ unit "myapp" {
   source = "${get_repo_root()}/catalog/units/myapp"
   path   = "myapp"
 }
-`, markerFile)), 0o644)
+`, filepath.ToSlash(markerFile))), 0o644)
 	require.NoError(t, err)
 
 	// Create a normal stack that reads a config file
@@ -2126,6 +2128,8 @@ func TestWorktreePhase_Integration_StackReadingExclusionOverridesInclusion(t *te
 	err = os.MkdirAll(landMineDir, 0o755)
 	require.NoError(t, err)
 
+	// markerFile is interpolated into the stack HCL below. HCL treats backslash as an escape
+	// in string literals, so it is embedded with filepath.ToSlash to stay valid on Windows.
 	markerFile := filepath.Join(tmpDir, "land-mine-parsed.marker")
 
 	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), []byte(fmt.Sprintf(`
@@ -2137,7 +2141,7 @@ unit "myapp" {
   source = "${get_repo_root()}/catalog/units/myapp"
   path   = "myapp"
 }
-`, markerFile)), 0o644)
+`, filepath.ToSlash(markerFile))), 0o644)
 	require.NoError(t, err)
 
 	// Create a normal stack that reads a config file

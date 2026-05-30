@@ -118,7 +118,7 @@ func (c *CAS) ProcessStackComponent(
 
 	refHash := resolved.CommitHash()
 
-	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-stack-*")
+	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-stack-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
@@ -568,7 +568,7 @@ func (c *CAS) processLocalStackComponent(
 		return nil, fmt.Errorf("%w: %s", ErrNotADirectory, absSource)
 	}
 
-	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-stack-local-*")
+	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-stack-local-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
