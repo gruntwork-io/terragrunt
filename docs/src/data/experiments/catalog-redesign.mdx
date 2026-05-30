@@ -4,11 +4,11 @@ status: active
 since: "1.0.2"
 ---
 
-Redesigned `terragrunt catalog` TUI with improved discovery, interactive component placement, and infrastructure estate visualization.
+Redesigned `terragrunt catalog` TUI with whole-repository discovery, tabbed browsing, and an interactive scaffolding form.
 
 ### `catalog-redesign` - What it does
 
-Replaces the existing `terragrunt catalog` experience with a redesigned TUI that removes the need for manual configuration. The new catalog provides multiple views for browsing and discovering modules, an interactive infrastructure estate view for deciding where to place components, and the ability to wire new components together with the rest of your infrastructure.
+Replaces the existing `terragrunt catalog` experience with a redesigned TUI that removes the need for manual configuration. The new catalog discovers modules and templates across the whole repository, lets you browse them in tabbed views, and scaffolds a selected component through an interactive form.
 
 Discovery walks the entire repository instead of only a `modules/` directory, so modules and templates can live anywhere. Boilerplate templates are discovered as a distinct component kind alongside OpenTofu/Terraform modules and labeled as templates in the UI. Catalog authors can commit a `.terragrunt-catalog-ignore` file at the repo root to exclude directories such as `examples/` or `test/` from discovery. See [Excluding paths from discovery](/features/catalog/tui#excluding-paths-from-discovery) for the supported pattern syntax.
 
@@ -20,17 +20,18 @@ Pressing `s` on a selected component opens an in-TUI form that prompts for every
 
 ### `catalog-redesign` - How to provide feedback
 
-TODO: Add a link to the relevant GitHub discussion or issue.
+Provide your feedback on the [`catalog-redesign` GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/6223).
 
 ### `catalog-redesign` - Criteria for stabilization
 
 To transition the `catalog-redesign` feature to a stable release, the following must be addressed:
 
-- [ ] Multiple catalog browse views are implemented and functional.
-- [ ] Interactive infrastructure estate view supports component placement.
-- [ ] Wiring newly placed components to existing infrastructure works end-to-end.
-- [ ] Catalog launches without requiring manual configuration (no pre-existing `catalog` block needed).
-- [ ] Component source is visible in the UI for each catalog entry.
-- [ ] Component type (module, unit, stack, template) is clearly indicated in the UI.
+- [x] Multiple catalog browse views (`All`, `Modules`, `Templates` tabs) are implemented and functional.
+- [x] Catalog launches without requiring manual configuration (no pre-existing `catalog` block needed).
+- [x] Discovery walks the entire repository, surfacing modules and boilerplate templates wherever they live.
+- [x] Authors can exclude paths from discovery with a `.terragrunt-catalog-ignore` file.
+- [x] Component source is visible in the UI for each catalog entry.
+- [x] Component type (module, unit, stack, template) is clearly indicated in the UI.
+- [x] An interactive scaffold form prompts for each variable a component exposes and generates `terragrunt.hcl`/`terragrunt.values.hcl`.
+- [x] Integration tests cover the core catalog workflows.
 - [ ] Positive feedback from users using the redesigned catalog in production environments.
-- [ ] Integration tests covering the core catalog workflows.

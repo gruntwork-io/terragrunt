@@ -21,13 +21,13 @@ terragrunt run --all --experiment mark-many-as-read -- plan
 
 ### `mark-many-as-read` - How to provide feedback
 
-Provide your feedback on the [GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions) page.
+Provide your feedback on the [`mark-many-as-read` GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/6225).
 
 ### `mark-many-as-read` - Criteria for stabilization
 
 To transition the `mark-many-as-read` feature to a stable release, the following must be addressed:
 
-- [ ] Confirm local module walking handles nested modules sensibly across macOS, Linux, and Windows.
-- [ ] Confirm glob semantics match user expectations for common patterns, especially `**` with a wildcard trailing segment.
+- [x] Confirm local module walking handles nested modules sensibly across macOS, Linux, and Windows.
+- [x] Confirm glob semantics match user expectations for common patterns, especially `**` with a wildcard trailing segment.
 - [ ] Positive feedback from users relying on reading-based filters in production pipelines.
-- [ ] Integration tests covering the interaction between module walking, `mark_glob_as_read`, and `--filter 'reading=...'`.
+- [x] Integration tests covering the interaction between module walking, `mark_glob_as_read`, and `--filter 'reading=...'`.

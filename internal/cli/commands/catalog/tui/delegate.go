@@ -25,7 +25,7 @@ func NewItemDelegate(keys *DelegateKeyMap) list.DefaultDelegate {
 		Foreground(lipgloss.Color(selectedDescForegroundColorDark)).
 		BorderForeground(lipgloss.Color(selectedDescBorderForegroundColorDark))
 
-	help := []key.Binding{keys.Choose, keys.ScaffoldInteractive, keys.ScaffoldPlaceholder}
+	help := []key.Binding{keys.Choose, keys.ScaffoldInteractive}
 
 	d.ShortHelpFunc = func() []key.Binding {
 		return help

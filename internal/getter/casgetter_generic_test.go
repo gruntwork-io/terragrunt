@@ -138,6 +138,49 @@ func TestCASGetter_HTTPArchiveCachesSecondRun(t *testing.T) {
 		"second run must still probe to confirm the cached version is current")
 }
 
+// TestCASGetter_HTTPArchiveFalseSkipsExtraction pins that a user-supplied
+// archive=false reaches the inner fetch, so CAS ingests the raw archive
+// instead of its extracted contents. CAS injects archive=false itself to
+// stop the outer client pre-decompressing, so the parameter cannot carry
+// the user's intent on its own; Detect records it separately for Get.
+func TestCASGetter_HTTPArchiveFalseSkipsExtraction(t *testing.T) {
+	t.Parallel()
+
+	body := makeTarGz(t, map[string]string{"main.tf": "ok"})
+
+	h := &tarballHandler{body: body, etag: "stable-etag"}
+
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v, err := tgcas.OSVenv()
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{}, getter.WithDefaultGenericDispatch())
+
+	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
+
+	dst := filepath.Join(t.TempDir(), "out")
+
+	_, err = client.Get(t.Context(), &gogetter.Request{
+		Src:     srv.URL + "/mod.tar.gz?archive=false",
+		Dst:     dst,
+		GetMode: gogetter.ModeAny,
+	})
+	require.NoError(t, err)
+
+	require.FileExists(t, filepath.Join(dst, "mod.tar.gz"),
+		"archive=false must leave the downloaded tarball unextracted")
+	require.NoFileExists(t, filepath.Join(dst, "main.tf"),
+		"archive=false must stop the inner client from extracting")
+}
+
 // TestCASGetter_HTTPMissingETagFallsBackToContentHash exercises the no-probe
 // path: a server without ETag/Last-Modified causes CAS to download every
 // run, but blob storage still dedupes across runs.
