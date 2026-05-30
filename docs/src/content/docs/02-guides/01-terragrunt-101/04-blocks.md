@@ -10,13 +10,13 @@ sidebar:
 
 This module covers the **building blocks** of every Terragrunt unit configuration:
 
-| Block              | Purpose                                  |
-| :----------------- | :--------------------------------------- |
-| **`terraform`**    | Points to your module source             |
-| **`include`**      | Inherits configuration from parent files |
-| **`dependency`**   | Wires units together                     |
-| **`generate`**     | Creates files dynamically                |
-| **`remote_state`** | Configures your state backend            |
+| Block                                                     | Purpose                                                      |
+| :-------------------------------------------------------- | :----------------------------------------------------------- |
+| [**`terraform`**](/reference/hcl/blocks/#terraform)       | Configures OpenTofu/Terraform integration                    |
+| [**`include`**](/reference/hcl/blocks/#include)           | Merges configuration from partially configured unit includes |
+| [**`dependency`**](/reference/hcl/blocks/#dependency)     | Wires units together                                         |
+| [**`generate`**](/reference/hcl/blocks/#generate)         | Creates files dynamically                                    |
+| [**`remote_state`**](/reference/hcl/blocks/#remote_state) | Configures your state backend                                |
 
 ## The terraform Block
 
