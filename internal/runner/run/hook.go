@@ -33,7 +33,8 @@ const (
 )
 
 const (
-	HookTypeBefore HookType = iota
+	HookTypeUnknown HookType = iota
+	HookTypeBefore
 	HookTypeAfter
 	HookTypeError
 )
@@ -46,12 +47,12 @@ var hookTypeNames = map[HookType]string{
 
 type HookType byte
 
-func (h HookType) String() string {
-	if name, ok := hookTypeNames[h]; ok {
-		return name
+func hookTypeName(hookType HookType) (string, bool) {
+	if name, ok := hookTypeNames[hookType]; ok {
+		return name, true
 	}
 
-	return "unknown_hook"
+	return "", false
 }
 
 // ProcessHooksParams groups the configuration and data inputs for ProcessHooks.
@@ -143,7 +144,11 @@ func ProcessErrorHooks(
 
 				actionToExecute := curHook.Execute[0]
 				actionParams := curHook.Execute[1:]
-				hookOpts := optsWithHookEnvs(opts, cfg, curHook.Name, HookTypeError)
+
+				hookOpts, hookOptsErr := optsWithHookEnvs(opts, cfg, curHook.Name, HookTypeError)
+				if hookOptsErr != nil {
+					return hookOptsErr
+				}
 
 				_, possibleError := shell.RunCommandWithOutput(
 					ctx,
@@ -230,7 +235,11 @@ func runHook(
 
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
-	hookOpts := optsWithHookEnvs(opts, cfg, curHook.Name, hookType)
+
+	hookOpts, err := optsWithHookEnvs(opts, cfg, curHook.Name, hookType)
+	if err != nil {
+		return err
+	}
 
 	if actionToExecute == "tflint" {
 		return executeTFLint(ctx, l, v, opts, cfg, curHook, workingDir)
@@ -278,7 +287,7 @@ func executeTFLint(
 	return nil
 }
 
-func optsWithHookEnvs(opts *Options, cfg *runcfg.RunConfig, hookName string, hookType HookType) *Options {
+func optsWithHookEnvs(opts *Options, cfg *runcfg.RunConfig, hookName string, hookType HookType) (*Options, error) {
 	newOpts := *opts
 	newOpts.Env = cloner.Clone(opts.Env)
 	newOpts.Env[HookCtxTFPathEnvName] = opts.TFPath
@@ -286,15 +295,20 @@ func optsWithHookEnvs(opts *Options, cfg *runcfg.RunConfig, hookName string, hoo
 	newOpts.Env[HookCtxHookNameEnvName] = hookName
 
 	if opts.Experiments.Evaluate(experiment.HookContextEnv) {
-		source, err := runcfg.GetTerraformSourceURL(opts.Source, opts.SourceMap, opts.OriginalTerragruntConfigPath, cfg)
-		if err != nil {
-			source = cfg.Terraform.Source
+		hookTypeValue, ok := hookTypeName(hookType)
+		if !ok {
+			return nil, fmt.Errorf("unknown hook type: %d", hookType)
 		}
 
-		newOpts.Env[HookCtxHookTypeEnvName] = hookType.String()
+		source, err := runcfg.GetTerraformSourceURL(opts.Source, opts.SourceMap, opts.OriginalTerragruntConfigPath, cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		newOpts.Env[HookCtxHookTypeEnvName] = hookTypeValue
 		newOpts.Env[HookCtxSourceEnvName] = source
 		newOpts.Env[HookCtxTerragruntDirEnvName] = filepath.Dir(opts.TerragruntConfigPath)
 	}
 
-	return &newOpts
+	return &newOpts, nil
 }
