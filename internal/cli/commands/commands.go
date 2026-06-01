@@ -458,10 +458,10 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.WorkingDir = filepath.Clean(opts.WorkingDir)
 
-	// Load .terragruntrc.json early so that env vars it sets (e.g. TF_CLI_CONFIG_FILE)
+	// Load .terragruntrc.json/.yaml/.yml early so that env vars it sets (e.g. TF_CLI_CONFIG_FILE)
 	// are visible before the provider cache server is initialized.
 	// rc-file values do not override variables already present in the environment.
-	rcConfig, err := util.FindAndLoadRCFile(opts.WorkingDir, util.TerragruntRCFilename)
+	rcConfig, err := util.FindAndLoadRCFile(opts.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -470,13 +470,13 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 		for k, v := range rcConfig.Env {
 			if _, exists := opts.Env[k]; !exists {
 				if err := os.Setenv(k, v); err != nil {
-					return errors.New(err)
+					return err
 				}
 
 				opts.Env[k] = v
-				l.Debugf("%s: setting %s=%q", util.TerragruntRCFilename, k, v)
+				l.Debugf(".terragruntrc: setting %s=%q", k, v)
 			} else {
-				l.Debugf("%s: skipping %s (already set in environment)", util.TerragruntRCFilename, k)
+				l.Debugf(".terragruntrc: skipping %s (already set in environment)", k)
 			}
 		}
 	}

@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/json"
+
+	"gopkg.in/yaml.v3"
 	"fmt"
 	"io"
 	"io/fs"
@@ -35,8 +37,12 @@ const (
 	DefaultBoilerplateDir = ".boilerplate"
 	ChecksumReadBlock     = 8192
 
-	TerragruntRCFilename = ".terragruntrc.json"
+	TerragruntRCFilename     = ".terragruntrc.json"
+	TerragruntRCFilenameYAML = ".terragruntrc.yaml"
+	TerragruntRCFilenameYML  = ".terragruntrc.yml"
 )
+
+var rcFilenames = []string{TerragruntRCFilename, TerragruntRCFilenameYAML, TerragruntRCFilenameYML}
 
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
 // itself. This will return an error if the given path is a directory.
@@ -2067,26 +2073,29 @@ func relPathInsideRoot(rootDir, target string) (string, bool) {
 	return cleanRootRelPath(rel)
 }
 
-// TerragruntRC holds configuration loaded from a .terragruntrc.json file.
+// TerragruntRC holds configuration loaded from a .terragruntrc.json/.yaml/.yml file.
 // Only the env section is supported for now; flags/commands support is planned.
 type TerragruntRC struct {
-	Env map[string]string `json:"env"`
+	Env map[string]string `json:"env" yaml:"env"`
 }
 
-// FindAndLoadRCFile walks upward from startDir looking for a .terragruntrc.json file.
+// FindAndLoadRCFile walks upward from startDir looking for a rc file
+// (.terragruntrc.json, .terragruntrc.yaml, .terragruntrc.yml — in that order).
 // If none is found in the directory tree it also checks ~/.config/terragrunt/ and $HOME.
 // Returns nil without error when no file exists anywhere in the search path.
-func FindAndLoadRCFile(startDir, filename string) (*TerragruntRC, error) {
+func FindAndLoadRCFile(startDir string) (*TerragruntRC, error) {
 	dir := startDir
 
 	for {
-		rc, err := loadRCFile(filepath.Join(dir, filename))
-		if err != nil {
-			return nil, err
-		}
+		for _, name := range rcFilenames {
+			rc, err := loadRCFile(filepath.Join(dir, name))
+			if err != nil {
+				return nil, err
+			}
 
-		if rc != nil {
-			return rc, nil
+			if rc != nil {
+				return rc, nil
+			}
 		}
 
 		parent := filepath.Dir(dir)
@@ -2097,29 +2106,31 @@ func FindAndLoadRCFile(startDir, filename string) (*TerragruntRC, error) {
 		dir = parent
 	}
 
-	homeDir, err := homedir.Dir()
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
-	for _, candidate := range []string{
-		filepath.Join(homeDir, ".config", "terragrunt", filename),
-		filepath.Join(homeDir, filename),
+	for _, base := range []string{
+		filepath.Join(homeDir, ".config", "terragrunt"),
+		homeDir,
 	} {
-		rc, err := loadRCFile(candidate)
-		if err != nil {
-			return nil, err
-		}
+		for _, name := range rcFilenames {
+			rc, err := loadRCFile(filepath.Join(base, name))
+			if err != nil {
+				return nil, err
+			}
 
-		if rc != nil {
-			return rc, nil
+			if rc != nil {
+				return rc, nil
+			}
 		}
 	}
 
 	return nil, nil
 }
 
-// loadRCFile reads and parses a single .terragruntrc.json file.
+// loadRCFile reads and parses a single rc file. Format is detected by extension.
 // Returns nil without error when the file does not exist.
 func loadRCFile(path string) (*TerragruntRC, error) {
 	data, err := os.ReadFile(path)
@@ -2128,12 +2139,20 @@ func loadRCFile(path string) (*TerragruntRC, error) {
 	}
 
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	var rc TerragruntRC
-	if err := json.Unmarshal(data, &rc); err != nil {
-		return nil, errors.Errorf("parsing %s: %w", path, err)
+
+	switch filepath.Ext(path) {
+	case ".yaml", ".yml":
+		if err := yaml.Unmarshal(data, &rc); err != nil {
+			return nil, fmt.Errorf("parsing %s: %w", path, err)
+		}
+	default:
+		if err := json.Unmarshal(data, &rc); err != nil {
+			return nil, fmt.Errorf("parsing %s: %w", path, err)
+		}
 	}
 
 	rcDir := filepath.Dir(path)
