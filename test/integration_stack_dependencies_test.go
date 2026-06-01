@@ -50,6 +50,7 @@ const (
 	testFixtureStackDepsRemoteStateDep           = "fixtures/stacks/stack-deps-remote-state-dep"
 	testFixtureStackDepsNestedRemoteStateDep     = "fixtures/stacks/stack-deps-nested-remote-state-dep"
 	testFixtureStackDepsDupDependency            = "fixtures/stacks/stack-deps-dup-dependency"
+	testFixtureStackDepsDepMockMerge             = "fixtures/stacks/stack-deps-dep-mock-merge"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -402,6 +403,33 @@ func TestStackDepsAutoIncludeOverridesUnitDependency(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(backend), "from-autoinclude.tfstate",
 		"autoinclude dependency (by name) must override the unit's own dependency path")
+}
+
+// TestStackDepsAutoIncludeMergesMockOutputs verifies that when a unit and its autoinclude
+// both declare the same-name dependency, properties beyond config_path deep-merge: the
+// unit-only mock output survives, the autoinclude-only mock output is present, and a
+// conflicting key resolves to the autoinclude (source) value.
+func TestStackDepsAutoIncludeMergesMockOutputs(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsDepMockMerge)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsDepMockMerge)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsDepMockMerge, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
+	require.NoError(t, err, "mock outputs must deep-merge across the unit and autoinclude dependency; stderr=%s", stderr)
+
+	// Backend key is from_unit-from_autoinclude-common: unit-only survives, autoinclude-only present, conflict wins source.
+	backendPath := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "y"), "backend.tf")
+	backend, err := os.ReadFile(backendPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(backend), "unitval-autoval-autoinclude-common.tfstate",
+		"mock_outputs must deep-merge with the autoinclude winning on conflicting keys")
 }
 
 // TestStackDepsE2EChain runs a 3-level dependency chain end-to-end:
