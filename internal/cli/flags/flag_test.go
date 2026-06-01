@@ -18,10 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func mockDestValue[T any](val T) *T {
-	return &val
-}
-
 func newLogger() (log.Logger, *bytes.Buffer) {
 	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
 	output := new(bytes.Buffer)
@@ -38,23 +34,23 @@ func TestFlag_TakesValue(t *testing.T) {
 		expected bool
 	}{
 		{
-			&clihelper.BoolFlag{Name: "name", Destination: mockDestValue(false)},
+			&clihelper.BoolFlag{Name: "name", Destination: new(false)},
 			true,
 		},
 		{
-			&clihelper.BoolFlag{Name: "name", Destination: mockDestValue(true)},
+			&clihelper.BoolFlag{Name: "name", Destination: new(true)},
 			false,
 		},
 		{
-			&clihelper.BoolFlag{Name: "name", Negative: true, Destination: mockDestValue(true)},
+			&clihelper.BoolFlag{Name: "name", Negative: true, Destination: new(true)},
 			true,
 		},
 		{
-			&clihelper.BoolFlag{Name: "name", Negative: true, Destination: mockDestValue(false)},
+			&clihelper.BoolFlag{Name: "name", Negative: true, Destination: new(false)},
 			false,
 		},
 		{
-			&clihelper.GenericFlag[string]{Name: "name", Destination: mockDestValue("value")},
+			&clihelper.GenericFlag[string]{Name: "name", Destination: new("value")},
 			true,
 		},
 	}

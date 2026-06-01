@@ -1,0 +1,10 @@
+---
+version: "v1.0.7"
+category: "bug-fixes"
+---
+
+#### `startswith`, `endswith`, `strcontains`, and `run_cmd` no longer panic on malformed calls
+
+Calling `startswith`, `endswith`, or `strcontains` with the wrong number of arguments (for example a single argument instead of two) crashed Terragrunt instead of reporting a configuration error. Calling `run_cmd` with only option flags and no command (for example `run_cmd("--terragrunt-quiet")`) crashed the same way.
+
+These calls now return a clear error: a wrong-number-of-parameters error for the string functions, and an empty-command error for `run_cmd`.
