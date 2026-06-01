@@ -190,6 +190,16 @@ func (e PartialEvalDepthExceededError) Error() string {
 	return fmt.Sprintf("partial evaluation exceeded maximum recursion depth %d", e.MaxDepth)
 }
 
+// StackRecursionDepthExceededError indicates that nested-stack unit-path expansion hit its recursion guard.
+type StackRecursionDepthExceededError struct {
+	StackDir string
+	MaxDepth int
+}
+
+func (e StackRecursionDepthExceededError) Error() string {
+	return fmt.Sprintf("nested stack expansion exceeded maximum recursion depth %d at %q", e.MaxDepth, e.StackDir)
+}
+
 // PartialEvalUnresolvedError indicates that partial evaluation could not produce a final cty value.
 type PartialEvalUnresolvedError struct {
 	Err    error

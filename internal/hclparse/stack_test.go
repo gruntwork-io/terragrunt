@@ -55,6 +55,72 @@ unit "db" {
 	assert.Contains(t, paths[1], ".terragrunt-stack")
 }
 
+func TestUnitPathsFromStackDir_RecursesNestedStacks(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	// A stack whose file declares only a nested stack, no direct units.
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`stack "more" {
+  source = "."
+  path   = "more"
+}
+`), 0644))
+	// The nested stack, one level deeper, holds the only unit.
+	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/more/terragrunt.stack.hcl", []byte(`unit "deep" {
+  source = "."
+  path   = "deep"
+}
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "more", ".terragrunt-stack", "deep")}, paths)
+}
+
+func TestUnitPathsFromStackDir_CycleTerminates(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	// A nested stack whose path escapes back to its own directory; without the
+	// visited guard the expansion would recurse forever.
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`stack "loop" {
+  source = "."
+  path   = ".."
+}
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.NoError(t, err)
+	assert.Empty(t, paths)
+}
+
+func TestUnitPathsFromStackDir_DepthCapReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	// Build a chain deeper than the recursion cap, every level a distinct path so the
+	// visited set never collapses it; only the depth cap can stop the recursion.
+	dir := "/test"
+	for range 1002 {
+		require.NoError(t, fs.MkdirAll(dir, 0755))
+		require.NoError(t, vfs.WriteFile(fs, filepath.Join(dir, "terragrunt.stack.hcl"), []byte(`stack "next" {
+  source = "."
+  path   = "next"
+}
+`), 0644))
+		dir = filepath.Join(dir, ".terragrunt-stack", "next")
+	}
+
+	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.Error(t, err)
+
+	var depthErr hclparse.StackRecursionDepthExceededError
+	require.ErrorAs(t, err, &depthErr)
+}
+
 func TestUnitPathsFromStackDir_WithIncludedUnits(t *testing.T) {
 	t.Parallel()
 

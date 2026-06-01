@@ -40,6 +40,7 @@ const (
 	testFixtureStackDepsNoDeps                   = "fixtures/stacks/stack-deps-no-deps"
 	testFixtureStackDepsMergePrecedence          = "fixtures/stacks/stack-deps-merge-precedence"
 	testFixtureStackDepsArbitraryOverride        = "fixtures/stacks/stack-deps-arbitrary-override"
+	testFixtureStackDepsArbitraryRetry           = "fixtures/stacks/stack-deps-arbitrary-retry"
 	testFixtureStackDepsStackAutoInclude         = "fixtures/stacks/stack-deps-stack-autoinclude"
 	testFixtureStackDepsCrossLevelValues         = "fixtures/stacks/stack-deps-cross-level-values"
 )
@@ -228,6 +229,54 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 
 	assert.Contains(t, unitPaths, expectedVPC)
 	assert.Contains(t, unitPaths, expectedSubnets)
+}
+
+// TestStackDepsUnitPathsFromNestedOnlyStack expands a stack whose file declares only nested stacks and expects the nested units to be returned.
+func TestStackDepsUnitPathsFromNestedOnlyStack(t *testing.T) {
+	t.Parallel()
+
+	root := helpers.TmpDirWOSymlinks(t)
+
+	// A generated parent stack dir whose stack file declares only a nested stack.
+	writeStackDepsFile(t, root, "terragrunt.stack.hcl", `stack "more" {
+  source = "./more"
+  path   = "more"
+}
+`)
+
+	// The nested stack, one level deeper, holds the only real unit.
+	writeStackDepsFile(t, root, filepath.Join(inthclparse.StackDir, "more", "terragrunt.stack.hcl"), `unit "deep" {
+  source = "./deep"
+  path   = "deep"
+}
+`)
+
+	l := logger.CreateLogger()
+	_, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+	funcs, err := config.EarlyStackParseFunctions(t.Context(), l, root, pctx)
+	require.NoError(t, err)
+
+	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), root, funcs)
+	require.NoError(t, err)
+
+	deep := filepath.Join(root, inthclparse.StackDir, "more", inthclparse.StackDir, "deep")
+	assert.Contains(t, unitPaths, deep, "a stack-of-stacks dependency must expand to nested units")
+}
+
+// TestStackDepsUnitPathsFromMissingStackFile returns no paths and no error when the directory has no stack file.
+func TestStackDepsUnitPathsFromMissingStackFile(t *testing.T) {
+	t.Parallel()
+
+	root := helpers.TmpDirWOSymlinks(t)
+
+	l := logger.CreateLogger()
+	_, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+	funcs, err := config.EarlyStackParseFunctions(t.Context(), l, root, pctx)
+	require.NoError(t, err)
+
+	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), root, funcs)
+	require.NoError(t, err)
+	assert.Empty(t, unitPaths, "a directory without a stack file expands to no unit paths")
 }
 
 // TestStackDepsE2EBasic runs the full end-to-end flow with 2 units:
@@ -620,14 +669,20 @@ func TestStackDepsListLong(t *testing.T) {
 
 	assert.Contains(t, stdout, "Dependencies")
 
+	found := false
+
 	for _, line := range strings.Split(stdout, "\n") {
 		if !strings.Contains(line, "unit-w-inputs") {
 			continue
 		}
 
+		found = true
+
 		assert.Contains(t, line, "unit-w-outputs",
 			"unit-w-inputs row should show unit-w-outputs as dependency")
 	}
+
+	require.True(t, found, "expected a list row mentioning unit-w-inputs")
 }
 
 // TestStackDepsListTree verifies that terragrunt list --tree --dag
@@ -1248,6 +1303,42 @@ func TestStackDepsAutoIncludeArbitraryOverride(t *testing.T) {
 	require.FileExists(t, injectedPath, "generate block injected via autoinclude must produce its file")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+}
+
+// TestStackDepsAutoIncludeArbitraryRetryBlock verifies that an autoinclude may inject a
+// block other than dependency/generate (here an errors retry block); it must be preserved
+// in the generated unit and merge into the unit's effective config.
+func TestStackDepsAutoIncludeArbitraryRetryBlock(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsArbitraryRetry)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsArbitraryRetry)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsArbitraryRetry, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	unitDir := filepath.Join(rootPath, inthclparse.StackDir, "svc")
+	autoIncludePath := filepath.Join(unitDir, inthclparse.AutoIncludeFile)
+	require.FileExists(t, autoIncludePath)
+
+	// Parse the generated autoinclude file back through the real config parser: the injected
+	// errors/retry block must decode into a complete, valid config with the exact values,
+	// not merely appear as text in the generated file.
+	l := logger.CreateLogger()
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
+	require.NoError(t, err, "generated autoinclude file with an errors block must parse as a valid config")
+	require.NotNil(t, parsed.Errors, "errors block injected via autoinclude must survive generation")
+	require.Len(t, parsed.Errors.Retry, 1)
+
+	retry := parsed.Errors.Retry[0]
+	assert.Equal(t, "transient", retry.Label)
+	assert.Equal(t, 3, retry.MaxAttempts)
+	assert.Equal(t, 5, retry.SleepIntervalSec)
+	assert.Equal(t, []string{".*transient.*"}, retry.RetryableErrors)
 }
 
 // TestStackDepsMockOutputsAtPlan exercises mock_outputs functionally: with no

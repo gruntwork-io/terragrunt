@@ -153,7 +153,13 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	})
 }
 
-// UnitPathsFromStackDir returns generated unit paths from discovery parsing.
+// maxStackRecursionDepth bounds nested-stack expansion so a pathological tree (a path
+// escaping via "..", or a symlink loop EvalSymlinks cannot canonicalize) cannot recurse
+// without end. Real generated nesting is only a handful of levels deep.
+const maxStackRecursionDepth = 1000
+
+// UnitPathsFromStackDir returns generated unit paths from discovery parsing. Nested stacks
+// are expanded recursively so a stack composed of sub-stacks yields the sub-stacks' units.
 // funcs is the HCL function map used while decoding the stack file; production
 // callers build it via config.EarlyStackParseFunctions. The map must be
 // non-nil but may be empty (tests that exercise only literal attributes can
@@ -171,15 +177,34 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function
 		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: funcs is nil (stackDir=%q)", stackDir))
 	}
 
+	return unitPathsFromStackDir(fs, stackDir, funcs, make(map[string]struct{}), 0)
+}
+
+// unitPathsFromStackDir is the bounded recursive worker. Termination is guaranteed two ways:
+// visited skips any stack dir already expanded on this traversal (catches "." / ".." and
+// ancestor symlink loops), and depth caps the chain length (backstop for symlink cycles
+// EvalSymlinks reports as errors and therefore cannot collapse to a seen path).
+func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function.Function, visited map[string]struct{}, depth int) ([]string, error) {
+	if depth > maxStackRecursionDepth {
+		return nil, StackRecursionDepthExceededError{MaxDepth: maxStackRecursionDepth, StackDir: stackDir}
+	}
+
 	stackDir = util.ResolvePath(stackDir)
+
+	if _, seen := visited[stackDir]; seen {
+		return nil, nil
+	}
+
+	visited[stackDir] = struct{}{}
+
 	stackFile := filepath.Join(stackDir, stackFileName)
 
-	units, _, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
+	units, stacks, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
 	if err != nil {
 		return nil, err
 	}
 
-	if units == nil {
+	if len(units) == 0 && len(stacks) == 0 {
 		return nil, nil
 	}
 
@@ -192,6 +217,23 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function
 		}
 
 		paths = append(paths, unitPath)
+	}
+
+	// Recurse into nested stacks so a stack composed of sub-stacks expands to the units those
+	// sub-stacks generate, not just the direct units at this level. A not-yet-generated nested
+	// stack decodes to no units.
+	for _, stack := range stacks {
+		nestedDir := filepath.Join(stackDir, StackDir, stack.Path)
+		if stack.NoStack != nil && *stack.NoStack {
+			nestedDir = filepath.Join(stackDir, stack.Path)
+		}
+
+		nestedPaths, nestedErr := unitPathsFromStackDir(fs, nestedDir, funcs, visited, depth+1)
+		if nestedErr != nil {
+			return nil, nestedErr
+		}
+
+		paths = append(paths, nestedPaths...)
 	}
 
 	return paths, nil

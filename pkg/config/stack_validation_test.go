@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateStackConfig(t *testing.T) {
@@ -302,4 +303,18 @@ func TestValidateStackConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestValidateStackConfigCrossKindPathCollision rejects a unit and a stack that resolve to the same generated path.
+func TestValidateStackConfigCrossKindPathCollision(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.StackConfigFile{
+		Units:  []*config.Unit{{Name: "a", Source: "src-a", Path: "collide"}},
+		Stacks: []*config.Stack{{Name: "b", Source: "src-b", Path: "collide"}},
+	}
+
+	err := config.ValidateStackConfig(cfg)
+	require.Error(t, err, "a unit and a stack sharing a generated path must be rejected")
+	require.Contains(t, err.Error(), "collide")
 }

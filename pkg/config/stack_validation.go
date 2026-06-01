@@ -14,6 +14,7 @@ import (
 // - Stack name, source, and path shouldn't be empty
 // - Stack names should be unique
 // - Stack shouldn't have duplicate paths
+// - A unit and a stack shouldn't generate to the same path
 func ValidateStackConfig(config *StackConfigFile) error {
 	if config == nil {
 		return errors.New("stack config cannot be nil")
@@ -32,6 +33,50 @@ func ValidateStackConfig(config *StackConfigFile) error {
 
 	if err := validateStacks(config.Stacks); err != nil {
 		validationErrors = append(validationErrors, err)
+	}
+
+	if err := validateCrossKindPaths(config.Units, config.Stacks); err != nil {
+		validationErrors = append(validationErrors, err)
+	}
+
+	return errors.Join(validationErrors...)
+}
+
+// validateCrossKindPaths reports a path used by both a unit and a stack, since both
+// components generate into the same .terragrunt-stack/<path> directory and would collide.
+// Within-kind duplicates are already reported by validateUnits and validateStacks.
+func validateCrossKindPaths(units []*Unit, stacks []*Stack) error {
+	unitPaths := make(map[string]struct{}, len(units))
+
+	for _, u := range units {
+		path := strings.TrimSpace(u.Path)
+		if path == "" {
+			continue
+		}
+
+		unitPaths[path] = struct{}{}
+	}
+
+	var validationErrors []error
+
+	reported := make(map[string]struct{})
+
+	for _, s := range stacks {
+		path := strings.TrimSpace(s.Path)
+		if path == "" {
+			continue
+		}
+
+		if _, collides := unitPaths[path]; !collides {
+			continue
+		}
+
+		if _, seen := reported[path]; seen {
+			continue
+		}
+
+		reported[path] = struct{}{}
+		validationErrors = append(validationErrors, fmt.Errorf("duplicate path found across unit and stack: '%s'", path))
 	}
 
 	return errors.Join(validationErrors...)
