@@ -2084,26 +2084,9 @@ type TerragruntRC struct {
 // If none is found in the directory tree it also checks ~/.config/terragrunt/ and $HOME.
 // Returns nil without error when no file exists anywhere in the search path.
 func FindAndLoadRCFile(startDir string) (*TerragruntRC, error) {
-	dir := startDir
-
-	for {
-		for _, name := range rcFilenames {
-			rc, err := loadRCFile(filepath.Join(dir, name))
-			if err != nil {
-				return nil, err
-			}
-
-			if rc != nil {
-				return rc, nil
-			}
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-
-		dir = parent
+	rc, err := findRCFileWalkingUp(startDir)
+	if err != nil || rc != nil {
+		return rc, err
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -2115,15 +2098,44 @@ func FindAndLoadRCFile(startDir string) (*TerragruntRC, error) {
 		filepath.Join(homeDir, ".config", "terragrunt"),
 		homeDir,
 	} {
-		for _, name := range rcFilenames {
-			rc, err := loadRCFile(filepath.Join(base, name))
-			if err != nil {
-				return nil, err
-			}
+		rc, err := findRCFileInDir(base)
+		if err != nil || rc != nil {
+			return rc, err
+		}
+	}
 
-			if rc != nil {
-				return rc, nil
-			}
+	return nil, nil
+}
+
+func findRCFileWalkingUp(startDir string) (*TerragruntRC, error) {
+	dir := startDir
+
+	for {
+		rc, err := findRCFileInDir(dir)
+		if err != nil || rc != nil {
+			return rc, err
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+
+		dir = parent
+	}
+
+	return nil, nil
+}
+
+func findRCFileInDir(dir string) (*TerragruntRC, error) {
+	for _, name := range rcFilenames {
+		rc, err := loadRCFile(filepath.Join(dir, name))
+		if err != nil {
+			return nil, err
+		}
+
+		if rc != nil {
+			return rc, nil
 		}
 	}
 
