@@ -968,13 +968,15 @@ func mergeStackAutoIncludeFile(l log.Logger, config *StackConfigFile, stackDir, 
 		return fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
 	}
 
-	// Backstop the fail-fast generation check for stale or hand-written files: a top-level
-	// dependency block in a stack autoinclude is the unsupported cross-level pattern.
-	if depName, found := topLevelDependencyName(incFile.Body); found {
-		return inthclparse.StackAutoIncludeDependencyValuesError{
-			StackName: filepath.Base(stackDir),
-			DepName:   depName,
-		}
+	// In production the file is parsed with hclsyntax, so the body is always *hclsyntax.Body; surface the impossible-state assertion rather than silently skipping the backstop.
+	syntaxBody, ok := incFile.Body.(*hclsyntax.Body)
+	if !ok {
+		return inthclparse.UnexpectedBodyTypeError{FilePath: autoIncludePath}
+	}
+
+	// Backstop the fail-fast generation check for stale or hand-written files using the shared scan.
+	if typed := inthclparse.StackAutoIncludeDepValuesError(syntaxBody, filepath.Base(stackDir)); typed != nil {
+		return *typed
 	}
 
 	included := &StackConfigFile{}
@@ -1247,22 +1249,6 @@ func bodyHasBlock(body hcl.Body) bool {
 	}
 
 	return len(content.Blocks) > 0
-}
-
-// topLevelDependencyName reports the first label of a top-level dependency block in body, and whether one exists.
-func topLevelDependencyName(body hcl.Body) (string, bool) {
-	if body == nil {
-		return "", false
-	}
-
-	content, _, diags := body.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: inthclparse.BlockDependency, LabelNames: []string{"name"}}},
-	})
-	if diags.HasErrors() || len(content.Blocks) == 0 {
-		return "", false
-	}
-
-	return content.Blocks[0].Labels[0], true
 }
 
 // logStackAutoIncludeOverrides records when an injected unit/stack name replaces an existing one and when a nested autoinclude block is dropped.

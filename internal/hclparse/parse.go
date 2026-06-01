@@ -39,8 +39,6 @@ const (
 	// references are exposed (stack.<name>.path). Exported so pkg/config can inject the
 	// same variable when decoding terragrunt.stack.hcl values.
 	VarStack = "stack"
-	// BlockDependency is the dependency block type name. Exported so pkg/config can probe a stack autoinclude file for the unsupported top-level dependency block.
-	BlockDependency = blockDependency
 )
 
 // ParseStackFileInput holds the input for ParseStackFile.

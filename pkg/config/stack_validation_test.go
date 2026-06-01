@@ -1,9 +1,14 @@
 package config_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -317,4 +322,104 @@ func TestValidateStackConfigCrossKindPathCollision(t *testing.T) {
 	err := config.ValidateStackConfig(cfg)
 	require.Error(t, err, "a unit and a stack sharing a generated path must be rejected")
 	require.Contains(t, err.Error(), "collide")
+}
+
+// TestStackAutoIncludeBackstopPopulatesTypedErrorFields covers the pkg/config backstop in
+// mergeStackAutoIncludeFile: a stale or hand-written terragrunt.autoinclude.stack.hcl that
+// already carries a top-level dependency block consumed by injected values must surface the
+// typed StackAutoIncludeDependencyValuesError with UnitName, DepName, StackName, and Subject
+// populated, not just StackName/DepName. The fail-fast generation check (RFC #19) is unit-tested
+// elsewhere; this asserts the second line of defence reads the same fields off the on-disk file.
+func TestStackAutoIncludeBackstopPopulatesTypedErrorFields(t *testing.T) {
+	t.Parallel()
+
+	stackDir := t.TempDir()
+
+	// A regular stack file so the parser does not short-circuit on the autoinclude filename.
+	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackFilePath, []byte(`
+unit "base" {
+  source = "."
+  path   = "base"
+}
+`), 0644))
+
+	// The stale sibling autoinclude carries the unsupported cross-level pattern: a top-level
+	// dependency block whose outputs feed an injected unit's values.
+	autoIncludePath := filepath.Join(stackDir, config.DefaultAutoIncludeStackFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+dependency "producer" {
+  config_path = "../producer"
+}
+
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    v = dependency.producer.outputs.val
+  }
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	require.Error(t, err, "the backstop must reject a stale stack autoinclude carrying a dependency consumed by injected values")
+
+	var typed inthclparse.StackAutoIncludeDependencyValuesError
+	require.ErrorAs(t, err, &typed, "the backstop must surface the typed StackAutoIncludeDependencyValuesError")
+
+	// StackName is derived from the stack directory base by the backstop.
+	assert.Equal(t, filepath.Base(stackDir), typed.StackName, "StackName must be the stack directory base")
+	assert.Equal(t, "producer", typed.DepName, "DepName must name the offending dependency block")
+
+	// The previously dropped fields must now be carried through the backstop path.
+	assert.Equal(t, "extra", typed.UnitName, "UnitName must name the injected unit whose values consume the dependency")
+	require.NotNil(t, typed.Subject, "Subject must point at the offending values expression")
+	assert.Equal(t, autoIncludePath, typed.Subject.Filename, "Subject must reference the stale autoinclude file on disk")
+
+	// The clear guidance must still ride along, never the cryptic low-level diagnostic.
+	msg := err.Error()
+	assert.Contains(t, msg, "supported cross-level pattern")
+	assert.NotContains(t, msg, "no variable named dependency")
+}
+
+// TestStackAutoIncludeBackstopAllowsSupportedPattern is the negative guard: the backstop must
+// not fire for the supported cross-level pattern where injected values reference only unit.X.path.
+func TestStackAutoIncludeBackstopAllowsSupportedPattern(t *testing.T) {
+	t.Parallel()
+
+	stackDir := t.TempDir()
+
+	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackFilePath, []byte(`
+unit "base" {
+  source = "."
+  path   = "base"
+}
+`), 0644))
+
+	autoIncludePath := filepath.Join(stackDir, config.DefaultAutoIncludeStackFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    v = unit.base.path
+  }
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	stackConfig, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	require.NoError(t, err, "a supported unit.X.path values reference must not trip the backstop")
+	require.NotNil(t, stackConfig)
+
+	var typed inthclparse.StackAutoIncludeDependencyValuesError
+	require.NotErrorAs(t, err, &typed, "the supported pattern must not produce the typed dependency-values error")
 }

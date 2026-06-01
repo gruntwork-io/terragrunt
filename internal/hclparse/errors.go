@@ -180,7 +180,6 @@ func (e MalformedDependencyError) Unwrap() error {
 // injected unit or stack. Dependency outputs are not available at stack generate
 // time (they resolve at unit run time), so this pattern cannot be generated.
 type StackAutoIncludeDependencyValuesError struct {
-	Err       error
 	Subject   *hcl.Range
 	StackName string
 	UnitName  string
@@ -205,10 +204,6 @@ func (e StackAutoIncludeDependencyValuesError) Error() string {
 			"pass only unit.X.path through values on the child stack block, and declare the dependency inside the nested unit's own autoinclude so it resolves at the unit run.",
 		stack, e.DepName, target,
 	)
-}
-
-func (e StackAutoIncludeDependencyValuesError) Unwrap() error {
-	return e.Err
 }
 
 // EmptyArgError indicates that a required string argument was empty.

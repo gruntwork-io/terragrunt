@@ -331,8 +331,8 @@ func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (st
 	return util.ResolvePath(depPath), nil
 }
 
-// validateStackAutoIncludeDepValues rejects a stack-level autoinclude that declares a dependency block whose outputs are referenced by the values of an injected unit/stack block.
-func validateStackAutoIncludeDepValues(body *hclsyntax.Body, stackName string) hcl.Diagnostics {
+// StackAutoIncludeDepValuesError scans a stack autoinclude body for the unsupported cross-level pattern and returns the populated typed error, or nil when absent. Shared by the fail-fast generation check and the pkg/config backstop so the two cannot drift.
+func StackAutoIncludeDepValuesError(body *hclsyntax.Body, stackName string) *StackAutoIncludeDependencyValuesError {
 	declaredDeps := autoIncludeDependencyNames(body)
 	if len(declaredDeps) == 0 {
 		return nil
@@ -353,23 +353,31 @@ func validateStackAutoIncludeDepValues(body *hclsyntax.Body, stackName string) h
 			continue
 		}
 
-		typed := StackAutoIncludeDependencyValuesError{
+		return &StackAutoIncludeDependencyValuesError{
 			StackName: stackName,
 			UnitName:  blockLabelsString(block),
 			DepName:   depName,
 			Subject:   subject,
 		}
-
-		return hcl.Diagnostics{{
-			Severity: hcl.DiagError,
-			Summary:  "stack autoinclude dependency outputs referenced by injected values",
-			Detail:   typed.Error(),
-			Subject:  subject,
-			Extra:    typed,
-		}}
 	}
 
 	return nil
+}
+
+// validateStackAutoIncludeDepValues rejects a stack-level autoinclude that declares a dependency block whose outputs are referenced by the values of an injected unit/stack block.
+func validateStackAutoIncludeDepValues(body *hclsyntax.Body, stackName string) hcl.Diagnostics {
+	typed := StackAutoIncludeDepValuesError(body, stackName)
+	if typed == nil {
+		return nil
+	}
+
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "stack autoinclude dependency outputs referenced by injected values",
+		Detail:   typed.Error(),
+		Subject:  typed.Subject,
+		Extra:    *typed,
+	}}
 }
 
 // autoIncludeDependencyNames returns the set of single-labeled dependency block names declared in the body.
