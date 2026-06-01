@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/google/go-github/v53/github"
@@ -213,10 +214,5 @@ func isCheckRunWithoutLogs(name string) bool {
 		"SonarCloud",
 		"Codecov",
 	}
-	for _, pattern := range skipPatterns {
-		if name == pattern {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(skipPatterns, name)
 }

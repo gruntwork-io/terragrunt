@@ -1,0 +1,12 @@
+---
+version: "v1.0.7"
+category: "bug-fixes"
+---
+
+#### `--filter` now detects affected units on Windows
+
+On Windows, `terragrunt find --filter '[origin/main...HEAD]'` (and its variants) returned no affected units even when `git diff` reported changed files. The `source=` and `reading=` filters were affected by the same problem.
+
+Filter glob patterns are always written with forward slashes, but the affected-unit comparison was being made with Windows backslash separators, so nothing matched. Terragrunt now compares paths consistently with forward slashes on every platform, and the filter detects changed units on Windows as it already did on Linux and macOS.
+
+Reported in [#6214](https://github.com/gruntwork-io/terragrunt/issues/6214).
