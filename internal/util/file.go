@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -17,7 +18,7 @@ import (
 	"sync"
 	"syscall"
 
-	urlhelper "github.com/hashicorp/go-getter/v2/helper/url"
+	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/glob"
@@ -33,6 +34,8 @@ const (
 	GitDir                = ".git"
 	DefaultBoilerplateDir = ".boilerplate"
 	ChecksumReadBlock     = 8192
+
+	TerragruntRCFilename = ".terragruntrc.json"
 )
 
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
@@ -412,7 +415,6 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := filepath.Rel(source, absolutePath)
 		if err != nil {
-			l.Warnf("Failed to compute relative path from %s to %s: %v", source, absolutePath, err)
 			return false
 		}
 
@@ -1429,96 +1431,6 @@ func ExcludeFiltersFromFile(baseDir, filename string) ([]string, error) {
 	return filters, nil
 }
 
-// processEnvValue strips optional surrounding quotes, expands environment variables,
-// and resolves path-like values (absolute, ./ or ../ prefixed) relative to baseDir.
-// URL values (containing ://) are left unchanged.
-func processEnvValue(baseDir, raw string) string {
-	val := raw
-
-	if n := len(val); n >= 2 && ((val[0] == '"' && val[n-1] == '"') || (val[0] == '\'' && val[n-1] == '\'')) {
-		val = val[1 : n-1]
-	}
-
-	val = os.ExpandEnv(val)
-
-	looksLikePath := !strings.Contains(val, "://") &&
-		(filepath.IsAbs(val) || strings.HasPrefix(val, "./") || strings.HasPrefix(val, "../"))
-
-	if looksLikePath {
-		val = filepath.Clean(val)
-		if !filepath.IsAbs(val) {
-			val = filepath.Join(baseDir, val)
-		}
-	}
-
-	return val
-}
-
-// FindAndLoadEnvFile walks up the directory tree from startDir looking for filename.
-// It returns the result of LoadEnvFile for the first (nearest) file found, or nil if none exists.
-func FindAndLoadEnvFile(startDir, filename string) (map[string]string, error) {
-	dir := startDir
-
-	for {
-		result, err := LoadEnvFile(dir, filename)
-		if err != nil {
-			return nil, err
-		}
-
-		if result != nil {
-			return result, nil
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return nil, nil
-		}
-
-		dir = parent
-	}
-}
-
-// LoadEnvFile reads key=value pairs from filename in baseDir and returns them as a map.
-// Values are expanded via os.ExpandEnv; path-like values (containing / but not ://) are
-// additionally cleaned with filepath.Clean to resolve relative segments like ../../.
-// Returns nil without error if the file does not exist.
-func LoadEnvFile(baseDir, filename string) (map[string]string, error) {
-	path, err := CanonicalPath(filename, baseDir)
-	if err != nil {
-		return nil, err
-	}
-
-	if !FileExists(path) || !IsFile(path) {
-		return nil, nil
-	}
-
-	content, err := ReadFileAsString(path)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(map[string]string)
-
-	for _, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		key, val, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-
-		key = strings.TrimSpace(key)
-		val = processEnvValue(baseDir, strings.TrimSpace(val))
-
-		result[key] = val
-	}
-
-	return result, nil
-}
-
 // GetFiltersFromFile returns a list of filter queries from the given filename, where each filter query starts on a new line.
 func GetFiltersFromFile(baseDir, filename string) ([]string, error) {
 	filename, err := CanonicalPath(filename, baseDir)
@@ -2029,4 +1941,93 @@ func relPathInsideRoot(rootDir, target string) (string, bool) {
 	}
 
 	return cleanRootRelPath(rel)
+}
+
+// TerragruntRC holds configuration loaded from a .terragruntrc.json file.
+// Only the env section is supported for now; flags/commands support is planned.
+type TerragruntRC struct {
+	Env map[string]string `json:"env"`
+}
+
+// FindAndLoadRCFile walks upward from startDir looking for a .terragruntrc.json file.
+// If none is found in the directory tree it also checks ~/.config/terragrunt/ and $HOME.
+// Returns nil without error when no file exists anywhere in the search path.
+func FindAndLoadRCFile(startDir, filename string) (*TerragruntRC, error) {
+	dir := startDir
+
+	for {
+		rc, err := loadRCFile(filepath.Join(dir, filename))
+		if err != nil {
+			return nil, err
+		}
+
+		if rc != nil {
+			return rc, nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+
+		dir = parent
+	}
+
+	homeDir, err := homedir.Dir()
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	for _, candidate := range []string{
+		filepath.Join(homeDir, ".config", "terragrunt", filename),
+		filepath.Join(homeDir, filename),
+	} {
+		rc, err := loadRCFile(candidate)
+		if err != nil {
+			return nil, err
+		}
+
+		if rc != nil {
+			return rc, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// loadRCFile reads and parses a single .terragruntrc.json file.
+// Returns nil without error when the file does not exist.
+func loadRCFile(path string) (*TerragruntRC, error) {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	var rc TerragruntRC
+	if err := json.Unmarshal(data, &rc); err != nil {
+		return nil, errors.Errorf("parsing %s: %w", path, err)
+	}
+
+	rcDir := filepath.Dir(path)
+
+	for k, v := range rc.Env {
+		v = os.ExpandEnv(v)
+
+		looksLikePath := !strings.Contains(v, "://") &&
+			(filepath.IsAbs(v) || strings.HasPrefix(v, "./") || strings.HasPrefix(v, "../"))
+		if looksLikePath {
+			v = filepath.Clean(v)
+			if !filepath.IsAbs(v) {
+				v = filepath.Join(rcDir, v)
+			}
+		}
+
+		rc.Env[k] = v
+	}
+
+	return &rc, nil
 }
