@@ -3,6 +3,7 @@
 package test_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,11 +13,13 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -47,6 +50,8 @@ const (
 	testFixtureStackDepsStackAutoInclude         = "fixtures/stacks/stack-deps-stack-autoinclude"
 	testFixtureStackDepsStackAutoIncludeNested   = "fixtures/stacks/stack-deps-stack-autoinclude-nested"
 	testFixtureStackDepsCrossLevelValues         = "fixtures/stacks/stack-deps-cross-level-values"
+	testFixtureStackDepsStackAutoIncDepValues    = "fixtures/stacks/stack-deps-stack-autoinclude-dep-values"
+	testFixtureStackDepsLocalsReadConfigDep      = "fixtures/stacks/stack-deps-locals-readconfig-dep"
 	testFixtureStackDepsRemoteStateDep           = "fixtures/stacks/stack-deps-remote-state-dep"
 	testFixtureStackDepsNestedRemoteStateDep     = "fixtures/stacks/stack-deps-nested-remote-state-dep"
 	testFixtureStackDepsDupDependency            = "fixtures/stacks/stack-deps-dup-dependency"
@@ -1444,15 +1449,18 @@ func TestStackDepsAutoIncludeArbitraryRetryBlock(t *testing.T) {
 	autoIncludePath := filepath.Join(unitDir, inthclparse.AutoIncludeFile)
 	require.FileExists(t, autoIncludePath)
 
-	// Parse the generated autoinclude file back through the real config parser: the injected
-	// errors/retry block must decode into a complete, valid config with the exact values,
-	// not merely appear as text in the generated file.
-	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+	unitConfigPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	require.FileExists(t, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
-	require.NoError(t, err, "generated autoinclude file with an errors block must parse as a valid config")
-	require.NotNil(t, parsed.Errors, "errors block injected via autoinclude must survive generation")
+	// Parse the generated unit terragrunt.hcl with the stack-dependencies experiment on so the
+	// sibling autoinclude merges in. The injected errors/retry block must appear in the unit's
+	// effective merged config, not merely as text in the standalone generated autoinclude file.
+	l := logger.CreateLogger()
+	ctx, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, unitConfigPath, nil)
+	require.NoError(t, err, "unit config with a merged autoinclude errors block must parse as a valid config")
+	require.NotNil(t, parsed.Errors, "errors block injected via autoinclude must merge into the unit's effective config")
 	require.Len(t, parsed.Errors.Retry, 1)
 
 	retry := parsed.Errors.Retry[0]
@@ -1460,6 +1468,14 @@ func TestStackDepsAutoIncludeArbitraryRetryBlock(t *testing.T) {
 	assert.Equal(t, 3, retry.MaxAttempts)
 	assert.Equal(t, 5, retry.SleepIntervalSec)
 	assert.Equal(t, []string{".*transient.*"}, retry.RetryableErrors)
+
+	// The merged block must also survive a discovery-style partial parse: ErrorsBlock is in the
+	// discovery decode list, so a partial parse of the unit must surface the same retry rule.
+	partial := partialParseDiscovery(t, l, unitConfigPath)
+	require.NotNil(t, partial.Errors, "merged errors block must survive a discovery partial parse")
+	require.Len(t, partial.Errors.Retry, 1)
+	assert.Equal(t, "transient", partial.Errors.Retry[0].Label)
+	assert.Equal(t, 3, partial.Errors.Retry[0].MaxAttempts)
 }
 
 // TestStackDepsAutoIncludeFeatureBlock verifies that an autoinclude may inject a
@@ -1480,19 +1496,31 @@ func TestStackDepsAutoIncludeFeatureBlock(t *testing.T) {
 	autoIncludePath := filepath.Join(unitDir, inthclparse.AutoIncludeFile)
 	require.FileExists(t, autoIncludePath)
 
-	// Parse the generated autoinclude file back through the real config parser: the injected
-	// feature block must decode into a complete, valid config with the exact values.
-	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+	unitConfigPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	require.FileExists(t, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
-	require.NoError(t, err, "generated autoinclude file with a feature block must parse as a valid config")
-	require.Len(t, parsed.FeatureFlags, 1, "feature block injected via autoinclude must survive generation")
+	// Parse the generated unit terragrunt.hcl with the stack-dependencies experiment on so the
+	// sibling autoinclude merges in. The injected feature block must appear in the unit's
+	// effective merged config with the exact value.
+	l := logger.CreateLogger()
+	ctx, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, unitConfigPath, nil)
+	require.NoError(t, err, "unit config with a merged autoinclude feature block must parse as a valid config")
+	require.Len(t, parsed.FeatureFlags, 1, "feature block injected via autoinclude must merge into the unit's effective config")
 
 	flag := parsed.FeatureFlags[0]
 	assert.Equal(t, "foo", flag.Name)
 	require.NotNil(t, flag.Default, "feature flag default must decode")
 	assert.True(t, flag.Default.RawEquals(cty.True), "feature flag default must decode to true")
+
+	// The merged block must also survive a discovery-style partial parse: FeatureFlagsBlock is in
+	// the discovery decode list, so a partial parse of the unit must surface the same feature flag.
+	partial := partialParseDiscovery(t, l, unitConfigPath)
+	require.Len(t, partial.FeatureFlags, 1, "merged feature block must survive a discovery partial parse")
+	assert.Equal(t, "foo", partial.FeatureFlags[0].Name)
+	require.NotNil(t, partial.FeatureFlags[0].Default)
+	assert.True(t, partial.FeatureFlags[0].Default.RawEquals(cty.True))
 }
 
 // TestStackDepsAutoIncludeIgnoreBlock verifies that an autoinclude may inject an
@@ -1513,14 +1541,18 @@ func TestStackDepsAutoIncludeIgnoreBlock(t *testing.T) {
 	autoIncludePath := filepath.Join(unitDir, inthclparse.AutoIncludeFile)
 	require.FileExists(t, autoIncludePath)
 
-	// Parse the generated autoinclude file back through the real config parser: the injected
-	// errors/ignore block must decode into a complete, valid config with the exact values.
-	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+	unitConfigPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	require.FileExists(t, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
-	require.NoError(t, err, "generated autoinclude file with an errors block must parse as a valid config")
-	require.NotNil(t, parsed.Errors, "errors block injected via autoinclude must survive generation")
+	// Parse the generated unit terragrunt.hcl with the stack-dependencies experiment on so the
+	// sibling autoinclude merges in. The injected errors/ignore block must appear in the unit's
+	// effective merged config with the exact values.
+	l := logger.CreateLogger()
+	ctx, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, unitConfigPath, nil)
+	require.NoError(t, err, "unit config with a merged autoinclude errors block must parse as a valid config")
+	require.NotNil(t, parsed.Errors, "errors block injected via autoinclude must merge into the unit's effective config")
 	require.Len(t, parsed.Errors.Ignore, 1)
 
 	ignore := parsed.Errors.Ignore[0]
@@ -1529,6 +1561,14 @@ func TestStackDepsAutoIncludeIgnoreBlock(t *testing.T) {
 	assert.Equal(t, []string{".*bar.*"}, ignore.IgnorableErrors)
 	require.Contains(t, ignore.Signals, "failed_bar")
 	assert.True(t, ignore.Signals["failed_bar"].RawEquals(cty.True), "ignore signal must decode to true")
+
+	// The merged block must also survive a discovery-style partial parse: ErrorsBlock is in the
+	// discovery decode list, so a partial parse of the unit must surface the same ignore rule.
+	partial := partialParseDiscovery(t, l, unitConfigPath)
+	require.NotNil(t, partial.Errors, "merged errors block must survive a discovery partial parse")
+	require.Len(t, partial.Errors.Ignore, 1)
+	assert.Equal(t, "bar", partial.Errors.Ignore[0].Label)
+	assert.Equal(t, []string{".*bar.*"}, partial.Errors.Ignore[0].IgnorableErrors)
 }
 
 // TestStackDepsMockOutputsAtPlan exercises mock_outputs functionally: with no
@@ -1721,6 +1761,81 @@ func TestStackDepsCrossLevelViaValues(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
 }
 
+// TestStackDepsStackAutoIncludeDepValuesIsClearError reproduces RFC comment #19: a
+// stack-level autoinclude declares a dependency block AND injects a unit whose values
+// derive from that dependency's outputs. stack generate must fail with the clear typed
+// error pointing at the supported cross-level pattern, not the low-level HCL diagnostic.
+func TestStackDepsStackAutoIncludeDepValuesIsClearError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackAutoIncDepValues)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncDepValues)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncDepValues)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	_, _, runErr := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+	require.Error(t, runErr, "a stack autoinclude carrying a dependency consumed by injected values must fail generation")
+
+	var typed inthclparse.StackAutoIncludeDependencyValuesError
+	require.ErrorAs(t, runErr, &typed, "the failure must be the typed StackAutoIncludeDependencyValuesError")
+	assert.Equal(t, "net", typed.StackName)
+	assert.Equal(t, "producer", typed.DepName)
+	assert.Equal(t, "extra", typed.UnitName)
+
+	// The clear error must name the supported alternative, not the cryptic low-level diagnostic.
+	msg := runErr.Error()
+	assert.Contains(t, msg, "supported cross-level pattern")
+	assert.Contains(t, msg, "stack-deps-cross-level-values")
+	assert.NotContains(t, msg, "Unsupported block type")
+	assert.NotContains(t, msg, "no variable named dependency")
+}
+
+// TestStackDepsLocalsReadConfigWithDep reproduces RFC comment #27: a unit whose
+// generated config uses locals driven by read_terragrunt_config(find_in_parent_folders)
+// and find_in_parent_folders, passes values from local.* and values.*, alongside a unit
+// carrying an autoinclude with a dependency. stack generate must succeed (it regressed on 1.0.6).
+func TestStackDepsLocalsReadConfigWithDep(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsLocalsReadConfigDep)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsLocalsReadConfigDep)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsLocalsReadConfigDep)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	_, stderr, runErr := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, runErr, "stack generate with locals/read_terragrunt_config and an autoinclude dependency must succeed: %s", stderr)
+
+	rolesAutoInc := filepath.Join(rootPath, inthclparse.StackDir, "roles", inthclparse.AutoIncludeFile)
+	require.FileExists(t, rolesAutoInc, "the roles unit must get its autoinclude with the dependency wired in")
+
+	content, err := os.ReadFile(rolesAutoInc)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `dependency "account"`)
+	assert.Contains(t, string(content), `config_path                             = "../account"`,
+		"unit.account.path must resolve into the autoinclude config_path even with locals/read_terragrunt_config in the unit configs")
+
+	accountConfig := filepath.Join(rootPath, inthclparse.StackDir, "account", config.DefaultTerragruntConfigPath)
+	require.FileExists(t, accountConfig, "the account unit must materialize")
+	assert.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "account", inthclparse.AutoIncludeFile),
+		"the account unit declares no autoinclude, so none must be generated")
+}
+
 // TestStackDepsAutoIncludeUnknownTarget is the negative path: an autoinclude
 // dependency whose config_path references an undeclared unit must fail stack
 // generate with a clean error, not a panic.
@@ -1753,4 +1868,31 @@ unit "a" {
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+stackDir)
 	require.Error(t, err, "autoinclude referencing an undeclared unit must fail generation")
 	assert.NotContains(t, stderr, "panic", "the failure must be a clean error, not a panic")
+}
+
+// newStackDepsParsingContext builds a parsing context with the stack-dependencies experiment
+// enabled so a unit's sibling terragrunt.autoinclude.hcl merges into the effective config.
+func newStackDepsParsingContext(t *testing.T, l log.Logger, configPath string) (context.Context, *config.ParsingContext) {
+	t.Helper()
+
+	opts := options.NewTerragruntOptions()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.StackDependencies))
+	opts.TerragruntConfigPath = configPath
+
+	return configbridge.NewParsingContext(t.Context(), l, opts)
+}
+
+// partialParseDiscovery partial parses a unit config the way discovery does, with the
+// stack-dependencies experiment on and the discovery feature/errors blocks in the decode list,
+// so the merged autoinclude block must still surface.
+func partialParseDiscovery(t *testing.T, l log.Logger, configPath string) *config.TerragruntConfig {
+	t.Helper()
+
+	ctx, pctx := newStackDepsParsingContext(t, l, configPath)
+	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ErrorsBlock).WithSkipOutputsResolution()
+
+	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, configPath, nil)
+	require.NoError(t, err, "discovery-style partial parse of the merged unit config must succeed")
+
+	return parsed
 }

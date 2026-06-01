@@ -86,6 +86,13 @@ type AutoIncludeDependency struct {
 //     They contain dependency.*.outputs.* which is runtime-only.
 //     The RawBody is preserved so the generator can copy these from the AST.
 func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved, hcl.Diagnostics) {
+	return a.ResolveForKind(evalCtx, KindUnit, "")
+}
+
+// ResolveForKind is Resolve with the component kind and parent name known, so a
+// stack-level autoinclude can be validated against the unsupported pattern where
+// an injected unit/stack consumes a sibling dependency's outputs through values.
+func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoIncludeKind, name string) (*AutoIncludeResolved, hcl.Diagnostics) {
 	if a == nil || a.Remain == nil {
 		return nil, nil
 	}
@@ -103,6 +110,12 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 			Detail:   "Did you mean to declare values = {...} on the parent unit/stack block (next to source/path) instead of inside the autoinclude block?",
 			Subject:  valuesAttr.Range().Ptr(),
 		}}
+	}
+
+	if kind == KindStack {
+		if diags := validateStackAutoIncludeDepValues(body, name); diags.HasErrors() {
+			return nil, diags
+		}
 	}
 
 	deps := make([]AutoIncludeDependency, 0, len(body.Blocks))
@@ -316,4 +329,82 @@ func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (st
 	}
 
 	return util.ResolvePath(depPath), nil
+}
+
+// validateStackAutoIncludeDepValues rejects a stack-level autoinclude that declares a dependency block whose outputs are referenced by the values of an injected unit/stack block.
+func validateStackAutoIncludeDepValues(body *hclsyntax.Body, stackName string) hcl.Diagnostics {
+	declaredDeps := autoIncludeDependencyNames(body)
+	if len(declaredDeps) == 0 {
+		return nil
+	}
+
+	for _, block := range body.Blocks {
+		if block.Type != VarUnit && block.Type != VarStack {
+			continue
+		}
+
+		valuesAttr, hasValues := block.Body.Attributes[varValues]
+		if !hasValues {
+			continue
+		}
+
+		depName, subject := firstDeclaredDepRef(valuesAttr.Expr, declaredDeps)
+		if depName == "" {
+			continue
+		}
+
+		typed := StackAutoIncludeDependencyValuesError{
+			StackName: stackName,
+			UnitName:  blockLabelsString(block),
+			DepName:   depName,
+			Subject:   subject,
+		}
+
+		return hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "stack autoinclude dependency outputs referenced by injected values",
+			Detail:   typed.Error(),
+			Subject:  subject,
+			Extra:    typed,
+		}}
+	}
+
+	return nil
+}
+
+// autoIncludeDependencyNames returns the set of single-labeled dependency block names declared in the body.
+func autoIncludeDependencyNames(body *hclsyntax.Body) map[string]struct{} {
+	names := make(map[string]struct{})
+
+	for _, block := range body.Blocks {
+		if block.Type != blockDependency || len(block.Labels) != 1 {
+			continue
+		}
+
+		names[block.Labels[0]] = struct{}{}
+	}
+
+	return names
+}
+
+// firstDeclaredDepRef returns the name and range of the first dependency.* reference in expr whose root name is a declared dependency, or empty when none.
+func firstDeclaredDepRef(expr hclsyntax.Expression, declaredDeps map[string]struct{}) (string, *hcl.Range) {
+	for _, traversal := range expr.Variables() {
+		if traversal.RootName() != varDependency || len(traversal) < 2 {
+			continue
+		}
+
+		attr, ok := traversal[1].(hcl.TraverseAttr)
+		if !ok {
+			continue
+		}
+
+		if _, declared := declaredDeps[attr.Name]; !declared {
+			continue
+		}
+
+		return attr.Name, expr.Range().Ptr()
+	}
+
+	return "", nil
 }

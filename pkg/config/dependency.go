@@ -243,8 +243,8 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
 
-	// Fold autoinclude dependency blocks in, letting the autoinclude win with deep-merge semantics.
-	decodedDependency.Dependencies, err = foldAutoIncludeDependencies(ctx, pctx, l, file, decodedDependency.Dependencies)
+	// Fold sibling autoinclude dependency blocks in before output retrieval so the unit body can reference them, like a regular include.
+	decodedDependency.Dependencies, err = foldSiblingAutoIncludeDeps(ctx, pctx, l, file, decodedDependency.Dependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -1645,6 +1645,45 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	}
 
 	return filteredDeps
+}
+
+// foldSiblingAutoIncludeDeps deep-merges the sibling autoinclude dependency blocks over the unit's own same-name blocks, with the autoinclude winning, mirroring include deep_merge semantics.
+func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, deps []Dependency) ([]Dependency, error) {
+	if !pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		return deps, nil
+	}
+
+	base := filepath.Base(file.ConfigPath)
+	if base == DefaultAutoIncludeFile || base == DefaultAutoIncludeStackFile {
+		return deps, nil
+	}
+
+	autoIncludePath := filepath.Join(filepath.Dir(file.ConfigPath), DefaultAutoIncludeFile)
+	if !util.FileExists(autoIncludePath) {
+		return deps, nil
+	}
+
+	autoFile, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	decoded := TerragruntDependency{}
+	if err := autoFile.Decode(&decoded, evalCtx); err != nil {
+		return nil, err
+	}
+
+	autoDeps := decoded.Dependencies.FilteredWithoutConfigPath()
+	if len(autoDeps) == 0 {
+		return deps, nil
+	}
+
+	return deepMergeDependencyBlocks(deps, autoDeps)
 }
 
 // IsValidConfigPath checks if a cty.Value is a valid, usable config path.

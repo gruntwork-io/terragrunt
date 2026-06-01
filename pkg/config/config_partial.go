@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
@@ -491,12 +492,6 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 			decoded.Dependencies = decoded.Dependencies.FilteredWithoutConfigPath()
 
-			// Fold autoinclude dependency blocks in so the discovery/run-queue path agrees with the full-parse path.
-			decoded.Dependencies, err = foldAutoIncludeDependencies(ctx, pctx, l, file, decoded.Dependencies)
-			if err != nil {
-				return nil, err
-			}
-
 			output.TerragruntDependencies = decoded.Dependencies
 			// Convert dependency blocks into module dependency lists. If we already decoded some dependencies,
 			// merge them in. Otherwise, set as the new list.
@@ -614,6 +609,11 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 	}
 
+	// Deep-merge the sibling autoinclude into this partial output so discovery/run-queue agrees with the full parse.
+	if err := mergeAutoIncludePartialDeepIfPresent(ctx, pctx, l, output, file.ConfigPath); err != nil {
+		return nil, err
+	}
+
 	errsContainsIncludeErr := false
 
 	for _, err := range errs {
@@ -718,6 +718,37 @@ func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.Eval
 	}
 
 	return tgInc.Include, nil
+}
+
+// mergeAutoIncludePartialDeepIfPresent deep-merges a sibling terragrunt.autoinclude.hcl into a partial output using the same decode list, with the autoinclude winning.
+func mergeAutoIncludePartialDeepIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, output *TerragruntConfig, configPath string) error {
+	// Recursion-safe guard: skip either autoinclude file itself and require the experiment.
+	configBase := filepath.Base(configPath)
+	if configBase == DefaultAutoIncludeFile || configBase == DefaultAutoIncludeStackFile || !pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		return nil
+	}
+
+	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
+	if !util.FileExists(autoIncludePath) {
+		return nil
+	}
+
+	// Reset DecodedDependencies so the autoinclude file gets its own dependency resolution pass; reuse the same decode list.
+	clonedPctx := pctx.Clone()
+	clonedPctx.DecodedDependencies = nil
+	clonedPctx = clonedPctx.WithDecodeList(pctx.PartialParseDecodeList...)
+
+	autoIncludeConfig, err := PartialParseConfigFile(ctx, clonedPctx, l, autoIncludePath, nil)
+	if err != nil {
+		return fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
+	}
+
+	// DeepMerge mutates the receiver and the argument wins; the autoinclude is the source/winner.
+	if err := output.DeepMerge(l, autoIncludeConfig); err != nil {
+		return fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
+	}
+
+	return nil
 }
 
 // Custom error types

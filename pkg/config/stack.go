@@ -812,7 +812,7 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 			return nil, err
 		}
 
-		if err := mergeStackAutoIncludeFile(config, stackDir, filepath.Base(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
+		if err := mergeStackAutoIncludeFile(l, config, stackDir, filepath.Base(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
 			return nil, err
 		}
 	}
@@ -951,8 +951,8 @@ func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCt
 // mergeStackAutoIncludeFile merges a generated terragrunt.autoinclude.stack.hcl, if present
 // beside the stack file, into the stack config. Units and stacks injected by a parent stack's
 // autoinclude block materialize in the nested stack the same way a unit's
-// terragrunt.autoinclude.hcl merges into its terragrunt.hcl via [mergeAutoIncludeIfPresent].
-func mergeStackAutoIncludeFile(config *StackConfigFile, stackDir, stackFileName string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
+// terragrunt.autoinclude.hcl merges into its terragrunt.hcl via [mergeAutoIncludeDeepIfPresent].
+func mergeStackAutoIncludeFile(l log.Logger, config *StackConfigFile, stackDir, stackFileName string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
 	// Never merge the autoinclude file into itself.
 	if stackFileName == inthclparse.AutoIncludeStackFile {
 		return nil
@@ -968,6 +968,15 @@ func mergeStackAutoIncludeFile(config *StackConfigFile, stackDir, stackFileName 
 		return fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
 	}
 
+	// Backstop the fail-fast generation check for stale or hand-written files: a top-level
+	// dependency block in a stack autoinclude is the unsupported cross-level pattern.
+	if depName, found := topLevelDependencyName(incFile.Body); found {
+		return inthclparse.StackAutoIncludeDependencyValuesError{
+			StackName: filepath.Base(stackDir),
+			DepName:   depName,
+		}
+	}
+
 	included := &StackConfigFile{}
 	if decodeErr := incFile.Decode(included, evalCtx); decodeErr != nil {
 		return fmt.Errorf("failed to decode stack autoinclude %q: %w", autoIncludePath, decodeErr)
@@ -980,6 +989,8 @@ func mergeStackAutoIncludeFile(config *StackConfigFile, stackDir, stackFileName 
 	if len(included.Includes) > 0 {
 		return fmt.Errorf("stack autoinclude %q must not define include blocks", autoIncludePath)
 	}
+
+	logStackAutoIncludeOverrides(l, config, included)
 
 	config.Units = append(config.Units, included.Units...)
 	config.Stacks = append(config.Stacks, included.Stacks...)
@@ -1236,4 +1247,84 @@ func bodyHasBlock(body hcl.Body) bool {
 	}
 
 	return len(content.Blocks) > 0
+}
+
+// topLevelDependencyName reports the first label of a top-level dependency block in body, and whether one exists.
+func topLevelDependencyName(body hcl.Body) (string, bool) {
+	if body == nil {
+		return "", false
+	}
+
+	content, _, diags := body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: inthclparse.BlockDependency, LabelNames: []string{"name"}}},
+	})
+	if diags.HasErrors() || len(content.Blocks) == 0 {
+		return "", false
+	}
+
+	return content.Blocks[0].Labels[0], true
+}
+
+// logStackAutoIncludeOverrides records when an injected unit/stack name replaces an existing one and when a nested autoinclude block is dropped.
+func logStackAutoIncludeOverrides(l log.Logger, config, included *StackConfigFile) {
+	existingUnits := unitNameSet(config.Units)
+	existingStacks := stackNameSet(config.Stacks)
+
+	for _, unit := range included.Units {
+		if unit == nil {
+			continue
+		}
+
+		if _, clash := existingUnits[unit.Name]; clash {
+			l.Debugf("Stack autoinclude overrides existing unit %q in the target stack config", unit.Name)
+		}
+
+		if bodyHasBlock(unit.Remain) {
+			l.Debugf("Stack autoinclude unit %q declares a nested autoinclude block; nested autoinclude is not propagated into the injected component", unit.Name)
+		}
+	}
+
+	for _, stack := range included.Stacks {
+		if stack == nil {
+			continue
+		}
+
+		if _, clash := existingStacks[stack.Name]; clash {
+			l.Debugf("Stack autoinclude overrides existing stack %q in the target stack config", stack.Name)
+		}
+
+		if bodyHasBlock(stack.Remain) {
+			l.Debugf("Stack autoinclude stack %q declares a nested autoinclude block; nested autoinclude is not propagated into the injected component", stack.Name)
+		}
+	}
+}
+
+// unitNameSet returns the set of unit names.
+func unitNameSet(units []*Unit) map[string]struct{} {
+	names := make(map[string]struct{}, len(units))
+
+	for _, unit := range units {
+		if unit == nil {
+			continue
+		}
+
+		names[unit.Name] = struct{}{}
+	}
+
+	return names
+}
+
+// stackNameSet returns the set of stack names.
+func stackNameSet(stacks []*Stack) map[string]struct{} {
+	names := make(map[string]struct{}, len(stacks))
+
+	for _, stack := range stacks {
+		if stack == nil {
+			continue
+		}
+
+		names[stack.Name] = struct{}{}
+	}
+
+	return names
 }

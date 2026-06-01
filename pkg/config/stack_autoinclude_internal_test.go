@@ -1,8 +1,11 @@
 package config
 
 import (
+	"bytes"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	hcljson "github.com/hashicorp/hcl/v2/json"
@@ -89,6 +92,59 @@ func TestBodyHasBlock(t *testing.T) {
 			assert.Equal(t, tc.want, bodyHasBlock(tc.body))
 		})
 	}
+}
+
+func TestTopLevelDependencyName(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		body      hcl.Body
+		wantName  string
+		wantFound bool
+	}{
+		{name: "labeled dependency", body: parseStackTestBody(t, "dependency \"vpc\" {\n  config_path = \"../vpc\"\n}\n"), wantName: "vpc", wantFound: true},
+		{name: "unlabeled dependency is not a clean match", body: parseStackTestBody(t, "dependency {\n}\n"), wantName: "", wantFound: false},
+		{name: "no dependency", body: parseStackTestBody(t, "unit \"a\" {\n  source = \".\"\n  path = \"a\"\n}\n"), wantName: "", wantFound: false},
+		{name: "nil body", body: nil, wantName: "", wantFound: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			name, found := topLevelDependencyName(tc.body)
+			assert.Equal(t, tc.wantFound, found)
+			assert.Equal(t, tc.wantName, name)
+		})
+	}
+}
+
+// TestLogStackAutoIncludeOverrides asserts the by-design behavior: a nested
+// autoinclude inside an injected unit does not propagate and is reported via a
+// debug log, and an injected name that overrides an existing one is also logged.
+func TestLogStackAutoIncludeOverrides(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	l := log.New(log.WithOutput(buf), log.WithLevel(log.DebugLevel), log.WithFormatter(format.NewFormatter(format.NewKeyValueFormatPlaceholders())))
+
+	existing := &StackConfigFile{Units: []*Unit{{Name: "extra", Remain: parseStackTestBody(t, `source = "."`)}}}
+
+	nestedAutoIncludeBody := parseStackTestBody(t, "autoinclude {\n  unit \"deep\" {\n    source = \".\"\n    path = \"deep\"\n  }\n}\n")
+	included := &StackConfigFile{Units: []*Unit{{Name: "extra", Remain: nestedAutoIncludeBody}}}
+
+	logStackAutoIncludeOverrides(l, existing, included)
+
+	out := buf.String()
+	assert.Contains(t, out, "overrides existing unit \"extra\"", "an injected unit that replaces an existing one must be logged")
+	assert.Contains(t, out, "nested autoinclude is not propagated", "a nested autoinclude block must be reported as not propagated")
+
+	// The contract is debug-only reporting: a regression promoting these to a louder level must fail here.
+	assert.Contains(t, out, "level=debug", "the override and no-propagation reporting must be emitted at debug level")
+	assert.NotContains(t, out, "level=info", "the reporting must not surface at info level")
+	assert.NotContains(t, out, "level=warn", "the reporting must not surface at warn level")
+	assert.NotContains(t, out, "level=error", "the reporting must not surface at error level")
 }
 
 func parseStackTestBody(t *testing.T, src string) hcl.Body {

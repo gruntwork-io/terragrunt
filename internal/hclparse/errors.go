@@ -1,6 +1,10 @@
 package hclparse
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/hashicorp/hcl/v2"
+)
 
 // UnexpectedBodyTypeError indicates that an HCL file body was not the expected
 // *hclsyntax.Body type. This typically occurs with JSON-format HCL files.
@@ -168,6 +172,42 @@ func (e MalformedDependencyError) Error() string {
 }
 
 func (e MalformedDependencyError) Unwrap() error {
+	return e.Err
+}
+
+// StackAutoIncludeDependencyValuesError indicates that a stack-level autoinclude
+// declares a dependency block whose outputs are referenced by the values of an
+// injected unit or stack. Dependency outputs are not available at stack generate
+// time (they resolve at unit run time), so this pattern cannot be generated.
+type StackAutoIncludeDependencyValuesError struct {
+	Err       error
+	Subject   *hcl.Range
+	StackName string
+	UnitName  string
+	DepName   string
+}
+
+func (e StackAutoIncludeDependencyValuesError) Error() string {
+	stack := e.StackName
+	if stack == "" {
+		stack = "(unknown)"
+	}
+
+	target := e.UnitName
+	if target == "" {
+		target = "(unknown)"
+	}
+
+	return fmt.Sprintf(
+		"stack %q autoinclude cannot carry dependency %q whose outputs are referenced by the values of injected unit/stack %q: "+
+			"dependency outputs are not available at stack generate time. "+
+			"Use the supported cross-level pattern instead (see test/fixtures/stacks/stack-deps-cross-level-values): "+
+			"pass only unit.X.path through values on the child stack block, and declare the dependency inside the nested unit's own autoinclude so it resolves at the unit run.",
+		stack, e.DepName, target,
+	)
+}
+
+func (e StackAutoIncludeDependencyValuesError) Unwrap() error {
 	return e.Err
 }
 

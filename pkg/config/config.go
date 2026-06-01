@@ -1400,15 +1400,9 @@ func ParseConfig(
 	}
 
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
-	// Gated by the stack-dependencies experiment and skipped for either autoinclude file itself.
-	configBase := filepath.Base(file.ConfigPath)
-	if configBase != DefaultAutoIncludeFile && configBase != DefaultAutoIncludeStackFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
-		autoMerged, mergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config, file.ConfigPath)
-		if mergeErr != nil {
-			errs = append(errs, mergeErr)
-		} else if autoMerged != nil {
-			config = autoMerged
-		}
+	config, autoMergeErr := mergeAutoIncludeDeepIfPresent(ctx, pctx, l, config, file.ConfigPath)
+	if autoMergeErr != nil {
+		errs = append(errs, autoMergeErr)
 	}
 
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
@@ -1445,96 +1439,6 @@ func ParseConfig(
 	}
 
 	return config, errors.Join(errs...)
-}
-
-// mergeAutoIncludeIfPresent checks for the unit-level terragrunt.autoinclude.hcl in the same directory as the config file and merges it into the config. The autoinclude takes precedence.
-func mergeAutoIncludeIfPresent(
-	ctx context.Context,
-	pctx *ParsingContext,
-	l log.Logger,
-	config *TerragruntConfig,
-	configPath string,
-) (*TerragruntConfig, error) {
-	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
-
-	if !util.FileExists(autoIncludePath) {
-		return nil, nil
-	}
-
-	l.Debugf("Found %s, auto-merging into unit config", autoIncludePath)
-
-	// Clone the parsing context and reset DecodedDependencies so the
-	// autoinclude file gets its own dependency resolution pass.
-	//
-	// PartialParseDecodeList is intentionally inherited from the parent:
-	// - During DAG construction (partial mode): extracts dependency config_path
-	//   for graph ordering WITHOUT resolving outputs (which aren't available yet)
-	// - During actual unit run (full mode): resolves dependency outputs normally
-	//   because the DAG already ensured dependencies ran first
-	autoIncludePctx := pctx.Clone()
-	autoIncludePctx.DecodedDependencies = nil
-
-	autoIncludeConfig, err := ParseConfigFile(ctx, autoIncludePctx, l, autoIncludePath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
-	}
-
-	// Shallow merge: autoinclude wins over the unit config.
-	// Merge(sourceConfig) merges sourceConfig INTO the receiver, with sourceConfig winning.
-	if err := config.Merge(l, autoIncludeConfig); err != nil {
-		return nil, fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
-	}
-
-	return config, nil
-}
-
-// autoIncludeDependencyBlocks decodes the dependency blocks from the unit-level terragrunt.autoinclude.hcl if present.
-func autoIncludeDependencyBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, configPath string) ([]Dependency, error) {
-	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
-
-	if !util.FileExists(autoIncludePath) {
-		return nil, nil
-	}
-
-	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(autoIncludePath)
-	if err != nil {
-		return nil, err
-	}
-
-	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), autoIncludePath)
-	if err != nil {
-		return nil, err
-	}
-
-	decoded := TerragruntDependency{}
-	if err := file.Decode(&decoded, evalCtx); err != nil {
-		return nil, err
-	}
-
-	return decoded.Dependencies.FilteredWithoutConfigPath(), nil
-}
-
-// foldAutoIncludeDependencies deep-merges autoinclude dependency blocks over the unit's own same-name blocks, mirroring include deep_merge semantics with the autoinclude winning.
-func foldAutoIncludeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, deps []Dependency) ([]Dependency, error) {
-	if !pctx.Experiments.Evaluate(experiment.StackDependencies) {
-		return deps, nil
-	}
-
-	base := filepath.Base(file.ConfigPath)
-	if base == DefaultAutoIncludeFile || base == DefaultAutoIncludeStackFile {
-		return deps, nil
-	}
-
-	autoDeps, err := autoIncludeDependencyBlocks(ctx, pctx, l, file.ConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(autoDeps) == 0 {
-		return deps, nil
-	}
-
-	return deepMergeDependencyBlocks(deps, autoDeps)
 }
 
 // DetectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
@@ -2367,4 +2271,36 @@ func ParseRemoteState(ctx context.Context, l log.Logger, pctx *ParsingContext) (
 	}
 
 	return cfg.GetRemoteState(ctx, l, pctx)
+}
+
+// mergeAutoIncludeDeepIfPresent deep-merges a sibling terragrunt.autoinclude.hcl into the unit config like a regular include with deep_merge, with the autoinclude winning.
+func mergeAutoIncludeDeepIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, cfg *TerragruntConfig, configPath string) (*TerragruntConfig, error) {
+	// Recursion-safe guard: skip either autoinclude file itself and require the experiment.
+	configBase := filepath.Base(configPath)
+	if configBase == DefaultAutoIncludeFile || configBase == DefaultAutoIncludeStackFile || !pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		return cfg, nil
+	}
+
+	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
+	if !util.FileExists(autoIncludePath) {
+		return cfg, nil
+	}
+
+	l.Debugf("Found %s, deep-merging into unit config", autoIncludePath)
+
+	// Reset DecodedDependencies so the autoinclude file gets its own dependency resolution pass.
+	clonedPctx := pctx.Clone()
+	clonedPctx.DecodedDependencies = nil
+
+	autoIncludeConfig, err := ParseConfigFile(ctx, clonedPctx, l, autoIncludePath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
+	}
+
+	// DeepMerge mutates the receiver and the argument wins; the autoinclude is the source/winner.
+	if err := cfg.DeepMerge(l, autoIncludeConfig); err != nil {
+		return nil, fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
+	}
+
+	return cfg, nil
 }

@@ -469,6 +469,69 @@ func TestAutoIncludeDependencyPaths_FileParseErrorOnJSON(t *testing.T) {
 	require.ErrorAs(t, err, &fpe)
 }
 
+func TestResolveForKind_StackAutoIncludeDepValues(t *testing.T) {
+	t.Parallel()
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	// Unsupported: a stack autoinclude declares a dependency and an injected unit's values reference its outputs.
+	badSrc := `
+dependency "producer" {
+  config_path = unit.producer.path
+}
+
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    v = dependency.producer.outputs.val
+  }
+}
+`
+	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
+
+	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	require.True(t, diags.HasErrors(), "stack autoinclude consuming a sibling dependency via injected values must error")
+
+	extra, ok := diags[0].Extra.(error)
+	require.True(t, ok, "the diagnostic Extra must carry an error")
+
+	var typed hclparse.StackAutoIncludeDependencyValuesError
+	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error")
+	assert.Equal(t, "net", typed.StackName)
+	assert.Equal(t, "producer", typed.DepName)
+	assert.Equal(t, "extra", typed.UnitName)
+	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
+
+	// Supported: injected unit values reference only unit.X.path, not a dependency output.
+	okSrc := `
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    v = unit.producer.path
+  }
+}
+`
+	supported := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, okSrc)}
+
+	_, okDiags := supported.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	require.False(t, okDiags.HasErrors(), "literal unit.path values must still resolve: %s", okDiags.Error())
+
+	// The same dependency-output reference is allowed when the kind is unit (the established cross-level pattern).
+	_, unitDiags := bad.ResolveForKind(evalCtx, hclparse.KindUnit, "extra")
+	require.False(t, unitDiags.HasErrors(), "unit-level autoinclude with a dependency reference must still resolve: %s", unitDiags.Error())
+}
+
 // parseHCLBody is a test helper that parses an HCL string and returns the body.
 func parseHCLBody(t *testing.T, src string) hcl.Body {
 	t.Helper()
