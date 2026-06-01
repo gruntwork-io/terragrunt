@@ -1358,22 +1358,9 @@ func ParseConfig(
 	}
 
 	if pctx.DecodedDependencies == nil {
-		// Fold autoinclude dependency blocks into the full-parse dependency resolution.
-		var extraDeps []Dependency
-
-		configBase := filepath.Base(file.ConfigPath)
-		if configBase != DefaultAutoIncludeFile && configBase != DefaultAutoIncludeStackFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
-			autoDeps, autoErr := autoIncludeDependencyBlocks(ctx, pctx, l, file.ConfigPath)
-			if autoErr != nil {
-				errs = append(errs, autoErr)
-			}
-
-			extraDeps = autoDeps
-		}
-
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process. Note: the actual `tofu/terraform output` side effect is gated by SkipOutput, not here.
-		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, pctx, l, file, extraDeps)
+		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, pctx, l, file)
 		if err != nil {
 			errs = append(errs, err)
 
@@ -1525,6 +1512,29 @@ func autoIncludeDependencyBlocks(ctx context.Context, pctx *ParsingContext, l lo
 	}
 
 	return decoded.Dependencies.FilteredWithoutConfigPath(), nil
+}
+
+// foldAutoIncludeDependencies deep-merges autoinclude dependency blocks over the unit's own same-name blocks, mirroring include deep_merge semantics with the autoinclude winning.
+func foldAutoIncludeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, deps []Dependency) ([]Dependency, error) {
+	if !pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		return deps, nil
+	}
+
+	base := filepath.Base(file.ConfigPath)
+	if base == DefaultAutoIncludeFile || base == DefaultAutoIncludeStackFile {
+		return deps, nil
+	}
+
+	autoDeps, err := autoIncludeDependencyBlocks(ctx, pctx, l, file.ConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(autoDeps) == 0 {
+		return deps, nil
+	}
+
+	return deepMergeDependencyBlocks(deps, autoDeps)
 }
 
 // DetectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.

@@ -45,6 +45,8 @@ const (
 	testFixtureStackDepsStackAutoIncludeNested   = "fixtures/stacks/stack-deps-stack-autoinclude-nested"
 	testFixtureStackDepsCrossLevelValues         = "fixtures/stacks/stack-deps-cross-level-values"
 	testFixtureStackDepsRemoteStateDep           = "fixtures/stacks/stack-deps-remote-state-dep"
+	testFixtureStackDepsNestedRemoteStateDep     = "fixtures/stacks/stack-deps-nested-remote-state-dep"
+	testFixtureStackDepsDupDependency            = "fixtures/stacks/stack-deps-dup-dependency"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -338,6 +340,65 @@ func TestStackDepsRemoteStateDependency(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(backend), "fake-val.tfstate",
 		"dependency output must resolve inside remote_state from the autoinclude mock")
+}
+
+// TestStackDepsNestedRemoteStateDependency mirrors issue #6244 exactly: a nested
+// stack-of-stacks (stacks -> sandbox-1 -> roles) where the roles unit references an
+// autoinclude-injected dependency output in both a remote_state block and a generate
+// block, driven by `terragrunt stack run plan`.
+func TestStackDepsNestedRemoteStateDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsNestedRemoteStateDep)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsNestedRemoteStateDep)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsNestedRemoteStateDep)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "stacks")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack run plan --non-interactive --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err, "stack run plan must resolve the autoinclude dependency in remote_state; stderr=%s", stderr)
+
+	// The mock account name must resolve inside the nested roles unit's generated backend.
+	rolesDir := filepath.Join(rootPath, inthclparse.StackDir, "sandbox-1", inthclparse.StackDir, "roles_hcl")
+	backendPath := helpers.FindCachedFile(t, rolesDir, "backend.tf")
+	backend, err := os.ReadFile(backendPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(backend), "mock-account/roles.tfstate",
+		"dependency output must resolve inside remote_state in a nested stack")
+}
+
+// TestStackDepsAutoIncludeOverridesUnitDependency covers the issue #5663 conflict case:
+// when a unit declares its own dependency block AND the autoinclude declares a dependency
+// of the same name with a different path, the autoinclude dependency deep-merges over the
+// unit's own same-name block (like includes), so the autoinclude wins by name in both the
+// full-parse path and the discovery/run-queue path.
+func TestStackDepsAutoIncludeOverridesUnitDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsDupDependency)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsDupDependency)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsDupDependency, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
+	require.NoError(t, err, "autoinclude dependency must override the unit's same-name block; stderr=%s", stderr)
+
+	backendPath := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "y"), "backend.tf")
+	backend, err := os.ReadFile(backendPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(backend), "from-autoinclude.tfstate",
+		"autoinclude dependency (by name) must override the unit's own dependency path")
 }
 
 // TestStackDepsE2EChain runs a 3-level dependency chain end-to-end:
