@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 const (
@@ -41,6 +42,8 @@ const (
 	testFixtureStackDepsMergePrecedence          = "fixtures/stacks/stack-deps-merge-precedence"
 	testFixtureStackDepsArbitraryOverride        = "fixtures/stacks/stack-deps-arbitrary-override"
 	testFixtureStackDepsArbitraryRetry           = "fixtures/stacks/stack-deps-arbitrary-retry"
+	testFixtureStackDepsArbitraryFeature         = "fixtures/stacks/stack-deps-arbitrary-feature"
+	testFixtureStackDepsArbitraryIgnore          = "fixtures/stacks/stack-deps-arbitrary-ignore"
 	testFixtureStackDepsStackAutoInclude         = "fixtures/stacks/stack-deps-stack-autoinclude"
 	testFixtureStackDepsStackAutoIncludeNested   = "fixtures/stacks/stack-deps-stack-autoinclude-nested"
 	testFixtureStackDepsCrossLevelValues         = "fixtures/stacks/stack-deps-cross-level-values"
@@ -1429,6 +1432,75 @@ func TestStackDepsAutoIncludeArbitraryRetryBlock(t *testing.T) {
 	assert.Equal(t, 3, retry.MaxAttempts)
 	assert.Equal(t, 5, retry.SleepIntervalSec)
 	assert.Equal(t, []string{".*transient.*"}, retry.RetryableErrors)
+}
+
+// TestStackDepsAutoIncludeFeatureBlock verifies that an autoinclude may inject a
+// feature block (a block other than dependency/generate); it must be preserved in
+// the generated unit and merge into the unit's effective config.
+func TestStackDepsAutoIncludeFeatureBlock(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsArbitraryFeature)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsArbitraryFeature)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsArbitraryFeature, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	unitDir := filepath.Join(rootPath, inthclparse.StackDir, "svc")
+	autoIncludePath := filepath.Join(unitDir, inthclparse.AutoIncludeFile)
+	require.FileExists(t, autoIncludePath)
+
+	// Parse the generated autoinclude file back through the real config parser: the injected
+	// feature block must decode into a complete, valid config with the exact values.
+	l := logger.CreateLogger()
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
+	require.NoError(t, err, "generated autoinclude file with a feature block must parse as a valid config")
+	require.Len(t, parsed.FeatureFlags, 1, "feature block injected via autoinclude must survive generation")
+
+	flag := parsed.FeatureFlags[0]
+	assert.Equal(t, "foo", flag.Name)
+	require.NotNil(t, flag.Default, "feature flag default must decode")
+	assert.True(t, flag.Default.RawEquals(cty.True), "feature flag default must decode to true")
+}
+
+// TestStackDepsAutoIncludeIgnoreBlock verifies that an autoinclude may inject an
+// errors block with an ignore rule (a block other than dependency/generate); it must
+// be preserved in the generated unit and merge into the unit's effective config.
+func TestStackDepsAutoIncludeIgnoreBlock(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsArbitraryIgnore)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsArbitraryIgnore)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsArbitraryIgnore, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	unitDir := filepath.Join(rootPath, inthclparse.StackDir, "svc")
+	autoIncludePath := filepath.Join(unitDir, inthclparse.AutoIncludeFile)
+	require.FileExists(t, autoIncludePath)
+
+	// Parse the generated autoinclude file back through the real config parser: the injected
+	// errors/ignore block must decode into a complete, valid config with the exact values.
+	l := logger.CreateLogger()
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
+	require.NoError(t, err, "generated autoinclude file with an errors block must parse as a valid config")
+	require.NotNil(t, parsed.Errors, "errors block injected via autoinclude must survive generation")
+	require.Len(t, parsed.Errors.Ignore, 1)
+
+	ignore := parsed.Errors.Ignore[0]
+	assert.Equal(t, "bar", ignore.Label)
+	assert.Equal(t, "Ignoring error bar", ignore.Message)
+	assert.Equal(t, []string{".*bar.*"}, ignore.IgnorableErrors)
+	require.Contains(t, ignore.Signals, "failed_bar")
+	assert.True(t, ignore.Signals["failed_bar"].RawEquals(cty.True), "ignore signal must decode to true")
 }
 
 // TestStackDepsMockOutputsAtPlan exercises mock_outputs functionally: with no
