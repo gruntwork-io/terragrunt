@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,7 +52,7 @@ func TestWindowsFilterNativeSeparators(t *testing.T) {
 		c := component.NewUnit("apps/app1").WithConfig(
 			&config.TerragruntConfig{
 				Terraform: &config.TerraformConfig{
-					Source: helpers.PointerTo(`D:\a\1\s/IaC/modules/sns`),
+					Source: new(`D:\a\1\s/IaC/modules/sns`),
 				},
 			},
 		)
