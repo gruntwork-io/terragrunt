@@ -62,21 +62,37 @@ jobs:
 
       - name: Run Tests
         id: run-tests
-        run: |
-          set -o pipefail
-          go test -v -coverprofile=coverage.out -covermode=atomic ./... -timeout 45m | tee >(go-junit-report -set-exit-code > result.xml)
+        run: ./.github/scripts/coverage/coverage-report.sh run .
         shell: bash
         env:
-          # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Use shorter temp path on macOS to avoid path length issues with Git worktrees.
-          # Default /var/folders/.../T/ paths are too long for Git's path resolution.
           TMPDIR: ${{ matrix.os == 'macos' && '/tmp' || '' }}
 
       - name: Generate Coverage Summary
         if: always() && matrix.os == 'ubuntu'
-        run: ./.github/scripts/coverage/generate-summary.sh
+        run: ./.github/scripts/coverage/coverage-report.sh summary
         shell: bash
+
+      - name: Extract Timing Summary
+        if: always() && matrix.os == 'ubuntu'
+        run: ./.github/scripts/coverage/coverage-report.sh timing test-events.ndjson timing-summary.json
+        shell: bash
+
+      - name: Upload test-events.ndjson
+        if: always() && matrix.os == 'ubuntu'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: test-events.ndjson
+          path: test-events.ndjson
+          retention-days: 7
+
+      - name: Upload timing-summary.json
+        if: always() && matrix.os == 'ubuntu'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: timing-summary.json
+          path: timing-summary.json
+          retention-days: 30
 
       - name: Upload coverage.out
         if: always() && matrix.os == 'ubuntu'
@@ -109,7 +125,7 @@ jobs:
           path: result.xml
 
       - name: Display Test Results (${{ matrix.os }})
-        uses: mikepenz/action-junit-report@49b2ca06f62aa7ef83ae6769a2179271e160d8e4 # v6
+        uses: mikepenz/action-junit-report@3a81627bfac62268172037048872e8ebd4207e6d # v6
         if: always()
         with:
           report_paths: result.xml

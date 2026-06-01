@@ -203,12 +203,6 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 	require.NoError(t, err)
 }
 
-// PointerTo returns a pointer to the given parameter.
-// Useful for constructing pointers to primitive types in test tables, etc.
-func PointerTo[T any](v T) *T {
-	return &v
-}
-
 // TmpDirWOSymlinks returns a temporary directory, evaluating any symlinks that might be there.
 //
 // This is useful for macOS tests where the standard library creates a temporary directory pointed to via a symlink

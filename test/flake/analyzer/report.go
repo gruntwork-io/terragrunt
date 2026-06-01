@@ -142,12 +142,12 @@ func GenerateTestRankingsReport(stats []types.TestStats, outputPath string) erro
 
 	var buf bytes.Buffer
 	buf.WriteString("# Flaky Test Rankings\n\n")
-	buf.WriteString(fmt.Sprintf("Generated: %s\n\n", time.Now().UTC().Format("2006-01-02 15:04:05 UTC")))
+	fmt.Fprintf(&buf, "Generated: %s\n\n", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
 	buf.WriteString("Tests ranked by failure count:\n\n")
 
 	for i, s := range stats {
-		buf.WriteString(fmt.Sprintf("%d. **%s** - %d failures (%.1f%%)\n",
-			i+1, s.TestName, s.TotalFailures, s.FailureRate*100))
+		fmt.Fprintf(&buf, "%d. **%s** - %d failures (%.1f%%)\n",
+			i+1, s.TestName, s.TotalFailures, s.FailureRate*100)
 	}
 
 	if err := os.WriteFile(outputPath, buf.Bytes(), 0644); err != nil {
@@ -168,7 +168,7 @@ func GenerateJobSummaryReport(failures []types.TestFailure, outputPath string) e
 
 	var buf bytes.Buffer
 	buf.WriteString("# Failures by Job\n\n")
-	buf.WriteString(fmt.Sprintf("Generated: %s\n\n", time.Now().UTC().Format("2006-01-02 15:04:05 UTC")))
+	fmt.Fprintf(&buf, "Generated: %s\n\n", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
 
 	// Get sorted job names
 	var jobNames []string
@@ -196,8 +196,8 @@ func GenerateJobSummaryReport(failures []types.TestFailure, outputPath string) e
 	}
 
 	for _, jf := range sorted {
-		buf.WriteString(fmt.Sprintf("## %s\n\n", jf.name))
-		buf.WriteString(fmt.Sprintf("**Total failures:** %d\n\n", len(jf.failures)))
+		fmt.Fprintf(&buf, "## %s\n\n", jf.name)
+		fmt.Fprintf(&buf, "**Total failures:** %d\n\n", len(jf.failures))
 
 		// Count unique tests
 		testCounts := make(map[string]int)
@@ -208,7 +208,7 @@ func GenerateJobSummaryReport(failures []types.TestFailure, outputPath string) e
 		buf.WriteString("| Test | Failures |\n")
 		buf.WriteString("|------|----------|\n")
 		for test, count := range testCounts {
-			buf.WriteString(fmt.Sprintf("| %s | %d |\n", test, count))
+			fmt.Fprintf(&buf, "| %s | %d |\n", test, count)
 		}
 		buf.WriteString("\n")
 	}

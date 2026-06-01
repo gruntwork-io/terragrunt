@@ -100,6 +100,34 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	return cty.ObjectVal(refMap)
 }
 
+// GeneratedComponentPath returns the on-disk path a unit or stack block in a
+// terragrunt.stack.hcl generates to. stackDir is the directory containing the
+// stack file, path is the block's path attribute, and noStack reports whether the
+// block sets no_dot_terragrunt_stack, which hoists the component out of the
+// .terragrunt-stack subdirectory.
+func GeneratedComponentPath(stackDir, path string, noStack bool) string {
+	if noStack {
+		return filepath.Join(stackDir, path)
+	}
+
+	return filepath.Join(stackDir, StackDir, path)
+}
+
+// GeneratedPath returns the on-disk path this unit block generates to under stackDir.
+func (u *UnitBlockHCL) GeneratedPath(stackDir string) string {
+	return GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
+}
+
+// GeneratedPath returns the on-disk path this stack block generates to under stackDir.
+func (s *StackBlockHCL) GeneratedPath(stackDir string) string {
+	return GeneratedComponentPath(stackDir, s.Path, s.NoStack != nil && *s.NoStack)
+}
+
+// GeneratedPath returns the on-disk path this unit generates to under stackDir.
+func (u *unitPathOnlyHCL) GeneratedPath(stackDir string) string {
+	return GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
+}
+
 // unitPathOnlyHCL is the discovery shape for unit name and path.
 type unitPathOnlyHCL struct {
 	Remain  hcl.Body `hcl:",remain"`
@@ -211,12 +239,7 @@ func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function
 	paths := make([]string, 0, len(units))
 
 	for _, unit := range units {
-		unitPath := filepath.Join(stackDir, StackDir, unit.Path)
-		if unit.NoStack != nil && *unit.NoStack {
-			unitPath = filepath.Join(stackDir, unit.Path)
-		}
-
-		paths = append(paths, unitPath)
+		paths = append(paths, unit.GeneratedPath(stackDir))
 	}
 
 	// Recurse into nested stacks so a stack composed of sub-stacks expands to the units those

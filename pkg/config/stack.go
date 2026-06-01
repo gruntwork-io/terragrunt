@@ -78,6 +78,11 @@ type Unit struct {
 	Path                string     `hcl:"path,attr"`
 }
 
+// GeneratedPath returns the on-disk path this unit generates to under stackDir.
+func (u *Unit) GeneratedPath(stackDir string) string {
+	return inthclparse.GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
+}
+
 // Stack represents the stack block in the configuration.
 type Stack struct {
 	Remain              hcl.Body   `hcl:",remain"`
@@ -89,6 +94,11 @@ type Stack struct {
 	Name                string     `hcl:",label"`
 	Source              string     `hcl:"source,attr"`
 	Path                string     `hcl:"path,attr"`
+}
+
+// GeneratedPath returns the on-disk path this stack generates to under stackDir.
+func (s *Stack) GeneratedPath(stackDir string) string {
+	return inthclparse.GeneratedComponentPath(stackDir, s.Path, s.NoStack != nil && *s.NoStack)
 }
 
 // GenerateStackFile generates the Terragrunt stack configuration from the given stackFilePath,
@@ -779,14 +789,30 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, err
 	}
 
+	// Expose unit.<name>.path / stack.<name>.path so a unit or stack block's values
+	// can reference where sibling components generate to (e.g. to pass a unit path
+	// down to a child stack). Gated on the experiment that introduces the feature.
+	if parser.Experiments.Evaluate(experiment.StackDependencies) {
+		if err := injectStackComponentRefs(file, evalParsingContext, filepath.Dir(file.ConfigPath)); err != nil {
+			return nil, err
+		}
+	}
+
 	config := &StackConfigFile{}
 	if decodeErr := file.Decode(config, evalParsingContext); decodeErr != nil {
 		return nil, decodeErr
 	}
 
-	// Process include blocks when the stack-dependencies experiment is enabled.
+	// Process include blocks and merge any generated stack-level autoinclude file
+	// when the stack-dependencies experiment is enabled.
 	if parser.Experiments.Evaluate(experiment.StackDependencies) {
-		if err := processStackConfigIncludes(config, filepath.Dir(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
+		stackDir := filepath.Dir(file.ConfigPath)
+
+		if err := processStackConfigIncludes(config, stackDir, evalParsingContext, parser.ParserOptions); err != nil {
+			return nil, err
+		}
+
+		if err := mergeStackAutoIncludeFile(config, stackDir, filepath.Base(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
 			return nil, err
 		}
 	}
@@ -813,6 +839,55 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 	}
 
 	return stackConfig, nil
+}
+
+// stackComponentHeaders captures only the label and path of each unit/stack block
+// so component paths can be resolved before the full decode evaluates values.
+// source, values, and every other attribute are left in the block body, unevaluated.
+type stackComponentHeaders struct {
+	Remain hcl.Body                `hcl:",remain"`
+	Stacks []*stackComponentHeader `hcl:"stack,block"`
+	Units  []*stackComponentHeader `hcl:"unit,block"`
+}
+
+// stackComponentHeader is the path-only shape of a unit or stack block.
+type stackComponentHeader struct {
+	Remain  hcl.Body `hcl:",remain"`
+	NoStack *bool    `hcl:"no_dot_terragrunt_stack,optional"`
+	Path    string   `hcl:"path,attr"`
+	Name    string   `hcl:",label"`
+}
+
+// GeneratedPath returns the on-disk path this component generates to under stackDir.
+func (h *stackComponentHeader) GeneratedPath(stackDir string) string {
+	return inthclparse.GeneratedComponentPath(stackDir, h.Path, h.NoStack != nil && *h.NoStack)
+}
+
+// injectStackComponentRefs adds the unit.<name> and stack.<name> path variables to
+// evalCtx so a unit/stack block's values can reference where sibling components
+// generate to. It decodes only block labels and paths first, leaving source and
+// values unevaluated, so it can run before the value that depends on these refs is
+// evaluated. stackDir is the directory containing the stack file.
+func injectStackComponentRefs(file *hclparse.File, evalCtx *hcl.EvalContext, stackDir string) error {
+	headers := &stackComponentHeaders{}
+	if err := file.Decode(headers, evalCtx); err != nil {
+		return err
+	}
+
+	unitRefs := make([]inthclparse.ComponentRef, 0, len(headers.Units))
+	for _, u := range headers.Units {
+		unitRefs = append(unitRefs, inthclparse.ComponentRef{Name: u.Name, Path: u.GeneratedPath(stackDir)})
+	}
+
+	stackRefs := make([]inthclparse.ComponentRef, 0, len(headers.Stacks))
+	for _, s := range headers.Stacks {
+		stackRefs = append(stackRefs, inthclparse.ComponentRef{Name: s.Name, Path: s.GeneratedPath(stackDir)})
+	}
+
+	evalCtx.Variables[inthclparse.VarUnit] = inthclparse.BuildComponentRefMap(unitRefs)
+	evalCtx.Variables[inthclparse.VarStack] = inthclparse.BuildComponentRefMap(stackRefs)
+
+	return nil
 }
 
 // processStackConfigIncludes resolves include blocks during stack file parsing.
@@ -869,6 +944,45 @@ func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCt
 
 		seen[s.Name] = struct{}{}
 	}
+
+	return nil
+}
+
+// mergeStackAutoIncludeFile merges a generated terragrunt.autoinclude.stack.hcl, if present
+// beside the stack file, into the stack config. Units and stacks injected by a parent stack's
+// autoinclude block materialize in the nested stack the same way a unit's
+// terragrunt.autoinclude.hcl merges into its terragrunt.hcl via [mergeAutoIncludeIfPresent].
+func mergeStackAutoIncludeFile(config *StackConfigFile, stackDir, stackFileName string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
+	// Never merge the autoinclude file into itself.
+	if stackFileName == inthclparse.AutoIncludeStackFile {
+		return nil
+	}
+
+	autoIncludePath := filepath.Join(stackDir, inthclparse.AutoIncludeStackFile)
+	if !util.FileExists(autoIncludePath) {
+		return nil
+	}
+
+	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(autoIncludePath)
+	if err != nil {
+		return fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
+	}
+
+	included := &StackConfigFile{}
+	if decodeErr := incFile.Decode(included, evalCtx); decodeErr != nil {
+		return fmt.Errorf("failed to decode stack autoinclude %q: %w", autoIncludePath, decodeErr)
+	}
+
+	if included.Locals != nil {
+		return fmt.Errorf("stack autoinclude %q must not define locals", autoIncludePath)
+	}
+
+	if len(included.Includes) > 0 {
+		return fmt.Errorf("stack autoinclude %q must not define include blocks", autoIncludePath)
+	}
+
+	config.Units = append(config.Units, included.Units...)
+	config.Stacks = append(config.Stacks, included.Stacks...)
 
 	return nil
 }
@@ -1044,15 +1158,6 @@ func validateTargetDir(kind, name, destDir, expectedFile string) error {
 	}
 
 	return nil
-}
-
-// GetUnitDir returns the directory path for a unit based on its no_dot_terragrunt_stack setting.
-func GetUnitDir(dir string, unit *Unit) string {
-	if unit.NoStack != nil && *unit.NoStack {
-		return filepath.Join(dir, unit.Path)
-	}
-
-	return filepath.Join(dir, StackDir, unit.Path)
 }
 
 // stackConfigHasAutoInclude reports whether any unit or stack in the include-merged stack config declares an autoinclude block.

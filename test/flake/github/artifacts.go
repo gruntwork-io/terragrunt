@@ -97,14 +97,14 @@ func (c *Client) GetWorkflowRunSummary(ctx context.Context, runID int64) (string
 	}
 
 	var summary strings.Builder
-	summary.WriteString(fmt.Sprintf("# Workflow Run %d Summary\n\n", runID))
-	summary.WriteString(fmt.Sprintf("**Commit:** %s\n", run.GetHeadSHA()))
-	summary.WriteString(fmt.Sprintf("**Branch:** %s\n", run.GetHeadBranch()))
-	summary.WriteString(fmt.Sprintf("**URL:** %s\n\n", run.GetHTMLURL()))
+	fmt.Fprintf(&summary, "# Workflow Run %d Summary\n\n", runID)
+	fmt.Fprintf(&summary, "**Commit:** %s\n", run.GetHeadSHA())
+	fmt.Fprintf(&summary, "**Branch:** %s\n", run.GetHeadBranch())
+	fmt.Fprintf(&summary, "**URL:** %s\n\n", run.GetHTMLURL())
 
 	for _, cr := range checkRuns.CheckRuns {
 		if cr.GetConclusion() == "failure" {
-			summary.WriteString(fmt.Sprintf("## %s (Failed)\n\n", cr.GetName()))
+			fmt.Fprintf(&summary, "## %s (Failed)\n\n", cr.GetName())
 			if cr.Output != nil && cr.Output.Summary != nil {
 				summary.WriteString(*cr.Output.Summary)
 				summary.WriteString("\n\n")
