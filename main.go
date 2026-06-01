@@ -20,10 +20,18 @@ import (
 
 // The main entrypoint for Terragrunt
 func main() {
-	var exitCode int
+	os.Exit(run())
+}
 
-	defer func() { os.Exit(exitCode) }()
-
+// run executes Terragrunt and returns the process exit code. It is kept separate
+// from main so that its deferred cleanup runs before the process exits: main calls
+// os.Exit, which terminates immediately and skips pending defers, so any defer that
+// must run (restoring the parent console mode, recovering from panics) belongs here.
+func run() (exitCode int) {
+	// Restore the parent shell's console mode on the way out. On Windows, PrepareConsole
+	// enables virtual terminal input/processing on the console Terragrunt shares with the
+	// parent shell; without restoring it, shells such as Nushell are left rendering arrow
+	// keys as raw escape sequences. No-op on non-Windows platforms.
 	originalConsole := exec.SaveConsoleState()
 	defer originalConsole.Restore()
 
@@ -41,9 +49,7 @@ func main() {
 	if err := global.NewLogLevelFlag(l, opts, nil).Parse(os.Args); err != nil {
 		l.Error(err.Error())
 
-		exitCode = 1
-
-		return
+		return 1
 	}
 
 	defer func() {
@@ -71,12 +77,10 @@ func main() {
 	err := app.RunContext(ctx, os.Args)
 
 	if opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode) {
-		exitCode = resolveExitCode(l, detailedExitCode.GetFinalDetailedExitCode(), err)
-
-		return
+		return resolveExitCode(l, detailedExitCode.GetFinalDetailedExitCode(), err)
 	}
 
-	exitCode = resolveExitCode(l, detailedExitCode.GetFinalExitCode(), err)
+	return resolveExitCode(l, detailedExitCode.GetFinalExitCode(), err)
 }
 
 // resolveExitCode logs the error, if any, and returns the process exit code to use.
