@@ -119,13 +119,13 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	stackTargetDir := filepath.Join(stackSourceDir, StackDir)
 
-	// When the stack-dependencies experiment is enabled, perform a two-pass
-	// parse to resolve autoinclude blocks and generate terragrunt.autoinclude.hcl files.
+	// Perform a two-pass parse to resolve autoinclude blocks and generate
+	// terragrunt.autoinclude.hcl files.
 	var autoIncludes map[string]*inthclparse.AutoIncludeResolved
 
 	var stackSrcBytes []byte
 
-	if pctx.Experiments.Evaluate(experiment.StackDependencies) && stackConfigHasAutoInclude(stackFile) {
+	if stackConfigHasAutoInclude(stackFile) {
 		// The autoinclude phase uses the internal HCL parser, which currently expects
 		// hclsyntax input (not JSON bodies). Preserve explicit failure behavior for JSON
 		// stack files that still declare autoinclude.
@@ -791,11 +791,9 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 
 	// Expose unit.<name>.path / stack.<name>.path so a unit or stack block's values
 	// can reference where sibling components generate to (e.g. to pass a unit path
-	// down to a child stack). Gated on the experiment that introduces the feature.
-	if parser.Experiments.Evaluate(experiment.StackDependencies) {
-		if err := injectStackComponentRefs(file, evalParsingContext, filepath.Dir(file.ConfigPath)); err != nil {
-			return nil, err
-		}
+	// down to a child stack).
+	if err := injectStackComponentRefs(file, evalParsingContext, filepath.Dir(file.ConfigPath)); err != nil {
+		return nil, err
 	}
 
 	config := &StackConfigFile{}
@@ -803,18 +801,15 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, decodeErr
 	}
 
-	// Process include blocks and merge any generated stack-level autoinclude file
-	// when the stack-dependencies experiment is enabled.
-	if parser.Experiments.Evaluate(experiment.StackDependencies) {
-		stackDir := filepath.Dir(file.ConfigPath)
+	// Process include blocks and merge any generated stack-level autoinclude file.
+	stackDir := filepath.Dir(file.ConfigPath)
 
-		if err := processStackConfigIncludes(config, stackDir, evalParsingContext, parser.ParserOptions); err != nil {
-			return nil, err
-		}
+	if err := processStackConfigIncludes(config, stackDir, evalParsingContext, parser.ParserOptions); err != nil {
+		return nil, err
+	}
 
-		if err := mergeStackAutoIncludeFile(config, stackDir, filepath.Base(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
-			return nil, err
-		}
+	if err := mergeStackAutoIncludeFile(config, stackDir, filepath.Base(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
+		return nil, err
 	}
 
 	localsParsed := map[string]any{}

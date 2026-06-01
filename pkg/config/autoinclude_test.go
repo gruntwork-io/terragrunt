@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +29,6 @@ inputs = {
 `), 0644))
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
-	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 
@@ -70,7 +68,6 @@ inputs = {
 `), 0644))
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
-	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 
@@ -84,43 +81,6 @@ inputs = {
 	assert.Equal(t, "autoinclude-value", parsed.Inputs["extra"])
 	// Unit value preserved when no conflict
 	assert.Equal(t, "unit-value", parsed.Inputs["keep"])
-}
-
-func TestMergeAutoInclude_ExperimentDisabled(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
-terraform {
-  source = "."
-}
-
-inputs = {
-  name = "original"
-}
-`), 0644))
-
-	// Autoinclude exists but experiment is NOT enabled
-	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
-inputs = {
-  name = "should-not-merge"
-}
-`), 0644))
-
-	ctx, pctx := newTestParsingContext(t, cfgPath)
-	// NOT enabling StackDependencies experiment
-
-	l := logger.CreateLogger()
-
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
-
-	// Autoinclude should NOT be merged
-	assert.Equal(t, "original", parsed.Inputs["name"])
 }
 
 // Defensive test: a sibling terragrunt.autoinclude.stack.hcl (the stack-level filename) must NOT be merged into a unit's terragrunt.hcl. Stack-level autoincludes are handled by the stack parser path; merging here would defeat the point of the filename split.
@@ -149,7 +109,6 @@ inputs = {
 `), 0644))
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
-	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 

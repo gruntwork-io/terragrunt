@@ -1400,9 +1400,9 @@ func ParseConfig(
 	}
 
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
-	// Gated by the stack-dependencies experiment and skipped for either autoinclude file itself.
+	// Skipped for either autoinclude file itself.
 	configBase := filepath.Base(file.ConfigPath)
-	if configBase != DefaultAutoIncludeFile && configBase != DefaultAutoIncludeStackFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
+	if configBase != DefaultAutoIncludeFile && configBase != DefaultAutoIncludeStackFile {
 		autoMerged, mergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config, file.ConfigPath)
 		if mergeErr != nil {
 			errs = append(errs, mergeErr)

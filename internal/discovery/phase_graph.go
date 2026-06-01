@@ -279,11 +279,9 @@ func (p *GraphPhase) discoverDependencies(
 		return err
 	}
 
-	if state.opts.Experiments.Evaluate(experiment.StackDependencies) {
-		depPaths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, depPaths, c)
-		if err != nil {
-			return err
-		}
+	depPaths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, depPaths, c)
+	if err != nil {
+		return err
 	}
 
 	if len(depPaths) == 0 {
@@ -664,17 +662,15 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	if state.graphTraversalState.opts.Experiments.Evaluate(experiment.StackDependencies) {
-		var stackErr error
+	var stackErr error
 
-		deps, stackErr = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.graphTraversalState.opts, deps, candidate)
-		if stackErr != nil {
-			state.errMu.Lock()
-			*state.errs = append(*state.errs, stackErr)
-			state.errMu.Unlock()
+	deps, stackErr = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.graphTraversalState.opts, deps, candidate)
+	if stackErr != nil {
+		state.errMu.Lock()
+		*state.errs = append(*state.errs, stackErr)
+		state.errMu.Unlock()
 
-			return nil
-		}
+		return nil
 	}
 
 	canonicalCandidate, created := state.graphTraversalState.threadSafeComponents.EnsureComponent(candidate)
