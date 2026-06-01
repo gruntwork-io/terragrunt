@@ -1,0 +1,10 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: `dependency` outputs resolve inside `remote_state`
+
+When a `dependency` block is injected through an `autoinclude` block, a unit that references `dependency.<name>.outputs.<key>` inside its `remote_state` block no longer fails with `There is no variable named "dependency"`. The autoinclude dependency is now available before the unit's `remote_state` is evaluated, both during stack discovery and when the unit runs, so the backend configuration is generated with the resolved value. `generate` blocks already worked; `remote_state` now behaves the same way.
+
+Resolves [#6244](https://github.com/gruntwork-io/terragrunt/issues/6244).

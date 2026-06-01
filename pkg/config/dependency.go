@@ -229,7 +229,7 @@ func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
 // NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
-func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File) (*cty.Value, error) {
+func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, extraDeps []Dependency) (*cty.Value, error) {
 	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
 		return nil, err
@@ -242,6 +242,11 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
+
+	// Fold autoinclude dependency blocks in, letting the autoinclude win on name collisions.
+	if len(extraDeps) > 0 {
+		decodedDependency.Dependencies = mergeDependencyBlocks(decodedDependency.Dependencies, extraDeps)
+	}
 
 	// Validate that dependency config_path is not an empty string.
 	// Skip null/unknown values and non-strings (which can appear during partial decode or hclvalidate).

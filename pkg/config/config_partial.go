@@ -425,6 +425,13 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 	output.IsPartial = true
 
+	// Provide a dependency placeholder so remote_state can reference dependency outputs during partial decode.
+	if pctx.DecodedDependencies == nil && pctx.SkipOutputsResolution && pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		pctx = pctx.Clone()
+		dynamicVal := cty.DynamicVal
+		pctx.DecodedDependencies = &dynamicVal
+	}
+
 	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
 		return nil, err

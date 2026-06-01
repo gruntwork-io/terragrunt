@@ -43,6 +43,7 @@ const (
 	testFixtureStackDepsArbitraryRetry           = "fixtures/stacks/stack-deps-arbitrary-retry"
 	testFixtureStackDepsStackAutoInclude         = "fixtures/stacks/stack-deps-stack-autoinclude"
 	testFixtureStackDepsCrossLevelValues         = "fixtures/stacks/stack-deps-cross-level-values"
+	testFixtureStackDepsRemoteStateDep           = "fixtures/stacks/stack-deps-remote-state-dep"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -309,6 +310,33 @@ func TestStackDepsE2EBasic(t *testing.T) {
 	assert.Equal(t, "Received: Hello!", string(inputContent))
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+}
+
+// TestStackDepsRemoteStateDependency pins that a dependency output referenced
+// inside a remote_state config (the dependency block lives only in the
+// generated autoinclude) resolves during run --all plan instead of failing
+// with an unknown "dependency" variable.
+func TestStackDepsRemoteStateDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsRemoteStateDep)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsRemoteStateDep)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsRemoteStateDep, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
+	require.NoError(t, err, "run --all plan must resolve dependency output inside remote_state; stderr=%s", stderr)
+
+	// The mock output fake-val must resolve inside the generated backend, producing the key fake-val.tfstate.
+	backendPath := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "unit-w-inputs"), "backend.tf")
+	backend, err := os.ReadFile(backendPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(backend), "fake-val.tfstate",
+		"dependency output must resolve inside remote_state from the autoinclude mock")
 }
 
 // TestStackDepsE2EChain runs a 3-level dependency chain end-to-end:

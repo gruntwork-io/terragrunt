@@ -1358,9 +1358,22 @@ func ParseConfig(
 	}
 
 	if pctx.DecodedDependencies == nil {
+		// Fold autoinclude dependency blocks into the full-parse dependency resolution.
+		var extraDeps []Dependency
+
+		configBase := filepath.Base(file.ConfigPath)
+		if configBase != DefaultAutoIncludeFile && configBase != DefaultAutoIncludeStackFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
+			autoDeps, autoErr := autoIncludeDependencyBlocks(ctx, pctx, l, file.ConfigPath)
+			if autoErr != nil {
+				errs = append(errs, autoErr)
+			}
+
+			extraDeps = autoDeps
+		}
+
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process. Note: the actual `tofu/terraform output` side effect is gated by SkipOutput, not here.
-		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, pctx, l, file)
+		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, pctx, l, file, extraDeps)
 		if err != nil {
 			errs = append(errs, err)
 
@@ -1486,6 +1499,32 @@ func mergeAutoIncludeIfPresent(
 	}
 
 	return config, nil
+}
+
+// autoIncludeDependencyBlocks decodes the dependency blocks from the unit-level terragrunt.autoinclude.hcl if present.
+func autoIncludeDependencyBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, configPath string) ([]Dependency, error) {
+	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
+
+	if !util.FileExists(autoIncludePath) {
+		return nil, nil
+	}
+
+	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	decoded := TerragruntDependency{}
+	if err := file.Decode(&decoded, evalCtx); err != nil {
+		return nil, err
+	}
+
+	return decoded.Dependencies.FilteredWithoutConfigPath(), nil
 }
 
 // DetectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
