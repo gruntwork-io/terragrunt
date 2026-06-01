@@ -25,7 +25,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
 
-	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -38,7 +37,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 )
 
@@ -1094,7 +1094,8 @@ func TestAwsRemoteWithBackend(t *testing.T) {
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRemoteWithBackend)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureRemoteWithBackend)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRemoteWithBackend)
 
 	rootTerragruntConfigPath := filepath.Join(rootPath, "terragrunt.hcl")
@@ -1345,7 +1346,8 @@ func TestAwsDependencyOutputOptimizationDisableTest(t *testing.T) {
 func TestAwsProviderPatch(t *testing.T) {
 	t.Parallel()
 
-	rootPath := helpers.CopyEnvironment(t, testFixtureAwsProviderPatch)
+	mirror := helpers.StartTerragruntMirror(t)
+	rootPath := mirror.RenderFixture(t, testFixtureAwsProviderPatch)
 	modulePath := filepath.Join(rootPath, testFixtureAwsProviderPatch)
 	mainTFFile := filepath.Join(modulePath, "main.tf")
 
@@ -1552,9 +1554,11 @@ func TestAwsDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 	// Use func to isolate each test run to a single s3 bucket that is deleted. We run the test multiple times
 	// because the underlying error we are trying to test against is nondeterministic, and thus may not always work
 	// the first time.
+	mirror := helpers.StartTerragruntMirror(t)
+
 	tt := func() {
 		helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
-		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
+		tmpEnvPath := mirror.RenderFixture(t, testFixtureGetOutput)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-906")
 
 		// Make sure to fill in the s3 bucket to the config. Also ensure the bucket is deleted before the next for
@@ -1789,7 +1793,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	for i := range 20 {
-		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test")
+		err := util.CopyFolderContents(logger.CreateLogger(), helpers.MustAbs(t, testFixtureParallelStateInit), tmpEnvPath, ".terragrunt-test")
 		require.NoError(t, err)
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),
@@ -1827,8 +1831,10 @@ func TestAwsAssumeRole(t *testing.T) {
 	backendFile := filepath.Join(cacheDir, "backend.tf")
 	assert.FileExists(t, backendFile)
 
-	content, err := files.ReadFileAsString(backendFile)
+	contentBytes, err := os.ReadFile(backendFile)
 	require.NoError(t, err)
+
+	content := string(contentBytes)
 
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
@@ -1870,8 +1876,10 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 	backendFile := filepath.Join(cacheDir, "backend.tf")
 	assert.FileExists(t, backendFile)
 
-	content, err := files.ReadFileAsString(backendFile)
+	contentBytes, err := os.ReadFile(backendFile)
 	require.NoError(t, err)
+
+	content := string(contentBytes)
 
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
@@ -2386,7 +2394,8 @@ func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 
 	t.Logf("Deleting test DynamoDB table %s", tableName)
 
-	ctx := t.Context()
+	ctx, cancel := helpers.CleanupContext(t)
+	defer cancel()
 
 	_, err := client.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	if err != nil {

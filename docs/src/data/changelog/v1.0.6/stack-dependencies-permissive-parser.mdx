@@ -1,0 +1,49 @@
+---
+version: "v1.0.6"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: parser tolerates HCL expressions throughout `terragrunt.stack.hcl`
+
+The `stack-dependencies` experiment now defers evaluation of `source`, `path`, `values`, and `include.path` until each unit or stack block is parsed on its own. As a result, `autoinclude` resolution during stack generation and `run --all` discovery no longer fall over when other parts of a stack file use Terragrunt functions, `local.*`, or `values.*`. A few adjacent behaviors are tightened up at the same time.
+
+**Autoinclude resolves even when sibling units use expressions.**
+
+Before 1.0.6, if any unit in a stack file used a function call or a `local.*` / `values.*` reference in `source`, `path`, or `values`, generating an `autoinclude` on a different unit in the same file could fail. The parser now leaves those expressions alone until they're needed, so an unrelated unit can carry an `autoinclude` block without being blocked by its neighbors:
+
+```hcl
+locals {
+  shared_region = "us-east-1"
+}
+
+unit "account" {
+  source = "${get_terragrunt_dir()}/../catalog/units/account"
+  path   = "account"
+  values = {
+    account = values.account
+    region  = local.shared_region
+  }
+}
+
+unit "roles" {
+  source = "${get_terragrunt_dir()}/../catalog/units/roles"
+  path   = "roles"
+
+  autoinclude {
+    dependency "account" {
+      config_path = unit.account.path
+    }
+  }
+}
+```
+
+**`include` blocks in `terragrunt.stack.hcl` accept computed paths.**
+
+The `path` attribute on an `include` block can be an HCL expression, not just a string literal. An `autoinclude` block in the included file is resolved normally after the include merges in:
+
+```hcl
+include "shared" {
+  path = find_in_parent_folders("shared.stack.hcl")
+}
+```
+

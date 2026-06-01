@@ -297,8 +297,10 @@ func TestTUIScaffoldWithRealRepository(t *testing.T) {
 	m := tui.NewModel(l, opts, svc)
 
 	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
-		// Press 'S' to scaffold the first module
-		p.Send(tea.KeyPressMsg{Code: 'S', Text: "S"})
+		// Press 's' to scaffold the first module. The legacy TUI only ever
+		// exposed one scaffold key, and the redesign drop of the capital
+		// `S` variant brings the legacy keymap in line.
+		p.Send(tea.KeyPressMsg{Code: 's', Text: "s"})
 	})
 
 	// Verify the model transitioned to ScaffoldState

@@ -1,6 +1,6 @@
 package shared
 
-import "github.com/gruntwork-io/terragrunt/internal/errors"
+import "errors"
 
 // AllGraphFlagsError is returned when both --all and --graph flags are used simultaneously.
 type AllGraphFlagsError byte

@@ -44,7 +44,6 @@ dependency "vpc" {
 			"unit": cty.ObjectVal(map[string]cty.Value{
 				"vpc": cty.ObjectVal(map[string]cty.Value{
 					"path": cty.StringVal("../vpc"),
-					"name": cty.StringVal("vpc"),
 				}),
 			}),
 			"stack": cty.EmptyObjectVal,
@@ -61,6 +60,46 @@ dependency "vpc" {
 	assert.NotNil(t, result.RawBody)
 }
 
+// Null or unknown config_path must produce a diagnostic (not a silent zero-value dep) so users see an error and editors get a source position.
+func TestAutoIncludeHCL_Resolve_RejectsNullOrUnknownConfigPath(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		val     cty.Value
+		summary string
+	}{
+		{val: cty.NullVal(cty.String), summary: "Null config_path"},
+		{val: cty.UnknownVal(cty.String), summary: "Unknown config_path"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.summary, func(t *testing.T) {
+			t.Parallel()
+
+			body := parseHCLBody(t, `
+dependency "vpc" {
+  config_path = local.target
+}
+`)
+
+			autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+			evalCtx := &hcl.EvalContext{
+				Variables: map[string]cty.Value{
+					"local": cty.ObjectVal(map[string]cty.Value{"target": tc.val}),
+				},
+			}
+
+			result, diags := autoInclude.Resolve(evalCtx)
+			require.True(t, diags.HasErrors(), "%s must surface as a diagnostic", tc.summary)
+			assert.Equal(t, tc.summary, diags[0].Summary)
+			require.NotNil(t, diags[0].Subject, "diagnostic must carry the offending expression's source range")
+			require.NotNil(t, result, "best-effort: result is non-nil even when some deps fail")
+			assert.Empty(t, result.Dependencies, "failed dep must not be appended")
+		})
+	}
+}
+
 // dependency block with zero labels must be reported as a diagnostic (not silently skipped) so users learn the labelling convention.
 func TestAutoIncludeHCL_Resolve_RejectsZeroLabels(t *testing.T) {
 	t.Parallel()
@@ -74,9 +113,10 @@ dependency {
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
 
 	result, diags := autoInclude.Resolve(&hcl.EvalContext{Variables: map[string]cty.Value{}})
-	assert.Nil(t, result)
 	require.True(t, diags.HasErrors())
 	assert.Contains(t, diags.Error(), "exactly one label, got 0")
+	require.NotNil(t, result, "best-effort: result is non-nil even when some deps fail")
+	assert.Empty(t, result.Dependencies)
 }
 
 // dependency block with two or more labels likewise produces a diagnostic instead of silently using only the first label.
@@ -92,9 +132,10 @@ dependency "vpc" "extra" {
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
 
 	result, diags := autoInclude.Resolve(&hcl.EvalContext{Variables: map[string]cty.Value{}})
-	assert.Nil(t, result)
 	require.True(t, diags.HasErrors())
 	assert.Contains(t, diags.Error(), "exactly one label, got 2")
+	require.NotNil(t, result, "best-effort: result is non-nil even when some deps fail")
+	assert.Empty(t, result.Dependencies)
 }
 
 func TestAutoIncludeHCL_Resolve_MultipleDependencies(t *testing.T) {
@@ -120,11 +161,9 @@ dependency "db" {
 			"unit": cty.ObjectVal(map[string]cty.Value{
 				"vpc": cty.ObjectVal(map[string]cty.Value{
 					"path": cty.StringVal("../vpc"),
-					"name": cty.StringVal("vpc"),
 				}),
 				"database": cty.ObjectVal(map[string]cty.Value{
 					"path": cty.StringVal("../database"),
-					"name": cty.StringVal("database"),
 				}),
 			}),
 			"stack": cty.EmptyObjectVal,
@@ -161,7 +200,6 @@ dependency "networking" {
 			"stack": cty.ObjectVal(map[string]cty.Value{
 				"networking": cty.ObjectVal(map[string]cty.Value{
 					"path": cty.StringVal("../networking"),
-					"name": cty.StringVal("networking"),
 				}),
 			}),
 		},
@@ -205,7 +243,6 @@ inputs = {
 			"unit": cty.ObjectVal(map[string]cty.Value{
 				"vpc": cty.ObjectVal(map[string]cty.Value{
 					"path": cty.StringVal("/abs/path/to/.terragrunt-stack/vpc"),
-					"name": cty.StringVal("vpc"),
 				}),
 			}),
 			"stack": cty.EmptyObjectVal,
@@ -381,7 +418,7 @@ func TestAutoIncludeDependencyPaths_MalformedReturnsTypedError(t *testing.T) {
 	}
 }
 
-// Mixed-case fixture: one valid dependency + one malformed. Strict contract: producer returns (nil, err) on any malformed block — no partial paths.
+// Mixed-case fixture: one valid dependency + one malformed. Strict contract: producer returns (nil, err) on any malformed block - no partial paths.
 func TestAutoIncludeDependencyPaths_MixedValidAndMalformed(t *testing.T) {
 	t.Parallel()
 

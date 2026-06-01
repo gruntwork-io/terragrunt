@@ -13,27 +13,27 @@ func NewListKeyMap() list.KeyMap {
 		// Browsing.
 		CursorUp: key.NewBinding(
 			key.WithKeys("k", "up", "ctrl+p"),
-			key.WithHelp("k/↑/ctrl+p", "move up"),
+			key.WithHelp("k/↑", "move up"),
 		),
 		CursorDown: key.NewBinding(
 			key.WithKeys("j", "down", "ctrl+n"),
-			key.WithHelp("j/↓/ctrl+n", "move down"),
+			key.WithHelp("j/↓", "move down"),
 		),
 		PrevPage: key.NewBinding(
 			key.WithKeys("h", "left", "pgup", "alt+v"),
-			key.WithHelp("h/←/pgup/alt+v", "prev page"),
+			key.WithHelp("h/←", "prev page"),
 		),
 		NextPage: key.NewBinding(
 			key.WithKeys("l", "right", "pgdown", "ctrl+v"),
-			key.WithHelp("l/→/pgdn/ctrl+v", "next page"),
+			key.WithHelp("l/→", "next page"),
 		),
 		GoToStart: key.NewBinding(
 			key.WithKeys("home", "ctrl+a"),
-			key.WithHelp("home/ctrl+a", "go to start"),
+			key.WithHelp("home", "go to start"),
 		),
 		GoToEnd: key.NewBinding(
 			key.WithKeys("end", "ctrl+e"),
-			key.WithHelp("end/ctrl+e", "go to end"),
+			key.WithHelp("end", "go to end"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("/"),
@@ -73,9 +73,12 @@ func NewListKeyMap() list.KeyMap {
 	}
 }
 
+// DelegateKeyMap defines the list-row keybindings. `s` opens the
+// interactive scaffold form; the placeholder-only flow is reachable from
+// inside that form via ctrl+d when required values are still unfilled.
 type DelegateKeyMap struct {
-	Choose   key.Binding
-	Scaffold key.Binding
+	Choose              key.Binding
+	ScaffoldInteractive key.Binding
 }
 
 // ShortHelp returns additional short help entries. This satisfies the help.KeyMap interface and
@@ -83,7 +86,7 @@ type DelegateKeyMap struct {
 func (d DelegateKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		d.Choose,
-		d.Scaffold,
+		d.ScaffoldInteractive,
 	}
 }
 
@@ -93,7 +96,7 @@ func (d DelegateKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{
 			d.Choose,
-			d.Scaffold,
+			d.ScaffoldInteractive,
 		},
 	}
 }
@@ -105,9 +108,9 @@ func NewDelegateKeyMap() *DelegateKeyMap {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "choose"),
 		),
-		Scaffold: key.NewBinding(
-			key.WithKeys("S", "s"),
-			key.WithHelp("S", "Scaffold"),
+		ScaffoldInteractive: key.NewBinding(
+			key.WithKeys("s"),
+			key.WithHelp("s", "scaffold"),
 		),
 	}
 }
@@ -128,8 +131,11 @@ type PagerKeyMap struct {
 	// Select button
 	Choose key.Binding
 
-	// Run Scaffold command
-	Scaffold key.Binding
+	// Run the interactive scaffold flow (s).
+	ScaffoldInteractive key.Binding
+
+	// Toggle soft-wrapping of long README lines (w).
+	ToggleWrap key.Binding
 
 	// Help toggle keybindings.
 	Help key.Binding
@@ -152,7 +158,8 @@ func (keys PagerKeyMap) ShortHelp() []key.Binding {
 		keys.Navigation,
 		keys.NavigationBack,
 		keys.Choose,
-		keys.Scaffold,
+		keys.ScaffoldInteractive,
+		keys.ToggleWrap,
 		keys.Help,
 		keys.Quit,
 	}
@@ -162,9 +169,9 @@ func (keys PagerKeyMap) ShortHelp() []key.Binding {
 // key.Map interface.
 func (keys PagerKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{keys.Up, keys.Down, keys.PageDown, keys.PageUp},                   // first column
-		{keys.Navigation, keys.NavigationBack, keys.Choose, keys.Scaffold}, // second column
-		{keys.Help, keys.Quit, keys.ForceQuit},                             // third column
+		{keys.Up, keys.Down, keys.PageDown, keys.PageUp},                              // first column
+		{keys.Navigation, keys.NavigationBack, keys.Choose, keys.ScaffoldInteractive}, // second column
+		{keys.ToggleWrap, keys.Help, keys.Quit, keys.ForceQuit},                       // third column
 	}
 }
 
@@ -180,19 +187,19 @@ func NewPagerKeyMap() PagerKeyMap {
 			),
 			Up: key.NewBinding(
 				key.WithKeys("k", "up", "ctrl+p"),
-				key.WithHelp("k/↑/ctrl+p", "move up"),
+				key.WithHelp("k/↑", "move up"),
 			),
 			Down: key.NewBinding(
 				key.WithKeys("j", "down", "ctrl+n"),
-				key.WithHelp("j/↓/ctrl+n", "move down"),
+				key.WithHelp("j/↓", "move down"),
 			),
 			PageDown: key.NewBinding(
 				key.WithKeys("l", "right", "pgdown", "ctrl+v"),
-				key.WithHelp("l/→/pgdn/ctrl+v", "page down"),
+				key.WithHelp("l/→", "page down"),
 			),
 			PageUp: key.NewBinding(
 				key.WithKeys("h", "left", "pgup", "alt+v"),
-				key.WithHelp("h/←/pgup/alt+v", "page up"),
+				key.WithHelp("h/←", "page up"),
 			),
 		},
 		HelpModel: help.New(),
@@ -208,9 +215,13 @@ func NewPagerKeyMap() PagerKeyMap {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "choose"),
 		),
-		Scaffold: key.NewBinding(
-			key.WithKeys("S", "s"),
-			key.WithHelp("S", "Scaffold"),
+		ScaffoldInteractive: key.NewBinding(
+			key.WithKeys("s"),
+			key.WithHelp("s", "scaffold"),
+		),
+		ToggleWrap: key.NewBinding(
+			key.WithKeys("w"),
+			key.WithHelp("w", "wrap"),
 		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),

@@ -10,8 +10,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // ParseCtyValueToMap converts a cty.Value to a map[string]any.
@@ -42,7 +40,7 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 
 	jsonBytes, err := ctyjson.Marshal(unmarkedValue, cty.DynamicPseudoType)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	var ctyJSONOutput CtyJSONOutput
@@ -51,7 +49,7 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 	decoder.UseNumber()
 
 	if err := decoder.Decode(&ctyJSONOutput); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return ctyJSONOutput.Value, nil
@@ -114,7 +112,7 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 
 	value, err := gocty.ToCtyValue(updatedValue, value.Type())
 	if err != nil {
-		return cty.NilVal, errors.New(err)
+		return cty.NilVal, err
 	}
 
 	return value, nil

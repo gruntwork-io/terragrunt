@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -51,7 +50,7 @@ func WriteTerragruntDebugFile(l log.Logger, opts *Options, cfg *runcfg.RunConfig
 
 	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
 	if err := os.WriteFile(fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	l.Debugf("Variables passed to %s are located in \"%s\"", tofuImpl, fileName)
@@ -109,7 +108,7 @@ func terragruntDebugFileContents(
 
 	jsonContent, err := json.MarshalIndent(jsonValuesByKey, "", "  ")
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return jsonContent, nil

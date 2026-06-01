@@ -1,0 +1,33 @@
+---
+name: opt-out-auth
+status: active
+since: "1.0.6"
+---
+
+Opt out of running `--auth-provider-cmd` during the discovery phase.
+
+### `opt-out-auth` - What it does
+By default, Terragrunt runs `--auth-provider-cmd` once per parsed component during the discovery phase, so configuration parsing can reliably resolve HCL functions such as `get_aws_account_id` and `run_cmd`. On large repositories, this dominates wall-clock time because the auth command runs for every discovered unit rather than only the subset that will actually run.
+
+Enabling this experiment unlocks the `--no-discovery-auth-provider-cmd` flag (env: `TG_NO_DISCOVERY_AUTH_PROVIDER_CMD`), which skips those discovery-time auth invocations. The auth provider command still runs normally for the units that actually execute.
+
+Units whose discovery-relevant blocks depend on credentials produced by `--auth-provider-cmd` will fail to parse with the flag set. Use it when you know parsing will resolve successfully without any prior authentication.
+
+```bash
+terragrunt run --all \
+  --experiment opt-out-auth \
+  --no-discovery-auth-provider-cmd \
+  --queue-include-units-reading=./changed-file.txt \
+  plan
+```
+
+### `opt-out-auth` - How to provide feedback
+Provide your feedback on the [`opt-out-auth` GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/6224).
+
+### `opt-out-auth` - Criteria for stabilization
+To transition the `opt-out-auth` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] Confirm the discovery-phase opt-out covers the auth scenarios users rely on without surprising parse failures.
+- [ ] Measure the wall-clock improvement on large `run --all` invocations with reading-based filters.
+- [ ] Decide whether additional phases warrant their own opt-out flags.
+- [ ] Community feedback on real-world usage.

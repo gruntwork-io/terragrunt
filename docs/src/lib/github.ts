@@ -45,6 +45,19 @@ interface GitHubReleaseResponse {
   [key: string]: unknown;
 }
 
+export interface GitHubCommit {
+  sha: string;
+  html_url: string;
+  commit: { message: string; author?: { name?: string } | null };
+  // null when the committer isn't a linked GitHub user.
+  author: { login: string } | null;
+}
+
+interface GitHubCompareResponse {
+  commits: GitHubCommit[];
+  [key: string]: unknown;
+}
+
 /**
  * Fetches GitHub repository data with memoization.
  * Results are cached for 1 hour to avoid rate limiting.
@@ -182,6 +195,64 @@ export async function getReleaseByTag(
     });
   } catch (error) {
     console.error(`Error fetching release ${tag} for ${owner}/${repo}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Compares two refs and returns the commits in `head` that are not in `base`,
+ * memoized for 1 hour to avoid rate limiting. Used to list the pull requests
+ * merged since the latest release for versions that aren't published yet.
+ *
+ * The compare endpoint returns at most 250 commits; that's sufficient here
+ * because releases are cut frequently.
+ */
+export async function compareCommits(
+  owner: string,
+  repo: string,
+  base: string,
+  head: string
+): Promise<GitHubCommit[] | null> {
+  const cacheKey = `compare:${owner}/${repo}/${base}...${head}`;
+
+  try {
+    return await memoizedFetch(cacheKey, async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+      try {
+        const response = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/compare/${base}...${head}`,
+          {
+            headers: {
+              'User-Agent': 'Terragrunt-Docs',
+            },
+            signal: controller.signal,
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status !== 404) {
+            console.error(
+              `Failed to compare ${base}...${head} for ${owner}/${repo}:`,
+              response.status,
+              await response.text()
+            );
+          }
+          return null;
+        }
+
+        const data = (await response.json()) as GitHubCompareResponse;
+        return data.commits;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    });
+  } catch (error) {
+    console.error(
+      `Error comparing ${base}...${head} for ${owner}/${repo}:`,
+      error
+    );
     return null;
   }
 }

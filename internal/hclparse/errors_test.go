@@ -23,13 +23,12 @@ func TestTypedErrors_Messages(t *testing.T) {
 		{name: "DuplicateStackNameError", err: hclparse.DuplicateStackNameError{Name: "infra"}, contains: "infra"},
 		{name: "IncludeValidationError", err: hclparse.IncludeValidationError{IncludeName: "shared", Reason: "has locals"}, contains: "shared"},
 		{name: "FileReadError", err: hclparse.FileReadError{FilePath: "missing.hcl", Err: baseErr}, contains: "missing.hcl"},
-		{name: "FileParseError", err: hclparse.FileParseError{FilePath: "bad.hcl", Detail: "syntax"}, contains: "bad.hcl"},
-		{name: "FileDecodeError", err: hclparse.FileDecodeError{Name: "inc", Detail: "decode failed"}, contains: "inc"},
+		{name: "FileParseError", err: hclparse.FileParseError{FilePath: "bad.hcl", Err: baseErr}, contains: "bad.hcl"},
+		{name: "FileDecodeError", err: hclparse.FileDecodeError{Name: "inc", Err: baseErr}, contains: "inc"},
 		{name: "FileWriteError", err: hclparse.FileWriteError{FilePath: "out.hcl", Err: baseErr}, contains: "out.hcl"},
 		{name: "DirCreateError", err: hclparse.DirCreateError{DirPath: "/tmp/dir", Err: baseErr}, contains: "/tmp/dir"},
-		{name: "LocalEvalError", err: hclparse.LocalEvalError{Name: "env", Detail: "unknown var"}, contains: "env"},
+		{name: "LocalEvalError", err: hclparse.LocalEvalError{Name: "env", Err: baseErr}, contains: "env"},
 		{name: "LocalsCycleError", err: hclparse.LocalsCycleError{Names: []string{"a", "b"}}, contains: "[a b]"},
-		{name: "LocalsMaxIterError", err: hclparse.LocalsMaxIterError{MaxIterations: 100, Remaining: 5}, contains: "100"},
 	}
 
 	for _, tt := range tests {

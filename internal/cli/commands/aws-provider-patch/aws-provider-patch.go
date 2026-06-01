@@ -12,9 +12,10 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -102,7 +103,7 @@ func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) 
 
 func runAwsProviderPatch(l log.Logger, opts *options.TerragruntOptions) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
-		return errors.New(MissingOverrideAttrError(OverrideAttrFlagName))
+		return MissingOverrideAttrError(OverrideAttrFlagName)
 	}
 
 	terraformFilesInModules, err := findAllTerraformFilesInModules(opts)
@@ -168,12 +169,12 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 
 	modulesJSONContents, err := os.ReadFile(modulesJSONPath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	var terraformModulesJSON TerraformModulesJSON
 	if err := json.Unmarshal(modulesJSONContents, &terraformModulesJSON); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	var terraformFiles []string
@@ -187,7 +188,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 
 			moduleFiles, err := util.FindTFFiles(moduleAbsPath)
 			if err != nil {
-				return nil, errors.New(err)
+				return nil, err
 			}
 
 			// Filter out JSON files (.tf.json, .tofu.json, or any .json) as hclwrite cannot parse JSON
@@ -228,7 +229,7 @@ func PatchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 
 	hclFile, err := hclwrite.ParseConfig([]byte(terraformCode), terraformFilePath, hcl.InitialPos)
 	if err != nil {
-		return "", false, errors.New(err)
+		return "", false, err
 	}
 
 	codeWasUpdated := false
@@ -313,7 +314,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := TypeInferenceError{value: value, underlyingErr: err}
 
-		return false, errors.New(returnErr)
+		return false, returnErr
 	}
 
 	ctyVal, err := ctyjson.Unmarshal(valueBytes, ctyType)
@@ -321,7 +322,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := MalformedJSONValError{value: value, underlyingErr: err}
 
-		return false, errors.New(returnErr)
+		return false, returnErr
 	}
 
 	body.SetAttributeValue(attr, ctyVal)

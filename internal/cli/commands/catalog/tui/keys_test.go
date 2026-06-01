@@ -18,7 +18,7 @@ func TestKeyDelegateKeyMapShortHelp(t *testing.T) {
 
 	require.Len(t, got, 2)
 	assert.Equal(t, km.Choose, got[0])
-	assert.Equal(t, km.Scaffold, got[1])
+	assert.Equal(t, km.ScaffoldInteractive, got[1])
 
 	for i, b := range got {
 		assert.NotEmpty(t, b.Keys(), "binding %d has no keys", i)
@@ -34,7 +34,18 @@ func TestKeyDelegateKeyMapFullHelp(t *testing.T) {
 	require.Len(t, got, 1)
 	require.Len(t, got[0], 2)
 	assert.Equal(t, km.Choose, got[0][0])
-	assert.Equal(t, km.Scaffold, got[0][1])
+	assert.Equal(t, km.ScaffoldInteractive, got[0][1])
+}
+
+func TestKeyDelegateScaffoldBoundToLowerS(t *testing.T) {
+	t.Parallel()
+
+	// The previous design split scaffold across `s` (validated) and `S`
+	// (skip checks). The skip-checks path now lives inside the form on
+	// ctrl+d, so the list/pager only exposes the lowercase entry point.
+	km := tui.NewDelegateKeyMap()
+
+	assert.Equal(t, []string{"s"}, km.ScaffoldInteractive.Keys())
 }
 
 func TestKeyPagerKeyMapShortHelp(t *testing.T) {
@@ -51,7 +62,8 @@ func TestKeyPagerKeyMapShortHelp(t *testing.T) {
 		km.Navigation,
 		km.NavigationBack,
 		km.Choose,
-		km.Scaffold,
+		km.ScaffoldInteractive,
+		km.ToggleWrap,
 		km.Help,
 		km.Quit,
 	}
@@ -81,10 +93,22 @@ func TestKeyPagerKeyMapFullHelp(t *testing.T) {
 	assert.Equal(t, km.Navigation, got[1][0])
 	assert.Equal(t, km.NavigationBack, got[1][1])
 	assert.Equal(t, km.Choose, got[1][2])
-	assert.Equal(t, km.Scaffold, got[1][3])
+	assert.Equal(t, km.ScaffoldInteractive, got[1][3])
 
-	require.Len(t, got[2], 3)
-	assert.Equal(t, km.Help, got[2][0])
-	assert.Equal(t, km.Quit, got[2][1])
-	assert.Equal(t, km.ForceQuit, got[2][2])
+	require.Len(t, got[2], 4)
+	assert.Equal(t, km.ToggleWrap, got[2][0])
+	assert.Equal(t, km.Help, got[2][1])
+	assert.Equal(t, km.Quit, got[2][2])
+	assert.Equal(t, km.ForceQuit, got[2][3])
+}
+
+func TestKeyPagerScaffoldBoundToLowerS(t *testing.T) {
+	t.Parallel()
+
+	// Pager mirrors the list: only the lowercase scaffold entry point;
+	// skip-required lives inside the form on ctrl+d.
+	km := tui.NewPagerKeyMap()
+
+	assert.Equal(t, []string{"s"}, km.ScaffoldInteractive.Keys())
+	assert.Equal(t, []string{"w"}, km.ToggleWrap.Keys())
 }

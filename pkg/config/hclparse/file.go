@@ -3,7 +3,6 @@ package hclparse
 import (
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -67,7 +66,7 @@ func (file *File) Decode(out any, evalContext *hcl.EvalContext) (err error) {
 
 	diags := gohcl.DecodeBody(file.Body, evalContext, out)
 	if err := file.HandleDiagnostics(diags); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -83,7 +82,7 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	// We use PartialContent here, because we are only interested in parsing out the catalog block.
 	parsed, _, diags := file.Body.PartialContent(catalogSchema)
 	if err := file.HandleDiagnostics(diags); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	extractedBlocks := []*Block{}
@@ -98,13 +97,11 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	}
 
 	if len(extractedBlocks) > 1 && !isMultipleAllowed {
-		return nil, errors.New(
-			&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  fmt.Sprintf("Multiple %s block", name),
-				Detail:   fmt.Sprintf(multipleBlockDetailFmt, name),
-			},
-		)
+		return nil, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Multiple %s block", name),
+			Detail:   fmt.Sprintf(multipleBlockDetailFmt, name),
+		}
 	}
 
 	return extractedBlocks, nil
@@ -114,7 +111,7 @@ func (file *File) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := file.Body.JustAttributes()
 
 	if err := file.HandleDiagnostics(diags); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	attrs := NewAttributes(file, hclAttrs)
@@ -128,4 +125,29 @@ func (file *File) JustAttributes() (Attributes, error) {
 
 func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
 	return file.handleDiagnostics(file, diags)
+}
+
+// Rebind returns a new File wrapper bound to `parser`, sharing the underlying AST.
+//
+// `parser` must be non-nil; Rebind panics otherwise. In practice all callers
+// obtain it from [NewParser], which never returns nil.
+//
+// The `parser` argument is mutated: the file's AST is registered in its file map.
+// This is required because `hcl.NewDiagnosticTextWriter` captures the parser's
+// file map by reference at construction time, so a fresh parser cannot render
+// code snippets for a file it has not seen parsed.
+//
+// The original file wrapper is not modified.
+func (file *File) Rebind(parser *Parser) *File {
+	if parser == nil {
+		panic("hclparse: Rebind called with nil parser")
+	}
+
+	parser.AddFile(file.ConfigPath, file.File)
+
+	return &File{
+		Parser:     parser,
+		File:       file.File,
+		ConfigPath: file.ConfigPath,
+	}
 }

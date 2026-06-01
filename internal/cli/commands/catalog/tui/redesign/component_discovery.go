@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/ignore"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -30,16 +29,8 @@ const (
 // template > stack > unit > module: a .boilerplate/ wins over a
 // terragrunt.stack.hcl, which wins over a terragrunt.hcl, which wins over
 // .tf files. When a directory classifies as a template, stack, or unit, the
-// walker returns fs.SkipDir so nested artifacts (boilerplate.yml inside a
-// .boilerplate subtree, a stack's generated units, or a unit's nested .tf
-// files) aren't surfaced as separate components.
-//
-// Unlike the legacy module.Repo.FindModules walker (which only scans the
-// `modules/` convention), this walks the entire repo, since templates may
-// live anywhere and the redesign treats all component kinds uniformly.
-//
-// Construct one via NewComponentDiscovery, customize it with the With*
-// methods, then call Discover on a repo.
+// walker returns fs.SkipDir so nested artifacts aren't surfaced as separate
+// components.
 type ComponentDiscovery struct {
 	fsys             vfs.FS
 	extraIgnoreFile  string
@@ -73,17 +64,15 @@ func (cd *ComponentDiscovery) WithFS(fsys vfs.FS) *ComponentDiscovery {
 	return cd
 }
 
-// Discover runs component discovery against repo.
+// Discover runs component discovery against repo. repo must be non-nil;
+// callers obtain it from a successful module.NewRepo and check that
+// constructor's error first.
 func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
-	if repo == nil {
-		return nil, errors.New("ComponentDiscovery.Discover: nil repo")
-	}
-
 	repoPath := repo.Path()
 	cloneURL := repo.CloneURL()
 
 	if repoPath == "" {
-		return nil, errors.New("ComponentDiscovery.Discover: empty repo path")
+		return nil, ErrEmptyRepoPath
 	}
 
 	fsys := cd.fsys
@@ -91,8 +80,6 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 		fsys = vfs.NewOSFS()
 	}
 
-	// util.WalkDirWithSymlinks is OS-only; when symlink following is on, we
-	// continue using it and leave vfs integration as a future cleanup.
 	walkFunc := func(root string, fn fs.WalkDirFunc) error {
 		return vfs.WalkDir(fsys, root, fn)
 	}
@@ -132,7 +119,7 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 
 		relDir, err := filepath.Rel(repoPath, dir)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		relDir = filepath.ToSlash(relDir)
@@ -160,12 +147,9 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 
 		components = append(components, c)
 
-		// Skip descent for kinds that own their whole subtree:
-		// - Templates: avoid re-entering .boilerplate and double-counting
-		//   the inner boilerplate.yml.
-		// - Units/Stacks: the terragrunt config represents the whole
-		//   directory, so nested .tf files or generated .terragrunt-stack
-		//   output shouldn't surface as separate components.
+		// Skip descent for kinds that own their whole subtree so nested
+		// artifacts (boilerplate.yml, generated .terragrunt-stack output,
+		// nested .tf files inside a unit) don't surface as separate components.
 		if kind == ComponentKindTemplate || kind == ComponentKindUnit || kind == ComponentKindStack {
 			return fs.SkipDir
 		}
@@ -179,13 +163,10 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 	return components, nil
 }
 
-// classifyDir inspects a single directory and returns its ComponentKind.
-// Precedence: template > stack > unit > module. A .boilerplate/ wins over a
-// terragrunt.stack.hcl, a terragrunt.hcl, and plain .tf files.
 func classifyDir(fsys vfs.FS, dir string) (ComponentKind, bool, error) {
 	entries, err := vfs.ReadDirEntries(fsys, dir)
 	if err != nil {
-		return 0, false, errors.New(err)
+		return 0, false, err
 	}
 
 	var (
@@ -237,16 +218,13 @@ func classifyDir(fsys vfs.FS, dir string) (ComponentKind, bool, error) {
 }
 
 // isSkippableDir reports whether a directory name should not be descended
-// into during component discovery. We skip all dot-prefixed dirs (.git,
-// .terraform, .terragrunt-cache, .boilerplate, etc.) because their contents
-// either can't be components or should only be discovered via their parent.
+// into during component discovery. Skipping all dot-prefixed dirs covers .git,
+// .terraform, .terragrunt-cache, .boilerplate, and similar; their contents
+// either can't be components or are reached through their parent.
 func isSkippableDir(name string) bool {
 	return strings.HasPrefix(name, ".")
 }
 
-// newComponent constructs a *Component for a directory that has been
-// classified. It populates the doc and URL fields the same way the legacy
-// module.NewModule does, but into the redesign-owned Component type.
 func newComponent(fsys vfs.FS, repo *module.Repo, repoPath, cloneURL, relDir string, kind ComponentKind) (*Component, error) {
 	doc, err := FindComponentDoc(fsys, filepath.Join(repoPath, relDir))
 	if err != nil {

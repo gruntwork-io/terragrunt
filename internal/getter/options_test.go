@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
@@ -25,7 +26,10 @@ func TestWithCASRegistersCASGetter(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	client := getter.NewClient(getter.WithCAS(c, &cas.CloneOptions{}))
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}))
 
 	assert.True(t, hasGetter[*getter.CASGetter](client.Getters), "WithCAS must register CASGetter")
 	assert.True(t, hasGetter[*getter.CASProtocolGetter](client.Getters), "WithCAS must register CASProtocolGetter")
@@ -41,7 +45,10 @@ func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	client := getter.NewClient(getter.WithCAS(c, &cas.CloneOptions{}))
+	v, err := cas.OSVenv()
+	require.NoError(t, err)
+
+	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}))
 
 	req := &getter.Request{Src: "cas::sha1:0000000000000000000000000000000000000000"}
 
@@ -283,4 +290,26 @@ func allHTTPGetters(getters []getter.Getter) []*gogetter.HttpGetter {
 
 func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// TestFileCopyGetterWithFSPanicsOnNonOSFS pins that WithFS rejects a non
+// OS-backed FS at construction time.
+func TestFileCopyGetterWithFSPanicsOnNonOSFS(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t,
+		"getter.FileCopyGetter.WithFS: requires an OS-backed filesystem",
+		func() { getter.NewFileCopyGetter().WithFS(vfs.NewMemMapFS()) },
+	)
+}
+
+// TestRegistryGetterWithFSPanicsOnNonOSFS pins the same invariant for
+// RegistryGetter.
+func TestRegistryGetterWithFSPanicsOnNonOSFS(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t,
+		"getter.RegistryGetter.WithFS: requires an OS-backed filesystem",
+		func() { getter.NewRegistryGetter(logger.CreateLogger()).WithFS(vfs.NewMemMapFS()) },
+	)
 }

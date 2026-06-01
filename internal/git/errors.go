@@ -3,7 +3,7 @@ package git
 import (
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
 )
 
 // Error types that can be returned by the cas package

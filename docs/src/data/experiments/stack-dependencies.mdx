@@ -20,11 +20,10 @@ The generated filename depends on the component kind:
 
 This experiment enables:
 
-- **`unit.<name>.path`** and **`stack.<name>.path`** variables in `terragrunt.stack.hcl` for referencing sibling component paths
-- **`stack.<name>.<unit_name>.path`** for referencing individual units within a nested stack (fine-grained dependency)
-- **`dependency` blocks targeting stack directories** — aggregated outputs from all units in the stack (`dependency.stack_name.outputs.unit_name.output_key`)
+- **`unit.<name>.path`** and **`stack.<name>.path`** variables for referencing sibling component paths, both inside `autoinclude` blocks and in a unit or stack block's `values` (so a parent stack can pass a component path down to a child stack)
+- **`dependency` blocks targeting stack directories**: aggregated outputs from all units in the stack (`dependency.stack_name.outputs.unit_name.output_key`)
 - **Automatic deep merge** of `terragrunt.autoinclude.hcl` into unit configurations (autoinclude wins)
-- **Stack dependency expansion** in the run queue — depending on a stack blocks until all its units complete
+- **Stack dependency expansion** in the run queue: depending on a stack waits until all its units complete
 
 #### Unit-to-unit dependencies within a stack
 
@@ -46,36 +45,6 @@ unit "app" {
 
     inputs = {
       vpc_id = dependency.vpc.outputs.vpc_id
-    }
-  }
-}
-```
-
-#### Dependencies on units within a nested stack
-
-```hcl
-# terragrunt.stack.hcl
-stack "stack_w_outputs" {
-  source = "../catalog/stacks/stack-w-outputs"
-  path   = "stack-w-outputs"
-}
-
-unit "unit_w_inputs" {
-  source = "../catalog/units/unit-w-inputs"
-  path   = "unit-w-inputs"
-
-  autoinclude {
-    dependency "unit_w_outputs" {
-      config_path = stack.stack_w_outputs.unit_w_outputs.path
-
-      mock_outputs_allowed_terraform_commands = ["plan"]
-      mock_outputs = {
-        val = "fake-val"
-      }
-    }
-
-    inputs = {
-      val = dependency.unit_w_outputs.outputs.val
     }
   }
 }
@@ -115,56 +84,31 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 
 ### `stack-dependencies` - Implementation roadmap
 
-<Before version="1.0.2">
+<Since version="1.0.5">
 
-- [ ] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
-- [ ] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
-- [ ] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
-- [ ] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
-- [ ] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
-- [ ] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
-- [ ] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
-- [ ] Add integration tests and test fixtures for end-to-end validation
-- [ ] E2E validation with `stack run apply` and `stack run destroy`
-- [ ] Community feedback on `autoinclude` syntax and merge behavior
-- [ ] Integration with CAS for generated files
-- [ ] Performance validation at scale
-
-</Before>
-
-<Since version="1.0.2">
-
-- [x] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
-- [x] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
-- [x] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
-- [x] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
-- [x] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
-- [x] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
-- [x] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
-- [ ] Add integration tests and test fixtures for end-to-end validation
-- [ ] E2E validation with `stack run apply` and `stack run destroy`
-- [ ] Community feedback on `autoinclude` syntax and merge behavior
-- [ ] Integration with CAS for generated files
-- [ ] Performance validation at scale
+- [x] Phased parser for `terragrunt.stack.hcl`: parse the file body, evaluate locals and values, apply include merges, then decode unit/stack blocks and resolve autoinclude. This lets unit/stack blocks use `local.*`, `values.*`, and Terragrunt functions.
+- [x] `terragrunt run --all` discovery can scan generated nested stack files without evaluating the unit `source`.
+- [x] Unify strict and permissive parser into a single code path
+- [x] Add integration tests and test fixtures for end-to-end validation
+- [x] Add E2E validation with `stack run apply` and `stack run destroy`
 
 </Since>
 
-<Since version="1.0.4">
+<Since version="1.0.6">
 
-- [x] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
-- [x] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
-- [x] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
-- [x] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
-- [x] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
-- [x] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
-- [x] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
-- [x] Add integration tests and test fixtures for end-to-end validation
-- [x] E2E validation with `stack run apply` and `stack run destroy`
-- [x] Resolve `stack.<name>.<nested_stack>.path` at arbitrary nesting depth
-- [x] Surface autoinclude dependencies in `terragrunt find` and `terragrunt list` (JSON, tree, and long formats)
-- [x] Use distinct filenames for unit (`terragrunt.autoinclude.hcl`) and stack (`terragrunt.autoinclude.stack.hcl`) autoincludes
+- [x] Catalog source preservation across stack copy: nested stack files copied into `.terragrunt-stack/<name>/` get a `.terragrunt-stack-origin` marker file, so bare relative `../../units/...` paths resolve against the original catalog, not the copy. Only applies to local stack sources; remote and CAS-fetched stacks are unchanged.
+- [x] `PartialEval` depth guard (`maxPartialEvalDepth = 10000`) and `IsWhollyKnown` / `IsNull` checks on the fast path and traversal/template/conditional/parens branches, preventing crashes on unknown values or pathological nesting.
+- [x] Typed errors with `Unwrap()` across the package (`FileParseError`, `FileDecodeError`, `IncludeValidationError`, `LocalEvalError`, `MalformedDependencyError`, `AutoIncludeParserStageError`) preserving `hcl.Diagnostics` for source positions.
+- [x] Deterministic cycle reports in `LocalsCycleError.Names` (DFS dep iteration sorted).
+- [x] `resolveStackFilePath` returns `(string, bool)`: callers branch on `isStackCandidate` instead of a sentinel empty string. Backed by a two-arg fuzz that exercises raw/target independently.
+- [x] Removed Unicode from `internal/hclparse` source files (ASCII-only); intentional Unicode test fixtures remain.
+
+</Since>
+
+<Since version="1.0.7">
+
+- [x] The `.terragrunt-stack-origin` marker file is no longer written when nested stack files are copied into `.terragrunt-stack/<name>/`. Use `update_source_with_cas = true` (with the `cas` experiment enabled) on `unit` and `stack` blocks to keep relative `source` paths working in catalog stack files; relative attributes are rewritten to `cas::` references at generation time so the generated tree is self-contained.
 - [ ] Community feedback on `autoinclude` syntax and merge behavior
-- [ ] Integration with CAS for generated files
-- [ ] Performance validation at scale
+- [ ] Validate performance at scale
 
 </Since>

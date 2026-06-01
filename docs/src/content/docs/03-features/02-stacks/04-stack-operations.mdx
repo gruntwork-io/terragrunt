@@ -484,6 +484,23 @@ This integration also exists for the `apply` command, where the generated plan w
 $ terragrunt run --all --out-dir /tmp/tfplan -- apply
 ```
 
+<Aside type="note">
+
+Performing a `run --all --out-dir <dir> -- apply` requires that a plan already exists for each unit in the stack.
+If a plan is missing for any unit, the command will fail.
+
+If a plan job was scoped with `--filter`, you must pass the **same** `--filter` to the apply so the apply discovery set matches the artifact contents. For example:
+
+```bash
+# Plan `<unit>` and its dependencies:
+terragrunt run --all --filter '<unit>...' --out-dir /tmp/tfplan -- plan
+
+# Apply must reuse the same filter:
+terragrunt run --all --filter '<unit>...' --out-dir /tmp/tfplan -- apply
+```
+
+</Aside>
+
 For planning a destroy operation, use the following commands:
 
 ```bash

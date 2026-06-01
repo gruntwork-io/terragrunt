@@ -37,17 +37,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/mattn/go-shellwords"
 
+	"errors"
+
 	"github.com/NYTimes/gziphandler"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
-	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
@@ -81,7 +82,28 @@ const (
 	caKeyBits = 4096
 
 	semverPartsLen = 3
+
+	// cleanupTimeout caps the runtime of a cleanup helper invoked
+	// through CleanupContext. Two minutes is generous enough for
+	// S3/GCS/DynamoDB teardown including object listing and per-object
+	// deletion, short enough to bound a hung helper.
+	cleanupTimeout = 2 * time.Minute
 )
+
+// CleanupContext returns a context detached from t.Context()'s
+// cancellation signal so cleanup helpers run correctly when invoked
+// from t.Cleanup callbacks. By the time t.Cleanup fires, t.Context()
+// is already canceled and any SDK call against it returns immediately
+// with "context canceled", silently leaving cloud resources behind.
+//
+// The returned context inherits values from t.Context() (so SDK
+// instrumentation propagates) but does not inherit cancellation; a
+// fresh cleanupTimeout bounds the helper. Callers must call the
+// cancel function when done.
+func CleanupContext(t *testing.T) (context.Context, context.CancelFunc) {
+	t.Helper()
+	return context.WithTimeout(context.WithoutCancel(t.Context()), cleanupTimeout)
+}
 
 type TerraformOutput struct {
 	Type      any  `json:"Type"`
@@ -108,7 +130,7 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 		t,
 		util.CopyFolderContents(
 			logger.CreateLogger(),
-			environmentPath,
+			MustAbs(t, environmentPath),
 			filepath.Join(tmpDir, environmentPath),
 			".terragrunt-test",
 			util.WithIncludeInCopy(includeInCopy...),
@@ -116,6 +138,12 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 			util.WithFastCopy(),
 		),
 	)
+
+	// If the copied tree references the local git mirror via placeholder
+	// (e.g., fixtures under `fixtures/download/` include `hello-world`,
+	// whose main.tf has a `__MIRROR_URL__` source), substitute against
+	// the live mirror so terraform/tofu can resolve the URL.
+	applyMirrorSubst(t, tmpDir)
 
 	return tmpDir
 }
@@ -255,10 +283,13 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 
 	client := CreateS3ClientForTest(t, awsRegion, opts...)
 
+	ctx, cancel := CleanupContext(t)
+	defer cancel()
+
 	t.Logf("Deleting test s3 bucket %s", bucketName)
 
 	// First check if bucket exists
-	_, err := client.HeadBucket(t.Context(), &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
 	if err != nil {
 		if isAWSResourceNotFoundError(err) {
 			t.Logf("S3 bucket %s does not exist, cleanup already complete", bucketName)
@@ -268,9 +299,9 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 		t.Logf("Error checking if S3 bucket %s exists: %v", bucketName, err)
 	}
 
-	cleanS3Bucket(t, client, bucketName)
+	cleanS3Bucket(t, ctx, client, bucketName)
 
-	if _, err := client.DeleteBucket(t.Context(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+	if _, err := client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
 		if isAWSResourceNotFoundError(err) {
 			t.Logf("S3 bucket %s was already deleted", bucketName)
 			return nil
@@ -283,15 +314,15 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 		// Sleep for a little bit first to give the bucket a chance to be ready.
 		time.Sleep(1 * time.Second)
 
-		cleanS3Bucket(t, client, bucketName)
+		cleanS3Bucket(t, ctx, client, bucketName)
 
-		if _, err = client.DeleteBucket(t.Context(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		if _, err = client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
 			if isAWSResourceNotFoundError(err) {
 				t.Logf("S3 bucket %s was already deleted", bucketName)
 				return nil
 			}
 
-			t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
+			t.Errorf("Failed to delete S3 bucket %s: %v", bucketName, err)
 
 			return err
 		}
@@ -302,7 +333,7 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 	return nil
 }
 
-func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
+func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketName string) {
 	t.Helper()
 
 	versionsInput := &s3.ListObjectVersionsInput{
@@ -310,7 +341,7 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 	}
 
 	for {
-		out, err := client.ListObjectVersions(t.Context(), versionsInput)
+		out, err := client.ListObjectVersions(ctx, versionsInput)
 		if err != nil {
 			if isAWSResourceNotFoundError(err) {
 				t.Logf("S3 bucket %s does not exist, skipping cleanup", bucketName)
@@ -342,7 +373,7 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 				},
 			}
 
-			_, err := client.DeleteObjects(t.Context(), deleteInput)
+			_, err := client.DeleteObjects(ctx, deleteInput)
 			if err != nil {
 				if isAWSResourceNotFoundError(err) {
 					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
@@ -370,7 +401,7 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 				},
 			}
 
-			_, err := client.DeleteObjects(t.Context(), deleteInput)
+			_, err := client.DeleteObjects(ctx, deleteInput)
 			if err != nil {
 				if isAWSResourceNotFoundError(err) {
 					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
@@ -1170,7 +1201,7 @@ func RunTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer,
 			stderr = stderrAsBuffer.String()
 		}
 
-		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s", command, errors.ErrorStack(err), stdout, stderr)
+		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s", command, err.Error(), stdout, stderr)
 	}
 }
 

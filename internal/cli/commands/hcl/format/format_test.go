@@ -19,7 +19,7 @@ import (
 func TestHCLFmt(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp(helpers.MustAbs(t, "./testdata/fixtures"), t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -96,7 +96,7 @@ func TestHCLFmt(t *testing.T) {
 func TestHCLFmtErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-errors", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp(helpers.MustAbs(t, "../../../../../test/fixtures/hclfmt-errors"), t.Name(), func(path string) bool { return true })
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
 	})
@@ -130,7 +130,7 @@ func TestHCLFmtErrors(t *testing.T) {
 func TestHCLFmtCheck(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-check", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp(helpers.MustAbs(t, "../../../../../test/fixtures/hclfmt-check"), t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -174,7 +174,7 @@ func TestHCLFmtCheck(t *testing.T) {
 func TestHCLFmtCheckErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-check-errors", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp(helpers.MustAbs(t, "../../../../../test/fixtures/hclfmt-check-errors"), t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -217,7 +217,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 func TestHCLFmtFile(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp(helpers.MustAbs(t, "./testdata/fixtures"), t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -314,7 +314,7 @@ func TestHCLFmtStdin(t *testing.T) {
 func TestHCLFmtHeredoc(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-heredoc", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp(helpers.MustAbs(t, "../../../../../test/fixtures/hclfmt-heredoc"), t.Name(), func(path string) bool { return true })
 	defer os.RemoveAll(tmpPath)
 
 	require.NoError(t, err)
@@ -340,7 +340,7 @@ func TestRunForFiles(t *testing.T) {
 	t.Parallel()
 
 	tmpPath := t.TempDir()
-	err := util.CopyFolderContentsWithFilter(logger.CreateLogger(), filepath.Join(".", "testdata", "fixtures"), tmpPath, ".copymanifest", func(path string) bool { return true })
+	err := util.CopyFolderContentsWithFilter(logger.CreateLogger(), helpers.MustAbs(t, filepath.Join(".", "testdata", "fixtures")), tmpPath, ".copymanifest", func(path string) bool { return true })
 	require.NoError(t, err)
 
 	expected, err := util.ReadFileAsString(filepath.Join(".", "testdata", "fixtures", "expected.hcl"))
@@ -396,7 +396,7 @@ func TestRunForFilesEmptyList(t *testing.T) {
 func TestHCLFmtFilter(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp(helpers.MustAbs(t, "./testdata/fixtures"), t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -465,7 +465,7 @@ func TestHCLFmtFilter(t *testing.T) {
 func TestHCLFmtFilterMultiple(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp(helpers.MustAbs(t, "./testdata/fixtures"), t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -537,7 +537,7 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 func TestHCLFmtFilterNegation(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp(helpers.MustAbs(t, "./testdata/fixtures"), t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)

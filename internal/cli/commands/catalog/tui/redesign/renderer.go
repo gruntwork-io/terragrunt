@@ -8,6 +8,12 @@ import (
 // prepended content aligns with the rendered body.
 const glamourDocumentMargin = 2
 
+// noWrapColumnWidth is the wrap column glamour gets when soft-wrap is off.
+// Glamour's word-wrap can't be disabled outright (`0` collapses the
+// document), so a very wide value preserves the author's line breaks and
+// lets the viewport letterbox anything that overruns the terminal.
+const noWrapColumnWidth = 1 << 14
+
 // markdownRenderer returns a renderer matching the current width and
 // dark/light setting, reusing a cached one when both still match.
 //
@@ -24,9 +30,14 @@ func (m Model) markdownRenderer() (Model, *glamour.TermRenderer, error) {
 		style = "light"
 	}
 
+	wrap := m.width
+	if !m.softWrap {
+		wrap = noWrapColumnWidth
+	}
+
 	r, err := glamour.NewTermRenderer(
 		glamour.WithStandardStyle(style),
-		glamour.WithWordWrap(m.width),
+		glamour.WithWordWrap(wrap),
 	)
 	if err != nil {
 		return m, nil, err

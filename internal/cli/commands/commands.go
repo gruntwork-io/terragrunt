@@ -12,7 +12,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -20,9 +19,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+
+	"errors"
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/internal/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/backend"
@@ -40,7 +42,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/stack"
 	versioncmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -333,11 +334,11 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	if opts.TerraformVersion == nil {
-		_, ver, impl, err := run.PopulateTFVersion(
-			ctx, l, opts.WorkingDir,
-			opts.VersionManagerFileName,
-			configbridge.TFRunOptsFromOpts(opts),
-		)
+		_, ver, impl, err := run.PopulateTFVersion(ctx, l, vexec.NewOSExec(), run.PopulateTFVersionInput{
+			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+			WorkingDir:   opts.WorkingDir,
+			VersionFiles: opts.VersionManagerFileName,
+		})
 		if err != nil {
 			return err
 		}
@@ -351,7 +352,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	// Check if OpenTofu is being used
 	if tfImplementation != tfimpl.OpenTofu {
-		return errors.Errorf("auto provider cache dir requires OpenTofu, but detected %s", tfImplementation)
+		return fmt.Errorf("auto provider cache dir requires OpenTofu, but detected %s", tfImplementation)
 	}
 
 	// Check OpenTofu version > 1.10
@@ -361,11 +362,11 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	requiredVersion, err := version.NewVersion(minTofuVersionForAutoProviderCacheDir)
 	if err != nil {
-		return errors.Errorf("failed to parse required version: %w", err)
+		return fmt.Errorf("failed to parse required version: %w", err)
 	}
 
 	if terraformVersion.LessThan(requiredVersion) {
-		return errors.Errorf("auto provider cache dir requires OpenTofu version >= 1.10, but found %s", terraformVersion)
+		return fmt.Errorf("auto provider cache dir requires OpenTofu version >= 1.10, but found %s", terraformVersion)
 	}
 
 	// Set up the provider cache directory
@@ -373,7 +374,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	if providerCacheDir == "" {
 		cacheDir, err := util.EnsureCacheDir()
 		if err != nil {
-			return errors.Errorf("failed to get cache directory: %w", err)
+			return fmt.Errorf("failed to get cache directory: %w", err)
 		}
 
 		providerCacheDir = filepath.Join(cacheDir, "providers")
@@ -390,7 +391,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	// Create the cache directory if it doesn't exist
 	if err := os.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
-		return errors.Errorf("failed to create provider cache directory: %w", err)
+		return fmt.Errorf("failed to create provider cache directory: %w", err)
 	}
 
 	// Initialize environment variables map if it's nil
@@ -436,20 +437,20 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	opts.TerraformCommand = cmdName
 	opts.TerraformCliArgs = iacargs.New(args...)
 
-	opts.Env = env.Parse(os.Environ())
+	opts.Env = util.EnvironMap()
 
 	// --- Working Dir
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		opts.WorkingDir = currentDir
 	} else if !filepath.IsAbs(opts.WorkingDir) {
 		workingDir, err := filepath.Abs(opts.WorkingDir)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		opts.WorkingDir = workingDir
@@ -565,7 +566,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
 		if terragruntVersion, err = version.NewVersion("0.0"); err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 

@@ -6,8 +6,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 type CommonOption[T comparable] struct {
@@ -70,7 +68,7 @@ func NewIntValue(val int) *IntValue {
 func (val *IntValue) Parse(str string) error {
 	v, err := strconv.Atoi(str)
 	if err != nil {
-		return errors.Errorf("incorrect option value: %s", str)
+		return fmt.Errorf("incorrect option value: %s", str)
 	}
 
 	*val = IntValue(v)
@@ -113,7 +111,7 @@ func (val *MapValue[T]) Parse(str string) error {
 
 	list := slices.Sorted(maps.Values(val.list))
 
-	return errors.Errorf("available values: %s", strings.Join(list, ","))
+	return fmt.Errorf("available values: %s", strings.Join(list, ","))
 }
 
 func (val *MapValue[T]) Filter(vals ...T) MapValue[T] {

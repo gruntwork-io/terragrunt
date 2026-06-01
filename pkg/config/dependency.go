@@ -31,7 +31,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -102,46 +101,70 @@ func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 		dep.SkipOutputs = sourceDepConfig.SkipOutputs
 	}
 
-	if sourceDepConfig.MockOutputs != nil {
-		if dep.MockOutputs == nil {
-			dep.MockOutputs = sourceDepConfig.MockOutputs
-		} else {
-			newMockOutputs, err := deepMergeCtyMaps(*dep.MockOutputs, *sourceDepConfig.MockOutputs)
-			if err != nil {
-				return err
-			}
-
-			dep.MockOutputs = newMockOutputs
-		}
+	if err := dep.mergeMockOutputs(sourceDepConfig); err != nil {
+		return err
 	}
 
-	if sourceDepConfig.MockOutputsAllowedTerraformCommands != nil {
-		if dep.MockOutputsAllowedTerraformCommands == nil {
-			dep.MockOutputsAllowedTerraformCommands = sourceDepConfig.MockOutputsAllowedTerraformCommands
-		} else {
-			mergedCmds := append(*dep.MockOutputsAllowedTerraformCommands, *sourceDepConfig.MockOutputsAllowedTerraformCommands...)
-			dep.MockOutputsAllowedTerraformCommands = &mergedCmds
-		}
-	}
+	dep.mergeMockOutputsAllowedTerraformCommands(sourceDepConfig)
 
 	return nil
 }
 
-// getMockOutputsMergeStrategy returns the MergeStrategyType following the deprecation of mock_outputs_merge_with_state
-// - If mock_outputs_merge_strategy_with_state is not null. The value of mock_outputs_merge_strategy_with_state will be returned
-// - If mock_outputs_merge_strategy_with_state is null and mock_outputs_merge_with_state is not null:
-//   - mock_outputs_merge_with_state being true returns ShallowMerge
-//   - mock_outputs_merge_with_state being false returns NoMerge
-func (dep *Dependency) getMockOutputsMergeStrategy() MergeStrategyType {
-	if dep.MockOutputsMergeStrategyWithState == nil {
-		if dep.MockOutputsMergeWithState != nil && (*dep.MockOutputsMergeWithState) {
-			return ShallowMerge
-		} else {
-			return NoMerge
-		}
+// mergeMockOutputs deep-merges sourceDepConfig.MockOutputs into dep.MockOutputs, adopting the source pointer when dep is unset and skipping when both sides point at the same value.
+func (dep *Dependency) mergeMockOutputs(sourceDepConfig *Dependency) error {
+	if sourceDepConfig.MockOutputs == nil {
+		return nil
 	}
 
-	return *dep.MockOutputsMergeStrategyWithState
+	if dep.MockOutputs == nil {
+		dep.MockOutputs = sourceDepConfig.MockOutputs
+		return nil
+	}
+
+	if dep.MockOutputs == sourceDepConfig.MockOutputs {
+		return nil
+	}
+
+	merged, err := deepMergeCtyMaps(*dep.MockOutputs, *sourceDepConfig.MockOutputs)
+	if err != nil {
+		return err
+	}
+
+	dep.MockOutputs = merged
+
+	return nil
+}
+
+// mergeMockOutputsAllowedTerraformCommands concatenates source commands onto dep's, adopting the source pointer when dep is unset and skipping when both sides point at the same slice.
+func (dep *Dependency) mergeMockOutputsAllowedTerraformCommands(sourceDepConfig *Dependency) {
+	if sourceDepConfig.MockOutputsAllowedTerraformCommands == nil {
+		return
+	}
+
+	if dep.MockOutputsAllowedTerraformCommands == nil {
+		dep.MockOutputsAllowedTerraformCommands = sourceDepConfig.MockOutputsAllowedTerraformCommands
+		return
+	}
+
+	if dep.MockOutputsAllowedTerraformCommands == sourceDepConfig.MockOutputsAllowedTerraformCommands {
+		return
+	}
+
+	merged := append(*dep.MockOutputsAllowedTerraformCommands, *sourceDepConfig.MockOutputsAllowedTerraformCommands...)
+	dep.MockOutputsAllowedTerraformCommands = &merged
+}
+
+// getMockOutputsMergeStrategy returns the merge strategy for mock outputs, prioritizing mock_outputs_merge_strategy_with_state over the deprecated mock_outputs_merge_with_state boolean and defaulting to NoMerge.
+func (dep *Dependency) getMockOutputsMergeStrategy() MergeStrategyType {
+	if dep.MockOutputsMergeStrategyWithState != nil {
+		return *dep.MockOutputsMergeStrategyWithState
+	}
+
+	if dep.MockOutputsMergeWithState != nil && (*dep.MockOutputsMergeWithState) {
+		return ShallowMerge
+	}
+
+	return NoMerge
 }
 
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
@@ -207,7 +230,7 @@ func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
 func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File) (*cty.Value, error) {
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +258,7 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 				continue
 			}
 
-			return nil, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
+			return nil, DependencyInvalidConfigPathError{DependencyName: dep.Name}
 		}
 	}
 
@@ -296,7 +319,7 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 				continue
 			}
 
-			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
+			return &updatedDependencies, DependencyInvalidConfigPathError{DependencyName: dep.Name}
 		}
 
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), pctx.TerragruntConfigPath)
@@ -345,7 +368,7 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 		inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
 		if err != nil {
-			return nil, errors.Errorf("failed to convert inputs for dependency %q: %w", dep.Name, err)
+			return nil, fmt.Errorf("failed to convert inputs for dependency %q: %w", dep.Name, err)
 		}
 
 		cachedValue := dependencyOutputCache{
@@ -407,7 +430,7 @@ func checkForDependencyBlockCycles(ctx context.Context, pctx *ParsingContext, l 
 				continue
 			}
 
-			return errors.New(DependencyInvalidConfigPathError{DependencyName: dependency.Name})
+			return DependencyInvalidConfigPathError{DependencyName: dependency.Name}
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
@@ -447,7 +470,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 
 	if slices.Contains(*currentTraversalPaths, dependencyPath) {
-		return errors.New(DependencyCycleError(append(*currentTraversalPaths, dependencyPath)))
+		return DependencyCycleError(append(*currentTraversalPaths, dependencyPath))
 	}
 
 	*currentTraversalPaths = append(*currentTraversalPaths, dependencyPath)
@@ -522,7 +545,7 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 
 			// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
 			if err := dependencyConfig.setRenderedOutputs(ctx, pctx, l); err != nil {
-				return errors.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
+				return fmt.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
 			}
 
 			if dependencyConfig.RenderedOutputs != nil {
@@ -582,7 +605,7 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 		err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
 	}
 
-	return &convertedOutput, errors.New(err)
+	return &convertedOutput, err
 }
 
 // This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
@@ -618,7 +641,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 			case DeepMergeMapOnly:
 				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
 			default:
-				return nil, errors.New(InvalidMergeStrategyTypeError(mockMergeStrategy))
+				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
 			}
 		} else if !isEmpty {
 			return outputVal, err
@@ -695,7 +718,7 @@ func getTerragruntOutput(
 	}
 
 	if !util.FileExists(targetConfigPath) {
-		return nil, true, errors.New(DependencyConfigNotFound{Path: targetConfigPath})
+		return nil, true, DependencyConfigNotFound{Path: targetConfigPath}
 	}
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, targetConfigPath)
@@ -731,16 +754,15 @@ func getTerragruntOutput(
 		err = TerragruntOutputEncodingError{Path: targetConfigPath, Err: err}
 	}
 
-	return &convertedOutput, isEmpty, errors.New(err)
+	return &convertedOutput, isEmpty, err
 }
 
-// collectStackUnitOutputs iterates over stack units, reads their cached
-// terraform outputs, and returns them as a map keyed by unit name.
-func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, stackDir string, units []*Unit) map[string]cty.Value {
+// collectStackUnitOutputs aggregates per-unit outputs keyed by unit name for dependency.<stack>.outputs.<unit>.<key> resolution.
+func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, stackDir string, units []*Unit) (map[string]cty.Value, error) {
 	unitOutputs := make(map[string]cty.Value)
 
 	for _, unit := range units {
-		unitDir := GetUnitDir(stackDir, unit)
+		unitDir := unit.GeneratedPath(stackDir)
 		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 
 		if !util.FileExists(unitConfigPath) {
@@ -751,31 +773,25 @@ func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
 		if err != nil {
-			l.Warnf("Failed to get output for stack unit %s: %v", unit.Name, err)
-
-			continue
+			return nil, fmt.Errorf("stack unit %s output fetch failed: %w", unit.Name, err)
 		}
 
 		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
 		if err != nil {
-			l.Warnf("Failed to parse output for stack unit %s: %v", unit.Name, err)
-
-			continue
+			return nil, fmt.Errorf("stack unit %s output parse failed: %w", unit.Name, err)
 		}
 
 		if len(outputMap) > 0 {
 			convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
 			if err != nil {
-				l.Warnf("Failed to convert output map for stack unit %s: %v", unit.Name, err)
-
-				continue
+				return nil, fmt.Errorf("stack unit %s output convert failed: %w", unit.Name, err)
 			}
 
 			unitOutputs[unit.Name] = convertedOutput
 		}
 	}
 
-	return unitOutputs
+	return unitOutputs, nil
 }
 
 // tryGetStackOutput checks if targetConfigPath points to a stack directory
@@ -789,11 +805,9 @@ func tryGetStackOutput(
 	targetConfigPath string,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
-	// Check if the path is a directory containing a stack file
-	stackFilePath := targetConfigPath
-
-	if filepath.Base(stackFilePath) != DefaultStackFile {
-		stackFilePath = filepath.Join(targetConfigPath, DefaultStackFile)
+	stackFilePath, isStackCandidate := resolveStackFilePath(dependencyConfig.ConfigPath.AsString(), targetConfigPath)
+	if !isStackCandidate {
+		return nil, false, nil
 	}
 
 	if !util.FileExists(stackFilePath) {
@@ -808,16 +822,19 @@ func tryGetStackOutput(
 	// mirroring the GenerateStackFile flow so stacks using values.* work.
 	stackValues, err := ReadValues(ctx, pctx, l, stackDir)
 	if err != nil {
-		return nil, true, errors.Errorf("failed to read values for stack %s: %w", stackFilePath, err)
+		return nil, true, fmt.Errorf("failed to read values for stack %s: %w", stackFilePath, err)
 	}
 
 	// Parse the stack config to discover units
 	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, stackValues)
 	if err != nil {
-		return nil, true, errors.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
+		return nil, true, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
-	unitOutputs := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
+	unitOutputs, err := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
+	if err != nil {
+		return nil, true, fmt.Errorf("failed to collect stack unit outputs for %s: %w", stackFilePath, err)
+	}
 
 	if len(unitOutputs) == 0 {
 		return nil, true, nil
@@ -826,6 +843,26 @@ func tryGetStackOutput(
 	result := cty.ObjectVal(unitOutputs)
 
 	return &result, true, nil
+}
+
+// resolveStackFilePath returns the candidate terragrunt.stack.hcl path for a dependency target; ok=false when the dep points at a unit config.
+func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool) {
+	switch filepath.Base(filepath.Clean(rawConfigPath)) {
+	case DefaultStackFile:
+		// Honor the contract even when target is malformed: anchor on target's directory.
+		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile), true
+	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
+		return "", false
+	}
+
+	switch filepath.Base(targetConfigPath) {
+	case DefaultStackFile:
+		return targetConfigPath, true
+	case DefaultTerragruntConfigPath, DefaultTerragruntJSONConfigPath:
+		return filepath.Join(filepath.Dir(targetConfigPath), DefaultStackFile), true
+	default:
+		return filepath.Join(targetConfigPath, DefaultStackFile), true
+	}
 }
 
 func isAwsS3NoSuchKey(err error) bool {
@@ -931,7 +968,7 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 		// To make parsing robust to either, isolate the first JSON object in the buffer.
 		trimmed, trimErr := extractFirstJSONObject(fetched)
 		if trimErr != nil {
-			return errors.New(TerragruntOutputParsingError{Path: targetConfig, Err: trimErr})
+			return TerragruntOutputParsingError{Path: targetConfig, Err: trimErr}
 		}
 
 		newJSONBytes = trimmed
@@ -1461,47 +1498,44 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	runWriters := pctx.Writers
 	runWriters.Writer = stdoutBufferWriter
 
-	runOpts := &run.Options{
-		Writers:                      runWriters,
-		TerragruntConfigPath:         pctx.TerragruntConfigPath,
-		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
-		WorkingDir:                   pctx.WorkingDir,
-		RootWorkingDir:               pctx.RootWorkingDir,
-		DownloadDir:                  pctx.DownloadDir,
-		Source:                       pctx.Source,
-		SourceMap:                    pctx.SourceMap,
-		TerraformCommand:             pctx.TerraformCommand,
-		OriginalTerraformCommand:     pctx.OriginalTerraformCommand,
-		TerraformCliArgs:             pctx.TerraformCliArgs,
-		Env:                          pctx.Env,
-		IAMRoleOptions:               pctx.IAMRoleOptions,
-		OriginalIAMRoleOptions:       pctx.OriginalIAMRoleOptions,
-		Experiments:                  pctx.Experiments,
-		StrictControls:               pctx.StrictControls,
-		FeatureFlags:                 pctx.FeatureFlags,
-		EngineConfig:                 pctx.EngineConfig,
-		EngineOptions:                pctx.EngineOptions,
-		TFPath:                       pctx.TFPath,
-		TofuImplementation:           pctx.TofuImplementation,
-		ForwardTFStdout:              false,
-		JSONLogFormat:                false,
-		Headless:                     pctx.Headless,
-		Debug:                        pctx.Debug,
-		AutoInit:                     pctx.AutoInit,
-		BackendBootstrap:             pctx.BackendBootstrap,
-		Telemetry:                    pctx.Telemetry,
-		AuthProviderCmd:              pctx.AuthProviderCmd,
-		CASCloneDepth:                pctx.CASCloneDepth,
-	}
+	runOpts := run.NewOptions()
+	runOpts.Writers = runWriters
+	runOpts.TerragruntConfigPath = pctx.TerragruntConfigPath
+	runOpts.OriginalTerragruntConfigPath = pctx.OriginalTerragruntConfigPath
+	runOpts.WorkingDir = pctx.WorkingDir
+	runOpts.RootWorkingDir = pctx.RootWorkingDir
+	runOpts.DownloadDir = pctx.DownloadDir
+	runOpts.Source = pctx.Source
+	runOpts.SourceMap = pctx.SourceMap
+	runOpts.TerraformCommand = pctx.TerraformCommand
+	runOpts.OriginalTerraformCommand = pctx.OriginalTerraformCommand
+	runOpts.TerraformCliArgs = pctx.TerraformCliArgs
+	runOpts.Env = pctx.Env
+	runOpts.IAMRoleOptions = pctx.IAMRoleOptions
+	runOpts.OriginalIAMRoleOptions = pctx.OriginalIAMRoleOptions
+	runOpts.Experiments = pctx.Experiments
+	runOpts.StrictControls = pctx.StrictControls
+	runOpts.FeatureFlags = pctx.FeatureFlags
+	runOpts.EngineConfig = pctx.EngineConfig
+	runOpts.EngineOptions = pctx.EngineOptions
+	runOpts.TFPath = pctx.TFPath
+	runOpts.TofuImplementation = pctx.TofuImplementation
+	runOpts.Headless = pctx.Headless
+	runOpts.Debug = pctx.Debug
+	runOpts.AutoInit = pctx.AutoInit
+	runOpts.BackendBootstrap = pctx.BackendBootstrap
+	runOpts.Telemetry = pctx.Telemetry
+	runOpts.AuthProviderCmd = pctx.AuthProviderCmd
+	runOpts.CASCloneDepth = pctx.CASCloneDepth
 
 	err = run.Run(ctx, l, runOpts, report.NewReport(), runCfg, credsGetter)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	err = stdoutBufferWriter.Flush()
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	jsonString := strings.TrimSpace(stdoutBuffer.String())
@@ -1552,7 +1586,7 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 
 	err := json.Unmarshal(jsonBytes, &outputs)
 	if err != nil {
-		return nil, errors.New(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
+		return nil, TerragruntOutputParsingError{Path: targetConfigPath, Err: err}
 	}
 
 	flattenedOutput := map[string]cty.Value{}
@@ -1560,12 +1594,12 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 	for k, v := range outputs {
 		outputType, err := ctyjson.UnmarshalType(v.Type)
 		if err != nil {
-			return nil, errors.New(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
+			return nil, TerragruntOutputParsingError{Path: targetConfigPath, Err: err}
 		}
 
 		outputVal, err := ctyjson.Unmarshal(v.Value, outputType)
 		if err != nil {
-			return nil, errors.New(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
+			return nil, TerragruntOutputParsingError{Path: targetConfigPath, Err: err}
 		}
 
 		flattenedOutput[k] = outputVal

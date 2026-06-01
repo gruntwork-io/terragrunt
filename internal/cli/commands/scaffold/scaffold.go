@@ -23,11 +23,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
+	"errors"
+
 	"github.com/gruntwork-io/boilerplate/manifest"
 	boilerplateoptions "github.com/gruntwork-io/boilerplate/options"
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -81,7 +82,11 @@ inputs = {
     {{- end }}
   {{- end }}
   # Type: {{ .Type }}
+  {{- if .UserValue }}
+  {{ .Name }} = {{ .UserValue }}
+  {{- else }}
   {{ .Name }} = {{ .DefaultValuePlaceholder }}  # TODO: fill in value
+  {{- end }}
   {{ end }}
 
   # --------------------------------------------------------------------------------------------------------------------
@@ -98,7 +103,7 @@ inputs = {
     {{- end }}
   {{- end }}
   # Type: {{ .Type }}
-  # {{ .Name }} = {{ .DefaultValue }}
+  {{ if .UserValue }}{{ .Name }} = {{ .UserValue }}{{ else }}# {{ .Name }} = {{ .DefaultValue }}{{ end }}
   {{ end }}
 }
 `
@@ -132,20 +137,50 @@ func NewBoilerplateOptions(
 	}
 }
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, moduleURL, templateURL string) error {
+// Plan captures the state of a scaffold preparation: the source module has
+// been downloaded, its variables parsed, and the boilerplate template
+// located. Generate finishes the render, optionally injecting user-supplied
+// HCL fragments via the values argument, and Cleanup removes the temporary
+// directories Prepare allocated. Callers must invoke Cleanup exactly once,
+// typically via defer.
+//
+//nolint:govet // field order chosen for readability over alignment
+type Plan struct {
+	logger            log.Logger
+	Required          []*config.ParsedVariable
+	Optional          []*config.ParsedVariable
+	tempDirs          []string
+	vars              map[string]any
+	boilerplateDir    string
+	originalModuleURL string
+	resolvedModuleURL string
+	outputDir         string
+}
+
+// Cleanup removes the temporary directories allocated during Prepare.
+// Safe to call more than once; subsequent calls are no-ops.
+func (p *Plan) Cleanup() {
+	for _, dir := range p.tempDirs {
+		if err := os.RemoveAll(dir); err != nil {
+			p.logger.Warnf("Failed to clean up dir %s: %v", dir, err)
+		}
+	}
+
+	p.tempDirs = nil
+}
+
+// Prepare downloads the source module and template, parses the module's
+// variable blocks, and returns a Plan ready for rendering. The caller is
+// responsible for invoking Plan.Cleanup() (typically via defer) once it has
+// either rendered the result via Generate or decided to abandon the work.
+func Prepare(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	moduleURL, templateURL string,
+) (*Plan, error) {
 	// Apply catalog configuration settings, with CLI flags taking precedence
 	applyCatalogConfigToScaffold(ctx, l, opts)
-
-	// download remote repo to local
-	dirsToClean := make([]string, 0, 1)
-	// clean all temp dirs
-	defer func() {
-		for _, dir := range dirsToClean {
-			if err := os.RemoveAll(dir); err != nil {
-				l.Warnf("Failed to clean up dir %s: %v", dir, err)
-			}
-		}
-	}()
 
 	outputDir := opts.ScaffoldOutputFolder
 	if outputDir == "" {
@@ -155,14 +190,14 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	// scaffold only in empty directories
 	if empty, err := util.IsDirectoryEmpty(opts.WorkingDir); !empty || err != nil {
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		l.Warnf("The working directory %s is not empty.", opts.WorkingDir)
 	}
 
 	if moduleURL == "" {
-		return errors.New(NoModuleURLPassed{})
+		return nil, NoModuleURLPassed{}
 	}
 
 	moduleURL = tf.RewriteLegacyGCSPublicSource(ctx, l, moduleURL, opts.StrictControls)
@@ -171,96 +206,120 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	// create temporary directory where to download module
 	tempDir, err := os.MkdirTemp("", "scaffold")
 	if err != nil {
-		return errors.New(err)
+		return nil, err
 	}
 
-	dirsToClean = append(dirsToClean, tempDir)
+	plan := &Plan{
+		logger:    l,
+		outputDir: outputDir,
+		tempDirs:  []string{tempDir},
+	}
+
+	// On any error after this point, clean up the temp dir we just created
+	// so a partial Prepare doesn't leak.
+	success := false
+
+	defer func() {
+		if !success {
+			plan.Cleanup()
+		}
+	}()
 
 	// prepare variables
 	vars, err := variables.ParseVars(opts.ScaffoldVars, opts.ScaffoldVarFiles)
 	if err != nil {
-		return errors.New(err)
+		return nil, err
 	}
 
 	// Save the original URL before go-getter transformation so the scaffolded
 	// source attribute matches the catalog config format.
-	originalModuleURL := moduleURL
+	plan.originalModuleURL = moduleURL
 
 	// parse module url (transforms for go-getter download)
-	moduleURL, err = parseModuleURL(ctx, l, opts, vars, moduleURL)
+	resolvedURL, err := parseModuleURL(ctx, l, opts, vars, moduleURL)
 	if err != nil {
-		return errors.New(err)
+		return nil, err
 	}
 
-	l.Debugf("Scaffolding a new Terragrunt module %s to %s", moduleURL, outputDir)
+	plan.resolvedModuleURL = resolvedURL
+
+	l.Debugf("Scaffolding a new Terragrunt module %s to %s", resolvedURL, outputDir)
 
 	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_module", map[string]any{
-		"module_url": moduleURL,
+		"module_url": resolvedURL,
 	}, func(ctx context.Context) error {
-		if _, getErr := getter.GetAny(ctx, tempDir, moduleURL); getErr != nil {
-			return fmt.Errorf("downloading scaffold module from %s: %w", moduleURL, getErr)
+		if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL); getErr != nil {
+			return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
 		}
 
 		return nil
 	}); err != nil {
-		return errors.New(err)
+		return nil, err
 	}
 
 	// extract variables from downloaded module
 	requiredVariables, optionalVariables, err := parseVariables(l, opts, tempDir)
 	if err != nil {
-		return errors.New(err)
+		return nil, err
 	}
+
+	plan.Required = requiredVariables
+	plan.Optional = optionalVariables
 
 	l.Debugf("Parsed %d required variables and %d optional variables", len(requiredVariables), len(optionalVariables))
 
 	// prepare boilerplate files to render Terragrunt files
 	boilerplateDir, err := prepareBoilerplateFiles(ctx, l, opts, templateURL, tempDir)
 	if err != nil {
-		return errors.New(err)
+		return nil, err
 	}
+
+	plan.boilerplateDir = boilerplateDir
+	plan.vars = vars
+
+	success = true
+
+	return plan, nil
+}
+
+// Generate renders the prepared scaffold into the output directory. When
+// values is non-nil, each entry replaces the matching parsed variable's
+// UserValue, so the template emits a real HCL assignment instead of the
+// `# TODO: fill in value` placeholder. Variables not present in values
+// fall through to the placeholder line.
+func (p *Plan) Generate(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	values map[string]string,
+) error {
+	applyUserValues(p.Required, values)
+	applyUserValues(p.Optional, values)
 
 	// add additional variables
-	vars["requiredVariables"] = requiredVariables
-	vars["optionalVariables"] = optionalVariables
+	p.vars["requiredVariables"] = p.Required
+	p.vars["optionalVariables"] = p.Optional
 
 	// Build sourceUrl from the original URL with the ref that parseModuleURL resolved.
-	vars["sourceUrl"] = BuildSourceURL(originalModuleURL, moduleURL, vars)
+	p.vars["sourceUrl"] = BuildSourceURL(p.originalModuleURL, p.resolvedModuleURL, p.vars)
 
 	// Only set these if the `vars` map doesn't already have them set
-	if _, found := vars[enableRootInclude]; !found {
-		vars[enableRootInclude] = !opts.ScaffoldNoIncludeRoot
-	} else {
-		l.Warnf(
-			"The %s variable is already set in the var flag(s). The --%s flag will be ignored.",
-			enableRootInclude,
-			shared.NoIncludeRootFlagName,
-		)
-	}
+	setVarDefault(l, p.vars, enableRootInclude, !opts.ScaffoldNoIncludeRoot, shared.NoIncludeRootFlagName)
+	setVarDefault(l, p.vars, rootFileName, opts.ScaffoldRootFileName, shared.RootFileNameFlagName)
 
-	if _, found := vars[rootFileName]; !found {
-		vars[rootFileName] = opts.ScaffoldRootFileName
-	} else {
-		l.Warnf(
-			"The %s variable is already set in the var flag(s). The --%s flag will be ignored.",
-			rootFileName,
-			shared.NoIncludeRootFlagName,
-		)
-	}
-
-	l.Debugf("Running boilerplate generation to %s", outputDir)
-	boilerplateOpts := NewBoilerplateOptions(boilerplateDir, outputDir, vars, opts)
+	l.Debugf("Running boilerplate generation to %s", p.outputDir)
+	boilerplateOpts := NewBoilerplateOptions(p.boilerplateDir, p.outputDir, p.vars, opts)
 
 	emptyDep := &variables.Dependency{}
 
-	result, err := templates.ProcessTemplateWithContext(ctx, boilerplateOpts, boilerplateOpts, emptyDep)
+	result, err := templates.ProcessTemplateWithContext(ctx, l, boilerplateOpts, boilerplateOpts, emptyDep)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	depFiles, err := collectDependencyFiles(result.Dependencies, 0)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	allFiles := slices.Concat(result.GeneratedFiles, depFiles)
@@ -271,15 +330,65 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 
 	allFiles = slices.Compact(slices.Sorted(slices.Values(allFiles)))
 
-	l.Debugf("Running fmt on generated code %s", outputDir)
+	l.Debugf("Running fmt on generated code %s", p.outputDir)
 
-	if err := format.RunForFiles(ctx, l, opts, outputDir, allFiles); err != nil {
-		return errors.New(err)
+	if err := format.RunForFiles(ctx, l, opts, p.outputDir, allFiles); err != nil {
+		return err
 	}
 
 	l.Debug("Scaffolding completed")
 
 	return nil
+}
+
+// setVarDefault writes value to vars[key] when the key is absent; if
+// it's already set, it logs a warning that flagName will be ignored.
+func setVarDefault(l log.Logger, vars map[string]any, key string, value any, flagName string) {
+	if _, found := vars[key]; found {
+		l.Warnf(
+			"The %s variable is already set in the var flag(s). The --%s flag will be ignored.",
+			key,
+			flagName,
+		)
+
+		return
+	}
+
+	vars[key] = value
+}
+
+// applyUserValues copies non-empty entries from values onto the matching
+// ParsedVariable.UserValue, so the template emits the supplied HCL fragment
+// instead of the TODO placeholder line. Empty values are treated as
+// "not supplied" and leave the existing UserValue untouched.
+func applyUserValues(vars []*config.ParsedVariable, values map[string]string) {
+	if len(values) == 0 {
+		return
+	}
+
+	for _, v := range vars {
+		val, ok := values[v.Name]
+		if !ok || val == "" {
+			continue
+		}
+
+		v.UserValue = val
+	}
+}
+
+// Run downloads the source module, discovers its variables, and renders a
+// terragrunt.hcl with `# TODO: fill in value` placeholders for every input.
+// It is the non-interactive entry point used by the CLI scaffold command and
+// the catalog TUI's `S` (placeholder) keybind.
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, moduleURL, templateURL string) error {
+	plan, err := Prepare(ctx, l, opts, moduleURL, templateURL)
+	if err != nil {
+		return err
+	}
+
+	defer plan.Cleanup()
+
+	return plan.Generate(ctx, l, opts, nil)
 }
 
 // BuildSourceURL returns the original module URL with the ref query param
@@ -379,7 +488,7 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 		[]byte(DefaultTerragruntTemplate),
 		ownerWriteGlobalReadPerms,
 	); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	if err := os.WriteFile(
@@ -390,7 +499,7 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 		[]byte(DefaultBoilerplateConfig),
 		ownerWriteGlobalReadPerms,
 	); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	return boilerplateDir, nil
@@ -406,13 +515,13 @@ func downloadTemplate(
 ) (string, error) {
 	parsedTemplateURL, err := tf.ToSourceURL(templateURL, tempDir)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	// Split the processed URL to get the base URL and subfolder
 	baseURL, subFolder, err := tf.SplitSourceURL(l, parsedTemplateURL)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	// Go-getter expects a pathspec or . for file paths
@@ -422,12 +531,12 @@ func downloadTemplate(
 
 	baseURL, err = rewriteTemplateURL(ctx, l, opts, baseURL)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	templateDir, err := os.MkdirTemp(tempDir, "template")
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	l.Debugf("Downloading template from %s into %s", baseURL.String(), templateDir)
@@ -442,7 +551,7 @@ func downloadTemplate(
 
 		return nil
 	}); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	// Add subfolder to templateDir if provided, as scaffold needs path to boilerplate.yml file
@@ -451,7 +560,7 @@ func downloadTemplate(
 		templateDir = filepath.Join(templateDir, subFolder)
 		// Verify that subfolder exists
 		if _, err := os.Stat(templateDir); errors.Is(err, fs.ErrNotExist) {
-			return "", errors.Errorf(
+			return "", fmt.Errorf(
 				"subfolder \"//%s\" not found in downloaded template from %s",
 				subFolder,
 				templateURL,
@@ -477,7 +586,7 @@ func prepareBoilerplateFiles(
 		// process template url if it was passed
 		tempTemplateDir, err := downloadTemplate(ctx, l, opts, templateURL, tempDir)
 		if err != nil {
-			return "", errors.New(err)
+			return "", err
 		}
 
 		boilerplateDir = tempTemplateDir
@@ -489,7 +598,7 @@ func prepareBoilerplateFiles(
 
 		config, err := config.ReadCatalogConfig(ctx, l, pctx)
 		if err != nil {
-			return "", errors.New(err)
+			return "", err
 		}
 
 		// use defaultTemplateURL if defined in config, otherwise use basic default template
@@ -497,21 +606,21 @@ func prepareBoilerplateFiles(
 			// process template url if available
 			tempTemplateDir, err := downloadTemplate(ctx, l, opts, config.DefaultTemplate, tempDir)
 			if err != nil {
-				return "", errors.New(err)
+				return "", err
 			}
 
 			boilerplateDir = tempTemplateDir
 		} else {
 			defaultTempDir, err := os.MkdirTemp(tempDir, "boilerplate")
 			if err != nil {
-				return "", errors.New(err)
+				return "", err
 			}
 
 			boilerplateDir = defaultTempDir
 
 			boilerplateDir, err = generateDefaultTemplate(boilerplateDir)
 			if err != nil {
-				return "", errors.New(err)
+				return "", err
 			}
 		}
 	}
@@ -527,7 +636,7 @@ func parseVariables(
 ) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
 	inputs, err := config.ParseVariables(l, opts.Experiments, opts.StrictControls, moduleDir)
 	if err != nil {
-		return nil, nil, errors.New(err)
+		return nil, nil, err
 	}
 
 	// separate variables that require value and with default value
@@ -557,7 +666,7 @@ func parseModuleURL(
 ) (string, error) {
 	parsedModuleURL, err := tf.ToSourceURL(moduleURL, opts.WorkingDir)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	moduleURL = parsedModuleURL.String()
@@ -565,13 +674,13 @@ func parseModuleURL(
 	// rewrite module url, if required
 	parsedModuleURL, err = rewriteModuleURL(l, opts, vars, moduleURL)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	// add ref to module url, if required
 	parsedModuleURL, err = addRefToModuleURL(ctx, l, opts, parsedModuleURL, vars)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	// regenerate module url with all changes
@@ -601,7 +710,7 @@ func rewriteModuleURL(
 
 		parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 
 		return parsedModuleURL, nil
@@ -622,7 +731,7 @@ func rewriteModuleURL(
 	// persist changes in url.URL
 	parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return parsedModuleURL, nil
@@ -646,7 +755,7 @@ func rewriteTemplateURL(
 	if ref == "" {
 		rootSourceURL, _, err := tf.SplitSourceURL(l, updatedTemplateURL)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 
 		if rootSourceURL.Scheme == "" || rootSourceURL.Scheme == "file" {
@@ -691,7 +800,7 @@ func addRefToModuleURL(
 		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
 		rootSourceURL, _, err := tf.SplitSourceURL(l, moduleURL)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 
 		tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
@@ -733,7 +842,7 @@ const maxDependencyDepth = 100
 // dependencies and their nested sub-dependencies up to maxDependencyDepth.
 func collectDependencyFiles(deps []manifest.ManifestDependency, depth int) ([]string, error) {
 	if depth >= maxDependencyDepth {
-		return nil, errors.New(MaxDependencyDepthExceededError{})
+		return nil, MaxDependencyDepthExceededError{}
 	}
 
 	var files []string

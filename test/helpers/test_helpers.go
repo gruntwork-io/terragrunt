@@ -25,6 +25,21 @@ func IsWindows() bool {
 	return runtime.GOOS == "windows"
 }
 
+// MustAbs resolves rel against the Go test process working directory.
+// [util.CopyFolderContents] and related helpers require absolute paths
+// so their dest-inside-source guard isn't fooled by Terragrunt's
+// `--working-dir`, which detaches the runtime working directory from
+// the Go process CWD. In tests there's no such flag, so resolving
+// against the test process working directory is safe.
+func MustAbs(t *testing.T, rel string) string {
+	t.Helper()
+
+	abs, err := filepath.Abs(rel)
+	require.NoError(t, err)
+
+	return abs
+}
+
 func ValidateHookTraceParent(t *testing.T, hook, str string) {
 	t.Helper()
 

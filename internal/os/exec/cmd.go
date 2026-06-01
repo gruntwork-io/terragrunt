@@ -15,7 +15,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
 )
 
 // DefaultGracefulShutdownDelay is the default time to wait for a process to exit
@@ -123,7 +123,7 @@ func (cmd *Cmd) Start(l log.Logger) error {
 	}
 
 	if err := cmd.vc.Start(); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil

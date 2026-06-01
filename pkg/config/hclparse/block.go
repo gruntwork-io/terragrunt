@@ -1,7 +1,6 @@
 package hclparse
 
 import (
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
 )
 
@@ -24,7 +23,7 @@ func (block *Block) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := block.Body.JustAttributes()
 
 	if err := block.HandleDiagnostics(diags); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	attrs := NewAttributes(block.File, hclAttrs)

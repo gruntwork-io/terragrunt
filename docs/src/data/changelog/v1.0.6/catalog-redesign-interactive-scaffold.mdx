@@ -1,0 +1,24 @@
+---
+version: "v1.0.6"
+category: "experiments-updated"
+---
+
+#### `catalog-redesign` — Interactive scaffold form on `s`
+
+Pressing `s` from the catalog list or detail view opens an in-TUI form that prompts for every variable/value the selected component exposes. The form is modal: in navigate mode `j` and `k` (or the arrow keys) move between fields and `enter` interacts with the focused one. Required entries are flagged, and optional entries show their default in a muted style until the user opts in.
+
+`enter` on a text or HCL field switches the form into edit mode. Typing edits the value in place; `esc` returns to navigate. Only fields the user actually changes get written to the generated file, and optional defaults stay implicit, so the result is leaner than the placeholder flow.
+
+`enter` on a boolean field toggles between `[x] true` and `[ ] false` directly, without a separate edit mode.
+
+`x` on an optional field resets it to the source default, dropping any in-progress value. `X` resets every optional field in one pass.
+
+`tab` and `shift+tab` cycle the All / Required / Optional category tabs at the top of the form, mirroring the list view's tab strip. Inside edit mode, `tab` and `shift+tab` commit the current field and jump to the next/previous one without leaving edit mode, so a long form fills out like a web form.
+
+`?` opens a scrollable detail overlay anchored on the focused field, showing the full description, type, and current value. Unfocused field descriptions truncate after a few lines with an `…` marker so a long comment doesn't dominate the page.
+
+Complex types (lists, maps, objects) accept raw HCL and are validated when focus leaves the field, so a typo surfaces on the way out instead of flickering under the cursor while you're still typing.
+
+`s` finishes the form. Required fields the user never filled keep the form open with a "press `ctrl+d` to scaffold anyway" prompt; `ctrl+d` writes the file with unset required fields rendered as `# TODO: fill in value`. The previous capital-`S` shortcut for the same skip-required flow is removed; everything is reachable from inside the form on `s`.
+
+In the README pager (`enter` on a component), `w` toggles soft-wrapping of long lines so an ASCII diagram or wide table reads as authored.

@@ -2,12 +2,15 @@ package runnerpool
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/multierror"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -96,7 +99,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 		)
 
 		if dr.runner == nil {
-			return errors.Errorf("Runner Pool Controller: runner is not set, cannot run")
+			return errors.New("runner Pool Controller: runner is not set, cannot run")
 		}
 
 		l.Debugf("Runner Pool Controller: starting with %d tasks, concurrency %d",
@@ -137,7 +140,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 					unit := dr.unitsMap[ent.Component.Path()]
 					if unit == nil {
-						err := errors.Errorf("unit for path %s not found in discovered units", ent.Component.Path())
+						err := fmt.Errorf("unit for path %s not found in discovered units", ent.Component.Path())
 						l.Errorf("Runner Pool Controller: unit for path %s not found in discovered units, skipping execution", ent.Component.Path())
 						dr.q.FailEntry(ent)
 						results.Store(ent.Component.Path(), err)
@@ -174,8 +177,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 		wg.Wait()
 
-		// Collect errors from results map and check for errors
-		errCollector := &errors.MultiError{}
+		var errCollector []error
 
 		var succeeded, failed, earlyExit int
 
@@ -196,18 +198,18 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					continue
 				}
 
-				errCollector = errCollector.Append(err)
+				errCollector = append(errCollector, err)
 
 				continue
 			}
 
 			if entry.Status == queue.StatusEarlyExit {
 				failedDep := findFailedDependency(entry, dr.q)
-				errCollector = errCollector.Append(NewUnitEarlyExitError(entry.Component.Path(), failedDep))
+				errCollector = append(errCollector, NewUnitEarlyExitError(entry.Component.Path(), failedDep))
 			}
 
 			if entry.Status == queue.StatusFailed {
-				errCollector = errCollector.Append(NewUnitFailedError(entry.Component.Path()))
+				errCollector = append(errCollector, NewUnitFailedError(entry.Component.Path()))
 			}
 		}
 
@@ -219,6 +221,6 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			)
 		}
 
-		return errCollector.ErrorOrNil()
+		return multierror.Join(errCollector...)
 	})
 }

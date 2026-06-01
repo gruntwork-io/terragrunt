@@ -99,7 +99,8 @@ func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 }
 
 func TestTflintInitSameModule(t *testing.T) {
-	rootPath := CopyEnvironmentWithTflint(t, testFixtureParallelRun)
+	mirror := helpers.StartTerragruntMirror(t)
+	rootPath := mirror.RenderFixture(t, testFixtureParallelRun, ".tflint.hcl")
 	t.Cleanup(func() {
 		helpers.RemoveFolder(t, rootPath)
 	})
@@ -221,7 +222,7 @@ func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, filepath.Join(tmpDir, environmentPath), ".terragrunt-test", util.WithIncludeInCopy(".tflint.hcl")))
+	require.NoError(t, util.CopyFolderContents(createLogger(), helpers.MustAbs(t, environmentPath), filepath.Join(tmpDir, environmentPath), ".terragrunt-test", util.WithIncludeInCopy(".tflint.hcl")))
 
 	return tmpDir
 }

@@ -27,8 +27,8 @@ var (
 	infoHelp          = lipgloss.NewStyle().Padding(infoHelpPaddingTop, 0, 0, bodyPaddingHorizontal)
 )
 
-// View is the main view, which just calls the appropriate sub-view and returns a View representation of the TUI
-// based on the application's state.
+// View implements bubbletea.Model.View, dispatching to a sub-view based on
+// the current session state.
 func (m Model) View() tea.View {
 	var s string
 
@@ -37,6 +37,8 @@ func (m Model) View() tea.View {
 		s = m.listView()
 	case PagerState:
 		s = m.pagerView()
+	case FormState:
+		s = m.formView()
 	case ScaffoldState:
 	default:
 		s = ""
@@ -59,6 +61,17 @@ func (m Model) pagerView() string {
 	return lipgloss.JoinVertical(lipgloss.Left, m.viewport.View(), m.footerView())
 }
 
+// formView renders the interactive value-collection form. Until the
+// discovery goroutine produces a formReadyMsg the form pointer is nil and
+// we render a loading hint so the user knows the TUI is working.
+func (m Model) formView() string {
+	if m.form == nil {
+		return formMetaStyle.Render("Discovering variables…")
+	}
+
+	return m.form.View()
+}
+
 func (m Model) footerView() string {
 	var percent float64 = 100
 
@@ -69,7 +82,6 @@ func (m Model) footerView() string {
 
 	info = lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 
-	// button bar and key help
 	pagerKeys := infoHelp.Render(lipgloss.JoinVertical(lipgloss.Left, m.buttonBar.View().Content, "\n", m.pagerKeys.HelpModel.View(m.pagerKeys)))
 
 	return lipgloss.JoinVertical(lipgloss.Left, info, pagerKeys)

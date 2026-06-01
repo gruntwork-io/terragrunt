@@ -4,10 +4,9 @@ package module
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -110,7 +109,7 @@ func (module *Module) TerraformSourcePath() string {
 func (module *Module) isValid() (bool, error) {
 	files, err := os.ReadDir(filepath.Join(module.repoPath, module.moduleDir))
 	if err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	for _, file := range files {
@@ -118,7 +117,7 @@ func (module *Module) isValid() (bool, error) {
 			continue
 		}
 
-		if collections.ListContainsElement(ignoreFiles, file.Name()) {
+		if slices.Contains(ignoreFiles, file.Name()) {
 			continue
 		}
 

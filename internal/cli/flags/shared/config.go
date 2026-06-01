@@ -11,16 +11,9 @@ const (
 )
 
 // NewConfigFlag creates a flag for specifying the Terragrunt config file path.
-func NewConfigFlag(opts *options.TerragruntOptions, prefix flags.Prefix, commandName string) *flags.Flag {
+func NewConfigFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-
-	var terragruntPrefixControl flags.RegisterStrictControlsFunc
-	if commandName != "" {
-		terragruntPrefixControl = flags.StrictControlsByCommand(opts.StrictControls, commandName)
-	} else {
-		terragruntPrefixControl = flags.StrictControlsByGlobalFlags(opts.StrictControls)
-	}
 
 	return flags.NewFlag(
 		&clihelper.GenericFlag[string]{
@@ -29,6 +22,6 @@ func NewConfigFlag(opts *options.TerragruntOptions, prefix flags.Prefix, command
 			Destination: &opts.TerragruntConfigPath,
 			Usage:       "The path to the Terragrunt config file. Default is terragrunt.hcl.",
 		},
-		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("config"), terragruntPrefixControl),
+		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("config"), opts.StrictControls),
 	)
 }

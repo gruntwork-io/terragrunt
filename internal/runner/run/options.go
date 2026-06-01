@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/puzpuzpuz/xsync/v4"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
@@ -26,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -36,6 +37,14 @@ const (
 	defaultSignalsFile = "error-signals.json"
 )
 
+// NewOptions returns an Options with FS defaulted to the OS-backed
+// filesystem. Callers must construct Options through this function (or copy
+// from another Options) so paths like DownloadTerraformSource, which require
+// an OS-backed FS, work without each caller having to remember to set it.
+func NewOptions() *Options {
+	return &Options{FS: vfs.NewOSFS()}
+}
+
 // Options contains the configuration needed by run.Run and its helpers.
 // This is a focused subset of options.TerragruntOptions.
 type Options struct {
@@ -45,6 +54,7 @@ type Options struct {
 	Errors                       *errorconfig.Config
 	FeatureFlags                 *xsync.Map[string, string]
 	Telemetry                    *telemetry.Options
+	FS                           vfs.FS
 	SourceMap                    map[string]string
 	Env                          map[string]string
 	Writers                      writer.Writers
@@ -331,7 +341,7 @@ func (o *Options) RunWithErrorHandling(
 			select {
 			case <-time.After(time.Duration(action.RetrySleepSecs) * time.Second):
 			case <-ctx.Done():
-				return errors.New(ctx.Err())
+				return ctx.Err()
 			}
 
 			currentAttempt++
@@ -355,7 +365,7 @@ func (o *Options) handleIgnoreSignals(l log.Logger, signals map[string]any) erro
 
 	l.Warnf("Writing error signals to %s", signalsFile)
 
-	if err := os.WriteFile(signalsFile, signalsJSON, ownerPerms); err != nil {
+	if err := vfs.WriteFile(o.FS, signalsFile, signalsJSON, ownerPerms); err != nil {
 		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
 	}
 

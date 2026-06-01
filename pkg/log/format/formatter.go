@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -55,11 +54,11 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 
 	if str != "" {
 		if _, err := buf.WriteString(str); err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 
 		if err := buf.WriteByte('\n'); err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 	}
 

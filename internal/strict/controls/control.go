@@ -2,10 +2,10 @@ package controls
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -16,9 +16,6 @@ var _ = strict.Control(new(Control))
 type Control struct {
 	// Error is the Error that will be returned when the Control is Enabled.
 	Error error
-
-	// Category is the category of the control.
-	Category *strict.Category
 
 	// Name is the name of the control.
 	Name string
@@ -71,16 +68,6 @@ func (ctrl *Control) GetEnabled() bool {
 	return ctrl.Enabled
 }
 
-// GetCategory implements `strict.Control` interface.
-func (ctrl *Control) GetCategory() *strict.Category {
-	return ctrl.Category
-}
-
-// SetCategory implements `strict.Control` interface.
-func (ctrl *Control) SetCategory(category *strict.Category) {
-	ctrl.Category = category
-}
-
 // Enable implements `strict.Control` interface.
 func (ctrl *Control) Enable() {
 	ctrl.Enabled = true
@@ -113,7 +100,7 @@ func (ctrl *Control) isSuppressed() bool {
 // Evaluate implements `strict.Control` interface.
 func (ctrl *Control) Evaluate(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
-		return errors.Errorf("context error during evaluation: %w", err)
+		return fmt.Errorf("context error during evaluation: %w", err)
 	}
 
 	if ctrl == nil {

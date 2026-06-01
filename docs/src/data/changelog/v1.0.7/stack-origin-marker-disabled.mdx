@@ -1,0 +1,8 @@
+---
+version: "v1.0.7"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: `.terragrunt-stack-origin` no longer written
+
+Terragrunt no longer writes the `.terragrunt-stack-origin` file when generating nested stacks. Set `update_source_with_cas = true` on your `unit` and `stack` blocks instead.

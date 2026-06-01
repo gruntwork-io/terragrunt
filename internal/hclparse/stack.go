@@ -5,91 +5,85 @@ import (
 	iofs "io/fs"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
-// StackFileHCL represents the first-phase parse of a terragrunt.stack.hcl file.
-// The autoinclude body inside each unit/stack block is captured as hcl.Body
-// via remain, allowing deferred evaluation once unit/stack path variables
-// are available.
+// stackFileName is the canonical filename of a Terragrunt stack file.
+const stackFileName = "terragrunt.stack.hcl"
+
+// StackFileHCL is the parsed skeleton: locals, includes, and Remain.
 type StackFileHCL struct {
+	Remain   hcl.Body           `hcl:",remain"`
 	Locals   *LocalsHCL         `hcl:"locals,block"`
 	Includes []*StackIncludeHCL `hcl:"include,block"`
-	Stacks   []*StackBlockHCL   `hcl:"stack,block"`
-	Units    []*UnitBlockHCL    `hcl:"unit,block"`
 }
 
-// StackIncludeHCL represents an include block in a terragrunt.stack.hcl file.
-// The path is evaluated immediately during the first parse pass.
-type StackIncludeHCL struct {
-	Name string `hcl:",label"`
-	Path string `hcl:"path,attr"`
-}
-
-// UnitBlockHCL represents the first-phase parse of a unit block.
-// Known attributes are decoded directly. The autoinclude block body
-// is captured in Remain for second-phase evaluation.
-type UnitBlockHCL struct {
-	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
-	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,attr"`
-	NoValidation *bool           `hcl:"no_validation,attr"`
-	Values       *cty.Value      `hcl:"values,attr"`
-	Name         string          `hcl:",label"`
-	Source       string          `hcl:"source,attr"`
-	Path         string          `hcl:"path,attr"`
-}
-
-// StackBlockHCL represents the first-phase parse of a stack block.
-// Same remain pattern as UnitBlockHCL.
-type StackBlockHCL struct {
-	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
-	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,attr"`
-	NoValidation *bool           `hcl:"no_validation,attr"`
-	Values       *cty.Value      `hcl:"values,attr"`
-	Name         string          `hcl:",label"`
-	Source       string          `hcl:"source,attr"`
-	Path         string          `hcl:"path,attr"`
-}
-
-// LocalsHCL captures the locals block body for iterative evaluation.
+// LocalsHCL is the locals block shell.
 type LocalsHCL struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
-// ComponentRef holds the path and name metadata for a unit or stack block,
-// used to build the evaluation context for the second parsing phase.
+// StackIncludeHCL stores include path as a lazy expression.
+type StackIncludeHCL struct {
+	Path hcl.Expression `hcl:"path,attr"`
+	Name string         `hcl:",label"`
+}
+
+// unitsAndStacksHCL is the phase-3 decode target for unit and stack blocks.
+type unitsAndStacksHCL struct {
+	Remain hcl.Body         `hcl:",remain"`
+	Stacks []*StackBlockHCL `hcl:"stack,block"`
+	Units  []*UnitBlockHCL  `hcl:"unit,block"`
+}
+
+// UnitBlockHCL is the eager unit block shape with deferred autoinclude content.
+type UnitBlockHCL struct {
+	Remain       hcl.Body        `hcl:",remain"`
+	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
+	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,optional"`
+	NoValidation *bool           `hcl:"no_validation,optional"`
+	Values       *cty.Value      `hcl:"values,optional"`
+	Source       string          `hcl:"source,attr"`
+	Path         string          `hcl:"path,attr"`
+	Name         string          `hcl:",label"`
+}
+
+// StackBlockHCL is the eager stack block shape with deferred autoinclude content.
+type StackBlockHCL struct {
+	Remain       hcl.Body        `hcl:",remain"`
+	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
+	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,optional"`
+	NoValidation *bool           `hcl:"no_validation,optional"`
+	Values       *cty.Value      `hcl:"values,optional"`
+	Source       string          `hcl:"source,attr"`
+	Path         string          `hcl:"path,attr"`
+	Name         string          `hcl:",label"`
+}
+
+// ComponentRef is a top-level unit or stack ref injected into the eval context
+// as `unit.<name>` or `stack.<name>`. Each ref carries its label and its
+// generated path; only the path is exposed in HCL.
 type ComponentRef struct {
 	Name string
 	Path string
-	// ChildRefs holds nested unit refs for stack components.
-	// When a stack block references a source with a terragrunt.stack.hcl,
-	// the child units within that stack are parsed and stored here.
-	// This enables stack.stack_name.unit_name.path references.
-	ChildRefs []ComponentRef
 }
 
-// BuildComponentRefMap creates a cty.Value map from a slice of ComponentRef.
-// The resulting value is an object like:
+// BuildComponentRefMap converts component refs into an HCL object injected as
+// the `unit` or `stack` variable in the eval context. Empty input returns
+// EmptyObjectVal so typos surface as "Unsupported attribute" diagnostics.
+//
+// Output shape:
 //
 //	{
-//	  "unit_name": { "path": "../relative/path", "name": "unit_name" }
+//	  "<name>": { "path": "<generated path>" }
 //	}
-//
-// For stack refs with children, it also includes nested unit refs:
-//
-//	{
-//	  "stack_name": {
-//	    "path": "/abs/path",
-//	    "name": "stack_name",
-//	    "unit_name": { "path": "/abs/path/to/unit", "name": "unit_name" }
-//	  }
-//	}
-//
-// This is injected into the HCL eval context as the `unit` or `stack` variable.
 func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	if len(refs) == 0 {
 		return cty.EmptyObjectVal
@@ -98,62 +92,67 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	refMap := make(map[string]cty.Value, len(refs))
 
 	for _, ref := range refs {
-		refMap[ref.Name] = buildRefAttrs(ref)
+		refMap[ref.Name] = cty.ObjectVal(map[string]cty.Value{
+			"path": cty.StringVal(ref.Path),
+		})
 	}
 
 	return cty.ObjectVal(refMap)
 }
 
-// buildRefAttrs builds the cty.Value for a single ComponentRef, recursively
-// expanding ChildRefs so that stack.A.B.C.path works at any nesting depth.
-// Recursion is bounded by maxDiscoverDepth in discoverStackChildUnitsWithDepth
-// which limits the depth of ChildRefs trees at construction time.
-func buildRefAttrs(ref ComponentRef) cty.Value {
-	attrs := map[string]cty.Value{
-		"path": cty.StringVal(ref.Path),
-		"name": cty.StringVal(ref.Name),
+// GeneratedComponentPath returns the on-disk path a unit or stack block in a
+// terragrunt.stack.hcl generates to. stackDir is the directory containing the
+// stack file, path is the block's path attribute, and noStack reports whether the
+// block sets no_dot_terragrunt_stack, which hoists the component out of the
+// .terragrunt-stack subdirectory.
+func GeneratedComponentPath(stackDir, path string, noStack bool) string {
+	if noStack {
+		return filepath.Join(stackDir, path)
 	}
 
-	for _, child := range ref.ChildRefs {
-		if child.Name == "path" || child.Name == "name" {
-			continue
-		}
-
-		attrs[child.Name] = buildRefAttrs(child)
-	}
-
-	return cty.ObjectVal(attrs)
+	return filepath.Join(stackDir, StackDir, path)
 }
 
-// ExtractUnitRefs extracts ComponentRef values from parsed UnitBlockHCL slices.
-func ExtractUnitRefs(units []*UnitBlockHCL) []ComponentRef {
-	refs := make([]ComponentRef, 0, len(units))
-
-	for _, u := range units {
-		refs = append(refs, ComponentRef{
-			Name: u.Name,
-			Path: u.Path,
-		})
-	}
-
-	return refs
+// GeneratedPath returns the on-disk path this unit block generates to under stackDir.
+func (u *UnitBlockHCL) GeneratedPath(stackDir string) string {
+	return GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
 }
 
-// ExtractStackRefs extracts ComponentRef values from parsed StackBlockHCL slices.
-func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
-	refs := make([]ComponentRef, 0, len(stacks))
-
-	for _, s := range stacks {
-		refs = append(refs, ComponentRef{
-			Name: s.Name,
-			Path: s.Path,
-		})
-	}
-
-	return refs
+// GeneratedPath returns the on-disk path this stack block generates to under stackDir.
+func (s *StackBlockHCL) GeneratedPath(stackDir string) string {
+	return GeneratedComponentPath(stackDir, s.Path, s.NoStack != nil && *s.NoStack)
 }
 
-// ParseStackFileFromPath reads stackDir/terragrunt.stack.hcl from disk and performs a two-pass parse. Returns (nil, nil) only when the stack file does not exist. Callers that may pass non-directory paths must filter those before calling.
+// GeneratedPath returns the on-disk path this unit generates to under stackDir.
+func (u *unitPathOnlyHCL) GeneratedPath(stackDir string) string {
+	return GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
+}
+
+// unitPathOnlyHCL is the discovery shape for unit name and path.
+type unitPathOnlyHCL struct {
+	Remain  hcl.Body `hcl:",remain"`
+	NoStack *bool    `hcl:"no_dot_terragrunt_stack,optional"`
+	Path    string   `hcl:"path,attr"`
+	Name    string   `hcl:",label"`
+}
+
+// stackPathOnlyHCL is the discovery shape for stack name, path, and source; Source is lazy so non-literal sources don't block decode.
+type stackPathOnlyHCL struct {
+	Remain  hcl.Body       `hcl:",remain"`
+	NoStack *bool          `hcl:"no_dot_terragrunt_stack,optional"`
+	Source  hcl.Expression `hcl:"source,attr"`
+	Path    string         `hcl:"path,attr"`
+	Name    string         `hcl:",label"`
+}
+
+// discoveryDecode holds decoded unit and stack blocks for discovery.
+type discoveryDecode struct {
+	Remain hcl.Body            `hcl:",remain"`
+	Stacks []*stackPathOnlyHCL `hcl:"stack,block"`
+	Units  []*unitPathOnlyHCL  `hcl:"unit,block"`
+}
+
+// ParseStackFileFromPath reads a terragrunt.stack.hcl from disk and runs ParseStackFile; returns (nil, nil) when the file is absent.
 func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.ParseStackFileFromPath: fs is nil (stackDir=%q)", stackDir))
@@ -164,7 +163,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	}
 
 	stackDir = util.ResolvePath(stackDir)
-	stackFile := filepath.Join(stackDir, "terragrunt.stack.hcl")
+	stackFile := filepath.Join(stackDir, stackFileName)
 
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
@@ -177,13 +176,17 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 
 	return ParseStackFile(fs, &ParseStackFileInput{
 		Src:      data,
-		Filename: stackFile,
+		Filename: stackFileName,
 		StackDir: stackDir,
 	})
 }
 
-// UnitPathsFromStackDir parses the stack file in stackDir and returns paths to each unit's generated directory. Returns (nil, err) on parse errors so callers can distinguish "not a stack dir" from "malformed stack file".
-func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
+// UnitPathsFromStackDir returns generated unit paths from discovery parsing.
+// funcs is the HCL function map used while decoding the stack file; production
+// callers build it via config.EarlyStackParseFunctions. The map must be
+// non-nil but may be empty (tests that exercise only literal attributes can
+// pass an empty map).
+func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function.Function) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
 	}
@@ -192,97 +195,104 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 		panic("hclparse.UnitPathsFromStackDir: stackDir is empty")
 	}
 
-	stackDir = util.ResolvePath(stackDir)
+	if funcs == nil {
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: funcs is nil (stackDir=%q)", stackDir))
+	}
 
-	result, err := ParseStackFileFromPath(fs, stackDir)
+	stackDir = util.ResolvePath(stackDir)
+	stackFile := filepath.Join(stackDir, stackFileName)
+
+	units, _, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
 	if err != nil {
 		return nil, err
 	}
 
-	if result == nil {
+	if units == nil {
 		return nil, nil
 	}
 
-	paths := make([]string, 0, len(result.Units))
-	for _, unit := range result.Units {
-		unitPath := filepath.Join(stackDir, StackDir, unit.Path)
+	paths := make([]string, 0, len(units))
 
-		if unit.NoStack != nil && *unit.NoStack {
-			unitPath = filepath.Join(stackDir, unit.Path)
-		}
-
-		paths = append(paths, unitPath)
+	for _, unit := range units {
+		paths = append(paths, unit.GeneratedPath(stackDir))
 	}
 
 	return paths, nil
 }
 
-// maxDiscoverDepth is the maximum recursion depth for DiscoverStackChildUnits
-// to prevent infinite loops from circular stack references.
-const maxDiscoverDepth = 1000
+// decodeDiscovery parses discovery targets and returns path-only unit and stack data.
+//
+// funcs is the function map injected into the discovery eval context; callers
+// must supply a non-nil map (validated at the public entrypoint).
+func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]function.Function) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
+	data, err := vfs.ReadFile(fs, stackFile)
+	if err != nil {
+		if errors.Is(err, iofs.ErrNotExist) {
+			return nil, nil, nil
+		}
 
-// DiscoverStackChildUnits parses a stack's source dir for stack.<name>.<unit>.path resolution. Best-effort: nested parse failures yield empty refs, never an error.
-func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
-	if fs == nil {
-		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: fs is nil (stackSourceDir=%q, stackGenDir=%q)", stackSourceDir, stackGenDir))
+		return nil, nil, FileReadError{FilePath: stackFile, Err: err}
 	}
 
-	if stackSourceDir == "" {
-		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: stackSourceDir is empty (stackGenDir=%q)", stackGenDir))
+	parsedFile, err := parseStackFileRoot(data, stackFile)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if stackGenDir == "" {
-		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: stackGenDir is empty (stackSourceDir=%q)", stackSourceDir))
+	evalCtx := &hcl.EvalContext{
+		Functions: funcs,
+		Variables: map[string]cty.Value{},
 	}
 
-	return discoverStackChildUnitsWithDepth(fs, stackSourceDir, stackGenDir, 0)
+	if parsedFile.Locals != nil {
+		if err := evaluateLocals(parsedFile.Locals.Remain, evalCtx); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	srcByFilename := map[string][]byte{stackFile: data}
+
+	mergedRemain, err := mergeIncludes(fs, parsedFile, stackDir, evalCtx, srcByFilename)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	decoded := &discoveryDecode{}
+	if diags := gohcl.DecodeBody(mergedRemain, evalCtx, decoded); diags.HasErrors() {
+		return nil, nil, FileDecodeError{Name: stackFile, Err: diags}
+	}
+
+	if err := validateDiscoveryUniqueNames(decoded.Units, decoded.Stacks); err != nil {
+		return nil, nil, err
+	}
+
+	return decoded.Units, decoded.Stacks, nil
 }
 
-func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir string, depth int) []ComponentRef {
-	if depth > maxDiscoverDepth {
-		return nil
-	}
+// validateDiscoveryUniqueNames reports duplicate unit and stack names from the path-only discovery decode.
+func validateDiscoveryUniqueNames(units []*unitPathOnlyHCL, stacks []*stackPathOnlyHCL) error {
+	seenUnits := make(map[string]struct{}, len(units))
+	seenStacks := make(map[string]struct{}, len(stacks))
 
-	result, err := ParseStackFileFromPath(fs, stackSourceDir)
-	if err != nil || result == nil {
-		// Nested-stack discovery is intentionally best-effort: it only enriches chained `stack.<name>.<unit>.path` refs. Any user reference to an undiscovered child surfaces later as an HCL eval diagnostic.
-		return nil
-	}
+	var errs []error
 
-	childTargetDir := filepath.Join(stackGenDir, StackDir)
-	refs := make([]ComponentRef, 0, len(result.Units)+len(result.Stacks))
-
-	for _, u := range result.Units {
-		unitPath := filepath.Join(childTargetDir, u.Path)
-
-		if u.NoStack != nil && *u.NoStack {
-			unitPath = filepath.Join(stackGenDir, u.Path)
+	for _, unit := range units {
+		if _, ok := seenUnits[unit.Name]; ok {
+			errs = append(errs, DuplicateUnitNameError{Name: unit.Name})
+			continue
 		}
 
-		refs = append(refs, ComponentRef{
-			Name: u.Name,
-			Path: unitPath,
-		})
+		seenUnits[unit.Name] = struct{}{}
 	}
 
-	for _, s := range result.Stacks {
-		nestedGenPath := filepath.Join(childTargetDir, s.Path)
-
-		if s.NoStack != nil && *s.NoStack {
-			nestedGenPath = filepath.Join(stackGenDir, s.Path)
+	for _, stack := range stacks {
+		if _, ok := seenStacks[stack.Name]; ok {
+			errs = append(errs, DuplicateStackNameError{Name: stack.Name})
+			continue
 		}
 
-		nestedSourceDir := s.Source
-		if !filepath.IsAbs(nestedSourceDir) {
-			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
-		}
-
-		refs = append(refs, ComponentRef{
-			Name:      s.Name,
-			Path:      nestedGenPath,
-			ChildRefs: discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1),
-		})
+		seenStacks[stack.Name] = struct{}{}
 	}
 
-	return refs
+	return errors.Join(errs...)
 }

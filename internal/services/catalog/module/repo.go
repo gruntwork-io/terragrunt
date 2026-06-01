@@ -14,7 +14,6 @@ import (
 
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	gitpkg "github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -127,7 +126,7 @@ func (repo *Repo) FindModules(ctx context.Context, l log.Logger, fsys vfs.FS) (M
 
 		exists, err := vfs.FileExists(fsys, modulesPath)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 
 		if !exists {
@@ -154,7 +153,7 @@ func (repo *Repo) FindModules(ctx context.Context, l log.Logger, fsys vfs.FS) (M
 
 				moduleDir, err := filepath.Rel(repo.path, dir)
 				if err != nil {
-					return errors.New(err)
+					return err
 				}
 
 				moduleDir = filepath.ToSlash(moduleDir)
@@ -324,7 +323,7 @@ func (repo *Repo) handleLocalDir(l log.Logger, repoPath string) error {
 
 func (repo *Repo) prepareCloneDirectory(l log.Logger, fsys vfs.FS) error {
 	if err := fsys.MkdirAll(repo.path, os.ModePerm); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	repoName := repo.extractRepoName()
@@ -335,7 +334,7 @@ func (repo *Repo) prepareCloneDirectory(l log.Logger, fsys vfs.FS) error {
 		l.Debugf("The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.", cloneCompleteSentinel)
 
 		if err := fsys.RemoveAll(repo.path); err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 
@@ -379,12 +378,17 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, o
 			return err
 		}
 
+		venv, err := cas.OSVenv()
+		if err != nil {
+			return err
+		}
+
 		cloneOpts := cas.CloneOptions{
 			Dir:              repo.path,
 			IncludedGitFiles: includedGitFiles,
 		}
 
-		clientOpts = append(clientOpts, getter.WithCAS(c, &cloneOpts))
+		clientOpts = append(clientOpts, getter.WithCAS(c, venv, &cloneOpts))
 	}
 
 	client := getter.NewClient(clientOpts...)
@@ -433,11 +437,11 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, o
 	// Create the sentinel file to indicate that the clone is complete
 	f, err := fsys.Create(filepath.Join(repo.path, cloneCompleteSentinel))
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if err := f.Close(); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -449,14 +453,14 @@ func (repo *Repo) parseRemoteURL(l log.Logger, fsys vfs.FS) error {
 
 	gitConfigBytes, err := vfs.ReadFile(fsys, gitConfigPath)
 	if err != nil {
-		return errors.Errorf("the specified path %q is not a git repository (no .git/config file found)", repo.path)
+		return fmt.Errorf("the specified path %q is not a git repository (no .git/config file found)", repo.path)
 	}
 
 	l.Debugf("Parsing git config %q", gitConfigPath)
 
 	inidata, err := ini.Load(gitConfigBytes)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	var sectionName string
@@ -492,7 +496,7 @@ func (repo *Repo) gitHeadfile() string {
 func (repo *Repo) parseBranchName(fsys vfs.FS) error {
 	raw, err := vfs.ReadFile(fsys, repo.gitHeadfile())
 	if err != nil {
-		return errors.Errorf("the specified path %q is not a git repository (no .git/HEAD file found)", repo.path)
+		return fmt.Errorf("the specified path %q is not a git repository (no .git/HEAD file found)", repo.path)
 	}
 
 	if match := gitHeadBranchNameReg.FindStringSubmatch(string(raw)); len(match) > 0 {
@@ -501,7 +505,7 @@ func (repo *Repo) parseBranchName(fsys vfs.FS) error {
 		return nil
 	}
 
-	return errors.Errorf("could not get branch name for repo %q", repo.path)
+	return fmt.Errorf("could not get branch name for repo %q", repo.path)
 }
 
 // isDir reports whether p exists on fsys and is a directory.

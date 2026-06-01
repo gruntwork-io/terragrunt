@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
@@ -68,7 +67,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	if opts.TerraformCommand == "" {
-		return errors.New(run.MissingCommand{})
+		return run.MissingCommand{}
 	}
 
 	// Early exit for version command to avoid expensive setup
@@ -198,7 +197,11 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		opts.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	l, ver, impl, err := run.PopulateTFVersion(ctx, l, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
+	l, ver, impl, err := run.PopulateTFVersion(ctx, l, vexec.NewOSExec(), run.PopulateTFVersionInput{
+		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+		WorkingDir:   opts.WorkingDir,
+		VersionFiles: opts.VersionManagerFileName,
+	})
 	if err != nil {
 		return l, err
 	}
@@ -216,7 +219,10 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 	}
 
 	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
-		if err := run.CheckTerragruntVersionMeetsConstraint(opts.TerragruntVersion, partialTerragruntConfig.TerragruntVersionConstraint); err != nil {
+		if err := run.CheckTerragruntVersionMeetsConstraint(
+			opts.TerragruntVersion,
+			partialTerragruntConfig.TerragruntVersionConstraint,
+		); err != nil {
 			return l, err
 		}
 	}
@@ -240,7 +246,11 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 	return l, nil
 }
 
-func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
+func getTerragruntConfig(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (*config.TerragruntConfig, error) {
 	ctx, configCtx := configbridge.NewParsingContext(ctx, l, opts)
 	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints,

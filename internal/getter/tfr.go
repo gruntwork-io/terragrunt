@@ -3,20 +3,19 @@ package getter
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"path"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-cleanhttp"
 	getter "github.com/hashicorp/go-getter/v2"
-	safetemp "github.com/hashicorp/go-safetemp"
 )
 
 const versionQueryKey = "version"
@@ -25,11 +24,13 @@ const versionQueryKey = "version"
 //
 // Source URLs take the form:
 //
-//	tfr://REGISTRY_DOMAIN/MODULE_PATH?version=VERSION
+//	tfr://REGISTRY_DOMAIN/MODULE_PATH[?version=VERSION]
 //
 // where MODULE_PATH is the registry-style namespace/name/system path
-// (e.g. terraform-aws-modules/vpc/aws). The getter speaks the
-// Terraform Registry Module Registry Protocol
+// (e.g. terraform-aws-modules/vpc/aws). The `version` query parameter is
+// optional; when omitted, the latest stable version is resolved from the
+// registry's list-versions endpoint. The getter speaks the Terraform
+// Registry Module Registry Protocol
 // (https://www.terraform.io/docs/internals/module-registry-protocol.html)
 // to resolve the X-Terraform-Get redirect, then re-enters the parent
 // go-getter Client (looked up via [getter.ClientFromContext]) to fetch the
@@ -79,6 +80,19 @@ func (r *RegistryGetter) WithTofuImplementation(impl tfimpl.Type) *RegistryGette
 	return r
 }
 
+// WithFS sets the filesystem used for archive extraction cleanup.
+// Panics if fs is not OS-backed: getSubdir re-enters go-getter and runs
+// util.CopyFolderContentsWithFilter, both of which bypass this abstraction.
+func (r *RegistryGetter) WithFS(fs vfs.FS) *RegistryGetter {
+	if !vfs.IsOSFS(fs) {
+		panic("getter.RegistryGetter.WithFS: requires an OS-backed filesystem")
+	}
+
+	r.FS = fs
+
+	return r
+}
+
 // Mode reports directory mode for all tfr sources, since tfr always
 // downloads a module directory.
 func (r *RegistryGetter) Mode(_ context.Context, _ *url.URL) (getter.Mode, error) {
@@ -101,7 +115,8 @@ func (r *RegistryGetter) Detect(req *getter.Request) (bool, error) {
 
 // Get fetches the module contents specified at req.Src and downloads them to
 // req.Dst. req.Src must be a tfr:// URL with the module path encoded as
-// `:namespace/:name/:system` and a `version` query parameter.
+// `:namespace/:name/:system`. The `version` query parameter is optional; when
+// absent, the latest stable version is resolved from the registry.
 func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 	srcURL := req.URL()
 
@@ -113,18 +128,12 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := SourceDirSubdir(srcURL.Path)
 
-	versionList, hasVersion := queryValues[versionQueryKey]
-	if !hasVersion {
-		return errors.New(MalformedRegistryURLErr{reason: "missing version query"})
-	}
-
-	if len(versionList) != 1 {
-		return errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
-	}
-
-	version := versionList[0]
-
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, r.Logger, r.HTTPClient, registryDomain)
+	if err != nil {
+		return err
+	}
+
+	version, err := r.resolveVersion(ctx, queryValues, registryDomain, moduleRegistryBasePath, modulePath)
 	if err != nil {
 		return err
 	}
@@ -183,16 +192,21 @@ func (r *RegistryGetter) delegateGet(ctx context.Context, dst, src string) error
 // subdirectory into dstPath. This is how the registry getter handles
 // `MODULE/subdir` selectors.
 func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, sourceURL, subDir string) error {
-	tempdirPath, tempdirCloser, err := safetemp.Dir("", "getter")
+	// Hand the consumer a non-existent path inside an existing parent so
+	// go-getter can create the destination itself, and clean up the parent
+	// on return.
+	parent, err := vfs.MkdirTemp(r.FS, "", "getter")
 	if err != nil {
 		return err
 	}
 
-	defer func(tempdirCloser io.Closer) {
-		if err := tempdirCloser.Close(); err != nil {
-			l.Warnf("Error closing temporary directory %s: %v", tempdirPath, err)
+	defer func() {
+		if err := r.FS.RemoveAll(parent); err != nil {
+			l.Warnf("Error removing temporary directory %s: %v", parent, err)
 		}
-	}(tempdirCloser)
+	}()
+
+	tempdirPath := filepath.Join(parent, "temp")
 
 	if err := r.delegateGet(ctx, tempdirPath, sourceURL); err != nil {
 		return fmt.Errorf("downloading registry module archive from %s: %w", sourceURL, err)
@@ -204,10 +218,10 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 	}
 
 	if _, err := r.FS.Stat(sourcePath); err != nil {
-		return errors.New(ModuleDownloadErr{
+		return ModuleDownloadErr{
 			sourceURL: sourceURL,
 			details:   fmt.Sprintf("could not stat download path %s: %s", sourcePath, err),
-		})
+		}
 	}
 
 	if err := r.FS.RemoveAll(dstPath); err != nil {
@@ -229,4 +243,32 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 	}(manifestPath)
 
 	return util.CopyFolderContentsWithFilter(l, sourcePath, dstPath, manifestFname, func(string) bool { return true })
+}
+
+// resolveVersion determines the module version to download. If a version is
+// specified in the URL query it is validated and returned as-is. Otherwise the
+// latest stable version is resolved from the registry's list-versions endpoint.
+func (r *RegistryGetter) resolveVersion(ctx context.Context, queryValues url.Values, registryDomain, moduleRegistryBasePath, modulePath string) (string, error) {
+	versionList, hasVersion := queryValues[versionQueryKey]
+
+	if hasVersion && len(versionList) != 1 {
+		return "", MalformedRegistryURLErr{reason: "more than one version query"}
+	}
+
+	if hasVersion {
+		if versionList[0] == "" {
+			return "", MalformedRegistryURLErr{reason: "version query is empty"}
+		}
+
+		return versionList[0], nil
+	}
+
+	latestVersion, err := GetLatestModuleVersion(ctx, r.Logger, r.HTTPClient, registryDomain, moduleRegistryBasePath, modulePath)
+	if err != nil {
+		return "", err
+	}
+
+	r.Logger.Infof("No version specified for module %s, using latest version %s", modulePath, latestVersion)
+
+	return latestVersion, nil
 }

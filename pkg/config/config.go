@@ -30,6 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/hashicorp/hcl/v2"
@@ -37,10 +38,10 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/go-commons/files"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/mitchellh/mapstructure"
@@ -794,7 +795,7 @@ func (include *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
 	case string(DeepMergeMapOnly):
 		return DeepMergeMapOnly, nil
 	default:
-		return NoMerge, errors.New(InvalidMergeStrategyTypeError(strategy))
+		return NoMerge, InvalidMergeStrategyTypeError(strategy)
 	}
 }
 
@@ -1011,7 +1012,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 
 	// if both URL and subdir are missing, something went terribly wrong
 	if moduleURL == "" && moduleSubdir == "" {
-		return "", errors.New(InvalidSourceURLWithMapError{ModulePath: modulePath, ModuleSourceURL: source})
+		return "", InvalidSourceURLWithMapError{ModulePath: modulePath, ModuleSourceURL: source}
 	}
 
 	// If module URL is missing, return the source as is as it will not match anything in the map.
@@ -1054,7 +1055,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 // that exists within the path giving preference to `terragrunt.hcl`
 func GetDefaultConfigPath(workingDir string) string {
 	// check if a configuration file was passed as `workingDir`.
-	if !files.IsDir(workingDir) && files.FileExists(workingDir) {
+	if info, err := os.Stat(workingDir); err == nil && !info.IsDir() {
 		return workingDir
 	}
 
@@ -1065,7 +1066,7 @@ func GetDefaultConfigPath(workingDir string) string {
 			configPath = filepath.Join(workingDir, configPath)
 		}
 
-		if files.FileExists(configPath) {
+		if _, err := os.Stat(configPath); err == nil {
 			break
 		}
 	}
@@ -1209,7 +1210,7 @@ func ParseConfigFile(
 			return nil, TerragruntConfigNotFoundError{Path: configPath}
 		}
 
-		return nil, errors.Errorf("failed to get file info: %w", err)
+		return nil, fmt.Errorf("failed to get file info: %w", err)
 	}
 
 	cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v",
@@ -1237,7 +1238,7 @@ func ParseConfigFile(
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(childCtx, cacheKey); found {
-				file = cacheConfig
+				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
 			} else {
 				// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 				var parseErr error
@@ -1314,7 +1315,7 @@ func ParseConfig(
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
 ) (*TerragruntConfig, error) {
-	errs := &errors.MultiError{}
+	var errs []error
 
 	if err := DetectDeprecatedConfigurations(ctx, pctx, l, file); err != nil {
 		return nil, err
@@ -1329,7 +1330,7 @@ func ParseConfig(
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667
 	if err := setIAMRole(ctx, pctx, l, file, includeFromChild); err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	// read unit files and add to context
@@ -1347,7 +1348,7 @@ func ParseConfig(
 		// the function end is not always rendered to the user by the CLI's final
 		// error formatter.
 		l.Warnf("Errors decoding base blocks in %s: %v", file.ConfigPath, err)
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	if baseBlocks != nil {
@@ -1361,7 +1362,7 @@ func ParseConfig(
 		// process. Note: the actual `tofu/terraform output` side effect is gated by SkipOutput, not here.
 		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, pctx, l, file)
 		if err != nil {
-			errs = errs.Append(err)
+			errs = append(errs, err)
 
 			// During hcl validate, dependency resolution can fail for many reasons (invalid
 			// config_path, target parse errors, etc.). Use cty.DynamicVal as a fallback so
@@ -1377,25 +1378,25 @@ func ParseConfig(
 		pctx.DecodedDependencies = retrievedOutputs
 	}
 
-	evalContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
 	terragruntConfigFile, err := decodeAsTerragruntConfigFile(pctx, l, file, evalContext)
 	if err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	if terragruntConfigFile == nil {
-		return nil, errors.New(CouldNotResolveTerragruntConfigInFileError(file.ConfigPath))
+		return nil, CouldNotResolveTerragruntConfigInFileError(file.ConfigPath)
 	}
 
 	config, err := convertToTerragruntConfig(ctx, pctx, file.ConfigPath, terragruntConfigFile)
 	if err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
@@ -1404,7 +1405,7 @@ func ParseConfig(
 	if configBase != DefaultAutoIncludeFile && configBase != DefaultAutoIncludeStackFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
 		autoMerged, mergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config, file.ConfigPath)
 		if mergeErr != nil {
-			errs = errs.Append(mergeErr)
+			errs = append(errs, mergeErr)
 		} else if autoMerged != nil {
 			config = autoMerged
 		}
@@ -1415,14 +1416,14 @@ func ParseConfig(
 	if pctx.TrackInclude != nil {
 		mergedConfig, err := handleInclude(ctx, pctx, l, config, false)
 		if err != nil {
-			errs = errs.Append(err)
-			return config, errs.ErrorOrNil()
+			errs = append(errs, err)
+			return config, errors.Join(errs...)
 		}
 
 		// We should never get a nil config here, so if we do, return the config we've been able to parse so far
 		// and return any errors that have occurred so far to avoid a nil pointer dereference below.
 		if mergedConfig == nil {
-			return config, errs.ErrorOrNil()
+			return config, errors.Join(errs...)
 		}
 
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
@@ -1440,10 +1441,10 @@ func ParseConfig(
 			mergedConfig.Exclude = config.Exclude
 		}
 
-		return mergedConfig, errs.ErrorOrNil()
+		return mergedConfig, errors.Join(errs...)
 	}
 
-	return config, errs.ErrorOrNil()
+	return config, errors.Join(errs...)
 }
 
 // mergeAutoIncludeIfPresent checks for the unit-level terragrunt.autoinclude.hcl in the same directory as the config file and merges it into the config. The autoinclude takes precedence.
@@ -1475,13 +1476,13 @@ func mergeAutoIncludeIfPresent(
 
 	autoIncludeConfig, err := ParseConfigFile(ctx, autoIncludePctx, l, autoIncludePath, nil)
 	if err != nil {
-		return nil, errors.Errorf("failed to parse %s: %w", autoIncludePath, err)
+		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
 
 	// Shallow merge: autoinclude wins over the unit config.
 	// Merge(sourceConfig) merges sourceConfig INTO the receiver, with sourceConfig winning.
 	if err := config.Merge(l, autoIncludeConfig); err != nil {
-		return nil, errors.Errorf("failed to merge %s: %w", autoIncludePath, err)
+		return nil, fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
 	}
 
 	return config, nil
@@ -1492,7 +1493,7 @@ func DetectDeprecatedConfigurations(ctx context.Context, pctx *ParsingContext, l
 	if DetectInputsCtyUsage(file) {
 		// Dependency inputs (dependency.foo.inputs.bar) are now blocked by default for performance.
 		// This deprecated feature causes significant performance overhead due to recursive parsing.
-		return errors.New("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs (dependency.foo.outputs.bar) instead.")
+		return errors.New("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs (dependency.foo.outputs.bar) instead.") //nolint:staticcheck // user-facing message intentionally written as full sentences
 	}
 
 	if detectBareIncludeUsage(file) {
@@ -1713,7 +1714,7 @@ func getIndexOfExtraArgsWithName(extraArgs []TerraformExtraArguments, name strin
 
 // Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
 func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
-	errs := &errors.MultiError{}
+	var errs []error
 
 	if pctx.ConvertToTerragruntConfigFunc != nil {
 		return pctx.ConvertToTerragruntConfigFunc(ctx, pctx, configPath, terragruntConfigFromFile)
@@ -1730,7 +1731,7 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	if terragruntConfigFromFile.RemoteState != nil {
 		config, err := terragruntConfigFromFile.RemoteState.Config()
 		if err != nil {
-			errs = errs.Append(err)
+			errs = append(errs, err)
 		}
 
 		terragruntConfig.RemoteState = remotestate.New(config)
@@ -1753,7 +1754,7 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	}
 
 	if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
@@ -1766,7 +1767,7 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	}
 
 	if err := validateDependencies(pctx, terragruntConfigFromFile.Dependencies); err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
@@ -1869,19 +1870,19 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	}
 
 	if err := validateGenerateBlocks(&generateBlocks); err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	for _, block := range generateBlocks {
 		// Validate that if_exists is provided (required attribute)
 		if block.IfExists == "" {
-			errs = errs.Append(errors.Errorf("generate block %q is missing required attribute \"if_exists\"", block.Name))
+			errs = append(errs, fmt.Errorf("generate block %q is missing required attribute \"if_exists\"", block.Name))
 			continue
 		}
 
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
-			errs = errs.Append(errors.Errorf("generate block %q: %w", block.Name, err))
+			errs = append(errs, fmt.Errorf("generate block %q: %w", block.Name, err))
 			continue
 		}
 
@@ -1927,7 +1928,7 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	if terragruntConfigFromFile.Inputs != nil {
 		inputs, err := ctyhelper.ParseCtyValueToMap(*terragruntConfigFromFile.Inputs)
 		if err != nil {
-			errs = errs.Append(err)
+			errs = append(errs, err)
 		}
 
 		terragruntConfig.Inputs = inputs
@@ -1947,7 +1948,7 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 		}
 	}
 
-	return terragruntConfig, errs.ErrorOrNil()
+	return terragruntConfig, errors.Join(errs...)
 }
 
 // moduleSourceReadExtensions lists file extensions within a local terraform module
@@ -2083,7 +2084,7 @@ func configFileHasDependencyBlock(configPath string) (bool, error) {
 			return false, DependencyFileNotFoundError{Path: configPath}
 		}
 
-		return false, errors.New(err)
+		return false, err
 	}
 
 	// We use hclwrite to parse the config instead of the normal parser because the normal parser doesn't give us an AST
@@ -2091,7 +2092,7 @@ func configFileHasDependencyBlock(configPath string) (bool, error) {
 	// avoid weird parsing errors due to missing dependency data, we do a structural scan here.
 	hclFile, diags := hclwrite.ParseConfig(configBytes, configPath, hcl.InitialPos)
 	if diags.HasErrors() {
-		return false, errors.New(diags)
+		return false, diags
 	}
 
 	for _, block := range hclFile.Body().Blocks() {
@@ -2217,11 +2218,11 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*errorconfig.Config, error) {
 
 		// Validate retry settings
 		if retryBlock.MaxAttempts < 1 {
-			return nil, errors.Errorf("cannot have less than 1 max retry in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.MaxAttempts)
+			return nil, fmt.Errorf("cannot have less than 1 max retry in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.MaxAttempts)
 		}
 
 		if retryBlock.SleepIntervalSec < 0 {
-			return nil, errors.Errorf("cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.SleepIntervalSec)
+			return nil, fmt.Errorf("cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.SleepIntervalSec)
 		}
 
 		compiledPatterns := make([]*errorconfig.Pattern, 0, len(retryBlock.RetryableErrors))
@@ -2229,7 +2230,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*errorconfig.Config, error) {
 		for _, pattern := range retryBlock.RetryableErrors {
 			value, err := errorsPattern(pattern)
 			if err != nil {
-				return nil, errors.Errorf("invalid retry pattern %q in block %q: %w",
+				return nil, fmt.Errorf("invalid retry pattern %q in block %q: %w",
 					pattern, retryBlock.Label, err)
 			}
 
@@ -2268,7 +2269,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*errorconfig.Config, error) {
 		for _, pattern := range ignoreBlock.IgnorableErrors {
 			value, err := errorsPattern(pattern)
 			if err != nil {
-				return nil, errors.Errorf("invalid ignore pattern %q in block %q: %w",
+				return nil, fmt.Errorf("invalid ignore pattern %q in block %q: %w",
 					pattern, ignoreBlock.Label, err)
 			}
 

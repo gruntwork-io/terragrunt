@@ -33,7 +33,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		}
 
 		switch {
-		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.Scaffold):
+		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.ScaffoldInteractive):
 			if selectedModule, ok := m.List.SelectedItem().(*module.Module); ok {
 				switch {
 				case key.Matches(msg, m.delegateKeys.Choose):
@@ -88,7 +88,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 					// advance state
 					m.selectedModule = selectedModule
 					m.State = PagerState
-				case key.Matches(msg, m.delegateKeys.Scaffold):
+				case key.Matches(msg, m.delegateKeys.ScaffoldInteractive):
 					if m.SVC == nil {
 						return m, nil
 					}
@@ -160,7 +160,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 				m.logger.Warnf("Unknown button pressed: %s", currentAction)
 			}
 
-		case key.Matches(msg, m.pagerKeys.Scaffold):
+		case key.Matches(msg, m.pagerKeys.ScaffoldInteractive):
 			if m.SVC == nil {
 				return m, nil
 			}

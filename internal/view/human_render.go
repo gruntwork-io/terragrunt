@@ -8,19 +8,36 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"charm.land/lipgloss/v2"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/mitchellh/colorstring"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/term"
 )
 
-const defaultWidth = 78
+const (
+	defaultWidth = 78
+
+	// ansiReset clears any pending styling so that subsequent output is not
+	// tinted by ANSI codes inherited from earlier writers (notably the
+	// Terraform UI helper).
+	ansiReset = "\x1b[0m"
+)
+
+//nolint:gochecknoglobals
+var (
+	redStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	yellowStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	boldStyle          = lipgloss.NewStyle().Bold(true)
+	boldRedStyle       = boldStyle.Foreground(lipgloss.Color("1"))
+	boldYellowStyle    = boldStyle.Foreground(lipgloss.Color("3"))
+	darkGrayStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	underlineWhiteText = lipgloss.NewStyle().Underline(true).Foreground(lipgloss.Color("7"))
+)
 
 type HumanRender struct {
-	colorize *colorstring.Colorize
-	width    int
+	width        int
+	disableColor bool
 }
 
 func NewHumanRender(disableColor bool) Render {
@@ -32,13 +49,19 @@ func NewHumanRender(disableColor bool) Render {
 	}
 
 	return &HumanRender{
-		colorize: &colorstring.Colorize{
-			Colors:  colorstring.DefaultColors,
-			Disable: disableColor,
-			Reset:   true,
-		},
-		width: width,
+		disableColor: disableColor,
+		width:        width,
 	}
+}
+
+// styled renders text in the given style, or returns it unchanged when colors
+// are disabled.
+func (render *HumanRender) styled(style *lipgloss.Style, text string) string {
+	if render.disableColor {
+		return text
+	}
+
+	return style.Render(text)
 }
 
 func (render *HumanRender) ShowConfigPath(filenames []string) (string, error) {
@@ -91,28 +114,32 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 	// TODO: Remove lint suppression
 	switch hcl.DiagnosticSeverity(diag.Severity) { //nolint:exhaustive
 	case hcl.DiagError:
-		buf.WriteString(render.colorize.Color("[bold][red]Error: [reset]"))
-		leftRuleLine = render.colorize.Color("[red]│[reset] ")
-		leftRuleStart = render.colorize.Color("[red]╷[reset]")
-		leftRuleEnd = render.colorize.Color("[red]╵[reset]")
+		buf.WriteString(render.styled(&boldRedStyle, "Error: "))
+		leftRuleLine = render.styled(&redStyle, "│") + " "
+		leftRuleStart = render.styled(&redStyle, "╷")
+		leftRuleEnd = render.styled(&redStyle, "╵")
 		leftRuleWidth = 2
 	case hcl.DiagWarning:
-		buf.WriteString(render.colorize.Color("[bold][yellow]Warning: [reset]"))
-		leftRuleLine = render.colorize.Color("[yellow]│[reset] ")
-		leftRuleStart = render.colorize.Color("[yellow]╷[reset]")
-		leftRuleEnd = render.colorize.Color("[yellow]╵[reset]")
+		buf.WriteString(render.styled(&boldYellowStyle, "Warning: "))
+		leftRuleLine = render.styled(&yellowStyle, "│") + " "
+		leftRuleStart = render.styled(&yellowStyle, "╷")
+		leftRuleEnd = render.styled(&yellowStyle, "╵")
 		leftRuleWidth = 2
 	default:
 		// Clear out any coloring that might be applied by Terraform's UI helper,
 		// so our result is not context-sensitive.
-		buf.WriteString(render.colorize.Color("\n[reset]"))
+		buf.WriteByte('\n')
+
+		if !render.disableColor {
+			buf.WriteString(ansiReset)
+		}
 	}
 
 	// We don't wrap the summary, since we expect it to be terse, and since
 	// this is where we put the text of a native Go error it may not always
 	// be pure text that lends itself well to word-wrapping.
-	if _, err := fmt.Fprintf(&buf, render.colorize.Color("[bold]%s[reset]\n\n"), diag.Summary); err != nil {
-		return "", errors.New(err)
+	if _, err := fmt.Fprintf(&buf, "%s\n\n", render.styled(&boldStyle, diag.Summary)); err != nil {
+		return "", err
 	}
 
 	sourceSnippets, err := render.SourceSnippets(diag)
@@ -132,12 +159,12 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 				}
 
 				if _, err := fmt.Fprintf(&buf, "%s\n", line); err != nil {
-					return "", errors.New(err)
+					return "", err
 				}
 			}
 		} else {
 			if _, err := fmt.Fprintf(&buf, "%s\n", diag.Detail); err != nil {
-				return "", errors.New(err)
+				return "", err
 			}
 		}
 	}
@@ -194,7 +221,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 	}
 
 	if _, err := fmt.Fprintf(buf, "  on %s line %d%s:\n", diag.Range.Filename, diag.Range.Start.Line, contextStr); err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	// Split the snippet and render the highlighted section with underlines
@@ -224,7 +251,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 	}
 
 	before, highlight, after := code[0:start], code[start:end], code[end:]
-	code = fmt.Sprintf(render.colorize.Color("%s[underline][white]%s[reset]%s"), before, highlight, after)
+	code = before + render.styled(&underlineWhiteText, highlight) + after
 
 	// Split the snippet into lines and render one at a time
 	lines := strings.Split(code, "\n")
@@ -234,7 +261,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 			snippet.StartLine+i,
 			line,
 		); err != nil {
-			return "", errors.New(err)
+			return "", err
 		}
 	}
 
@@ -250,11 +277,14 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 			return values[i].Traversal < values[j].Traversal
 		})
 
-		fmt.Fprint(buf, render.colorize.Color("    [dark_gray]├────────────────[reset]\n"))
+		fmt.Fprintf(buf, "    %s\n", render.styled(&darkGrayStyle, "├────────────────"))
 
 		if callInfo := snippet.FunctionCall; callInfo != nil && callInfo.Signature != nil {
-			if _, err := fmt.Fprintf(buf, render.colorize.Color("    [dark_gray]│[reset] while calling [bold]%s[reset]("), callInfo.CalledAs); err != nil {
-				return "", errors.New(err)
+			if _, err := fmt.Fprintf(buf, "    %s while calling %s(",
+				render.styled(&darkGrayStyle, "│"),
+				render.styled(&boldStyle, callInfo.CalledAs),
+			); err != nil {
+				return "", err
 			}
 
 			for i, param := range callInfo.Signature.Params {
@@ -278,8 +308,12 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 		}
 
 		for _, value := range values {
-			if _, err := fmt.Fprintf(buf, render.colorize.Color("    [dark_gray]│[reset] [bold]%s[reset] %s\n"), value.Traversal, value.Statement); err != nil {
-				return "", errors.New(err)
+			if _, err := fmt.Fprintf(buf, "    %s %s %s\n",
+				render.styled(&darkGrayStyle, "│"),
+				render.styled(&boldStyle, value.Traversal),
+				value.Statement,
+			); err != nil {
+				return "", err
 			}
 		}
 	}

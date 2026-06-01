@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
@@ -431,7 +430,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
-		t.Fatalf("error: %v\n", errors.New(err))
+		t.Fatalf("error: %v\n", err)
 	}
 
 	opts.WorkingDir = workingDir

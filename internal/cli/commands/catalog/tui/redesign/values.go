@@ -2,10 +2,12 @@ package redesign
 
 import (
 	"bytes"
-	stderrors "errors"
+	"cmp"
+	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
-	"sort"
+	"slices"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -13,10 +15,21 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
+
+// InvalidHCLValueError reports a user-supplied HCL fragment that failed
+// to parse. Name is the values.<name> reference; Diag is the HCL
+// diagnostic text. Match with errors.As.
+type InvalidHCLValueError struct {
+	Name string
+	Diag string
+}
+
+func (e *InvalidHCLValueError) Error() string {
+	return fmt.Sprintf("invalid HCL value for %q: %s", e.Name, e.Diag)
+}
 
 const (
 	// valuesFileName is the sibling file Terragrunt reads to populate the
@@ -73,7 +86,7 @@ func (r ValuesReferences) allNames() []string {
 		names = append(names, o.Name)
 	}
 
-	sort.Strings(names)
+	slices.Sort(names)
 
 	return names
 }
@@ -88,18 +101,18 @@ func (r ValuesReferences) allNames() []string {
 func CollectValuesReferences(fsys vfs.FS, path string) (ValuesReferences, error) {
 	raw, err := vfs.ReadFile(fsys, path)
 	if err != nil {
-		if stderrors.Is(err, fs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return ValuesReferences{}, nil
 		}
 
-		return ValuesReferences{}, errors.New(err)
+		return ValuesReferences{}, err
 	}
 
 	parser := hclparse.NewParser()
 
 	file, diags := parser.ParseHCL(raw, filepath.Base(path))
 	if diags.HasErrors() {
-		return ValuesReferences{}, errors.New(diags)
+		return ValuesReferences{}, diags
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
@@ -109,7 +122,7 @@ func CollectValuesReferences(fsys vfs.FS, path string) (ValuesReferences, error)
 
 	collector := newValuesCollector()
 	if walkDiags := hclsyntax.Walk(body, collector); walkDiags.HasErrors() {
-		return ValuesReferences{}, errors.New(walkDiags)
+		return ValuesReferences{}, walkDiags
 	}
 
 	return collector.result(), nil
@@ -214,29 +227,41 @@ func (c *valuesCollector) result() ValuesReferences {
 		required = append(required, name)
 	}
 
-	sort.Strings(required)
+	slices.Sort(required)
 
 	optional := make([]OptionalValue, 0, len(c.optionalVals))
 	for name, val := range c.optionalVals {
 		optional = append(optional, OptionalValue{Name: name, Default: val})
 	}
 
-	sort.Slice(optional, func(i, j int) bool {
-		return optional[i].Name < optional[j].Name
+	slices.SortFunc(optional, func(a, b OptionalValue) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return ValuesReferences{Required: required, Optional: optional}
 }
 
-// WriteValuesStub writes a terragrunt.values.hcl skeleton into dir. The
-// file contains a required section (with "TODO" placeholders) followed by
-// an optional section (with the evaluated try() defaults).
+// WriteValuesStub writes a terragrunt.values.hcl skeleton into dir with
+// `"TODO"` for required entries and the try() fallback for optional ones.
+// It is equivalent to WriteValuesFile with no user-supplied values.
+func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, error) {
+	return WriteValuesFile(fsys, dir, refs, nil)
+}
+
+// WriteValuesFile writes a terragrunt.values.hcl into dir. The file contains
+// a required section followed by an optional section. For each reference,
+// the corresponding entry in values (if present and non-empty) is parsed as
+// the right-hand side of an HCL assignment and emitted verbatim; otherwise
+// required entries default to `"TODO"` and optional entries to the literal
+// try() fallback captured during discovery.
 //
 // If both sections would be empty the file is not written. If a
 // terragrunt.values.hcl already exists in dir it is left untouched.
 //
-// Returns written=true only when a new file was created.
-func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, error) {
+// Returns written=true only when a new file was created. An invalid HCL
+// fragment in values is surfaced as an error. Callers (typically the
+// interactive form) validate user input before reaching this point.
+func WriteValuesFile(fsys vfs.FS, dir string, refs ValuesReferences, values map[string]string) (bool, error) {
 	if refs.IsEmpty() {
 		return false, nil
 	}
@@ -245,7 +270,7 @@ func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, erro
 
 	exists, err := vfs.FileExists(fsys, filePath)
 	if err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	if exists {
@@ -262,12 +287,15 @@ func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, erro
 	if len(refs.Required) > 0 {
 		buf.WriteString(requiredSectionHeader)
 
-		sortedRequired := append([]string(nil), refs.Required...)
-		sort.Strings(sortedRequired)
+		sortedRequired := slices.Clone(refs.Required)
+		slices.Sort(sortedRequired)
 
 		required := hclwrite.NewEmptyFile()
+
 		for _, name := range sortedRequired {
-			required.Body().SetAttributeValue(name, cty.StringVal("TODO"))
+			if err := writeValueAttribute(required.Body(), name, values[name], cty.StringVal("TODO")); err != nil {
+				return false, err
+			}
 		}
 
 		buf.Write(required.Bytes())
@@ -276,24 +304,68 @@ func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, erro
 	if len(refs.Optional) > 0 {
 		buf.WriteString(optionalSectionHeader)
 
-		sortedOptional := append([]OptionalValue(nil), refs.Optional...)
-		sort.Slice(sortedOptional, func(i, j int) bool {
-			return sortedOptional[i].Name < sortedOptional[j].Name
+		sortedOptional := slices.Clone(refs.Optional)
+		slices.SortFunc(sortedOptional, func(a, b OptionalValue) int {
+			return cmp.Compare(a.Name, b.Name)
 		})
 
 		optional := hclwrite.NewEmptyFile()
+
 		for _, o := range sortedOptional {
-			optional.Body().SetAttributeValue(o.Name, o.Default)
+			if err := writeValueAttribute(optional.Body(), o.Name, values[o.Name], o.Default); err != nil {
+				return false, err
+			}
 		}
 
 		buf.Write(optional.Bytes())
 	}
 
 	if err := vfs.WriteFile(fsys, filePath, buf.Bytes(), valuesStubPerm); err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	return true, nil
+}
+
+// writeValueAttribute writes `name = <expr>` into body. When userValue is
+// non-empty it is parsed as an HCL expression and emitted verbatim;
+// otherwise fallback is written via the cty serializer.
+func writeValueAttribute(body *hclwrite.Body, name, userValue string, fallback cty.Value) error {
+	if userValue == "" {
+		body.SetAttributeValue(name, fallback)
+
+		return nil
+	}
+
+	tokens, err := parseHCLValueTokens(name, userValue)
+	if err != nil {
+		return err
+	}
+
+	body.SetAttributeRaw(name, tokens)
+
+	return nil
+}
+
+// parseHCLValueTokens parses "<name> = <raw>" and returns the right-hand
+// side as a token sequence usable with hclwrite.Body.SetAttributeRaw. This
+// is how user-supplied HCL fragments (e.g. `["a", "b"]` or `{ k = "v" }`)
+// are spliced into the generated values file without going through the cty
+// serializer, which would otherwise require evaluating the fragment.
+func parseHCLValueTokens(name, raw string) (hclwrite.Tokens, error) {
+	src := []byte(name + " = " + raw + "\n")
+
+	file, diags := hclwrite.ParseConfig(src, "values.hcl", hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil, &InvalidHCLValueError{Name: name, Diag: diags.Error()}
+	}
+
+	attr := file.Body().GetAttribute(name)
+	if attr == nil {
+		return nil, fmt.Errorf("could not extract HCL value for %q from parsed source", name)
+	}
+
+	return attr.Expr().BuildTokens(nil), nil
 }
 
 // configFileForKind returns the filename the given component kind's main HCL

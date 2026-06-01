@@ -43,13 +43,17 @@ catalog {
 This will recursively search for OpenTofu/Terraform modules in the root of the repo and the `modules` directory and show a table with all the modules. You can then:
 
 1. Search and filter the table: `/` and start typing.
-1. Select a module in the table: use the arrow keys to go up and down and next/previous page.
-1. See the docs for a selected module: `ENTER`.
-1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` for using the module: `S`.
+1. Select a module in the table: use the arrow keys to go up and down and next/previous page using the left and right arrow keys.
+1. Read the docs for a selected module: `ENTER`.
+1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` for using the module with an interactive form: `s`. Inside the form, `ctrl+d` writes the file even when required fields are still unset, leaving them as `# TODO` placeholders for you to fill in by hand.
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Without the experiment, `s` produces a placeholder-style file with every input marked `# TODO`.
+</Aside>
 
 ## Scaffolding Flags
 
-The following `catalog` flags control behavior of the underlying `scaffold` command when the `S` key is pressed in a catalog entry:
+The following `catalog` flags control behavior of the underlying `scaffold` command launched via `s`:
 
 - `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
 - `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.
@@ -187,3 +191,98 @@ tags:
 Tag values that name a component type also promote the component into that type's tab. For example, a component classified as a `template` whose tags include `module` appears under both the `Templates` tab (by its native kind) and the `Modules` tab (by tag), without changing how it's scaffolded.
 
 </Since>
+
+## Keybindings
+
+Each view has its own keymap. The hint bar at the bottom of the screen shows the most common keys for the current view; the table below covers every key that is bound, including alternates that aren't advertised.
+
+### List view
+
+The default view, shown after discovery completes.
+
+| Key | Action |
+|-----|--------|
+| `j`, `↓`, `ctrl+n` | Move down one row |
+| `k`, `↑`, `ctrl+p` | Move up one row |
+| `l`, `→`, `pgdn`, `ctrl+v` | Next page |
+| `h`, `←`, `pgup`, `alt+v` | Previous page |
+| `home`, `ctrl+a` | Jump to first row |
+| `end`, `ctrl+e` | Jump to last row |
+| `enter` | View the selected component's README |
+| `s` | Scaffold the selected component (interactive form) |
+| `tab` | Next tab (redesign experiment) |
+| `shift+tab` | Previous tab (redesign experiment) |
+| `/` | Search and filter the visible list |
+| `?` | Toggle the expanded help view |
+| `q`, `esc` | Quit |
+| `ctrl+c` | Force quit |
+
+### Component detail (pager)
+
+Active after pressing `enter` on a component.
+
+| Key | Action |
+|-----|--------|
+| `j`, `↓`, `ctrl+n` | Scroll down one line |
+| `k`, `↑`, `ctrl+p` | Scroll up one line |
+| `l`, `→`, `pgdn`, `ctrl+v` | Page down |
+| `h`, `←`, `pgup`, `alt+v` | Page up |
+| `tab` | Focus the next button in the footer |
+| `shift+tab` | Focus the previous button in the footer |
+| `enter` | Activate the focused button |
+| `s` | Scaffold (interactive form) |
+| `w` | Toggle soft-wrapping of long README lines |
+| `?` | Toggle the expanded help view |
+| `q`, `esc` | Back to the list |
+| `ctrl+c` | Force quit |
+
+### Interactive scaffold form
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+</Aside>
+
+The form opens in *navigate* mode. Pressing `enter` on a text field switches to *edit* mode, where most keys are forwarded to the underlying text input; press `esc` to return to navigate mode.
+
+#### Navigate mode
+
+| Key | Action |
+|-----|--------|
+| `j`, `↓` | Next field |
+| `k`, `↑` | Previous field |
+| `l`, `→`, `pgdn`, `ctrl+v` | Next page of fields |
+| `h`, `←`, `pgup`, `alt+v` | Previous page of fields |
+| `home`, `ctrl+a` | Jump to the first field |
+| `end`, `ctrl+e` | Jump to the last field |
+| `enter`, `i` | Enter edit mode on a text field, or toggle a checkbox |
+| `x` | Unset the focused field, clearing its value and any error (optional fields fall back to their source default; required fields read as missing again) |
+| `r` | Reset the whole form: unset every field and clear all errors |
+| `/` | Filter fields by name |
+| `s` | Scaffold; if any required field is unset, the cursor jumps to the first one and a status line reports how many are missing, prompting you to press `ctrl+d` to write anyway |
+| `ctrl+d` | Scaffold immediately, leaving unset required fields as `# TODO` |
+| `esc` | Cancel and return to the previous view |
+
+#### Edit mode
+
+Active while typing into a text field. Keys not listed here are forwarded to the text input.
+
+| Key | Action |
+|-----|--------|
+| `esc` | Finish editing and return to navigate mode |
+| `enter` | On a text/HCL field, finish editing and return to navigate mode (same as `esc`). On a bool field, toggle between `[x] true` and `[ ] false` |
+| `tab` | Commit the current field and jump to the next visible one, staying in edit mode |
+| `shift+tab` | Commit the current field and jump to the previous visible one, staying in edit mode |
+| `ctrl+d` | Scaffold immediately, skipping the required-field check |
+
+### Welcome screen
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+The welcome and loading screens are only shown when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+</Aside>
+
+Shown briefly during initial discovery and, if no catalog sources are configured, as a persistent help screen.
+
+| Key | Action |
+|-----|--------|
+| `h` | Open the catalog docs in your browser (only when no sources are found) |
+| `q`, `esc`, `ctrl+c` | Exit |

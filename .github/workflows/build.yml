@@ -107,7 +107,7 @@ jobs:
             OUTPUT="${OUTPUT}.exe"
           fi
           go build -o "${OUTPUT}" \
-            -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${BUILD_VERSION}" \
+            -ldflags "-s -w -X github.com/gruntwork-io/terragrunt/internal/version.Version=${BUILD_VERSION}" \
             .
 
       - name: Verify Static Linking

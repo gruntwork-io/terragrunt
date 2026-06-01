@@ -4,11 +4,12 @@ package render
 import (
 	"context"
 
+	"errors"
+
 	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -29,7 +30,6 @@ const (
 func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	return clihelper.Flags{
 		flags.NewFlag(&clihelper.GenericFlag[string]{
@@ -87,9 +87,9 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 			Destination: &opts.OutputPath,
 			Usage:       "The file name that terragrunt should use when rendering the terragrunt.hcl config (next to the unit configuration).",
 		},
-			flags.WithDeprecatedFlagName("json-out", terragruntPrefixControl),                          // `--json-out` (deprecated: use `--out` instead)
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-out"), terragruntPrefixControl),  // `TG_RENDER_JSON_OUT`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-out"), terragruntPrefixControl), // `TERRAGRUNT_JSON_OUT`
+			flags.WithDeprecatedFlagName("json-out", opts.StrictControls),                          // `--json-out` (deprecated: use `--out` instead)
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-out"), opts.StrictControls),  // `TG_RENDER_JSON_OUT`
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-out"), opts.StrictControls), // `TERRAGRUNT_JSON_OUT`
 		),
 
 		flags.NewFlag(&clihelper.BoolFlag{
@@ -98,8 +98,8 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 			Destination: &opts.RenderMetadata,
 			Usage:       "Add metadata to the rendered output file.",
 		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-with-metadata"), terragruntPrefixControl), // `TG_RENDER_JSON_WITH_METADATA`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("with-metadata"), terragruntPrefixControl),     // `TERRAGRUNT_WITH_METADATA`
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-with-metadata"), opts.StrictControls), // `TG_RENDER_JSON_WITH_METADATA`
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("with-metadata"), opts.StrictControls),     // `TERRAGRUNT_WITH_METADATA`
 		),
 
 		flags.NewFlag(&clihelper.BoolFlag{
@@ -115,8 +115,8 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-disable-dependent-modules"), terragruntPrefixControl),  // `TG_RENDER_JSON_DISABLE_DEPENDENT_MODULES`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-disable-dependent-modules"), terragruntPrefixControl), // `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES`
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-disable-dependent-modules"), opts.StrictControls),  // `TG_RENDER_JSON_DISABLE_DEPENDENT_MODULES`
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-disable-dependent-modules"), opts.StrictControls), // `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES`
 		),
 	}
 }

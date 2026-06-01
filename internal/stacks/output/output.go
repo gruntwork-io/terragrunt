@@ -10,8 +10,9 @@ import (
 	"slices"
 	"strings"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
@@ -81,7 +82,7 @@ func StackOutput(
 	// Create worktrees internally if filter-flag experiment is enabled and git filters are present
 	wts, err := buildWorktreesIfNeeded(ctx, l, opts)
 	if err != nil {
-		return cty.NilVal, errors.Errorf("failed to create worktrees: %w", err)
+		return cty.NilVal, fmt.Errorf("failed to create worktrees: %w", err)
 	}
 
 	if wts != nil {
@@ -95,7 +96,7 @@ func StackOutput(
 	// Single discovery walk returns both stack files and excluded unit paths.
 	foundFiles, excludedPaths, err := generate.ListStackFilesWithExcludes(ctx, l, opts, wts)
 	if err != nil {
-		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
+		return cty.NilVal, fmt.Errorf("failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
 
 	if len(foundFiles) == 0 {
@@ -124,7 +125,7 @@ func StackOutput(
 			return workerErr
 		}
 
-		return (&errors.MultiError{}).Append(mainErr, workerErr).ErrorOrNil()
+		return errors.Join(mainErr, workerErr)
 	}
 
 	for _, path := range foundFiles {
@@ -134,12 +135,12 @@ func StackOutput(
 
 		values, valuesErr := config.ReadValues(ctx, pctx, l, dir)
 		if valuesErr != nil {
-			return cty.NilVal, waitWorkerErrors(errors.Errorf("Failed to read values from %s: %w", dir, valuesErr))
+			return cty.NilVal, waitWorkerErrors(fmt.Errorf("failed to read values from %s: %w", dir, valuesErr))
 		}
 
 		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, pctx, path, values)
 		if stackErr != nil {
-			return cty.NilVal, waitWorkerErrors(errors.Errorf("Failed to read stack file %s: %w", path, stackErr))
+			return cty.NilVal, waitWorkerErrors(fmt.Errorf("failed to read stack file %s: %w", path, stackErr))
 		}
 
 		parsedStackFiles[path] = stackFile
@@ -152,7 +153,7 @@ func StackOutput(
 		}
 
 		for _, unit := range stackFile.Units {
-			unitDir := config.GetUnitDir(dir, unit)
+			unitDir := unit.GeneratedPath(dir)
 
 			// Excluded units are fully omitted from the final output, matching stack run behavior.
 			if _, excluded := excludedPaths[filepath.Clean(unitDir)]; excluded {
@@ -223,12 +224,12 @@ func StackOutput(
 
 	nestedOutputs, err := nestUnitOutputs(unitOutputs)
 	if err != nil {
-		return cty.NilVal, errors.Errorf("Failed to nest unit outputs: %w", err)
+		return cty.NilVal, fmt.Errorf("failed to nest unit outputs: %w", err)
 	}
 
 	ctyResult, err := config.GoTypeToCty(nestedOutputs)
 	if err != nil {
-		return cty.NilVal, errors.Errorf("Failed to convert unit output to cty value: %s %w", result, err)
+		return cty.NilVal, fmt.Errorf("failed to convert unit output to cty value: %s %w", result, err)
 	}
 
 	return ctyResult, nil
@@ -271,7 +272,7 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 			if i == len(parts)-1 {
 				ctyValue, err := config.ConvertValuesMapToCtyVal(value)
 				if err != nil {
-					return nil, errors.Errorf("Failed to convert unit output to cty value: %s %w", flatKey, err)
+					return nil, fmt.Errorf("failed to convert unit output to cty value: %s %w", flatKey, err)
 				}
 
 				current[part] = ctyValue
@@ -285,7 +286,7 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 				current, ok = current[part].(map[string]any)
 
 				if !ok {
-					return nil, errors.Errorf("Failed to traverse unit output: %v %s", flat, part)
+					return nil, fmt.Errorf("failed to traverse unit output: %v %s", flat, part)
 				}
 			}
 		}

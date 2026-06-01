@@ -4,7 +4,6 @@ package cliconfig
 import (
 	"maps"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -203,7 +202,7 @@ func (cfg *Config) Save(configPath string) error {
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := vfs.WriteFile(cfg.FS(), configPath, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil

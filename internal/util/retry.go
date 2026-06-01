@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -29,7 +30,7 @@ func DoWithRetry(ctx context.Context, actionDescription string, maxRetries int, 
 		if ctx.Err() != nil {
 			logger.Debugf("%s returned an error: %s.", actionDescription, err.Error())
 
-			return errors.New(ctx.Err())
+			return ctx.Err()
 		}
 
 		logger.Errorf("%s returned an error: %s. Retry %d of %d. Sleeping for %s and will try again.", actionDescription, err.Error(), i, maxRetries, sleepBetweenRetries)
@@ -37,7 +38,7 @@ func DoWithRetry(ctx context.Context, actionDescription string, maxRetries int, 
 		select {
 		case <-time.After(sleepBetweenRetries): // Try again
 		case <-ctx.Done():
-			return errors.New(ctx.Err())
+			return ctx.Err()
 		}
 	}
 

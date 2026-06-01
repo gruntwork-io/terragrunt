@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
 
@@ -15,7 +17,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -122,9 +125,9 @@ type terragruntEngine struct {
 // - features
 // - include
 func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*DecodedBaseBlocks, error) {
-	errs := &errors.MultiError{}
+	var errs []error
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -135,12 +138,12 @@ func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, f
 		evalParsingContext,
 	)
 	if err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	trackInclude, err := getTrackInclude(pctx, terragruntIncludeList, includeFromChild)
 	if err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	// set feature flags
@@ -150,29 +153,27 @@ func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, f
 		return nil, err
 	}
 	// validate flags to have default value, collect errors
-	flagErrs := &errors.MultiError{}
+	var flagErrs []error
 
 	for _, flag := range tgFlags.FeatureFlags {
 		if flag.Default == nil {
 			flagErr := fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, file.ConfigPath)
-			flagErrs = flagErrs.Append(flagErr)
+			flagErrs = append(flagErrs, flagErr)
 		}
 	}
 
-	if flagErrs.ErrorOrNil() != nil {
-		errs = errs.Append(flagErrs)
-	}
+	errs = append(errs, flagErrs...)
 
 	flagsAsCtyVal, err := flagsAsCty(pctx, tgFlags.FeatureFlags)
 	if err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
 	// evaluation ctx.
 	locals, err := EvaluateLocalsBlock(ctx, pctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal), l, file)
 	if err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	localsAsCtyVal, err := ConvertValuesMapToCtyVal(locals)
@@ -184,7 +185,7 @@ func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, f
 		TrackInclude: trackInclude,
 		Locals:       &localsAsCtyVal,
 		FeatureFlags: &flagsAsCtyVal,
-	}, errs.ErrorOrNil()
+	}, errors.Join(errs...)
 }
 
 func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
@@ -199,12 +200,12 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 
-	errs := &errors.MultiError{}
+	var errs []error
 
 	for _, flag := range tgFlags {
 		if _, exists := evaluatedFlags[flag.Name]; !exists {
 			if flag.Default == nil {
-				errs = errs.Append(fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, ctx.TerragruntConfigPath))
+				errs = append(errs, fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, ctx.TerragruntConfigPath))
 				continue
 			}
 
@@ -222,7 +223,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 
-	return flagsAsCtyVal, errs.ErrorOrNil()
+	return flagsAsCtyVal, errors.Join(errs...)
 }
 
 // cliFlagsToCty converts CLI feature flags to Cty values. It returns a map of flag names
@@ -274,7 +275,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 			return nil, TerragruntConfigNotFoundError{Path: configPath}
 		}
 
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
@@ -296,7 +297,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
-				file = cacheConfig
+				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
 			} else {
 				var parseErr error
 
@@ -379,7 +380,7 @@ func PartialParseConfigString(ctx context.Context, pctx *ParsingContext, l log.L
 }
 
 func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-	errs := &errors.MultiError{}
+	var errs []error
 
 	// Detect and block deprecated configurations early, before attempting to parse.
 	// This ensures included configs with deprecated syntax get clear error messages
@@ -407,7 +408,7 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	// Initialize evaluation ctx extensions from base blocks.
 	baseBlocks, err := DecodeBaseBlocks(ctx, pctx, l, file, includeFromChild)
 	if err != nil {
-		errs = errs.Append(err)
+		errs = append(errs, err)
 	}
 
 	if baseBlocks != nil {
@@ -424,7 +425,7 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 	output.IsPartial = true
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -602,7 +603,7 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 	errsContainsIncludeErr := false
 
-	for _, err := range errs.WrappedErrors() {
+	for _, err := range errs {
 		if errors.As(err, &TooManyLevelsOfInheritanceError{}) {
 			errsContainsIncludeErr = true
 		}
@@ -615,7 +616,7 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 && !errsContainsIncludeErr {
 		config, err := handleInclude(ctx, pctx, l, output, true)
 		if err != nil {
-			errs = errs.Append(err)
+			errs = append(errs, err)
 		}
 
 		// handleInclude returns nil when a Merge/DeepMerge fails; keep the pre-include output so the
@@ -626,8 +627,12 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 	}
 
-	if errs.ErrorOrNil() != nil {
-		return output, errs.ErrorOrNil()
+	if pctx.Experiments.Evaluate(experiment.MarkManyAsRead) && output.Terraform != nil && output.Terraform.Source != nil {
+		markLocalModuleSourceAsRead(pctx, file.ConfigPath, *output.Terraform.Source)
+	}
+
+	if joined := errors.Join(errs...); joined != nil {
+		return output, joined
 	}
 
 	if hasExcludeBlock {
@@ -664,7 +669,7 @@ func processExcludes(ctx context.Context, pctx *ParsingContext, l log.Logger, co
 
 func partialParseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.New(IncludedConfigMissingPathError(pctx.TerragruntConfigPath))
+		return nil, IncludedConfigMissingPathError(pctx.TerragruntConfigPath)
 	}
 
 	includePath := includedConfig.Path

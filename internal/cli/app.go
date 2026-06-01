@@ -20,8 +20,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
 
-	"github.com/gruntwork-io/go-commons/version"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
+	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -120,7 +121,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 
 	args = removeNoColorFlagDuplicates(args)
 
-	if err := app.App.RunContext(ctx, args); err != nil && !errors.IsContextCanceled(err) {
+	if err := app.App.RunContext(ctx, args); err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}
 
@@ -171,7 +172,7 @@ func beforeAction(_ *options.TerragruntOptions) clihelper.ActionFunc {
 				// Show a clear error pointing users to the explicit run form.
 				// Example: `terragrunt workspace ls` -> suggest `terragrunt run -- workspace ls`.
 				return clihelper.NewExitError(
-					errors.Errorf("unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://docs.terragrunt.com/migrate/cli-redesign/#use-the-new-run-command", cmdName, cmdName),
+					fmt.Errorf("unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://docs.terragrunt.com/migrate/cli-redesign/#use-the-new-run-command", cmdName, cmdName),
 					clihelper.ExitCodeGeneralError,
 				)
 			}

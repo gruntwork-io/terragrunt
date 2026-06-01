@@ -7,7 +7,8 @@ import (
 
 	"maps"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -30,7 +31,7 @@ func ShowAppHelp(_ context.Context, cliCtx *Context) error {
 	}
 
 	if tpl == "" {
-		return errors.Errorf("app help template not defined")
+		return errors.New("app help template not defined")
 	}
 
 	if cliCtx.HelpName == "" {
@@ -65,7 +66,7 @@ func ShowCommandHelp(ctx context.Context, cliCtx *Context) error {
 	}
 
 	if tpl == "" {
-		return errors.Errorf("command help template not defined")
+		return errors.New("command help template not defined")
 	}
 
 	HelpPrinterCustom(cliCtx, tpl, nil)
@@ -93,7 +94,7 @@ func ShowVersion(_ context.Context, cliCtx *Context) error {
 	}
 
 	if tpl == "" {
-		return errors.Errorf("app version template not defined")
+		return errors.New("app version template not defined")
 	}
 
 	cli.HelpPrinterCustom(cliCtx.Writer, tpl, cliCtx, nil)

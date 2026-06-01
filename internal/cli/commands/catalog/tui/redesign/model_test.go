@@ -17,6 +17,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// copyFinishedFromNames assembles a CopyFinishedMsg whose Optional slice is
+// derived from the supplied names (no captured defaults). Required entries
+// stay as plain names.
+func copyFinishedFromNames(workingDir string, required, optional []string, valuesWritten, valuesSkipped bool) redesign.CopyFinishedMsg {
+	opt := make([]redesign.OptionalValue, len(optional))
+	for i, name := range optional {
+		opt[i] = redesign.OptionalValue{Name: name}
+	}
+
+	return redesign.CopyFinishedMsg{
+		Result: redesign.CopyResult{
+			WorkingDir:    workingDir,
+			References:    redesign.ValuesReferences{Required: required, Optional: opt},
+			ValuesWritten: valuesWritten,
+			ValuesSkipped: valuesSkipped,
+		},
+	}
+}
+
 // makeComponents builds a deterministic list of ComponentEntry values for
 // testing. Each entry has a distinct Dir so Title() returns the directory
 // basename and sort order is predictable.
@@ -39,9 +58,9 @@ func makeComponents(t *testing.T) []*redesign.ComponentEntry {
 	}
 }
 
-// TestModelStreamingInsertsSorted verifies that components sent via componentMsg
+// TestModelStreamingInsertsSortedWithRacing verifies that components sent via componentMsg
 // are inserted in alphabetical order in the list.
-func TestModelStreamingInsertsSorted(t *testing.T) {
+func TestModelStreamingInsertsSortedWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -53,7 +72,7 @@ func TestModelStreamingInsertsSorted(t *testing.T) {
 		require.GreaterOrEqual(t, len(components), 2, "need at least 2 components")
 
 		componentCh := make(chan *redesign.ComponentEntry, len(components))
-		m := redesign.NewModelStreaming(l, opts, components[len(components)-1], componentCh, nil)
+		m := redesign.NewModelStreaming(t.Context(), l, opts, components[len(components)-1], componentCh, nil)
 		close(componentCh)
 
 		msgs := make([]tea.Msg, 0, len(components))
@@ -98,9 +117,9 @@ func makeMixedComponents(t *testing.T) []*redesign.ComponentEntry {
 	}
 }
 
-// TestModelTabsFilterByKind verifies that each tab shows only components
+// TestModelTabsFilterByKindWithRacing verifies that each tab shows only components
 // of its kind, while the All tab shows everything.
-func TestModelTabsFilterByKind(t *testing.T) {
+func TestModelTabsFilterByKindWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -111,7 +130,7 @@ func TestModelTabsFilterByKind(t *testing.T) {
 		components := makeMixedComponents(t)
 
 		componentCh := make(chan *redesign.ComponentEntry, len(components))
-		m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+		m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 		close(componentCh)
 
 		// Cycle: All -> Templates (first tab after All in the current order).
@@ -131,9 +150,9 @@ func TestModelTabsFilterByKind(t *testing.T) {
 	})
 }
 
-// TestModelTabShiftTabCycles verifies that shift+tab cycles tabs in
+// TestModelTabShiftTabCyclesWithRacing verifies that shift+tab cycles tabs in
 // reverse order.
-func TestModelTabShiftTabCycles(t *testing.T) {
+func TestModelTabShiftTabCyclesWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -144,7 +163,7 @@ func TestModelTabShiftTabCycles(t *testing.T) {
 		components := makeMixedComponents(t)
 
 		componentCh := make(chan *redesign.ComponentEntry, len(components))
-		m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+		m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 		close(componentCh)
 
 		// Starts on All. Shift+Tab wraps to the last tab (Stacks).
@@ -160,21 +179,23 @@ func TestModelTabShiftTabCycles(t *testing.T) {
 	})
 }
 
-// TestModelCopyActionTransitionsToScaffoldState asserts that pressing the
-// scaffold key on a copyable component transitions the Model to
-// ScaffoldState, which is what dispatches the copy action.
-//
-// The copy itself is exercised end-to-end in copy_test.go; here we only
-// verify the wire-up, because tea.Exec (used by the copy dispatch) only runs
-// the underlying ExecCommand inside a real bubbletea runtime.
-func TestModelCopyActionTransitionsToScaffoldState(t *testing.T) {
+// TestModelInteractiveScaffoldTransitionsToFormStateWithRacing asserts that pressing
+// the interactive scaffold key (`s`) on a copyable component transitions
+// the Model to FormState. The discovery goroutine runs synchronously via
+// tea.Cmd, so once the form is ready the model has both a form pointer and
+// a captured ValuesReferences.
+func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		fsys := vfs.NewMemMapFS()
 		repoDir := testRepoDir
 
-		unitBody := `locals { region = values.region }` + "\n"
+		unitBody := `locals {
+  region = values.region
+  env    = try(values.env, "prod")
+}
+` + "\n"
 		writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
 
 		repo := newFakeRepo(t, fsys, repoDir)
@@ -194,20 +215,72 @@ func TestModelCopyActionTransitionsToScaffoldState(t *testing.T) {
 		componentCh := make(chan *redesign.ComponentEntry)
 		close(componentCh)
 
-		m := redesign.NewModelStreaming(logger.CreateLogger(), opts, entry, componentCh, nil)
+		m := redesign.NewModelStreaming(t.Context(), logger.CreateLogger(), opts, entry, componentCh, nil)
 
+		// Lowercase s = interactive scaffold flow.
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 's', Text: "s"}}
 
 		finalModel := driveModel(t, m, 120, 40, msgs).(redesign.Model)
 
-		assert.Equal(t, redesign.ScaffoldState, finalModel.State,
-			"pressing 's' on a unit should transition to ScaffoldState")
+		assert.Equal(t, redesign.FormState, finalModel.State,
+			"pressing 's' on a unit should transition to FormState")
 	})
 }
 
-// TestModelStreamingDeduplicates verifies that sending the same component
+// TestModelEnterOnPagerLaunchesInteractiveFormWithRacing asserts that once the user
+// has opened a component's README (PagerState), pressing enter on the
+// default-focused Scaffold button takes the interactive form path, the
+// same as pressing `s`. The placeholder flow stays reachable via `S`.
+func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		fsys := vfs.NewMemMapFS()
+		repoDir := testRepoDir
+
+		unitBody := `locals {
+  region = values.region
+  env    = try(values.env, "prod")
+}
+` + "\n"
+		writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
+
+		repo := newFakeRepo(t, fsys, repoDir)
+
+		components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+		require.NoError(t, err)
+		require.Len(t, components, 1)
+		require.Equal(t, redesign.ComponentKindUnit, components[0].Kind)
+
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		opts.WorkingDir = t.TempDir()
+
+		entry := redesign.NewComponentEntry(components[0]).WithSource("github.com/gruntwork-io/fake-repo")
+
+		componentCh := make(chan *redesign.ComponentEntry)
+		close(componentCh)
+
+		m := redesign.NewModelStreaming(t.Context(), logger.CreateLogger(), opts, entry, componentCh, nil)
+
+		// First enter: list → pager (opens the README).
+		// Second enter: pager → form (the new behavior).
+		msgs := []tea.Msg{
+			tea.KeyPressMsg{Code: tea.KeyEnter},
+			tea.KeyPressMsg{Code: tea.KeyEnter},
+		}
+
+		finalModel := driveModel(t, m, 120, 40, msgs).(redesign.Model)
+
+		assert.Equal(t, redesign.FormState, finalModel.State,
+			"enter on the pager's Scaffold button should transition to FormState")
+	})
+}
+
+// TestModelStreamingDeduplicatesWithRacing verifies that sending the same component
 // twice does not result in a duplicate entry in the list.
-func TestModelStreamingDeduplicates(t *testing.T) {
+func TestModelStreamingDeduplicatesWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -219,7 +292,7 @@ func TestModelStreamingDeduplicates(t *testing.T) {
 		require.NotEmpty(t, components)
 
 		componentCh := make(chan *redesign.ComponentEntry, len(components))
-		m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+		m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 		close(componentCh)
 
 		msgs := []tea.Msg{
@@ -254,11 +327,11 @@ func TestModelCopyFinishedWritesValuesExitMessage(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 
 	// Copy-written: 2 required TODOs (exercises the plural "entries" branch)
 	// and 1 optional (exercises the singular "default" branch).
-	msg := redesign.NewCopyFinishedMsgForTest(nil, workingDir,
+	msg := copyFinishedFromNames(workingDir,
 		[]string{"region", "env"},
 		[]string{"tier"},
 		true, false,
@@ -270,7 +343,7 @@ func TestModelCopyFinishedWritesValuesExitMessage(t *testing.T) {
 	exit := stripANSI(finalModel.ExitMessage())
 	assert.NotEmpty(t, exit, "exit message should be populated after copyFinishedMsg")
 	assert.Contains(t, exit, "terragrunt.values.hcl generated")
-	assert.Contains(t, exit, "2 required TODO entries", "plural 'entries' should render for count != 1")
+	assert.Contains(t, exit, "2 required entries", "plural 'entries' should render for count != 1")
 	assert.Contains(t, exit, "1 optional default", "singular 'default' should render for count == 1")
 	assert.Contains(t, exit, "terragrunt.values.hcl")
 }
@@ -293,9 +366,9 @@ func TestModelCopyFinishedSkippedValuesExitMessage(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 
-	msg := redesign.NewCopyFinishedMsgForTest(nil, workingDir,
+	msg := copyFinishedFromNames(workingDir,
 		[]string{"zeta"},
 		[]string{"alpha"},
 		false, true,
@@ -332,9 +405,9 @@ func TestModelCopyFinishedEmptyReferencesLeavesNoExitMessage(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 
-	msg := redesign.NewCopyFinishedMsgForTest(nil, opts.WorkingDir, nil, nil, false, false)
+	msg := copyFinishedFromNames(opts.WorkingDir, nil, nil, false, false)
 
 	updated, _ := m.Update(msg)
 	finalModel := updated.(redesign.Model)
@@ -360,9 +433,9 @@ func TestModelScaffoldFinishedSetsExitMessage(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 
-	updated, _ := m.Update(redesign.NewScaffoldFinishedMsgForTest(nil))
+	updated, _ := m.Update(redesign.ScaffoldFinishedMsg{})
 	finalModel := updated.(redesign.Model)
 
 	exit := stripANSI(finalModel.ExitMessage())
@@ -387,9 +460,9 @@ func TestModelScaffoldFinishedEmptyOutputDirHasNoExitMessage(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 
-	updated, _ := m.Update(redesign.NewScaffoldFinishedMsgForTest(nil))
+	updated, _ := m.Update(redesign.ScaffoldFinishedMsg{})
 	finalModel := updated.(redesign.Model)
 
 	assert.Empty(t, finalModel.ExitMessage())
@@ -427,9 +500,9 @@ func TestModelCopyFinishedDisplayPathEscapesBaseDir(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 
-	msg := redesign.NewCopyFinishedMsgForTest(nil, baseTmp, []string{"a"}, nil, true, false)
+	msg := copyFinishedFromNames(baseTmp, []string{"a"}, nil, true, false)
 
 	updated, _ := m.Update(msg)
 	finalModel := updated.(redesign.Model)
@@ -456,7 +529,7 @@ func TestModelRendererErrMsgSetsViewportAndPagerState(t *testing.T) {
 	componentCh := make(chan *redesign.ComponentEntry)
 	close(componentCh)
 
-	m := redesign.NewModelStreaming(l, opts, components[0], componentCh, nil)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
 
 	// Seed the viewport with a WindowSizeMsg so it has a positive size,
 	// otherwise the pager view will produce a degenerate string.
@@ -464,7 +537,7 @@ func TestModelRendererErrMsgSetsViewportAndPagerState(t *testing.T) {
 	m = updated.(redesign.Model)
 
 	boom := errors.New("boom")
-	updated, _ = m.Update(redesign.NewRendererErrMsgForTest(boom))
+	updated, _ = m.Update(redesign.RendererErrMsg{Err: boom})
 	finalModel := updated.(redesign.Model)
 
 	assert.Equal(t, redesign.PagerState, finalModel.State,
@@ -476,10 +549,10 @@ func TestModelRendererErrMsgSetsViewportAndPagerState(t *testing.T) {
 	assert.Contains(t, content, "boom", "viewport content should include the error detail")
 }
 
-// TestModelPagerViewRendersAfterEnter exercises the pager path by pressing
+// TestModelPagerViewRendersAfterEnterWithRacing exercises the pager path by pressing
 // enter on a unit entry, which transitions to PagerState and forces the
 // view to route through pagerView/footerView.
-func TestModelPagerViewRendersAfterEnter(t *testing.T) {
+func TestModelPagerViewRendersAfterEnterWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -502,7 +575,7 @@ func TestModelPagerViewRendersAfterEnter(t *testing.T) {
 		componentCh := make(chan *redesign.ComponentEntry)
 		close(componentCh)
 
-		m := redesign.NewModelStreaming(l, opts, entry, componentCh, nil)
+		m := redesign.NewModelStreaming(t.Context(), l, opts, entry, componentCh, nil)
 
 		msgs := []tea.Msg{
 			tea.KeyPressMsg{Code: tea.KeyEnter},
@@ -516,5 +589,54 @@ func TestModelPagerViewRendersAfterEnter(t *testing.T) {
 		content := stripANSI(finalModel.View().Content)
 		assert.Contains(t, content, "100%",
 			"pager footer should render scroll percent")
+	})
+}
+
+// TestModelPagerWToggleFlipsSoftWrapWithRacing exercises the `w` key in
+// PagerState: starting from default soft-wrap on, one press flips it
+// off, a second flips it back. The toggle also rebuilds the cached
+// glamour renderer, which is hard to inspect from outside, so we rely on
+// the visible softWrap accessor to verify the lifecycle.
+func TestModelPagerWToggleFlipsSoftWrapWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		opts.WorkingDir = t.TempDir()
+
+		l := logger.CreateLogger()
+
+		entry := redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindModule,
+			"github.com/gruntwork-io/fake-repo",
+			"modules/vpc",
+			"# VPC Module\nA module.",
+		)).WithSource("github.com/gruntwork-io/fake-repo")
+
+		componentCh := make(chan *redesign.ComponentEntry)
+		close(componentCh)
+
+		m := redesign.NewModelStreaming(t.Context(), l, opts, entry, componentCh, nil)
+
+		// Enter pager, then toggle `w` twice. driveModel runs the
+		// messages through Update in order and returns the final model.
+		msgs := []tea.Msg{
+			tea.KeyPressMsg{Code: tea.KeyEnter},
+			tea.KeyPressMsg{Code: 'w', Text: "w"},
+		}
+
+		afterFirstToggle := driveModel(t, m, 120, 40, msgs).(redesign.Model)
+
+		assert.Equal(t, redesign.PagerState, afterFirstToggle.State)
+		assert.False(t, afterFirstToggle.SoftWrap(),
+			"first `w` press should flip soft-wrap off")
+
+		updated, _ := afterFirstToggle.Update(tea.KeyPressMsg{Code: 'w', Text: "w"})
+		afterSecondToggle := updated.(redesign.Model)
+
+		assert.True(t, afterSecondToggle.SoftWrap(),
+			"second `w` press should flip soft-wrap back on")
 	})
 }

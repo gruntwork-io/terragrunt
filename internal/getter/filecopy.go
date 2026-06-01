@@ -2,9 +2,11 @@ package getter
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -47,7 +49,7 @@ func (g *FileCopyGetter) Get(_ context.Context, req *getter.Request) error {
 
 	fi, err := g.FS.Stat(path)
 	if err != nil {
-		return errors.Errorf("source path error: %s", err)
+		return fmt.Errorf("source path error: %w", err)
 	}
 
 	if !fi.IsDir() {
@@ -72,7 +74,7 @@ func (g *FileCopyGetter) GetFile(ctx context.Context, req *getter.Request) error
 	clone.Copy = true
 
 	if err := (&getter.FileGetter{}).GetFile(ctx, &clone); err != nil {
-		return errors.Errorf("failed to copy file to %s: %w", req.Dst, err)
+		return fmt.Errorf("failed to copy file to %s: %w", req.Dst, err)
 	}
 
 	return nil
@@ -99,6 +101,20 @@ func NewFileCopyGetter() *FileCopyGetter {
 // WithLogger sets the logger used by [util.CopyFolderContents] during a copy.
 func (g *FileCopyGetter) WithLogger(l log.Logger) *FileCopyGetter {
 	g.Logger = l
+	return g
+}
+
+// WithFS sets the filesystem used to stat source paths before copying.
+// Panics if fs is not OS-backed: Get delegates to util.CopyFolderContents
+// and GetFile to go-getter's FileGetter, both of which bypass the
+// abstraction.
+func (g *FileCopyGetter) WithFS(fs vfs.FS) *FileCopyGetter {
+	if !vfs.IsOSFS(fs) {
+		panic("getter.FileCopyGetter.WithFS: requires an OS-backed filesystem")
+	}
+
+	g.FS = fs
+
 	return g
 }
 

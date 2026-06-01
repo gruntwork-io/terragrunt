@@ -9,247 +9,26 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
-func TestBuildComponentRefMap_Empty(t *testing.T) {
+// noFuncs is the empty HCL function map shared by tests that exercise only
+// literal stack attributes, parse errors, or panic contracts. Any HCL
+// function call against it resolves to "function not found", which is the
+// intended outcome for these tests.
+var noFuncs = map[string]function.Function{}
+
+func TestBuildComponentRefMapExposesPath(t *testing.T) {
 	t.Parallel()
 
-	result := hclparse.BuildComponentRefMap(nil)
-	assert.True(t, result.Type().IsObjectType())
-}
+	got := hclparse.BuildComponentRefMap([]hclparse.ComponentRef{
+		{Name: "networking", Path: ".terragrunt-stack/networking"},
+	})
 
-func TestBuildComponentRefMap_WithRefs(t *testing.T) {
-	t.Parallel()
-
-	refs := []hclparse.ComponentRef{
-		{Name: "vpc", Path: "vpc"},
-		{Name: "app", Path: "app-service"},
-	}
-
-	result := hclparse.BuildComponentRefMap(refs)
-
-	require.True(t, result.Type().IsObjectType())
-
-	vpcVal := result.GetAttr("vpc")
-	require.True(t, vpcVal.Type().IsObjectType())
-	assert.Equal(t, "vpc", vpcVal.GetAttr("path").AsString())
-	assert.Equal(t, "vpc", vpcVal.GetAttr("name").AsString())
-
-	appVal := result.GetAttr("app")
-	require.True(t, appVal.Type().IsObjectType())
-	assert.Equal(t, "app-service", appVal.GetAttr("path").AsString())
-	assert.Equal(t, "app", appVal.GetAttr("name").AsString())
-}
-
-func TestBuildComponentRefMap_WithChildRefs(t *testing.T) {
-	t.Parallel()
-
-	refs := []hclparse.ComponentRef{
-		{
-			Name: "networking",
-			Path: "/project/.terragrunt-stack/networking",
-			ChildRefs: []hclparse.ComponentRef{
-				{Name: "vpc", Path: "/project/.terragrunt-stack/networking/.terragrunt-stack/vpc"},
-				{Name: "subnets", Path: "/project/.terragrunt-stack/networking/.terragrunt-stack/subnets"},
-			},
-		},
-	}
-
-	result := hclparse.BuildComponentRefMap(refs)
-
-	netVal := result.GetAttr("networking")
-	require.True(t, netVal.Type().IsObjectType())
-	assert.Equal(t, "/project/.terragrunt-stack/networking", netVal.GetAttr("path").AsString())
-
-	// Child unit refs are accessible as nested attributes
-	vpcVal := netVal.GetAttr("vpc")
-	require.True(t, vpcVal.Type().IsObjectType())
-	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/vpc", vpcVal.GetAttr("path").AsString())
-	assert.Equal(t, "vpc", vpcVal.GetAttr("name").AsString())
-
-	subnetsVal := netVal.GetAttr("subnets")
-	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/subnets", subnetsVal.GetAttr("path").AsString())
-}
-
-func TestBuildComponentRefMap_MultiLevelChildRefs(t *testing.T) {
-	t.Parallel()
-
-	// 3 levels: infra -> deep -> db (stack.infra.deep.db.path)
-	refs := []hclparse.ComponentRef{
-		{
-			Name: "infra",
-			Path: "/gen/infra",
-			ChildRefs: []hclparse.ComponentRef{
-				{Name: "vpc", Path: "/gen/infra/.terragrunt-stack/vpc"},
-				{
-					Name: "deep",
-					Path: "/gen/infra/.terragrunt-stack/deep",
-					ChildRefs: []hclparse.ComponentRef{
-						{Name: "db", Path: "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db"},
-					},
-				},
-			},
-		},
-	}
-
-	result := hclparse.BuildComponentRefMap(refs)
-
-	// Level 1: infra
-	infraVal := result.GetAttr("infra")
-	assert.Equal(t, "/gen/infra", infraVal.GetAttr("path").AsString())
-
-	// Level 2: infra.deep
-	deepVal := infraVal.GetAttr("deep")
-	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep", deepVal.GetAttr("path").AsString())
-
-	// Level 3: infra.deep.db
-	dbVal := deepVal.GetAttr("db")
-	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db", dbVal.GetAttr("path").AsString())
-	assert.Equal(t, "db", dbVal.GetAttr("name").AsString())
-}
-
-func TestExtractUnitRefs(t *testing.T) {
-	t.Parallel()
-
-	units := []*hclparse.UnitBlockHCL{
-		{Name: "vpc", Path: "vpc", Source: "../modules/vpc"},
-		{Name: "app", Path: "app-service", Source: "../modules/app"},
-	}
-
-	refs := hclparse.ExtractUnitRefs(units)
-
-	require.Len(t, refs, 2)
-	assert.Equal(t, "vpc", refs[0].Name)
-	assert.Equal(t, "vpc", refs[0].Path)
-	assert.Equal(t, "app", refs[1].Name)
-	assert.Equal(t, "app-service", refs[1].Path)
-}
-
-func TestExtractStackRefs(t *testing.T) {
-	t.Parallel()
-
-	stacks := []*hclparse.StackBlockHCL{
-		{Name: "networking", Path: "networking", Source: "../stacks/networking"},
-	}
-
-	refs := hclparse.ExtractStackRefs(stacks)
-
-	require.Len(t, refs, 1)
-	assert.Equal(t, "networking", refs[0].Name)
-	assert.Equal(t, "networking", refs[0].Path)
-}
-
-func TestBuildAutoIncludeEvalContext(t *testing.T) {
-	t.Parallel()
-
-	unitRefs := []hclparse.ComponentRef{
-		{Name: "vpc", Path: "vpc"},
-		{Name: "app", Path: "app"},
-	}
-	stackRefs := []hclparse.ComponentRef{
-		{Name: "infra", Path: "infra-stack"},
-	}
-
-	evalCtx := hclparse.BuildAutoIncludeEvalContext(unitRefs, stackRefs)
-
-	require.NotNil(t, evalCtx)
-	require.Contains(t, evalCtx.Variables, "unit")
-	require.Contains(t, evalCtx.Variables, "stack")
-
-	unitVar := evalCtx.Variables["unit"]
-	assert.Equal(t, cty.String, unitVar.GetAttr("vpc").GetAttr("path").Type())
-	assert.Equal(t, "vpc", unitVar.GetAttr("vpc").GetAttr("path").AsString())
-	assert.Equal(t, "app", unitVar.GetAttr("app").GetAttr("path").AsString())
-
-	stackVar := evalCtx.Variables["stack"]
-	assert.Equal(t, "infra-stack", stackVar.GetAttr("infra").GetAttr("path").AsString())
-}
-
-func TestDiscoverStackChildUnits(t *testing.T) {
-	t.Parallel()
-
-	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test/stack-src", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/stack-src/terragrunt.stack.hcl", []byte(`
-unit "vpc" {
-  source = "../../units/vpc"
-  path   = "vpc"
-}
-
-unit "db" {
-  source = "../../units/db"
-  path   = "db"
-}
-`), 0644))
-
-	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
-	require.Len(t, refs, 2)
-	assert.Equal(t, "vpc", refs[0].Name)
-	assert.Equal(t, filepath.Join("/gen/networking", ".terragrunt-stack", "vpc"), refs[0].Path)
-	assert.Equal(t, "db", refs[1].Name)
-	assert.Equal(t, filepath.Join("/gen/networking", ".terragrunt-stack", "db"), refs[1].Path)
-}
-
-func TestDiscoverStackChildUnits_NoDotTerragruntStack(t *testing.T) {
-	t.Parallel()
-
-	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test/stack-src", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/stack-src/terragrunt.stack.hcl", []byte(`
-unit "vpc" {
-  source = "../../units/vpc"
-  path   = "vpc"
-  no_dot_terragrunt_stack = true
-}
-
-unit "db" {
-  source = "../../units/db"
-  path   = "db"
-}
-`), 0644))
-
-	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
-	require.Len(t, refs, 2)
-	assert.Equal(t, "vpc", refs[0].Name)
-	assert.Equal(t, filepath.Join("/gen/networking", "vpc"), refs[0].Path)
-	assert.Equal(t, "db", refs[1].Name)
-	assert.Equal(t, filepath.Join("/gen/networking", ".terragrunt-stack", "db"), refs[1].Path)
-}
-
-func TestDiscoverStackChildUnits_NoStackFile(t *testing.T) {
-	t.Parallel()
-
-	fs := vfs.NewMemMapFS()
-
-	refs := hclparse.DiscoverStackChildUnits(fs, "/nonexistent", "/gen")
-	assert.Nil(t, refs)
-}
-
-func TestBuildAutoIncludeEvalContext_WithChildRefs(t *testing.T) {
-	t.Parallel()
-
-	stackRefs := []hclparse.ComponentRef{
-		{
-			Name: "stack_w_outputs",
-			Path: "/project/.terragrunt-stack/stack-w-outputs",
-			ChildRefs: []hclparse.ComponentRef{
-				{Name: "unit_w_outputs", Path: "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs"},
-			},
-		},
-	}
-
-	evalCtx := hclparse.BuildAutoIncludeEvalContext(nil, stackRefs)
-
-	stackVar := evalCtx.Variables["stack"]
-	stackRef := stackVar.GetAttr("stack_w_outputs")
-
-	// stack.stack_w_outputs.path works
-	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs", stackRef.GetAttr("path").AsString())
-
-	// stack.stack_w_outputs.unit_w_outputs.path works
-	unitRef := stackRef.GetAttr("unit_w_outputs")
-	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs", unitRef.GetAttr("path").AsString())
+	networking := got.AsValueMap()["networking"].AsValueMap()
+	assert.Equal(t, ".terragrunt-stack/networking", networking["path"].AsString())
+	_, hasName := networking["name"]
+	assert.False(t, hasName, "ref object should not expose .name")
 }
 
 func TestUnitPathsFromStackDir(t *testing.T) {
@@ -269,11 +48,51 @@ unit "db" {
 }
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.NoError(t, err)
 	require.Len(t, paths, 2)
 	assert.Contains(t, paths[0], ".terragrunt-stack")
 	assert.Contains(t, paths[1], ".terragrunt-stack")
+}
+
+func TestUnitPathsFromStackDir_WithIncludedUnits(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test/includes", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/includes/units.hcl", []byte(`
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "vpc"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
+include "units" {
+  path = "./includes/units.hcl"
+}
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+	assert.Contains(t, paths[0], filepath.Join(hclparse.StackDir, "vpc"))
+}
+
+func TestUnitPathsFromStackDir_PathWithUnsupportedFunctionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
+unit "vpc" {
+  source = "../units/vpc"
+  path   = get_repo_root()
+}
+`), 0644))
+
+	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get_repo_root")
 }
 
 func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
@@ -282,7 +101,7 @@ func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, fs.MkdirAll("/test", 0755))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.NoError(t, err)
 	assert.Nil(t, paths)
 }
@@ -292,7 +111,7 @@ func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/nonexistent")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/nonexistent", noFuncs)
 	require.NoError(t, err)
 	assert.Nil(t, paths)
 }
@@ -304,7 +123,7 @@ func TestUnitPathsFromStackDir_MalformedReturnsError(t *testing.T) {
 	require.NoError(t, fs.MkdirAll("/test", 0755))
 	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "x" { source = "." `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.Error(t, err)
 	assert.Nil(t, paths)
 
@@ -381,7 +200,7 @@ unit "app" {
 	symlinkDir := filepath.Join(tmpDir, "symlinked-stack")
 	require.NoError(t, os.Symlink(realDir, symlinkDir))
 
-	// Parse via the symlink — should work the same as via real path
+	// Parse via the symlink - should work the same as via real path
 	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), symlinkDir)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -407,48 +226,12 @@ unit "vpc" {
 	symlinkDir := filepath.Join(tmpDir, "symlinked-stack")
 	require.NoError(t, os.Symlink(realDir, symlinkDir))
 
-	paths, err := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir)
+	paths, err := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir, noFuncs)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	// Path should resolve to the real directory, not the symlink path.
 	assert.Contains(t, paths[0], "real-stack")
 	assert.NotContains(t, paths[0], "symlinked-stack")
-}
-
-func TestDiscoverStackChildUnits_Symlink(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-
-	// Create real source directory with stack file
-	realSrcDir := filepath.Join(tmpDir, "real-source")
-	require.NoError(t, os.MkdirAll(realSrcDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(realSrcDir, "terragrunt.stack.hcl"), []byte(`
-unit "db" {
-  source = "../../units/db"
-  path   = "db"
-}
-`), 0644))
-
-	// Create symlink to source
-	symlinkSrcDir := filepath.Join(tmpDir, "symlinked-source")
-	require.NoError(t, os.Symlink(realSrcDir, symlinkSrcDir))
-
-	refs := hclparse.DiscoverStackChildUnits(vfs.NewOSFS(), symlinkSrcDir, "/gen/stack")
-	require.Len(t, refs, 1)
-	assert.Equal(t, "db", refs[0].Name)
-}
-
-// Best-effort discovery: a malformed nested stack file yields empty refs without an error so the parent stack still parses.
-func TestDiscoverStackChildUnits_MalformedReturnsEmpty(t *testing.T) {
-	t.Parallel()
-
-	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test/stack-src", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/stack-src/terragrunt.stack.hcl", []byte(`unit "x" { source = "."`), 0644))
-
-	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen")
-	assert.Nil(t, refs)
 }
 
 func TestParseStackFile_WithInclude(t *testing.T) {
@@ -484,4 +267,32 @@ unit "vpc" {
 	names := []string{result.Units[0].Name, result.Units[1].Name}
 	assert.Contains(t, names, "vpc")
 	assert.Contains(t, names, "monitoring")
+}
+
+func TestBuildComponentRefMap_Empty(t *testing.T) {
+	t.Parallel()
+
+	result := hclparse.BuildComponentRefMap(nil)
+	assert.True(t, result.Type().IsObjectType())
+}
+
+func TestBuildComponentRefMap_WithRefs(t *testing.T) {
+	t.Parallel()
+
+	refs := []hclparse.ComponentRef{
+		{Name: "vpc", Path: "vpc"},
+		{Name: "app", Path: "app-service"},
+	}
+
+	result := hclparse.BuildComponentRefMap(refs)
+
+	require.True(t, result.Type().IsObjectType())
+
+	vpcVal := result.GetAttr("vpc")
+	require.True(t, vpcVal.Type().IsObjectType())
+	assert.Equal(t, "vpc", vpcVal.GetAttr("path").AsString())
+
+	appVal := result.GetAttr("app")
+	require.True(t, appVal.Type().IsObjectType())
+	assert.Equal(t, "app-service", appVal.GetAttr("path").AsString())
 }
