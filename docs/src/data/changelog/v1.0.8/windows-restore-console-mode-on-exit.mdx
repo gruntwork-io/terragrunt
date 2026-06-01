@@ -1,0 +1,12 @@
+---
+version: "v1.0.8"
+category: "bug-fixes"
+---
+
+#### Windows console mode is restored when Terragrunt exits
+
+On Windows, running a Terragrunt command from Nushell could leave the shell unable to read input afterward, with keystrokes such as the arrow keys appearing as raw escape sequences instead of being interpreted.
+
+While it runs, Terragrunt reconfigures the console it shares with the parent shell so that terminal escape sequences are processed, but it did not put the original mode back when it exited. PowerShell reapplies its own console settings on every prompt and recovers on its own, so the problem surfaces only in shells that keep the inherited mode, such as Nushell. Terragrunt now records the console mode at startup and restores it on exit, returning the shell to the state it was in beforehand.
+
+Reported in [#6245](https://github.com/gruntwork-io/terragrunt/issues/6245).
