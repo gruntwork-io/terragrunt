@@ -563,8 +563,7 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 	)
 	if err != nil {
 		// Unwrap FatalError to return the original error
-		var fatalErr util.FatalError
-		if errors.As(err, &fatalErr) {
+		if fatalErr, ok := errors.AsType[util.FatalError](err); ok {
 			return finalOutput, fatalErr.Underlying
 		}
 

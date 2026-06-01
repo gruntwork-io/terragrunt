@@ -58,6 +58,18 @@ const (
 	testFixtureS3BackendDisableInit              = "fixtures/s3-backend-disable-init"
 	testFixtureAssumeRoleWithExternalIDWithComma = "fixtures/assume-role/external-id-with-comma"
 
+	// Fixtures referenced only by AWS-gated tests. They live here, rather than in
+	// their untagged sibling files, so the unused check does not flag them when
+	// building without the aws tag.
+	testFixtureHooksBeforeAfterAndErrorMergePath  = "fixtures/hooks/before-after-and-error-merge"
+	testFixtureHooksInitOnceNoSourceWithBackend   = "fixtures/hooks/init-once/no-source-with-backend"
+	testFixtureHooksInitOnceWithSourceWithBackend = "fixtures/hooks/init-once/with-source-with-backend"
+	testFixtureLocalWithBackend                   = "fixtures/download/local-with-backend"
+	testFixtureRemoteWithBackend                  = "fixtures/download/remote-with-backend"
+	includeFixturePath                            = "fixtures/include/"
+	includeShallowFixturePath                     = "stage/my-app"
+	includeNoMergeFixturePath                     = "qa/my-app"
+
 	qaMyAppRelPath = "qa/my-app"
 )
 

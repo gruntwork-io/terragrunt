@@ -23,13 +23,14 @@ const SchemeGit = "git"
 // CASGetter is the go-getter implementation that routes git, local, and
 // configured non-git sources through Terragrunt's content-addressable store.
 type CASGetter struct {
-	CAS       *cas.CAS
-	Logger    log.Logger
-	Opts      *cas.CloneOptions
-	Venv      cas.Venv
-	fetchers  map[string]getter.Getter
-	resolvers map[string]cas.SourceResolver
-	Detectors []Detector
+	CAS         *cas.CAS
+	Logger      log.Logger
+	Opts        *cas.CloneOptions
+	Venv        cas.Venv
+	fetchers    map[string]getter.Getter
+	resolvers   map[string]cas.SourceResolver
+	innerClient InnerClientBuilder
+	Detectors   []Detector
 
 	// userDisabledArchive records that the source for the current
 	// request carried an explicit archive=false. Detect sets it; Get
@@ -44,6 +45,14 @@ type CASGetter struct {
 	// concurrent requests. Do not share one CASGetter across goroutines.
 	userDisabledArchive bool
 }
+
+// InnerClientBuilder builds the per-fetch [getter.Client] used to invoke
+// the bare scheme-specific getter from a [SourceFetcher]. Schemes that
+// download in a single step want a one-getter client; multi-stage
+// protocols (notably tfr://, where [RegistryGetter] resolves an archive
+// URL and delegates the actual download through
+// [getter.ClientFromContext]) need a richer client.
+type InnerClientBuilder func(bare getter.Getter, scheme string) *getter.Client
 
 // CASGetterOption mutates a CASGetter at construction time.
 type CASGetterOption func(*CASGetter)
@@ -62,14 +71,22 @@ func WithGenericResolvers(m map[string]cas.SourceResolver) CASGetterOption {
 	return func(g *CASGetter) { g.resolvers = m }
 }
 
+// WithInnerClientBuilder overrides the per-fetch inner [getter.Client]
+// builder. The default builder is sufficient for production wiring;
+// tests use this hook to inject a TLS-trusting [getter.HttpGetter] for
+// the delegated tfr:// archive download.
+func WithInnerClientBuilder(b InnerClientBuilder) CASGetterOption {
+	return func(g *CASGetter) { g.innerClient = b }
+}
+
 // WithDefaultGenericDispatch is the shorthand for the canonical pairing of
 // [WithGenericFetchers]([DefaultGenericFetchers]) and [WithGenericResolvers]
-// ([DefaultSourceResolvers]). fetcherOpts are forwarded so HTTP auth headers
-// still reach the fetcher.
-func WithDefaultGenericDispatch(fetcherOpts ...GenericFetcherOption) CASGetterOption {
+// ([DefaultSourceResolvers]). opts are forwarded to both helpers so HTTP
+// auth headers reach the fetcher and tfr config reaches both.
+func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 	return func(g *CASGetter) {
-		g.fetchers = DefaultGenericFetchers(fetcherOpts...)
-		g.resolvers = DefaultSourceResolvers()
+		g.fetchers = DefaultGenericFetchers(opts...)
+		g.resolvers = DefaultSourceResolvers(opts...)
 	}
 }
 
@@ -99,10 +116,11 @@ func NewCASGetter(l log.Logger, c *cas.CAS, v cas.Venv, opts *cas.CloneOptions, 
 			new(GitLabDetector),
 			new(FileDetector),
 		},
-		CAS:    c,
-		Logger: l,
-		Opts:   opts,
-		Venv:   v,
+		CAS:         c,
+		Logger:      l,
+		Opts:        opts,
+		Venv:        v,
+		innerClient: defaultInnerClientBuilder,
 	}
 
 	for _, opt := range options {
@@ -241,11 +259,12 @@ func GitCloneURL(urlStr string) string {
 // source URL. req.Forced (set by the outer client when it stripped a
 // "<scheme>::" prefix) wins; otherwise the URL scheme is consulted.
 //
-// URL-scheme claiming is restricted to http and https. The bare go-getter
-// v2 protocol getters for s3, gcs, hg, smb reject `<scheme>://...` URLs
-// (they expect canonical HTTPS forms or the forced-prefix syntax), so
-// claiming those schemes here would set up a doomed inner fetch on every
-// cache miss.
+// URL-scheme claiming is restricted to http, https, and tfr. The bare
+// go-getter v2 protocol getters for s3, gcs, hg, smb reject
+// `<scheme>://...` URLs (they expect canonical HTTPS forms or the
+// forced-prefix syntax), so claiming those schemes here would set up a
+// doomed inner fetch on every cache miss. The tfr fetcher
+// ([RegistryGetter]) accepts tfr:// URLs natively.
 //
 // HTTPS URLs against AWS S3 hosts are an exception: virtual-host forms
 // (`<bucket>.s3.amazonaws.com/<key>`) would route through the HTTPS
@@ -280,7 +299,7 @@ func (g *CASGetter) matchGenericScheme(req *getter.Request) (string, string, boo
 
 	scheme := strings.ToLower(u.Scheme)
 	switch scheme {
-	case SchemeHTTP, SchemeHTTPS:
+	case SchemeHTTP, SchemeHTTPS, SchemeTFR:
 		if canonical, ok := canonicalAWSS3HTTPSURL(u); ok {
 			if _, fok := g.fetchers[SchemeS3]; fok {
 				return SchemeS3, canonical, true
@@ -424,10 +443,10 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 }
 
 // buildInnerFetch returns a SourceFetcher that downloads urlStr into a
-// fresh temp directory through a single-getter inner [getter.Client] and
-// ingests the result via [cas.CAS.IngestDirectory]. The inner client uses
-// the default decompressor map so `.tar.gz`/`.zip` URLs extract before
-// ingest.
+// fresh temp directory through an inner [getter.Client] built by
+// [InnerClientBuilder] and ingests the result via
+// [cas.CAS.IngestDirectory]. The inner client uses the default
+// decompressor map so `.tar.gz`/`.zip` URLs extract before ingest.
 //
 // scheme is set on the inner request's Forced field so the bare
 // scheme-specific getter still claims the request. The bare go-getter v2
@@ -443,9 +462,7 @@ func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) c
 
 		defer cleanup()
 
-		inner := &getter.Client{
-			Getters: []getter.Getter{bare},
-		}
+		inner := g.innerClient(bare, scheme)
 
 		if _, err := inner.Get(ctx, &getter.Request{
 			Src:     urlStr,
@@ -458,4 +475,17 @@ func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) c
 
 		return g.CAS.IngestDirectory(l, v, tempDir, suggestedKey)
 	}
+}
+
+// defaultInnerClientBuilder is the inner-client builder used when none
+// is configured via [WithInnerClientBuilder]. For tfr it returns a
+// Terragrunt client with the bare [RegistryGetter] prepended so the
+// default protocol set is available for [RegistryGetter]'s delegated
+// archive download. Every other scheme uses a single-getter client.
+func defaultInnerClientBuilder(bare getter.Getter, scheme string) *getter.Client {
+	if scheme == SchemeTFR {
+		return NewClient(WithCustomGettersPrepended(bare))
+	}
+
+	return &getter.Client{Getters: []getter.Getter{bare}}
 }
