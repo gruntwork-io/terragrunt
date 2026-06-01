@@ -186,13 +186,19 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 // without end. Real generated nesting is only a handful of levels deep.
 const maxStackRecursionDepth = 1000
 
+// StackFuncFactory builds the HCL function map used while decoding the stack file
+// in a given stack directory. Each nesting level rebuilds the map for its own dir
+// so dir-sensitive functions (get_terragrunt_dir, find_in_parent_folders,
+// get_repo_root, run_cmd, get_working_dir) resolve against the nested dir, not the
+// top stack dir. Production callers wrap config.EarlyStackParseFunctions; tests that
+// exercise only literal attributes return an empty map.
+type StackFuncFactory func(stackDir string) (map[string]function.Function, error)
+
 // UnitPathsFromStackDir returns generated unit paths from discovery parsing. Nested stacks
 // are expanded recursively so a stack composed of sub-stacks yields the sub-stacks' units.
-// funcs is the HCL function map used while decoding the stack file; production
-// callers build it via config.EarlyStackParseFunctions. The map must be
-// non-nil but may be empty (tests that exercise only literal attributes can
-// pass an empty map).
-func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function.Function) ([]string, error) {
+// funcsFor builds the dir-scoped HCL function map for each stack directory visited; it
+// must be non-nil and must return a non-nil map.
+func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
 	}
@@ -201,18 +207,18 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function
 		panic("hclparse.UnitPathsFromStackDir: stackDir is empty")
 	}
 
-	if funcs == nil {
-		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: funcs is nil (stackDir=%q)", stackDir))
+	if funcsFor == nil {
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: funcsFor is nil (stackDir=%q)", stackDir))
 	}
 
-	return unitPathsFromStackDir(fs, stackDir, funcs, make(map[string]struct{}), 0)
+	return unitPathsFromStackDir(fs, stackDir, funcsFor, make(map[string]struct{}), 0)
 }
 
 // unitPathsFromStackDir is the bounded recursive worker. Termination is guaranteed two ways:
 // visited skips any stack dir already expanded on this traversal (catches "." / ".." and
 // ancestor symlink loops), and depth caps the chain length (backstop for symlink cycles
 // EvalSymlinks reports as errors and therefore cannot collapse to a seen path).
-func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function.Function, visited map[string]struct{}, depth int) ([]string, error) {
+func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory, visited map[string]struct{}, depth int) ([]string, error) {
 	if depth > maxStackRecursionDepth {
 		return nil, StackRecursionDepthExceededError{MaxDepth: maxStackRecursionDepth, StackDir: stackDir}
 	}
@@ -226,6 +232,16 @@ func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function
 	visited[stackDir] = struct{}{}
 
 	stackFile := filepath.Join(stackDir, stackFileName)
+
+	// Rebuild the function map for this dir so dir-sensitive functions resolve against it.
+	funcs, err := funcsFor(stackDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if funcs == nil {
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: funcsFor returned a nil map (stackDir=%q)", stackDir))
+	}
 
 	units, stacks, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
 	if err != nil {
@@ -251,7 +267,7 @@ func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcs map[string]function
 			nestedDir = filepath.Join(stackDir, stack.Path)
 		}
 
-		nestedPaths, nestedErr := unitPathsFromStackDir(fs, nestedDir, funcs, visited, depth+1)
+		nestedPaths, nestedErr := unitPathsFromStackDir(fs, nestedDir, funcsFor, visited, depth+1)
 		if nestedErr != nil {
 			return nil, nestedErr
 		}

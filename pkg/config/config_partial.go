@@ -609,6 +609,17 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 	}
 
+	// Materialize the current file's exclude before the autoinclude merge so the autoinclude wins on top,
+	// matching the full-parse precedence (autoinclude over current file) instead of clobbering it afterward.
+	if hasExcludeBlock {
+		excludeOutput, err := processExcludes(ctx, pctx, l, output, file)
+		if err != nil {
+			return nil, err
+		}
+
+		output = excludeOutput
+	}
+
 	// Deep-merge the sibling autoinclude into this partial output so discovery/run-queue agrees with the full parse.
 	if err := mergeAutoIncludePartialDeepIfPresent(ctx, pctx, l, output, file.ConfigPath); err != nil {
 		return nil, err
@@ -646,10 +657,6 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 	if joined := errors.Join(errs...); joined != nil {
 		return output, joined
-	}
-
-	if hasExcludeBlock {
-		return processExcludes(ctx, pctx, l, output, file)
 	}
 
 	return output, nil

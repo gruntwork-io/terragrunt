@@ -1400,9 +1400,14 @@ func ParseConfig(
 	}
 
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
-	config, autoMergeErr := mergeAutoIncludeDeepIfPresent(ctx, pctx, l, config, file.ConfigPath)
+	// Only replace config on success; the merge helper returns nil on failure and handleInclude below would nil-deref it.
+	merged, autoMergeErr := mergeAutoIncludeDeepIfPresent(ctx, pctx, l, config, file.ConfigPath)
 	if autoMergeErr != nil {
 		errs = append(errs, autoMergeErr)
+	}
+
+	if autoMergeErr == nil {
+		config = merged
 	}
 
 	// If this file includes another, parse and merge it. Otherwise, just return this config.

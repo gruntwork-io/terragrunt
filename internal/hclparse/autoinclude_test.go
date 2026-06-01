@@ -532,6 +532,51 @@ unit "extra" {
 	require.False(t, unitDiags.HasErrors(), "unit-level autoinclude with a dependency reference must still resolve: %s", unitDiags.Error())
 }
 
+// TestResolveForKind_StackAutoIncludeDepValuesIndexForm pins that the index traversal form
+// dependency["producer"].outputs.val trips the same typed error as the attribute form, instead of
+// slipping past and falling through to a cryptic generic decode failure.
+func TestResolveForKind_StackAutoIncludeDepValuesIndexForm(t *testing.T) {
+	t.Parallel()
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	// The unsupported dependency-output reference written in index form.
+	badSrc := `
+dependency "producer" {
+  config_path = unit.producer.path
+}
+
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    v = dependency["producer"].outputs.val
+  }
+}
+`
+	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
+
+	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	require.True(t, diags.HasErrors(), "the index traversal form must trip the typed error too")
+
+	extra, ok := diags[0].Extra.(error)
+	require.True(t, ok, "the diagnostic Extra must carry an error")
+
+	var typed hclparse.StackAutoIncludeDependencyValuesError
+	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error for the index form")
+	assert.Equal(t, "producer", typed.DepName)
+	assert.Equal(t, "extra", typed.UnitName)
+	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
+}
+
 // parseHCLBody is a test helper that parses an HCL string and returns the body.
 func parseHCLBody(t *testing.T, src string) hcl.Body {
 	t.Helper()

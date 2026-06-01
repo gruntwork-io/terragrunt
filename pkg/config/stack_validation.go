@@ -15,7 +15,10 @@ import (
 // - Stack names should be unique
 // - Stack shouldn't have duplicate paths
 // - A unit and a stack shouldn't generate to the same path
-func ValidateStackConfig(config *StackConfigFile) error {
+//
+// stackDir is the directory containing the stack file; it is used to compute the
+// generated on-disk path of each unit and stack for the cross-kind collision check.
+func ValidateStackConfig(config *StackConfigFile, stackDir string) error {
 	if config == nil {
 		return errors.New("stack config cannot be nil")
 	}
@@ -35,26 +38,31 @@ func ValidateStackConfig(config *StackConfigFile) error {
 		validationErrors = append(validationErrors, err)
 	}
 
-	if err := validateCrossKindPaths(config.Units, config.Stacks); err != nil {
+	if err := validateCrossKindPaths(config.Units, config.Stacks, stackDir); err != nil {
 		validationErrors = append(validationErrors, err)
 	}
 
 	return errors.Join(validationErrors...)
 }
 
-// validateCrossKindPaths reports a path used by both a unit and a stack, since both
-// components generate into the same .terragrunt-stack/<path> directory and would collide.
+// validateCrossKindPaths reports a generated path used by both a unit and a stack, since both
+// components generate into the same on-disk directory and would collide. The comparison uses
+// the normalized GeneratedPath (honoring no_dot_terragrunt_stack and path cleaning), not the raw
+// path string, so it neither misses real collisions nor flags non-colliding raw strings.
 // Within-kind duplicates are already reported by validateUnits and validateStacks.
-func validateCrossKindPaths(units []*Unit, stacks []*Stack) error {
-	unitPaths := make(map[string]struct{}, len(units))
+func validateCrossKindPaths(units []*Unit, stacks []*Stack, stackDir string) error {
+	unitGenPaths := make(map[string]struct{}, len(units))
 
 	for _, u := range units {
-		path := strings.TrimSpace(u.Path)
-		if path == "" {
+		if u == nil {
 			continue
 		}
 
-		unitPaths[path] = struct{}{}
+		if strings.TrimSpace(u.Path) == "" {
+			continue
+		}
+
+		unitGenPaths[u.GeneratedPath(stackDir)] = struct{}{}
 	}
 
 	var validationErrors []error
@@ -62,21 +70,26 @@ func validateCrossKindPaths(units []*Unit, stacks []*Stack) error {
 	reported := make(map[string]struct{})
 
 	for _, s := range stacks {
-		path := strings.TrimSpace(s.Path)
-		if path == "" {
+		if s == nil {
 			continue
 		}
 
-		if _, collides := unitPaths[path]; !collides {
+		if strings.TrimSpace(s.Path) == "" {
 			continue
 		}
 
-		if _, seen := reported[path]; seen {
+		genPath := s.GeneratedPath(stackDir)
+
+		if _, collides := unitGenPaths[genPath]; !collides {
 			continue
 		}
 
-		reported[path] = struct{}{}
-		validationErrors = append(validationErrors, fmt.Errorf("duplicate path found across unit and stack: '%s'", path))
+		if _, seen := reported[genPath]; seen {
+			continue
+		}
+
+		reported[genPath] = struct{}{}
+		validationErrors = append(validationErrors, fmt.Errorf("duplicate path found across unit and stack: '%s'", genPath))
 	}
 
 	return errors.Join(validationErrors...)
@@ -105,16 +118,26 @@ func validateConfigElementsGeneric(elements any, elementType string, getValues f
 
 	var slice []any
 
-	// Convert the slice to a slice of interface{}
+	// Convert the slice to a slice of interface{}.
+	// A nil pointer is stored as an untyped nil so the element==nil guard below catches it,
+	// otherwise a typed-nil pointer slips past the guard and getValues dereferences it.
 	switch v := elements.(type) {
 	case []*Unit:
 		slice = make([]any, len(v))
 		for i, unit := range v {
+			if unit == nil {
+				continue
+			}
+
 			slice[i] = unit
 		}
 	case []*Stack:
 		slice = make([]any, len(v))
 		for i, stack := range v {
+			if stack == nil {
+				continue
+			}
+
 			slice[i] = stack
 		}
 	default:

@@ -834,7 +834,7 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		Units:  config.Units,
 	}
 
-	if err := ValidateStackConfig(config); err != nil {
+	if err := ValidateStackConfig(config, filepath.Dir(file.ConfigPath)); err != nil {
 		return nil, err
 	}
 

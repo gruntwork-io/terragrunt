@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 const (
@@ -338,12 +339,12 @@ func stackDependencyPaths(
 			continue
 		}
 
-		discoveryFuncs, fnErr := config.EarlyStackParseFunctions(ctx, l, depPath, pctx)
-		if fnErr != nil {
-			return nil, NewStackDependencyExpansionError(depPath, fnErr)
-		}
+		// Rebuild the function map per visited stack dir so nested stacks resolve dir-functions against their own dir.
+		funcsFor := inthclparse.StackFuncFactory(func(stackDir string) (map[string]function.Function, error) {
+			return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+		})
 
-		unitPaths, err := inthclparse.UnitPathsFromStackDir(fs, depPath, discoveryFuncs)
+		unitPaths, err := inthclparse.UnitPathsFromStackDir(fs, depPath, funcsFor)
 		if err != nil {
 			return nil, NewStackDependencyExpansionError(depPath, err)
 		}

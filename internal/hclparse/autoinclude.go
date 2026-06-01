@@ -395,24 +395,45 @@ func autoIncludeDependencyNames(body *hclsyntax.Body) map[string]struct{} {
 	return names
 }
 
-// firstDeclaredDepRef returns the name and range of the first dependency.* reference in expr whose root name is a declared dependency, or empty when none.
+// firstDeclaredDepRef returns the name and range of the first dependency reference in expr whose
+// root name is a declared dependency, or empty when none. Both dependency.foo.* (TraverseAttr) and
+// dependency["foo"].* (TraverseIndex with a string key) forms are matched.
 func firstDeclaredDepRef(expr hclsyntax.Expression, declaredDeps map[string]struct{}) (string, *hcl.Range) {
 	for _, traversal := range expr.Variables() {
 		if traversal.RootName() != varDependency || len(traversal) < 2 {
 			continue
 		}
 
-		attr, ok := traversal[1].(hcl.TraverseAttr)
+		name, ok := depRefName(traversal[1])
 		if !ok {
 			continue
 		}
 
-		if _, declared := declaredDeps[attr.Name]; !declared {
+		if _, declared := declaredDeps[name]; !declared {
 			continue
 		}
 
-		return attr.Name, expr.Range().Ptr()
+		return name, expr.Range().Ptr()
 	}
 
 	return "", nil
+}
+
+// depRefName returns the dependency name from a traverser, handling dependency.foo (TraverseAttr)
+// and dependency["foo"] (TraverseIndex with a cty.String key).
+func depRefName(traverser hcl.Traverser) (string, bool) {
+	if attr, ok := traverser.(hcl.TraverseAttr); ok {
+		return attr.Name, true
+	}
+
+	index, ok := traverser.(hcl.TraverseIndex)
+	if !ok {
+		return "", false
+	}
+
+	if index.Key.Type() != cty.String {
+		return "", false
+	}
+
+	return index.Key.AsString(), true
 }

@@ -26,7 +26,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
+
+// stackDepsFuncsFor builds a per-dir stack function factory so nested stacks resolve dir-sensitive functions against their own dir.
+func stackDepsFuncsFor(ctx context.Context, l log.Logger, pctx *config.ParsingContext) inthclparse.StackFuncFactory {
+	return func(dir string) (map[string]function.Function, error) {
+		return config.EarlyStackParseFunctions(ctx, l, dir, pctx)
+	}
+}
 
 const (
 	testFixtureStackDepsAutoInclude              = "fixtures/stacks/stack-dependencies-autoinclude"
@@ -229,11 +237,9 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), nestedContent, 0644))
 
 	l := logger.CreateLogger()
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), l, stackDir, pctx)
-	require.NoError(t, err)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
 
-	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcs)
+	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, stackDepsFuncsFor(ctx, l, pctx))
 	require.NoError(t, err)
 	require.Len(t, unitPaths, 2, "networking stack should expand to 2 unit paths")
 
@@ -265,15 +271,14 @@ func TestStackDepsUnitPathsFromNestedOnlyStack(t *testing.T) {
 `)
 
 	l := logger.CreateLogger()
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), l, root, pctx)
-	require.NoError(t, err)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
 
-	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), root, funcs)
+	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), root, stackDepsFuncsFor(ctx, l, pctx))
 	require.NoError(t, err)
 
 	deep := filepath.Join(root, inthclparse.StackDir, "more", inthclparse.StackDir, "deep")
-	assert.Contains(t, unitPaths, deep, "a stack-of-stacks dependency must expand to nested units")
+	// The fixture has exactly one real unit; assert the full slice so DAG over-expansion fails the test.
+	assert.ElementsMatch(t, []string{deep}, unitPaths, "a stack-of-stacks dependency must expand to exactly the nested units")
 }
 
 // TestStackDepsUnitPathsFromMissingStackFile returns no paths and no error when the directory has no stack file.
@@ -283,11 +288,9 @@ func TestStackDepsUnitPathsFromMissingStackFile(t *testing.T) {
 	root := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), l, root, pctx)
-	require.NoError(t, err)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options.NewTerragruntOptions())
 
-	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), root, funcs)
+	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), root, stackDepsFuncsFor(ctx, l, pctx))
 	require.NoError(t, err)
 	assert.Empty(t, unitPaths, "a directory without a stack file expands to no unit paths")
 }
@@ -1827,7 +1830,8 @@ func TestStackDepsLocalsReadConfigWithDep(t *testing.T) {
 	content, err := os.ReadFile(rolesAutoInc)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), `dependency "account"`)
-	assert.Contains(t, string(content), `config_path                             = "../account"`,
+	// Match the attribute whitespace-tolerantly so the assertion does not break on formatter column-alignment changes.
+	assert.Regexp(t, `config_path\s*=\s*"\.\./account"`, string(content),
 		"unit.account.path must resolve into the autoinclude config_path even with locals/read_terragrunt_config in the unit configs")
 
 	accountConfig := filepath.Join(rootPath, inthclparse.StackDir, "account", config.DefaultTerragruntConfigPath)

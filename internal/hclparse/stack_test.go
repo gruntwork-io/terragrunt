@@ -12,11 +12,13 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 )
 
-// noFuncs is the empty HCL function map shared by tests that exercise only
-// literal stack attributes, parse errors, or panic contracts. Any HCL
+// noFuncs is the factory returning an empty HCL function map shared by tests that
+// exercise only literal stack attributes, parse errors, or panic contracts. Any HCL
 // function call against it resolves to "function not found", which is the
 // intended outcome for these tests.
-var noFuncs = map[string]function.Function{}
+func noFuncs(string) (map[string]function.Function, error) {
+	return map[string]function.Function{}, nil
+}
 
 func TestBuildComponentRefMapExposesPath(t *testing.T) {
 	t.Parallel()
@@ -76,6 +78,61 @@ func TestUnitPathsFromStackDir_RecursesNestedStacks(t *testing.T) {
 	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
 	require.NoError(t, err)
 	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "more", ".terragrunt-stack", "deep")}, paths)
+}
+
+// TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir pins the dir-scoping
+// contract: the factory is invoked once per visited stack dir, each time with that
+// dir, so dir-sensitive functions resolve against the nested dir, not the top dir.
+func TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`stack "more" {
+  source = "."
+  path   = "more"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/more/terragrunt.stack.hcl", []byte(`unit "deep" {
+  source = "."
+  path   = "deep"
+}
+`), 0644))
+
+	var seenDirs []string
+
+	funcsFor := func(dir string) (map[string]function.Function, error) {
+		seenDirs = append(seenDirs, dir)
+		return map[string]function.Function{}, nil
+	}
+
+	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", funcsFor)
+	require.NoError(t, err)
+
+	nested := filepath.Join("/test", ".terragrunt-stack", "more")
+	assert.Equal(t, []string{"/test", nested}, seenDirs, "the factory must be rebuilt for the top dir and the nested dir")
+}
+
+// TestUnitPathsFromStackDir_NilFuncsFactoryMapPanics pins that a factory returning a nil map is a programming error and panics with a clear message.
+func TestUnitPathsFromStackDir_NilFuncsFactoryMapPanics(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+`), 0644))
+
+	nilMapFactory := func(string) (map[string]function.Function, error) {
+		return nil, nil
+	}
+
+	assert.PanicsWithValue(t,
+		`hclparse.UnitPathsFromStackDir: funcsFor returned a nil map (stackDir="/test")`,
+		func() { _, _ = hclparse.UnitPathsFromStackDir(fs, "/test", nilMapFactory) },
+	)
 }
 
 func TestUnitPathsFromStackDir_CycleTerminates(t *testing.T) {

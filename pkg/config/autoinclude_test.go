@@ -12,6 +12,160 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// A malformed sibling autoinclude makes the merge helper return an error; ParseConfigFile must surface that error without nil-panicking in handleInclude.
+func TestMergeAutoInclude_MalformedSiblingDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// The parent lives in a subdirectory so the sibling autoinclude does not also apply to it.
+	parentDir := filepath.Join(tmpDir, "parent")
+	require.NoError(t, os.MkdirAll(parentDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(parentDir, "root.hcl"), []byte(`
+inputs = {
+  parent = "from-root"
+}
+`), 0644))
+
+	// A unit with a resolvable include so TrackInclude is set and the post-merge handleInclude branch dereferences config on a shallow merge.
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+include "root" {
+  path           = "`+filepath.Join(parentDir, "root.hcl")+`"
+  merge_strategy = "shallow"
+}
+
+inputs = {
+  name = "from-unit"
+}
+`), 0644))
+
+	// An autoinclude that references an undefined local so its parse fails and mergeAutoIncludeDeepIfPresent returns (nil, err).
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+inputs = {
+  broken = local.does_not_exist
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	l := logger.CreateLogger()
+
+	// The call must return the parse error, never panic on a nil config.
+	require.NotPanics(t, func() {
+		_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+		require.Error(t, err, "a malformed sibling autoinclude must surface as an error")
+	})
+}
+
+// The autoinclude dependency block must resolve its config_path against the autoinclude's OWN locals.
+// The unit declares no such local, so the unit-locals-only decode would fail to resolve local.target.
+func TestFoldSiblingAutoIncludeDeps_UsesAutoIncludeOwnLocals(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// The valid dependency target named by the autoinclude's own local.
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+
+	const marker = "autoinclude-local-marker"
+
+	// The unit defines NO target local and reads a dependency output the autoinclude wires in.
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+remote_state {
+  backend = "local"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    path = dependency.foo.outputs.val
+  }
+}
+`), 0644))
+
+	// The autoinclude declares its own local that names the real target dir and feeds config_path.
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+locals {
+  target = "./foo"
+}
+
+dependency "foo" {
+  config_path  = local.target
+  skip_outputs = true
+  mock_outputs = {
+    val = "`+marker+`"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = "init"
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err, "the autoinclude dependency must resolve config_path against the autoinclude's own locals")
+	require.NotNil(t, parsed)
+	require.NotNil(t, parsed.RemoteState)
+
+	// Resolution of the mock output proves the autoinclude dependency decoded with its own local.target.
+	assert.Equal(t, marker, parsed.RemoteState.BackendConfig["path"])
+}
+
+// The autoinclude exclude block must win over the unit's exclude in BOTH full and partial parse.
+func TestMergeAutoInclude_ExcludeAutoIncludeWinsBothParsePaths(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// The unit declares an exclude with one action set.
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+exclude {
+  if      = true
+  actions = ["plan"]
+}
+`), 0644))
+
+	// The autoinclude declares a different exclude that must win.
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+exclude {
+  if      = true
+  actions = ["apply"]
+}
+`), 0644))
+
+	l := logger.CreateLogger()
+
+	ctxFull, pctxFull := newTestParsingContext(t, cfgPath)
+	pctxFull.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	parsedFull, err := config.ParseConfigFile(ctxFull, pctxFull, l, cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, parsedFull)
+	require.NotNil(t, parsedFull.Exclude)
+	assert.Equal(t, []string{"apply"}, parsedFull.Exclude.Actions, "autoinclude exclude must win in full parse")
+
+	ctxPartial, pctxPartial := newTestParsingContext(t, cfgPath)
+	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctxPartial = pctxPartial.WithDecodeList(config.ExcludeBlock).WithSkipOutputsResolution()
+
+	parsedPartial, err := config.PartialParseConfigFile(ctxPartial, pctxPartial, l, cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, parsedPartial)
+	require.NotNil(t, parsedPartial.Exclude)
+	assert.Equal(t, []string{"apply"}, parsedPartial.Exclude.Actions, "autoinclude exclude must win in partial parse, matching full parse")
+}
+
 func TestMergeAutoInclude_NoFile(t *testing.T) {
 	t.Parallel()
 

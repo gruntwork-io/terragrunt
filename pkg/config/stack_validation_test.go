@@ -300,7 +300,7 @@ func TestValidateStackConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := config.ValidateStackConfig(tt.config)
+			err := config.ValidateStackConfig(tt.config, "/stack")
 			if tt.wantErr != "" {
 				assert.Contains(t, err.Error(), tt.wantErr)
 			} else {
@@ -319,9 +319,58 @@ func TestValidateStackConfigCrossKindPathCollision(t *testing.T) {
 		Stacks: []*config.Stack{{Name: "b", Source: "src-b", Path: "collide"}},
 	}
 
-	err := config.ValidateStackConfig(cfg)
+	err := config.ValidateStackConfig(cfg, "/stack")
 	require.Error(t, err, "a unit and a stack sharing a generated path must be rejected")
 	require.Contains(t, err.Error(), "collide")
+}
+
+// TestValidateStackConfigCrossKindEqualRawPathNoStackNoCollision proves the cross-kind check
+// compares the GENERATED path, not the raw path: a unit at .terragrunt-stack/x and a stack hoisted
+// out via no_dot_terragrunt_stack to x do NOT collide even though the raw path string is equal.
+func TestValidateStackConfigCrossKindEqualRawPathNoStackNoCollision(t *testing.T) {
+	t.Parallel()
+
+	noStack := true
+	cfg := &config.StackConfigFile{
+		Units:  []*config.Unit{{Name: "a", Source: "src-a", Path: "x"}},
+		Stacks: []*config.Stack{{Name: "b", Source: "src-b", Path: "x", NoStack: &noStack}},
+	}
+
+	err := config.ValidateStackConfig(cfg, "/stack")
+	require.NoError(t, err, "equal raw paths that generate to different dirs must not be flagged as a collision")
+}
+
+// TestValidateStackConfigCrossKindDifferentRawSameGeneratedCollision proves the inverse: differing raw
+// path strings that clean to the SAME generated dir must be flagged. Both hoist out via
+// no_dot_terragrunt_stack; the unit's "./shared" and the stack's "shared" both clean to /stack/shared.
+func TestValidateStackConfigCrossKindDifferentRawSameGeneratedCollision(t *testing.T) {
+	t.Parallel()
+
+	noStack := true
+	cfg := &config.StackConfigFile{
+		Units:  []*config.Unit{{Name: "a", Source: "src-a", Path: "./shared", NoStack: &noStack}},
+		Stacks: []*config.Stack{{Name: "b", Source: "src-b", Path: "shared", NoStack: &noStack}},
+	}
+
+	err := config.ValidateStackConfig(cfg, "/stack")
+	require.Error(t, err, "different raw paths cleaning to the same generated dir must be flagged as a collision")
+}
+
+// TestValidateStackConfigNilElementDoesNotPanic proves a nil unit or stack element is skipped by the
+// cross-kind check (reported as nil by the generic validator) instead of panicking before that error surfaces.
+func TestValidateStackConfigNilElementDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.StackConfigFile{
+		Units:  []*config.Unit{nil, {Name: "a", Source: "src-a", Path: "x"}},
+		Stacks: []*config.Stack{nil, {Name: "b", Source: "src-b", Path: "y"}},
+	}
+
+	require.NotPanics(t, func() {
+		err := config.ValidateStackConfig(cfg, "/stack")
+		require.Error(t, err, "nil elements must surface as a validation error, not a panic")
+		require.Contains(t, err.Error(), "is nil")
+	})
 }
 
 // TestStackAutoIncludeBackstopPopulatesTypedErrorFields covers the pkg/config backstop in

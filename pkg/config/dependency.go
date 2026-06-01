@@ -1668,7 +1668,22 @@ func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), autoIncludePath)
+	// Rescope to the autoinclude's own locals so its dependency blocks resolve against its
+	// locals, not the unit's. The unit's locals must not leak into the autoinclude decode.
+	autoPctx := pctx.Clone()
+
+	baseBlocks, err := DecodeBaseBlocks(ctx, autoPctx, l, autoFile, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if baseBlocks != nil {
+		autoPctx = autoPctx.WithTrackInclude(baseBlocks.TrackInclude)
+		autoPctx = autoPctx.WithFeatures(baseBlocks.FeatureFlags)
+		autoPctx = autoPctx.WithLocals(baseBlocks.Locals)
+	}
+
+	evalCtx, err := createTerragruntEvalContext(ctx, autoPctx, l, vexec.NewOSExec(), autoIncludePath)
 	if err != nil {
 		return nil, err
 	}
