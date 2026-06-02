@@ -80,6 +80,62 @@ func TestUnitPathsFromStackDir_RecursesNestedStacks(t *testing.T) {
 	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "more", ".terragrunt-stack", "deep")}, paths)
 }
 
+// TestUnitPathsFromStackDir_MergesStackAutoInclude pins that discovery folds a sibling
+// terragrunt.autoinclude.stack.hcl into expansion, so a unit injected by a stack-level autoinclude
+// produces a DAG edge the same way a full stack parse materializes it.
+func TestUnitPathsFromStackDir_MergesStackAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+  source = "../units/vpc"
+  path   = "vpc"
+}
+`), 0644))
+	// A stack-level autoinclude beside the stack file injects an extra unit.
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "injected" {
+  source = "../units/injected"
+  path   = "injected"
+}
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.NoError(t, err)
+	require.Len(t, paths, 2, "the autoinclude-injected unit must expand alongside the stack file's own unit")
+	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "vpc"))
+	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "injected"))
+}
+
+// TestUnitPathsFromStackDir_RecursesStackAutoIncludeInjectedStack pins that a stack injected by a
+// stack-level autoinclude is recursed into, so its nested units also produce DAG edges.
+func TestUnitPathsFromStackDir_RecursesStackAutoIncludeInjectedStack(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`stack "more" {
+  source = "."
+  path   = "more"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/more/terragrunt.stack.hcl", []byte(`unit "deep" {
+  source = "."
+  path   = "deep"
+}
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.NoError(t, err)
+	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "vpc"))
+	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "more", ".terragrunt-stack", "deep"), "a stack injected by the autoinclude must be recursed into")
+}
+
 // TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir pins the dir-scoping
 // contract: the factory is invoked once per visited stack dir, each time with that
 // dir, so dir-sensitive functions resolve against the nested dir, not the top dir.

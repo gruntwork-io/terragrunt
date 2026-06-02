@@ -97,6 +97,11 @@ func TestBodyHasBlock(t *testing.T) {
 // TestLogStackAutoIncludeOverrides asserts the by-design behavior: a nested
 // autoinclude inside an injected unit does not propagate and is reported via a
 // debug log, and an injected name that overrides an existing one is also logged.
+//
+// This is an in-package test by necessity: logStackAutoIncludeOverrides is an unexported logging
+// helper whose contract under test is the exact log level (debug, never info/warn/error). Driving
+// it through public stack parsing would couple the assertion to fixture generation and obscure the
+// level contract rather than asserting it directly.
 func TestLogStackAutoIncludeOverrides(t *testing.T) {
 	t.Parallel()
 

@@ -395,25 +395,31 @@ func autoIncludeDependencyNames(body *hclsyntax.Body) map[string]struct{} {
 	return names
 }
 
-// firstDeclaredDepRef returns the name and range of the first dependency reference in expr whose
-// root name is a declared dependency, or empty when none. Both dependency.foo.* (TraverseAttr) and
-// dependency["foo"].* (TraverseIndex with a string key) forms are matched.
+// firstDeclaredDepRef returns the name and range of the first unsupported dependency reference in
+// expr, or empty when none. A statically named dependency.foo.* (TraverseAttr) or dependency["foo"].*
+// (TraverseIndex with a string key) is reported when foo is a declared dependency. A dynamic index
+// such as dependency[values.x] hides the name from static analysis and is reported as the dependency
+// root, since it cannot be proven safe once the autoinclude declares dependency blocks.
 func firstDeclaredDepRef(expr hclsyntax.Expression, declaredDeps map[string]struct{}) (string, *hcl.Range) {
 	for _, traversal := range expr.Variables() {
-		if traversal.RootName() != varDependency || len(traversal) < 2 {
+		if traversal.RootName() != varDependency {
 			continue
 		}
 
-		name, ok := depRefName(traversal[1])
-		if !ok {
-			continue
+		// traversal[0] is the dependency root; a following traverser carries the static name when present.
+		named := traversal[1:]
+		if len(named) > 0 {
+			if name, ok := depRefName(named[0]); ok {
+				if _, declared := declaredDeps[name]; !declared {
+					continue
+				}
+
+				return name, expr.Range().Ptr()
+			}
 		}
 
-		if _, declared := declaredDeps[name]; !declared {
-			continue
-		}
-
-		return name, expr.Range().Ptr()
+		// A dynamic index like dependency[values.x] hides the name; reject it since injected values cannot reference dependency outputs.
+		return varDependency, expr.Range().Ptr()
 	}
 
 	return "", nil

@@ -324,7 +324,43 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 		return nil, nil, err
 	}
 
+	// Merge units and stacks injected by a sibling terragrunt.autoinclude.stack.hcl so discovery expands the same components a full stack parse materializes.
+	if err := mergeDiscoveryStackAutoInclude(fs, stackDir, evalCtx, decoded); err != nil {
+		return nil, nil, err
+	}
+
 	return decoded.Units, decoded.Stacks, nil
+}
+
+// mergeDiscoveryStackAutoInclude appends the units and stacks declared by a sibling
+// terragrunt.autoinclude.stack.hcl so discovery sees the same generated components a full stack
+// parse materializes via mergeStackAutoIncludeFile. An absent autoinclude file is a no-op.
+func mergeDiscoveryStackAutoInclude(fs vfs.FS, stackDir string, evalCtx *hcl.EvalContext, decoded *discoveryDecode) error {
+	autoIncludePath := filepath.Join(stackDir, AutoIncludeStackFile)
+
+	data, err := vfs.ReadFile(fs, autoIncludePath)
+	if err != nil {
+		if errors.Is(err, iofs.ErrNotExist) {
+			return nil
+		}
+
+		return FileReadError{FilePath: autoIncludePath, Err: err}
+	}
+
+	parsedFile, err := parseStackFileRoot(data, autoIncludePath)
+	if err != nil {
+		return err
+	}
+
+	autoDecoded := &discoveryDecode{}
+	if diags := gohcl.DecodeBody(parsedFile.Remain, evalCtx, autoDecoded); diags.HasErrors() {
+		return FileDecodeError{Name: autoIncludePath, Err: diags}
+	}
+
+	decoded.Units = append(decoded.Units, autoDecoded.Units...)
+	decoded.Stacks = append(decoded.Stacks, autoDecoded.Stacks...)
+
+	return nil
 }
 
 // validateDiscoveryUniqueNames reports duplicate unit and stack names from the path-only discovery decode.

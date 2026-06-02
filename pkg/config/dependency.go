@@ -1693,6 +1693,16 @@ func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log
 		return nil, err
 	}
 
+	// Fold in dependency blocks the autoinclude inherits through its own include blocks, mirroring the unit decode path so inherited deps resolve before the unit body is evaluated.
+	if autoPctx.TrackInclude != nil && len(autoPctx.TrackInclude.CurrentList) > 0 {
+		merged, err := handleIncludeForDependency(ctx, autoPctx, l, decoded)
+		if err != nil {
+			return nil, err
+		}
+
+		decoded = *merged
+	}
+
 	autoDeps := decoded.Dependencies.FilteredWithoutConfigPath()
 	if len(autoDeps) == 0 {
 		return deps, nil

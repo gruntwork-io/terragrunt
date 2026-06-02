@@ -589,6 +589,53 @@ unit "extra" {
 	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
 }
 
+// TestResolveForKind_StackAutoIncludeDepValuesDynamicIndex pins that a dynamic index
+// (dependency[values.dep_name].outputs.val) trips the typed error too. The dynamic index hides the
+// dependency name from static analysis, so the validator must reject the dependency root rather than
+// let it fall through to a cryptic generic decode failure.
+func TestResolveForKind_StackAutoIncludeDepValuesDynamicIndex(t *testing.T) {
+	t.Parallel()
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	// The dependency output reference written with a dynamic index whose name is not statically known.
+	badSrc := `
+dependency "producer" {
+  config_path = unit.producer.path
+}
+
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    dep_name = "producer"
+    v        = dependency[values.dep_name].outputs.val
+  }
+}
+`
+	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
+
+	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	require.True(t, diags.HasErrors(), "a dynamic dependency index must trip the typed error too")
+
+	extra, ok := diags[0].Extra.(error)
+	require.True(t, ok, "the diagnostic Extra must carry an error")
+
+	var typed hclparse.StackAutoIncludeDependencyValuesError
+	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error for the dynamic index form")
+	assert.Equal(t, "dependency", typed.DepName, "a dynamic index reports the dependency root since the name is not statically known")
+	assert.Equal(t, "extra", typed.UnitName)
+	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
+}
+
 // parseHCLBody is a test helper that parses an HCL string and returns the body.
 func parseHCLBody(t *testing.T, src string) hcl.Body {
 	t.Helper()
