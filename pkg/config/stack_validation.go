@@ -118,9 +118,7 @@ func validateConfigElementsGeneric(elements any, elementType string, getValues f
 
 	var slice []any
 
-	// Convert the slice to a slice of interface{}.
-	// A nil pointer is stored as an untyped nil so the element==nil guard below catches it,
-	// otherwise a typed-nil pointer slips past the guard and getValues dereferences it.
+	// Convert to []any storing nil pointers as untyped nil so the element==nil guard below catches them.
 	switch v := elements.(type) {
 	case []*Unit:
 		slice = make([]any, len(v))

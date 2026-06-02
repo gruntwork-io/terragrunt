@@ -1663,8 +1663,7 @@ func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log
 		return nil, err
 	}
 
-	// Rescope to the autoinclude's own locals so its dependency blocks resolve against its
-	// locals, not the unit's. The unit's locals must not leak into the autoinclude decode.
+	// Rescope to the autoinclude's own locals so the unit's locals do not leak into the autoinclude decode.
 	autoPctx := pctx.Clone()
 	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
 	autoPctx.skipAutoIncludeMerge = true

@@ -2324,7 +2324,7 @@ func mergeAutoIncludeIfPresent(ctx context.Context, pctx *ParsingContext, l log.
 		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
 
-	// Merge mutates the receiver and the argument wins; the autoinclude is the source/winner. Shallow, matching a regular include's default merge strategy.
+	// Shallow merge with the autoinclude as the winning source, matching a regular include's default strategy.
 	if err := cfg.Merge(l, autoIncludeConfig); err != nil {
 		return nil, fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
 	}

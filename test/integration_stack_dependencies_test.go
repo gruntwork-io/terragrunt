@@ -29,13 +29,6 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 )
 
-// stackDepsFuncsFor builds a per-dir stack function factory so nested stacks resolve dir-sensitive functions against their own dir.
-func stackDepsFuncsFor(ctx context.Context, l log.Logger, pctx *config.ParsingContext) inthclparse.StackFuncFactory {
-	return func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, dir, pctx)
-	}
-}
-
 const (
 	testFixtureStackDepsAutoInclude              = "fixtures/stacks/stack-dependencies-autoinclude"
 	testFixtureStackDepsStackRef                 = "fixtures/stacks/stack-dependencies-stack-ref"
@@ -64,6 +57,7 @@ const (
 	testFixtureStackDepsNestedRemoteStateDep     = "fixtures/stacks/stack-deps-nested-remote-state-dep"
 	testFixtureStackDepsDupDependency            = "fixtures/stacks/stack-deps-dup-dependency"
 	testFixtureStackDepsDepMockMerge             = "fixtures/stacks/stack-deps-dep-mock-merge"
+	testFixtureStackDepsDisabledAutoIncDep       = "fixtures/stacks/stack-deps-disabled-autoinclude-dep"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -441,6 +435,27 @@ func TestStackDepsAutoIncludeReplacesUnitDependency(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(backend), "absent-autoinclude-common.tfstate",
 		"the autoinclude dependency must replace the unit's same-name block, not deep-merge it")
+}
+
+// TestStackDepsAutoIncludeDisabledDependencyCreatesNoEdge is a regression test: a dependency declared
+// in an autoinclude with enabled = false must not become a run-DAG edge. The disabled dependency points
+// at a nonexistent path, so a run that followed it would fail with a missing terragrunt.hcl error. The
+// partial-parse merge drops disabled blocks, and discovery must not re-add them from the raw autoinclude.
+func TestStackDepsAutoIncludeDisabledDependencyCreatesNoEdge(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsDisabledAutoIncDep)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsDisabledAutoIncDep)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsDisabledAutoIncDep, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
+	require.NoError(t, err, "a disabled autoinclude dependency must not create a run-DAG edge to its nonexistent path; stderr=%s", stderr)
+	assert.NotContains(t, stderr, "nonexistent-in-tree", "the disabled dependency path must not enter the run graph")
 }
 
 // TestStackDepsE2EChain runs a 3-level dependency chain end-to-end:
@@ -1798,7 +1813,7 @@ func TestStackDepsStackAutoIncludeDepValuesIsClearError(t *testing.T) {
 	// The clear error must name the supported alternative, not the cryptic low-level diagnostic.
 	msg := runErr.Error()
 	assert.Contains(t, msg, "supported cross-level pattern")
-	assert.Contains(t, msg, "stack-deps-cross-level-values")
+	assert.Contains(t, msg, "declare the dependency inside the nested unit's own autoinclude")
 	assert.NotContains(t, msg, "Unsupported block type")
 	assert.NotContains(t, msg, "no variable named dependency")
 }
@@ -1901,4 +1916,11 @@ func partialParseDiscovery(t *testing.T, l log.Logger, configPath string) *confi
 	require.NoError(t, err, "discovery-style partial parse of the merged unit config must succeed")
 
 	return parsed
+}
+
+// stackDepsFuncsFor builds a per-dir stack function factory so nested stacks resolve dir-sensitive functions against their own dir.
+func stackDepsFuncsFor(ctx context.Context, l log.Logger, pctx *config.ParsingContext) inthclparse.StackFuncFactory {
+	return func(dir string) (map[string]function.Function, error) {
+		return config.EarlyStackParseFunctions(ctx, l, dir, pctx)
+	}
 }

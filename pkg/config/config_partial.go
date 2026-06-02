@@ -751,45 +751,48 @@ func mergeAutoIncludePartialIfPresent(ctx context.Context, pctx *ParsingContext,
 		return fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
 
-	// Preserve literal dependencies paths from each side before the merge flattens block derived paths together.
-	unitLegacyPaths := legacyModuleDependencyPaths(output)
-	autoLegacyPaths := legacyModuleDependencyPaths(autoIncludeConfig)
+	// Capture paths from each side's dependencies block before the merge flattens block derived paths together.
+	unitDependenciesBlockPaths := dependenciesBlockOnlyPaths(l, output)
+	autoDependenciesBlockPaths := dependenciesBlockOnlyPaths(l, autoIncludeConfig)
 
-	// Merge mutates the receiver and the argument wins; the autoinclude is the source/winner. Shallow, matching a regular include's default merge strategy.
+	// Shallow merge with the autoinclude as the winning source, matching a regular include's default strategy.
 	if err := output.Merge(l, autoIncludeConfig); err != nil {
 		return fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
 	}
 
-	// Merge only appends the legacy path list so rebuild it from the by name merged blocks to drop any overridden stale path.
-	reconcileAutoIncludeModulePaths(l, output, unitLegacyPaths, autoLegacyPaths)
+	// Merge only appends the module dependency path list so rebuild it from the by name merged blocks to drop any overridden stale path.
+	reconcileAutoIncludeModulePaths(l, output, unitDependenciesBlockPaths, autoDependenciesBlockPaths)
 
 	return nil
 }
 
-// legacyModuleDependencyPaths returns module dependency paths that came from a literal dependencies block rather than a dependency block.
-func legacyModuleDependencyPaths(cfg *TerragruntConfig) []string {
+// dependenciesBlockOnlyPaths returns the module dependency paths that came from a dependencies block rather than being derived from a dependency block.
+func dependenciesBlockOnlyPaths(l log.Logger, cfg *TerragruntConfig) []string {
 	if cfg == nil || cfg.Dependencies == nil {
 		return nil
 	}
 
-	blockPaths := make(map[string]struct{}, len(cfg.TerragruntDependencies))
-	for _, dep := range cfg.TerragruntDependencies {
-		if IsValidConfigPath(dep.ConfigPath) {
-			blockPaths[dep.ConfigPath.AsString()] = struct{}{}
+	blockPaths := make(map[string]struct{})
+
+	// Classify block derived paths through the same helper the rebuild uses so disabled and unresolved blocks are treated identically and a dependencies block edge overlapping a disabled block is not dropped.
+	blockDerived := dependencyBlocksToModuleDependencies(l, cfg.TerragruntDependencies)
+	if blockDerived != nil {
+		for _, path := range blockDerived.Paths {
+			blockPaths[path] = struct{}{}
 		}
 	}
 
-	legacy := make([]string, 0, len(cfg.Dependencies.Paths))
+	blockOnly := make([]string, 0, len(cfg.Dependencies.Paths))
 
 	for _, path := range cfg.Dependencies.Paths {
 		if _, ok := blockPaths[path]; ok {
 			continue
 		}
 
-		legacy = append(legacy, path)
+		blockOnly = append(blockOnly, path)
 	}
 
-	return legacy
+	return blockOnly
 }
 
 // reconcileAutoIncludeModulePaths rebuilds the module dependency path list from the by name merged dependency blocks plus the preserved literal dependencies paths.

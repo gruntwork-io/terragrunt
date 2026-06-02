@@ -199,7 +199,7 @@ func (e StackAutoIncludeDependencyValuesError) Error() string {
 	return fmt.Sprintf(
 		"stack %q autoinclude injects unit/stack %q whose values reference dependency outputs, "+
 			"which are not available at stack generate time. "+
-			"Use the supported cross-level pattern instead (see test/fixtures/stacks/stack-deps-cross-level-values): "+
+			"Use the supported cross-level pattern instead: "+
 			"pass only unit.X.path through values on the child stack block, and declare the dependency inside the nested unit's own autoinclude so it resolves at the unit run.",
 		stack, target,
 	)

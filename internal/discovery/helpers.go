@@ -297,8 +297,9 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	return depPaths, nil
 }
 
-// stackDependencyPaths returns additional dependency paths from autoinclude
-// files and expands stack directory paths into constituent unit paths.
+// stackDependencyPaths expands stack directory dependency paths into their constituent unit paths.
+// Autoinclude-declared dependencies are already folded into the parsed config by the partial-parse
+// merge (which honors enabled/disabled and same-name override), so they arrive via depPaths here.
 // Only called when the StackDependencies experiment is enabled.
 func stackDependencyPaths(
 	ctx context.Context,
@@ -306,21 +307,13 @@ func stackDependencyPaths(
 	fs vfs.FS,
 	opts *options.TerragruntOptions,
 	depPaths []string,
-	c component.Component,
 ) ([]string, error) {
-	// Add dependencies declared in autoinclude files. The partial parse already folds the
-	// autoinclude in by name (the autoinclude wins over a same-name unit block), so these are
-	// deduplicated against the paths the parsed config already reported.
-	autoIncludeDeps, err := inthclparse.AutoIncludeDependencyPaths(fs, c.Path())
-	if err != nil {
-		return nil, err
-	}
-
-	for _, dep := range autoIncludeDeps {
-		depPaths = append(depPaths, util.ResolvePath(dep))
-	}
-
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
+	funcsFor := inthclparse.StackFuncFactory(func(stackDir string) (map[string]function.Function, error) {
+		return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+	})
 
 	// Expand stack dependency paths to individual unit paths.
 	expanded := make([]string, 0, len(depPaths))
@@ -340,11 +333,6 @@ func stackDependencyPaths(
 			expanded = append(expanded, depPath)
 			continue
 		}
-
-		// Rebuild the function map per visited stack dir so nested stacks resolve dir-functions against their own dir.
-		funcsFor := inthclparse.StackFuncFactory(func(stackDir string) (map[string]function.Function, error) {
-			return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
-		})
 
 		unitPaths, err := inthclparse.UnitPathsFromStackDir(fs, depPath, funcsFor)
 		if err != nil {

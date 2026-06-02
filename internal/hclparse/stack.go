@@ -268,9 +268,7 @@ func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory
 		paths = append(paths, unit.GeneratedPath(stackDir))
 	}
 
-	// Recurse into nested stacks so a stack composed of sub-stacks expands to the units those
-	// sub-stacks generate, not just the direct units at this level. A not-yet-generated nested
-	// stack decodes to no units.
+	// Recurse into nested stacks so a stack composed of sub-stacks expands to the units they generate.
 	for _, stack := range stacks {
 		nestedDir := filepath.Join(stackDir, StackDir, stack.Path)
 		if stack.NoStack != nil && *stack.NoStack {
@@ -376,9 +374,7 @@ func mergeDiscoveryStackAutoInclude(fs vfs.FS, stackDir string, evalCtx *hcl.Eva
 		return *typed
 	}
 
-	// Strict decode: a stack autoinclude may contain only unit and stack blocks at the top level. The
-	// struct has no ",remain", so top-level locals, include blocks, and any other stray content are
-	// rejected here, instead of being silently ignored, matching the strict full-parse decode.
+	// Strict decode rejecting any top-level content other than unit and stack blocks (the struct has no ",remain").
 	autoDecoded := &discoveryAutoIncludeDecode{}
 	if diags := gohcl.DecodeBody(file.Body, evalCtx, autoDecoded); diags.HasErrors() {
 		return FileDecodeError{Name: autoIncludePath, Err: diags}

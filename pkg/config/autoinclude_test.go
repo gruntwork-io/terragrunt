@@ -1073,3 +1073,48 @@ remote_state {
 	require.NotNil(t, second.RemoteState)
 	assert.Equal(t, "second", second.RemoteState.BackendConfig["path"], "the edited autoinclude must win, not the stale cached result")
 }
+
+// A dependencies block path that overlaps a DISABLED dependency block of the same path must survive a
+// sibling autoinclude merge. The merge rebuilds the block derived path list through
+// dependencyBlocksToModuleDependencies, which skips disabled blocks, so the path is classified as
+// dependencies-block-only and preserved instead of being dropped as if a dependency block still carried it.
+func TestMergeAutoInclude_DependenciesBlockEdgeSurvivesDisabledDependencyOverlap(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	for _, name := range []string{"foo", "bar"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, name), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, name, config.DefaultTerragruntConfigPath), []byte(``), 0644))
+	}
+
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+dependencies {
+  paths = ["./foo"]
+}
+
+dependency "foo" {
+  config_path = "./foo"
+  enabled     = false
+}
+`), 0644))
+
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+dependency "bar" {
+  config_path = "./bar"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.DependencyBlock).WithSkipOutputsResolution()
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, parsed.Dependencies)
+	assert.Contains(t, parsed.Dependencies.Paths, "./foo",
+		"a dependencies block path overlapping a disabled dependency block must survive the autoinclude merge")
+}
