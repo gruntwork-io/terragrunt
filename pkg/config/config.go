@@ -2279,10 +2279,16 @@ func ParseRemoteState(ctx context.Context, l log.Logger, pctx *ParsingContext) (
 }
 
 // siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside configPath
-// and whether merging it is in scope: the stack-dependencies experiment must be enabled and configPath
-// must not itself be an autoinclude file, which would recurse. Existence is left to the caller so the
-// cache-key path can distinguish an absent file from a present one.
+// and whether merging it is in scope. Merging is in scope only when: the context is not already parsing
+// a file pulled in by an autoinclude merge (skipAutoIncludeMerge, which would recurse and let a pulled-in
+// file fold its own sibling autoinclude), the stack-dependencies experiment is enabled, and configPath is
+// not itself an autoinclude file. Every autoinclude entry point routes through here so the skip cannot be
+// forgotten. Existence is left to the caller so the cache-key path can distinguish absent from present.
 func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bool) {
+	if pctx.skipAutoIncludeMerge {
+		return "", false
+	}
+
 	if !pctx.Experiments.Evaluate(experiment.StackDependencies) {
 		return "", false
 	}
@@ -2297,11 +2303,6 @@ func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bo
 
 // mergeAutoIncludeDeepIfPresent deep-merges a sibling terragrunt.autoinclude.hcl into the unit config like a regular include with deep_merge, with the autoinclude winning.
 func mergeAutoIncludeDeepIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, cfg *TerragruntConfig, configPath string) (*TerragruntConfig, error) {
-	// Skip when this parse is itself a file pulled in by an autoinclude merge so a same-directory include cannot recurse.
-	if pctx.skipAutoIncludeMerge {
-		return cfg, nil
-	}
-
 	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
 	if !ok {
 		return cfg, nil

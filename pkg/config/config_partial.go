@@ -731,11 +731,6 @@ func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.Eval
 
 // mergeAutoIncludePartialDeepIfPresent deep-merges a sibling terragrunt.autoinclude.hcl into a partial output using the same decode list, with the autoinclude winning.
 func mergeAutoIncludePartialDeepIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, output *TerragruntConfig, configPath string) error {
-	// Skip when this parse is itself a file pulled in by an autoinclude merge so a same-directory include cannot recurse.
-	if pctx.skipAutoIncludeMerge {
-		return nil
-	}
-
 	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
 	if !ok {
 		return nil
