@@ -116,6 +116,11 @@ func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoInclu
 		if diags := validateStackAutoIncludeDepValues(body, name); diags.HasErrors() {
 			return nil, diags
 		}
+
+		// A stack autoinclude injects only unit and stack blocks into the generated stack file, so a top-level dependency block is rejected here at generate time instead of producing a file the strict discovery decode later rejects.
+		if diags := rejectStackAutoIncludeDependencyBlocks(body, name); diags.HasErrors() {
+			return nil, diags
+		}
 	}
 
 	deps := make([]AutoIncludeDependency, 0, len(body.Blocks))
@@ -371,6 +376,26 @@ func validateStackAutoIncludeDepValues(body *hclsyntax.Body, stackName string) h
 		Subject:  typed.Subject,
 		Extra:    *typed,
 	}}
+}
+
+// rejectStackAutoIncludeDependencyBlocks rejects a top-level dependency block in a stack autoinclude, which is unsupported because a stack autoinclude injects only unit and stack blocks into the generated stack file.
+func rejectStackAutoIncludeDependencyBlocks(body *hclsyntax.Body, stackName string) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	for _, block := range body.Blocks {
+		if block.Type != blockDependency {
+			continue
+		}
+
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "dependency block is not allowed in a stack autoinclude",
+			Detail:   fmt.Sprintf("stack %q autoinclude declares dependency %q, but a stack autoinclude may inject only unit and stack blocks; declare the dependency inside the target unit's own autoinclude instead", stackName, blockLabelsString(block)),
+			Subject:  block.DefRange().Ptr(),
+		})
+	}
+
+	return diags
 }
 
 // valuesReferenceDependency reports whether expr references the dependency namespace in any form.
