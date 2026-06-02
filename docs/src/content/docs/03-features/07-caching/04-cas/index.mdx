@@ -9,10 +9,14 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside, Steps } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
+<Before version="1.1.0">
 <Aside type="tip" title="Experimental">
 CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
 </Aside>
+</Before>
 
 Terragrunt supports a Content Addressable Store (CAS) to deduplicate content across multiple Terragrunt configurations.
 
@@ -69,9 +73,11 @@ terraform {
 
 ### Stack Usage
 
+<Before version="1.1.0">
 <Aside type="tip">
 This functionality is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
 </Aside>
+</Before>
 
 When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to allow for relative paths to other components in the catalog in `source` attributes. This removes the need to plumb remote Git URLs through `values` expressions. The `source` must be a literal string: interpolation, function calls, and references such as `local.foo` cause stack generation to fail.
 
@@ -105,9 +111,17 @@ The catalog source can be either a remote Git URL or a local filesystem path (ab
 
 For more details on using this with stacks, see [Explicit Stacks: CAS Integration](/features/stacks/explicit#cas-integration).
 
+<Before version="1.1.0">
 <Aside type="caution">
 Setting `update_source_with_cas = true` requires that the `cas` experiment is enabled and that `--no-cas` is not set. Terragrunt errors out otherwise, since the relative source must be updated to a synthetic tree stored in the CAS.
 </Aside>
+</Before>
+
+<Since version="1.1.0">
+<Aside type="caution">
+Setting `update_source_with_cas = true` requires that `--no-cas` is not set. Terragrunt errors out otherwise, since the relative source must be updated to a synthetic tree stored in the CAS.
+</Aside>
+</Since>
 
 When Terragrunt fetches a Git source while using the CAS, if the content is not found in the CAS, Terragrunt fetches into the central bare repository for that remote URL and stores the resulting blobs and trees in the CAS for future use. If the central store is unavailable, Terragrunt falls back to cloning the repository from the original URL into a temporary directory. Other getters follow the equivalent pattern for their source type, described on the [per-getter pages](#supported-sources).
 

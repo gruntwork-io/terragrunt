@@ -7,11 +7,14 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
 
+<Before version="1.1.0">
 <Aside type="tip" title="Experimental">
 CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
 </Aside>
 
+</Before>
 ## Overview
 
 An HTTP source is identified by its URL. Terragrunt cannot key it by a content hash up front, so it asks the server for a validator (an `ETag` or `Last-Modified` value) and keys the cached tree by that validator, scoped to the URL.

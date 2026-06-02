@@ -1,0 +1,10 @@
+---
+version: "v1.1.0"
+category: "new-features"
+---
+
+#### Content Addressable Storage (CAS)
+
+Terragrunt now uses a Content Addressable Store to deduplicate Git content across configurations, speeding up catalog cloning, OpenTofu/Terraform source cloning, and stack generation by avoiding redundant downloads. When used with stacks, it also lets catalog authors use relative paths in `source` attributes via the `update_source_with_cas` attribute.
+
+CAS is enabled by default. Use the `--no-cas` flag (or `TG_NO_CAS=true`) to opt out. Previously gated behind the `cas` experiment, it no longer requires `--experiment cas`.

@@ -8,6 +8,8 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 For an alternate approach (that is more flexible, but not necessarily always the better solution), you can define explicit stacks using `terragrunt.stack.hcl` files. These are **blueprints** that programmatically generate units at runtime.
 
@@ -413,9 +415,11 @@ After running the stack, your directory structure will look like this:
 
 ## CAS Integration
 
+<Before version="1.1.0">
 <Aside type="tip">
 This functionality is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`. See the [CAS feature documentation](/features/caching/cas) for more details.
 </Aside>
+</Before>
 
 When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute on nested blocks to replace remote Git URLs with relative paths.
 
@@ -468,7 +472,13 @@ When `update_source_with_cas = true` is set:
 4. Generated `.terragrunt-stack` files contain deterministic CAS references instead of remote URLs.
 5. Subsequent generation waves resolve `cas::` references directly from the CAS store, with no network access required.
 
+<Before version="1.1.0">
 Consumers do not set `update_source_with_cas` themselves. When the `cas` experiment is enabled and the source is remote, Terragrunt uses the CAS path automatically. The attribute only has effect inside catalog files, where it flags nested `source` attributes for rewriting.
+</Before>
+
+<Since version="1.1.0">
+Consumers do not set `update_source_with_cas` themselves. When the source is remote, Terragrunt uses the CAS path automatically. The attribute only has effect inside catalog files, where it flags nested `source` attributes for rewriting.
+</Since>
 
 `unit` and `stack` blocks also accept a `mutable` attribute. When `mutable = true`, the unit's or stack's content under `.terragrunt-stack` is copied from the CAS store and the working tree is editable. The default is `false`: files are materialized read-only so an accidental edit cannot reach back into the shared CAS store.
 
@@ -483,7 +493,13 @@ stack "service" {
 }
 ```
 
+<Before version="1.1.0">
 Running `terragrunt --experiment cas stack generate` produces:
+</Before>
+
+<Since version="1.1.0">
+Running `terragrunt stack generate` produces:
+</Since>
 
 <FileTree>
 
@@ -530,9 +546,16 @@ The `cas::` reference format includes a hash algorithm prefix (`sha1:` or `sha25
 
 Requirements:
 
+<Before version="1.1.0">
 - The `cas` experiment must be enabled (`--experiment cas`).
 - The `--no-cas` flag must not be set.
 - Sources using `update_source_with_cas` must be relative paths within the same repository.
+</Before>
+
+<Since version="1.1.0">
+- The `--no-cas` flag must not be set.
+- Sources using `update_source_with_cas` must be relative paths within the same repository.
+</Since>
 
 ### Local catalog sources
 
@@ -567,7 +590,12 @@ The [`stack-dependencies` experiment](/reference/experiments/active#stack-depend
 
 Every generation of a stack from a `terragrunt.stack.hcl` file can potentially result in network traffic to fetch the source for the stack and filesystem traffic to copy the generated units to the `.terragrunt-stack` directory. This can result in slow stack generation if you have very deeply nested stacks.
 
+<Before version="1.1.0">
 To mitigate this, enable the [`cas` experiment](/reference/experiments/active#cas) and use `update_source_with_cas = true` in your catalog's stack and unit files. This deduplicates repository clones and resolves content from the local CAS store instead of fetching from the network on every generation. See [CAS Integration](#cas-integration) for details.
+</Before>
+<Since version="1.1.0">
+To mitigate this, use `update_source_with_cas = true` in your catalog's stack and unit files. This deduplicates repository clones and resolves content from the local CAS store instead of fetching from the network on every generation. See [CAS Integration](#cas-integration) for details.
+</Since>
 
 ### Includes are not supported in `terragrunt.stack.hcl` files
 

@@ -351,7 +351,7 @@ func downloadSource(
 		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.Writers.LogShowAbsPaths),
 		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.Writers.LogShowAbsPaths))
 
-	allowCAS := opts.Experiments.Evaluate(experiment.CAS) && !opts.NoCAS
+	allowCAS := !opts.NoCAS
 
 	if cfg.Terraform.UpdateSourceWithCAS && !allowCAS {
 		return &cas.UpdateSourceWithCASRequiresCASError{
