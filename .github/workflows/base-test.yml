@@ -73,6 +73,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TMPDIR: ${{ matrix.os == 'macos' && '/tmp' || '' }}
 
+      # TEMP (Windows porting): the -json pipeline emits no readable failures to the
+      # console, so upload the raw test events to diagnose Windows failures. Remove
+      # before review.
+      - name: Upload test events (${{ matrix.os }})
+        if: always() && matrix.os == 'windows'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: test-events-${{ matrix.os }}
+          path: test-events.ndjson
+          retention-days: 7
+
       - name: Generate Coverage Summary
         if: always() && matrix.os == 'ubuntu'
         run: ./.github/scripts/coverage/coverage-report.sh summary
@@ -124,6 +135,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Report (${{ matrix.os }})
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-report-${{ matrix.os }}
