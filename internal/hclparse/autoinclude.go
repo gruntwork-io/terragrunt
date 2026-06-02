@@ -331,13 +331,8 @@ func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (st
 	return util.ResolvePath(depPath), nil
 }
 
-// StackAutoIncludeDepValuesError scans a stack autoinclude body for the unsupported cross-level pattern and returns the populated typed error, or nil when absent. Shared by the fail-fast generation check and the pkg/config backstop so the two cannot drift.
+// StackAutoIncludeDepValuesError scans a stack autoinclude body for the unsupported cross-level pattern: an injected unit/stack whose values reference dependency outputs, which are not available at stack generate time. Returns the populated typed error, or nil when absent. Shared by the fail-fast generation check and the pkg/config backstop so the two cannot drift.
 func StackAutoIncludeDepValuesError(body *hclsyntax.Body, stackName string) *StackAutoIncludeDependencyValuesError {
-	declaredDeps := autoIncludeDependencyNames(body)
-	if len(declaredDeps) == 0 {
-		return nil
-	}
-
 	for _, block := range body.Blocks {
 		if block.Type != VarUnit && block.Type != VarStack {
 			continue
@@ -348,16 +343,14 @@ func StackAutoIncludeDepValuesError(body *hclsyntax.Body, stackName string) *Sta
 			continue
 		}
 
-		depName, subject := firstDeclaredDepRef(valuesAttr.Expr, declaredDeps)
-		if depName == "" {
+		if !valuesReferenceDependency(valuesAttr.Expr) {
 			continue
 		}
 
 		return &StackAutoIncludeDependencyValuesError{
 			StackName: stackName,
 			UnitName:  blockLabelsString(block),
-			DepName:   depName,
-			Subject:   subject,
+			Subject:   valuesAttr.Expr.Range().Ptr(),
 		}
 	}
 
@@ -380,66 +373,17 @@ func validateStackAutoIncludeDepValues(body *hclsyntax.Body, stackName string) h
 	}}
 }
 
-// autoIncludeDependencyNames returns the set of single-labeled dependency block names declared in the body.
-func autoIncludeDependencyNames(body *hclsyntax.Body) map[string]struct{} {
-	names := make(map[string]struct{})
-
-	for _, block := range body.Blocks {
-		if block.Type != blockDependency || len(block.Labels) != 1 {
-			continue
-		}
-
-		names[block.Labels[0]] = struct{}{}
-	}
-
-	return names
-}
-
-// firstDeclaredDepRef returns the name and range of the first unsupported dependency reference in
-// expr, or empty when none. A statically named dependency.foo.* (TraverseAttr) or dependency["foo"].*
-// (TraverseIndex with a string key) is reported when foo is a declared dependency. A dynamic index
-// such as dependency[values.x] hides the name from static analysis and is reported as the dependency
-// root, since it cannot be proven safe once the autoinclude declares dependency blocks.
-func firstDeclaredDepRef(expr hclsyntax.Expression, declaredDeps map[string]struct{}) (string, *hcl.Range) {
+// valuesReferenceDependency reports whether expr references the dependency namespace in any form.
+// RootName matches every traversal uniformly: dependency.foo, dependency["foo"], and the dynamic
+// dependency[values.x] all report "dependency" as the root, so no per-form handling is needed. Any such
+// reference is unsupported because injected values are evaluated at stack generate time, when no
+// dependency outputs exist, regardless of whether the autoinclude declares that dependency.
+func valuesReferenceDependency(expr hclsyntax.Expression) bool {
 	for _, traversal := range expr.Variables() {
-		if traversal.RootName() != varDependency {
-			continue
+		if traversal.RootName() == varDependency {
+			return true
 		}
-
-		// traversal[0] is the dependency root; a following traverser carries the static name when present.
-		named := traversal[1:]
-		if len(named) > 0 {
-			if name, ok := depRefName(named[0]); ok {
-				if _, declared := declaredDeps[name]; !declared {
-					continue
-				}
-
-				return name, expr.Range().Ptr()
-			}
-		}
-
-		// A dynamic index like dependency[values.x] hides the name; reject it since injected values cannot reference dependency outputs.
-		return varDependency, expr.Range().Ptr()
 	}
 
-	return "", nil
-}
-
-// depRefName returns the dependency name from a traverser, handling dependency.foo (TraverseAttr)
-// and dependency["foo"] (TraverseIndex with a cty.String key).
-func depRefName(traverser hcl.Traverser) (string, bool) {
-	if attr, ok := traverser.(hcl.TraverseAttr); ok {
-		return attr.Name, true
-	}
-
-	index, ok := traverser.(hcl.TraverseIndex)
-	if !ok {
-		return "", false
-	}
-
-	if index.Key.Type() != cty.String {
-		return "", false
-	}
-
-	return index.Key.AsString(), true
+	return false
 }

@@ -507,7 +507,6 @@ unit "extra" {
 	var typed hclparse.StackAutoIncludeDependencyValuesError
 	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error")
 	assert.Equal(t, "net", typed.StackName)
-	assert.Equal(t, "producer", typed.DepName)
 	assert.Equal(t, "extra", typed.UnitName)
 	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
 
@@ -584,7 +583,6 @@ unit "extra" {
 
 	var typed hclparse.StackAutoIncludeDependencyValuesError
 	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error for the index form")
-	assert.Equal(t, "producer", typed.DepName)
 	assert.Equal(t, "extra", typed.UnitName)
 	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
 }
@@ -631,16 +629,15 @@ unit "extra" {
 
 	var typed hclparse.StackAutoIncludeDependencyValuesError
 	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error for the dynamic index form")
-	assert.Equal(t, "dependency", typed.DepName, "a dynamic index reports the dependency root since the name is not statically known")
 	assert.Equal(t, "extra", typed.UnitName)
 	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
 }
 
-// TestResolveForKind_StackAutoIncludeUndeclaredDepRefAllowed pins the negative guard: a reference in
-// injected values to a dependency NOT declared by the stack autoinclude is left alone, because the
-// validator only rejects references to the autoinclude's OWN declared dependencies. A regression that
-// dropped or inverted the declared-name check would start rejecting legitimate configs, and this catches it.
-func TestResolveForKind_StackAutoIncludeUndeclaredDepRefAllowed(t *testing.T) {
+// TestResolveForKind_StackAutoIncludeUndeclaredDepRefAlsoRejected pins that the detection is generic,
+// not scoped to the autoinclude's own declared dependencies: injected values that reference ANY
+// dependency (here "other", which the autoinclude does not declare) still trip the typed error, because
+// injected values are evaluated at generation time when no dependency outputs exist.
+func TestResolveForKind_StackAutoIncludeUndeclaredDepRefAlsoRejected(t *testing.T) {
 	t.Parallel()
 
 	evalCtx := &hcl.EvalContext{
@@ -670,12 +667,15 @@ unit "extra" {
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, src)}
 
 	_, diags := autoInclude.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	require.True(t, diags.HasErrors(), "any dependency reference in injected values must be rejected, declared or not")
 
-	// The dep-values backstop must NOT fire for a reference to a dependency the autoinclude does not declare.
-	for _, d := range diags {
-		_, isDepValuesErr := d.Extra.(hclparse.StackAutoIncludeDependencyValuesError)
-		require.False(t, isDepValuesErr, "a reference to an undeclared dependency must not trip the dep-values backstop")
-	}
+	extra, ok := diags[0].Extra.(error)
+	require.True(t, ok, "the diagnostic Extra must carry an error")
+
+	var typed hclparse.StackAutoIncludeDependencyValuesError
+	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error even for an undeclared dependency")
+	assert.Equal(t, "extra", typed.UnitName)
+	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
 }
 
 // parseHCLBody is a test helper that parses an HCL string and returns the body.

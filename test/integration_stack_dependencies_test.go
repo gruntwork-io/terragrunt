@@ -1790,7 +1790,6 @@ func TestStackDepsStackAutoIncludeDepValuesIsClearError(t *testing.T) {
 	var typed inthclparse.StackAutoIncludeDependencyValuesError
 	require.ErrorAs(t, runErr, &typed, "the failure must be the typed StackAutoIncludeDependencyValuesError")
 	assert.Equal(t, "net", typed.StackName)
-	assert.Equal(t, "producer", typed.DepName)
 	assert.Equal(t, "extra", typed.UnitName)
 
 	// The clear error must name the supported alternative, not the cryptic low-level diagnostic.

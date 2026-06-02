@@ -374,11 +374,10 @@ func TestValidateStackConfigNilElementDoesNotPanic(t *testing.T) {
 }
 
 // TestStackAutoIncludeBackstopPopulatesTypedErrorFields covers the pkg/config backstop in
-// mergeStackAutoIncludeFile: a stale or hand-written terragrunt.autoinclude.stack.hcl that
-// already carries a top-level dependency block consumed by injected values must surface the
-// typed StackAutoIncludeDependencyValuesError with UnitName, DepName, StackName, and Subject
-// populated, not just StackName/DepName. The fail-fast generation check (RFC #19) is unit-tested
-// elsewhere; this asserts the second line of defence reads the same fields off the on-disk file.
+// mergeStackAutoIncludeFile: a stale or hand-written terragrunt.autoinclude.stack.hcl whose injected
+// unit values reference dependency outputs must surface the typed StackAutoIncludeDependencyValuesError
+// with UnitName, StackName, and Subject populated. The fail-fast generation check (RFC #19) is
+// unit-tested elsewhere; this asserts the second line of defence reads the same fields off the on-disk file.
 func TestStackAutoIncludeBackstopPopulatesTypedErrorFields(t *testing.T) {
 	t.Parallel()
 
@@ -422,7 +421,6 @@ unit "extra" {
 
 	// StackName is derived from the stack directory base by the backstop.
 	assert.Equal(t, filepath.Base(stackDir), typed.StackName, "StackName must be the stack directory base")
-	assert.Equal(t, "producer", typed.DepName, "DepName must name the offending dependency block")
 
 	// The previously dropped fields must now be carried through the backstop path.
 	assert.Equal(t, "extra", typed.UnitName, "UnitName must name the injected unit whose values consume the dependency")

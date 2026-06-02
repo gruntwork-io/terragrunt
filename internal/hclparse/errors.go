@@ -176,14 +176,13 @@ func (e MalformedDependencyError) Unwrap() error {
 }
 
 // StackAutoIncludeDependencyValuesError indicates that a stack-level autoinclude
-// declares a dependency block whose outputs are referenced by the values of an
-// injected unit or stack. Dependency outputs are not available at stack generate
-// time (they resolve at unit run time), so this pattern cannot be generated.
+// injects a unit or stack whose values reference dependency outputs. Dependency
+// outputs are not available at stack generate time (they resolve at unit run time),
+// so this pattern cannot be generated.
 type StackAutoIncludeDependencyValuesError struct {
 	Subject   *hcl.Range
 	StackName string
 	UnitName  string
-	DepName   string
 }
 
 func (e StackAutoIncludeDependencyValuesError) Error() string {
@@ -198,11 +197,11 @@ func (e StackAutoIncludeDependencyValuesError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"stack %q autoinclude cannot carry dependency %q whose outputs are referenced by the values of injected unit/stack %q: "+
-			"dependency outputs are not available at stack generate time. "+
+		"stack %q autoinclude injects unit/stack %q whose values reference dependency outputs, "+
+			"which are not available at stack generate time. "+
 			"Use the supported cross-level pattern instead (see test/fixtures/stacks/stack-deps-cross-level-values): "+
 			"pass only unit.X.path through values on the child stack block, and declare the dependency inside the nested unit's own autoinclude so it resolves at the unit run.",
-		stack, e.DepName, target,
+		stack, target,
 	)
 }
 
