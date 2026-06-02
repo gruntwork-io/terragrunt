@@ -51,7 +51,8 @@ func TestCanonicalPath(t *testing.T) {
 
 			actual, err := util.CanonicalPath(tc.path, tc.basePath)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expected, actual, "For path %s and basePath %s", tc.path, tc.basePath)
+			// CanonicalPath returns OS-native separators; compare in forward-slash space.
+			assert.Equal(t, tc.expected, filepath.ToSlash(actual), "For path %s and basePath %s", tc.path, tc.basePath)
 		})
 	}
 }

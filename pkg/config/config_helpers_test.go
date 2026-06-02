@@ -87,7 +87,8 @@ func TestPathRelativeToInclude(t *testing.T) {
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeToInclude(ctx, pctx, l, tc.params)
 		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
+		// PathRelativeToInclude returns OS-native separators; compare in forward-slash space.
+		assert.Equal(t, tc.expectedPath, filepath.ToSlash(actualPath), "For include %v and configPath %v", tc.include, tc.configPath)
 	}
 }
 
@@ -152,7 +153,8 @@ func TestPathRelativeFromInclude(t *testing.T) {
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeFromInclude(ctx, pctx, l, tc.params)
 		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
+		// PathRelativeFromInclude returns OS-native separators; compare in forward-slash space.
+		assert.Equal(t, tc.expectedPath, filepath.ToSlash(actualPath), "For include %v and configPath %v", tc.include, tc.configPath)
 	}
 }
 

@@ -40,6 +40,18 @@ func MustAbs(t *testing.T, rel string) string {
 	return abs
 }
 
+// ToSlashAll returns a copy of paths with each element converted to forward slashes via
+// [filepath.ToSlash]. It keeps path-slice assertions separator-agnostic so tests that pin
+// forward-slash expectations pass against OS-native output on Windows.
+func ToSlashAll(paths []string) []string {
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		out[i] = filepath.ToSlash(p)
+	}
+
+	return out
+}
+
 func ValidateHookTraceParent(t *testing.T, hook, str string) {
 	t.Helper()
 
