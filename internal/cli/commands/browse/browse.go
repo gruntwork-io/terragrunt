@@ -24,7 +24,6 @@ import (
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
-		NoHidden:          opts.NoHidden,
 		WithRequiresParse: true,
 		WithRelationships: true,
 		Filters:           opts.Filters,
@@ -63,7 +62,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "browse_discover", map[string]any{
 		"working_dir": opts.WorkingDir,
-		"no_hidden":   opts.NoHidden,
 	}, func(ctx context.Context) error {
 		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 

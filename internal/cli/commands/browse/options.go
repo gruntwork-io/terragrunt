@@ -6,9 +6,6 @@ import (
 
 type Options struct {
 	*options.TerragruntOptions
-
-	// NoHidden determines if hidden directories should be excluded from discovery.
-	NoHidden bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {

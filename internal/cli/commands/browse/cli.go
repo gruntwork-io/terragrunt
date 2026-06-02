@@ -13,37 +13,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-const (
-	CommandName = "browse"
-
-	NoHiddenFlagName = "no-hidden"
-)
-
-func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	filterFlags := shared.NewFilterFlags(l, opts.TerragruntOptions)
-
-	const numLocalFlags = 1
-
-	result := make(clihelper.Flags, 0, numLocalFlags+len(filterFlags))
-	result = append(result,
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        NoHiddenFlagName,
-			EnvVars:     tgPrefix.EnvVars(NoHiddenFlagName),
-			Destination: &opts.NoHidden,
-			Usage:       "Exclude hidden directories from the browser.",
-		}),
-	)
-
-	return append(result, filterFlags...)
-}
+const CommandName = "browse"
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
 	cmdOpts := NewOptions(opts)
 	prefix := flags.Prefix{CommandName}
 
-	cmdFlags := NewFlags(l, cmdOpts, prefix)
-	cmdFlags = append(cmdFlags, shared.NewFeatureFlags(opts, prefix)...)
+	cmdFlags := shared.NewFeatureFlags(opts, prefix)
 	cmdFlags = append(cmdFlags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, prefix))
 
 	return &clihelper.Command{

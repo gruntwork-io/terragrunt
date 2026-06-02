@@ -80,14 +80,14 @@ func (m Model) View() tea.View {
 
 	if m.current.parent != nil {
 		siblings := m.current.parent.children
-		left = m.renderColumn(siblings, slices.Index(siblings, m.current), sideWidth, paneHeight)
+		left = m.renderColumn(siblings, slices.Index(siblings, m.current), sideWidth, paneHeight, "")
 	}
 
-	middle := m.renderColumn(m.current.children, m.cursor[m.current], sideWidth, paneHeight)
+	middle := m.renderColumn(m.current.children, m.cursor[m.current], sideWidth, paneHeight, m.activeQuery())
 	right := m.renderPreview(previewWidth, paneHeight)
 
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, left, middle, right)
-	body := lipgloss.JoinVertical(lipgloss.Left, header, columns, helpStyle.Render(m.helpView()))
+	body := lipgloss.JoinVertical(lipgloss.Left, header, columns, helpStyle.Render(m.footerView()))
 
 	v := tea.NewView(appStyle.Render(body))
 	v.AltScreen = true
@@ -121,8 +121,10 @@ func (m Model) previewArea() (width, height int) {
 }
 
 // renderColumn renders a list of nodes into a bordered, fixed-size pane,
-// highlighting the node at cursorIdx.
-func (m Model) renderColumn(nodes []*Node, cursorIdx, contentWidth, contentHeight int) string {
+// highlighting the node at cursorIdx. When query is non-empty, every row gains a
+// gutter marking whether its name matches, so an active search shows its matches
+// at a glance.
+func (m Model) renderColumn(nodes []*Node, cursorIdx, contentWidth, contentHeight int, query string) string {
 	style := paneStyle(contentWidth, contentHeight)
 
 	if len(nodes) == 0 {
@@ -133,9 +135,13 @@ func (m Model) renderColumn(nodes []*Node, cursorIdx, contentWidth, contentHeigh
 	// spans it fully.
 	rowWidth := contentWidth - panePadWidth
 
+	showMarker := query != ""
+	q := strings.ToLower(query)
+
 	lines := make([]string, len(nodes))
 	for i, n := range nodes {
-		lines[i] = m.renderName(n, i == cursorIdx, rowWidth)
+		matched := showMarker && strings.Contains(strings.ToLower(n.name), q)
+		lines[i] = m.renderName(n, i == cursorIdx, showMarker, matched, rowWidth)
 	}
 
 	return style.Render(strings.Join(lines, "\n"))
@@ -143,11 +149,21 @@ func (m Model) renderColumn(nodes []*Node, cursorIdx, contentWidth, contentHeigh
 
 // renderName renders a node's label, colored by kind: units blue, stacks green,
 // directories bold white, and other files dimmed. Directories carry a trailing
-// slash. The highlighted row is a full-width blue bar.
-func (m Model) renderName(n *Node, selected bool, rowWidth int) string {
+// slash. The highlighted row is a full-width blue bar. While a search is active,
+// showMarker reserves a gutter and matched entries are flagged with a marker.
+func (m Model) renderName(n *Node, selected, showMarker, matched bool, rowWidth int) string {
 	label := n.name
 	if n.kind != KindFile {
 		label += "/"
+	}
+
+	if showMarker {
+		marker := "  "
+		if matched {
+			marker = "▸ "
+		}
+
+		label = marker + label
 	}
 
 	switch {
@@ -401,6 +417,58 @@ func (m Model) section(label string, items []string) []string {
 	}
 
 	return out
+}
+
+// footerView renders the bottom line: the search input while typing, a status
+// line summarizing a committed search, and the navigation hint otherwise. Each
+// is a single line, so the layout doesn't shift between them.
+func (m Model) footerView() string {
+	switch {
+	case m.searching:
+		return m.searchPrompt()
+	case m.lastQuery != "":
+		return m.searchStatus()
+	default:
+		return m.helpView()
+	}
+}
+
+// searchPrompt renders the live search input, followed by a match count once
+// the query is non-empty.
+func (m Model) searchPrompt() string {
+	view := m.searchInput.View()
+
+	query := strings.TrimSpace(m.searchInput.Value())
+	if query == "" {
+		return view
+	}
+
+	return view + "  •  " + matchSummary(m.matchCount(query))
+}
+
+// searchStatus renders the committed-search summary: the query, its match count,
+// and the keys that cycle or clear it.
+func (m Model) searchStatus() string {
+	parts := []string{
+		"/" + m.lastQuery,
+		matchSummary(m.matchCount(m.lastQuery)),
+		"n/N cycle",
+		"esc clear",
+	}
+
+	return strings.Join(parts, "  •  ")
+}
+
+// matchSummary describes a match count in words.
+func matchSummary(n int) string {
+	switch n {
+	case 0:
+		return "no matches"
+	case 1:
+		return "1 match"
+	default:
+		return strconv.Itoa(n) + " matches"
+	}
 }
 
 // helpView renders the navigation hint line.
