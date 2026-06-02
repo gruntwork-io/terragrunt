@@ -21,18 +21,6 @@ examples:
       Browse the configurations discovered in a different directory.
     code: |
       terragrunt browse --working-dir /path/to/working/dir
-  - description: |
-      Exclude hidden directories from the browser.
-    code: |
-      terragrunt browse --no-hidden
-  - description: |
-      Browse only the configurations that match a filter.
-    code: |
-      terragrunt browse --filter './prod/**'
-flags:
-  - browse-no-hidden
-  - filter
-  - filter-affected
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -41,10 +29,14 @@ import { Aside } from '@astrojs/starlight/components';
 
 Move the cursor with `j`/`k` (or the `↑`/`↓` arrow keys), descend into a directory with `l`/`→`/`enter`, return to the parent with `h`/`←`, and quit with `q`. The highlighted entry is shown in blue, and its path is displayed along the top, abbreviated with `~` when it falls under your home directory.
 
+## Search
+
+Press `/` to search the current directory. As you type, matching entries are marked, the cursor jumps to the first match, and a match count appears along the bottom. Press `enter` to keep the search applied — the marks stay and `n`/`N` cycle forward and backward through the matches — or `esc` to clear it. The search also clears on its own when you move into another directory.
+
 ## Detail Pane
 
 The detail pane shows metadata for the highlighted entry: its kind, path, module source, and its dependencies, dependents, and the files it reads (shown relative to the unit). Plain directories show a count of the units and stacks they contain.
 
 ## Discovery
 
-`browse` reuses the same discovery the other discovery commands rely on, so filters and flags such as `--no-hidden` apply. See the [Filters feature documentation](/features/filter) for the full filter query language.
+`browse` reuses the same discovery the other discovery commands rely on, so the configurations it shows match what `find` and `list` discover.

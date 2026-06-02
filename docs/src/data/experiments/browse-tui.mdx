@@ -10,11 +10,11 @@ Adds the `terragrunt browse` command, which browses the discovered infrastructur
 
 With the experiment enabled, `terragrunt browse` opens a [yazi](https://yazi-rs.github.io/)-style, three-column browser of the discovered estate: the parent directory on the left, the current directory in the middle, and a detail pane on the right.
 
-Move the cursor with `j`/`k` (or the arrow keys), descend into a directory with `l`/`→`/`enter`, return to the parent with `h`/`←`, and quit with `q`. The highlighted entry is shown in blue, and its path is displayed along the top, abbreviated with `~` when it falls under your home directory.
+Move the cursor with `j`/`k` (or the arrow keys), descend into a directory with `l`/`→`/`enter`, return to the parent with `h`/`←`, and quit with `q`. Press `/` to search the current directory: matching entries are marked and the cursor jumps to the first match as you type, then `n`/`N` cycle through matches and `esc` clears the search. The highlighted entry is shown in blue, and its path is displayed along the top, abbreviated with `~` when it falls under your home directory.
 
 The detail pane shows metadata for the highlighted entry: its kind, path, module source, and its dependencies, dependents, and the files it reads (shown relative to the unit). Plain directories show a count of the units and stacks they contain.
 
-`terragrunt browse` reuses the same discovery the rest of the discovery commands rely on, so filters and flags such as `--no-hidden` apply. Running `terragrunt browse` without the experiment enabled is an error.
+`terragrunt browse` reuses the same discovery the rest of the discovery commands rely on, so the configurations it shows match what `find` and `list` discover. Running `terragrunt browse` without the experiment enabled is an error.
 
 ### `browse-tui` - How to provide feedback
 
