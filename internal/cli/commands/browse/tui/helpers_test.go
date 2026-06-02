@@ -5,7 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list/tui"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/require"
 )
