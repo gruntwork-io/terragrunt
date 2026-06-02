@@ -14,11 +14,11 @@ dependency "x" {
   }
 }
 
-# Backend key references only the autoinclude's surviving outputs:
-#   from_autoinclude  -> autoinclude-only key, present after the replacement
-#   common            -> conflicting key, resolves to the autoinclude value
-# It deliberately does NOT reference from_unit: under shallow merge that key no longer exists, which is
-# exactly what proves the unit's block was replaced rather than deep-merged.
+# Backend key is built so shallow and deep merge produce DIFFERENT, both-valid results:
+#   from_unit (via try) -> unit-only key. Under shallow merge the autoinclude block REPLACES the unit's,
+#                          so from_unit no longer exists and try() falls back to "absent". Under a deep
+#                          merge from_unit would survive as "unitval", so the asserted value diverges.
+#   common              -> conflicting key, resolves to the autoinclude (winning side) value.
 remote_state {
   backend = "local"
   generate = {
@@ -26,6 +26,6 @@ remote_state {
     if_exists = "overwrite_terragrunt"
   }
   config = {
-    path = "${dependency.x.outputs.from_autoinclude}-${dependency.x.outputs.common}.tfstate"
+    path = "${try(dependency.x.outputs.from_unit, "absent")}-${dependency.x.outputs.common}.tfstate"
   }
 }

@@ -751,12 +751,77 @@ func mergeAutoIncludePartialIfPresent(ctx context.Context, pctx *ParsingContext,
 		return fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
 
+	// Preserve literal dependencies paths from each side before the merge flattens block derived paths together.
+	unitLegacyPaths := legacyModuleDependencyPaths(output)
+	autoLegacyPaths := legacyModuleDependencyPaths(autoIncludeConfig)
+
 	// Merge mutates the receiver and the argument wins; the autoinclude is the source/winner. Shallow, matching a regular include's default merge strategy.
 	if err := output.Merge(l, autoIncludeConfig); err != nil {
 		return fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
 	}
 
+	// Merge only appends the legacy path list so rebuild it from the by name merged blocks to drop any overridden stale path.
+	reconcileAutoIncludeModulePaths(l, output, unitLegacyPaths, autoLegacyPaths)
+
 	return nil
+}
+
+// legacyModuleDependencyPaths returns module dependency paths that came from a literal dependencies block rather than a dependency block.
+func legacyModuleDependencyPaths(cfg *TerragruntConfig) []string {
+	if cfg == nil || cfg.Dependencies == nil {
+		return nil
+	}
+
+	blockPaths := make(map[string]struct{}, len(cfg.TerragruntDependencies))
+	for _, dep := range cfg.TerragruntDependencies {
+		if IsValidConfigPath(dep.ConfigPath) {
+			blockPaths[dep.ConfigPath.AsString()] = struct{}{}
+		}
+	}
+
+	legacy := make([]string, 0, len(cfg.Dependencies.Paths))
+
+	for _, path := range cfg.Dependencies.Paths {
+		if _, ok := blockPaths[path]; ok {
+			continue
+		}
+
+		legacy = append(legacy, path)
+	}
+
+	return legacy
+}
+
+// reconcileAutoIncludeModulePaths rebuilds the module dependency path list from the by name merged dependency blocks plus the preserved literal dependencies paths.
+func reconcileAutoIncludeModulePaths(l log.Logger, output *TerragruntConfig, preservedPaths ...[]string) {
+	rebuilt := dependencyBlocksToModuleDependencies(l, output.TerragruntDependencies)
+	if rebuilt == nil {
+		rebuilt = &ModuleDependencies{}
+	}
+
+	for _, set := range preservedPaths {
+		rebuilt.Paths = append(rebuilt.Paths, set...)
+	}
+
+	seen := make(map[string]struct{}, len(rebuilt.Paths))
+	deduped := make([]string, 0, len(rebuilt.Paths))
+
+	for _, path := range rebuilt.Paths {
+		if _, ok := seen[path]; ok {
+			continue
+		}
+
+		seen[path] = struct{}{}
+		deduped = append(deduped, path)
+	}
+
+	if len(deduped) == 0 {
+		output.Dependencies = nil
+		return
+	}
+
+	rebuilt.Paths = deduped
+	output.Dependencies = rebuilt
 }
 
 // autoIncludeCacheKeySuffix folds the sibling autoinclude existence and content into the partial-parse cache key when the StackDependencies experiment is on, returning the empty string with the experiment off so the existing key stays byte-for-byte unchanged.

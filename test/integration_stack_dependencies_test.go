@@ -432,13 +432,14 @@ func TestStackDepsAutoIncludeReplacesUnitDependency(t *testing.T) {
 		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
 	require.NoError(t, err, "the autoinclude dependency must replace the unit's same-name block (shallow); stderr=%s", stderr)
 
-	// Backend key is from_autoinclude-common: the autoinclude's block fully replaced the unit's, so the
-	// autoinclude-only key is present and the conflicting "common" key resolves to the autoinclude value.
-	// from_unit is gone (referencing it would error), which is what proves replacement over deep merge.
+	// Backend key is "absent-autoinclude-common": the autoinclude's block fully replaced the unit's, so
+	// from_unit no longer exists (try() falls back to "absent") and the conflicting "common" key resolves
+	// to the autoinclude value. A deep merge would keep from_unit and yield "unitval-autoinclude-common",
+	// so this assertion fails if foldSiblingAutoIncludeDeps reverts to a deep merge (both still plan).
 	backendPath := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "y"), "backend.tf")
 	backend, err := os.ReadFile(backendPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(backend), "autoval-autoinclude-common.tfstate",
+	assert.Contains(t, string(backend), "absent-autoinclude-common.tfstate",
 		"the autoinclude dependency must replace the unit's same-name block, not deep-merge it")
 }
 

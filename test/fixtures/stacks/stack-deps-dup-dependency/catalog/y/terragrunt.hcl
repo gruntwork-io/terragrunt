@@ -6,7 +6,7 @@ terraform {
 # dependency "x" too; under shallow merge the autoinclude wins by name and replaces this whole block, so
 # dependency.x.outputs.v must resolve to the autoinclude's mock, not "from-unit".
 dependency "x" {
-  config_path = "../x"
+  config_path = "../nonexistent-in-tree"
 
   mock_outputs_allowed_terraform_commands = ["init", "plan", "validate"]
   mock_outputs = {

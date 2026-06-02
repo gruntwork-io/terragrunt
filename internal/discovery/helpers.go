@@ -308,7 +308,9 @@ func stackDependencyPaths(
 	depPaths []string,
 	c component.Component,
 ) ([]string, error) {
-	// Add dependencies declared in autoinclude files.
+	// Add dependencies declared in autoinclude files. The partial parse already folds the
+	// autoinclude in by name (the autoinclude wins over a same-name unit block), so these are
+	// deduplicated against the paths the parsed config already reported.
 	autoIncludeDeps, err := inthclparse.AutoIncludeDependencyPaths(fs, c.Path())
 	if err != nil {
 		return nil, err
