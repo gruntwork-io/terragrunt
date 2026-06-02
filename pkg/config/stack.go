@@ -992,7 +992,7 @@ func mergeStackAutoIncludeFile(l log.Logger, config *StackConfigFile, stackDir, 
 		return fmt.Errorf("stack autoinclude %q must not define include blocks", autoIncludePath)
 	}
 
-	logStackAutoIncludeOverrides(l, config, included)
+	logStackAutoIncludeMergeNotes(l, config, included)
 
 	config.Units = append(config.Units, included.Units...)
 	config.Stacks = append(config.Stacks, included.Stacks...)
@@ -1251,8 +1251,8 @@ func bodyHasBlock(body hcl.Body) bool {
 	return len(content.Blocks) > 0
 }
 
-// logStackAutoIncludeOverrides records when an injected unit/stack name replaces an existing one and when a nested autoinclude block is dropped.
-func logStackAutoIncludeOverrides(l log.Logger, config, included *StackConfigFile) {
+// logStackAutoIncludeMergeNotes records when an injected unit/stack name conflicts with an existing one and when a nested autoinclude block is dropped. Injected blocks are appended, not replaced, so a name conflict is later rejected by stack validation rather than overriding.
+func logStackAutoIncludeMergeNotes(l log.Logger, config, included *StackConfigFile) {
 	existingUnits := unitNameSet(config.Units)
 	existingStacks := stackNameSet(config.Stacks)
 
@@ -1262,7 +1262,7 @@ func logStackAutoIncludeOverrides(l log.Logger, config, included *StackConfigFil
 		}
 
 		if _, clash := existingUnits[unit.Name]; clash {
-			l.Debugf("Stack autoinclude overrides existing unit %q in the target stack config", unit.Name)
+			l.Debugf("Stack autoinclude unit %q conflicts with an existing unit in the target stack config", unit.Name)
 		}
 
 		if bodyHasBlock(unit.Remain) {
@@ -1276,7 +1276,7 @@ func logStackAutoIncludeOverrides(l log.Logger, config, included *StackConfigFil
 		}
 
 		if _, clash := existingStacks[stack.Name]; clash {
-			l.Debugf("Stack autoinclude overrides existing stack %q in the target stack config", stack.Name)
+			l.Debugf("Stack autoinclude stack %q conflicts with an existing stack in the target stack config", stack.Name)
 		}
 
 		if bodyHasBlock(stack.Remain) {

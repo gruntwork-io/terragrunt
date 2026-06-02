@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 )
@@ -148,6 +149,15 @@ type stackPathOnlyHCL struct {
 // discoveryDecode holds decoded unit and stack blocks for discovery.
 type discoveryDecode struct {
 	Remain hcl.Body            `hcl:",remain"`
+	Stacks []*stackPathOnlyHCL `hcl:"stack,block"`
+	Units  []*unitPathOnlyHCL  `hcl:"unit,block"`
+}
+
+// discoveryAutoIncludeDecode is the strict decode target for a stack autoinclude file: only unit and
+// stack blocks are allowed at the top level. It has no ",remain" field, so stray top-level content
+// (a misplaced attribute or a generate/remote_state/dependency block) is rejected here just as the
+// full parse rejects it via the strict StackConfigFile, rather than being silently ignored.
+type discoveryAutoIncludeDecode struct {
 	Stacks []*stackPathOnlyHCL `hcl:"stack,block"`
 	Units  []*unitPathOnlyHCL  `hcl:"unit,block"`
 }
@@ -320,12 +330,13 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 		return nil, nil, FileDecodeError{Name: stackFile, Err: diags}
 	}
 
-	if err := validateDiscoveryUniqueNames(decoded.Units, decoded.Stacks); err != nil {
+	// Merge units and stacks injected by a sibling terragrunt.autoinclude.stack.hcl before validating, so
+	// duplicate injected names are rejected the same way a full stack parse rejects them.
+	if err := mergeDiscoveryStackAutoInclude(fs, stackDir, evalCtx, decoded); err != nil {
 		return nil, nil, err
 	}
 
-	// Merge units and stacks injected by a sibling terragrunt.autoinclude.stack.hcl so discovery expands the same components a full stack parse materializes.
-	if err := mergeDiscoveryStackAutoInclude(fs, stackDir, evalCtx, decoded); err != nil {
+	if err := validateDiscoveryUniqueNames(decoded.Units, decoded.Stacks); err != nil {
 		return nil, nil, err
 	}
 
@@ -333,10 +344,10 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 }
 
 // mergeDiscoveryStackAutoInclude appends the units and stacks declared by a sibling
-// terragrunt.autoinclude.stack.hcl so discovery sees the same generated components a full stack
-// parse materializes via mergeStackAutoIncludeFile. An absent autoinclude file is a no-op.
-// Discovery decodes only path-bearing fields, so the dependency-values backstop and override logging
-// that the full parse applies are intentionally not repeated here; the full parse stays authoritative.
+// terragrunt.autoinclude.stack.hcl so discovery expands the same components a full stack parse
+// materializes via mergeStackAutoIncludeFile. An absent autoinclude file is a no-op. Discovery applies
+// the same rejections as the full parse so it never adds DAG edges the full parse would reject: the
+// dependency-values backstop, and a strict decode that allows only unit and stack blocks at the top level.
 func mergeDiscoveryStackAutoInclude(fs vfs.FS, stackDir string, evalCtx *hcl.EvalContext, decoded *discoveryDecode) error {
 	autoIncludePath := filepath.Join(stackDir, AutoIncludeStackFile)
 
@@ -349,13 +360,27 @@ func mergeDiscoveryStackAutoInclude(fs vfs.FS, stackDir string, evalCtx *hcl.Eva
 		return FileReadError{FilePath: autoIncludePath, Err: err}
 	}
 
-	parsedFile, err := parseStackFileRoot(data, autoIncludePath)
-	if err != nil {
-		return err
+	file, parseDiags := hclsyntax.ParseConfig(data, autoIncludePath, hcl.Pos{Line: 1, Column: 1})
+	if parseDiags.HasErrors() {
+		return FileParseError{FilePath: autoIncludePath, Err: parseDiags}
 	}
 
-	autoDecoded := &discoveryDecode{}
-	if diags := gohcl.DecodeBody(parsedFile.Remain, evalCtx, autoDecoded); diags.HasErrors() {
+	syntaxBody, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return UnexpectedBodyTypeError{FilePath: autoIncludePath}
+	}
+
+	// Run the same dep-values backstop as the full parse so a stale autoinclude whose injected values
+	// reference dependency outputs is rejected, not silently turned into discovery DAG edges.
+	if typed := StackAutoIncludeDepValuesError(syntaxBody, filepath.Base(stackDir)); typed != nil {
+		return *typed
+	}
+
+	// Strict decode: a stack autoinclude may contain only unit and stack blocks at the top level. The
+	// struct has no ",remain", so top-level locals, include blocks, and any other stray content are
+	// rejected here, instead of being silently ignored, matching the strict full-parse decode.
+	autoDecoded := &discoveryAutoIncludeDecode{}
+	if diags := gohcl.DecodeBody(file.Body, evalCtx, autoDecoded); diags.HasErrors() {
 		return FileDecodeError{Name: autoIncludePath, Err: diags}
 	}
 

@@ -94,15 +94,16 @@ func TestBodyHasBlock(t *testing.T) {
 	}
 }
 
-// TestLogStackAutoIncludeOverrides asserts the by-design behavior: a nested
+// TestLogStackAutoIncludeMergeNotes asserts the by-design behavior: a nested
 // autoinclude inside an injected unit does not propagate and is reported via a
-// debug log, and an injected name that overrides an existing one is also logged.
+// debug log, and an injected name that conflicts with an existing one is also logged.
 //
-// This is an in-package test by necessity: logStackAutoIncludeOverrides is an unexported logging
-// helper whose contract under test is the exact log level (debug, never info/warn/error). Driving
-// it through public stack parsing would couple the assertion to fixture generation and obscure the
-// level contract rather than asserting it directly.
-func TestLogStackAutoIncludeOverrides(t *testing.T) {
+// This is an in-package test by necessity: logStackAutoIncludeMergeNotes is an unexported logging
+// helper whose contract under test is the exact log level (debug, never info/warn/error). It cannot be
+// exercised cleanly through public stack parsing: a name conflict makes ValidateStackConfig reject the
+// config, so the conflict note never surfaces from a successful parse, and asserting log levels through
+// full generation would couple the test to fixture wiring rather than pinning the level contract.
+func TestLogStackAutoIncludeMergeNotes(t *testing.T) {
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -120,15 +121,15 @@ func TestLogStackAutoIncludeOverrides(t *testing.T) {
 		Stacks: []*Stack{{Name: "net", Remain: nestedAutoIncludeStackBody}},
 	}
 
-	logStackAutoIncludeOverrides(l, existing, included)
+	logStackAutoIncludeMergeNotes(l, existing, included)
 
 	out := buf.String()
-	assert.Contains(t, out, "overrides existing unit \"extra\"", "an injected unit that replaces an existing one must be logged")
-	assert.Contains(t, out, "overrides existing stack \"net\"", "an injected stack that replaces an existing one must be logged")
+	assert.Contains(t, out, "unit \"extra\" conflicts with an existing unit", "an injected unit that conflicts with an existing one must be logged")
+	assert.Contains(t, out, "stack \"net\" conflicts with an existing stack", "an injected stack that conflicts with an existing one must be logged")
 	assert.Contains(t, out, "nested autoinclude is not propagated", "a nested autoinclude block must be reported as not propagated")
 
 	// The contract is debug-only reporting: a regression promoting these to a louder level must fail here.
-	assert.Contains(t, out, "level=debug", "the override and no-propagation reporting must be emitted at debug level")
+	assert.Contains(t, out, "level=debug", "the conflict and no-propagation reporting must be emitted at debug level")
 	assert.NotContains(t, out, "level=info", "the reporting must not surface at info level")
 	assert.NotContains(t, out, "level=warn", "the reporting must not surface at warn level")
 	assert.NotContains(t, out, "level=error", "the reporting must not surface at error level")
