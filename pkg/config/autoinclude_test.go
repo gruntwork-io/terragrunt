@@ -241,6 +241,78 @@ include "common" {
 	})
 }
 
+// TestFoldSiblingAutoIncludeDeps_PulledInFileDoesNotFoldForeignAutoInclude pins the centralized
+// skipAutoIncludeMerge guard on the dependency-fold path. Unit A's autoinclude declares a wanted
+// dependency AND deep-includes a base file in a DIFFERENT directory; that base directory has its OWN
+// sibling autoinclude declaring a foreign "leak" dependency. The unit must end up with the wanted
+// dependency (the autoinclude fold still works) and NOT the foreign one, because a file pulled in by an
+// autoinclude merge must not fold its own sibling autoinclude's dependencies. This is deterministic and
+// cache-order independent: it asserts the resulting dependency set, not termination, so it catches the
+// over-fold that the same-dir recursion test cannot.
+func TestFoldSiblingAutoIncludeDeps_PulledInFileDoesNotFoldForeignAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Dependency targets for the wanted and foreign dependencies.
+	for _, name := range []string{"wanted-target", "leak-target"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, name), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, name, config.DefaultTerragruntConfigPath), []byte(``), 0644))
+	}
+
+	// Unit A declares no dependency of its own.
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+inputs = { from_unit = "a" }
+`), 0644))
+
+	// A's autoinclude declares a WANTED dependency and deep-includes a base file in a different dir.
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "b"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, config.DefaultAutoIncludeFile), []byte(`
+dependency "wanted" {
+  config_path  = "`+filepath.Join(tmpDir, "wanted-target")+`"
+  skip_outputs = true
+  mock_outputs = { val = "wanted" }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+
+include "base" {
+  path           = "`+filepath.Join(tmpDir, "b", "base.hcl")+`"
+  merge_strategy = "deep"
+}
+`), 0644))
+
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "b", "base.hcl"), []byte(`
+inputs = { from_base = "b" }
+`), 0644))
+
+	// The base directory has its OWN sibling autoinclude declaring a foreign dependency.
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "b", config.DefaultAutoIncludeFile), []byte(`
+dependency "leak" {
+  config_path  = "`+filepath.Join(tmpDir, "leak-target")+`"
+  skip_outputs = true
+  mock_outputs = { val = "leaked" }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+
+	depNames := make([]string, 0, len(parsed.TerragruntDependencies))
+	for _, dep := range parsed.TerragruntDependencies {
+		depNames = append(depNames, dep.Name)
+	}
+
+	assert.Contains(t, depNames, "wanted", "the autoinclude's own declared dependency must still be folded into the unit")
+	assert.NotContains(t, depNames, "leak", "a file pulled in by an autoinclude must not fold its own sibling autoinclude's dependency into the unit")
+}
+
 // The autoinclude exclude block must win over the unit's exclude in BOTH full and partial parse.
 func TestMergeAutoInclude_ExcludeAutoIncludeWinsBothParsePaths(t *testing.T) {
 	t.Parallel()
