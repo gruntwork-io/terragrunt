@@ -490,24 +490,30 @@ func TestTerragruntHookContextEnvExperimentEnabled(t *testing.T) {
 	errorOut, readErr := os.ReadFile(filepath.Join(rootPath, "error.out"))
 	require.NoError(t, readErr)
 
+	wantSource := filepath.Join(rootPath, "modules", "foo")
+
 	assert.Contains(t, string(beforeOut), "TG_CTX_HOOK_TYPE=before_hook")
 	assert.Contains(t, string(beforeOut), "TG_CTX_HOOK_NAME=shared_name_hook")
 	assert.Contains(t, string(beforeOut), "TG_CTX_TERRAGRUNT_DIR="+rootPath)
-	assert.Contains(t, string(beforeOut), "TG_CTX_SOURCE="+rootPath+"/modules/foo")
+	assert.Contains(t, string(beforeOut), "TG_CTX_SOURCE="+wantSource)
 
 	assert.Contains(t, string(afterOut), "TG_CTX_HOOK_TYPE=after_hook")
 	assert.Contains(t, string(afterOut), "TG_CTX_HOOK_NAME=shared_name_hook")
 	assert.Contains(t, string(afterOut), "TG_CTX_TERRAGRUNT_DIR="+rootPath)
-	assert.Contains(t, string(afterOut), "TG_CTX_SOURCE="+rootPath+"/modules/foo")
+	assert.Contains(t, string(afterOut), "TG_CTX_SOURCE="+wantSource)
 
 	assert.Contains(t, string(errorOut), "TG_CTX_HOOK_TYPE=error_hook")
 	assert.Contains(t, string(errorOut), "TG_CTX_HOOK_NAME=error_hook_1")
 	assert.Contains(t, string(errorOut), "TG_CTX_TERRAGRUNT_DIR="+rootPath)
-	assert.Contains(t, string(errorOut), "TG_CTX_SOURCE="+rootPath+"/modules/foo")
+	assert.Contains(t, string(errorOut), "TG_CTX_SOURCE="+wantSource)
 }
 
 func TestTerragruntHookContextEnvExperimentDisabled(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip()
+	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksContextEnv)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksContextEnv)
