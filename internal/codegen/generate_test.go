@@ -160,7 +160,8 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 				"assume_role": "{role_arn=\"arn:aws:iam::123456789012:role/MyRole\"," +
 					"tags={key=\"value\"}, duration=\"1h30m\", " +
 					"external_id=\"123456789012\", policy=\"{}\", " +
-					"policy_arns=[\"arn:aws:iam::123456789012:policy/MyPolicy\",\"arn:aws:iam::123456789012:policy/MyOtherPolicy\"], " +
+					"policy_arns=[\"arn:aws:iam::123456789012:policy/MyPolicy\"," +
+					"\"arn:aws:iam::123456789012:policy/MyOtherPolicy\"], " +
 					"session_name=\"MySession\", " +
 					"source_identity=\"123456789012\", " +
 					"transitive_tag_keys=[\"key\",\"another-key\"]}",
