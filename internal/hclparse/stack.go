@@ -270,10 +270,7 @@ func unitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory
 
 	// Recurse into nested stacks so a stack composed of sub-stacks expands to the units they generate.
 	for _, stack := range stacks {
-		nestedDir := filepath.Join(stackDir, StackDir, stack.Path)
-		if stack.NoStack != nil && *stack.NoStack {
-			nestedDir = filepath.Join(stackDir, stack.Path)
-		}
+		nestedDir := GeneratedComponentPath(stackDir, stack.Path, stack.NoStack != nil && *stack.NoStack)
 
 		nestedPaths, nestedErr := unitPathsFromStackDir(fs, nestedDir, funcsFor, visited, depth+1)
 		if nestedErr != nil {

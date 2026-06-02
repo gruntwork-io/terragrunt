@@ -216,6 +216,7 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 }
 
 // AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values. Returns EmptyArgError when unitDir is empty so callers can distinguish bad input from a missing file.
+// It is off the production parse path (the partial-parse merge folds autoinclude dependencies into the config); it is retained for test-time introspection of generated autoinclude files.
 func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fs is nil (unitDir=%q)", unitDir))
@@ -362,7 +363,7 @@ func StackAutoIncludeDepValuesError(body *hclsyntax.Body, stackName string) *Sta
 	return nil
 }
 
-// validateStackAutoIncludeDepValues rejects a stack-level autoinclude that declares a dependency block whose outputs are referenced by the values of an injected unit/stack block.
+// validateStackAutoIncludeDepValues rejects a stack-level autoinclude whose injected unit/stack values reference dependency.* outputs, which are unavailable at stack generate time, whether or not that dependency is declared.
 func validateStackAutoIncludeDepValues(body *hclsyntax.Body, stackName string) hcl.Diagnostics {
 	typed := StackAutoIncludeDepValuesError(body, stackName)
 	if typed == nil {

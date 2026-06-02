@@ -329,7 +329,7 @@ func TerragruntConfigFromPartialConfig(ctx context.Context, pctx *ParsingContext
 	cacheKey := fmt.Sprintf("%#v-%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList, pctx.TerragruntConfigPath)
 
 	// Fold the sibling autoinclude existence and content into the key so an in-process create, remove, or edit cannot return a stale entry, with the merge experiment-gated so the experiment-off key is byte-for-byte unchanged.
-	cacheKey += autoIncludeCacheKeySuffix(pctx, file.ConfigPath)
+	cacheKey += autoIncludeCacheKeySuffix(ctx, pctx, file.ConfigPath)
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, TerragruntConfigCacheContextKey)
 	if pctx.UsePartialParseConfigCache {
@@ -845,12 +845,32 @@ func reconcileAutoIncludeModulePaths(l log.Logger, output *TerragruntConfig, pre
 }
 
 // autoIncludeCacheKeySuffix folds the sibling autoinclude existence and content into the partial-parse cache key when the StackDependencies experiment is on, returning the empty string with the experiment off so the existing key stays byte-for-byte unchanged.
-func autoIncludeCacheKeySuffix(pctx *ParsingContext, configPath string) string {
+func autoIncludeCacheKeySuffix(ctx context.Context, pctx *ParsingContext, configPath string) string {
 	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
 	if !ok {
 		return ""
 	}
 
+	memo := cache.ContextCache[string](ctx, AutoIncludeSuffixCacheContextKey)
+
+	// Fingerprint the sibling cheaply so a cache hit reuses the content based suffix without re-reading the file.
+	fingerprint := autoIncludePath
+	if info, statErr := os.Stat(autoIncludePath); statErr == nil {
+		fingerprint = fmt.Sprintf("%s-%d-%d", autoIncludePath, info.ModTime().UnixMicro(), info.Size())
+	}
+
+	if suffix, found := memo.Get(ctx, fingerprint); found {
+		return suffix
+	}
+
+	suffix := autoIncludeContentSuffix(autoIncludePath)
+	memo.Put(ctx, fingerprint, suffix)
+
+	return suffix
+}
+
+// autoIncludeContentSuffix folds the sibling autoinclude existence and content into the cache key, with distinct sentinels for absent and unreadable.
+func autoIncludeContentSuffix(autoIncludePath string) string {
 	if !util.FileExists(autoIncludePath) {
 		return fmt.Sprintf("-autoinclude:%#v", false)
 	}
