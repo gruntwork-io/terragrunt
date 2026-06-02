@@ -569,15 +569,14 @@ func convertValue(v any) (ctyjson.SimpleJSONValue, error) {
 	return ctyVal, nil
 }
 
-// ReplaceAllCommasOutsideQuotesWithNewLines replaces all commas outside quotes with new lines.
-// This is useful for instances where a single line of HCL content might contain a comma, and we don't
-// want to split the line into multiple lines.
+// ReplaceAllCommasOutsideQuotesWithNewLines replaces top-level argument-separating commas with new
+// lines. Commas inside quoted strings or nested delimiters (lists, objects, and function-call parens)
+// are left intact, so only commas that separate arguments at depth zero are converted.
 func ReplaceAllCommasOutsideQuotesWithNewLines(s string) string {
 	var result strings.Builder
 
 	inQuotes := false
-	bracketDepth := 0
-	brackDepth := 0
+	depth := 0
 
 	for i := 0; i < len(s); i++ {
 		ch := s[i]
@@ -594,23 +593,15 @@ func ReplaceAllCommasOutsideQuotesWithNewLines(s string) string {
 			inQuotes = !inQuotes
 
 			result.WriteByte(ch)
-		case ch == '[' && !inQuotes:
-			bracketDepth++
+		case (ch == '[' || ch == '{' || ch == '(') && !inQuotes:
+			depth++
 
 			result.WriteByte(ch)
-		case ch == ']' && !inQuotes:
-			bracketDepth--
+		case (ch == ']' || ch == '}' || ch == ')') && !inQuotes:
+			depth--
 
 			result.WriteByte(ch)
-		case ch == '{' && !inQuotes:
-			brackDepth++
-
-			result.WriteByte(ch)
-		case ch == '}' && !inQuotes:
-			brackDepth--
-
-			result.WriteByte(ch)
-		case ch == ',' && !inQuotes && bracketDepth == 0 && brackDepth == 0:
+		case ch == ',' && !inQuotes && depth == 0:
 			result.WriteByte('\n')
 
 		default:

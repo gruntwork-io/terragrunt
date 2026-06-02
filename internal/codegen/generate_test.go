@@ -460,6 +460,12 @@ enabled=true`,
 			expected: `assume_role={policy_arns=["arn:1","arn:2"],session_name="test"}
 region="us-east-1"`,
 		},
+		{
+			name:  "comma-inside-function-call",
+			input: `tags=merge({a="1"},{b="2"}),enabled=true`,
+			expected: `tags=merge({a="1"},{b="2"})
+enabled=true`,
+		},
 	}
 
 	for _, tc := range testCases {
