@@ -59,6 +59,7 @@ const (
 	testFixtureStackDepsDepMockMerge             = "fixtures/stacks/stack-deps-dep-mock-merge"
 	testFixtureStackDepsDisabledAutoIncDep       = "fixtures/stacks/stack-deps-disabled-autoinclude-dep"
 	testFixtureStackDepsNestedUnitDep            = "fixtures/stacks/stack-deps-nested-unit-dep"
+	testFixtureStackDepsApplyNoMocks             = "fixtures/stacks/stack-deps-apply-no-mocks"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -493,6 +494,33 @@ func TestStackDepsAutoIncludeDisabledDependencyCreatesNoEdge(t *testing.T) {
 		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
 	require.NoError(t, err, "a disabled autoinclude dependency must not create a run-DAG edge to its nonexistent path; stderr=%s", stderr)
 	assert.NotContains(t, stderr, "nonexistent-in-tree", "the disabled dependency path must not enter the run graph")
+}
+
+// TestStackDepsAutoIncludeDependencyAppliesWithoutMockOutputs verifies that run --all apply succeeds and
+// reads the dependency's real output when an autoinclude-injected dependency defines no mock_outputs: the
+// run queue applies the dependency first, so the dependent never needs a mock at apply time.
+func TestStackDepsAutoIncludeDependencyAppliesWithoutMockOutputs(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsApplyNoMocks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsApplyNoMocks)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsApplyNoMocks, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
+	require.NoError(t, err, "run --all apply must apply the dependency first and read its real output even with no mock_outputs; stderr=%s", stderr)
+
+	// The consumer marker must hold the producer's REAL output (no mock exists), proving the queue applied
+	// the producer first and the dependent read live state rather than failing on a missing output.
+	marker := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "consumer"), "marker.txt")
+
+	content, err := os.ReadFile(marker)
+	require.NoError(t, err)
+	assert.Equal(t, "consumer received: real-producer-output", string(content))
 }
 
 // TestStackDepsE2EChain runs a 3-level dependency chain end-to-end:
