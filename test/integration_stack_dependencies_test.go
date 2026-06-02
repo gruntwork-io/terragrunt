@@ -58,6 +58,7 @@ const (
 	testFixtureStackDepsDupDependency            = "fixtures/stacks/stack-deps-dup-dependency"
 	testFixtureStackDepsDepMockMerge             = "fixtures/stacks/stack-deps-dep-mock-merge"
 	testFixtureStackDepsDisabledAutoIncDep       = "fixtures/stacks/stack-deps-disabled-autoinclude-dep"
+	testFixtureStackDepsNestedUnitDep            = "fixtures/stacks/stack-deps-nested-unit-dep"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -348,10 +349,10 @@ func TestStackDepsRemoteStateDependency(t *testing.T) {
 		"dependency output must resolve inside remote_state from the autoinclude mock")
 }
 
-// TestStackDepsNestedRemoteStateDependency mirrors issue #6244 exactly: a nested
-// stack-of-stacks (stacks -> sandbox-1 -> roles) where the roles unit references an
-// autoinclude-injected dependency output in both a remote_state block and a generate
-// block, driven by `terragrunt stack run plan`.
+// TestStackDepsNestedRemoteStateDependency covers a nested stack-of-stacks
+// (stacks -> sandbox-1 -> roles) where the roles unit references an autoinclude-injected
+// dependency output in both a remote_state block and a generate block, driven by
+// `terragrunt stack run plan`.
 func TestStackDepsNestedRemoteStateDependency(t *testing.T) {
 	t.Parallel()
 
@@ -380,7 +381,43 @@ func TestStackDepsNestedRemoteStateDependency(t *testing.T) {
 		"dependency output must resolve inside remote_state in a nested stack")
 }
 
-// TestStackDepsAutoIncludeOverridesUnitDependency covers the issue #5663 conflict case:
+// TestStackDepsNestedUnitAutoIncludeDependency covers a nested stack whose unit autoinclude depends on
+// a sibling unit via unit.X.path, with the dependency output consumed through inputs. The generated
+// dependency config_path must account for the nested .terragrunt-stack directory (../data, not one
+// level too high), and run --all plan must resolve it.
+func TestStackDepsNestedUnitAutoIncludeDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsNestedUnitDep)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsNestedUnitDep)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsNestedUnitDep)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	// vpc is generated at core/.terragrunt-stack/vpc and data at core/.terragrunt-stack/data, so the
+	// dependency must resolve to ../data through the nested .terragrunt-stack directory.
+	vpcDir := filepath.Join(rootPath, inthclparse.StackDir, "core", inthclparse.StackDir, "vpc")
+	autoInclude, err := os.ReadFile(filepath.Join(vpcDir, inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+	assert.Contains(t, string(autoInclude), `"../data"`,
+		"the nested-stack dependency must resolve to the sibling unit through .terragrunt-stack, not one level too high")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
+	require.NoError(t, err, "a nested-stack unit autoinclude dependency must resolve at run time; stderr=%s", stderr)
+	assert.NotContains(t, stderr, "does not contain a terragrunt.hcl",
+		"the dependency path must include the nested .terragrunt-stack segment")
+}
+
+// TestStackDepsAutoIncludeOverridesUnitDependency covers the same-name dependency conflict case:
 // when a unit declares its own dependency block AND the autoinclude declares a dependency
 // of the same name, the autoinclude block wins by name (shallow merge, like a default include),
 // so dependency.x.outputs.v resolves to the autoinclude's mock value, not the unit's.
@@ -1782,7 +1819,7 @@ func TestStackDepsCrossLevelViaValues(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
 }
 
-// TestStackDepsStackAutoIncludeDepValuesIsClearError reproduces RFC comment #19: a
+// TestStackDepsStackAutoIncludeDepValuesIsClearError covers the unsupported cross-level pattern: a
 // stack-level autoinclude declares a dependency block AND injects a unit whose values
 // derive from that dependency's outputs. stack generate must fail with the clear typed
 // error pointing at the supported cross-level pattern, not the low-level HCL diagnostic.
@@ -1818,10 +1855,10 @@ func TestStackDepsStackAutoIncludeDepValuesIsClearError(t *testing.T) {
 	assert.NotContains(t, msg, "no variable named dependency")
 }
 
-// TestStackDepsLocalsReadConfigWithDep reproduces RFC comment #27: a unit whose
-// generated config uses locals driven by read_terragrunt_config(find_in_parent_folders)
-// and find_in_parent_folders, passes values from local.* and values.*, alongside a unit
-// carrying an autoinclude with a dependency. stack generate must succeed (it regressed on 1.0.6).
+// TestStackDepsLocalsReadConfigWithDep covers a unit whose generated config uses locals driven by
+// read_terragrunt_config(find_in_parent_folders) and find_in_parent_folders, passes values from
+// local.* and values.*, alongside a unit carrying an autoinclude with a dependency. stack generate
+// must succeed.
 func TestStackDepsLocalsReadConfigWithDep(t *testing.T) {
 	t.Parallel()
 

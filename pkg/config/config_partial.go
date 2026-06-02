@@ -147,6 +147,8 @@ func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, f
 		errs = append(errs, err)
 	}
 
+	registerSiblingAutoInclude(pctx, file.ConfigPath, trackInclude)
+
 	// set feature flags
 	tgFlags := terragruntFeatureFlags{}
 	// load default feature flags
@@ -657,7 +659,7 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	}
 
 	// Merge the sibling autoinclude into this partial output so discovery/run-queue agrees with the full parse.
-	if err := mergeAutoIncludePartialIfPresent(ctx, pctx, l, output, file.ConfigPath); err != nil {
+	if err := mergeAutoIncludePartialIfPresent(ctx, pctx, l, output); err != nil {
 		return nil, err
 	}
 
@@ -729,16 +731,31 @@ func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.Eval
 	return tgInc.Include, nil
 }
 
-// mergeAutoIncludePartialIfPresent merges a sibling terragrunt.autoinclude.hcl into a partial output using the same decode list, shallow, with the autoinclude winning, matching a regular include's default merge strategy.
-func mergeAutoIncludePartialIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, output *TerragruntConfig, configPath string) error {
+// registerSiblingAutoInclude records the sibling terragrunt.autoinclude.hcl on trackInclude as a high-priority override when it is in scope and exists, so the merge consumers read one registered entry instead of recomputing the gate.
+func registerSiblingAutoInclude(pctx *ParsingContext, configPath string, trackInclude *TrackInclude) {
+	if trackInclude == nil {
+		return
+	}
+
 	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
 	if !ok {
-		return nil
+		return
 	}
 
 	if !util.FileExists(autoIncludePath) {
+		return
+	}
+
+	trackInclude.AutoIncludeOverride = &IncludeConfig{Path: autoIncludePath}
+}
+
+// mergeAutoIncludePartialIfPresent merges the registered sibling autoinclude override into a partial output using the same decode list, shallow, with the autoinclude winning, matching a regular include's default merge strategy.
+func mergeAutoIncludePartialIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, output *TerragruntConfig) error {
+	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
 		return nil
 	}
+
+	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
 
 	// Reset DecodedDependencies so the autoinclude file gets its own dependency resolution pass; reuse the same decode list.
 	clonedPctx := pctx.Clone()

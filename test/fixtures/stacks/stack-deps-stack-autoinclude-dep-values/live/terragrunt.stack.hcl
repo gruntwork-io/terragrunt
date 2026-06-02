@@ -1,4 +1,4 @@
-# Unsupported pattern (RFC comment #19): a STACK-level autoinclude declares a
+# Unsupported pattern: a STACK-level autoinclude declares a
 # dependency block AND injects a unit whose values derive from that dependency's
 # outputs. Dependency outputs are not available at stack generate time, so this
 # must fail with a clear typed error pointing at the supported cross-level pattern.

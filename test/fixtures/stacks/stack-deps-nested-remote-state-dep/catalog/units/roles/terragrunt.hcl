@@ -2,7 +2,7 @@ terraform {
   source = "."
 }
 
-# Mirrors the issue: a generate block referencing a dependency output (this already worked).
+# A generate block referencing a dependency output (this already worked).
 generate "provider" {
   path      = "provider.tf"
   if_exists = "overwrite"
@@ -11,7 +11,7 @@ generate "provider" {
   EOF
 }
 
-# Mirrors the issue: remote_state referencing a dependency output (this used to fail).
+# A remote_state block referencing a dependency output (this used to fail).
 remote_state {
   backend = "local"
   generate = {

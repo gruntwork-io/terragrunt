@@ -1,4 +1,4 @@
-# Reproduces RFC comment #27: a unit whose generated terragrunt.hcl uses locals
+# A unit whose generated terragrunt.hcl uses locals
 # driven by read_terragrunt_config(find_in_parent_folders("region.hcl")) and
 # find_in_parent_folders, passes values from local.* and values.*, alongside a
 # unit that carries an autoinclude with a dependency. stack generate must succeed.

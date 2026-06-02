@@ -1401,7 +1401,7 @@ func ParseConfig(
 
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
 	// Only replace config on success; the merge helper returns nil on failure and handleInclude below would nil-deref it.
-	merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config, file.ConfigPath)
+	merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config)
 	if autoMergeErr != nil {
 		errs = append(errs, autoMergeErr)
 	}
@@ -2279,11 +2279,11 @@ func ParseRemoteState(ctx context.Context, l log.Logger, pctx *ParsingContext) (
 }
 
 // siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside configPath
-// and whether merging it is in scope. Merging is in scope only when: the context is not already parsing
-// a file pulled in by an autoinclude merge (skipAutoIncludeMerge, which would recurse and let a pulled-in
-// file fold its own sibling autoinclude), the stack-dependencies experiment is enabled, and configPath is
-// not itself an autoinclude file. Every autoinclude entry point routes through here so the skip cannot be
-// forgotten. Existence is left to the caller so the cache-key path can distinguish absent from present.
+// and whether it is in scope: the context is not already parsing a file pulled in by an autoinclude
+// merge (skipAutoIncludeMerge, which would recurse and let a pulled-in file fold its own sibling
+// autoinclude), the stack-dependencies experiment is enabled, and configPath is not itself an autoinclude
+// file. The registration that records the override on TrackInclude and the partial-parse cache key both
+// route through here. Existence is left to the caller so the cache-key path can distinguish absent from present.
 func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bool) {
 	if pctx.skipAutoIncludeMerge {
 		return "", false
@@ -2301,16 +2301,13 @@ func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bo
 	return filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile), true
 }
 
-// mergeAutoIncludeIfPresent merges a sibling terragrunt.autoinclude.hcl into the unit config the same way a regular include does by default (shallow merge), with the autoinclude winning.
-func mergeAutoIncludeIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, cfg *TerragruntConfig, configPath string) (*TerragruntConfig, error) {
-	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
-	if !ok {
+// mergeAutoIncludeIfPresent merges the registered sibling autoinclude override into the unit config the same way a regular include does by default (shallow merge), with the autoinclude winning.
+func mergeAutoIncludeIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, cfg *TerragruntConfig) (*TerragruntConfig, error) {
+	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
 		return cfg, nil
 	}
 
-	if !util.FileExists(autoIncludePath) {
-		return cfg, nil
-	}
+	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
 
 	l.Debugf("Found %s, merging into unit config", autoIncludePath)
 

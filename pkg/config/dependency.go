@@ -244,7 +244,7 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
 
 	// Fold sibling autoinclude dependency blocks in before output retrieval so the unit body can reference them, like a regular include.
-	decodedDependency.Dependencies, err = foldSiblingAutoIncludeDeps(ctx, pctx, l, file, decodedDependency.Dependencies)
+	decodedDependency.Dependencies, err = foldSiblingAutoIncludeDeps(ctx, pctx, l, decodedDependency.Dependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -1647,16 +1647,13 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	return filteredDeps
 }
 
-// foldSiblingAutoIncludeDeps merges the sibling autoinclude dependency blocks over the unit's own same-name blocks (shallow, by name, with the autoinclude winning), mirroring a regular include's default merge strategy.
-func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, deps []Dependency) ([]Dependency, error) {
-	autoIncludePath, ok := siblingAutoIncludePath(pctx, file.ConfigPath)
-	if !ok {
+// foldSiblingAutoIncludeDeps merges the registered sibling autoinclude dependency blocks over the unit's own same-name blocks (shallow, by name, with the autoinclude winning), mirroring a regular include's default merge strategy.
+func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log.Logger, deps []Dependency) ([]Dependency, error) {
+	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
 		return deps, nil
 	}
 
-	if !util.FileExists(autoIncludePath) {
-		return deps, nil
-	}
+	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
 
 	autoFile, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(autoIncludePath)
 	if err != nil {
