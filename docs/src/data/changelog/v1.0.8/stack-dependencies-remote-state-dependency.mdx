@@ -1,8 +1,0 @@
----
-version: "v1.0.8"
-category: "experiments-updated"
----
-
-#### `stack-dependencies`: `dependency` outputs resolve inside `remote_state`
-
-A `dependency` block injected through an `autoinclude` is now available before a unit's `remote_state` is evaluated, so referencing `dependency.<name>.outputs.<key>` there no longer fails. `remote_state` now behaves the same as `generate` blocks.
