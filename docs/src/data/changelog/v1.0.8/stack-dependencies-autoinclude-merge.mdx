@@ -1,0 +1,10 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: `autoinclude` merges like a regular include
+
+A generated autoinclude file (`terragrunt.autoinclude.hcl` for units, `terragrunt.autoinclude.stack.hcl` for stacks) now merges into the unit or stack using the same default merge as a regular `include`, which is a shallow merge, applied uniformly across generation, full parse, and discovery. Top-level keys from the unit and the autoinclude combine, and on a conflict the autoinclude wins and replaces the unit's value rather than deep-merging nested maps. The autoinclude is the winning side on conflicts, and `locals` stay local in scope.
+
+A `dependency` block injected through an `autoinclude` is now available before a unit's `remote_state` is evaluated, so referencing `dependency.<name>.outputs.<key>` there no longer fails. `remote_state` now behaves the same as `generate` blocks.

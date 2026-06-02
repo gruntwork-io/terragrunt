@@ -1401,7 +1401,7 @@ func ParseConfig(
 
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
 	// Only replace config on success; the merge helper returns nil on failure and handleInclude below would nil-deref it.
-	merged, autoMergeErr := mergeAutoIncludeDeepIfPresent(ctx, pctx, l, config, file.ConfigPath)
+	merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config, file.ConfigPath)
 	if autoMergeErr != nil {
 		errs = append(errs, autoMergeErr)
 	}
@@ -2301,8 +2301,8 @@ func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bo
 	return filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile), true
 }
 
-// mergeAutoIncludeDeepIfPresent deep-merges a sibling terragrunt.autoinclude.hcl into the unit config like a regular include with deep_merge, with the autoinclude winning.
-func mergeAutoIncludeDeepIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, cfg *TerragruntConfig, configPath string) (*TerragruntConfig, error) {
+// mergeAutoIncludeIfPresent merges a sibling terragrunt.autoinclude.hcl into the unit config the same way a regular include does by default (shallow merge), with the autoinclude winning.
+func mergeAutoIncludeIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, cfg *TerragruntConfig, configPath string) (*TerragruntConfig, error) {
 	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
 	if !ok {
 		return cfg, nil
@@ -2312,7 +2312,7 @@ func mergeAutoIncludeDeepIfPresent(ctx context.Context, pctx *ParsingContext, l 
 		return cfg, nil
 	}
 
-	l.Debugf("Found %s, deep-merging into unit config", autoIncludePath)
+	l.Debugf("Found %s, merging into unit config", autoIncludePath)
 
 	// Reset DecodedDependencies so the autoinclude file gets its own dependency resolution pass.
 	clonedPctx := pctx.Clone()
@@ -2324,8 +2324,8 @@ func mergeAutoIncludeDeepIfPresent(ctx context.Context, pctx *ParsingContext, l 
 		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
 
-	// DeepMerge mutates the receiver and the argument wins; the autoinclude is the source/winner.
-	if err := cfg.DeepMerge(l, autoIncludeConfig); err != nil {
+	// Merge mutates the receiver and the argument wins; the autoinclude is the source/winner. Shallow, matching a regular include's default merge strategy.
+	if err := cfg.Merge(l, autoIncludeConfig); err != nil {
 		return nil, fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
 	}
 

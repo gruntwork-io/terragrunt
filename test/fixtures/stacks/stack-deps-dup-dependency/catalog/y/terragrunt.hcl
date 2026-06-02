@@ -2,10 +2,16 @@ terraform {
   source = "."
 }
 
-# The unit declares its own dependency with a deliberately wrong path. If autoinclude
-# does not override it by name, resolving this path fails (the path does not exist).
+# The unit declares its own same-name dependency with a unit-side mock value. The autoinclude declares
+# dependency "x" too; under shallow merge the autoinclude wins by name and replaces this whole block, so
+# dependency.x.outputs.v must resolve to the autoinclude's mock, not "from-unit".
 dependency "x" {
-  config_path = "./this-path-does-not-exist"
+  config_path = "../x"
+
+  mock_outputs_allowed_terraform_commands = ["init", "plan", "validate"]
+  mock_outputs = {
+    v = "from-unit"
+  }
 }
 
 remote_state {

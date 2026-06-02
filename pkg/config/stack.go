@@ -951,7 +951,7 @@ func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCt
 // mergeStackAutoIncludeFile merges a generated terragrunt.autoinclude.stack.hcl, if present
 // beside the stack file, into the stack config. Units and stacks injected by a parent stack's
 // autoinclude block materialize in the nested stack the same way a unit's
-// terragrunt.autoinclude.hcl merges into its terragrunt.hcl via [mergeAutoIncludeDeepIfPresent].
+// terragrunt.autoinclude.hcl merges into its terragrunt.hcl via [mergeAutoIncludeIfPresent].
 func mergeStackAutoIncludeFile(l log.Logger, config *StackConfigFile, stackDir, stackFileName string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
 	// Never merge the autoinclude file into itself.
 	if stackFileName == inthclparse.AutoIncludeStackFile {

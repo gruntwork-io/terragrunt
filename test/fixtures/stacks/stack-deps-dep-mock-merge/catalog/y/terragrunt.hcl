@@ -2,9 +2,11 @@ terraform {
   source = "."
 }
 
-# The unit's own dependency: wrong path (autoinclude overrides) plus unit-side mock outputs.
+# The unit declares its own same-name dependency with unit-side mock outputs. Under shallow merge the
+# autoinclude wins by name and replaces this whole block, so the unit-only key (from_unit) is dropped
+# and the conflicting key (common) resolves to the autoinclude's value, not deep-merged.
 dependency "x" {
-  config_path = "./this-path-does-not-exist"
+  config_path = "../x"
 
   mock_outputs = {
     from_unit = "unitval"
@@ -12,10 +14,11 @@ dependency "x" {
   }
 }
 
-# Backend key interleaves three mock outputs so the merged values are observable:
-#   from_unit         -> unit-only key, must survive the merge
-#   from_autoinclude  -> autoinclude-only key, must be present
-#   common            -> conflicting key, autoinclude (source) must win
+# Backend key references only the autoinclude's surviving outputs:
+#   from_autoinclude  -> autoinclude-only key, present after the replacement
+#   common            -> conflicting key, resolves to the autoinclude value
+# It deliberately does NOT reference from_unit: under shallow merge that key no longer exists, which is
+# exactly what proves the unit's block was replaced rather than deep-merged.
 remote_state {
   backend = "local"
   generate = {
@@ -23,6 +26,6 @@ remote_state {
     if_exists = "overwrite_terragrunt"
   }
   config = {
-    path = "${dependency.x.outputs.from_unit}-${dependency.x.outputs.from_autoinclude}-${dependency.x.outputs.common}.tfstate"
+    path = "${dependency.x.outputs.from_autoinclude}-${dependency.x.outputs.common}.tfstate"
   }
 }

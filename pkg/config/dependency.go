@@ -1647,7 +1647,7 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	return filteredDeps
 }
 
-// foldSiblingAutoIncludeDeps deep-merges the sibling autoinclude dependency blocks over the unit's own same-name blocks, with the autoinclude winning, mirroring include deep_merge semantics.
+// foldSiblingAutoIncludeDeps merges the sibling autoinclude dependency blocks over the unit's own same-name blocks (shallow, by name, with the autoinclude winning), mirroring a regular include's default merge strategy.
 func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, deps []Dependency) ([]Dependency, error) {
 	autoIncludePath, ok := siblingAutoIncludePath(pctx, file.ConfigPath)
 	if !ok {
@@ -1705,7 +1705,7 @@ func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log
 		return deps, nil
 	}
 
-	return deepMergeDependencyBlocks(deps, autoDeps)
+	return mergeDependencyBlocks(deps, autoDeps), nil
 }
 
 // IsValidConfigPath checks if a cty.Value is a valid, usable config path.

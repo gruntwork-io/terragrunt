@@ -656,8 +656,8 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		output = excludeOutput
 	}
 
-	// Deep-merge the sibling autoinclude into this partial output so discovery/run-queue agrees with the full parse.
-	if err := mergeAutoIncludePartialDeepIfPresent(ctx, pctx, l, output, file.ConfigPath); err != nil {
+	// Merge the sibling autoinclude into this partial output so discovery/run-queue agrees with the full parse.
+	if err := mergeAutoIncludePartialIfPresent(ctx, pctx, l, output, file.ConfigPath); err != nil {
 		return nil, err
 	}
 
@@ -729,8 +729,8 @@ func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.Eval
 	return tgInc.Include, nil
 }
 
-// mergeAutoIncludePartialDeepIfPresent deep-merges a sibling terragrunt.autoinclude.hcl into a partial output using the same decode list, with the autoinclude winning.
-func mergeAutoIncludePartialDeepIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, output *TerragruntConfig, configPath string) error {
+// mergeAutoIncludePartialIfPresent merges a sibling terragrunt.autoinclude.hcl into a partial output using the same decode list, shallow, with the autoinclude winning, matching a regular include's default merge strategy.
+func mergeAutoIncludePartialIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, output *TerragruntConfig, configPath string) error {
 	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
 	if !ok {
 		return nil
@@ -751,8 +751,8 @@ func mergeAutoIncludePartialDeepIfPresent(ctx context.Context, pctx *ParsingCont
 		return fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
 
-	// DeepMerge mutates the receiver and the argument wins; the autoinclude is the source/winner.
-	if err := output.DeepMerge(l, autoIncludeConfig); err != nil {
+	// Merge mutates the receiver and the argument wins; the autoinclude is the source/winner. Shallow, matching a regular include's default merge strategy.
+	if err := output.Merge(l, autoIncludeConfig); err != nil {
 		return fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
 	}
 

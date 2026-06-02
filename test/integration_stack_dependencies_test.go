@@ -388,9 +388,8 @@ func TestStackDepsNestedRemoteStateDependency(t *testing.T) {
 
 // TestStackDepsAutoIncludeOverridesUnitDependency covers the issue #5663 conflict case:
 // when a unit declares its own dependency block AND the autoinclude declares a dependency
-// of the same name with a different path, the autoinclude dependency deep-merges over the
-// unit's own same-name block (like includes), so the autoinclude wins by name in both the
-// full-parse path and the discovery/run-queue path.
+// of the same name, the autoinclude block wins by name (shallow merge, like a default include),
+// so dependency.x.outputs.v resolves to the autoinclude's mock value, not the unit's.
 func TestStackDepsAutoIncludeOverridesUnitDependency(t *testing.T) {
 	t.Parallel()
 
@@ -413,11 +412,12 @@ func TestStackDepsAutoIncludeOverridesUnitDependency(t *testing.T) {
 		"autoinclude dependency (by name) must override the unit's own dependency path")
 }
 
-// TestStackDepsAutoIncludeMergesMockOutputs verifies that when a unit and its autoinclude
-// both declare the same-name dependency, properties beyond config_path deep-merge: the
-// unit-only mock output survives, the autoinclude-only mock output is present, and a
-// conflicting key resolves to the autoinclude (source) value.
-func TestStackDepsAutoIncludeMergesMockOutputs(t *testing.T) {
+// TestStackDepsAutoIncludeReplacesUnitDependency verifies the shallow-merge contract for a same-name
+// dependency conflict: when a unit and its autoinclude both declare dependency "x", the autoinclude
+// block REPLACES the unit's wholesale (it is not deep-merged). So the autoinclude's mock outputs are the
+// ones that resolve, the conflicting "common" key takes the autoinclude value, and the unit-only key
+// (from_unit) no longer exists, exactly as a default include behaves.
+func TestStackDepsAutoIncludeReplacesUnitDependency(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsDepMockMerge)
@@ -430,14 +430,16 @@ func TestStackDepsAutoIncludeMergesMockOutputs(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
-	require.NoError(t, err, "mock outputs must deep-merge across the unit and autoinclude dependency; stderr=%s", stderr)
+	require.NoError(t, err, "the autoinclude dependency must replace the unit's same-name block (shallow); stderr=%s", stderr)
 
-	// Backend key is from_unit-from_autoinclude-common: unit-only survives, autoinclude-only present, conflict wins source.
+	// Backend key is from_autoinclude-common: the autoinclude's block fully replaced the unit's, so the
+	// autoinclude-only key is present and the conflicting "common" key resolves to the autoinclude value.
+	// from_unit is gone (referencing it would error), which is what proves replacement over deep merge.
 	backendPath := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "y"), "backend.tf")
 	backend, err := os.ReadFile(backendPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(backend), "unitval-autoval-autoinclude-common.tfstate",
-		"mock_outputs must deep-merge with the autoinclude winning on conflicting keys")
+	assert.Contains(t, string(backend), "autoval-autoinclude-common.tfstate",
+		"the autoinclude dependency must replace the unit's same-name block, not deep-merge it")
 }
 
 // TestStackDepsE2EChain runs a 3-level dependency chain end-to-end:

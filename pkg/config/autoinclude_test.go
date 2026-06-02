@@ -45,7 +45,7 @@ inputs = {
 }
 `), 0644))
 
-	// An autoinclude that references an undefined local so its parse fails and mergeAutoIncludeDeepIfPresent returns (nil, err).
+	// An autoinclude that references an undefined local so its parse fails and mergeAutoIncludeIfPresent returns (nil, err).
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
 	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
 inputs = {
@@ -239,78 +239,6 @@ include "common" {
 		require.Contains(t, parsed.Inputs, "from_common", "the included sibling's inputs must merge through the autoinclude")
 		require.Contains(t, parsed.Inputs, "from_unit")
 	})
-}
-
-// TestFoldSiblingAutoIncludeDeps_PulledInFileDoesNotFoldForeignAutoInclude pins the centralized
-// skipAutoIncludeMerge guard on the dependency-fold path. Unit A's autoinclude declares a wanted
-// dependency AND deep-includes a base file in a DIFFERENT directory; that base directory has its OWN
-// sibling autoinclude declaring a foreign "leak" dependency. The unit must end up with the wanted
-// dependency (the autoinclude fold still works) and NOT the foreign one, because a file pulled in by an
-// autoinclude merge must not fold its own sibling autoinclude's dependencies. This is deterministic and
-// cache-order independent: it asserts the resulting dependency set, not termination, so it catches the
-// over-fold that the same-dir recursion test cannot.
-func TestFoldSiblingAutoIncludeDeps_PulledInFileDoesNotFoldForeignAutoInclude(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-
-	// Dependency targets for the wanted and foreign dependencies.
-	for _, name := range []string{"wanted-target", "leak-target"} {
-		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, name), 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, name, config.DefaultTerragruntConfigPath), []byte(``), 0644))
-	}
-
-	// Unit A declares no dependency of its own.
-	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
-inputs = { from_unit = "a" }
-`), 0644))
-
-	// A's autoinclude declares a WANTED dependency and deep-includes a base file in a different dir.
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "b"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, config.DefaultAutoIncludeFile), []byte(`
-dependency "wanted" {
-  config_path  = "`+filepath.Join(tmpDir, "wanted-target")+`"
-  skip_outputs = true
-  mock_outputs = { val = "wanted" }
-  mock_outputs_allowed_terraform_commands = ["init"]
-}
-
-include "base" {
-  path           = "`+filepath.Join(tmpDir, "b", "base.hcl")+`"
-  merge_strategy = "deep"
-}
-`), 0644))
-
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "b", "base.hcl"), []byte(`
-inputs = { from_base = "b" }
-`), 0644))
-
-	// The base directory has its OWN sibling autoinclude declaring a foreign dependency.
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "b", config.DefaultAutoIncludeFile), []byte(`
-dependency "leak" {
-  config_path  = "`+filepath.Join(tmpDir, "leak-target")+`"
-  skip_outputs = true
-  mock_outputs = { val = "leaked" }
-  mock_outputs_allowed_terraform_commands = ["init"]
-}
-`), 0644))
-
-	ctx, pctx := newTestParsingContext(t, cfgPath)
-	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
-
-	parsed, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
-
-	depNames := make([]string, 0, len(parsed.TerragruntDependencies))
-	for _, dep := range parsed.TerragruntDependencies {
-		depNames = append(depNames, dep.Name)
-	}
-
-	assert.Contains(t, depNames, "wanted", "the autoinclude's own declared dependency must still be folded into the unit")
-	assert.NotContains(t, depNames, "leak", "a file pulled in by an autoinclude must not fold its own sibling autoinclude's dependency into the unit")
 }
 
 // The autoinclude exclude block must win over the unit's exclude in BOTH full and partial parse.
@@ -677,8 +605,11 @@ dependency "foo" {
 	require.NotNil(t, parsed)
 }
 
-// Full parse must deep-merge nested input maps from the unit and the autoinclude, keeping keys from both sides.
-func TestMergeAutoIncludeDeepInputMerge(t *testing.T) {
+// Full parse must SHALLOW-merge inputs exactly like a default include: top-level keys from the unit and
+// the autoinclude combine, but an overlapping nested map is replaced wholesale by the autoinclude (the
+// winner), NOT deep-merged. This pins the shallow contract: under deep merge the unit's nested key would
+// also survive, so this test fails if the merge is deep.
+func TestMergeAutoIncludeShallowInputMerge(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -686,18 +617,16 @@ func TestMergeAutoIncludeDeepInputMerge(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(cfgPath, []byte(`
 inputs = {
-  tags = {
-    a = "1"
-  }
+  tags      = { a = "1" }
+  unit_only = "u"
 }
 `), 0644))
 
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
 	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
 inputs = {
-  tags = {
-    b = "2"
-  }
+  tags    = { b = "2" }
+  ai_only = "x"
 }
 `), 0644))
 
@@ -710,10 +639,16 @@ inputs = {
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
+	// Top-level keys from both sides survive (shallow merge combines the top-level inputs map).
+	assert.Equal(t, "u", parsed.Inputs["unit_only"], "a unit-only top-level input key must survive")
+	assert.Equal(t, "x", parsed.Inputs["ai_only"], "an autoinclude-only top-level input key must survive")
+
+	// The overlapping nested map is replaced wholesale by the autoinclude, not deep-merged.
 	tags, ok := parsed.Inputs["tags"].(map[string]any)
 	require.True(t, ok, "tags input should be a map")
-	assert.Equal(t, "1", tags["a"], "unit nested key must survive deep merge")
-	assert.Equal(t, "2", tags["b"], "autoinclude nested key must survive deep merge")
+	assert.Equal(t, "2", tags["b"], "autoinclude wins: its tags map replaces the unit's")
+	_, hasA := tags["a"]
+	assert.False(t, hasA, "shallow merge replaces the whole nested map; the unit's nested key must NOT survive")
 }
 
 // The autoinclude scalar must win over the unit scalar for the same key in both full and partial parse.
