@@ -39,7 +39,16 @@ export const sidebar = [
       {
         label: "Caching",
         collapsed: true,
-        autogenerate: { directory: "03-features/07-caching", collapsed: true },
+        items: [
+          { slug: "features/caching" },
+          { slug: "features/caching/provider-cache-server" },
+          { slug: "features/caching/auto-provider-cache-dir" },
+          {
+            label: "Content Addressable Store (CAS)",
+            collapsed: true,
+            autogenerate: { directory: "03-features/07-caching/04-cas", collapsed: true },
+          },
+        ],
       },
       {
         label: "Filters",
