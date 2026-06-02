@@ -1,0 +1,38 @@
+---
+title: SMB
+description: How the CAS handles SMB sources, which have no cheap probe.
+slug: features/caching/cas/smb
+sidebar:
+  order: 8
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
+</Aside>
+
+## Overview
+
+An SMB source is identified by a share path. SMB exposes no low-cost way to resolve a version without reading the content, so Terragrunt always downloads the source and then keys the result by its content hash. The CAS still deduplicates the bytes once they are in the store.
+
+## The cheap probe
+
+None. There is no probe step, so SMB never short-circuits the download.
+
+## Cache key & deduplication
+
+After downloading, Terragrunt keys the tree by the content hash of what it fetched. Identical files deduplicate at the blob level across every source, and an unchanged share re-ingests to the same tree, so repeated fetches do not grow the store.
+
+## Cache miss
+
+Every fetch downloads the source. New content is hashed and stored, and the tree is linked into the target.
+
+## Cache hit
+
+Because there is no probe, Terragrunt never skips the download. When the downloaded content matches what is already stored, ingest collapses onto the existing blobs and tree instead of writing duplicates. The benefit for SMB is storage deduplication, not skipped transfers.
+
+## Fallback behavior
+
+The download path is always taken, so there is no probe fallback. When materializing content into the target, the usual hard-link-to-copy fallback still applies if the host cannot hard link from the store.
+
