@@ -1,0 +1,50 @@
+---
+name: browse
+path: browse
+category: discovery
+sidebar:
+  order: 850
+description: Browse Terragrunt configurations in an interactive TUI.
+experiment:
+  control: browse-tui
+  name: Experimental
+usage: |
+  The `browse` command opens an interactive Terminal User Interface (TUI) for exploring the Terragrunt configurations discovered in your codebase.
+
+  It presents a three-column browser inspired by yazi: the parent directory on the left, the current directory in the middle, and a detail pane on the right showing metadata for the highlighted entry.
+examples:
+  - description: |
+      Browse the configurations discovered in the current directory.
+    code: |
+      terragrunt browse
+  - description: |
+      Browse the configurations discovered in a different directory.
+    code: |
+      terragrunt browse --working-dir /path/to/working/dir
+  - description: |
+      Exclude hidden directories from the browser.
+    code: |
+      terragrunt browse --no-hidden
+  - description: |
+      Browse only the configurations that match a filter.
+    code: |
+      terragrunt browse --filter './prod/**'
+flags:
+  - browse-no-hidden
+  - filter
+  - filter-affected
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Navigation
+
+Move the cursor with `j`/`k` (or the `↑`/`↓` arrow keys), descend into a directory with `l`/`→`/`enter`, return to the parent with `h`/`←`, and quit with `q`. The highlighted entry is shown in blue, and its path is displayed along the top, abbreviated with `~` when it falls under your home directory.
+
+## Detail Pane
+
+The detail pane shows metadata for the highlighted entry: its kind, path, module source, and its dependencies, dependents, and the files it reads (shown relative to the unit). Plain directories show a count of the units and stacks they contain.
+
+## Discovery
+
+`browse` reuses the same discovery the other discovery commands rely on, so filters and flags such as `--no-hidden` apply. See the [Filters feature documentation](/features/filter) for the full filter query language.

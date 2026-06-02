@@ -3,7 +3,7 @@ package tui_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list/tui"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
