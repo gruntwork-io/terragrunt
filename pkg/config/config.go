@@ -2278,15 +2278,35 @@ func ParseRemoteState(ctx context.Context, l log.Logger, pctx *ParsingContext) (
 	return cfg.GetRemoteState(ctx, l, pctx)
 }
 
+// siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside configPath
+// and whether merging it is in scope: the stack-dependencies experiment must be enabled and configPath
+// must not itself be an autoinclude file, which would recurse. Existence is left to the caller so the
+// cache-key path can distinguish an absent file from a present one.
+func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bool) {
+	if !pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		return "", false
+	}
+
+	configBase := filepath.Base(configPath)
+	if configBase == DefaultAutoIncludeFile || configBase == DefaultAutoIncludeStackFile {
+		return "", false
+	}
+
+	return filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile), true
+}
+
 // mergeAutoIncludeDeepIfPresent deep-merges a sibling terragrunt.autoinclude.hcl into the unit config like a regular include with deep_merge, with the autoinclude winning.
 func mergeAutoIncludeDeepIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, cfg *TerragruntConfig, configPath string) (*TerragruntConfig, error) {
-	// Recursion-safe guard: skip either autoinclude file itself and require the experiment.
-	configBase := filepath.Base(configPath)
-	if configBase == DefaultAutoIncludeFile || configBase == DefaultAutoIncludeStackFile || !pctx.Experiments.Evaluate(experiment.StackDependencies) {
+	// Skip when this parse is itself a file pulled in by an autoinclude merge so a same-directory include cannot recurse.
+	if pctx.skipAutoIncludeMerge {
 		return cfg, nil
 	}
 
-	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
+	if !ok {
+		return cfg, nil
+	}
+
 	if !util.FileExists(autoIncludePath) {
 		return cfg, nil
 	}
@@ -2296,6 +2316,7 @@ func mergeAutoIncludeDeepIfPresent(ctx context.Context, pctx *ParsingContext, l 
 	// Reset DecodedDependencies so the autoinclude file gets its own dependency resolution pass.
 	clonedPctx := pctx.Clone()
 	clonedPctx.DecodedDependencies = nil
+	clonedPctx.skipAutoIncludeMerge = true
 
 	autoIncludeConfig, err := ParseConfigFile(ctx, clonedPctx, l, autoIncludePath, nil)
 	if err != nil {

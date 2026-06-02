@@ -14,6 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// tfInitCommand is the terraform command these autoinclude tests resolve dependency mock outputs against.
+const tfInitCommand = "init"
+
 // A malformed sibling autoinclude makes the merge helper return an error; ParseConfigFile must surface that error without nil-panicking in handleInclude.
 func TestMergeAutoInclude_MalformedSiblingDoesNotPanic(t *testing.T) {
 	t.Parallel()
@@ -109,7 +112,7 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = "init"
+	pctx.OriginalTerraformCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
@@ -120,6 +123,122 @@ dependency "foo" {
 
 	// Resolution of the mock output proves the autoinclude dependency decoded with its own local.target.
 	assert.Equal(t, marker, parsed.RemoteState.BackendConfig["path"])
+}
+
+// TestFoldSiblingAutoIncludeDeps_FoldsIncludeInheritedDeps pins that foldSiblingAutoIncludeDeps folds in
+// dependency blocks the autoinclude inherits through its OWN include blocks, not only blocks declared
+// directly in the autoinclude file. The autoinclude declares no dependency of its own; it inherits "foo"
+// from an included base.hcl via merge_strategy = "deep". Without that fold the unit's remote_state
+// reference to dependency.foo would not resolve.
+func TestFoldSiblingAutoIncludeDeps_FoldsIncludeInheritedDeps(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// The dependency target dir.
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+
+	const marker = "include-inherited-dep-marker"
+
+	// The unit reads a dependency output but declares no dependency itself.
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+remote_state {
+  backend = "local"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    path = dependency.foo.outputs.val
+  }
+}
+`), 0644))
+
+	// The included base lives in its OWN dir (not beside the autoinclude) and declares the dependency
+	// the unit relies on. config_path is absolute so it resolves the same regardless of parse dir.
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "base"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "base", "base.hcl"), []byte(`
+dependency "foo" {
+  config_path  = "`+filepath.Join(tmpDir, "foo")+`"
+  skip_outputs = true
+  mock_outputs = {
+    val = "`+marker+`"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	// The autoinclude declares NO dependency of its own; it inherits "foo" through a deep include.
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+include "base" {
+  path           = "`+filepath.Join(tmpDir, "base", "base.hcl")+`"
+  merge_strategy = "deep"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err, "a dependency inherited through the autoinclude's own include must be folded into the unit")
+	require.NotNil(t, parsed)
+	require.NotNil(t, parsed.RemoteState)
+
+	// Resolution of the mock output proves the include-inherited dependency was folded.
+	assert.Equal(t, marker, parsed.RemoteState.BackendConfig["path"])
+}
+
+// TestMergeAutoInclude_SameDirIncludeDoesNotRecurse pins that an autoinclude which includes a file in
+// its OWN directory terminates instead of infinitely recursing the autoinclude merge. Parsing the
+// included sibling must not re-merge the sibling autoinclude; without the skip-on-pulled-in-files guard
+// this parse stack-overflows.
+func TestMergeAutoInclude_SameDirIncludeDoesNotRecurse(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+inputs = {
+  from_unit = "unit-value"
+}
+`), 0644))
+
+	// A sibling file in the SAME directory as the autoinclude.
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "common.hcl"), []byte(`
+inputs = {
+  from_common = "common-value"
+}
+`), 0644))
+
+	// The autoinclude includes that same-dir sibling, the shape that previously recursed forever.
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+include "common" {
+  path           = "`+filepath.Join(tmpDir, "common.hcl")+`"
+  merge_strategy = "deep"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	l := logger.CreateLogger()
+
+	require.NotPanics(t, func() {
+		parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+		require.NoError(t, err, "a same-dir autoinclude include must terminate, not recurse")
+		require.NotNil(t, parsed)
+		// The included sibling's inputs still flow through the autoinclude into the unit.
+		require.Contains(t, parsed.Inputs, "from_common", "the included sibling's inputs must merge through the autoinclude")
+		require.Contains(t, parsed.Inputs, "from_unit")
+	})
 }
 
 // The autoinclude exclude block must win over the unit's exclude in BOTH full and partial parse.
@@ -440,7 +559,7 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = "init"
+	pctx.OriginalTerraformCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
@@ -477,7 +596,7 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = "init"
+	pctx.OriginalTerraformCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
@@ -733,7 +852,7 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = "init"
+	pctx.OriginalTerraformCommand = tfInitCommand
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).WithSkipOutputsResolution()
 
 	l := logger.CreateLogger()

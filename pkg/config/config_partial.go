@@ -731,13 +731,16 @@ func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.Eval
 
 // mergeAutoIncludePartialDeepIfPresent deep-merges a sibling terragrunt.autoinclude.hcl into a partial output using the same decode list, with the autoinclude winning.
 func mergeAutoIncludePartialDeepIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, output *TerragruntConfig, configPath string) error {
-	// Recursion-safe guard: skip either autoinclude file itself and require the experiment.
-	configBase := filepath.Base(configPath)
-	if configBase == DefaultAutoIncludeFile || configBase == DefaultAutoIncludeStackFile || !pctx.Experiments.Evaluate(experiment.StackDependencies) {
+	// Skip when this parse is itself a file pulled in by an autoinclude merge so a same-directory include cannot recurse.
+	if pctx.skipAutoIncludeMerge {
 		return nil
 	}
 
-	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
+	if !ok {
+		return nil
+	}
+
 	if !util.FileExists(autoIncludePath) {
 		return nil
 	}
@@ -745,6 +748,7 @@ func mergeAutoIncludePartialDeepIfPresent(ctx context.Context, pctx *ParsingCont
 	// Reset DecodedDependencies so the autoinclude file gets its own dependency resolution pass; reuse the same decode list.
 	clonedPctx := pctx.Clone()
 	clonedPctx.DecodedDependencies = nil
+	clonedPctx.skipAutoIncludeMerge = true
 	clonedPctx = clonedPctx.WithDecodeList(pctx.PartialParseDecodeList...)
 
 	autoIncludeConfig, err := PartialParseConfigFile(ctx, clonedPctx, l, autoIncludePath, nil)
@@ -762,16 +766,11 @@ func mergeAutoIncludePartialDeepIfPresent(ctx context.Context, pctx *ParsingCont
 
 // autoIncludeCacheKeySuffix folds the sibling autoinclude existence and content into the partial-parse cache key when the StackDependencies experiment is on, returning the empty string with the experiment off so the existing key stays byte-for-byte unchanged.
 func autoIncludeCacheKeySuffix(pctx *ParsingContext, configPath string) string {
-	if !pctx.Experiments.Evaluate(experiment.StackDependencies) {
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
+	if !ok {
 		return ""
 	}
 
-	configBase := filepath.Base(configPath)
-	if configBase == DefaultAutoIncludeFile || configBase == DefaultAutoIncludeStackFile {
-		return ""
-	}
-
-	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
 	if !util.FileExists(autoIncludePath) {
 		return fmt.Sprintf("-autoinclude:%#v", false)
 	}

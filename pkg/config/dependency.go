@@ -1649,16 +1649,11 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 
 // foldSiblingAutoIncludeDeps deep-merges the sibling autoinclude dependency blocks over the unit's own same-name blocks, with the autoinclude winning, mirroring include deep_merge semantics.
 func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, deps []Dependency) ([]Dependency, error) {
-	if !pctx.Experiments.Evaluate(experiment.StackDependencies) {
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, file.ConfigPath)
+	if !ok {
 		return deps, nil
 	}
 
-	base := filepath.Base(file.ConfigPath)
-	if base == DefaultAutoIncludeFile || base == DefaultAutoIncludeStackFile {
-		return deps, nil
-	}
-
-	autoIncludePath := filepath.Join(filepath.Dir(file.ConfigPath), DefaultAutoIncludeFile)
 	if !util.FileExists(autoIncludePath) {
 		return deps, nil
 	}
@@ -1671,6 +1666,8 @@ func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log
 	// Rescope to the autoinclude's own locals so its dependency blocks resolve against its
 	// locals, not the unit's. The unit's locals must not leak into the autoinclude decode.
 	autoPctx := pctx.Clone()
+	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
+	autoPctx.skipAutoIncludeMerge = true
 
 	baseBlocks, err := DecodeBaseBlocks(ctx, autoPctx, l, autoFile, nil)
 	if err != nil {

@@ -636,6 +636,48 @@ unit "extra" {
 	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
 }
 
+// TestResolveForKind_StackAutoIncludeUndeclaredDepRefAllowed pins the negative guard: a reference in
+// injected values to a dependency NOT declared by the stack autoinclude is left alone, because the
+// validator only rejects references to the autoinclude's OWN declared dependencies. A regression that
+// dropped or inverted the declared-name check would start rejecting legitimate configs, and this catches it.
+func TestResolveForKind_StackAutoIncludeUndeclaredDepRefAllowed(t *testing.T) {
+	t.Parallel()
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	// The autoinclude declares "producer"; the injected unit's values reference a DIFFERENT, undeclared dep.
+	src := `
+dependency "producer" {
+  config_path = unit.producer.path
+}
+
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    v = dependency.other.outputs.val
+  }
+}
+`
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, src)}
+
+	_, diags := autoInclude.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+
+	// The dep-values backstop must NOT fire for a reference to a dependency the autoinclude does not declare.
+	for _, d := range diags {
+		_, isDepValuesErr := d.Extra.(hclparse.StackAutoIncludeDependencyValuesError)
+		require.False(t, isDepValuesErr, "a reference to an undeclared dependency must not trip the dep-values backstop")
+	}
+}
+
 // parseHCLBody is a test helper that parses an HCL string and returns the body.
 func parseHCLBody(t *testing.T, src string) hcl.Body {
 	t.Helper()

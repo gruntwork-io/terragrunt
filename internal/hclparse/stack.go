@@ -335,6 +335,8 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 // mergeDiscoveryStackAutoInclude appends the units and stacks declared by a sibling
 // terragrunt.autoinclude.stack.hcl so discovery sees the same generated components a full stack
 // parse materializes via mergeStackAutoIncludeFile. An absent autoinclude file is a no-op.
+// Discovery decodes only path-bearing fields, so the dependency-values backstop and override logging
+// that the full parse applies are intentionally not repeated here; the full parse stays authoritative.
 func mergeDiscoveryStackAutoInclude(fs vfs.FS, stackDir string, evalCtx *hcl.EvalContext, decoded *discoveryDecode) error {
 	autoIncludePath := filepath.Join(stackDir, AutoIncludeStackFile)
 

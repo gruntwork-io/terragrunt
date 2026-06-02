@@ -108,15 +108,23 @@ func TestLogStackAutoIncludeOverrides(t *testing.T) {
 	buf := &bytes.Buffer{}
 	l := log.New(log.WithOutput(buf), log.WithLevel(log.DebugLevel), log.WithFormatter(format.NewFormatter(format.NewKeyValueFormatPlaceholders())))
 
-	existing := &StackConfigFile{Units: []*Unit{{Name: "extra", Remain: parseStackTestBody(t, `source = "."`)}}}
+	existing := &StackConfigFile{
+		Units:  []*Unit{{Name: "extra", Remain: parseStackTestBody(t, `source = "."`)}},
+		Stacks: []*Stack{{Name: "net", Remain: parseStackTestBody(t, `source = "."`)}},
+	}
 
 	nestedAutoIncludeBody := parseStackTestBody(t, "autoinclude {\n  unit \"deep\" {\n    source = \".\"\n    path = \"deep\"\n  }\n}\n")
-	included := &StackConfigFile{Units: []*Unit{{Name: "extra", Remain: nestedAutoIncludeBody}}}
+	nestedAutoIncludeStackBody := parseStackTestBody(t, "autoinclude {\n  stack \"deeper\" {\n    source = \".\"\n    path = \"deeper\"\n  }\n}\n")
+	included := &StackConfigFile{
+		Units:  []*Unit{{Name: "extra", Remain: nestedAutoIncludeBody}},
+		Stacks: []*Stack{{Name: "net", Remain: nestedAutoIncludeStackBody}},
+	}
 
 	logStackAutoIncludeOverrides(l, existing, included)
 
 	out := buf.String()
 	assert.Contains(t, out, "overrides existing unit \"extra\"", "an injected unit that replaces an existing one must be logged")
+	assert.Contains(t, out, "overrides existing stack \"net\"", "an injected stack that replaces an existing one must be logged")
 	assert.Contains(t, out, "nested autoinclude is not propagated", "a nested autoinclude block must be reported as not propagated")
 
 	// The contract is debug-only reporting: a regression promoting these to a louder level must fail here.
