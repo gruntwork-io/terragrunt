@@ -77,8 +77,8 @@ const (
 	HookContextEnv = "hook-context-env"
 	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
 	OptionalHooks = "optional-hooks"
-	// LsTUI gates the interactive Miller-columns browser for `terragrunt list --tui`.
-	LsTUI = "ls-tui"
+	// BrowseTUI gates the interactive Miller-columns browser for `terragrunt browse`.
+	BrowseTUI = "browse-tui"
 )
 
 const (
@@ -168,7 +168,7 @@ func NewExperiments() Experiments {
 			Name: OptionalHooks,
 		},
 		{
-			Name: LsTUI,
+			Name: BrowseTUI,
 		},
 	}
 }

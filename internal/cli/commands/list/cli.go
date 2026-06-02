@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -34,8 +33,6 @@ const (
 
 	DAGFlagName = "dag"
 
-	TUIFlagName = "tui"
-
 	QueueConstructAsFlagName  = "queue-construct-as"
 	QueueConstructAsFlagAlias = "as"
 )
@@ -44,7 +41,7 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	filterFlags := shared.NewFilterFlags(l, opts.TerragruntOptions)
 
-	const numLocalFlags = 10
+	const numLocalFlags = 9
 
 	result := make(clihelper.Flags, 0, numLocalFlags+len(filterFlags))
 	result = append(result,
@@ -124,12 +121,6 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 			Destination: &opts.DAG,
 			Usage:       "Use DAG mode to sort and group output.",
 		}),
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        TUIFlagName,
-			EnvVars:     tgPrefix.EnvVars(TUIFlagName),
-			Destination: &opts.TUI,
-			Usage:       "Browse the discovered configurations in an interactive TUI (requires the ls-tui experiment).",
-		}),
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        QueueConstructAsFlagName,
 			EnvVars:     tgPrefix.EnvVars(QueueConstructAsFlagName),
@@ -174,10 +165,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 			// implies DAG mode.
 			if cmdOpts.QueueConstructAs != "" {
 				cmdOpts.Mode = ModeDAG
-			}
-
-			if cmdOpts.TUI && !opts.Experiments.Evaluate(experiment.LsTUI) {
-				return clihelper.NewExitError(NewTUIExperimentError(), clihelper.ExitCodeGeneralError)
 			}
 
 			if err := cmdOpts.Validate(); err != nil {

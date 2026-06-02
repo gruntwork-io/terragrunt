@@ -1,5 +1,5 @@
 // Package tui renders the discovered Terragrunt estate as an interactive,
-// yazi-style Miller-columns browser for the `terragrunt list --tui` command.
+// yazi-style Miller-columns browser for the `terragrunt browse` command.
 package tui
 
 import (
@@ -63,8 +63,8 @@ type Node struct {
 }
 
 // BuildTree builds the navigable tree from the discovered components.
-// workingDir is the list command's working directory, used to compute relative
-// display paths and as the root.
+// workingDir is the browse command's working directory, used to compute
+// relative display paths and as the root.
 func BuildTree(workingDir string, components component.Components) *Node {
 	root := &Node{
 		name:    ".",
