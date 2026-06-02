@@ -1,0 +1,10 @@
+---
+version: "v1.0.8"
+category: "enhancements"
+---
+
+#### Telemetry resource now honors `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES`
+
+Terragrunt previously hardcoded the `service.name` resource attribute to `terragrunt` for every emitted trace and metric, ignoring the standard OpenTelemetry environment variables. Multiple Terragrunt invocations could not be distinguished in an OpenTelemetry backend without an intermediate collector to rewrite the attribute.
+
+The resource is now composed via `resource.New` with `WithFromEnv()` placed after Terragrunt's defaults, so `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` are honored on every span and metric. Per the OpenTelemetry specification, `OTEL_SERVICE_NAME` takes precedence over a `service.name` entry in `OTEL_RESOURCE_ATTRIBUTES`. The default `service.name` remains `terragrunt` when neither variable is set.
