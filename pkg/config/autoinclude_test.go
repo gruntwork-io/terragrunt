@@ -1,10 +1,12 @@
 package config_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -739,4 +741,141 @@ dependency "foo" {
 	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
+}
+
+// A unit partial-parsed BEFORE its sibling autoinclude exists must not return a stale cached result
+// once the autoinclude is created in-process: the cache key folds the autoinclude existence+content.
+func TestPartialParseAutoIncludeCacheNotStaleOnCreate(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// A sibling target directory so the autoinclude dependency config_path is valid.
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "producer"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "producer", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+
+	// The unit declares none of the blocks under test; the autoinclude supplies them.
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+inputs = {
+  name = "from-unit"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
+	ctx = context.WithValue(ctx, config.TerragruntConfigCacheContextKey, cache.NewCache[*config.TerragruntConfig]("test-config-cache"))
+	pctx.UsePartialParseConfigCache = true
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).WithSkipOutputsResolution()
+
+	l := logger.CreateLogger()
+
+	// First parse populates the cache while no autoinclude exists.
+	before, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, before)
+	assert.Nil(t, before.RemoteState, "no autoinclude yet: no remote_state should be merged")
+
+	// Create the autoinclude AFTER the cache was populated: a dependency plus a remote_state that
+	// references that dependency (the real generated unit-level autoinclude shape).
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+dependency "producer" {
+  config_path  = "./producer"
+  skip_outputs = true
+}
+
+remote_state {
+  backend = "local"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    path = "from-autoinclude"
+  }
+}
+`), 0644))
+
+	// Second parse must reflect the freshly created autoinclude, not the stale pre-autoinclude entry.
+	after, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, after)
+	require.NotNil(t, after.RemoteState, "the newly created autoinclude must be merged, not a stale cache hit")
+	assert.Equal(t, "from-autoinclude", after.RemoteState.BackendConfig["path"])
+
+	foundDep := false
+
+	for _, dep := range after.TerragruntDependencies {
+		if dep.Name == "producer" {
+			foundDep = true
+		}
+	}
+
+	assert.True(t, foundDep, "the autoinclude dependency must be folded after creation")
+}
+
+// A unit partial-parsed with a present autoinclude, then re-parsed after the autoinclude is EDITED
+// in-process, must reflect the edit rather than the first cached result.
+func TestPartialParseAutoIncludeCacheNotStaleOnEdit(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+inputs = {
+  name = "from-unit"
+}
+`), 0644))
+
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+remote_state {
+  backend = "local"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    path = "first"
+  }
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
+	ctx = context.WithValue(ctx, config.TerragruntConfigCacheContextKey, cache.NewCache[*config.TerragruntConfig]("test-config-cache"))
+	pctx.UsePartialParseConfigCache = true
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx = pctx.WithDecodeList(config.RemoteStateBlock).WithSkipOutputsResolution()
+
+	l := logger.CreateLogger()
+
+	first, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	require.NotNil(t, first.RemoteState)
+	assert.Equal(t, "first", first.RemoteState.BackendConfig["path"])
+
+	// Edit the autoinclude in-process; the changed content must change the cache key.
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+remote_state {
+  backend = "local"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    path = "second"
+  }
+}
+`), 0644))
+
+	second, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, second)
+	require.NotNil(t, second.RemoteState)
+	assert.Equal(t, "second", second.RemoteState.BackendConfig["path"], "the edited autoinclude must win, not the stale cached result")
 }

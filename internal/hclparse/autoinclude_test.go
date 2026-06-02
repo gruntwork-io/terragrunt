@@ -527,9 +527,21 @@ unit "extra" {
 	_, okDiags := supported.ResolveForKind(evalCtx, hclparse.KindStack, "net")
 	require.False(t, okDiags.HasErrors(), "literal unit.path values must still resolve: %s", okDiags.Error())
 
-	// The same dependency-output reference is allowed when the kind is unit (the established cross-level pattern).
-	_, unitDiags := bad.ResolveForKind(evalCtx, hclparse.KindUnit, "extra")
-	require.False(t, unitDiags.HasErrors(), "unit-level autoinclude with a dependency reference must still resolve: %s", unitDiags.Error())
+	// A real unit-level autoinclude carries a top-level dependency feeding unit-level inputs; the same
+	// dependency-output reference is allowed when the kind is unit (the established cross-level pattern).
+	unitSrc := `
+dependency "producer" {
+  config_path = unit.producer.path
+}
+
+inputs = {
+  v = dependency.producer.outputs.val
+}
+`
+	unitAutoInclude := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, unitSrc)}
+
+	_, unitDiags := unitAutoInclude.ResolveForKind(evalCtx, hclparse.KindUnit, "")
+	require.False(t, unitDiags.HasErrors(), "unit-level autoinclude with a dependency-output input must still resolve: %s", unitDiags.Error())
 }
 
 // TestResolveForKind_StackAutoIncludeDepValuesIndexForm pins that the index traversal form

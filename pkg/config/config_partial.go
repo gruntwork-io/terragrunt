@@ -326,6 +326,9 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 func TerragruntConfigFromPartialConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	cacheKey := fmt.Sprintf("%#v-%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList, pctx.TerragruntConfigPath)
 
+	// Fold the sibling autoinclude existence and content into the key so an in-process create, remove, or edit cannot return a stale entry, with the merge experiment-gated so the experiment-off key is byte-for-byte unchanged.
+	cacheKey += autoIncludeCacheKeySuffix(pctx, file.ConfigPath)
+
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, TerragruntConfigCacheContextKey)
 	if pctx.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
@@ -609,22 +612,6 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 	}
 
-	// Materialize the current file's exclude before the autoinclude merge so the autoinclude wins on top,
-	// matching the full-parse precedence (autoinclude over current file) instead of clobbering it afterward.
-	if hasExcludeBlock {
-		excludeOutput, err := processExcludes(ctx, pctx, l, output, file)
-		if err != nil {
-			return nil, err
-		}
-
-		output = excludeOutput
-	}
-
-	// Deep-merge the sibling autoinclude into this partial output so discovery/run-queue agrees with the full parse.
-	if err := mergeAutoIncludePartialDeepIfPresent(ctx, pctx, l, output, file.ConfigPath); err != nil {
-		return nil, err
-	}
-
 	errsContainsIncludeErr := false
 
 	for _, err := range errs {
@@ -657,6 +644,21 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 	if joined := errors.Join(errs...); joined != nil {
 		return output, joined
+	}
+
+	// Materialize the current file's exclude after includes merge so included feature flags resolve, and before the autoinclude merge so the autoinclude wins on top.
+	if hasExcludeBlock {
+		excludeOutput, err := processExcludes(ctx, pctx, l, output, file)
+		if err != nil {
+			return nil, err
+		}
+
+		output = excludeOutput
+	}
+
+	// Deep-merge the sibling autoinclude into this partial output so discovery/run-queue agrees with the full parse.
+	if err := mergeAutoIncludePartialDeepIfPresent(ctx, pctx, l, output, file.ConfigPath); err != nil {
+		return nil, err
 	}
 
 	return output, nil
@@ -756,6 +758,31 @@ func mergeAutoIncludePartialDeepIfPresent(ctx context.Context, pctx *ParsingCont
 	}
 
 	return nil
+}
+
+// autoIncludeCacheKeySuffix folds the sibling autoinclude existence and content into the partial-parse cache key when the StackDependencies experiment is on, returning the empty string with the experiment off so the existing key stays byte-for-byte unchanged.
+func autoIncludeCacheKeySuffix(pctx *ParsingContext, configPath string) string {
+	if !pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		return ""
+	}
+
+	configBase := filepath.Base(configPath)
+	if configBase == DefaultAutoIncludeFile || configBase == DefaultAutoIncludeStackFile {
+		return ""
+	}
+
+	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
+	if !util.FileExists(autoIncludePath) {
+		return fmt.Sprintf("-autoinclude:%#v", false)
+	}
+
+	content, err := util.ReadFileAsString(autoIncludePath)
+	if err != nil {
+		// An unreadable autoinclude must not collide with the absent sentinel; key on the error text.
+		return fmt.Sprintf("-autoinclude:%#v-err:%#v", true, err.Error())
+	}
+
+	return fmt.Sprintf("-autoinclude:%#v-%#v", true, content)
 }
 
 // Custom error types
