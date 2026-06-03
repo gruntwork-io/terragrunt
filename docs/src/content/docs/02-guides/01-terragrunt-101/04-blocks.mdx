@@ -572,6 +572,8 @@ This eliminates the **chicken-and-egg problem** of "how do I create the bucket t
 For local development or testing, use the **local backend**:
 
 ```hcl
+# root.hcl
+
 remote_state {
   backend = "local"
   config = {
