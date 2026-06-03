@@ -344,9 +344,10 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 			expectedOut: ".",
 		},
 		{
-			str:         "terraform { source = path_relative_to_include() }",
+			str: "terraform { source = path_relative_to_include() }",
+			// "/root" is not absolute on Windows; OSAbs makes the include resolution platform-correct.
 			include:     &config.IncludeConfig{Path: filepath.Join("..", config.DefaultTerragruntConfigPath)},
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(helpers.OSAbs(t, "/root"), "child", config.DefaultTerragruntConfigPath),
 			expectedOut: "child",
 		},
 		{

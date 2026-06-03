@@ -198,7 +198,7 @@ func TestFileCopyGetIncludeExcludeFiltersHonor(t *testing.T) {
 	client := getter.NewClient(getter.WithFileCopy(fcg))
 
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + src,
+		Src:     helpers.FileURL(src),
 		Dst:     dst,
 		GetMode: getter.ModeDir,
 	})
@@ -217,7 +217,7 @@ func TestFileCopyGetMissingPath(t *testing.T) {
 
 	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + missing,
+		Src:     helpers.FileURL(missing),
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
 		GetMode: getter.ModeDir,
 	})
@@ -235,7 +235,7 @@ func TestFileCopyGetSourceIsFile(t *testing.T) {
 
 	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + srcFile,
+		Src:     helpers.FileURL(srcFile),
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
 		GetMode: getter.ModeDir,
 	})
@@ -256,7 +256,7 @@ func TestFileCopyGetFileDelegates(t *testing.T) {
 
 	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + srcFile,
+		Src:     helpers.FileURL(srcFile),
 		Dst:     dst,
 		GetMode: getter.ModeFile,
 	})

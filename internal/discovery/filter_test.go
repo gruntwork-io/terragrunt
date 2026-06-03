@@ -726,8 +726,10 @@ unit "test" {
 			wantStacks:    []string{},
 		},
 		{
-			name:          "absolute path filter",
-			filterQueries: []string{stackDir},
+			name: "absolute path filter",
+			// Filter queries are parsed with glob semantics where "\" is an escape character,
+			// so an absolute path must be supplied in forward-slash space on every platform.
+			filterQueries: []string{filepath.ToSlash(stackDir)},
 			wantUnits:     []string{},
 			wantStacks:    []string{stackDir},
 		},

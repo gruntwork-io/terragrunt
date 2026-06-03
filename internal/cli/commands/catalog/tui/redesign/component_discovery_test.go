@@ -30,7 +30,7 @@ func TestDiscoverComponents_WithCustomFS(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 	writeFileFS(t, fsys, filepath.Join(repoDir, "foo", "main.tf"), "# module")
 
 	repo := newFakeRepo(t, fsys, repoDir)
@@ -84,7 +84,7 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 
 	// foo/ is a plain module (has main.tf, no boilerplate).
 	writeFileFS(t, fsys, filepath.Join(repoDir, "foo", "main.tf"), "# vpc terraform")
@@ -144,7 +144,7 @@ func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 
 	// unit-a/ is a plain unit.
 	writeFileFS(t, fsys, filepath.Join(repoDir, "unit-a", "terragrunt.hcl"), "# unit a")
@@ -206,7 +206,7 @@ func TestDiscoverComponents_RepoRootAsComponent(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 
 	// Repo root has a .boilerplate dir → root is a template.
 	writeFileFS(t, fsys, filepath.Join(repoDir, ".boilerplate", "boilerplate.yml"), "variables: []\n")
@@ -233,7 +233,7 @@ func TestDiscoverComponents_HonorsIgnoreFile(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 
 	writeFileFS(t, fsys, filepath.Join(repoDir, "foo", "main.tf"), "# module")
 	writeFileFS(t, fsys, filepath.Join(repoDir, "examples", "foo", "main.tf"), "# example, should be ignored")
@@ -268,7 +268,7 @@ func TestDiscoverComponents_ExtraIgnoreFile(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 
 	writeFileFS(t, fsys, filepath.Join(repoDir, "foo", "main.tf"), "# kept")
 	writeFileFS(t, fsys, filepath.Join(repoDir, "examples", "foo", "main.tf"), "# repo-ignored")
@@ -304,7 +304,7 @@ func TestDiscoverComponents_EmptyRepo(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 	require.NoError(t, fsys.MkdirAll(repoDir, 0o755))
 
 	repo := newFakeRepo(t, fsys, repoDir)

@@ -25,6 +25,32 @@ func IsWindows() bool {
 	return runtime.GOOS == "windows"
 }
 
+// FileURL builds a file:// URL for an absolute OS path that is valid on every platform.
+// On Unix "/tmp/x" yields "file:///tmp/x"; on Windows "C:\\tmp\\x" yields "file:///C:/tmp/x"
+// (the leading slash before the drive letter is required by RFC 8089 and go-getter).
+func FileURL(absPath string) string {
+	p := filepath.ToSlash(absPath)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+
+	return "file://" + p
+}
+
+// OSAbs converts a forward-slash, "/"-rooted path into an absolute path on the host OS. On
+// Unix the input is already absolute and is returned cleaned; on Windows it is anchored to
+// the current drive (e.g. "/repo" becomes "C:\repo"). Tests use it to synthesize absolute
+// paths, especially against an in-memory filesystem, that [filepath.IsAbs] accepts on every
+// platform.
+func OSAbs(t *testing.T, unixPath string) string {
+	t.Helper()
+
+	abs, err := filepath.Abs(filepath.FromSlash(unixPath))
+	require.NoError(t, err)
+
+	return abs
+}
+
 // MustAbs resolves rel against the Go test process working directory.
 // [util.CopyFolderContents] and related helpers require absolute paths
 // so their dest-inside-source guard isn't fooled by Terragrunt's

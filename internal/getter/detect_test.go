@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,8 +60,8 @@ func TestDetectCanonicalizesShorthand(t *testing.T) {
 		},
 		{
 			name:   "absolute path gets file:// scheme reattached",
-			src:    "/abs/path/to/module",
-			expect: "file:///abs/path/to/module",
+			src:    helpers.OSAbs(t, "/abs/path/to/module"),
+			expect: helpers.FileURL(helpers.OSAbs(t, "/abs/path/to/module")),
 		},
 	}
 
