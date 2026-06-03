@@ -20,30 +20,61 @@ func TestSurroundingEntriesAreShown(t *testing.T) {
 	require.NoError(t, vfs.WriteFile(fs, "/repo/README.md", []byte("# repo\n"), 0o644))
 	require.NoError(t, fs.MkdirAll("/repo/scripts", 0o755))
 
-	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+	root := tui.NewRoot("/repo")
 
 	m := newModel(t, fs, root, false)
 
-	// The initial window-size event loads the working directory's filesystem
-	// entries: the README file and scripts dir appear as dimmed "other" entries
-	// alongside the discovered vpc unit, sorted by name.
+	// The initial window-size event reads the working directory: the README file
+	// and scripts dir appear alongside vpc, which a cheap stat classifies as a
+	// unit from its terragrunt.hcl, all sorted by name.
 	type entry struct {
-		name  string
-		kind  tui.Kind
-		other bool
+		name string
+		kind tui.Kind
 	}
 
 	want := []entry{
-		{name: "README.md", kind: tui.KindFile, other: true},
-		{name: "scripts", kind: tui.KindDir, other: true},
-		{name: "vpc", kind: tui.KindUnit, other: false},
+		{name: "README.md", kind: tui.KindFile},
+		{name: "scripts", kind: tui.KindDir},
+		{name: "vpc", kind: tui.KindUnit},
 	}
 
 	children := m.Current().Children()
 	got := make([]entry, len(children))
 
 	for i, c := range children {
-		got[i] = entry{name: c.Name(), kind: c.Kind(), other: c.Other()}
+		got[i] = entry{name: c.Name(), kind: c.Kind()}
+	}
+
+	assert.Equal(t, want, got)
+}
+
+func TestStackClassifiedFromFilesystem(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/network/terragrunt.stack.hcl", nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, "/repo/db/terragrunt.hcl", nil, 0o644))
+	require.NoError(t, fs.MkdirAll("/repo/plain", 0o755))
+
+	m := newModel(t, fs, tui.NewRoot("/repo"), false)
+
+	// With no discovery, kinds come from the cheap stat alone.
+	type entry struct {
+		name string
+		kind tui.Kind
+	}
+
+	want := []entry{
+		{name: "db", kind: tui.KindUnit},
+		{name: "network", kind: tui.KindStack},
+		{name: "plain", kind: tui.KindDir},
+	}
+
+	children := m.Current().Children()
+	got := make([]entry, len(children))
+
+	for i, c := range children {
+		got[i] = entry{name: c.Name(), kind: c.Kind()}
 	}
 
 	assert.Equal(t, want, got)

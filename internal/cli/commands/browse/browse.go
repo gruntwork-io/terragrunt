@@ -20,7 +20,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Run runs the browse command.
+// Run runs the browse command. It opens the browser immediately over a tree the
+// TUI fills from the filesystem, and runs discovery in the background so unit and
+// stack metadata and counts stream in without blocking the initial render.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
@@ -55,12 +57,41 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	d = d.WithWorktrees(wts)
 
+	// Discover in the background. A cancellable context lets the browser quitting
+	// abort an in-flight discovery, and done lets us wait for it to unwind before
+	// the deferred worktree cleanup removes trees discovery may still be reading.
+	discoverCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	resultCh := make(chan tui.DiscoveryResult, 1)
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		resultCh <- runDiscovery(discoverCtx, l, opts, d)
+	}()
+
+	root := tui.NewRoot(opts.WorkingDir)
+
+	err = tui.Run(ctx, vfs.NewOSFS(), root, shouldColor(l), resultCh)
+
+	cancel()
+	<-done
+
+	return err
+}
+
+// runDiscovery runs the full discovery pass and parses stack configs, returning
+// the components for the browser to annotate its tree with. Errors are logged
+// and the partial results returned, matching the browser's best-effort display.
+func runDiscovery(ctx context.Context, l log.Logger, opts *Options, d *discovery.Discovery) tui.DiscoveryResult {
 	var (
 		components  component.Components
 		discoverErr error
 	)
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "browse_discover", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "browse_discover", map[string]any{
 		"working_dir": opts.WorkingDir,
 	}, func(ctx context.Context) error {
 		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
@@ -79,9 +110,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	parseStackConfigs(ctx, l, opts, components)
 
-	root := tui.BuildTree(opts.WorkingDir, components)
-
-	return tui.Run(ctx, vfs.NewOSFS(), root, shouldColor(l))
+	return tui.DiscoveryResult{Components: components, Err: err}
 }
 
 // parseStackConfigs parses each discovered stack's terragrunt.stack.hcl so the
