@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -570,39 +569,47 @@ func convertValue(v any) (ctyjson.SimpleJSONValue, error) {
 	return ctyVal, nil
 }
 
-var (
-	// Regex Explanation:
-	// (          # Start group 1: Match quoted strings
-	//  "         # Match the opening quote
-	//  [^"\\]* # Match zero or more characters that are NOT a quote or backslash
-	//  (?:       # Start non-capturing group (for handling escaped quotes)
-	//    \\.     # Match a backslash followed by ANY character (escaped char)
-	//    [^"\\]* # Match zero or more non-quote/non-backslash chars
-	//  )*        # End non-capturing group, repeat zero or more times
-	//  "         # Match the closing quote
-	// )          # End group 1
-	// |          # OR
-	// (,)        # Start group 2: Match and capture a comma
-	//
-	re = regexp.MustCompile(`("[^"\\]*(?:\\.[^"\\]*)*")|(,)`)
-)
-
-// ReplaceAllCommasOutsideQuotesWithNewLines replaces all commas outside quotes with new lines.
-// This is useful for instances where a single line of HCL content might contain a comma, and we don't
-// want to split the line into multiple lines.
+// ReplaceAllCommasOutsideQuotesWithNewLines replaces top-level argument-separating commas with new
+// lines. Commas inside quoted strings or nested delimiters (lists, objects, and function-call parens)
+// are left intact, so only commas that separate arguments at depth zero are converted.
 func ReplaceAllCommasOutsideQuotesWithNewLines(s string) string {
-	output := re.ReplaceAllStringFunc(s, func(match string) string {
-		// Check if the match starts with a quote.
-		// If it does, it's a quoted string (group 1 matched). Return it unchanged.
-		if strings.HasPrefix(match, `"`) {
-			return match
+	var result strings.Builder
+
+	inQuotes := false
+	depth := 0
+
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+
+		switch {
+		case ch == '\\' && inQuotes:
+			result.WriteByte(ch)
+
+			i++
+			if i < len(s) {
+				result.WriteByte(s[i])
+			}
+		case ch == '"':
+			inQuotes = !inQuotes
+
+			result.WriteByte(ch)
+		case (ch == '[' || ch == '{' || ch == '(') && !inQuotes:
+			depth++
+
+			result.WriteByte(ch)
+		case (ch == ']' || ch == '}' || ch == ')') && !inQuotes:
+			depth--
+
+			result.WriteByte(ch)
+		case ch == ',' && !inQuotes && depth == 0:
+			result.WriteByte('\n')
+
+		default:
+			result.WriteByte(ch)
 		}
+	}
 
-		// Otherwise, it must be the comma (group 2 matched). Replace it with a newline.
-		return "\n"
-	})
-
-	return output
+	return result.String()
 }
 
 // GenerateConfigExistsFromString converts a string representation of if_exists into the enum, returning an error if it

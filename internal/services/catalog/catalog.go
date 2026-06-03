@@ -162,10 +162,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 			continue
 		}
 
-		// Create a unique path in the system's temporary directory for this repository.
-		// The path is based on a SHA1 hash of the repository URL to ensure uniqueness and idempotency.
-		encodedRepoURL := util.EncodeBase64Sha1(currentRepoURL)
-		tempPath := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, encodedRepoURL))
+		tempPath := catalogTempPath(currentRepoURL)
 
 		l.Debugf("Processing repository %s in temporary path %s", currentRepoURL, tempPath)
 
@@ -232,8 +229,7 @@ func (s *catalogServiceImpl) LoadStreamingURL(ctx context.Context, l log.Logger,
 	allowCAS := s.opts.Experiments.Evaluate(experiment.CAS)
 	slowReporting := s.opts.Experiments.Evaluate(experiment.SlowTaskReporting)
 
-	encodedRepoURL := util.EncodeBase64Sha1(repoURL)
-	tempPath := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, encodedRepoURL))
+	tempPath := catalogTempPath(repoURL)
 
 	l.Debugf("Processing repository %s in temporary path %s", repoURL, tempPath)
 
@@ -280,4 +276,15 @@ func (s *catalogServiceImpl) Scaffold(ctx context.Context, l log.Logger, opts *o
 	l.Debugf("Scaffolding module: %q", module.TerraformSourcePath())
 
 	return scaffold.Run(ctx, l, opts, module.TerraformSourcePath(), "")
+}
+
+// catalogTempPath returns the local cache directory for repoURL's clone. It
+// resolves os.TempDir() through any symlinks so the subdirectories module
+// discovery derives via filepath.Rel stay inside the clone. macOS reports
+// os.TempDir() as a /var/folders symlink to /private/var/folders; leaving it
+// unresolved makes Rel emit a "../" traversal that go-getter rejects when
+// scaffolding.
+func catalogTempPath(repoURL string) string {
+	encodedRepoURL := util.EncodeBase64Sha1(repoURL)
+	return filepath.Join(util.ResolvePath(os.TempDir()), fmt.Sprintf(tempDirFormat, encodedRepoURL))
 }

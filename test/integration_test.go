@@ -3165,6 +3165,26 @@ func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 	assert.True(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
+func TestTerragruntRemoteStateCodegenPreservesAssumeRoleListCommas(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "s3-assume-role-lists")
+
+	helpers.CleanupTerraformFolder(t, generateTestCase)
+	helpers.CleanupTerragruntFolder(t, generateTestCase)
+
+	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+generateTestCase+" -- -backend=false")
+
+	backendPath := filepath.Join(helpers.FindCacheWorkingDir(t, generateTestCase), "backend.tf")
+	backendBytes, err := os.ReadFile(backendPath)
+	require.NoError(t, err)
+
+	backend := string(backendBytes)
+	assert.Contains(t, backend, `policy_arns = ["arn:aws:iam::123456789342:policy/test-policy", "arn:aws:iam::123456789342:policy/other-policy"]`)
+	assert.Contains(t, backend, `transitive_tag_keys = ["Project", "ProjectSlug"]`)
+}
+
 func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
 	t.Parallel()
 
