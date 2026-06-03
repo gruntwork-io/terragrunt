@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestValidateStackConfig(t *testing.T) {
@@ -469,4 +470,303 @@ unit "extra" {
 
 	var typed inthclparse.StackAutoIncludeDependencyValuesError
 	require.NotErrorAs(t, err, &typed, "the supported pattern must not produce the typed dependency-values error")
+}
+
+// TestStackAutoIncludeOverridesSameNameUnit pins that a stack autoinclude whose injected unit name
+// matches a base unit overrides the base block wholesale (source and path come from the autoinclude),
+// while an injected unit with a new name is appended, matching unit autoinclude override semantics.
+func TestStackAutoIncludeOverridesSameNameUnit(t *testing.T) {
+	t.Parallel()
+
+	stackDir := t.TempDir()
+
+	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackFilePath, []byte(`
+unit "vpc" {
+  source = "base-source"
+  path   = "base-path"
+}
+
+unit "untouched" {
+  source = "untouched-source"
+  path   = "untouched-path"
+}
+`), 0644))
+
+	autoIncludePath := filepath.Join(stackDir, config.DefaultAutoIncludeStackFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+unit "vpc" {
+  source = "injected-source"
+  path   = "injected-path"
+}
+
+unit "added" {
+  source = "added-source"
+  path   = "added-path"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	stackConfig, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	require.NoError(t, err, "a same-name injected unit must override the base unit, not raise a duplicate-name error")
+	require.NotNil(t, stackConfig)
+
+	byName := make(map[string]*config.Unit, len(stackConfig.Units))
+	for _, u := range stackConfig.Units {
+		byName[u.Name] = u
+	}
+
+	require.Len(t, stackConfig.Units, 3, "override collapses the same-name unit while new names are appended")
+
+	require.Contains(t, byName, "vpc")
+	assert.Equal(t, "injected-source", byName["vpc"].Source, "the injected unit overrides the base source")
+	assert.Equal(t, "injected-path", byName["vpc"].Path, "the injected unit overrides the base path")
+
+	require.Contains(t, byName, "untouched")
+	assert.Equal(t, "untouched-source", byName["untouched"].Source, "an unmatched base unit is left intact")
+
+	require.Contains(t, byName, "added")
+	assert.Equal(t, "added-source", byName["added"].Source, "an injected unit with a new name is appended")
+}
+
+// TestStackAutoIncludeOverridesSameNameStack mirrors the unit override case for `stack` blocks: a same-name
+// injected stack overrides the base stack wholesale, while a new-name injected stack is appended.
+func TestStackAutoIncludeOverridesSameNameStack(t *testing.T) {
+	t.Parallel()
+
+	stackDir := t.TempDir()
+
+	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackFilePath, []byte(`
+stack "networking" {
+  source = "base-source"
+  path   = "net"
+}
+
+stack "untouched" {
+  source = "untouched-source"
+  path   = "untouched"
+}
+`), 0644))
+
+	autoIncludePath := filepath.Join(stackDir, config.DefaultAutoIncludeStackFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+stack "networking" {
+  source = "injected-source"
+  path   = "net"
+}
+
+stack "added" {
+  source = "added-source"
+  path   = "added"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	stackConfig, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	require.NoError(t, err, "a same-name injected stack must override the base stack, not raise a duplicate-name error")
+	require.NotNil(t, stackConfig)
+
+	byName := make(map[string]*config.Stack, len(stackConfig.Stacks))
+	for _, s := range stackConfig.Stacks {
+		byName[s.Name] = s
+	}
+
+	require.Len(t, stackConfig.Stacks, 3, "override collapses the same-name stack while new names are appended")
+
+	require.Contains(t, byName, "networking")
+	assert.Equal(t, "injected-source", byName["networking"].Source, "the injected stack overrides the base source")
+
+	require.Contains(t, byName, "untouched")
+	assert.Equal(t, "untouched-source", byName["untouched"].Source, "an unmatched base stack is left intact")
+
+	require.Contains(t, byName, "added")
+	assert.Equal(t, "added-source", byName["added"].Source, "an injected stack with a new name is appended")
+}
+
+// TestStackAutoIncludeDuplicateNameWithinFileRejected pins that two same-name blocks within the autoinclude
+// file itself are rejected with the same typed error as a base-file duplicate, not silently collapsed.
+func TestStackAutoIncludeDuplicateNameWithinFileRejected(t *testing.T) {
+	t.Parallel()
+
+	stackDir := t.TempDir()
+
+	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackFilePath, []byte(`
+unit "base" {
+  source = "."
+  path   = "base"
+}
+`), 0644))
+
+	autoIncludePath := filepath.Join(stackDir, config.DefaultAutoIncludeStackFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+unit "extra" {
+  source = "."
+  path   = "extra"
+}
+
+unit "extra" {
+  source = "."
+  path   = "extra-dup"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	require.Error(t, err, "a duplicate name within the autoinclude file must be rejected, not silently collapsed")
+
+	var typed inthclparse.DuplicateUnitNameError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "extra", typed.Name)
+}
+
+// TestStackRegularIncludeStillRejectsDuplicateName pins that a regular stack `include` block keeps the
+// duplicate-name rejection (override is scoped to autoinclude only, not regular includes).
+func TestStackRegularIncludeStillRejectsDuplicateName(t *testing.T) {
+	t.Parallel()
+
+	stackDir := t.TempDir()
+
+	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackFilePath, []byte(`
+unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+
+include "shared" {
+  path = "./shared.hcl"
+}
+`), 0644))
+
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "shared.hcl"), []byte(`
+unit "vpc" {
+  source = "."
+  path   = "vpc-from-include"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	require.Error(t, err, "a regular include declaring a same-name unit must still be rejected as a duplicate")
+
+	var typed inthclparse.DuplicateUnitNameError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "vpc", typed.Name)
+}
+
+// TestStackAutoIncludeOverrideUpdatesComponentPathRef pins that when the autoinclude override changes a
+// component's path, a sibling value referencing unit.<name>.path resolves to the overridden path, not the
+// stale base path the override replaced.
+func TestStackAutoIncludeOverrideUpdatesComponentPathRef(t *testing.T) {
+	t.Parallel()
+
+	stackDir := t.TempDir()
+
+	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackFilePath, []byte(`
+unit "vpc" {
+  source = "."
+  path   = "alpha"
+}
+
+unit "consumer" {
+  source = "."
+  path   = "consumer"
+
+  values = {
+    p = unit.vpc.path
+  }
+}
+`), 0644))
+
+	autoIncludePath := filepath.Join(stackDir, config.DefaultAutoIncludeStackFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+unit "vpc" {
+  source = "."
+  path   = "omega"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	stackConfig, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, stackConfig)
+
+	var consumer *config.Unit
+
+	for _, u := range stackConfig.Units {
+		if u.Name == "consumer" {
+			consumer = u
+			break
+		}
+	}
+
+	require.NotNil(t, consumer, "the consumer unit must survive the merge")
+	require.NotNil(t, consumer.Values, "the consumer values must be evaluated")
+
+	p := consumer.Values.GetAttr("p")
+	require.Equal(t, cty.String, p.Type())
+	assert.Contains(t, p.AsString(), "omega", "unit.vpc.path must resolve to the overridden path")
+	assert.NotContains(t, p.AsString(), "alpha", "the stale base path must not leak into the sibling reference")
+}
+
+// TestStackAutoIncludeOverridePathReferencesSiblingComponentRef pins that an injected block whose own path
+// references unit.<name>.path of a base component parses successfully: the base refs are published before
+// the autoinclude headers are decoded, so the cross-reference resolves instead of erroring the parse.
+func TestStackAutoIncludeOverridePathReferencesSiblingComponentRef(t *testing.T) {
+	t.Parallel()
+
+	stackDir := t.TempDir()
+
+	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackFilePath, []byte(`
+unit "anchor" {
+  source = "."
+  path   = "anchor"
+}
+
+unit "vpc" {
+  source = "."
+  path   = "vpc-base"
+}
+`), 0644))
+
+	autoIncludePath := filepath.Join(stackDir, config.DefaultAutoIncludeStackFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+unit "vpc" {
+  source = "."
+  path   = "${unit.anchor.path}-vpc"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	stackConfig, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	require.NoError(t, err, "an injected path referencing a base unit.<name>.path must resolve, not error the parse")
+	require.NotNil(t, stackConfig)
+
+	var vpc *config.Unit
+
+	for _, u := range stackConfig.Units {
+		if u.Name == "vpc" {
+			vpc = u
+			break
+		}
+	}
+
+	require.NotNil(t, vpc, "the overridden vpc unit must survive the merge")
+	assert.Contains(t, vpc.Path, "anchor", "the injected path must resolve unit.anchor.path against the base component")
 }

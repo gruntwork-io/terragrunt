@@ -325,12 +325,22 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 		return nil, nil, FileDecodeError{Name: stackFile, Err: diags}
 	}
 
-	// Merge units and stacks injected by a sibling terragrunt.autoinclude.stack.hcl before validating, so
-	// duplicate injected names are rejected the same way a full stack parse rejects them.
+	// Reject duplicate names within the base stack file itself before the autoinclude override merge, so an
+	// override targeting a duplicated name cannot mask a base-file duplicate. The full parse rejects this at
+	// processStackConfigIncludes, before its own autoinclude merge; discovery must match that ordering.
+	if err := validateDiscoveryUniqueNames(decoded.Units, decoded.Stacks); err != nil {
+		return nil, nil, err
+	}
+
+	// Merge units and stacks injected by a sibling terragrunt.autoinclude.stack.hcl, overriding same-name
+	// base blocks the same way a full stack parse does. The autoinclude file's own names are validated for
+	// uniqueness inside the merge.
 	if err := mergeDiscoveryStackAutoInclude(fs, stackDir, evalCtx, decoded); err != nil {
 		return nil, nil, err
 	}
 
+	// The merged set must still be unique. This is defensive: MergeNamed already produces unique names from
+	// two individually-unique inputs, but the check guards future changes to the merge.
 	if err := validateDiscoveryUniqueNames(decoded.Units, decoded.Stacks); err != nil {
 		return nil, nil, err
 	}
@@ -338,11 +348,12 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 	return decoded.Units, decoded.Stacks, nil
 }
 
-// mergeDiscoveryStackAutoInclude appends the units and stacks declared by a sibling
-// terragrunt.autoinclude.stack.hcl so discovery expands the same components a full stack parse
-// materializes via mergeStackAutoIncludeFile. An absent autoinclude file is a no-op. Discovery applies
-// the same rejections as the full parse so it never adds DAG edges the full parse would reject: the
-// dependency-values backstop, and a strict decode that allows only unit and stack blocks at the top level.
+// mergeDiscoveryStackAutoInclude merges the units and stacks declared by a sibling
+// terragrunt.autoinclude.stack.hcl, overriding same-name base blocks and appending new ones, so discovery
+// expands the same components a full stack parse materializes via mergeStackAutoIncludeFile. An absent
+// autoinclude file is a no-op. Discovery applies the same rejections as the full parse so it never adds DAG
+// edges the full parse would reject: the dependency-values backstop, and a strict decode that allows only
+// unit and stack blocks at the top level.
 func mergeDiscoveryStackAutoInclude(fs vfs.FS, stackDir string, evalCtx *hcl.EvalContext, decoded *discoveryDecode) error {
 	autoIncludePath := filepath.Join(stackDir, AutoIncludeStackFile)
 
@@ -377,10 +388,35 @@ func mergeDiscoveryStackAutoInclude(fs vfs.FS, stackDir string, evalCtx *hcl.Eva
 		return FileDecodeError{Name: autoIncludePath, Err: diags}
 	}
 
-	decoded.Units = append(decoded.Units, autoDecoded.Units...)
-	decoded.Stacks = append(decoded.Stacks, autoDecoded.Stacks...)
+	// Reject duplicate names within the autoinclude file itself, mirroring the base-file rejection, so a
+	// stale or hand-edited autoinclude cannot silently collapse two same-name blocks into one.
+	if err := validateDiscoveryUniqueNames(autoDecoded.Units, autoDecoded.Stacks); err != nil {
+		return err
+	}
+
+	// A same-name injected unit/stack overrides the base block wholesale, matching the full stack parse.
+	decoded.Units = util.MergeNamed(decoded.Units, autoDecoded.Units, unitPathName)
+	decoded.Stacks = util.MergeNamed(decoded.Stacks, autoDecoded.Stacks, stackPathName)
 
 	return nil
+}
+
+// unitPathName returns a discovery unit's block name, or an empty string for a nil entry so MergeNamed leaves it untouched.
+func unitPathName(u *unitPathOnlyHCL) string {
+	if u == nil {
+		return ""
+	}
+
+	return u.Name
+}
+
+// stackPathName returns a discovery stack's block name, or an empty string for a nil entry so MergeNamed leaves it untouched.
+func stackPathName(s *stackPathOnlyHCL) string {
+	if s == nil {
+		return ""
+	}
+
+	return s.Name
 }
 
 // validateDiscoveryUniqueNames reports duplicate unit and stack names from the path-only discovery decode.

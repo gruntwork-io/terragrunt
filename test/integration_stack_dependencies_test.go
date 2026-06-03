@@ -60,6 +60,8 @@ const (
 	testFixtureStackDepsDisabledAutoIncDep       = "fixtures/stacks/stack-deps-disabled-autoinclude-dep"
 	testFixtureStackDepsNestedUnitDep            = "fixtures/stacks/stack-deps-nested-unit-dep"
 	testFixtureStackDepsApplyNoMocks             = "fixtures/stacks/stack-deps-apply-no-mocks"
+	testFixtureStackDepsStackAutoIncOverride     = "fixtures/stacks/stack-deps-stack-autoinclude-override"
+	testFixtureStackDepsStackAutoIncLocalPath    = "fixtures/stacks/stack-deps-stack-autoinclude-local-path"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -782,6 +784,9 @@ func TestStackDepsAutoIncludeViaIncludePreservesContent(t *testing.T) {
 	assert.Contains(t, content, "dependency.vpc.outputs.id")
 }
 
+// findComponentTypeUnit is the find --json component type for a unit.
+const findComponentTypeUnit = "unit"
+
 // findComponent is the JSON structure returned by terragrunt find --json.
 type findComponent struct {
 	Type         string   `json:"type"`
@@ -815,7 +820,7 @@ func TestStackDepsFindJSON(t *testing.T) {
 	foundOutputs := false
 
 	for _, c := range components {
-		if c.Type != "unit" {
+		if c.Type != findComponentTypeUnit {
 			continue
 		}
 
@@ -1247,7 +1252,7 @@ func TestStackDepsRunAllWithFunctionsInNestedStack(t *testing.T) {
 	foundNestedVPC := false
 
 	for _, c := range components {
-		if c.Type == "unit" && filepath.Base(c.Path) == "vpc" && strings.Contains(c.Path, filepath.Join("networking", inthclparse.StackDir, "vpc")) {
+		if c.Type == findComponentTypeUnit && filepath.Base(c.Path) == "vpc" && strings.Contains(c.Path, filepath.Join("networking", inthclparse.StackDir, "vpc")) {
 			foundNestedVPC = true
 			break
 		}
@@ -1719,7 +1724,7 @@ func TestStackDepsStackLevelAutoInclude(t *testing.T) {
 	foundVPC := false
 
 	for _, c := range components {
-		if c.Type == "unit" && filepath.Base(c.Path) == "vpc" {
+		if c.Type == findComponentTypeUnit && filepath.Base(c.Path) == "vpc" {
 			foundVPC = true
 			break
 		}
@@ -1767,13 +1772,113 @@ func TestStackDepsStackLevelAutoIncludeMergedIntoNestedStack(t *testing.T) {
 	foundExtra := false
 
 	for _, c := range components {
-		if c.Type == "unit" && filepath.Base(c.Path) == "extra" {
+		if c.Type == findComponentTypeUnit && filepath.Base(c.Path) == "extra" {
 			foundExtra = true
 			break
 		}
 	}
 
 	assert.True(t, foundExtra, "the autoinclude-injected extra unit must be discoverable")
+}
+
+// TestStackDepsStackLevelAutoIncludeOverridesSameNameUnit verifies that when a stack-level
+// autoinclude injects a unit whose name matches a unit already declared by the nested stack, the
+// injected block overrides the base block wholesale (the generated unit is sourced from the
+// autoinclude, not the nested stack), while an injected unit with a new name is appended.
+func TestStackDepsStackLevelAutoIncludeOverridesSameNameUnit(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackAutoIncOverride)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncOverride)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncOverride)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	nestedStackDir := filepath.Join(rootPath, inthclparse.StackDir, "networking", inthclparse.StackDir)
+
+	// The same-name vpc unit must be materialized from the autoinclude override source, not the base.
+	vpcMain, err := os.ReadFile(filepath.Join(nestedStackDir, "vpc", "main.tf"))
+	require.NoError(t, err, "the overridden vpc unit must be generated")
+	assert.Contains(t, string(vpcMain), "vpc-override", "the injected unit must override the base unit wholesale")
+	assert.NotContains(t, string(vpcMain), "vpc-base", "the base unit source must not survive the override")
+
+	// The override is wholesale: the base block's nested unit-level autoinclude must NOT leak into the
+	// overridden unit, so no terragrunt.autoinclude.hcl carrying the base inputs may be generated.
+	leakedAutoInclude := filepath.Join(nestedStackDir, "vpc", inthclparse.AutoIncludeFile)
+	assert.NoFileExists(t, leakedAutoInclude,
+		"the base block's autoinclude must not leak into the overridden unit")
+
+	// Pruning is surgical: a non-overridden sibling keeps its own unit-level autoinclude.
+	siblingAutoInclude := filepath.Join(nestedStackDir, "sibling", inthclparse.AutoIncludeFile)
+	assert.FileExists(t, siblingAutoInclude,
+		"a non-overridden sibling must keep its own autoinclude")
+
+	// The new-name unit injected alongside the override must still be appended.
+	assert.DirExists(t, filepath.Join(nestedStackDir, "added"),
+		"an injected unit with a new name must be appended, not dropped")
+
+	// The merged result must feed discovery: exactly one vpc unit, plus the added unit.
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --json --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var components []findComponent
+	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
+
+	vpcCount := 0
+	foundAdded := false
+
+	for _, c := range components {
+		if c.Type != findComponentTypeUnit {
+			continue
+		}
+
+		switch filepath.Base(c.Path) {
+		case "vpc":
+			vpcCount++
+		case "added":
+			foundAdded = true
+		}
+	}
+
+	assert.Equal(t, 1, vpcCount, "the override must collapse the same-name unit to a single vpc component")
+	assert.True(t, foundAdded, "the appended added unit must be discoverable")
+}
+
+// TestStackDepsStackLevelAutoIncludeOverridePathUsesLocal pins that stack generation succeeds when a
+// sibling autoinclude injects a block whose path references the base stack's local. The override prune
+// reads only block names, so it must not fail evaluating the injected path against the generate-path eval
+// context (which has no local.* populated), keeping generation consistent with discovery and the full parse.
+func TestStackDepsStackLevelAutoIncludeOverridePathUsesLocal(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackAutoIncLocalPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncLocalPath)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncLocalPath)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	// The injected unit's path resolved local.region to "eu", so it materializes at extra-eu.
+	assert.DirExists(t, filepath.Join(rootPath, inthclparse.StackDir, "extra-eu"),
+		"the injected unit path referencing local.region must resolve during generation")
+	assert.NoDirExists(t, filepath.Join(rootPath, inthclparse.StackDir, "extra-${local.region}"),
+		"the local reference must not be left unresolved in the generated path")
 }
 
 // TestStackDepsStackLevelAutoIncludeInjectsNestedStack verifies that a stack-level

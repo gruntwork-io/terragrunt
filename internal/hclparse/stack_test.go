@@ -165,10 +165,10 @@ func TestUnitPathsFromStackDir_StackAutoIncludeDepValuesRejected(t *testing.T) {
 	require.ErrorAs(t, err, &typed, "discovery must surface the same typed dep-values error as the full parse")
 }
 
-// TestUnitPathsFromStackDir_StackAutoIncludeDuplicateNameRejected pins that discovery validates unique
-// names AFTER merging the autoinclude, so an injected unit whose name clashes with a stack-file unit is
-// rejected the same way a full stack parse rejects it.
-func TestUnitPathsFromStackDir_StackAutoIncludeDuplicateNameRejected(t *testing.T) {
+// TestUnitPathsFromStackDir_StackAutoIncludeSameNameOverrides pins that discovery overrides a base
+// unit wholesale when the autoinclude injects a unit with the same name, so the injected path wins and
+// the base path is dropped, matching the full stack parse.
+func TestUnitPathsFromStackDir_StackAutoIncludeSameNameOverrides(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
@@ -184,12 +184,101 @@ func TestUnitPathsFromStackDir_StackAutoIncludeDuplicateNameRejected(t *testing.
 }
 `), 0644))
 
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.NoError(t, err, "a same-name injected unit must override the base unit, not raise a duplicate-name error")
+
+	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "vpc-injected")}, paths,
+		"the injected unit overrides the base unit wholesale, so only the injected path remains")
+}
+
+// TestUnitPathsFromStackDir_StackFileDuplicateNameRejected pins that a duplicate unit name within the
+// base stack file itself is still rejected; override only collapses base-vs-autoinclude collisions.
+func TestUnitPathsFromStackDir_StackFileDuplicateNameRejected(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+
+unit "vpc" {
+  source = "."
+  path   = "vpc-again"
+}
+`), 0644))
+
 	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
-	require.Error(t, err, "an autoinclude-injected unit name clashing with a stack-file unit must be rejected by discovery")
+	require.Error(t, err, "a duplicate unit name within the base stack file must be rejected by discovery")
 
 	var typed hclparse.DuplicateUnitNameError
 	require.ErrorAs(t, err, &typed)
 	assert.Equal(t, "vpc", typed.Name)
+}
+
+// TestUnitPathsFromStackDir_StackFileDuplicateNameRejectedEvenWhenOverridden pins that a duplicate name in
+// the base stack file is rejected even when the autoinclude also targets that name, so the override merge
+// cannot mask a base-file duplicate by collapsing both base entries into the single override.
+func TestUnitPathsFromStackDir_StackFileDuplicateNameRejectedEvenWhenOverridden(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+
+unit "vpc" {
+  source = "."
+  path   = "vpc-again"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "vpc-injected"
+}
+`), 0644))
+
+	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.Error(t, err, "a base-file duplicate must be rejected even when the autoinclude overrides that name")
+
+	var typed hclparse.DuplicateUnitNameError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "vpc", typed.Name)
+}
+
+// TestUnitPathsFromStackDir_StackAutoIncludeDuplicateNameRejected pins that a duplicate name within the
+// autoinclude file itself is rejected, mirroring the base-file rejection, rather than silently collapsing
+// the two same-name blocks into one via last-writer-wins.
+func TestUnitPathsFromStackDir_StackAutoIncludeDuplicateNameRejected(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "base" {
+  source = "."
+  path   = "base"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "extra" {
+  source = "."
+  path   = "extra"
+}
+
+unit "extra" {
+  source = "."
+  path   = "extra-dup"
+}
+`), 0644))
+
+	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.Error(t, err, "a duplicate name within the autoinclude file must be rejected, not silently collapsed")
+
+	var typed hclparse.DuplicateUnitNameError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "extra", typed.Name)
 }
 
 // TestUnitPathsFromStackDir_StackAutoIncludeLocalsRejected pins that discovery rejects a stack

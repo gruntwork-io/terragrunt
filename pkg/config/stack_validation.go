@@ -65,7 +65,7 @@ func validateCrossKindPaths(units []*Unit, stacks []*Stack, stackDir string) err
 		unitGenPaths[u.GeneratedPath(stackDir)] = struct{}{}
 	}
 
-	var validationErrors []error
+	validationErrors := make([]error, 0, len(stacks))
 
 	reported := make(map[string]struct{})
 

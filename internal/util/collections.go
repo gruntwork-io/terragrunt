@@ -133,3 +133,55 @@ func SplitUrls(s, sep string) []string {
 
 	return urls
 }
+
+// MergeNamed overrides base entries with same-name override entries, preserving base order and appending new override entries last.
+// The name func returns an empty string for entries to leave untouched (e.g. a nil pointer), which are never indexed or overridden.
+func MergeNamed[T any](base, override []T, name func(T) string) []T {
+	overrideByName := make(map[string]T, len(override))
+	order := make([]string, 0, len(override))
+
+	for _, item := range override {
+		key := name(item)
+		if key == "" {
+			continue
+		}
+
+		if _, dup := overrideByName[key]; !dup {
+			order = append(order, key)
+		}
+
+		// Last writer wins within the override set itself.
+		overrideByName[key] = item
+	}
+
+	result := make([]T, 0, len(base)+len(override))
+	consumed := make(map[string]struct{}, len(override))
+
+	for _, item := range base {
+		key := name(item)
+
+		replacement, matched := overrideByName[key]
+		if key == "" || !matched {
+			result = append(result, item)
+			continue
+		}
+
+		// Drop later same-name base entries once the override has replaced the first match.
+		if _, used := consumed[key]; used {
+			continue
+		}
+
+		result = append(result, replacement)
+		consumed[key] = struct{}{}
+	}
+
+	for _, key := range order {
+		if _, used := consumed[key]; used {
+			continue
+		}
+
+		result = append(result, overrideByName[key])
+	}
+
+	return result
+}
