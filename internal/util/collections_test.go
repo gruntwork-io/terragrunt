@@ -241,3 +241,85 @@ func TestMergeSlices(t *testing.T) {
 		})
 	}
 }
+
+func TestMergeNamed(t *testing.T) {
+	t.Parallel()
+
+	type item struct {
+		name string
+		v    string
+	}
+
+	name := func(i item) string { return i.name }
+
+	testCases := []struct {
+		desc     string
+		base     []item
+		override []item
+		expected []item
+	}{
+		{
+			desc:     "override replaces same-name base in place and preserves base order",
+			base:     []item{{"a", "base-a"}, {"b", "base-b"}, {"c", "base-c"}},
+			override: []item{{"b", "over-b"}},
+			expected: []item{{"a", "base-a"}, {"b", "over-b"}, {"c", "base-c"}},
+		},
+		{
+			desc:     "new override names append last in override order",
+			base:     []item{{"a", "base-a"}},
+			override: []item{{"b", "over-b"}, {"c", "over-c"}},
+			expected: []item{{"a", "base-a"}, {"b", "over-b"}, {"c", "over-c"}},
+		},
+		{
+			desc:     "mixed replace and append",
+			base:     []item{{"a", "base-a"}, {"b", "base-b"}},
+			override: []item{{"b", "over-b"}, {"c", "over-c"}},
+			expected: []item{{"a", "base-a"}, {"b", "over-b"}, {"c", "over-c"}},
+		},
+		{
+			desc:     "later same-name base entries are dropped once overridden",
+			base:     []item{{"a", "base-a1"}, {"a", "base-a2"}},
+			override: []item{{"a", "over-a"}},
+			expected: []item{{"a", "over-a"}},
+		},
+		{
+			desc:     "intra-base duplicates with no override are left intact",
+			base:     []item{{"a", "base-a1"}, {"a", "base-a2"}},
+			override: nil,
+			expected: []item{{"a", "base-a1"}, {"a", "base-a2"}},
+		},
+		{
+			desc:     "last writer wins within the override set",
+			base:     []item{{"a", "base-a"}},
+			override: []item{{"a", "over-a1"}, {"a", "over-a2"}},
+			expected: []item{{"a", "over-a2"}},
+		},
+		{
+			desc:     "empty-name base entries pass through and empty-name override entries are dropped",
+			base:     []item{{"", "base-blank"}, {"a", "base-a"}},
+			override: []item{{"", "over-blank"}, {"a", "over-a"}},
+			expected: []item{{"", "base-blank"}, {"a", "over-a"}},
+		},
+		{
+			desc:     "empty base returns override entries in order",
+			base:     nil,
+			override: []item{{"a", "over-a"}, {"b", "over-b"}},
+			expected: []item{{"a", "over-a"}, {"b", "over-b"}},
+		},
+		{
+			desc:     "empty override returns base unchanged",
+			base:     []item{{"a", "base-a"}},
+			override: nil,
+			expected: []item{{"a", "base-a"}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+
+			actual := util.MergeNamed(tc.base, tc.override, name)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}

@@ -280,7 +280,7 @@ func (p *GraphPhase) discoverDependencies(
 	}
 
 	if state.opts.Experiments.Evaluate(experiment.StackDependencies) {
-		depPaths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, depPaths, c)
+		depPaths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, depPaths)
 		if err != nil {
 			return err
 		}
@@ -667,7 +667,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 	if state.graphTraversalState.opts.Experiments.Evaluate(experiment.StackDependencies) {
 		var stackErr error
 
-		deps, stackErr = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.graphTraversalState.opts, deps, candidate)
+		deps, stackErr = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.graphTraversalState.opts, deps)
 		if stackErr != nil {
 			state.errMu.Lock()
 			*state.errs = append(*state.errs, stackErr)
