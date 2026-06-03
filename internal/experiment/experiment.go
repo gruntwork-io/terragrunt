@@ -66,6 +66,9 @@ const (
 	// OptOutAuth gates flags that opt out of running --auth-provider-cmd in
 	// specific phases (currently --no-discovery-auth-provider-cmd).
 	OptOutAuth = "opt-out-auth"
+	// RunWeight enables the run_weight attribute in terragrunt.hcl, which
+	// reinterprets --parallelism as a weight budget instead of a slot count.
+	RunWeight = "run-weight"
 )
 
 const (
@@ -141,6 +144,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptOutAuth,
+		},
+		{
+			Name: RunWeight,
 		},
 	}
 }

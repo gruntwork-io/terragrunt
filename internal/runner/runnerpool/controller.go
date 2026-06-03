@@ -10,6 +10,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/multierror"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -31,6 +32,7 @@ type Controller struct {
 	runner      UnitRunner
 	readyCh     chan struct{}
 	unitsMap    map[string]*component.Unit
+	experiments experiment.Experiments
 	concurrency int
 }
 
@@ -41,6 +43,13 @@ type ControllerOption func(*Controller)
 func WithRunner(runner UnitRunner) ControllerOption {
 	return func(dr *Controller) {
 		dr.runner = runner
+	}
+}
+
+// WithExperiments sets the experiments for the Controller.
+func WithExperiments(experiments experiment.Experiments) ControllerOption {
+	return func(dr *Controller) {
+		dr.experiments = experiments
 	}
 }
 
@@ -84,6 +93,67 @@ func NewController(q *queue.Queue, units []*component.Unit, opts ...ControllerOp
 	return dr
 }
 
+// weightedSemaphore tracks in-flight weight against a budget (--parallelism).
+// When all units have weight 1, it behaves identically to a channel-based semaphore.
+type weightedSemaphore struct {
+	releaseCh chan struct{}
+	budget    int
+	inflight  int
+	mu        sync.Mutex
+}
+
+func newWeightedSemaphore(budget int) *weightedSemaphore {
+	return &weightedSemaphore{
+		budget:    budget,
+		releaseCh: make(chan struct{}, 1),
+	}
+}
+
+// tryAcquire attempts to reserve weight without blocking. Returns true if
+// the unit was admitted. Handles two cases:
+//   - Normal: inflight + weight <= budget
+//   - Oversized: weight > budget but inflight == 0 (run solo to avoid deadlock)
+func (ws *weightedSemaphore) tryAcquire(weight int) bool {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+
+	if ws.inflight+weight <= ws.budget {
+		ws.inflight += weight
+
+		return true
+	}
+
+	// Oversized unit: weight exceeds budget, run solo when pool is empty
+	if weight > ws.budget && ws.inflight == 0 {
+		ws.inflight += weight
+
+		return true
+	}
+
+	return false
+}
+
+// remaining returns the budget not currently consumed by in-flight units.
+func (ws *weightedSemaphore) remaining() int {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+
+	return ws.budget - ws.inflight
+}
+
+// release returns weight to the budget and signals that capacity is available.
+func (ws *weightedSemaphore) release(weight int) {
+	ws.mu.Lock()
+	ws.inflight -= weight
+	ws.mu.Unlock()
+
+	// Non-blocking signal so the scheduling loop re-evaluates deferred entries.
+	select {
+	case ws.releaseCh <- struct{}{}:
+	default:
+	}
+}
+
 // Run executes the Queue return error summarizing all entries that failed to run.
 func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_controller", map[string]any{
@@ -94,7 +164,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 	}, func(childCtx context.Context) error {
 		var (
 			wg      sync.WaitGroup
-			sem     = make(chan struct{}, dr.concurrency)
+			sem     = newWeightedSemaphore(dr.concurrency)
 			results = xsync.NewMap[string, error]()
 		)
 
@@ -121,15 +191,35 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					continue
 				}
 
-				l.Debugf("Runner Pool Controller: running %s", e.Component.Path())
+				// Look up unit weight for budget-based admission.
+				// Only used when the run-weight experiment is enabled;
+				// otherwise all units have weight 1 (preserving existing behavior).
+				weight := 1
 
-				sem <- struct{}{}
+				if dr.experiments.Evaluate(experiment.RunWeight) {
+					if unit, ok := dr.unitsMap[e.Component.Path()]; ok {
+						weight = unit.RunWeight()
+					}
+				}
+
+				if !sem.tryAcquire(weight) {
+					// Doesn't fit in remaining budget. Unclaim so it returns to
+					// Ready status and can be retried once capacity frees up.
+					dr.q.SetEntryStatus(e, queue.StatusReady)
+					l.Debugf("Runner Pool Controller: deferring %s (weight %d, remaining %d); insufficient budget",
+						e.Component.Path(), weight, sem.remaining())
+
+					continue
+				}
+
+				l.Debugf("Runner Pool Controller: running %s (weight %d, remaining %d)",
+					e.Component.Path(), weight, sem.remaining())
 
 				wg.Add(1)
 
-				go func(ent *queue.Entry) {
+				go func(ent *queue.Entry, w int) {
 					defer func() {
-						<-sem
+						sem.release(w)
 						wg.Done()
 
 						select {
@@ -160,15 +250,18 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 					l.Debugf("Runner Pool Controller: %s succeeded", ent.Component.Path())
 					dr.q.SetEntryStatus(ent, queue.StatusSucceeded)
-				}(e)
+				}(e, weight)
 			}
 
 			if dr.q.Finished() {
 				break
 			}
 
+			// Wait for either: new entries becoming ready (dependency resolved),
+			// budget being freed (a running unit finished), or context cancellation.
 			select {
 			case <-dr.readyCh:
+			case <-sem.releaseCh:
 			case <-childCtx.Done():
 				wg.Wait()
 				return nil

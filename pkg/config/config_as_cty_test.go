@@ -24,6 +24,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	testSource := "./foo"
 	testTrue := true
 	testFalse := false
+	testWeight := 10
 	mockOutputs := cty.Zero
 	mockOutputsAllowedTerraformCommands := []string{"init"}
 	metaVal := cty.MapVal(map[string]cty.Value{
@@ -86,6 +87,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		},
 		DownloadDir:    ".terragrunt-cache",
 		PreventDestroy: &testTrue,
+		RunWeight:      &testWeight,
 		IamRole:        "terragruntRole",
 		Inputs: map[string]any{
 			"aws_region": "us-east-1",
@@ -343,6 +345,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "download_dir", true
 	case "PreventDestroy":
 		return "prevent_destroy", true
+	case "RunWeight":
+		return "run_weight", true
 	case "IamRole":
 		return "iam_role", true
 	case "IamAssumeRoleDuration":

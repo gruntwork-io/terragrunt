@@ -68,6 +68,16 @@ func (u *Unit) Config() *config.TerragruntConfig {
 	return u.cfg
 }
 
+// RunWeight returns the execution weight for this unit.
+// Defaults to 1 when unset, zero, or negative.
+func (u *Unit) RunWeight() int {
+	if u.cfg != nil && u.cfg.RunWeight != nil && *u.cfg.RunWeight >= 1 {
+		return *u.cfg.RunWeight
+	}
+
+	return 1
+}
+
 // StoreConfig stores the parsed Terragrunt configuration for this unit.
 func (u *Unit) StoreConfig(cfg *config.TerragruntConfig) {
 	u.cfg = cfg

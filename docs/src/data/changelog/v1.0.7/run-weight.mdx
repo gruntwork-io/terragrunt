@@ -1,0 +1,27 @@
+---
+version: "v1.0.7"
+category: "experiments-added"
+---
+
+#### `run-weight`: budget-based parallelism for heterogeneous units
+
+The new `run-weight` experiment adds an optional `run_weight` integer attribute to `terragrunt.hcl` that reinterprets `--parallelism=N` as a weight budget instead of a flat slot count.
+
+Enable the experiment:
+
+```bash
+terragrunt run --all plan --parallelism 10 --experiment run-weight
+```
+
+Declare weights in your unit configs:
+
+```hcl
+# terragrunt.hcl for an EKS cluster unit
+run_weight = 5
+```
+
+The Runner Pool admits a unit only when the sum of in-flight weights plus the candidate's weight is within the budget. Units without `run_weight` default to `1`, so existing repos behave identically.
+
+With `--parallelism=10`: the pool admits 2 EKS units (5+5=10), or 1 EKS + 5 lightweight units (5+1+1+1+1+1=10), or 10 default-weight units. Light units skip ahead of heavy units that don't fit, preventing starvation. Oversized units (weight exceeding the budget) run solo when the pool is empty.
+
+See [#6165](https://github.com/gruntwork-io/terragrunt/issues/6165) for motivation and design details.

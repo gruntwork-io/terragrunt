@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -238,4 +239,48 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 
 	// Should have exactly one component despite concurrent adds
 	assert.Equal(t, 1, tsc.Len(), "should have exactly one component after concurrent adds")
+}
+
+func TestUnitRunWeight_Default(t *testing.T) {
+	t.Parallel()
+
+	unit := component.NewUnit("/test/path")
+	assert.Equal(t, 1, unit.RunWeight(), "unit without config should default to weight 1")
+}
+
+func TestUnitRunWeight_NilWeight(t *testing.T) {
+	t.Parallel()
+
+	unit := component.NewUnit("/test/path").WithConfig(&config.TerragruntConfig{})
+	assert.Equal(t, 1, unit.RunWeight(), "unit with config but nil weight should default to 1")
+}
+
+func TestUnitRunWeight_Explicit(t *testing.T) {
+	t.Parallel()
+
+	weight := 5
+	unit := component.NewUnit("/test/path").WithConfig(&config.TerragruntConfig{
+		RunWeight: &weight,
+	})
+	assert.Equal(t, 5, unit.RunWeight(), "unit should return configured weight")
+}
+
+func TestUnitRunWeight_ZeroClampsToOne(t *testing.T) {
+	t.Parallel()
+
+	weight := 0
+	unit := component.NewUnit("/test/path").WithConfig(&config.TerragruntConfig{
+		RunWeight: &weight,
+	})
+	assert.Equal(t, 1, unit.RunWeight(), "weight 0 should clamp to 1")
+}
+
+func TestUnitRunWeight_NegativeClampsToOne(t *testing.T) {
+	t.Parallel()
+
+	weight := -3
+	unit := component.NewUnit("/test/path").WithConfig(&config.TerragruntConfig{
+		RunWeight: &weight,
+	})
+	assert.Equal(t, 1, unit.RunWeight(), "negative weight should clamp to 1")
 }
