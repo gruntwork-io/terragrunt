@@ -454,7 +454,7 @@ The `generate` block creates files **dynamically** before OpenTofu/Terraform run
 This is how you inject:
 
 - Provider configurations
-- Backend settings
+- Backend settings (if you aren't using the `remote_state` block)
 - Any other files your modules need
 
 ```hcl
