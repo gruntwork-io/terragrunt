@@ -148,9 +148,11 @@ func (m Model) renderColumn(nodes []*Node, cursorIdx, contentWidth, contentHeigh
 }
 
 // renderName renders a node's label, colored by kind: units blue, stacks green,
-// directories bold white, and other files dimmed. Directories carry a trailing
-// slash. The highlighted row is a full-width blue bar. While a search is active,
-// showMarker reserves a gutter and matched entries are flagged with a marker.
+// plain directories bold white, and files dimmed. A file a unit reads is shown
+// white once discovery reports it, marking it as relevant to the estate.
+// Directories carry a trailing slash. The highlighted row is a full-width blue
+// bar. While a search is active, showMarker reserves a gutter and matched
+// entries are flagged with a marker.
 func (m Model) renderName(n *Node, selected, showMarker, matched bool, rowWidth int) string {
 	label := n.name
 	if n.kind != KindFile {
@@ -169,10 +171,14 @@ func (m Model) renderName(n *Node, selected, showMarker, matched bool, rowWidth 
 	switch {
 	case selected:
 		return selectedStyle.Width(rowWidth).Render(label)
-	case n.other:
+	case n.kind == KindUnit, n.kind == KindStack:
+		return m.colorizer.ColorizeKind(label, componentKind(n.kind))
+	case n.kind == KindFile:
+		if _, read := m.readFiles[n.absPath]; read {
+			return itemStyle.Render(label)
+		}
+
 		return dimStyle.Render(label)
-	case n.component != nil:
-		return m.colorizer.ColorizeKind(label, n.component.Kind())
 	default:
 		return itemStyle.Render(label)
 	}
@@ -250,12 +256,23 @@ func (m Model) filePreview(n *Node) string {
 }
 
 // componentPreview renders unit/stack metadata: kind, paths, source, and the
-// dependency, dependent, and reading relationships.
+// dependency, dependent, and reading relationships. The kind is known from the
+// filesystem classification; the rest waits on discovery and shows a loading
+// placeholder until the component resolves.
 func (m Model) componentPreview(n *Node) string {
-	c := n.component
+	kind := componentKind(n.kind)
 
 	lines := []string{
-		m.field("Kind", m.colorizer.ColorizeKind(string(c.Kind()), c.Kind())),
+		m.field("Kind", m.colorizer.ColorizeKind(string(kind), kind)),
+	}
+
+	c := n.component
+	if c == nil {
+		if !m.done {
+			lines = append(lines, "", loadingValue())
+		}
+
+		return strings.Join(lines, "\n")
 	}
 
 	if sources := c.Sources(); len(sources) > 0 {
@@ -307,16 +324,38 @@ func relTo(base, target string) string {
 	return target
 }
 
-// dirPreview renders a summary of a plain directory.
+// dirPreview renders a summary of a plain directory: the number of units and
+// stacks beneath it, or a loading placeholder until discovery reports them.
 func (m Model) dirPreview(n *Node) string {
-	units, stacks := n.counts()
-
-	lines := []string{
-		m.field("Units", strconv.Itoa(units)),
-		m.field("Stacks", strconv.Itoa(stacks)),
+	if !m.done {
+		return strings.Join([]string{
+			m.field("Units", loadingValue()),
+			m.field("Stacks", loadingValue()),
+		}, "\n")
 	}
 
-	return strings.Join(lines, "\n")
+	units, stacks := m.counts(n)
+
+	return strings.Join([]string{
+		m.field("Units", strconv.Itoa(units)),
+		m.field("Stacks", strconv.Itoa(stacks)),
+	}, "\n")
+}
+
+// componentKind maps a tree Kind to the component Kind used for coloring and
+// labels, defaulting to a unit for anything that isn't a stack.
+func componentKind(k Kind) component.Kind {
+	if k == KindStack {
+		return component.StackKind
+	}
+
+	return component.UnitKind
+}
+
+// loadingValue is the placeholder shown for a field whose value discovery hasn't
+// reported yet.
+func loadingValue() string {
+	return dimStyle.Render("…")
 }
 
 // stackEntry is a unit or stack declared in a terragrunt.stack.hcl file.
@@ -420,17 +459,24 @@ func (m Model) section(label string, items []string) []string {
 }
 
 // footerView renders the bottom line: the search input while typing, a status
-// line summarizing a committed search, and the navigation hint otherwise. Each
-// is a single line, so the layout doesn't shift between them.
+// line summarizing a committed search, and the navigation hint otherwise, with a
+// "discovering…" suffix while discovery is still running. Each is a single line,
+// so the layout doesn't shift between them.
 func (m Model) footerView() string {
+	footer := m.helpView()
+
 	switch {
 	case m.searching:
-		return m.searchPrompt()
+		footer = m.searchPrompt()
 	case m.lastQuery != "":
-		return m.searchStatus()
-	default:
-		return m.helpView()
+		footer = m.searchStatus()
 	}
+
+	if !m.done {
+		footer += "  •  discovering…"
+	}
+
+	return footer
 }
 
 // searchPrompt renders the live search input, followed by a match count once

@@ -6,17 +6,34 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 )
 
+// DiscoveryResult carries the outcome of the background discovery pass. The
+// model receives it as a message and annotates the tree with the components.
+type DiscoveryResult struct {
+	Err        error
+	Components component.Components
+}
+
 // Model is the bubbletea model backing the Miller-columns browser.
 type Model struct {
-	fs           vfs.FS
-	current      *Node
-	cursor       map[*Node]int
-	colorizer    *dag.Colorizer
-	root         *Node
+	fs        vfs.FS
+	current   *Node
+	cursor    map[*Node]int
+	colorizer *dag.Colorizer
+	root      *Node
+	// index maps an absolute path to its discovered component, populated when
+	// discovery completes. It backs both metadata annotation and unit/stack counts.
+	index map[string]component.Component
+	// readFiles is the set of absolute paths any unit reads. Discovery fills it so
+	// those files can be highlighted as relevant rather than dimmed.
+	readFiles map[string]struct{}
+	// resultCh delivers the single background discovery result, or is nil when
+	// there is no discovery to run.
+	resultCh     <-chan DiscoveryResult
 	lastQuery    string
 	keys         keyMap
 	searchInput  textinput.Model
@@ -27,12 +44,16 @@ type Model struct {
 	shouldColor  bool
 	hasDarkBG    bool
 	ready        bool
+	// done reports whether discovery has finished. Until then, counts and
+	// component metadata render as "loading" placeholders.
+	done bool
 }
 
 // NewModel builds a Model rooted at the given tree. shouldColor mirrors the
-// list command's color decision so the TUI matches the rest of the output. fs
-// backs the on-demand reads of surrounding entries and file previews.
-func NewModel(fs vfs.FS, root *Node, shouldColor bool) Model {
+// command's color decision so the TUI matches the rest of Terragrunt's output.
+// fs backs the on-demand reads of surrounding entries and file previews.
+// resultCh delivers the background discovery result, or is nil when there is none.
+func NewModel(fs vfs.FS, root *Node, shouldColor bool, resultCh <-chan DiscoveryResult) Model {
 	search := textinput.New()
 	search.Prompt = "/"
 
@@ -44,15 +65,25 @@ func NewModel(fs vfs.FS, root *Node, shouldColor bool) Model {
 		fs:          fs,
 		keys:        newKeyMap(),
 		searchInput: search,
+		index:       map[string]component.Component{},
+		readFiles:   map[string]struct{}{},
+		resultCh:    resultCh,
 		shouldColor: shouldColor,
 		hasDarkBG:   true,
 	}
 }
 
 // Init implements tea.Model. It asks the terminal for its background color so
-// the preview's syntax-highlight theme can match it.
+// the preview's syntax-highlight theme can match it, and starts listening for
+// the background discovery result when there is one.
 func (m Model) Init() tea.Cmd {
-	return tea.RequestBackgroundColor
+	cmds := []tea.Cmd{tea.RequestBackgroundColor}
+
+	if m.resultCh != nil {
+		cmds = append(cmds, m.listenForResult())
+	}
+
+	return tea.Batch(cmds...)
 }
 
 // Current returns the directory whose contents fill the focused column.
@@ -69,6 +100,48 @@ func (m Model) Selected() *Node {
 	}
 
 	return children[idx]
+}
+
+// listenForResult blocks on the discovery channel and delivers the result as a
+// message. Discovery produces exactly one result, so this Cmd is not re-armed.
+func (m Model) listenForResult() tea.Cmd {
+	ch := m.resultCh
+
+	return func() tea.Msg {
+		return <-ch
+	}
+}
+
+// applyDiscovery records the discovery result and annotates the loaded tree, so
+// later renders resolve counts, metadata, and read-file highlighting in place of
+// their loading placeholders.
+func (m *Model) applyDiscovery(res DiscoveryResult) {
+	m.index = make(map[string]component.Component, len(res.Components))
+	m.readFiles = map[string]struct{}{}
+
+	for _, c := range res.Components {
+		m.index[c.Path()] = c
+
+		for _, f := range c.Reading() {
+			m.readFiles[f] = struct{}{}
+		}
+	}
+
+	m.attachComponents(m.root)
+	m.done = true
+}
+
+// attachComponents walks the loaded tree and attaches each node's discovered
+// component, refining its kind to discovery's authority.
+func (m *Model) attachComponents(n *Node) {
+	if c, ok := m.index[n.absPath]; ok {
+		n.component = c
+		n.kind = kindForComponent(c)
+	}
+
+	for _, child := range n.children {
+		m.attachComponents(child)
+	}
 }
 
 // moveCursor shifts the cursor within the current directory, clamped to range.

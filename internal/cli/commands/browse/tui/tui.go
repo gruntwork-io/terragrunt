@@ -12,9 +12,10 @@ import (
 
 // Run launches the Miller-columns browser over the given tree, blocking until
 // the user quits. fs backs the on-demand reads of surrounding entries and file
-// previews. A cancelled context is treated as a clean exit.
-func Run(ctx context.Context, fs vfs.FS, root *Node, shouldColor bool) error {
-	_, err := tea.NewProgram(NewModel(fs, root, shouldColor), tea.WithContext(ctx)).Run()
+// previews. resultCh delivers the background discovery result, which annotates
+// the tree once it arrives. A cancelled context is treated as a clean exit.
+func Run(ctx context.Context, fs vfs.FS, root *Node, shouldColor bool, resultCh <-chan DiscoveryResult) error {
+	_, err := tea.NewProgram(NewModel(fs, root, shouldColor, resultCh), tea.WithContext(ctx)).Run()
 	if err == nil {
 		return nil
 	}
