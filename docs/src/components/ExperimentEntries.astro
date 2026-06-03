@@ -1,6 +1,8 @@
 ---
 import { getCollection, render } from "astro:content";
+import { Aside } from "@astrojs/starlight/components";
 import { getLatestRelease } from "@lib/github";
+import { isCompleted, isVersionReleased } from "@lib/experiments";
 
 interface Props {
   status: "active" | "completed";
@@ -12,28 +14,31 @@ const { status, showUnreleased = false } = Astro.props;
 const releaseData = await getLatestRelease("gruntwork-io", "terragrunt");
 const latestVersion = (releaseData?.tag_name ?? "v0.0.0").replace(/^v/, "");
 
-function isSinceReleased(since?: string): boolean {
-  if (!since) return true;
-  const target = since.replace(/^v/, "");
-  return latestVersion.localeCompare(target, undefined, { numeric: true }) >= 0;
-}
-
 const allEntries = await getCollection("experiments");
 
 const entries = allEntries
-  .filter((entry) => entry.data.status === status)
-  .filter((entry) => showUnreleased || isSinceReleased(entry.data.since))
+  .filter((entry) =>
+    status === "completed"
+      ? isCompleted(entry, latestVersion)
+      : !isCompleted(entry, latestVersion) &&
+        (showUnreleased || isVersionReleased(entry.data.since, latestVersion))
+  )
   .sort((a, b) => a.data.name.localeCompare(b.data.name));
 
 const rendered = await Promise.all(
   entries.map(async (entry) => {
     const { Content } = await render(entry);
-    return { entry, Content };
+    return {
+      entry,
+      Content,
+      completed: isCompleted(entry, latestVersion),
+      completedVersion: entry.data.completedSince?.replace(/^v/, ""),
+    };
   })
 );
 ---
 
-{rendered.map(({ entry, Content }, i) => (
+{rendered.map(({ entry, Content, completed, completedVersion }, i) => (
   <div>
     {i > 0 && <hr />}
     <h2 id={entry.data.name}>
@@ -42,6 +47,12 @@ const rendered = await Promise.all(
         <span aria-hidden="true" class="anchor-icon" />
       </a>
     </h2>
+    {completedVersion && !completed && (
+      <Aside type="tip" title="Completing Soon">
+        This experiment is scheduled to be completed in v{completedVersion}.
+        Once that release ships, the experiment flag is no longer needed.
+      </Aside>
+    )}
     <Content />
   </div>
 ))}

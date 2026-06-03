@@ -1,0 +1,2 @@
+account = "acme"
+roles   = ["admin"]

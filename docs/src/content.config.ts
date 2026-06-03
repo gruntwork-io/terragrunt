@@ -85,8 +85,14 @@ const experiments = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/experiments" }),
 	schema: z.object({
 		name: z.string(),
-		status: z.enum(["active", "completed"]),
+		// `since` is the release an experiment became available for opt-in.
+		// `completedSince` is the release in which the experiment concluded,
+		// whether it graduated to a default feature or was retired; once that
+		// release ships, the experiment is treated as completed. An
+		// experiment's active/completed status is derived from these versions
+		// rather than a separate `status` field.
 		since: z.string().optional(),
+		completedSince: z.string().optional(),
 	}),
 });
 
