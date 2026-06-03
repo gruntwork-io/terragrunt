@@ -25,6 +25,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ensurePreview()
 
 		return m, nil
+	case DiscoveryResult:
+		m.applyDiscovery(msg)
+		m.ensurePreview()
+
+		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}
@@ -117,7 +122,7 @@ func (m *Model) descend() {
 		return
 	}
 
-	loadOthers(m.fs, target)
+	m.loadDir(target)
 
 	if len(target.children) == 0 {
 		return
@@ -156,9 +161,9 @@ func (m *Model) ensurePreview() {
 // ensureVisibleOthers loads filesystem entries for the directories whose
 // contents are about to be rendered: the current directory and its parent.
 func (m *Model) ensureVisibleOthers() {
-	loadOthers(m.fs, m.current)
+	m.loadDir(m.current)
 
 	if m.current.parent != nil {
-		loadOthers(m.fs, m.current.parent)
+		m.loadDir(m.current.parent)
 	}
 }

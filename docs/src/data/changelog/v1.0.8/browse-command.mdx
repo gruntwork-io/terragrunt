@@ -1,5 +1,5 @@
 ---
-version: "v1.0.7"
+version: "v1.0.8"
 category: "experiments-added"
 ---
 
@@ -10,5 +10,7 @@ The new `browse-tui` experiment adds the `terragrunt browse` command. With the e
 Move the cursor with `j`/`k` (or the `↑`/`↓` arrow keys), descend into a directory with `l`/`→`/`enter`, go back up with `h`/`←`, and quit with `q`. Press `/` to search the current directory: matching entries are marked and the cursor jumps to the first match as you type, with a match count shown along the bottom. `n`/`N` cycle through matches and `esc` clears the search. The highlighted entry is shown in blue, and its path is displayed along the top, abbreviated with `~` when it falls under your home directory.
 
 The detail pane shows metadata for the highlighted entry: its kind, path, module source, and its dependencies, dependents, and the files it reads (shown relative to the unit). Plain directories show a count of the units and stacks they contain.
+
+The browser opens immediately, reading the filesystem for the columns while discovery runs in the background. Counts and metadata show a `loading` placeholder until discovery completes, and files a unit reads are highlighted rather than dimmed once known.
 
 Running `terragrunt browse` without the experiment enabled is an error. Enable it with `--experiment browse-tui` or `TG_EXPERIMENT=browse-tui`.

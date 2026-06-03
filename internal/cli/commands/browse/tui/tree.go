@@ -3,12 +3,14 @@
 package tui
 
 import (
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
 // Kind classifies a tree node for coloring and navigation.
@@ -25,12 +27,14 @@ const (
 	KindFile
 )
 
-// Node is a single entry in the Miller-columns tree. A Node is a directory,
-// which may also be a unit or stack, or a plain file shown dimmed for context.
+// Node is a single entry in the Miller-columns tree: a directory (which may
+// also be a unit or stack) or a plain file. Units and stacks are colored by
+// kind; files are dimmed.
 type Node struct {
 	// parent is nil only for the root.
 	parent *Node
-	// component is non-nil only for unit and stack nodes.
+	// component is non-nil once discovery has resolved this unit or stack. Its
+	// kind may be known earlier, from the cheap filesystem classification.
 	component component.Component
 	// name is the path segment used as the display label.
 	name string
@@ -48,9 +52,6 @@ type Node struct {
 	// previewWidth is the pane interior width preview was rendered for; a resize
 	// past it invalidates the cache.
 	previewWidth int
-	// other marks an entry read from the filesystem rather than discovered as a
-	// unit or stack. These are rendered dimmed, for context.
-	other bool
 	// othersLoaded records that this directory's filesystem entries have already
 	// been merged into its children, so we don't read it again.
 	othersLoaded bool
@@ -93,12 +94,15 @@ func (n *Node) Kind() Kind { return n.kind }
 // Children returns the node's child entries, sorted alphabetically by name.
 func (n *Node) Children() []*Node { return n.children }
 
-// Other reports whether the node is a filesystem entry surfaced for context
-// rather than a discovered unit or stack.
-func (n *Node) Other() bool { return n.other }
-
 // Preview returns the node's rendered file preview, empty until one is built.
 func (n *Node) Preview() string { return n.preview }
+
+// NewRoot returns a bare root node for workingDir with no children. The tree
+// fills in lazily from the filesystem as directories are visited, and discovery
+// annotates units and stacks as it resolves them.
+func NewRoot(workingDir string) *Node {
+	return BuildTree(workingDir, nil)
+}
 
 // ensureDir walks from the root, creating intermediate directory nodes for
 // each missing ancestor of absPath, and returns the node at absPath.
@@ -179,18 +183,21 @@ func sortChildren(n *Node) {
 	})
 }
 
-// loadOthers merges the directory's filesystem entries into its children as
-// dimmed "other" nodes for context, skipping any path already present as a
-// discovered component or ancestor directory. It's best-effort: a read error
-// leaves the existing children untouched. Loading happens at most once per node.
-func loadOthers(fs vfs.FS, n *Node) {
+// loadDir reads the directory's filesystem entries and merges any not already
+// present into its children, classifying each with a cheap stat: a directory
+// containing terragrunt.stack.hcl is a stack, one containing terragrunt.hcl is a
+// unit, anything else is a plain directory, and non-directories are files. When
+// discovery has already resolved a component for an entry's path, that authority
+// is applied instead. It's best-effort: a read error leaves the existing
+// children untouched, and loading happens at most once per node.
+func (m *Model) loadDir(n *Node) {
 	if n.othersLoaded {
 		return
 	}
 
 	n.othersLoaded = true
 
-	entries, err := vfs.ReadDirEntries(fs, n.absPath)
+	entries, err := vfs.ReadDirEntries(m.fs, n.absPath)
 	if err != nil {
 		return
 	}
@@ -206,38 +213,75 @@ func loadOthers(fs vfs.FS, n *Node) {
 			continue
 		}
 
-		kind := KindFile
-		if entry.IsDir() {
-			kind = KindDir
-		}
+		abs := filepath.Join(n.absPath, name)
 
-		n.children = append(n.children, &Node{
+		child := &Node{
 			parent:  n,
 			name:    name,
 			relPath: filepath.Join(n.relPath, name),
-			absPath: filepath.Join(n.absPath, name),
-			kind:    kind,
-			other:   true,
-		})
+			absPath: abs,
+			kind:    m.classify(entry, abs),
+		}
+
+		if c, ok := m.index[abs]; ok {
+			child.component = c
+			child.kind = kindForComponent(c)
+		}
+
+		n.children = append(n.children, child)
 	}
 
 	sortChildren(n)
 }
 
-// counts returns the number of units and stacks among the node's descendants.
-func (n *Node) counts() (units, stacks int) {
-	for _, c := range n.children {
-		switch c.kind {
-		case KindUnit:
-			units++
-		case KindStack:
-			stacks++
-		case KindDir, KindFile:
+// classify determines a node's kind from the filesystem alone: directories are
+// inspected for a stack or unit config file, and everything else is a file.
+func (m *Model) classify(entry fs.DirEntry, abs string) Kind {
+	if !entry.IsDir() {
+		return KindFile
+	}
+
+	switch {
+	case m.containsFile(abs, config.DefaultStackFile):
+		return KindStack
+	case m.containsFile(abs, config.DefaultTerragruntConfigPath):
+		return KindUnit
+	default:
+		return KindDir
+	}
+}
+
+// containsFile reports whether dir holds a file named name. A stat error means
+// the file can't be confirmed, so it counts as absent.
+func (m *Model) containsFile(dir, name string) bool {
+	exists, err := vfs.FileExists(m.fs, filepath.Join(dir, name))
+
+	return err == nil && exists
+}
+
+// kindForComponent maps a discovered component to its tree kind.
+func kindForComponent(c component.Component) Kind {
+	if c.Kind() == component.StackKind {
+		return KindStack
+	}
+
+	return KindUnit
+}
+
+// counts returns the number of discovered units and stacks at or below the
+// node's path. It draws on the discovery index rather than the lazily loaded
+// tree, so a directory's totals are correct even before it's been expanded.
+func (m *Model) counts(n *Node) (units, stacks int) {
+	for path, c := range m.index {
+		if path != n.absPath && !strings.HasPrefix(path, n.absPath+string(filepath.Separator)) {
+			continue
 		}
 
-		u, s := c.counts()
-		units += u
-		stacks += s
+		if c.Kind() == component.StackKind {
+			stacks++
+		} else {
+			units++
+		}
 	}
 
 	return units, stacks
