@@ -8,10 +8,12 @@ export const sidebar = [
     items: [
       {
         label: "Terralith to Terragrunt",
+        collapsed: true,
         autogenerate: { directory: "02-guides/01-terralith-to-terragrunt", collapsed: true },
       },
       {
         label: "Continuous Integration with Terragrunt",
+        collapsed: true,
         autogenerate: { directory: "02-guides/02-continuous-integration-with-terragrunt", collapsed: true },
       },
     ],
