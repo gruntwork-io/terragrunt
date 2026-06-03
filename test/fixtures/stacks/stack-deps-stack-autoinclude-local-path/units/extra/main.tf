@@ -1,0 +1,3 @@
+output "origin" {
+  value = "extra"
+}

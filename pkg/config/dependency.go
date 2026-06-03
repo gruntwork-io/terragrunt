@@ -243,6 +243,12 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
 
+	// Fold sibling autoinclude dependency blocks in before output retrieval so the unit body can reference them, like a regular include.
+	decodedDependency.Dependencies, err = foldSiblingAutoIncludeDeps(ctx, pctx, l, decodedDependency.Dependencies)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate that dependency config_path is not an empty string.
 	// Skip null/unknown values and non-strings (which can appear during partial decode or hclvalidate).
 	for _, dep := range decodedDependency.Dependencies {
@@ -1641,6 +1647,88 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	}
 
 	return filteredDeps
+}
+
+// foldSiblingAutoIncludeDeps merges the registered sibling autoinclude dependency blocks over the unit's own same-name blocks (shallow, by name, with the autoinclude winning), mirroring a regular include's default merge strategy.
+func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log.Logger, deps []Dependency) ([]Dependency, error) {
+	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
+		return deps, nil
+	}
+
+	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
+
+	autoFile, err := parseAutoIncludeFileCached(ctx, pctx, autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Rescope to the autoinclude's own locals so the unit's locals do not leak into the autoinclude decode.
+	autoPctx := pctx.Clone()
+	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
+	autoPctx.skipAutoIncludeMerge = true
+
+	baseBlocks, err := DecodeBaseBlocks(ctx, autoPctx, l, autoFile, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if baseBlocks != nil {
+		autoPctx = autoPctx.WithTrackInclude(baseBlocks.TrackInclude)
+		autoPctx = autoPctx.WithFeatures(baseBlocks.FeatureFlags)
+		autoPctx = autoPctx.WithLocals(baseBlocks.Locals)
+	}
+
+	evalCtx, err := createTerragruntEvalContext(ctx, autoPctx, l, vexec.NewOSExec(), autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	decoded := TerragruntDependency{}
+	if err := autoFile.Decode(&decoded, evalCtx); err != nil {
+		return nil, err
+	}
+
+	// Fold in dependency blocks the autoinclude inherits through its own include blocks, mirroring the unit decode path so inherited deps resolve before the unit body is evaluated.
+	if autoPctx.TrackInclude != nil && len(autoPctx.TrackInclude.CurrentList) > 0 {
+		merged, err := handleIncludeForDependency(ctx, autoPctx, l, decoded)
+		if err != nil {
+			return nil, err
+		}
+
+		decoded = *merged
+	}
+
+	autoDeps := decoded.Dependencies.FilteredWithoutConfigPath()
+	if len(autoDeps) == 0 {
+		return deps, nil
+	}
+
+	return mergeDependencyBlocks(deps, autoDeps), nil
+}
+
+// parseAutoIncludeFileCached parses the sibling autoinclude through the run-scoped HCL file cache so repeated dependency-output decodes reuse one parse, rebinding the shared AST to a fresh parser per call.
+func parseAutoIncludeFileCached(ctx context.Context, pctx *ParsingContext, autoIncludePath string) (*hclparse.File, error) {
+	fileInfo, err := os.Stat(autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
+	// Prefix the key so it cannot collide with the unit-config keys ParseConfigFile stores.
+	cacheKey := fmt.Sprintf("autoinclude-%v-%v", autoIncludePath, fileInfo.ModTime().UnixMicro())
+
+	if cached, found := hclCache.Get(ctx, cacheKey); found {
+		return cached.Rebind(hclparse.NewParser(pctx.ParserOptions...)), nil
+	}
+
+	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	hclCache.Put(ctx, cacheKey, file)
+
+	return file, nil
 }
 
 // IsValidConfigPath checks if a cty.Value is a valid, usable config path.

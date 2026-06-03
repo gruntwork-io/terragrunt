@@ -1,6 +1,10 @@
 package hclparse
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/hashicorp/hcl/v2"
+)
 
 // UnexpectedBodyTypeError indicates that an HCL file body was not the expected
 // *hclsyntax.Body type. This typically occurs with JSON-format HCL files.
@@ -171,6 +175,36 @@ func (e MalformedDependencyError) Unwrap() error {
 	return e.Err
 }
 
+// StackAutoIncludeDependencyValuesError indicates that a stack-level autoinclude
+// injects a unit or stack whose values reference dependency outputs. Dependency
+// outputs are not available at stack generate time (they resolve at unit run time),
+// so this pattern cannot be generated.
+type StackAutoIncludeDependencyValuesError struct {
+	Subject   *hcl.Range
+	StackName string
+	UnitName  string
+}
+
+func (e StackAutoIncludeDependencyValuesError) Error() string {
+	stack := e.StackName
+	if stack == "" {
+		stack = "(unknown)"
+	}
+
+	target := e.UnitName
+	if target == "" {
+		target = "(unknown)"
+	}
+
+	return fmt.Sprintf(
+		"stack %q autoinclude injects unit/stack %q whose values reference dependency outputs, "+
+			"which are not available at stack generate time. "+
+			"Use the supported cross-level pattern instead: "+
+			"pass only unit.X.path through values on the child stack block, and declare the dependency inside the nested unit's own autoinclude so it resolves at the unit run.",
+		stack, target,
+	)
+}
+
 // EmptyArgError indicates that a required string argument was empty.
 type EmptyArgError struct {
 	Func string
@@ -188,6 +222,16 @@ type PartialEvalDepthExceededError struct {
 
 func (e PartialEvalDepthExceededError) Error() string {
 	return fmt.Sprintf("partial evaluation exceeded maximum recursion depth %d", e.MaxDepth)
+}
+
+// StackRecursionDepthExceededError indicates that nested-stack unit-path expansion hit its recursion guard.
+type StackRecursionDepthExceededError struct {
+	StackDir string
+	MaxDepth int
+}
+
+func (e StackRecursionDepthExceededError) Error() string {
+	return fmt.Sprintf("nested stack expansion exceeded maximum recursion depth %d at %q", e.MaxDepth, e.StackDir)
 }
 
 // PartialEvalUnresolvedError indicates that partial evaluation could not produce a final cty value.

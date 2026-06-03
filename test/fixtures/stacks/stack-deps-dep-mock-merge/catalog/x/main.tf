@@ -1,0 +1,3 @@
+output "dummy" {
+  value = "x"
+}

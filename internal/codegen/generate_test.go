@@ -70,14 +70,14 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
       duration        = "1h30m"
       external_id     = "123456789012"
       policy          = "{}"
-      policy_arns     = ["arn:aws:iam::123456789012:policy/MyPolicy"]
+      policy_arns     = ["arn:aws:iam::123456789012:policy/MyPolicy", "arn:aws:iam::123456789012:policy/MyOtherPolicy"]
       role_arn        = "arn:aws:iam::123456789012:role/MyRole"
       session_name    = "MySession"
       source_identity = "123456789012"
       tags = {
         key = "value"
       }
-      transitive_tag_keys = ["key"]
+      transitive_tag_keys = ["key", "another-key"]
     }
     bucket = "mybucket"
   }
@@ -160,10 +160,11 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 				"assume_role": "{role_arn=\"arn:aws:iam::123456789012:role/MyRole\"," +
 					"tags={key=\"value\"}, duration=\"1h30m\", " +
 					"external_id=\"123456789012\", policy=\"{}\", " +
-					"policy_arns=[\"arn:aws:iam::123456789012:policy/MyPolicy\"], " +
+					"policy_arns=[\"arn:aws:iam::123456789012:policy/MyPolicy\"," +
+					"\"arn:aws:iam::123456789012:policy/MyOtherPolicy\"], " +
 					"session_name=\"MySession\", " +
 					"source_identity=\"123456789012\", " +
-					"transitive_tag_keys=[\"key\"]}",
+					"transitive_tag_keys=[\"key\",\"another-key\"]}",
 			},
 			map[string]any{},
 			expectedS3WithAssumeRole,
@@ -427,6 +428,43 @@ quoted="hello,world"`,
 			name:     "no-commas",
 			input:    `key=value`,
 			expected: `key=value`,
+		},
+		{
+			name:  "comma-inside-list-expression",
+			input: `transitive_tag_keys=["Project","Projects"],role_arn="test-role"`,
+			expected: `transitive_tag_keys=["Project","Projects"]
+role_arn="test-role"`,
+		},
+		{
+			name:  "comma-inside-object-expression",
+			input: `config={env="prod",team="platform"},enabled=true`,
+			expected: `config={env="prod",team="platform"}
+enabled=true`,
+		},
+		{
+			name:  "comma-inside-nested-list-and-object",
+			input: `config={tags=["a","b"],env="prod"},enabled=true`,
+			expected: `config={tags=["a","b"],env="prod"}
+enabled=true`,
+		},
+		{
+			name:  "mixed-quotes-lists-and-top-level-commas",
+			input: `message="hello,world",tags=["a","b"],enabled=true`,
+			expected: `message="hello,world"
+tags=["a","b"]
+enabled=true`,
+		},
+		{
+			name:  "nested-object-containing-list",
+			input: `assume_role={policy_arns=["arn:1","arn:2"],session_name="test"},region="us-east-1"`,
+			expected: `assume_role={policy_arns=["arn:1","arn:2"],session_name="test"}
+region="us-east-1"`,
+		},
+		{
+			name:  "comma-inside-function-call",
+			input: `tags=merge({a="1"},{b="2"}),enabled=true`,
+			expected: `tags=merge({a="1"},{b="2"})
+enabled=true`,
 		},
 	}
 
