@@ -22,7 +22,7 @@ This module covers the **building blocks** of every Terragrunt unit configuratio
 
 ## The terraform Block
 
-The `terraform` block points Terragrunt to your OpenTofu/Terraform code.
+The [`terraform` block](/reference/hcl/blocks/#terraform) points Terragrunt to your OpenTofu/Terraform code.
 
 **Every unit needs one.**
 
@@ -98,7 +98,7 @@ terraform {
 
 ## The include Block
 
-The `include` block is one of Terragrunt's **most powerful features**.
+The [`include` block](/reference/hcl/blocks/#include) is one of Terragrunt's **most powerful features**.
 
 It pulls in configuration from parent files, letting you **define settings once** and **inherit them everywhere**.
 
@@ -315,7 +315,7 @@ infrastructure-live/
 
 ## The dependency Block
 
-The `dependency` block **wires units together**.
+The [`dependency` block](/reference/hcl/blocks/#dependency) **wires units together**.
 
 Declare a dependency, and Terragrunt:
 
@@ -357,6 +357,8 @@ By default, you **can't `plan`** a unit if its dependencies aren't applied yet.
 **Mock outputs solve this:**
 
 ```hcl
+# live/app/terragrunt.hcl
+
 dependency "vpc" {
   config_path = "../vpc"
 
@@ -381,7 +383,9 @@ inputs = {
 }
 ```
 
-> For more detailed examples of mock outputs in multi-unit stacks, see [**Module 7: Composing Stacks**](/guides/terragrunt-101/composing-stacks/).
+:::tip
+For more detailed examples of mock outputs in multi-unit stacks, see [**Module 7: Composing Stacks**](/guides/terragrunt-101/composing-stacks/).
+:::
 
 ---
 
@@ -406,7 +410,7 @@ dependency "iam_roles" {
 
 #### Option 2: The `dependencies` block
 
-When you have **multiple** ordering-only dependencies, the `dependencies` block *(plural)* is more concise:
+When you have **multiple** ordering-only dependencies, the [`dependencies` block](/reference/hcl/blocks/#dependencies) *(plural)* is more concise:
 
 ```hcl
 dependencies {
@@ -449,7 +453,7 @@ inputs = {
 
 ## The generate Block
 
-The `generate` block creates files **dynamically** before OpenTofu/Terraform runs.
+The [`generate` block](/reference/hcl/blocks/#generate) creates files **dynamically** before OpenTofu/Terraform runs.
 
 This is how you inject:
 
@@ -498,7 +502,9 @@ EOF
 | **`skip`**                 | Never overwrite existing files                            |
 | **`overwrite_terragrunt`** | Only overwrite files that Terragrunt previously generated |
 
-> Use **`overwrite_terragrunt`** as your default because it lets Terragrunt manage its own generated files while respecting any files you've manually created.
+:::tip
+Use **`overwrite_terragrunt`** as your default because it lets Terragrunt manage its own generated files while respecting any files you've manually created.
+:::
 
 ---
 
@@ -513,9 +519,11 @@ EOF
 
 ## The remote_state Block
 
-The `remote_state` block configures your **state backend** and can automatically provision the backend resources (like S3 buckets) if they don't exist.
+The [`remote_state` block](/reference/hcl/blocks/#remote_state) configures your **state backend** and can automatically provision the backend resources (like S3 buckets) if they don't exist.
 
 ```hcl
+# root.hcl
+
 remote_state {
   backend = "s3"
   generate = {
@@ -553,7 +561,9 @@ When Terragrunt detects that the S3 bucket or DynamoDB table **doesn't exist**, 
 | **S3 bucket**      | Versioning enabled, server-side encryption (AES-256) |
 | **DynamoDB table** | Provisioned for state locking                        |
 
-> This eliminates the **chicken-and-egg problem** of "how do I create the bucket that stores my state?"
+:::tip
+This eliminates the **chicken-and-egg problem** of "how do I create the bucket that stores my state?"
+:::
 
 ---
 
