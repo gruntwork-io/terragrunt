@@ -351,7 +351,7 @@ Terragrunt fetches a dependency's outputs **just in time**, right before it runs
 
 ### Mock Outputs
 
-You **can't `plan`** a unit if its dependencies don't exist yet.
+By default, you **can't `plan`** a unit if its dependencies aren't applied yet.
 
 A dependency "exists" when Terragrunt can read its outputs from Terraform state, which happens once the dependency has been successfully applied at least once. If the dependency's state file is missing, Terragrunt has nothing to read, and your plan fails.
 
