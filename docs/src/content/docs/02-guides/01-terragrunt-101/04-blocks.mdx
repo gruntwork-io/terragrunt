@@ -554,7 +554,7 @@ remote_state {
 
 ### Auto-Provisioning
 
-When Terragrunt detects that the S3 bucket or DynamoDB table **doesn't exist**, it creates them automatically with sensible defaults:
+When Terragrunt detects that the S3 bucket or DynamoDB table **doesn't exist** (and you use the `--backend-bootstrap` flag) it creates them automatically with sensible defaults:
 
 | Resource           | Default Configuration                                |
 | :----------------- | :--------------------------------------------------- |
