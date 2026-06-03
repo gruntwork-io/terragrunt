@@ -109,6 +109,8 @@ export default defineConfig({
             "/reference/cli/commands/list/#*",
             "/reference/cli/commands/find#*",
             "/reference/cli/commands/find/#*",
+            "/reference/cli/global-flags#*",
+            "/reference/cli/global-flags/#*",
 
             // Custom .astro pages — can't be validated statically
             "/reference/experiments/active",
