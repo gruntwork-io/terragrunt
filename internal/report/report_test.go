@@ -1513,7 +1513,7 @@ func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
 
 	// The name should be relative to the worktree dir, not the original repo dir
 	// Without the fix, this would be the full absolute path since unitPath doesn't start with originalRepoDir
-	assert.Equal(t, "module/unit", runs[0].Name,
+	assert.Equal(t, "module/unit", filepath.ToSlash(runs[0].Name),
 		"Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
 }
 
@@ -1555,7 +1555,7 @@ func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
 	require.Len(t, records, 2) // header + 1 data row
 
 	// The name (first column) should be relative to worktree dir
-	assert.Equal(t, "module/unit", records[1][0],
+	assert.Equal(t, "module/unit", filepath.ToSlash(records[1][0]),
 		"Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
 }
 

@@ -567,5 +567,6 @@ func getRelativePath(c component.Component) string {
 		return "/"
 	}
 
-	return filepath.Clean(rel)
+	// Tests pin forward-slash relative paths; filepath.Clean yields OS-native separators.
+	return filepath.ToSlash(filepath.Clean(rel))
 }

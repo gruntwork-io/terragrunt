@@ -1191,7 +1191,7 @@ func Test_sanitizePath(t *testing.T) {
 
 			require.NoError(t, err)
 
-			assert.Equalf(t, tt.want, got, "sanitizePath(%v, %v)", tt.baseDir, tt.file)
+			assert.Equalf(t, tt.want, filepath.ToSlash(got), "sanitizePath(%v, %v)", tt.baseDir, tt.file)
 		})
 	}
 }

@@ -2,6 +2,7 @@
 package format
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -70,12 +71,15 @@ func TestBytesDiff(t *testing.T) {
 
 			assert.NotEmpty(t, got, "expected non-empty diff output")
 
+			// The diff labels embed tc.path with the OS separator; compare in forward-slash space.
+			gotSlash := filepath.ToSlash(got)
+
 			for _, want := range tc.wantHeader {
-				assert.Contains(t, got, want, "diff missing header line")
+				assert.Contains(t, gotSlash, want, "diff missing header line")
 			}
 
 			for _, want := range tc.wantHunkLines {
-				assert.Contains(t, got, want, "diff missing hunk line")
+				assert.Contains(t, gotSlash, want, "diff missing hunk line")
 			}
 		})
 	}

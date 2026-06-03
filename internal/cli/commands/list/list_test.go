@@ -581,7 +581,7 @@ dependency "unit1" {
 	"001/unit2" -> "001/unit1";
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }
 
@@ -643,7 +643,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	"001/unit3" ;
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }
 
@@ -721,7 +721,7 @@ dependency "unit2" {
 	"001/unit3" -> "001/unit2";
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }
 
@@ -800,7 +800,7 @@ dependency "unit2" {
 	"001/unit3" -> "001/unit2";
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }
 
@@ -871,7 +871,7 @@ dependency "unit1" {
 	"001/unit2" -> "001/unit1";
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }
 
@@ -1028,6 +1028,6 @@ dependency "unit3" {
 	"001/unit4" -> "001/unit3";
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }

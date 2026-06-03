@@ -659,7 +659,9 @@ include {
 			assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
 			assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
 			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
-			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+			// path_relative_to_include feeds this key and returns OS-native separators; the S3
+			// key is compared in forward-slash space.
+			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", filepath.ToSlash(terragruntConfig.RemoteState.BackendConfig["key"].(string)))
 			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
 	}
@@ -690,7 +692,9 @@ include {
 			assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
 			assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
 			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
-			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+			// path_relative_to_include feeds this key and returns OS-native separators; the S3
+			// key is compared in forward-slash space.
+			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", filepath.ToSlash(terragruntConfig.RemoteState.BackendConfig["key"].(string)))
 			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
 	}

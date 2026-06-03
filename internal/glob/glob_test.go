@@ -294,9 +294,11 @@ func TestLegacyExpandCollapsesGlobstar(t *testing.T) {
 
 	slices.Sort(got)
 
+	// LegacyExpand (zglob) returns forward-slash paths on every platform, so build want
+	// in the same space rather than with OS-native filepath.Join.
 	want := []string{
-		filepath.Join(root, "root.tf"),
-		filepath.Join(root, "sub", "nested.tf"),
+		filepath.ToSlash(filepath.Join(root, "root.tf")),
+		filepath.ToSlash(filepath.Join(root, "sub", "nested.tf")),
 	}
 	slices.Sort(want)
 
