@@ -554,7 +554,7 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 				return fmt.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
 			}
 
-			skipOutputs := dependencyConfig.SkipOutputs != nil && *dependencyConfig.SkipOutputs
+			skipOutputs := pctx.SkipOutput || (dependencyConfig.SkipOutputs != nil && *dependencyConfig.SkipOutputs)
 
 			if dependencyConfig.RenderedOutputs != nil {
 				lock.Lock()
