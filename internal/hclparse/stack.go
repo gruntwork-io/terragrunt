@@ -146,6 +146,11 @@ type stackPathOnlyHCL struct {
 	Name    string         `hcl:",label"`
 }
 
+// GeneratedPath returns the on-disk path this stack generates to under stackDir.
+func (s *stackPathOnlyHCL) GeneratedPath(stackDir string) string {
+	return GeneratedComponentPath(stackDir, s.Path, s.NoStack != nil && *s.NoStack)
+}
+
 // discoveryDecode holds decoded unit and stack blocks for discovery.
 type discoveryDecode struct {
 	Remain hcl.Body            `hcl:",remain"`
@@ -332,6 +337,12 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 		return nil, nil, err
 	}
 
+	// Publish the base unit.<name>.path / stack.<name>.path refs before decoding the autoinclude, so a sibling
+	// autoinclude block whose path references them resolves during discovery exactly as it does in the full
+	// stack parse (injectStackComponentRefs). Without this, discovery would reject a config the full parse accepts.
+	evalCtx.Variables[VarUnit] = BuildComponentRefMap(buildDiscoveryUnitRefs(decoded.Units, stackDir))
+	evalCtx.Variables[VarStack] = BuildComponentRefMap(buildDiscoveryStackRefs(decoded.Stacks, stackDir))
+
 	// Merge units and stacks injected by a sibling terragrunt.autoinclude.stack.hcl, overriding same-name
 	// base blocks the same way a full stack parse does. The autoinclude file's own names are validated for
 	// uniqueness inside the merge.
@@ -399,6 +410,36 @@ func mergeDiscoveryStackAutoInclude(fs vfs.FS, stackDir string, evalCtx *hcl.Eva
 	decoded.Stacks = util.MergeNamed(decoded.Stacks, autoDecoded.Stacks, stackPathName)
 
 	return nil
+}
+
+// buildDiscoveryUnitRefs builds the unit.<name>.path refs from the discovery unit decode.
+func buildDiscoveryUnitRefs(units []*unitPathOnlyHCL, stackDir string) []ComponentRef {
+	refs := make([]ComponentRef, 0, len(units))
+
+	for _, u := range units {
+		if u == nil {
+			continue
+		}
+
+		refs = append(refs, ComponentRef{Name: u.Name, Path: u.GeneratedPath(stackDir)})
+	}
+
+	return refs
+}
+
+// buildDiscoveryStackRefs builds the stack.<name>.path refs from the discovery stack decode.
+func buildDiscoveryStackRefs(stacks []*stackPathOnlyHCL, stackDir string) []ComponentRef {
+	refs := make([]ComponentRef, 0, len(stacks))
+
+	for _, s := range stacks {
+		if s == nil {
+			continue
+		}
+
+		refs = append(refs, ComponentRef{Name: s.Name, Path: s.GeneratedPath(stackDir)})
+	}
+
+	return refs
 }
 
 // unitPathName returns a discovery unit's block name, or an empty string for a nil entry so MergeNamed leaves it untouched.

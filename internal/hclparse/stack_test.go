@@ -107,6 +107,31 @@ func TestUnitPathsFromStackDir_MergesStackAutoInclude(t *testing.T) {
 	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "injected"))
 }
 
+// TestUnitPathsFromStackDir_StackAutoIncludePathReferencesSiblingRef pins that discovery resolves an
+// autoinclude block whose path references a base unit.<name>.path, matching the full stack parse. Discovery
+// must publish the base component refs before decoding the autoinclude, or it fails with an undefined unit
+// variable for a config the full parse accepts.
+func TestUnitPathsFromStackDir_StackAutoIncludePathReferencesSiblingRef(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "anchor" {
+  source = "."
+  path   = "anchor"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "${unit.anchor.path}-vpc"
+}
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.NoError(t, err, "an autoinclude path referencing a base unit.<name>.path must resolve during discovery")
+	assert.Len(t, paths, 2, "both the base anchor unit and the injected vpc unit must expand")
+}
+
 // TestUnitPathsFromStackDir_RecursesStackAutoIncludeInjectedStack pins that a stack injected by a
 // stack-level autoinclude is recursed into, so its nested units also produce DAG edges.
 func TestUnitPathsFromStackDir_RecursesStackAutoIncludeInjectedStack(t *testing.T) {
