@@ -1,4 +1,6 @@
-export const sidebar = [
+import type { StarlightUserConfig } from "@astrojs/starlight/types";
+
+export const sidebar: StarlightUserConfig["sidebar"] = [
   {
     label: "Getting Started",
     autogenerate: { directory: "01-getting-started" },
