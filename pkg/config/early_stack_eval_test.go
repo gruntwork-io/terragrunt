@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -223,10 +224,12 @@ unit "vpc" {
 }
 `), 0644))
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), stackDir, newStackParsePctx(t, stackDir))
-	require.NoError(t, err)
+	pctx := newStackParsePctx(t, stackDir)
+	funcsFor := func(dir string) (map[string]function.Function, error) {
+		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), dir, pctx)
+	}
 
-	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcs)
+	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcsFor)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	// basename(dirname(.../root.hcl)) == basename(tmpRoot); resolve symlinks
@@ -252,10 +255,12 @@ unit "vpc" {
 }
 `), 0644))
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), stackDir, newStackParsePctx(t, stackDir))
-	require.NoError(t, err)
+	pctx := newStackParsePctx(t, stackDir)
+	funcsFor := func(dir string) (map[string]function.Function, error) {
+		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), dir, pctx)
+	}
 
-	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcs)
+	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcsFor)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.True(t, strings.HasSuffix(paths[0], "computed-path"), "expected path to end with 'computed-path', got %q", paths[0])
