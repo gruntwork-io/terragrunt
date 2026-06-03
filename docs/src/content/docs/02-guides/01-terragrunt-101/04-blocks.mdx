@@ -458,6 +458,8 @@ This is how you inject:
 - Any other files your modules need
 
 ```hcl
+# root.hcl
+
 generate "provider" {
   path      = "provider.tf"
   if_exists = "overwrite_terragrunt"
