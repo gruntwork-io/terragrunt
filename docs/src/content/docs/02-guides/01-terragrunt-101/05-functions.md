@@ -29,13 +29,17 @@ You have access to all the standard HCL features:
 
 You also have full access to **OpenTofu's built-in functions** for string manipulation, collection operations, encoding/decoding, and more.
 
-> For the complete reference, see the [OpenTofu Functions documentation](https://opentofu.org/docs/language/functions/).
+:::tip
+For the complete reference, see the [OpenTofu Functions documentation](https://opentofu.org/docs/language/functions/).
+:::
 
 ---
 
 ### Example: Standard HCL Features
 
 ```hcl
+# terragrunt.hcl
+
 locals {
   # String functions
   env_upper = upper(local.environment)
