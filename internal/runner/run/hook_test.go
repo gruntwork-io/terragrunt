@@ -250,7 +250,7 @@ func TestProcessErrorHooks_NoopWhenNoPriorErrors(t *testing.T) {
 		{Name: "on-anything", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "x"}},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, newHookOpts(), nil))
+	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), nil))
 	assert.Empty(t, rec.snapshot())
 }
 
@@ -284,7 +284,7 @@ func TestProcessErrorHooks_MatchesOnErrorsRegex(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, newHookOpts(), priorErrs))
+	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs))
 
 	calls := rec.snapshot()
 	require.Len(t, calls, 1)
