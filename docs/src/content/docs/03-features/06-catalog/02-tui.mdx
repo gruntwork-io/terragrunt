@@ -7,8 +7,6 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
-import Before from '@components/Before.astro';
 
 Launch the user interface for searching and managing your module catalog.
 
@@ -158,14 +156,6 @@ A third key, `tags`, controls the colored pills shown next to each component; se
 This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
 </Aside>
 
-<Before version="1.0.4">
-
-In a future release, the catalog UI will read tag information from the front-matter of component `README.md` files.
-
-</Before>
-
-<Since version="1.0.4">
-
 Catalog authors can attach tags to a component by adding a `tags` key to the component's `README.md` front-matter. Tags appear as colored pills next to the component in the list view, and as a row above the rendered README in the detail view.
 
 Either inline-array or dash-list YAML form is accepted:
@@ -189,8 +179,6 @@ tags:
 ```
 
 Tag values that name a component type also promote the component into that type's tab. For example, a component classified as a `template` whose tags include `module` appears under both the `Templates` tab (by its native kind) and the `Modules` tab (by tag), without changing how it's scaffolded.
-
-</Since>
 
 ## Keybindings
 
