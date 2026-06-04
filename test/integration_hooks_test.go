@@ -154,6 +154,10 @@ func TestTerragruntHookRunAllApply(t *testing.T) {
 func TestTerragruntRunNoHooksRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsExperimentMode(t) {
+		t.Skip()
+	}
+
 	helpers.CleanupTerraformFolder(t, testFixtureHooksNoHooks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksNoHooks)
 	directPath := filepath.Join(tmpEnvPath, testFixtureHooksNoHooks, "direct")

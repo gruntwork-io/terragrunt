@@ -293,7 +293,7 @@ func TestProcessErrorHooks_SkipsHooksWhenNoHooksSet(t *testing.T) {
 		{Name: "disabled", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "skip-me"}},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, opts, []error{errors.New("boom")}))
+	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, opts, []error{errors.New("boom")}))
 	assert.Empty(t, rec.snapshot(), "--no-hooks should suppress error hook dispatch")
 }
 

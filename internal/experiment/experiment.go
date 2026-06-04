@@ -149,6 +149,8 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: HookContextEnv,
+		},
+		{
 			Name: OptionalHooks,
 		},
 	}
