@@ -63,10 +63,12 @@ func TestNewTelemeterEnvOverrides(t *testing.T) {
 
 			type entry struct {
 				Resource []struct {
-					Key   string
-					Value struct{ Value string }
-				}
-				ScopeMetrics []json.RawMessage `json:",omitempty"`
+					Key   string `json:"Key"`
+					Value struct {
+						Value string `json:"Value"`
+					} `json:"Value"`
+				} `json:"Resource"`
+				ScopeMetrics []json.RawMessage `json:"ScopeMetrics,omitempty"`
 			}
 
 			var spanFound, metricFound bool

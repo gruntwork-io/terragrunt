@@ -145,7 +145,11 @@ func NewMetricsExporter(ctx context.Context, writer io.Writer, opts *Options) (m
 }
 
 // newMetricsProvider creates a new metrics provider.
-func newMetricsProvider(ctx context.Context, exp metric.Exporter, appName, appVersion string) (*metric.MeterProvider, error) {
+func newMetricsProvider(
+	ctx context.Context,
+	exp metric.Exporter,
+	appName, appVersion string,
+) (*metric.MeterProvider, error) {
 	r, err := resource.New(ctx,
 		resource.WithSchemaURL(semconv.SchemaURL),
 		resource.WithAttributes(
