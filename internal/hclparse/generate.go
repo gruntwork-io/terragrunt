@@ -126,18 +126,9 @@ func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, 
 	blockBody := newBlock.Body()
 
 	for _, attr := range SortedAttributes(block.Body.Attributes) {
-		if evalCtx == nil {
-			blockBody.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
-
-			continue
-		}
-
-		result, err := PartialEval(attr.Expr, &EvalArgs{EvalCtx: evalCtx, Deferred: deferredRoots, SrcBytes: srcBytes})
-		if err != nil {
+		if err := writeAttribute(blockBody, attr, srcBytes, evalCtx); err != nil {
 			return err
 		}
-
-		blockBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
 	for _, nested := range block.Body.Blocks {
@@ -220,18 +211,9 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 			continue
 		}
 
-		if evalCtx == nil {
-			depBody.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
-
-			continue
-		}
-
-		result, err := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
-		if err != nil {
+		if err := writeAttribute(depBody, attr, srcBytes, evalCtx); err != nil {
 			return err
 		}
-
-		depBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
 	// Render nested blocks within the dependency (if any) with the same partial evaluation.
@@ -247,19 +229,9 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 // writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body, partially evaluating each attribute.
 func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	for _, attr := range SortedAttributes(body.Attributes) {
-		if evalCtx == nil {
-			exprBytes := RangeBytes(srcBytes, attr.Expr.Range())
-			outBody.SetAttributeRaw(attr.Name, RawTokens(exprBytes))
-
-			continue
-		}
-
-		result, err := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
-		if err != nil {
+		if err := writeAttribute(outBody, attr, srcBytes, evalCtx); err != nil {
 			return err
 		}
-
-		outBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
 	for _, block := range body.Blocks {
@@ -278,6 +250,24 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.
 func quotedStringTokens(value string) hclwrite.Tokens {
 	return hclwrite.TokensForValue(cty.StringVal(value))
+}
+
+// writeAttribute writes attr to body verbatim when evalCtx is nil, otherwise partially evaluated so generate-time roots resolve and deferred roots stay verbatim.
+func writeAttribute(body *hclwrite.Body, attr *hclsyntax.Attribute, srcBytes []byte, evalCtx *hcl.EvalContext) error {
+	if evalCtx == nil {
+		body.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
+
+		return nil
+	}
+
+	result, err := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
+	if err != nil {
+		return err
+	}
+
+	body.SetAttributeRaw(attr.Name, RawTokens(result))
+
+	return nil
 }
 
 // resolvedSourceFile returns the originating HCL filename from a resolved autoinclude for panic-message context.
