@@ -862,6 +862,7 @@ type stackComponentHeader struct {
 	Remain  hcl.Body `hcl:",remain"`
 	NoStack *bool    `hcl:"no_dot_terragrunt_stack,optional"`
 	Path    string   `hcl:"path,attr"`
+	Source  string   `hcl:"source,optional"`
 	Name    string   `hcl:",label"`
 }
 
@@ -885,7 +886,7 @@ func injectStackComponentRefs(file *hclparse.File, evalCtx *hcl.EvalContext, sta
 
 	// Publish the base refs first so a sibling autoinclude block whose path references unit.<name>.path /
 	// stack.<name>.path can resolve against the base components, matching how the full decode resolves them.
-	setStackComponentRefVars(evalCtx, stackDir, headers.Units, headers.Stacks)
+	setStackComponentRefVars(vfs.NewOSFS(), evalCtx, stackDir, headers.Units, headers.Stacks)
 
 	autoUnits, autoStacks, err := stackAutoIncludeComponentHeaders(stackDir, evalCtx, parserOpts)
 	if err != nil {
@@ -895,13 +896,13 @@ func injectStackComponentRefs(file *hclparse.File, evalCtx *hcl.EvalContext, sta
 	// Republish so an overridden component's path reflects the override, not the base path it replaced.
 	units := util.MergeNamed(headers.Units, autoUnits, componentHeaderName)
 	stacks := util.MergeNamed(headers.Stacks, autoStacks, componentHeaderName)
-	setStackComponentRefVars(evalCtx, stackDir, units, stacks)
+	setStackComponentRefVars(vfs.NewOSFS(), evalCtx, stackDir, units, stacks)
 
 	return nil
 }
 
 // setStackComponentRefVars publishes the unit.<name> and stack.<name> path variables into evalCtx.
-func setStackComponentRefVars(evalCtx *hcl.EvalContext, stackDir string, units, stacks []*stackComponentHeader) {
+func setStackComponentRefVars(fs vfs.FS, evalCtx *hcl.EvalContext, stackDir string, units, stacks []*stackComponentHeader) {
 	unitRefs := make([]inthclparse.ComponentRef, 0, len(units))
 
 	for _, u := range units {
@@ -919,7 +920,20 @@ func setStackComponentRefVars(evalCtx *hcl.EvalContext, stackDir string, units, 
 			continue
 		}
 
-		stackRefs = append(stackRefs, inthclparse.ComponentRef{Name: s.Name, Path: s.GeneratedPath(stackDir)})
+		genDir := s.GeneratedPath(stackDir)
+		ref := inthclparse.ComponentRef{Name: s.Name, Path: genDir, IsStack: true}
+
+		// Expose the nested stack's components (stack.<name>.unit.<unit>.path) by enumerating its source,
+		// resolved relative to the stack file being parsed, so direct value references resolve too.
+		if source := s.Source; source != "" {
+			if !filepath.IsAbs(source) {
+				source = filepath.Join(stackDir, source)
+			}
+
+			ref.Units, ref.Stacks = inthclparse.NestedStackComponentRefs(fs, evalCtx.Functions, filepath.Clean(source), genDir)
+		}
+
+		stackRefs = append(stackRefs, ref)
 	}
 
 	evalCtx.Variables[inthclparse.VarUnit] = inthclparse.BuildComponentRefMap(unitRefs)

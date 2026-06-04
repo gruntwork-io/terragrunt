@@ -825,3 +825,75 @@ func TestRedirectIntoStackDir(t *testing.T) {
 		})
 	}
 }
+
+// TestNestedStackComponentRefs pins that a nested stack's units and sub-stacks are enumerated from its source
+// with generated paths computed under the stack's generated directory, recursively through sub-stacks.
+func TestNestedStackComponentRefs(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/src/core", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/src/core/terragrunt.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+
+stack "net" {
+  source = "/src/net"
+  path   = "net"
+}
+`), 0644))
+	require.NoError(t, fs.MkdirAll("/src/net", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/src/net/terragrunt.stack.hcl", []byte(`unit "gw" {
+  source = "."
+  path   = "gw"
+}
+`), 0644))
+
+	genDir := filepath.Join("/live", ".terragrunt-stack", "core")
+	units, stacks := hclparse.NestedStackComponentRefs(fs, map[string]function.Function{}, "/src/core", genDir)
+
+	require.Len(t, units, 1)
+	assert.Equal(t, "vpc", units[0].Name)
+	assert.Equal(t, filepath.Join(genDir, ".terragrunt-stack", "vpc"), units[0].Path)
+
+	require.Len(t, stacks, 1)
+	assert.Equal(t, "net", stacks[0].Name)
+	assert.True(t, stacks[0].IsStack)
+
+	netGen := filepath.Join(genDir, ".terragrunt-stack", "net")
+	assert.Equal(t, netGen, stacks[0].Path)
+
+	require.Len(t, stacks[0].Units, 1, "the sub-stack's units must be enumerated recursively")
+	assert.Equal(t, "gw", stacks[0].Units[0].Name)
+	assert.Equal(t, filepath.Join(netGen, ".terragrunt-stack", "gw"), stacks[0].Units[0].Path)
+}
+
+// TestBuildComponentRefMapNestsStackComponents pins that a stack ref exposes its nested unit and stack maps
+// (stack.<name>.unit.<unit>.path) while a unit ref exposes only its path.
+func TestBuildComponentRefMapNestsStackComponents(t *testing.T) {
+	t.Parallel()
+
+	refs := []hclparse.ComponentRef{
+		{Name: "vpc", Path: "/u/vpc"},
+		{
+			Name:    "core",
+			Path:    "/s/core",
+			IsStack: true,
+			Units:   []hclparse.ComponentRef{{Name: "db", Path: "/s/core/.terragrunt-stack/db"}},
+		},
+	}
+
+	got := hclparse.BuildComponentRefMap(refs).AsValueMap()
+
+	vpc := got["vpc"].AsValueMap()
+	assert.Equal(t, "/u/vpc", vpc["path"].AsString())
+	_, hasUnit := vpc["unit"]
+	assert.False(t, hasUnit, "a unit ref must not expose nested unit/stack maps")
+
+	core := got["core"].AsValueMap()
+	assert.Equal(t, "/s/core", core["path"].AsString())
+	db := core["unit"].AsValueMap()["db"].AsValueMap()
+	assert.Equal(t, "/s/core/.terragrunt-stack/db", db["path"].AsString(),
+		"a stack ref must expose its nested units as stack.<name>.unit.<unit>.path")
+}

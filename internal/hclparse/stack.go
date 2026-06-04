@@ -71,22 +71,32 @@ type StackBlockHCL struct {
 	Name         string          `hcl:",label"`
 }
 
-// ComponentRef is a top-level unit or stack ref injected into the eval context
-// as `unit.<name>` or `stack.<name>`. Each ref carries its label and its
-// generated path; only the path is exposed in HCL.
+// ComponentRef is a unit or stack ref injected into the eval context as
+// `unit.<name>` or `stack.<name>`. Each ref carries its label and its generated
+// path; only the path is exposed in HCL. A stack ref additionally exposes its
+// nested components (Units and Stacks) so a dependency can address a component
+// inside a nested stack via `stack.<name>.unit.<unit>.path` or
+// `stack.<name>.stack.<substack>.path`, recursively and at any depth. IsStack
+// marks a ref as a stack so its (possibly empty) `unit` and `stack` accessors
+// are always present.
 type ComponentRef struct {
-	Name string
-	Path string
+	Name    string
+	Path    string
+	Units   []ComponentRef
+	Stacks  []ComponentRef
+	IsStack bool
 }
 
 // BuildComponentRefMap converts component refs into an HCL object injected as
 // the `unit` or `stack` variable in the eval context. Empty input returns
 // EmptyObjectVal so typos surface as "Unsupported attribute" diagnostics.
 //
-// Output shape:
+// Output shape (a unit exposes only path; a stack also exposes its nested
+// components so they can be addressed recursively):
 //
 //	{
-//	  "<name>": { "path": "<generated path>" }
+//	  "<unit>":  { "path": "<generated path>" },
+//	  "<stack>": { "path": "<generated path>", "unit": { ... }, "stack": { ... } }
 //	}
 func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	if len(refs) == 0 {
@@ -95,13 +105,27 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 
 	refMap := make(map[string]cty.Value, len(refs))
 
-	for _, ref := range refs {
-		refMap[ref.Name] = cty.ObjectVal(map[string]cty.Value{
-			"path": cty.StringVal(ref.Path),
-		})
+	for i := range refs {
+		refMap[refs[i].Name] = buildComponentRefValue(&refs[i])
 	}
 
 	return cty.ObjectVal(refMap)
+}
+
+// buildComponentRefValue renders a single component ref. A unit ref exposes only
+// its path; a stack ref also exposes its nested `unit` and `stack` maps so the
+// nested components are addressable, with empty maps when a stack has none.
+func buildComponentRefValue(ref *ComponentRef) cty.Value {
+	obj := map[string]cty.Value{
+		"path": cty.StringVal(ref.Path),
+	}
+
+	if ref.IsStack {
+		obj[VarUnit] = BuildComponentRefMap(ref.Units)
+		obj[VarStack] = BuildComponentRefMap(ref.Stacks)
+	}
+
+	return cty.ObjectVal(obj)
 }
 
 // GeneratedComponentPath returns the on-disk path a unit or stack block in a
@@ -159,6 +183,77 @@ func isStackComponentDir(fs vfs.FS, dir string) bool {
 	}
 
 	return false
+}
+
+// NestedStackComponentRefs enumerates the units and sub-stacks of the stack whose source lives at sourceDir,
+// computing each component's generated path under genDir. It lets a dependency address a component inside a
+// nested stack via stack.<name>.unit.<unit>.path or stack.<name>.stack.<substack>.path. Reading the SOURCE
+// (available before the nested stack is generated) keeps the refs correct by construction. Unreadable or
+// remote sources yield no nested refs (best-effort).
+func NestedStackComponentRefs(fs vfs.FS, funcs map[string]function.Function, sourceDir, genDir string) (units, stacks []ComponentRef) {
+	return nestedStackComponentRefs(fs, funcs, sourceDir, genDir, 1, map[string]struct{}{})
+}
+
+// nestedStackComponentRefs is the bounded, cycle-safe recursive worker behind NestedStackComponentRefs.
+func nestedStackComponentRefs(fs vfs.FS, funcs map[string]function.Function, sourceDir, genDir string, depth int, visited map[string]struct{}) (units, stacks []ComponentRef) {
+	if depth > maxStackRecursionDepth {
+		return nil, nil
+	}
+
+	resolved := util.ResolvePath(sourceDir)
+	if _, seen := visited[resolved]; seen {
+		return nil, nil
+	}
+
+	visited[resolved] = struct{}{}
+
+	stackFile := filepath.Join(sourceDir, stackFileName)
+	if ok, err := vfs.FileExists(fs, stackFile); err != nil || !ok {
+		return nil, nil
+	}
+
+	// Best-effort: a nested enumeration failure must not fail the parent parse. The aggregate dependency
+	// form and the runtime path redirect remain available as fallbacks.
+	decUnits, decStacks, err := decodeDiscovery(fs, sourceDir, stackFile, funcs)
+	if err != nil {
+		return nil, nil
+	}
+
+	for _, u := range decUnits {
+		units = append(units, ComponentRef{Name: u.Name, Path: u.GeneratedPath(genDir)})
+	}
+
+	for _, s := range decStacks {
+		childGenDir := s.GeneratedPath(genDir)
+		ref := ComponentRef{Name: s.Name, Path: childGenDir, IsStack: true}
+
+		if childSource, ok := evalStackSource(s, funcs); ok {
+			if !filepath.IsAbs(childSource) {
+				childSource = filepath.Join(sourceDir, childSource)
+			}
+
+			ref.Units, ref.Stacks = nestedStackComponentRefs(fs, funcs, filepath.Clean(childSource), childGenDir, depth+1, visited)
+		}
+
+		stacks = append(stacks, ref)
+	}
+
+	return units, stacks
+}
+
+// evalStackSource evaluates a discovery stack block's source expression with the given functions. It returns
+// ok=false when the source is absent, non-literal, or fails to evaluate (e.g. a remote getter URL).
+func evalStackSource(s *stackPathOnlyHCL, funcs map[string]function.Function) (string, bool) {
+	if s == nil || s.Source == nil {
+		return "", false
+	}
+
+	v, diags := s.Source.Value(&hcl.EvalContext{Functions: funcs})
+	if diags.HasErrors() || v.IsNull() || v.Type() != cty.String {
+		return "", false
+	}
+
+	return v.AsString(), true
 }
 
 // unitPathOnlyHCL is the discovery shape for unit name and path.

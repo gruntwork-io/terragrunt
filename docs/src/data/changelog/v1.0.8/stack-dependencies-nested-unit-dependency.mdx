@@ -3,8 +3,16 @@ version: "v1.0.8"
 category: "experiments-updated"
 ---
 
-#### `stack-dependencies`: depend on a unit inside a nested stack
+#### `stack-dependencies`: reference a component inside a nested stack
 
-A dependency that drills into a specific unit of a nested stack, for example `config_path = "${stack.core.path}/vpc"`, now resolves to that unit. Previously the path landed one level too high, because `stack.<name>.path` points at the nested stack's own directory while its units and sub-stacks live under that stack's inner `.terragrunt-stack` directory, so the run would fail with "You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file" pointing at `<stack>/<unit>`.
+A `stack` block now exposes its nested components, so a dependency can address a specific unit or sub-stack inside a nested stack the same way `unit.<name>.path` and `stack.<name>.path` already work:
 
-Terragrunt now redirects such a dependency path through the nested `.terragrunt-stack` directory when the target resolves there, applied consistently to run-queue expansion and to `dependency.<name>.outputs.*` resolution, and at any nesting depth. Depending on a whole nested stack (`config_path = stack.<name>.path` and consuming `dependency.<name>.outputs.<unit>.<key>`) is unchanged, and a `no_dot_terragrunt_stack` component, a normal unit dependency, and a genuinely missing path keep their existing behavior.
+```hcl
+dependency "vpc" {
+  config_path = stack.core.unit.vpc.path
+}
+```
+
+`stack.<name>.unit.<unit>.path` and `stack.<name>.stack.<substack>.path` resolve to the component's full generated path, through the nested stack's inner `.terragrunt-stack` directory, by construction. The accessors are recursive (`stack.core.stack.net.unit.gw.path`) and correct at any nesting depth. The nested components are enumerated from the nested stack's source, so local stack sources are supported; consuming a whole nested stack via the aggregate form (`config_path = stack.<name>.path` with `dependency.<name>.outputs.<unit>.<key>`) is unchanged.
+
+As a forgiving fallback, a dependency `config_path` that points one `.terragrunt-stack` segment too high (for example a hand-written `"${stack.core.path}/vpc"`) is now redirected to the real component directory when it resolves there, so it no longer fails with "You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file". This applies to run-queue expansion and `dependency.<name>.outputs.*` resolution alike. A normal unit dependency, a `no_dot_terragrunt_stack` component, and a genuinely missing path keep their existing behavior.

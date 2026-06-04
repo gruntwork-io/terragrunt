@@ -112,7 +112,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	}
 
 	evalCtx.Variables[VarUnit] = BuildComponentRefMap(buildUnitRefs(decoded.Units, input.StackDir))
-	evalCtx.Variables[VarStack] = BuildComponentRefMap(buildStackRefs(decoded.Stacks, input.StackDir))
+	evalCtx.Variables[VarStack] = BuildComponentRefMap(buildStackRefs(fs, evalCtx.Functions, decoded.Stacks, input.StackDir))
 
 	autoIncludes, err := resolveAutoIncludes(decoded.Units, decoded.Stacks, evalCtx, srcByFilename)
 	if err != nil {
@@ -222,11 +222,24 @@ func buildUnitRefs(units []*UnitBlockHCL, stackDir string) []ComponentRef {
 }
 
 // buildStackRefs builds top-level component refs for stack blocks.
-func buildStackRefs(stacks []*StackBlockHCL, stackDir string) []ComponentRef {
+func buildStackRefs(fs vfs.FS, funcs map[string]function.Function, stacks []*StackBlockHCL, stackDir string) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
 	for _, s := range stacks {
-		refs = append(refs, ComponentRef{Name: s.Name, Path: s.GeneratedPath(stackDir)})
+		genDir := s.GeneratedPath(stackDir)
+		ref := ComponentRef{Name: s.Name, Path: genDir, IsStack: true}
+
+		// Expose the nested stack's components (stack.<name>.unit.<unit>.path / stack.<name>.stack.<sub>.path)
+		// by enumerating its source, resolved relative to the stack file being parsed.
+		if source := s.Source; source != "" {
+			if !filepath.IsAbs(source) {
+				source = filepath.Join(stackDir, source)
+			}
+
+			ref.Units, ref.Stacks = NestedStackComponentRefs(fs, funcs, filepath.Clean(source), genDir)
+		}
+
+		refs = append(refs, ref)
 	}
 
 	return refs

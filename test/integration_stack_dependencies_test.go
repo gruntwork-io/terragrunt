@@ -64,6 +64,7 @@ const (
 	testFixtureStackDepsStackAutoIncLocalPath    = "fixtures/stacks/stack-deps-stack-autoinclude-local-path"
 	testFixtureStackDepsDeepNestedDep            = "fixtures/stacks/stack-deps-deep-nested-dep"
 	testFixtureStackDepsStackUnitDrill           = "fixtures/stacks/stack-deps-stack-unit-drill"
+	testFixtureStackDepsNestedUnitRef            = "fixtures/stacks/stack-deps-nested-unit-ref"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -1972,6 +1973,46 @@ func TestStackDepsStackUnitDrillDependency(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, consumerOut, "real-producer-output",
 		"the consumer must resolve the drilled unit's real output")
+}
+
+// TestStackDepsNestedUnitRefDependency pins the explicit nested reference: config_path =
+// stack.core.unit.producer.path resolves to the nested unit's full generated path (through the nested
+// .terragrunt-stack directory) by construction, symmetric with unit.<name>.path. Generation bakes the
+// correct relative path and the dependency resolves the real output end-to-end.
+func TestStackDepsNestedUnitRefDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsNestedUnitRef)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsNestedUnitRef)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsNestedUnitRef)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	// The nested reference must bake the unit's full generated path, through the nested .terragrunt-stack.
+	consumerAutoInclude, err := os.ReadFile(filepath.Join(rootPath, inthclparse.StackDir, "consumer", inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+	assert.Contains(t, string(consumerAutoInclude), `"../core/.terragrunt-stack/producer"`,
+		"stack.core.unit.producer.path must resolve through the nested .terragrunt-stack directory")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
+	require.NoError(t, err, "the nested-reference dependency must resolve; stderr=%s", stderr)
+	assert.NotContains(t, stderr, "does not contain a terragrunt.hcl")
+
+	consumerDir := filepath.Join(rootPath, inthclparse.StackDir, "consumer")
+	consumerOut, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt output -no-color --experiment stack-dependencies --working-dir "+consumerDir)
+	require.NoError(t, err)
+	assert.Contains(t, consumerOut, "real-producer-output",
+		"the consumer must resolve the nested unit's real output via the explicit reference")
 }
 
 // TestStackDepsStackLevelAutoIncludeInjectsNestedStack verifies that a stack-level
