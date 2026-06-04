@@ -82,6 +82,9 @@ const (
 	// VersionAttribute gates resolving a tfr:// registry module from a version
 	// constraint expressed through the version attribute on the terraform block.
 	VersionAttribute = "version-attribute"
+	// OtelLogs enables the OpenTelemetry logs signal, exporting Terragrunt's log
+	// records over OTLP and correlating them with traces via the active span.
+	OtelLogs = "otel-logs"
 )
 
 const (
@@ -175,6 +178,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: VersionAttribute,
+		},
+		{
+			Name: OtelLogs,
 		},
 	}
 }

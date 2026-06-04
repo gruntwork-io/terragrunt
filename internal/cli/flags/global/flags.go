@@ -58,6 +58,8 @@ const (
 	TraceparentFlagName                             = "traceparent"
 	TelemetryMetricExporterFlagName                 = "telemetry-metric-exporter"
 	TelemetryMetricExporterInsecureEndpointFlagName = "telemetry-metric-exporter-insecure-endpoint"
+	TelemetryLogsExporterFlagName                   = "telemetry-logs-exporter"
+	TelemetryLogsExporterInsecureEndpointFlagName   = "telemetry-logs-exporter-insecure-endpoint"
 
 	// Renamed flags.
 
@@ -173,33 +175,6 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				EnvVars:  flags.Prefix{}.EnvVars(DeprecatedTFInputFlagName),
 			}, nil, opts.StrictControls)),
 
-		// Experiment Mode flags.
-
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:    ExperimentModeFlagName,
-			EnvVars: tgPrefix.EnvVars(ExperimentModeFlagName),
-			Usage:   "Enables experiment mode for Terragrunt. For more information, see https://docs.terragrunt.com/reference/experiment-mode .",
-			Setter: func(_ bool) error {
-				opts.Experiments.ExperimentMode()
-
-				return nil
-			},
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedExperimentModeFlagName), opts.StrictControls)),
-
-		flags.NewFlag(&clihelper.SliceFlag[string]{
-			Name:    ExperimentFlagName,
-			EnvVars: tgPrefix.EnvVars(ExperimentFlagName),
-			Usage:   "Enables specific experiments. For a list of available experiments, see https://docs.terragrunt.com/reference/experiment-mode .",
-			Setter:  opts.Experiments.EnableExperiment,
-			Action: func(_ context.Context, _ *clihelper.Context, _ []string) error {
-				opts.Experiments.NotifyCompletedExperiments(l)
-
-				return nil
-			},
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedExperimentFlagName), opts.StrictControls)),
-
 		// Tips Mode flags.
 
 		flags.NewFlag(&clihelper.BoolFlag{
@@ -259,10 +234,46 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	}
 
 	flags = flags.Add(NewTelemetryFlags(opts, nil)...)
+	flags = flags.Add(NewExperimentFlags(l, opts, prefix)...)
 	flags = flags.Sort()
 	flags = flags.Add(NewHelpVersionFlags(l, opts)...)
 
 	return flags
+}
+
+// NewExperimentFlags creates the experiment-mode and experiment flags. They are
+// parsed both as part of the full flag set and early in app startup, so telemetry
+// initialization can honor experiments such as otel-logs.
+func NewExperimentFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+
+	return clihelper.Flags{
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:    ExperimentModeFlagName,
+			EnvVars: tgPrefix.EnvVars(ExperimentModeFlagName),
+			Usage:   "Enables experiment mode for Terragrunt. For more information, see https://docs.terragrunt.com/reference/experiment-mode .",
+			Setter: func(_ bool) error {
+				opts.Experiments.ExperimentMode()
+
+				return nil
+			},
+		},
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedExperimentModeFlagName), opts.StrictControls)),
+
+		flags.NewFlag(&clihelper.SliceFlag[string]{
+			Name:    ExperimentFlagName,
+			EnvVars: tgPrefix.EnvVars(ExperimentFlagName),
+			Usage:   "Enables specific experiments. For a list of available experiments, see https://docs.terragrunt.com/reference/experiment-mode .",
+			Setter:  opts.Experiments.EnableExperiment,
+			Action: func(_ context.Context, _ *clihelper.Context, _ []string) error {
+				opts.Experiments.NotifyCompletedExperiments(l)
+
+				return nil
+			},
+		},
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedExperimentFlagName), opts.StrictControls)),
+	}
 }
 
 // NewTelemetryFlags creates telemetry related flags.
@@ -309,6 +320,16 @@ func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-metric-exporter-insecure-endpoint"), opts.StrictControls),
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-metric-exporter-insecure-endpoint"), opts.StrictControls)),
+
+		flags.NewFlag(&clihelper.GenericFlag[string]{
+			EnvVars:     tgPrefix.EnvVars(TelemetryLogsExporterFlagName),
+			Destination: &opts.Telemetry.LogsExporter,
+		}),
+
+		flags.NewFlag(&clihelper.BoolFlag{
+			EnvVars:     tgPrefix.EnvVars(TelemetryLogsExporterInsecureEndpointFlagName),
+			Destination: &opts.Telemetry.LogsExporterInsecureEndpoint,
+		}),
 	}
 }
 

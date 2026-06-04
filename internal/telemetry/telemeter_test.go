@@ -52,7 +52,7 @@ func TestNewTelemeterEnvOverrides(t *testing.T) {
 			opts.Telemetry.TraceExporter = "console"
 			opts.Telemetry.MetricExporter = "console"
 
-			tlm, err := telemetry.NewTelemeter(t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry)
+			tlm, err := telemetry.NewTelemeter(t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry, false)
 			require.NoError(t, err)
 			require.NotNil(t, tlm)
 
