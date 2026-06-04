@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"golang.org/x/text/cases"
@@ -99,7 +100,13 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		return err
 	}
 
-	telemeter, err := telemetry.NewTelemeter(ctx, app.l, app.Name, app.Version, app.Writer, app.opts.Telemetry)
+	// Parse experiment flags before telemetry init so the otel-logs experiment
+	// gates the logs signal. These flags are parsed again with the full set later.
+	if err := global.NewExperimentFlags(app.l, app.opts, nil).Parse(os.Args); err != nil {
+		return err
+	}
+
+	telemeter, err := telemetry.NewTelemeter(ctx, app.l, app.Name, app.Version, app.Writer, app.opts.Telemetry, app.opts.Experiments.Evaluate(experiment.OtelLogs))
 	if err != nil {
 		return err
 	}

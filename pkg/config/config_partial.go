@@ -302,13 +302,14 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 
 	err = TraceParseConfigFile(
 		ctx,
+		l,
 		configPath,
 		pctx.WorkingDir,
 		true, // isPartial
 		pctx.PartialParseDecodeList,
 		include,
 		cacheHit,
-		func(ctx context.Context) error {
+		func(ctx context.Context, l log.Logger) error {
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {

@@ -77,6 +77,9 @@ const (
 	HookContextEnv = "hook-context-env"
 	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
 	OptionalHooks = "optional-hooks"
+	// OtelLogs enables the OpenTelemetry logs signal, exporting Terragrunt's log
+	// records over OTLP and correlating them with traces via the active span.
+	OtelLogs = "otel-logs"
 )
 
 const (
@@ -164,6 +167,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptionalHooks,
+		},
+		{
+			Name: OtelLogs,
 		},
 	}
 }

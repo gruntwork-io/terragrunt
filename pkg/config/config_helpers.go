@@ -749,10 +749,10 @@ func getAWSField(ctx context.Context, pctx *ParsingContext, l log.Logger, fetchF
 
 	var result string
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "config_get_aws_field", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "config_get_aws_field", map[string]any{
 		"config_path": pctx.TerragruntConfigPath,
 		"role_arn":    pctx.IAMRoleOptions.RoleARN,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		var fetchErr error
 
 		result, fetchErr = fetchFn(ctx, &awsConfig)
@@ -1079,10 +1079,10 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 	var rawData []byte
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "config_sops_decrypt", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "config_sops_decrypt", map[string]any{
 		"path":   path,
 		"format": format,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		var decryptErr error
 
 		rawData, decryptErr = decryptFn(path, format)

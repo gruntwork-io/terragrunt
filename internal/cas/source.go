@@ -102,7 +102,7 @@ func (c *CAS) FetchSource(
 
 	tlm := telemetry.TelemeterFromContext(ctx)
 
-	return tlm.Collect(ctx, "cas_fetch_source", attrs, func(childCtx context.Context) error {
+	return tlm.Collect(ctx, l, "cas_fetch_source", attrs, func(childCtx context.Context, l log.Logger) error {
 		suggestedKey := c.probeSource(childCtx, l, src)
 
 		if suggestedKey != "" && !c.treeStore.NeedsWrite(v, suggestedKey) {

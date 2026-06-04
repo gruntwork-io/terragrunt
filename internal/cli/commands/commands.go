@@ -149,11 +149,11 @@ func WrapWithTelemetry(
 			"%s %s", cliCtx.Command.Name, opts.TerraformCommand,
 		)
 
-		return telemetry.TelemeterFromContext(ctx).Collect(ctx, cmdName, map[string]any{
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, cmdName, map[string]any{
 			"terraformCommand": opts.TerraformCommand,
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,
-		}, func(childCtx context.Context) error {
+		}, func(childCtx context.Context, l log.Logger) error {
 			if err := initialSetup(cliCtx, l, opts); err != nil {
 				return err
 			}

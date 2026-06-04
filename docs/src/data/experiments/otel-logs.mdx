@@ -1,0 +1,37 @@
+---
+name: otel-logs
+status: active
+since: "1.0.8"
+---
+
+Export Terragrunt's logs as an OpenTelemetry logs signal.
+
+### `otel-logs` - What it does
+
+When enabled, Terragrunt emits its log output as OpenTelemetry log records in addition to the existing traces and metrics signals. The exporter is selected with `TG_TELEMETRY_LOGS_EXPORTER`:
+
+- `none` — no log exporting (the default).
+- `console` — write log records to the console as JSON.
+- `otlpHttp` — export logs to an OpenTelemetry collector over HTTP.
+- `otlpGrpc` — export logs to an OpenTelemetry collector over gRPC.
+
+The OTLP exporters read their endpoint from the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable. Set `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true` to skip server certificate validation when collecting locally.
+
+```bash
+TG_TELEMETRY_LOGS_EXPORTER=otlpHttp terragrunt run --all --experiment otel-logs -- apply
+```
+
+Each record carries the trace and span IDs of the unit that emitted it, so a failed unit's logs link back to its span in the backend — for example, clicking a unit's span in the trace view surfaces exactly the logs it produced. Without the experiment enabled, the logs exporter stays inert regardless of `TG_TELEMETRY_LOGS_EXPORTER`.
+
+### `otel-logs` - How to provide feedback
+
+Provide your feedback in the [OpenTelemetry logs integration issue](https://github.com/gruntwork-io/terragrunt/issues/6275).
+
+### `otel-logs` - Criteria for stabilization
+
+To transition the `otel-logs` feature to a stable release, the following must be addressed:
+
+- [ ] Confirm the exporter types and configuration cover common collector setups.
+- [ ] Validate log volume and batching behavior on large stacks.
+- [ ] Confirm trace/span correlation is reliable across the run lifecycle, including run-level logs emitted outside a unit span.
+- [ ] Settle on the dependency stability story for the OpenTelemetry logs SDK, which is still pre-1.0.

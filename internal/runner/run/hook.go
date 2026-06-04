@@ -91,10 +91,10 @@ func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParam
 		}
 
 		if shouldRunHook(curHook, p.Opts, allPreviousErrors) {
-			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hook_"+curHook.Name, map[string]any{
+			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
-			}, func(ctx context.Context) error {
+			}, func(ctx context.Context, l log.Logger) error {
 				return runHook(ctx, l, v, p.Opts, p.Cfg, curHook, p.HookType)
 			})
 			if err != nil {
@@ -146,10 +146,10 @@ func ProcessErrorHooks(
 
 	for _, curHook := range hooks {
 		if util.MatchesAny(curHook.OnErrors, errorMessage) && slices.Contains(curHook.Commands, opts.TerraformCommand) {
-			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "error_hook_"+curHook.Name, map[string]any{
+			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "error_hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
-			}, func(ctx context.Context) error {
+			}, func(ctx context.Context, l log.Logger) error {
 				l.Infof("Executing hook: %s", curHook.Name)
 
 				actionToExecute := curHook.Execute[0]
