@@ -1,4 +1,6 @@
-export const sidebar = [
+import type { StarlightUserConfig } from "@astrojs/starlight/types";
+
+export const sidebar: StarlightUserConfig["sidebar"] = [
   {
     label: "Getting Started",
     items: [{ autogenerate: { directory: "01-getting-started" } }],
@@ -70,6 +72,7 @@ export const sidebar = [
     items: [
       {
         label: "HCL",
+        collapsed: true,
         items: [{ autogenerate: { directory: "04-reference/01-hcl", collapsed: true } }],
       },
       {
@@ -79,18 +82,15 @@ export const sidebar = [
           { label: "Overview", slug: "reference/cli" },
           {
             label: "Commands",
-            items: [{
-              autogenerate: {
-                directory: "04-reference/02-cli/02-commands",
-                collapsed: true,
-              },
-            }],
+            collapsed: true,
+            items: [{ autogenerate: { directory: "04-reference/02-cli/02-commands", collapsed: true } }],
           },
           { label: "Global Flags", slug: "reference/cli/global-flags" },
         ],
       },
       {
         label: "Strict Controls",
+        collapsed: true,
         items: [
           { label: "Overview", slug: "reference/strict-controls" },
           { label: "Active Controls", link: "/reference/strict-controls/active" },
@@ -99,6 +99,7 @@ export const sidebar = [
       },
       {
         label: "Experiments",
+        collapsed: true,
         items: [
           { label: "Overview", slug: "reference/experiments" },
           { label: "Active Experiments", link: "/reference/experiments/active" },
@@ -112,6 +113,7 @@ export const sidebar = [
       { label: "Lock Files", slug: "reference/lock-files" },
       {
         label: "Logging",
+        collapsed: true,
         items: [{ autogenerate: { directory: "04-reference/07-logging", collapsed: true } }],
       },
       { label: "Terragrunt Cache", slug: "reference/terragrunt-cache" },
@@ -119,32 +121,32 @@ export const sidebar = [
   },
   {
     label: "Community",
-    items: [{ autogenerate: { directory: "05-community", collapsed: true } }],
     collapsed: true,
+    items: [{ autogenerate: { directory: "05-community", collapsed: true } }],
   },
   {
     label: "Troubleshooting",
-    items: [{ autogenerate: { directory: "06-troubleshooting", collapsed: true } }],
     collapsed: true,
+    items: [{ autogenerate: { directory: "06-troubleshooting", collapsed: true } }],
   },
   {
     label: "Process",
+    collapsed: true,
     items: [
       { label: "Terragrunt 1.0 Guarantees", slug: "process/1-0-guarantees" },
       { label: "CLI Rules", slug: "process/cli-rules" },
       { label: "Releases", slug: "process/releases" },
       { label: "Changelog", link: "/process/changelog" },
     ],
-    collapsed: true,
   },
   {
     label: "Migrate",
-    items: [{ autogenerate: { directory: "08-migrate", collapsed: true } }],
     collapsed: true,
+    items: [{ autogenerate: { directory: "08-migrate", collapsed: true } }],
   },
   {
     label: "Terragrunt Scale",
-    items: [{ autogenerate: { directory: "09-terragrunt-scale", collapsed: true } }],
     collapsed: true,
+    items: [{ autogenerate: { directory: "09-terragrunt-scale", collapsed: true } }],
   },
 ];
