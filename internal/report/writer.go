@@ -77,11 +77,12 @@ func ParseJSONRunsFromFile(path string) (JSONRuns, error) {
 	return ParseJSONRuns(data)
 }
 
-// FindByName searches for a run by name.
+// FindByName searches for a run by name, comparing in forward-slash space.
 // Returns the run if found, or nil if not found.
 func (runs JSONRuns) FindByName(name string) *JSONRun {
+	name = filepath.ToSlash(name)
 	for i := range runs {
-		if runs[i].Name == name {
+		if filepath.ToSlash(runs[i].Name) == name {
 			return &runs[i]
 		}
 	}
@@ -168,11 +169,12 @@ func ParseCSVRunsFromFile(path string) (CSVRuns, error) {
 	return ParseCSVRuns(data)
 }
 
-// FindByName searches for a run by name.
+// FindByName searches for a run by name, comparing in forward-slash space.
 // Returns the run if found, or nil if not found.
 func (runs CSVRuns) FindByName(name string) *CSVRun {
+	name = filepath.ToSlash(name)
 	for i := range runs {
-		if runs[i].Name == name {
+		if filepath.ToSlash(runs[i].Name) == name {
 			return &runs[i]
 		}
 	}
