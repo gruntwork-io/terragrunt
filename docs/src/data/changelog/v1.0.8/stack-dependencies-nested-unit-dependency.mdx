@@ -1,0 +1,10 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: depend on a unit inside a nested stack
+
+A dependency that drills into a specific unit of a nested stack, for example `config_path = "${stack.core.path}/vpc"`, now resolves to that unit. Previously the path landed one level too high, because `stack.<name>.path` points at the nested stack's own directory while its units and sub-stacks live under that stack's inner `.terragrunt-stack` directory, so the run would fail with "You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file" pointing at `<stack>/<unit>`.
+
+Terragrunt now redirects such a dependency path through the nested `.terragrunt-stack` directory when the target resolves there, applied consistently to run-queue expansion and to `dependency.<name>.outputs.*` resolution, and at any nesting depth. Depending on a whole nested stack (`config_path = stack.<name>.path` and consuming `dependency.<name>.outputs.<unit>.<key>`) is unchanged, and a `no_dot_terragrunt_stack` component, a normal unit dependency, and a genuinely missing path keep their existing behavior.

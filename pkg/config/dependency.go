@@ -18,8 +18,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
@@ -707,9 +709,17 @@ func getTerragruntOutput(
 	l log.Logger,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
+	configPathStr := dependencyConfig.ConfigPath.AsString()
+
+	// When the stack-dependencies experiment is enabled, correct a config_path that drills into a nested
+	// stack's component via "${stack.X.path}/<name>", which lands one .terragrunt-stack segment too high.
+	if pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		configPathStr = redirectDependencyConfigPathIntoStack(configPathStr, pctx.TerragruntConfigPath)
+	}
+
 	// target config check: make sure the target config exists
 	targetConfigPath := getCleanedTargetConfigPath(
-		dependencyConfig.ConfigPath.AsString(),
+		configPathStr,
 		pctx.TerragruntConfigPath,
 	)
 
@@ -798,6 +808,18 @@ func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Lo
 	}
 
 	return unitOutputs, nil
+}
+
+// redirectDependencyConfigPathIntoStack rewrites a dependency config_path that drills into a nested stack's
+// component (via "${stack.X.path}/<name>") to that component's real directory under .terragrunt-stack. It
+// returns the input unchanged when no correction applies (aggregate stack dep, normal unit dep, missing path).
+func redirectDependencyConfigPathIntoStack(configPath, workingPath string) string {
+	dir := configPath
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(filepath.Dir(workingPath), dir)
+	}
+
+	return inthclparse.RedirectIntoStackDir(vfs.NewOSFS(), filepath.Clean(dir))
 }
 
 // tryGetStackOutput checks if targetConfigPath points to a stack directory

@@ -19,6 +19,9 @@ import (
 // stackFileName is the canonical filename of a Terragrunt stack file.
 const stackFileName = "terragrunt.stack.hcl"
 
+// unitFileName is the canonical filename of a Terragrunt unit config.
+const unitFileName = "terragrunt.hcl"
+
 // StackFileHCL is the parsed skeleton: locals, includes, and Remain.
 type StackFileHCL struct {
 	Remain   hcl.Body           `hcl:",remain"`
@@ -127,6 +130,35 @@ func (s *StackBlockHCL) GeneratedPath(stackDir string) string {
 // GeneratedPath returns the on-disk path this unit generates to under stackDir.
 func (u *unitPathOnlyHCL) GeneratedPath(stackDir string) string {
 	return GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
+}
+
+// RedirectIntoStackDir corrects a dependency directory that points one .terragrunt-stack segment too high.
+// This happens when a config_path drills into a nested stack's component via "${stack.X.path}/<name>":
+// stack.X.path is the nested stack's own directory, but its units and sub-stacks live under that stack's
+// inner .terragrunt-stack directory. If dir is already a stack component (unit or stack), or the
+// .terragrunt-stack sibling is not a component, dir is returned unchanged so existing behavior is preserved.
+func RedirectIntoStackDir(fs vfs.FS, dir string) string {
+	if isStackComponentDir(fs, dir) {
+		return dir
+	}
+
+	hopped := filepath.Join(filepath.Dir(dir), StackDir, filepath.Base(dir))
+	if isStackComponentDir(fs, hopped) {
+		return hopped
+	}
+
+	return dir
+}
+
+// isStackComponentDir reports whether dir is a unit (terragrunt.hcl) or a stack (terragrunt.stack.hcl) directory.
+func isStackComponentDir(fs vfs.FS, dir string) bool {
+	for _, name := range []string{unitFileName, stackFileName} {
+		if ok, err := vfs.FileExists(fs, filepath.Join(dir, name)); err == nil && ok {
+			return true
+		}
+	}
+
+	return false
 }
 
 // unitPathOnlyHCL is the discovery shape for unit name and path.

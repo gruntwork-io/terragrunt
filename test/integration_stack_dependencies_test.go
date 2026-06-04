@@ -62,6 +62,8 @@ const (
 	testFixtureStackDepsApplyNoMocks             = "fixtures/stacks/stack-deps-apply-no-mocks"
 	testFixtureStackDepsStackAutoIncOverride     = "fixtures/stacks/stack-deps-stack-autoinclude-override"
 	testFixtureStackDepsStackAutoIncLocalPath    = "fixtures/stacks/stack-deps-stack-autoinclude-local-path"
+	testFixtureStackDepsDeepNestedDep            = "fixtures/stacks/stack-deps-deep-nested-dep"
+	testFixtureStackDepsStackUnitDrill           = "fixtures/stacks/stack-deps-stack-unit-drill"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -1879,6 +1881,97 @@ func TestStackDepsStackLevelAutoIncludeOverridePathUsesLocal(t *testing.T) {
 		"the injected unit path referencing local.region must resolve during generation")
 	assert.NoDirExists(t, filepath.Join(rootPath, inthclparse.StackDir, "extra-${local.region}"),
 		"the local reference must not be left unresolved in the generated path")
+}
+
+// TestStackDepsDeepNestedStackCrossDependency exercises a stack-of-stacks two levels deep: a sandbox stack
+// references an eks stack, which references a core stack and a cluster unit. The cluster's autoinclude
+// depends on the core stack (stack.core.path) and reads an aggregated unit output, while the core stack's
+// vpc unit autoinclude depends on a sibling unit (unit.data.path). Both dependency config_paths must account
+// for the two nested .terragrunt-stack segments, so a unit two levels deep is not addressed one level too
+// high (e.g. core/data rather than core/.terragrunt-stack/data).
+func TestStackDepsDeepNestedStackCrossDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsDeepNestedDep)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsDeepNestedDep)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsDeepNestedDep)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	// The units two levels deep must materialize through both nested .terragrunt-stack segments.
+	coreStackDir := filepath.Join(rootPath, inthclparse.StackDir, "eks", inthclparse.StackDir, "core", inthclparse.StackDir)
+	assert.DirExists(t, filepath.Join(coreStackDir, "data"), "the core stack's data unit must materialize two levels deep")
+	assert.DirExists(t, filepath.Join(coreStackDir, "vpc"), "the core stack's vpc unit must materialize two levels deep")
+
+	// The vpc unit's autoinclude dependency on unit.data.path must resolve to the sibling unit through the
+	// nested .terragrunt-stack directory, not one level too high.
+	vpcAutoInclude, err := os.ReadFile(filepath.Join(coreStackDir, "vpc", inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+	assert.Contains(t, string(vpcAutoInclude), `"../data"`,
+		"the deep-nested unit dependency must resolve to the sibling unit through .terragrunt-stack")
+
+	// The full cross-stack chain must apply: data -> vpc (sibling unit dep), then cluster reading the core
+	// stack's aggregated vpc output (dependency.vpc.outputs.vpc.vpc_id) one stack level up.
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
+	require.NoError(t, err, "the deep-nested cross-stack dependency chain must apply; stderr=%s", stderr)
+	assert.NotContains(t, stderr, "does not contain a terragrunt.hcl",
+		"no dependency path may drop a nested .terragrunt-stack segment")
+
+	// The cluster must have resolved the REAL aggregated output from core.vpc, proving deep cross-stack
+	// stack-output aggregation works (not the mock).
+	clusterDir := filepath.Join(rootPath, inthclparse.StackDir, "eks", inthclparse.StackDir, "cluster")
+	clusterOut, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt output -no-color --experiment stack-dependencies --working-dir "+clusterDir)
+	require.NoError(t, err)
+	assert.Contains(t, clusterOut, "vpc-real-output",
+		"the cluster must resolve the real aggregated vpc output across two stack levels")
+}
+
+// TestStackDepsStackUnitDrillDependency pins that a dependency that drills into a SPECIFIC unit of a nested
+// stack via config_path = "${stack.X.path}/<unit>" resolves through the nested stack's inner
+// .terragrunt-stack directory, rather than landing at <stack>/<unit> one segment too high. Before the fix
+// this failed at run time with "does not contain a terragrunt.hcl file" for <stack>/<unit>.
+func TestStackDepsStackUnitDrillDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackUnitDrill)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackUnitDrill)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackUnitDrill)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	// The whole chain must apply: producer (inside core) then consumer drilling into it.
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
+	require.NoError(t, err, "a dependency drilling into a nested stack's unit must resolve; stderr=%s", stderr)
+	assert.NotContains(t, stderr, "does not contain a terragrunt.hcl",
+		"the drill config_path must resolve through the nested .terragrunt-stack segment")
+
+	// The consumer must have received the producer's REAL output, proving the drilled dependency resolved
+	// to the actual unit (not the mock, not a missing path).
+	consumerDir := filepath.Join(rootPath, inthclparse.StackDir, "consumer")
+	consumerOut, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt output -no-color --experiment stack-dependencies --working-dir "+consumerDir)
+	require.NoError(t, err)
+	assert.Contains(t, consumerOut, "real-producer-output",
+		"the consumer must resolve the drilled unit's real output")
 }
 
 // TestStackDepsStackLevelAutoIncludeInjectsNestedStack verifies that a stack-level

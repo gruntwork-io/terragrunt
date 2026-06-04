@@ -319,6 +319,11 @@ func stackDependencyPaths(
 	expanded := make([]string, 0, len(depPaths))
 
 	for _, depPath := range depPaths {
+		// Correct a dependency that drills into a nested stack's component via "${stack.X.path}/<name>",
+		// which lands one .terragrunt-stack segment too high. RedirectIntoStackDir is a no-op for an
+		// aggregate stack dependency, a normal unit dependency, or a no_dot_terragrunt_stack component.
+		depPath = inthclparse.RedirectIntoStackDir(fs, depPath)
+
 		// Stat upfront so a non-directory dep path (e.g. another-name.hcl) is preserved instead of
 		// being passed to the parser, which would reject it as ENOTDIR. The duplication of work is
 		// intentional.

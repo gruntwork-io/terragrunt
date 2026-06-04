@@ -132,6 +132,58 @@ func TestUnitPathsFromStackDir_StackAutoIncludePathReferencesSiblingRef(t *testi
 	assert.Len(t, paths, 2, "both the base anchor unit and the injected vpc unit must expand")
 }
 
+// TestUnitPathsFromStackDir_RecursesTwoStackLevels pins that discovery recurses through two levels of nested
+// stacks (a stack whose generated stack references another stack), so a unit two levels deep enumerates with
+// BOTH .terragrunt-stack segments. This guards the deep-nested case where a unit was reported one level too
+// high (e.g. core/data instead of core/.terragrunt-stack/data).
+func TestUnitPathsFromStackDir_RecursesTwoStackLevels(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+
+	// Top stack references the eks stack.
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`stack "eks" {
+  source = "."
+  path   = "eks"
+}
+`), 0644))
+
+	// The generated eks stack references the core stack and declares a sibling unit.
+	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/eks/terragrunt.stack.hcl", []byte(`stack "core" {
+  source = "."
+  path   = "core"
+}
+
+unit "cluster" {
+  source = "."
+  path   = "cluster"
+}
+`), 0644))
+
+	// The generated core stack declares two units.
+	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/eks/.terragrunt-stack/core/terragrunt.stack.hcl", []byte(`unit "data" {
+  source = "."
+  path   = "data"
+}
+
+unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.NoError(t, err)
+
+	clusterPath := filepath.Join("/test", ".terragrunt-stack", "eks", ".terragrunt-stack", "cluster")
+	dataPath := filepath.Join("/test", ".terragrunt-stack", "eks", ".terragrunt-stack", "core", ".terragrunt-stack", "data")
+	vpcPath := filepath.Join("/test", ".terragrunt-stack", "eks", ".terragrunt-stack", "core", ".terragrunt-stack", "vpc")
+
+	assert.ElementsMatch(t, []string{clusterPath, dataPath, vpcPath}, paths,
+		"a unit two stack levels deep must enumerate through both .terragrunt-stack segments, not one level too high")
+}
+
 // TestUnitPathsFromStackDir_RecursesStackAutoIncludeInjectedStack pins that a stack injected by a
 // stack-level autoinclude is recursed into, so its nested units also produce DAG edges.
 func TestUnitPathsFromStackDir_RecursesStackAutoIncludeInjectedStack(t *testing.T) {
@@ -700,4 +752,76 @@ func TestBuildComponentRefMap_WithRefs(t *testing.T) {
 	appVal := result.GetAttr("app")
 	require.True(t, appVal.Type().IsObjectType())
 	assert.Equal(t, "app-service", appVal.GetAttr("path").AsString())
+}
+
+// TestRedirectIntoStackDir pins the dependency-path hop: a path that drills into a nested stack's component
+// (one .terragrunt-stack segment too high) is corrected to the real component directory, while an existing
+// component, a missing target, and a no_dot_terragrunt_stack-style literal are left unchanged.
+func TestRedirectIntoStackDir(t *testing.T) {
+	t.Parallel()
+
+	const (
+		unitFile  = "terragrunt.hcl"
+		stackFile = "terragrunt.stack.hcl"
+	)
+
+	testCases := []struct {
+		name  string
+		input string
+		want  string
+		files []string
+	}{
+		{
+			name:  "existing unit dir is returned unchanged",
+			files: []string{"/s/.terragrunt-stack/vpc/" + unitFile},
+			input: "/s/.terragrunt-stack/vpc",
+			want:  "/s/.terragrunt-stack/vpc",
+		},
+		{
+			name:  "existing stack dir is returned unchanged",
+			files: []string{"/s/.terragrunt-stack/core/" + stackFile},
+			input: "/s/.terragrunt-stack/core",
+			want:  "/s/.terragrunt-stack/core",
+		},
+		{
+			name:  "drill into a nested unit hops through .terragrunt-stack",
+			files: []string{"/s/core/.terragrunt-stack/vpc/" + unitFile},
+			input: "/s/core/vpc",
+			want:  "/s/core/.terragrunt-stack/vpc",
+		},
+		{
+			name:  "drill into a nested sub-stack hops through .terragrunt-stack",
+			files: []string{"/s/core/.terragrunt-stack/net/" + stackFile},
+			input: "/s/core/net",
+			want:  "/s/core/.terragrunt-stack/net",
+		},
+		{
+			name:  "no component at either location returns the input unchanged",
+			files: []string{"/s/core/" + stackFile},
+			input: "/s/core/missing",
+			want:  "/s/core/missing",
+		},
+		{
+			name:  "a literal component wins over a hopped sibling",
+			files: []string{"/s/core/vpc/" + unitFile, "/s/core/.terragrunt-stack/vpc/" + unitFile},
+			input: "/s/core/vpc",
+			want:  "/s/core/vpc",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := vfs.NewMemMapFS()
+
+			for _, f := range tc.files {
+				require.NoError(t, fs.MkdirAll(filepath.Dir(f), 0755))
+				require.NoError(t, vfs.WriteFile(fs, f, []byte("# test"), 0644))
+			}
+
+			got := hclparse.RedirectIntoStackDir(fs, tc.input)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
