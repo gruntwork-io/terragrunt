@@ -9,8 +9,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside, Steps } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
-import Before from '@components/Before.astro';
 
 <Aside type="tip" title="Experimental">
 CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
@@ -20,9 +18,7 @@ Terragrunt supports a Content Addressable Store (CAS) to deduplicate content acr
 
 The CAS is used to speed up catalog cloning, OpenTofu/Terraform source fetching, and stack generation by avoiding redundant downloads of remote sources. See [Supported sources](#supported-sources) for the full list of supported getters and a dedicated page on how each one interacts with the CAS.
 
-<Since version="1.0.3">
 You can disable the CAS at any time using the `--no-cas` flag. This flag is available on the [`run`](/reference/cli/commands/run), [`stack generate`](/reference/cli/commands/stack/generate), and [`stack run`](/reference/cli/commands/stack/run) commands.
-</Since>
 
 ## Supported sources
 
