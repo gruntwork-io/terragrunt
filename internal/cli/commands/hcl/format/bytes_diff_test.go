@@ -71,15 +71,15 @@ func TestBytesDiff(t *testing.T) {
 
 			assert.NotEmpty(t, got, "expected non-empty diff output")
 
-			// The diff labels embed tc.path with the OS separator; compare in forward-slash space.
-			gotSlash := filepath.ToSlash(got)
-
+			// Diff labels embed tc.path with the OS separator, so compare headers in
+			// forward-slash space. Hunk lines are compared as-is so the "\ No newline at end
+			// of file" marker is not rewritten.
 			for _, want := range tc.wantHeader {
-				assert.Contains(t, gotSlash, want, "diff missing header line")
+				assert.Contains(t, filepath.ToSlash(got), want, "diff missing header line")
 			}
 
 			for _, want := range tc.wantHunkLines {
-				assert.Contains(t, gotSlash, want, "diff missing hunk line")
+				assert.Contains(t, got, want, "diff missing hunk line")
 			}
 		})
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/assert"
@@ -338,12 +339,14 @@ func TestRunTflintWithOpts_HappyPath(t *testing.T) {
 	assert.Equal(t, "tflint", calls[1].Name)
 
 	// init call carries --init plus the resolved relative paths.
-	assert.Equal(t, []string{"--init", "--config", "./.tflint.hcl", "--chdir", "./unit"}, calls[0].Args)
+	// tflint receives OS-native paths in its args; compare in forward-slash space.
+	wantInitArgs := []string{"--init", "--config", "./.tflint.hcl", "--chdir", "./unit"}
+	assert.Equal(t, wantInitArgs, helpers.ToSlashAll(calls[0].Args))
 
 	// lint call: the fixed prefix is deterministic; --var/--var-file order is
 	// map-iteration dependent so check membership separately.
 	require.GreaterOrEqual(t, len(calls[1].Args), 5)
-	assert.Equal(t, []string{"--config", "./.tflint.hcl", "--chdir", "./unit"}, calls[1].Args[:4])
+	assert.Equal(t, []string{"--config", "./.tflint.hcl", "--chdir", "./unit"}, helpers.ToSlashAll(calls[1].Args[:4]))
 	assert.Contains(t, calls[1].Args, "--var=region=us-east-1")
 	assert.Contains(t, calls[1].Args, "--var='foo=bar'")
 }

@@ -204,13 +204,14 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
 
-	// Convert config_path to relative from the target directory.
+	// Convert config_path to relative from the target directory. Generated config paths use
+	// forward slashes on every platform so the emitted HCL stays portable.
 	relPath, err := filepath.Rel(targetDir, dep.ConfigPath)
 	if err != nil {
 		relPath = dep.ConfigPath // fallback to absolute
 	}
 
-	depBody.SetAttributeRaw(attrConfigPath, quotedStringTokens(relPath))
+	depBody.SetAttributeRaw(attrConfigPath, quotedStringTokens(filepath.ToSlash(relPath)))
 
 	// Render the remaining attributes (mock_outputs, etc.) with the same partial evaluation.
 	for _, attr := range SortedAttributes(origBlock.Body.Attributes) {

@@ -337,7 +337,7 @@ func TestParentPathHasSymlink(t *testing.T) {
 	t.Run("absolute relative path is unsafe", func(t *testing.T) {
 		t.Parallel()
 
-		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "/root/file.txt")
+		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", helpers.OSAbs(t, "/root/file.txt"))
 
 		require.NoError(t, err)
 		assert.True(t, hasSymlink)
@@ -941,7 +941,7 @@ func TestWalkDir(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"/root", "/root/dir", "/root/dir/nested.txt", "/root/top.txt"}, paths)
+		assert.Equal(t, []string{"/root", "/root/dir", "/root/dir/nested.txt", "/root/top.txt"}, helpers.ToSlashAll(paths))
 	})
 
 	t.Run("empty directory", func(t *testing.T) {

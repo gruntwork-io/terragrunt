@@ -92,6 +92,10 @@ func TestGitServerSourceURL(t *testing.T) {
 
 //nolint:paralleltest // RequireSSH calls t.Setenv, which panics in parallel tests.
 func TestGitServerSSHClone(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("git-over-SSH against the in-process server is not supported on the Windows CI runner")
+	}
+
 	s := helpers.NewGitServer(t)
 	s.AddFixtures("test/fixtures/download/hello-world")
 	s.RequireSSH()

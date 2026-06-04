@@ -603,7 +603,7 @@ func TestGetTerragruntDirAbsPath(t *testing.T) {
 
 	workingDir, err := os.Getwd()
 	require.NoError(t, err, "Could not get current working dir: %v", err)
-	testGetTerragruntDir(t, "/foo/bar/terragrunt.hcl", filepath.VolumeName(workingDir)+"/foo/bar")
+	testGetTerragruntDir(t, helpers.OSAbs(t, "/foo/bar/terragrunt.hcl"), filepath.VolumeName(workingDir)+"/foo/bar")
 }
 
 func TestGetTerragruntDirRelPath(t *testing.T) {
@@ -620,7 +620,8 @@ func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) 
 	actualPath, err := config.GetTerragruntDir(ctx, pctx, l)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.Equal(t, expectedPath, actualPath)
+	// AbsPath expects a forward-slash volume path while RelPath expects filepath.Join output, so compare in forward-slash space.
+	assert.Equal(t, filepath.ToSlash(expectedPath), filepath.ToSlash(actualPath))
 }
 
 // newTestParsingContext creates a ParsingContext with sensible test defaults.
@@ -720,7 +721,8 @@ func TestGetParentTerragruntDir(t *testing.T) {
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.GetParentTerragruntDir(ctx, pctx, l, tc.params)
 		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
+		// Expectations mix filepath.Join (OS-native) and RootFolder (forward slash), so compare in forward-slash space.
+		assert.Equal(t, filepath.ToSlash(tc.expectedPath), filepath.ToSlash(actualPath), "For include %v and configPath %v", tc.include, tc.configPath)
 	}
 }
 

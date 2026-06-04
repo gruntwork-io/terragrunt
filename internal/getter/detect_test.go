@@ -24,9 +24,10 @@ func TestDetectCanonicalizesShorthand(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		src    string
-		expect string
+		name        string
+		src         string
+		expect      string
+		skipWindows bool
 	}{
 		{
 			name:   "github shorthand",
@@ -59,15 +60,23 @@ func TestDetectCanonicalizesShorthand(t *testing.T) {
 			expect: "gcs::https://www.googleapis.com/storage/v1/bucket/object",
 		},
 		{
-			name:   "absolute path gets file:// scheme reattached",
-			src:    helpers.OSAbs(t, "/abs/path/to/module"),
-			expect: helpers.FileURL(helpers.OSAbs(t, "/abs/path/to/module")),
+			// go-getter's fileSchemeDetector does not reattach the file:// scheme to a
+			// Windows absolute path (it returns the native path unchanged), so this row only
+			// exercises the Unix behavior.
+			name:        "absolute path gets file:// scheme reattached",
+			src:         helpers.OSAbs(t, "/abs/path/to/module"),
+			expect:      helpers.FileURL(helpers.OSAbs(t, "/abs/path/to/module")),
+			skipWindows: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			if tt.skipWindows && helpers.IsWindows() {
+				t.Skip("file:// scheme reattachment for absolute paths is Unix-specific in go-getter")
+			}
 
 			got, err := getter.Detect(tt.src, "/tmp")
 			require.NoError(t, err)

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -529,7 +530,8 @@ func TestFileManifestCleanRejectsTooManyReferencedManifests(t *testing.T) {
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "exceeded 100000 manifests")
-	assert.Contains(t, err.Error(), root)
+	// The path is embedded into the error via %q, which doubles backslashes on Windows.
+	assert.Contains(t, err.Error(), strings.ReplaceAll(root, `\`, `\\`))
 }
 
 func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
@@ -548,7 +550,8 @@ func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "entry cap")
-	assert.Contains(t, err.Error(), root)
+	// The path is embedded into the error via %q, which doubles backslashes on Windows.
+	assert.Contains(t, err.Error(), strings.ReplaceAll(root, `\`, `\\`))
 }
 
 func writeManifest(t *testing.T, path string, paths ...string) {
