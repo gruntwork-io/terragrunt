@@ -53,7 +53,7 @@ func NewMeter(ctx context.Context, appName, appVersion string, writer io.Writer,
 		return nil, nil
 	}
 
-	provider, err := newMetricsProvider(exporter, appName, appVersion)
+	provider, err := newMetricsProvider(ctx, exporter, appName, appVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -145,14 +145,19 @@ func NewMetricsExporter(ctx context.Context, writer io.Writer, opts *Options) (m
 }
 
 // newMetricsProvider creates a new metrics provider.
-func newMetricsProvider(exp metric.Exporter, appName, appVersion string) (*metric.MeterProvider, error) {
-	r, err := resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
+func newMetricsProvider(
+	ctx context.Context,
+	exp metric.Exporter,
+	appName, appVersion string,
+) (*metric.MeterProvider, error) {
+	r, err := resource.New(ctx,
+		resource.WithSchemaURL(semconv.SchemaURL),
+		resource.WithAttributes(
 			semconv.ServiceName(appName),
 			semconv.ServiceVersion(appVersion),
 		),
+		resource.WithTelemetrySDK(),
+		resource.WithFromEnv(),
 	)
 	if err != nil {
 		return nil, err
