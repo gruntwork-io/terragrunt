@@ -256,6 +256,61 @@ unit "app" {
 	assert.Contains(t, content, "dependency.vpc.outputs.val")
 }
 
+// TestGenerateAutoIncludeFile_MockOutputsResolvesLocalDefersDependency pins that a dependency's mock_outputs
+// resolves generate-time references (local.*) to literals while keeping runtime references
+// (dependency.*.outputs.*) verbatim, matching the inputs/values behavior.
+func TestGenerateAutoIncludeFile_MockOutputsResolvesLocalDefersDependency(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  account = {
+    name = "my-account"
+  }
+}
+
+unit "account" {
+  source = "../catalog/units/account"
+  path   = "account"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "account" {
+      config_path = unit.account.path
+
+      mock_outputs = {
+        name     = local.account.name
+        deferred = dependency.account.outputs.name
+      }
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `"my-account"`, "a local in mock_outputs must resolve at generate time")
+	assert.NotContains(t, content, "local.account.name", "the local reference must not be left literal")
+	assert.Contains(t, content, "dependency.account.outputs.name", "a dependency output reference must stay deferred")
+}
+
 func TestGenerateAutoIncludeFile_MultipleDeps(t *testing.T) {
 	t.Parallel()
 

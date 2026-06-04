@@ -62,6 +62,7 @@ const (
 	testFixtureStackDepsApplyNoMocks             = "fixtures/stacks/stack-deps-apply-no-mocks"
 	testFixtureStackDepsStackAutoIncOverride     = "fixtures/stacks/stack-deps-stack-autoinclude-override"
 	testFixtureStackDepsStackAutoIncLocalPath    = "fixtures/stacks/stack-deps-stack-autoinclude-local-path"
+	testFixtureStackDepsMockLocal                = "fixtures/stacks/stack-deps-mock-local"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -121,6 +122,40 @@ func TestStackDepsAutoIncludeGenerationAndDAG(t *testing.T) {
 
 	vpcDir := filepath.Join(liveDir, inthclparse.StackDir, "vpc")
 	assert.Equal(t, vpcDir, depPaths[0])
+}
+
+// TestStackDepsMockLocalResolvesLocalsDefersDependency pins that a local reference inside a dependency's
+// mock_outputs is resolved at stack generate time (like values and inputs), while a dependency.*.outputs.*
+// reference in the same mock_outputs stays literal for runtime resolution.
+func TestStackDepsMockLocalResolvesLocalsDefersDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsMockLocal)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsMockLocal)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsMockLocal)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	generated, err := os.ReadFile(filepath.Join(rootPath, inthclparse.StackDir, "iam", inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+
+	// The local must be resolved at generate time, matching values/inputs behavior.
+	assert.Contains(t, content, `"my-account"`, "a local in mock_outputs must be resolved at generate time")
+	assert.NotContains(t, content, "local.account.name", "the local reference must not be left literal")
+
+	// A runtime-only dependency output reference in mock_outputs must stay literal.
+	assert.Contains(t, content, "dependency.account.outputs.name",
+		"a dependency output reference in mock_outputs must stay deferred")
 }
 
 func TestStackDepsAutoIncludeSymlink(t *testing.T) {

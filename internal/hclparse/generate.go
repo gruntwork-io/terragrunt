@@ -51,12 +51,12 @@ func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
 // given directory from a resolved autoinclude.
 //
 // The generated file contains:
-//   - dependency blocks with resolved config_path and all other attributes
-//     (mock_outputs, mock_outputs_allowed_terraform_commands, etc.) copied
-//     from the original AST source bytes.
-//   - All non-dependency content (inputs, retry blocks, etc.) copied verbatim
-//     from the original AST source bytes: dependency.*.outputs.* references
-//     are preserved without evaluation.
+//   - dependency blocks with a resolved config_path; their other attributes
+//     (mock_outputs, mock_outputs_allowed_terraform_commands, etc.) are partially
+//     evaluated, so generate-time roots (local.*, values.*, unit.*, stack.*)
+//     resolve to literals while dependency.*.outputs.* stays verbatim.
+//   - All non-dependency content (inputs, retry blocks, etc.) partially evaluated
+//     the same way: dependency.*.outputs.* references are preserved without evaluation.
 //
 // Requires non-nil fs and non-empty targetDir (panics otherwise). resolved may be nil (no-op). srcBytes must be the bytes of the file resolved.RawBody was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
 func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
@@ -89,7 +89,7 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 			continue
 		}
 
-		if err := writeDependencyBlock(outBody, dep, origBlock, srcBytes, targetDir); err != nil {
+		if err := writeDependencyBlock(outBody, dep, origBlock, srcBytes, targetDir, evalCtx); err != nil {
 			return err
 		}
 
@@ -193,8 +193,11 @@ func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
 	})
 }
 
-// writeDependencyBlock writes a single dependency block with config_path converted to relative-to-targetDir; all other attributes are copied from source bytes to preserve original expressions.
-func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string) error {
+// writeDependencyBlock writes a single dependency block with config_path converted to relative-to-targetDir.
+// All other attributes (mock_outputs, etc.) are partially evaluated like the rest of the autoinclude body:
+// generate-time roots (local.*, values.*, unit.*, stack.*) resolve to literals while dependency.* stays
+// verbatim for runtime resolution. When evalCtx is nil the attributes are copied from source bytes unchanged.
+func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string, evalCtx *hcl.EvalContext) error {
 	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
 
@@ -206,19 +209,29 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 
 	depBody.SetAttributeRaw(attrConfigPath, quotedStringTokens(relPath))
 
-	// Copy all other attributes from source bytes (mock_outputs, etc.).
+	// Render the remaining attributes (mock_outputs, etc.) the same way non-dependency content is rendered.
 	for _, attr := range SortedAttributes(origBlock.Body.Attributes) {
 		if attr.Name == attrConfigPath {
 			continue
 		}
 
-		exprBytes := RangeBytes(srcBytes, attr.Expr.Range())
-		depBody.SetAttributeRaw(attr.Name, RawTokens(exprBytes))
+		if evalCtx == nil {
+			depBody.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
+
+			continue
+		}
+
+		result, err := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
+		if err != nil {
+			return err
+		}
+
+		depBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
-	// Copy nested blocks within the dependency (if any). Nested blocks are copied verbatim (evalCtx == nil), so PartialEval is not invoked and the call cannot return a PartialEval error here.
+	// Render nested blocks within the dependency (if any) with the same partial evaluation.
 	for _, nested := range origBlock.Body.Blocks {
-		if err := copyBlock(depBody, nested, srcBytes, nil); err != nil {
+		if err := copyBlock(depBody, nested, srcBytes, evalCtx); err != nil {
 			return err
 		}
 	}

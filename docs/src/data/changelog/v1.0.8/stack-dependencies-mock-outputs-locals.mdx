@@ -1,0 +1,10 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: resolve generate-time references in autoinclude `mock_outputs`
+
+A reference inside an `autoinclude` dependency's `mock_outputs` is now resolved at `terragrunt stack generate` time, the same as `values` and the autoinclude `inputs`. Previously a `local.*` (or `values.*` / `unit.*` / `stack.*`) reference in `mock_outputs` was written to the generated `terragrunt.autoinclude.hcl` verbatim instead of being substituted with its value, which was inconsistent and surprising.
+
+Runtime-only references such as `dependency.<name>.outputs.<key>` are still preserved verbatim, since their value is not known until apply time.
