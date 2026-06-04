@@ -15,6 +15,9 @@ import (
 // This map must not be modified after package initialization.
 var deferredRoots = map[string]bool{
 	varDependency: true,
+	// values.* references the unit's own values block, which is materialized into terragrunt.values.hcl and
+	// resolved when the generated unit is parsed, not at stack generate time; keep it verbatim (deferred).
+	varValues: true,
 }
 
 // maxPartialEvalDepth bounds recursion for pathological deeply-nested expressions; past this, fall back to source bytes.

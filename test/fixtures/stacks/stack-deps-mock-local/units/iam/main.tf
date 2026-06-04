@@ -1,8 +1,11 @@
 variable "account_name" {
-  type    = string
-  default = ""
+  type = string
 }
 
-output "account_name" {
-  value = var.account_name
+variable "region" {
+  type = string
+}
+
+output "ok" {
+  value = "${var.account_name}-${var.region}"
 }

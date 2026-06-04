@@ -256,10 +256,10 @@ unit "app" {
 	assert.Contains(t, content, "dependency.vpc.outputs.val")
 }
 
-// TestGenerateAutoIncludeFile_MockOutputsResolvesLocalDefersDependency pins that a dependency's mock_outputs
-// resolves generate-time references (local.*) to literals while keeping runtime references
-// (dependency.*.outputs.*) verbatim, matching the inputs/values behavior.
-func TestGenerateAutoIncludeFile_MockOutputsResolvesLocalDefersDependency(t *testing.T) {
+// TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves
+// generate-time references (local.*) to literals, while a runtime reference in non-dependency content
+// (inputs) stays deferred.
+func TestGenerateAutoIncludeFile_MockOutputsResolvesLocal(t *testing.T) {
 	t.Parallel()
 
 	src := `
@@ -278,13 +278,17 @@ unit "app" {
   source = "../catalog/units/app"
   path   = "app"
 
+  values = {
+    region = "eu-west-1"
+  }
+
   autoinclude {
     dependency "account" {
       config_path = unit.account.path
 
       mock_outputs = {
-        name     = local.account.name
-        deferred = dependency.account.outputs.name
+        name   = local.account.name
+        region = values.region
       }
     }
   }
@@ -306,9 +310,12 @@ unit "app" {
 	require.NoError(t, err)
 
 	content := string(generated)
+	// Dependency path: config_path = unit.account.path resolves to the sibling unit at generate time.
+	assert.Contains(t, content, `"../account"`, "the dependency config_path (unit.<name>.path) must resolve at generate time")
+	// Dependency mock output: a local resolves at generate; a unit value stays deferred for unit parse.
 	assert.Contains(t, content, `"my-account"`, "a local in mock_outputs must resolve at generate time")
 	assert.NotContains(t, content, "local.account.name", "the local reference must not be left literal")
-	assert.Contains(t, content, "dependency.account.outputs.name", "a dependency output reference must stay deferred")
+	assert.Contains(t, content, "values.region", "a unit value in mock_outputs must stay deferred (resolved when the unit is parsed)")
 }
 
 func TestGenerateAutoIncludeFile_MultipleDeps(t *testing.T) {

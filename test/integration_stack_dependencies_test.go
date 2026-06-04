@@ -124,10 +124,11 @@ func TestStackDepsAutoIncludeGenerationAndDAG(t *testing.T) {
 	assert.Equal(t, vpcDir, depPaths[0])
 }
 
-// TestStackDepsMockLocalResolvesLocalsDefersDependency pins that a local reference inside a dependency's
-// mock_outputs is resolved at stack generate time (like values and inputs), while a dependency.*.outputs.*
-// reference in the same mock_outputs stays literal for runtime resolution.
-func TestStackDepsMockLocalResolvesLocalsDefersDependency(t *testing.T) {
+// TestStackDepsMockLocalResolvesLocal pins, end to end, how an autoinclude dependency's mock_outputs treats
+// each reference kind: a local resolves at stack generate time (like the values block), while a unit value
+// (values.*) stays deferred (verbatim) in the generated file and resolves from the unit's terragrunt.values.hcl
+// when the generated unit is parsed. The run step confirms the deferred value parses without error.
+func TestStackDepsMockLocalResolvesLocal(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsMockLocal)
@@ -149,13 +150,27 @@ func TestStackDepsMockLocalResolvesLocalsDefersDependency(t *testing.T) {
 
 	content := string(generated)
 
-	// The local must be resolved at generate time, matching values/inputs behavior.
+	// Dependency path: config_path = unit.account.path resolves to the sibling unit at generate time.
+	assert.Contains(t, content, `"../account"`, "the dependency config_path (unit.<name>.path) must resolve at generate time")
+
+	// Dependency mock output: a local is generate-time-knowable, so it resolves to the sentinel here.
 	assert.Contains(t, content, `"my-account"`, "a local in mock_outputs must be resolved at generate time")
 	assert.NotContains(t, content, "local.account.name", "the local reference must not be left literal")
 
-	// A runtime-only dependency output reference in mock_outputs must stay literal.
-	assert.Contains(t, content, "dependency.account.outputs.name",
-		"a dependency output reference in mock_outputs must stay deferred")
+	// A unit value in mock_outputs is resolved when the generated unit is parsed, so it must stay deferred.
+	assert.Contains(t, content, "values.region",
+		"a unit value in mock_outputs must stay deferred (resolved when the unit is parsed)")
+
+	// The autoinclude only contributes the mock dependency; inputs live in the unit's own terragrunt.hcl.
+	assert.NotContains(t, content, "inputs", "the generated autoinclude must contain only the mock dependency, not inputs")
+
+	// End to end: the unit's own inputs consume the dependency mock outputs (resolved local + deferred
+	// values.region), so the stack must plan cleanly. A regressed deferral would surface as
+	// "no variable named values" at unit parse.
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
+	require.NoError(t, err, "the generated stack must plan; the deferred values.region must resolve at unit parse; stderr=%s", stderr)
+	assert.NotContains(t, stderr, "no variable named", "a deferred values.* in mock_outputs must resolve at unit parse")
 }
 
 func TestStackDepsAutoIncludeSymlink(t *testing.T) {

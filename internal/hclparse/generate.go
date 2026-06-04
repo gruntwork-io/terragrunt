@@ -53,10 +53,12 @@ func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
 // The generated file contains:
 //   - dependency blocks with a resolved config_path; their other attributes
 //     (mock_outputs, mock_outputs_allowed_terraform_commands, etc.) are partially
-//     evaluated, so generate-time roots (local.*, values.*, unit.*, stack.*)
-//     resolve to literals while dependency.*.outputs.* stays verbatim.
-//   - All non-dependency content (inputs, retry blocks, etc.) partially evaluated
-//     the same way: dependency.*.outputs.* references are preserved without evaluation.
+//     evaluated, so generate-time roots (local.*, unit.*, stack.*)
+//     resolve to literals while values.* and dependency.*.outputs.* stay verbatim
+//     (resolved when the generated unit is parsed).
+//   - All non-dependency content (inputs, retry blocks, etc.) is partially
+//     evaluated the same way: dependency.*.outputs.* references are preserved
+//     verbatim for runtime resolution.
 //
 // Requires non-nil fs and non-empty targetDir (panics otherwise). resolved may be nil (no-op). srcBytes must be the bytes of the file resolved.RawBody was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
 func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
@@ -116,7 +118,9 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	return nil
 }
 
-// copyBlock copies block from the AST to hclwrite output; partially evaluates attributes when evalCtx is non-nil, otherwise verbatim.
+// copyBlock copies block from the AST to hclwrite output; partially evaluates attributes when evalCtx is
+// non-nil, otherwise verbatim. Generate-time roots (local.*, unit.*, stack.*) resolve to literals while values.* and
+// dependency.*.outputs.* are deferred (kept verbatim, resolved when the unit is parsed).
 func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	newBlock := outBody.AppendNewBlock(block.Type, block.Labels)
 	blockBody := newBlock.Body()
@@ -194,9 +198,10 @@ func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
 }
 
 // writeDependencyBlock writes a single dependency block with config_path converted to relative-to-targetDir.
-// All other attributes (mock_outputs, etc.) are partially evaluated like the rest of the autoinclude body:
-// generate-time roots (local.*, values.*, unit.*, stack.*) resolve to literals while dependency.* stays
-// verbatim for runtime resolution. When evalCtx is nil the attributes are copied from source bytes unchanged.
+// Its other attributes (mock_outputs, etc.) are partially evaluated like the rest of the autoinclude body:
+// generate-time roots (local.*, unit.*, stack.*) resolve to literals while values.* and dependency.*.outputs.*
+// are kept verbatim (resolved when the generated unit is parsed). When evalCtx is nil the attributes are copied from source bytes
+// unchanged.
 func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string, evalCtx *hcl.EvalContext) error {
 	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
