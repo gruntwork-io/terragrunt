@@ -10,7 +10,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
@@ -127,20 +127,20 @@ func TestCatalogRedesignDiscoveryWithIgnoreFiles(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	components, err := redesign.NewComponentDiscovery().
+	components, err := tui.NewComponentDiscovery().
 		WithExtraIgnoreFile(extraIgnore).
 		Discover(repo)
 	require.NoError(t, err)
 
-	got := map[string]redesign.ComponentKind{}
+	got := map[string]tui.ComponentKind{}
 	for _, c := range components {
 		got[c.Dir] = c.Kind
 	}
 
-	want := map[string]redesign.ComponentKind{
-		"modules/vpc":       redesign.ComponentKindModule,
-		"templates/service": redesign.ComponentKindTemplate,
-		"stash/keep":        redesign.ComponentKindModule,
+	want := map[string]tui.ComponentKind{
+		"modules/vpc":       tui.ComponentKindModule,
+		"templates/service": tui.ComponentKindTemplate,
+		"stash/keep":        tui.ComponentKindModule,
 	}
 
 	assert.Equal(t, want, got)

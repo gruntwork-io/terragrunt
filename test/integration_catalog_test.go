@@ -4,9 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/command"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -80,9 +79,7 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
 
-	svc := catalog.NewCatalogService(opts).WithRepoURL("https://github.com/gruntwork-io/terraform-fake-modules.git")
-	cmd := command.NewScaffold(createLogger(), opts, svc, auroraModule)
-	err = cmd.Run()
+	err = scaffold.Run(ctx, createLogger(), opts, auroraModule.TerraformSourcePath(), "")
 	require.NoError(t, err)
 
 	cfg := readConfig(t, opts)
@@ -130,9 +127,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
 
-	svc := catalog.NewCatalogService(opts).WithRepoURL("https://github.com/gruntwork-io/terraform-fake-modules")
-	cmd := command.NewScaffold(createLogger(), opts, svc, auroraModule)
-	err = cmd.Run()
+	err = scaffold.Run(ctx, createLogger(), opts, auroraModule.TerraformSourcePath(), "")
 	require.NoError(t, err)
 
 	cfg := readConfig(t, opts)
