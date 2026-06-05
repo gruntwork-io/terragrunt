@@ -11,9 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
-	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -96,40 +94,12 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 
 	ctx = app.registerGracefullyShutdown(ctx)
 
-	if err := global.NewTelemetryFlags(app.opts, nil).Parse(os.Args); err != nil {
-		return err
-	}
-
-	// Parse experiment flags before telemetry init so the otel-logs experiment
-	// gates the logs signal. These flags are parsed again with the full set later.
-	if err := global.NewExperimentFlags(app.l, app.opts, nil).Parse(os.Args); err != nil {
-		return err
-	}
-
-	telemeter, err := telemetry.NewTelemeter(ctx, app.l, app.Name, app.Version, app.Writer, app.opts.Telemetry, app.opts.Experiments.Evaluate(experiment.OtelLogs))
-	if err != nil {
-		return err
-	}
-	defer func(ctx context.Context) {
-		if err := telemeter.Shutdown(ctx); err != nil {
-			_, _ = app.ErrWriter.Write([]byte(err.Error()))
-		}
-	}(ctx)
-
-	ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
-
 	ctx = config.WithConfigValues(ctx)
 	// configure engine context
 	ctx = engine.WithEngineValues(ctx)
 
 	ctx = run.WithRunVersionCache(ctx)
 	ctx = run.WithModuleVersionResolver(ctx)
-
-	defer func(ctx context.Context) {
-		if err := engine.Shutdown(ctx, app.l, app.opts.Experiments, app.opts.EngineOptions.NoEngine); err != nil {
-			_, _ = app.ErrWriter.Write([]byte(err.Error()))
-		}
-	}(ctx)
 
 	args = removeNoColorFlagDuplicates(args)
 
