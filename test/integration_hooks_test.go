@@ -155,7 +155,7 @@ func TestTerragruntRunNoHooksRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
 	if helpers.IsExperimentMode(t) {
-		t.Skip()
+		t.Skip("Skipping because we can't verify the experiment is required when experiment mode is enabled")
 	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksNoHooks)
@@ -165,7 +165,8 @@ func TestTerragruntRunNoHooksRequiresExperiment(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt run --no-hooks --non-interactive --working-dir %s --log-format=key-value -- plan -input=false",
+			"terragrunt run --no-hooks --non-interactive --working-dir %s "+
+				"--log-format=key-value -- plan -input=false",
 			directPath,
 		),
 	)
@@ -184,7 +185,8 @@ func TestTerragruntRunNoHooksSkipsConfiguredHooks(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --experiment optional-hooks --no-hooks --non-interactive --working-dir "+directPath+" -- plan -input=false",
+		"terragrunt run --experiment optional-hooks --no-hooks --non-interactive --working-dir "+directPath+
+			" -- plan -input=false",
 	)
 
 	require.Error(t, err)
@@ -193,7 +195,8 @@ func TestTerragruntRunNoHooksSkipsConfiguredHooks(t *testing.T) {
 
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all --experiment optional-hooks --no-hooks --non-interactive --working-dir "+stackPath+" -- plan -input=false",
+		"terragrunt run --all --experiment optional-hooks --no-hooks --non-interactive --working-dir "+stackPath+
+			" -- plan -input=false",
 	)
 
 	require.Error(t, err)
