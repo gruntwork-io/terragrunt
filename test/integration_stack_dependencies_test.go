@@ -113,8 +113,9 @@ func TestStackDepsAutoIncludeGenerationAndDAG(t *testing.T) {
 	assert.Contains(t, content, "../vpc")
 	assert.Contains(t, content, "mock_outputs_allowed_terraform_commands")
 	assert.Contains(t, content, "mock-vpc-id")
-	assert.Contains(t, content, `"test"`)
-	assert.NotContains(t, content, "local.env")
+	// A stack local renders at generate time, including inside the inputs zone.
+	assert.Contains(t, content, `"test"`, "a stack local inside inputs renders at generate time")
+	assert.NotContains(t, content, "local.env", "a stack local must not be left verbatim")
 	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id")
 
 	// Verify DAG sees the dependency
@@ -195,10 +196,10 @@ func TestStackDepsAutoIncludeRejectsValuesReference(t *testing.T) {
 		"the error must explain that values is not available at stack generate time")
 }
 
-// TestStackDepsAutoIncludeFunctionsAndDeps covers, end to end, an autoinclude that wires a dependency and
-// consumes it from the autoinclude's own inputs. Every expression that does not reference dependency.* is
-// resolved in the stack file context at generate time (read_terragrunt_config in config_path and run_cmd in
-// inputs both render to literals), while a dependency output reference stays verbatim for the unit run.
+// TestStackDepsAutoIncludeFunctionsAndDeps covers, end to end, how an autoinclude treats functions by location:
+// a read_terragrunt_config in config_path is resolved in the stack file context at generate time, while the
+// inputs block is a deferred zone kept verbatim and evaluated in the generated unit (so run_cmd and the
+// dependency output reference both stay verbatim). The mock feeds the deferred inputs at plan time.
 func TestStackDepsAutoIncludeFunctionsAndDeps(t *testing.T) {
 	t.Parallel()
 
@@ -226,13 +227,12 @@ func TestStackDepsAutoIncludeFunctionsAndDeps(t *testing.T) {
 	assert.Contains(t, content, `"../data"`, "config_path from read_terragrunt_config must resolve at generate time")
 	assert.NotContains(t, content, "read_terragrunt_config", "read_terragrunt_config in config_path must be evaluated at generate, not deferred")
 
-	// A function call inside inputs that does not reference dependency.* is resolved at generate time.
-	assert.Contains(t, content, `"hi-from-unit"`, "run_cmd in inputs must be rendered to its literal at generate time")
-	assert.NotContains(t, content, "run_cmd", "run_cmd in inputs must not be left verbatim")
-	// A dependency output reference inside inputs stays verbatim for the unit run.
+	// inputs is a deferred zone, emitted verbatim for unit-time evaluation: both the function call and the
+	// dependency output reference stay as written.
+	assert.Contains(t, content, `run_cmd("echo", "hi-from-unit")`, "a function call in inputs must stay verbatim and evaluate at the unit")
 	assert.Contains(t, content, "dependency.data.outputs.value", "a dependency output in inputs must stay verbatim")
 
-	// End to end: the dependency mock feeds inputs, the rendered run_cmd value feeds the other input, and the stack plans cleanly.
+	// End to end: the dependency mock feeds inputs, run_cmd evaluates at the unit, and the stack plans cleanly.
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
 	require.NoError(t, err, "the generated stack must plan; stderr=%s", stderr)

@@ -121,18 +121,18 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 // copyBlock copies block from the AST to hclwrite output; partially evaluates attributes when evalCtx is
 // non-nil, otherwise verbatim. Generate-time roots (local.*, unit.*, stack.*) resolve to literals while
 // dependency.*.outputs.* is deferred (kept verbatim, resolved inside the unit); values.* is rejected at generate time.
-func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext) error {
+func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext, deferFunctions bool) error {
 	newBlock := outBody.AppendNewBlock(block.Type, block.Labels)
 	blockBody := newBlock.Body()
 
 	for _, attr := range SortedAttributes(block.Body.Attributes) {
-		if err := writeAttribute(blockBody, attr, srcBytes, evalCtx); err != nil {
+		if err := writeAttribute(blockBody, attr, srcBytes, evalCtx, deferFunctions); err != nil {
 			return err
 		}
 	}
 
 	for _, nested := range block.Body.Blocks {
-		if err := copyBlock(blockBody, nested, srcBytes, evalCtx); err != nil {
+		if err := copyBlock(blockBody, nested, srcBytes, evalCtx, deferFunctions); err != nil {
 			return err
 		}
 	}
@@ -205,20 +205,20 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 
 	depBody.SetAttributeRaw(attrConfigPath, quotedStringTokens(relPath))
 
-	// Render the remaining attributes (mock_outputs, etc.) the same way non-dependency content is rendered.
+	// Render the remaining attributes (mock_outputs, etc.); these are not a deferred zone, so functions resolve.
 	for _, attr := range SortedAttributes(origBlock.Body.Attributes) {
 		if attr.Name == attrConfigPath {
 			continue
 		}
 
-		if err := writeAttribute(depBody, attr, srcBytes, evalCtx); err != nil {
+		if err := writeAttribute(depBody, attr, srcBytes, evalCtx, false); err != nil {
 			return err
 		}
 	}
 
 	// Render nested blocks within the dependency (if any) with the same partial evaluation.
 	for _, nested := range origBlock.Body.Blocks {
-		if err := copyBlock(depBody, nested, srcBytes, evalCtx); err != nil {
+		if err := copyBlock(depBody, nested, srcBytes, evalCtx, false); err != nil {
 			return err
 		}
 	}
@@ -226,10 +226,13 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 	return nil
 }
 
-// writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body, partially evaluating each attribute.
+// writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body. In the deferred
+// zones (inputs, generate, remote_state) function calls and dependency.* are kept verbatim so they evaluate in the
+// generated unit, while stack-level local.* still resolves; all other content resolves at generate time unless it
+// references dependency.*.
 func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	for _, attr := range SortedAttributes(body.Attributes) {
-		if err := writeAttribute(outBody, attr, srcBytes, evalCtx); err != nil {
+		if err := writeAttribute(outBody, attr, srcBytes, evalCtx, attr.Name == attrInputs); err != nil {
 			return err
 		}
 	}
@@ -239,7 +242,7 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 			continue
 		}
 
-		if err := copyBlock(outBody, block, srcBytes, evalCtx); err != nil {
+		if err := copyBlock(outBody, block, srcBytes, evalCtx, isDeferredZoneBlock(block.Type)); err != nil {
 			return err
 		}
 	}
@@ -247,20 +250,26 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 	return nil
 }
 
+// isDeferredZoneBlock reports whether a block type defers function calls so they evaluate in the generated unit.
+func isDeferredZoneBlock(blockType string) bool {
+	return blockType == blockGenerate || blockType == blockRemoteState
+}
+
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.
 func quotedStringTokens(value string) hclwrite.Tokens {
 	return hclwrite.TokensForValue(cty.StringVal(value))
 }
 
-// writeAttribute writes attr to body verbatim when evalCtx is nil, otherwise partially evaluated so generate-time roots resolve and deferred roots stay verbatim.
-func writeAttribute(body *hclwrite.Body, attr *hclsyntax.Attribute, srcBytes []byte, evalCtx *hcl.EvalContext) error {
+// writeAttribute writes attr to body verbatim when evalCtx is nil, otherwise partially evaluated so generate-time
+// roots resolve and deferred roots stay verbatim; deferFunctions also keeps function calls verbatim for the unit.
+func writeAttribute(body *hclwrite.Body, attr *hclsyntax.Attribute, srcBytes []byte, evalCtx *hcl.EvalContext, deferFunctions bool) error {
 	if evalCtx == nil {
 		body.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
 
 		return nil
 	}
 
-	result, err := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
+	result, err := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots, DeferFunctions: deferFunctions})
 	if err != nil {
 		return err
 	}

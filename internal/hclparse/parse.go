@@ -21,9 +21,12 @@ const (
 	StackDir = ".terragrunt-stack"
 
 	// HCL block type and attribute names.
-	blockDependency = "dependency"
-	blockLocals     = "locals"
-	attrConfigPath  = "config_path"
+	blockDependency  = "dependency"
+	blockLocals      = "locals"
+	blockGenerate    = "generate"
+	blockRemoteState = "remote_state"
+	attrConfigPath   = "config_path"
+	attrInputs       = "inputs"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"

@@ -256,6 +256,75 @@ unit "app" {
 	assert.Contains(t, content, "dependency.vpc.outputs.val")
 }
 
+// TestGenerateAutoIncludeFile_DefersFunctionsInZones pins that the inputs, generate, and remote_state zones keep
+// function calls and dependency.* verbatim (evaluated in the generated unit) while stack-level local.* still
+// resolves at generate time, both in those zones and in non-zone content like mock_outputs.
+func TestGenerateAutoIncludeFile_DefersFunctionsInZones(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  tag = "t1"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+
+      mock_outputs = {
+        rendered = local.tag
+      }
+    }
+
+    inputs = {
+      dep_ref  = dependency.vpc.outputs.id
+      local_in = local.tag
+      fn_in    = get_terragrunt_dir()
+    }
+
+    generate "backend" {
+      path     = "backend.tf"
+      contents = local.tag
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	// Stack locals resolve at generate time everywhere (mock_outputs, inputs, generate), so the literal is baked in.
+	assert.Contains(t, content, `"t1"`, "a stack local must render at generate time")
+	assert.NotContains(t, content, "local.tag", "a stack local must not be left verbatim, even in a deferred zone")
+	// In a deferred zone, a function call and a dependency reference stay verbatim for the generated unit.
+	assert.Contains(t, content, "get_terragrunt_dir()", "a function call in inputs must stay verbatim for the unit")
+	assert.Contains(t, content, "dependency.vpc.outputs.id", "a dependency reference in inputs must stay verbatim")
+}
+
+// TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves
+// stack-level references (local.*) to literals at generate time.
+
 // TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves
 // stack-level references (local.*) to literals at generate time.
 func TestGenerateAutoIncludeFile_MockOutputsResolvesLocal(t *testing.T) {
@@ -533,12 +602,15 @@ unit "app" {
 
 	content := string(generated)
 
-	assert.Contains(t, content, `"production"`)
-	assert.NotContains(t, content, "local.env")
-	assert.Contains(t, content, `"us-east-1"`)
-	assert.NotContains(t, content, "local.region")
-	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id")
-	assert.Contains(t, content, "production-${dependency.vpc.outputs.vpc_id}-app")
+	// Stack-level locals resolve at generate time everywhere, including inside the inputs zone.
+	assert.Contains(t, content, `"production"`, "local.env renders at generate time")
+	assert.NotContains(t, content, "local.env", "a stack local must not be left verbatim")
+	assert.Contains(t, content, `"us-east-1"`, "local.region renders at generate time, including inside inputs")
+	assert.NotContains(t, content, "local.region", "a stack local must not be left verbatim")
+
+	// A dependency reference stays verbatim; a template renders its local part and defers the dependency part.
+	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id", "a dependency reference stays verbatim")
+	assert.Contains(t, content, "production-${dependency.vpc.outputs.vpc_id}-app", "a template renders locals and defers dependency.*")
 	assert.Contains(t, content, `dependency "vpc"`)
 	assert.Contains(t, content, "mock_outputs")
 }

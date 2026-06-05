@@ -27,7 +27,11 @@ type EvalArgs struct {
 	EvalCtx  *hcl.EvalContext
 	Deferred map[string]bool
 	SrcBytes []byte
-	depth    int
+	// DeferFunctions keeps function calls verbatim instead of evaluating them, so they resolve in the
+	// generated unit's directory; set for the deferred zones (inputs, generate, remote_state). Stack-level
+	// local.* references are still resolved, including inside a preserved function call's arguments.
+	DeferFunctions bool
+	depth          int
 }
 
 // PartialEval walks an hclsyntax.Expression tree and returns HCL source text; pure parts evaluate to literals, deferred parts stay verbatim, error signals pathological inputs.
@@ -44,8 +48,9 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 
 	defer func() { args.depth-- }()
 
-	// Fast path: an expression with no deferred root (dependency.*) is resolved in the stack file context, including function calls.
-	if IsPure(expr, args.Deferred) {
+	// Fast path: an expression with no deferred root (dependency.*) is resolved in the stack file context. In a
+	// deferred zone a function call is kept verbatim instead, so directory-sensitive functions resolve in the unit.
+	if IsPure(expr, args.Deferred) && (!args.DeferFunctions || !containsFunctionCall(expr)) {
 		val, diags := expr.Value(args.EvalCtx)
 		// hclwrite.TokensForValue panics on unknown values; fall back to source bytes and surface a typed error.
 		if !diags.HasErrors() && val.IsWhollyKnown() {
@@ -130,7 +135,7 @@ func partialEvalChildren(args *EvalArgs, parentRange hcl.Range, children []hclsy
 }
 
 func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) ([]byte, error) {
-	if !IsPure(e.Condition, args.Deferred) {
+	if !IsPure(e.Condition, args.Deferred) || (args.DeferFunctions && containsFunctionCall(e.Condition)) {
 		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Condition, e.TrueResult, e.FalseResult})
 	}
 
@@ -191,6 +196,34 @@ func IsPure(expr hclsyntax.Expression, deferred map[string]bool) bool {
 	return true
 }
 
+// containsFunctionCall reports whether expr contains any FunctionCallExpr anywhere in its AST. In a deferred zone
+// a call is kept verbatim so directory-sensitive terragrunt functions resolve in the generated unit, not the stack file.
+func containsFunctionCall(expr hclsyntax.Expression) bool {
+	w := &functionCallWalker{}
+
+	// Walk returns hcl.Diagnostics by signature; our walker's Enter/Exit return nil, so the result is always empty and intentionally discarded.
+	_ = hclsyntax.Walk(expr, w)
+
+	return w.found
+}
+
+// functionCallWalker is an hclsyntax.Walker that flips found=true on the first FunctionCallExpr it sees.
+type functionCallWalker struct {
+	found bool
+}
+
+func (w *functionCallWalker) Enter(node hclsyntax.Node) hcl.Diagnostics {
+	if _, ok := node.(*hclsyntax.FunctionCallExpr); ok {
+		w.found = true
+	}
+
+	return nil
+}
+
+func (w *functionCallWalker) Exit(_ hclsyntax.Node) hcl.Diagnostics {
+	return nil
+}
+
 func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, error) {
 	var (
 		buf      bytes.Buffer
@@ -206,7 +239,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, err
 			continue
 		}
 
-		if IsPure(part, args.Deferred) {
+		if IsPure(part, args.Deferred) && (!args.DeferFunctions || !containsFunctionCall(part)) {
 			val, diags := part.Value(args.EvalCtx)
 			if !diags.HasErrors() && val.IsWhollyKnown() {
 				strVal, err := convert.Convert(val, cty.String)
