@@ -2,6 +2,7 @@ package hclparse_test
 
 import (
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -1539,6 +1540,92 @@ unit "u" {
 			assert.Contains(t, err.Error(), "declare locals at the stack level")
 		})
 	}
+}
+
+// TestAutoIncludeResolve_RejectsNestedAutoInclude verifies an autoinclude block nested directly inside an
+// autoinclude block is rejected for both kinds.
+func TestAutoIncludeResolve_RejectsNestedAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "unit",
+			src: `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    autoinclude {
+      inputs = {
+        x = "y"
+      }
+    }
+  }
+}
+`,
+		},
+		{
+			name: "stack",
+			src: `
+stack "s" {
+  source = "../catalog/stacks/s"
+  path   = "s"
+
+  autoinclude {
+    autoinclude {
+      inputs = {
+        x = "y"
+      }
+    }
+  }
+}
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+				Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+			})
+
+			var nestedErr hclparse.AutoIncludeNestedError
+
+			require.ErrorAs(t, err, &nestedErr)
+			assert.Contains(t, err.Error(), "must not contain another autoinclude block")
+		})
+	}
+}
+
+// TestAutoIncludeResolve_RejectsDeeplyNestedBlocks verifies the nested-block recursion guard returns a typed error
+// instead of overflowing the stack on a pathologically deep autoinclude body.
+func TestAutoIncludeResolve_RejectsDeeplyNestedBlocks(t *testing.T) {
+	t.Parallel()
+
+	const depth = 1100 // exceeds maxBlockDepth
+
+	nested := strings.Repeat("nested {\n", depth) + strings.Repeat("}\n", depth)
+	src := `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+` + nested + `  }
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nesting too deep", "deep nesting must fail loud, not overflow the stack")
 }
 
 // TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude verifies a unit declared in an included file is reachable as unit.<name>.path during autoinclude resolution.

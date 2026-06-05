@@ -135,6 +135,11 @@ func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoInclu
 		return nil, diags
 	}
 
+	// Reject a nested autoinclude block; an autoinclude must not contain another autoinclude.
+	if diags := rejectAutoIncludeNestedAutoInclude(body, kind, name); diags.HasErrors() {
+		return nil, diags
+	}
+
 	deps := make([]AutoIncludeDependency, 0, len(body.Blocks))
 
 	var diags hcl.Diagnostics
@@ -450,7 +455,11 @@ func referencesRoot(expr hclsyntax.Expression, root string) bool {
 
 // rejectAutoIncludeValuesReference rejects any values.* reference in the autoinclude body for both kinds.
 func rejectAutoIncludeValuesReference(body *hclsyntax.Body, kind AutoIncludeKind, name string) hcl.Diagnostics {
-	attr, owner := findValuesReference(body)
+	attr, owner, err := findValuesReference(body)
+	if err != nil {
+		return blockDepthDiags(body, err)
+	}
+
 	if attr == nil {
 		return nil
 	}
@@ -469,47 +478,60 @@ func rejectAutoIncludeValuesReference(body *hclsyntax.Body, kind AutoIncludeKind
 // findValuesReference returns the first attribute referencing the values namespace plus a label for it, or nil when none.
 // A dependency config_path is exempt because it is resolved to a concrete path at generate time, which preserves the
 // cross-level path-passing pattern. Injected unit and stack blocks are scanned too, so a values.* reference there is rejected.
-func findValuesReference(body *hclsyntax.Body) (*hclsyntax.Attribute, string) {
+func findValuesReference(body *hclsyntax.Body) (*hclsyntax.Attribute, string, error) {
 	for _, attr := range SortedAttributes(body.Attributes) {
 		if referencesRoot(attr.Expr, varValues) {
-			return attr, attr.Name
+			return attr, attr.Name, nil
 		}
 	}
 
 	for _, block := range body.Blocks {
-		attr := findBlockValuesReference(block)
+		attr, err := findBlockValuesReference(block, 0)
+		if err != nil {
+			return nil, "", err
+		}
+
 		if attr == nil {
 			continue
 		}
 
-		return attr, blockOwnerLabel(block)
+		return attr, blockOwnerLabel(block), nil
 	}
 
-	return nil, ""
+	return nil, "", nil
 }
 
-// findBlockValuesReference scans a block body for a values reference, exempting a dependency block's config_path.
-func findBlockValuesReference(block *hclsyntax.Block) *hclsyntax.Attribute {
+// findBlockValuesReference scans a block body for a values reference, exempting a dependency block's config_path;
+// depth bounds the nested-block recursion so a pathologically deep body cannot overflow the stack.
+func findBlockValuesReference(block *hclsyntax.Block, depth int) (*hclsyntax.Attribute, error) {
+	if depth > maxBlockDepth {
+		return nil, BlockDepthExceededError{MaxDepth: maxBlockDepth}
+	}
+
 	for _, attr := range SortedAttributes(block.Body.Attributes) {
 		if block.Type == blockDependency && attr.Name == attrConfigPath {
 			continue
 		}
 
 		if referencesRoot(attr.Expr, varValues) {
-			return attr
+			return attr, nil
 		}
 	}
 
 	for _, nested := range block.Body.Blocks {
-		attr := findBlockValuesReference(nested)
+		attr, err := findBlockValuesReference(nested, depth+1)
+		if err != nil {
+			return nil, err
+		}
+
 		if attr == nil {
 			continue
 		}
 
-		return attr
+		return attr, nil
 	}
 
-	return nil
+	return nil, nil
 }
 
 // blockOwnerLabel names a block for an error message: a labeled block by its label, otherwise the block type.
@@ -523,7 +545,11 @@ func blockOwnerLabel(block *hclsyntax.Block) string {
 
 // rejectAutoIncludeLocalsBlock rejects a locals block defined anywhere in the autoinclude body for both kinds.
 func rejectAutoIncludeLocalsBlock(body *hclsyntax.Body, kind AutoIncludeKind, name string) hcl.Diagnostics {
-	block := findLocalsBlock(body)
+	block, err := findNestedBlock(body, blockLocals, 0)
+	if err != nil {
+		return blockDepthDiags(body, err)
+	}
+
 	if block == nil {
 		return nil
 	}
@@ -539,17 +565,65 @@ func rejectAutoIncludeLocalsBlock(body *hclsyntax.Body, kind AutoIncludeKind, na
 	}}
 }
 
-// findLocalsBlock returns the first locals block anywhere in body, walking nested blocks; nil when none.
-func findLocalsBlock(body *hclsyntax.Body) *hclsyntax.Block {
+// rejectAutoIncludeNestedAutoInclude rejects an autoinclude block nested inside the autoinclude body, which would
+// otherwise recurse. An injected unit or stack legitimately carries its own autoinclude for the next generate pass,
+// so those subtrees are skipped.
+func rejectAutoIncludeNestedAutoInclude(body *hclsyntax.Body, kind AutoIncludeKind, name string) hcl.Diagnostics {
+	block, err := findNestedBlock(body, blockAutoInclude, 0)
+	if err != nil {
+		return blockDepthDiags(body, err)
+	}
+
+	if block == nil {
+		return nil
+	}
+
+	typed := AutoIncludeNestedError{Subject: block.DefRange().Ptr(), Kind: string(kind), Component: name}
+
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "autoinclude block is not allowed inside autoinclude",
+		Detail:   typed.Error(),
+		Subject:  typed.Subject,
+		Extra:    typed,
+	}}
+}
+
+// findNestedBlock returns the first block of blockType anywhere in body, bounded by maxBlockDepth; injected unit and
+// stack subtrees are skipped because they are separate components generated in their own pass.
+func findNestedBlock(body *hclsyntax.Body, blockType string, depth int) (*hclsyntax.Block, error) {
+	if depth > maxBlockDepth {
+		return nil, BlockDepthExceededError{MaxDepth: maxBlockDepth}
+	}
+
 	for _, block := range body.Blocks {
-		if block.Type == blockLocals {
-			return block
+		if block.Type == blockType {
+			return block, nil
 		}
 
-		if nested := findLocalsBlock(block.Body); nested != nil {
-			return nested
+		if block.Type == VarUnit || block.Type == VarStack {
+			continue
+		}
+
+		nested, err := findNestedBlock(block.Body, blockType, depth+1)
+		if err != nil {
+			return nil, err
+		}
+
+		if nested != nil {
+			return nested, nil
 		}
 	}
 
-	return nil
+	return nil, nil
+}
+
+// blockDepthDiags converts a block-nesting depth error into a diagnostic anchored at the autoinclude body.
+func blockDepthDiags(body *hclsyntax.Body, err error) hcl.Diagnostics {
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "autoinclude block nesting too deep",
+		Detail:   err.Error(),
+		Subject:  body.SrcRange.Ptr(),
+	}}
 }

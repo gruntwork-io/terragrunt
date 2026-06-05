@@ -234,6 +234,26 @@ func (e AutoIncludeValuesReferenceError) Error() string {
 	)
 }
 
+// AutoIncludeNestedError indicates an autoinclude block is nested inside another autoinclude block, which is disallowed.
+type AutoIncludeNestedError struct {
+	Subject   *hcl.Range
+	Kind      string
+	Component string
+}
+
+func (e AutoIncludeNestedError) Error() string {
+	component := e.Component
+	if component == "" {
+		component = unknownPlaceholder
+	}
+
+	return fmt.Sprintf(
+		"autoinclude for %s %q nests an autoinclude block, which is not allowed; "+
+			"an autoinclude block must not contain another autoinclude block",
+		e.Kind, component,
+	)
+}
+
 // AutoIncludeLocalsBlockError indicates an autoinclude body defines a locals block, which is disallowed in favor of stack-level locals.
 type AutoIncludeLocalsBlockError struct {
 	Subject   *hcl.Range
@@ -271,6 +291,15 @@ type PartialEvalDepthExceededError struct {
 
 func (e PartialEvalDepthExceededError) Error() string {
 	return fmt.Sprintf("partial evaluation exceeded maximum recursion depth %d", e.MaxDepth)
+}
+
+// BlockDepthExceededError indicates that nested-block traversal of an autoinclude body hit its recursion guard.
+type BlockDepthExceededError struct {
+	MaxDepth int
+}
+
+func (e BlockDepthExceededError) Error() string {
+	return fmt.Sprintf("autoinclude block nesting exceeded maximum recursion depth %d", e.MaxDepth)
 }
 
 // StackRecursionDepthExceededError indicates that nested-stack unit-path expansion hit its recursion guard.

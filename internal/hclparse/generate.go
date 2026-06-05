@@ -118,10 +118,17 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	return nil
 }
 
+// maxBlockDepth bounds nested-block recursion so a pathologically deep autoinclude body cannot overflow the stack.
+const maxBlockDepth = 1000
+
 // copyBlock copies block from the AST to hclwrite output; partially evaluates attributes when evalCtx is
 // non-nil, otherwise verbatim. Generate-time roots (local.*, unit.*, stack.*) resolve to literals while
 // dependency.*.outputs.* is deferred (kept verbatim, resolved inside the unit); values.* is rejected at generate time.
-func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext, deferFunctions bool) error {
+func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext, deferFunctions bool, depth int) error {
+	if depth > maxBlockDepth {
+		return BlockDepthExceededError{MaxDepth: maxBlockDepth}
+	}
+
 	newBlock := outBody.AppendNewBlock(block.Type, block.Labels)
 	blockBody := newBlock.Body()
 
@@ -132,7 +139,7 @@ func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, 
 	}
 
 	for _, nested := range block.Body.Blocks {
-		if err := copyBlock(blockBody, nested, srcBytes, evalCtx, deferFunctions); err != nil {
+		if err := copyBlock(blockBody, nested, srcBytes, evalCtx, deferFunctions, depth+1); err != nil {
 			return err
 		}
 	}
@@ -218,7 +225,7 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 
 	// Render nested blocks within the dependency (if any) with the same partial evaluation.
 	for _, nested := range origBlock.Body.Blocks {
-		if err := copyBlock(depBody, nested, srcBytes, evalCtx, false); err != nil {
+		if err := copyBlock(depBody, nested, srcBytes, evalCtx, false, 0); err != nil {
 			return err
 		}
 	}
@@ -242,7 +249,7 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 			continue
 		}
 
-		if err := copyBlock(outBody, block, srcBytes, evalCtx, isDeferredZoneBlock(block.Type)); err != nil {
+		if err := copyBlock(outBody, block, srcBytes, evalCtx, isDeferredZoneBlock(block.Type), 0); err != nil {
 			return err
 		}
 	}

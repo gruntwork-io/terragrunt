@@ -25,6 +25,7 @@ const (
 	blockLocals      = "locals"
 	blockGenerate    = "generate"
 	blockRemoteState = "remote_state"
+	blockAutoInclude = "autoinclude"
 	attrConfigPath   = "config_path"
 	attrInputs       = "inputs"
 
@@ -535,6 +536,8 @@ func autoIncludeTypedErr(diags hcl.Diagnostics) error {
 		case AutoIncludeValuesReferenceError:
 			return typed
 		case AutoIncludeLocalsBlockError:
+			return typed
+		case AutoIncludeNestedError:
 			return typed
 		}
 	}
