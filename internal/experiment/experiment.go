@@ -70,6 +70,9 @@ const (
 	// units directly under the working directory when no terragrunt.stack.hcl
 	// files are present, aggregating their outputs keyed by relative path.
 	StackOutputImplicit = "stack-output-implicit"
+	// HookContextEnv exposes additional TG_CTX_* environment variables to hook
+	// scripts: TG_CTX_HOOK_TYPE, TG_CTX_SOURCE, and TG_CTX_TERRAGRUNT_DIR.
+	HookContextEnv = "hook-context-env"
 )
 
 const (
@@ -148,6 +151,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: StackOutputImplicit,
+		},
+		{
+			Name: HookContextEnv,
 		},
 	}
 }

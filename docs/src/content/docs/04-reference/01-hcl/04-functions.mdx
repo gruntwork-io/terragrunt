@@ -8,8 +8,6 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import Since from '@components/Since.astro';
-import Before from '@components/Before.astro';
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
 
@@ -833,16 +831,6 @@ This caching behavior can be modified using the special parameters described in 
 
 ## deep_merge
 
-<Before version="1.0.6">
-
-<Aside type="tip">
-The `deep_merge` function will be available starting in Terragrunt v1.0.6.
-</Aside>
-
-</Before>
-
-<Since version="1.0.6">
-
 `deep_merge(map1, map2, ...)` deeply merges maps/objects. For overlapping keys, values from later arguments override earlier ones. Nested maps are merged recursively, and lists are appended. This function takes positional arguments.
 
 `deep_merge` requires the [`deep-merge`](/reference/experiments/active#deep-merge) experiment. Calling it without the experiment enabled returns an error.
@@ -873,8 +861,6 @@ locals {
 
 inputs = local.config
 ```
-
-</Since>
 
 ## read_terragrunt_config
 
@@ -1092,16 +1078,6 @@ block is not evaluated until *after* the queue has been populated with units to 
 
 ## mark_glob_as_read
 
-<Before version="1.0.3">
-
-<Aside type="tip">
-Coming soon!
-</Aside>
-
-</Before>
-
-<Since version="1.0.3">
-
 <Aside type="caution">
 `mark_glob_as_read` requires the [`mark-many-as-read`](/reference/experiments/active#mark-many-as-read) experiment. Calling it without the experiment enabled returns an error.
 </Aside>
@@ -1143,8 +1119,6 @@ inputs = {
 A typical use case is a unit that consumes a directory of configuration files indirectly (for example, through `run_cmd`, `templatefile`, or a shared helper module) and wants changes to any of them to trigger the unit through [reading-based filter expressions](/features/filter/attributes#reading-based-expressions) such as `--filter 'reading=./config/**'`.
 
 If the pattern matches nothing, the function returns an empty list without error.
-
-</Since>
 
 ## constraint_check
 

@@ -32,10 +32,64 @@ reviews:
         Make sure that the Astro code follows best practices and is easy to understand, maintain, and follows best practices.
         When possible, suggest improvements to the Astro code to make it better.
 
+    - path: 'docs/src/content/docs/**/*.{md,mdx}'
+      instructions: >-
+        RELEASE-GATING CHECK. Documentation must not describe behavior
+        before the release that ships it. Terragrunt docs gate
+        not-yet-released content with two Astro components imported from
+        `@components/Since.astro` and `@components/Before.astro`:
+        `<Since version="vX.Y.Z">...</Since>` renders its children only once
+        the latest release is >= that version (use it to wrap docs for a
+        feature that is new or changed in an upcoming release), and
+        `<Before version="vX.Y.Z">...</Before>` renders its children only
+        while the latest release is < that version (use it to keep the old
+        documentation visible until the new release ships, and to retire it
+        afterward). When this PR adds or edits documentation that describes a
+        feature, flag, block, attribute, function, default, or behavior that
+        is being introduced or changed by an as-yet-unreleased version,
+        verify that the new prose is wrapped in `<Since version="...">` and
+        that any superseded prose is wrapped in `<Before version="...">`,
+        using the SAME target version as the change's changelog entry under
+        `docs/src/data/changelog/<version>/`. If unreleased documentation is
+        added without `<Since>` gating (or replaces existing documentation
+        without preserving it under `<Before>`), flag at HIGH and ask the
+        author to gate it so the docs site does not publish documentation for
+        an unreleased feature. Do NOT use markdown headings (##, ###) inside
+        `<Since>` or `<Before>`; headings are extracted into the table of
+        contents before the component renders, so a gated heading would leak.
+        Pure corrections to already-released documentation (typo, grammar,
+        clarification of existing behavior) do NOT need gating; do not flag
+        those.
+
     - path: '**/*.go'
       instructions: >-
         Review the Go code for quality and correctness.
         Make sure that the Go code follows best practices, is performant, and is easy to understand and maintain.
+
+    - path: '**/*.go'
+      instructions: >-
+        CHANGELOG-ENTRY CHECK. Determine whether this PR introduces a
+        user-facing change: new or changed CLI flags, commands, or
+        subcommands; new or changed HCL blocks, attributes, or functions;
+        changed default behavior, output, exit codes, or error messages a
+        user would observe; new or changed experiments or strict controls;
+        bug fixes that change observed behavior; performance changes a user
+        would notice; or new configuration/environment variables. If the PR
+        is user-facing, verify that it ALSO adds at least one changelog
+        entry under `docs/src/data/changelog/<version>/<slug>.mdx`. Each
+        entry is an MDX file whose frontmatter has a `version` (e.g.
+        "v1.2.3") and a `category` (one of: breaking-changes, new-features,
+        performance-improvements, tips-added, bug-fixes,
+        documentation-updates, experiments-added, experiments-updated,
+        process-updates), followed by a `#### Title` heading and prose
+        describing the user-visible effect. Note: changes that are gated
+        behind an experiment must be categorized as `experiments-updated`
+        (or `experiments-added`), NOT `breaking-changes`. If a user-facing
+        Go change has no corresponding changelog entry, flag at HIGH and
+        ask the author to add one, naming the likely category. Purely
+        internal changes (refactors, test-only changes, comments, private
+        helpers with no observable effect) do NOT require an entry; do not
+        flag those.
 
     # Supply-chain guards. Added after PR #6190 (obfuscated loader in tailwind.config.mjs).
 
@@ -252,6 +306,25 @@ reviews:
     and (iii) confirm no manual edits were applied. Treat unreviewable
     binary or minified content as opaque payload until proven
     otherwise.
+    (l) Changelog coverage: decide whether the PR contains a user-facing
+    change (CLI flags/commands, HCL blocks/attributes/functions, changed
+    defaults or output or exit codes or error messages, experiments,
+    strict controls, behavior-changing bug fixes, user-visible performance
+    changes, new config/env vars). If it does, confirm at least one
+    changelog entry was added under
+    `docs/src/data/changelog/<version>/<slug>.mdx` with a valid `version`
+    and `category`. If a user-facing change ships without a changelog
+    entry, flag at HIGH in the summary and name the likely category.
+    Internal-only changes (refactors, tests, comments) are exempt.
+    (m) Documentation release-gating: for any documentation added or
+    edited under `docs/src/content/docs/**` that describes an unreleased
+    feature or behavior change, confirm the new prose is wrapped in
+    `<Since version="...">` and any superseded prose is wrapped in
+    `<Before version="...">`, both pinned to the same version as the
+    change's changelog entry. Ungated documentation for an unreleased
+    feature would publish to the live docs site before the release ships;
+    flag it at HIGH and ask the author to gate it. Corrections to
+    already-released documentation are exempt.
 
   # Auto-label suspicious PRs.
   labeling_instructions:

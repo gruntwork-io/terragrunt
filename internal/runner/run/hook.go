@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/multierror"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -23,7 +25,35 @@ const (
 	HookCtxTFPathEnvName   = "TG_CTX_TF_PATH"
 	HookCtxCommandEnvName  = "TG_CTX_COMMAND"
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
+
+	// The following are gated behind the hook-context-env experiment.
+	HookCtxHookTypeEnvName      = "TG_CTX_HOOK_TYPE"
+	HookCtxSourceEnvName        = "TG_CTX_SOURCE"
+	HookCtxTerragruntDirEnvName = "TG_CTX_TERRAGRUNT_DIR"
 )
+
+const (
+	HookTypeUnknown HookType = iota
+	HookTypeBefore
+	HookTypeAfter
+	HookTypeError
+)
+
+var hookTypeNames = map[HookType]string{
+	HookTypeBefore: "before_hook",
+	HookTypeAfter:  "after_hook",
+	HookTypeError:  "error_hook",
+}
+
+type HookType byte
+
+func hookTypeName(hookType HookType) (string, bool) {
+	if name, ok := hookTypeNames[hookType]; ok {
+		return name, true
+	}
+
+	return "", false
+}
 
 // ProcessHooksParams groups the configuration and data inputs for ProcessHooks.
 type ProcessHooksParams struct {
@@ -31,6 +61,7 @@ type ProcessHooksParams struct {
 	Cfg                *runcfg.RunConfig
 	PreviousExecErrors []error
 	Hooks              []runcfg.Hook
+	HookType           HookType
 }
 
 // ProcessHooks processes a list of hooks, executing each one that matches the current command.
@@ -59,7 +90,7 @@ func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParam
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
 			}, func(ctx context.Context) error {
-				return runHook(ctx, l, v, p.Opts, p.Cfg, curHook)
+				return runHook(ctx, l, v, p.Opts, p.Cfg, curHook, p.HookType)
 			})
 			if err != nil {
 				allPreviousErrors = append(allPreviousErrors, err)
@@ -77,6 +108,7 @@ func ProcessErrorHooks(
 	l log.Logger,
 	exec vexec.Exec,
 	hooks []runcfg.ErrorHook,
+	cfg *runcfg.RunConfig,
 	opts *Options,
 	previousExecErrors []error,
 ) error {
@@ -112,7 +144,11 @@ func ProcessErrorHooks(
 
 				actionToExecute := curHook.Execute[0]
 				actionParams := curHook.Execute[1:]
-				hookOpts := optsWithHookEnvs(opts, curHook.Name)
+
+				hookOpts, hookOptsErr := optsWithHookEnvs(opts, cfg, curHook.Name, HookTypeError)
+				if hookOptsErr != nil {
+					return hookOptsErr
+				}
 
 				_, possibleError := shell.RunCommandWithOutput(
 					ctx,
@@ -190,6 +226,7 @@ func runHook(
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,
+	hookType HookType,
 ) error {
 	l.Infof("Executing hook: %s", curHook.Name)
 
@@ -198,7 +235,11 @@ func runHook(
 
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
-	hookOpts := optsWithHookEnvs(opts, curHook.Name)
+
+	hookOpts, err := optsWithHookEnvs(opts, cfg, curHook.Name, hookType)
+	if err != nil {
+		return err
+	}
 
 	if actionToExecute == "tflint" {
 		return executeTFLint(ctx, l, v, opts, cfg, curHook, workingDir)
@@ -246,12 +287,28 @@ func executeTFLint(
 	return nil
 }
 
-func optsWithHookEnvs(opts *Options, hookName string) *Options {
+func optsWithHookEnvs(opts *Options, cfg *runcfg.RunConfig, hookName string, hookType HookType) (*Options, error) {
 	newOpts := *opts
 	newOpts.Env = cloner.Clone(opts.Env)
 	newOpts.Env[HookCtxTFPathEnvName] = opts.TFPath
 	newOpts.Env[HookCtxCommandEnvName] = opts.TerraformCommand
 	newOpts.Env[HookCtxHookNameEnvName] = hookName
 
-	return &newOpts
+	if opts.Experiments.Evaluate(experiment.HookContextEnv) {
+		hookTypeValue, ok := hookTypeName(hookType)
+		if !ok {
+			return nil, fmt.Errorf("unknown hook type: %d", hookType)
+		}
+
+		source, err := runcfg.GetTerraformSourceURL(opts.Source, opts.SourceMap, opts.OriginalTerragruntConfigPath, cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		newOpts.Env[HookCtxHookTypeEnvName] = hookTypeValue
+		newOpts.Env[HookCtxSourceEnvName] = source
+		newOpts.Env[HookCtxTerragruntDirEnvName] = filepath.Dir(opts.TerragruntConfigPath)
+	}
+
+	return &newOpts, nil
 }

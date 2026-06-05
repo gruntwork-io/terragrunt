@@ -69,6 +69,24 @@ func TestFilterFlagWithFindGraphExpressions(t *testing.T) {
 			expectedOutput: "b-dependency\n",
 			expectError:    false,
 		},
+		{
+			name:           "dependencies intersected with type - a-dependent... | type=unit",
+			filterQuery:    "a-dependent... | type=unit",
+			expectedOutput: "a-dependent\nb-dependency\n",
+			expectError:    false,
+		},
+		{
+			name:           "dependents intersected with type - ...b-dependency | type=unit",
+			filterQuery:    "...b-dependency | type=unit",
+			expectedOutput: "a-dependent\nb-dependency\nc-mixed-deps\nd-dependencies-only\n",
+			expectError:    false,
+		},
+		{
+			name:           "both directions intersected with type - ...a-dependent... | type=unit",
+			filterQuery:    "...a-dependent... | type=unit",
+			expectedOutput: "a-dependent\nb-dependency\nc-mixed-deps\nd-dependencies-only\n",
+			expectError:    false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -542,6 +560,27 @@ dependency "vpc" {
 			filterQuery:   "...^[HEAD~1...HEAD]...",
 			expectedUnits: []string{"vpc", "app"},
 			description:   "Should find vpc (dependency) and app (dependent), excluding db itself",
+			expectError:   false,
+		},
+		{
+			name:          "dependents of git changes intersected with type - ...[HEAD~1...HEAD] | type=unit",
+			filterQuery:   "...[HEAD~1...HEAD] | type=unit",
+			expectedUnits: []string{"db", "app"},
+			description:   "Issue #6269: an intersected attribute filter must not drop the git-changed unit's dependents",
+			expectError:   false,
+		},
+		{
+			name:          "dependencies of git changes intersected with type - [HEAD~1...HEAD]... | type=unit",
+			filterQuery:   "[HEAD~1...HEAD]... | type=unit",
+			expectedUnits: []string{"db", "vpc"},
+			description:   "Issue #6269: an intersected attribute filter must not drop the git-changed unit's dependencies",
+			expectError:   false,
+		},
+		{
+			name:          "both directions intersected with type - ...[HEAD~1...HEAD]... | type=unit",
+			filterQuery:   "...[HEAD~1...HEAD]... | type=unit",
+			expectedUnits: []string{"vpc", "db", "app"},
+			description:   "Issue #6269: an intersected attribute filter must not drop dependencies or dependents",
 			expectError:   false,
 		},
 	}
