@@ -12,8 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// StackParseFunctionsFrom returns funcs with get_working_dir overridden to return baseDir, for callers that already
-// hold the stack-file eval context and want to avoid rebuilding it. The input map is not mutated.
+// StackParseFunctionsFrom returns a copy of funcs with get_working_dir overridden to return baseDir, for callers that already hold the stack-file eval context (the input map is not mutated).
 func StackParseFunctionsFrom(funcs map[string]function.Function, baseDir string) map[string]function.Function {
 	out := maps.Clone(funcs)
 	out[FuncNameGetWorkingDir] = stackDirGetWorkingDir(baseDir)

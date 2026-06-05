@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"github.com/zclconf/go-cty/cty/function/stdlib"
 )
 
 const (
@@ -365,7 +366,62 @@ unit "app" {
 	assert.Equal(t, "Invalid config_path", diags[0].Summary)
 	assert.Contains(t, diags[0].Detail, `dependency "dep" config_path could not be evaluated`)
 	require.NotNil(t, diags[0].Subject, "the diagnostic must be anchored at the config_path expression")
-	assert.Equal(t, 12, diags[0].Subject.Start.Line, "the error must point at the config_path line, not an unrelated block")
+
+	srcLines := strings.Split(src, "\n")
+	require.LessOrEqual(t, diags[0].Subject.Start.Line, len(srcLines))
+	assert.Contains(t, srcLines[diags[0].Subject.Start.Line-1], "config_path",
+		"the error must point at the config_path line, not an unrelated block")
+}
+
+// TestGenerateAutoIncludeFile_MockOutputsRendersFunction pins that mock_outputs is not a deferred zone, so a
+// function call there is evaluated in the stack file context and rendered to a literal at generate time.
+func TestGenerateAutoIncludeFile_MockOutputsRendersFunction(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+
+      mock_outputs = {
+        name = upper("vpc")
+      }
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:       srcBytes,
+		Filename:  "terragrunt.stack.hcl",
+		StackDir:  testStackDir,
+		Functions: map[string]function.Function{"upper": stdlib.UpperFunc},
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `"VPC"`, "a function in mock_outputs must render to its literal at generate time")
+	assert.NotContains(t, content, "upper(", "a function in mock_outputs must not be left verbatim")
 }
 
 // TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves
