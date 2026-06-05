@@ -3,6 +3,7 @@ package hclparse
 import (
 	"bytes"
 	"errors"
+	"maps"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -84,9 +85,30 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 		return partialEvalConditional(e, args)
 	case *hclsyntax.ParenthesesExpr:
 		return partialEvalParens(e, args)
+	case *hclsyntax.BinaryOpExpr:
+		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.LHS, e.RHS})
+	case *hclsyntax.UnaryOpExpr:
+		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Val})
+	case *hclsyntax.IndexExpr:
+		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Collection, e.Key})
+	case *hclsyntax.RelativeTraversalExpr:
+		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Source})
+	// For defers the loop variables so a stack local in the body resolves while the loop var stays verbatim; the collection has no loop vars so the shared deferred set is safe.
+	case *hclsyntax.ForExpr:
+		saved := args.Deferred
+		args.Deferred = maps.Clone(saved)
+		args.Deferred[e.KeyVar] = true
+		args.Deferred[e.ValVar] = true
+
+		defer func() { args.Deferred = saved }()
+
+		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.CollExpr, e.KeyExpr, e.ValExpr, e.CondExpr})
+	// Splat renders only the source; its body runs against the anonymous iterator which cannot be deferred by name, so it stays verbatim.
+	case *hclsyntax.SplatExpr:
+		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Source})
 	}
 
-	// Unhandled types (ForExpr, SplatExpr, BinaryOpExpr, UnaryOpExpr, etc.) emit verbatim source bytes; the generated HCL contains valid original text evaluated at runtime.
+	// Any remaining type emits verbatim source bytes; the generated HCL keeps valid original text evaluated at runtime.
 	return RangeBytes(args.SrcBytes, expr.Range()), nil
 }
 
@@ -116,6 +138,10 @@ func partialEvalChildren(args *EvalArgs, parentRange hcl.Range, children []hclsy
 	var firstErr error
 
 	for _, child := range children {
+		if child == nil {
+			continue
+		}
+
 		cr := child.Range()
 
 		out = append(out, src[cursor:cr.Start.Byte]...)

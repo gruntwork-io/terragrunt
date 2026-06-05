@@ -118,7 +118,7 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	return nil
 }
 
-// maxBlockDepth bounds nested-block recursion so a pathologically deep autoinclude body cannot overflow the stack.
+// maxBlockDepth bounds nested-block recursion so a deep autoinclude body cannot overflow the stack; the resolve-time value scan shares this bound and rejects over-deep bodies first, so this guard is unreachable defense-in-depth kept for the bounded-recursion rule.
 const maxBlockDepth = 1000
 
 // copyBlock copies block from the AST to hclwrite output; partially evaluates attributes when evalCtx is

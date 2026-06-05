@@ -327,11 +327,13 @@ unit "app" {
 	// Stack locals resolve at generate time everywhere (mock_outputs, inputs, generate), so the literal is baked in.
 	assert.Contains(t, content, `"t1"`, "a stack local must render at generate time")
 	assert.NotContains(t, content, "local.tag", "a stack local must not be left verbatim, even in a deferred zone")
-	// In the inputs, generate, and remote_state zones a function call and a dependency reference stay verbatim,
+	// In the inputs and generate zones a function call and a dependency reference stay verbatim,
 	// while a stack local inside a preserved function call still renders.
 	assert.Contains(t, content, "get_terragrunt_dir()", "a function call in a deferred zone must stay verbatim for the unit")
 	assert.Contains(t, content, `run_cmd("echo", "t1")`, "a function in the generate zone stays verbatim while its local argument renders")
 	assert.Contains(t, content, "dependency.vpc.outputs.id", "a dependency reference in inputs must stay verbatim")
+	// The remote_state config path is qualified by its attribute name so it pins that arm verbatim independently of the inputs occurrence.
+	assert.Contains(t, content, "path = get_terragrunt_dir()", "the remote_state config path must stay verbatim for the unit")
 }
 
 // TestParseStackFile_ConfigPathEvalErrorIsAnchoredAtConfigPath pins that a config_path that fails to evaluate
@@ -422,6 +424,60 @@ unit "app" {
 	content := string(generated)
 	assert.Contains(t, content, `"VPC"`, "a function in mock_outputs must render to its literal at generate time")
 	assert.NotContains(t, content, "upper(", "a function in mock_outputs must not be left verbatim")
+}
+
+// TestGenerateAutoIncludeFile_MockOutputsDefersDependencyButRendersFunction pins the two-mechanism split in the
+// non-deferred mock_outputs zone: a function renders to its literal (DeferFunctions is false there) while a
+// dependency.* reference still stays verbatim through deferredRoots.
+func TestGenerateAutoIncludeFile_MockOutputsDefersDependencyButRendersFunction(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+
+      mock_outputs = {
+        name    = upper("vpc")
+        chained = dependency.other.outputs.id
+      }
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:       srcBytes,
+		Filename:  "terragrunt.stack.hcl",
+		StackDir:  testStackDir,
+		Functions: map[string]function.Function{"upper": stdlib.UpperFunc},
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `"VPC"`, "a function in mock_outputs renders to its literal even though dependency.* in the same block defers")
+	assert.NotContains(t, content, "upper(", "a function in mock_outputs must not be left verbatim")
+	assert.Contains(t, content, "dependency.other.outputs.id", "a dependency reference in mock_outputs stays verbatim through deferredRoots")
 }
 
 // TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves
