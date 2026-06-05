@@ -235,14 +235,8 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 	}, nil
 }
 
-// configPathEvalReason returns a one-line reason from config_path evaluation diagnostics, preferring a detail that names the failing function call so the underlying cause is clear.
+// configPathEvalReason returns a one-line reason from config_path evaluation diagnostics for the wrapped error.
 func configPathEvalReason(diags hcl.Diagnostics) string {
-	for _, d := range diags {
-		if strings.Contains(d.Detail, "Call to function") {
-			return d.Detail
-		}
-	}
-
 	for _, d := range diags {
 		if d.Detail != "" {
 			return d.Detail

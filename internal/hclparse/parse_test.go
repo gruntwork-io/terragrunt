@@ -293,7 +293,15 @@ unit "app" {
 
     generate "backend" {
       path     = "backend.tf"
-      contents = local.tag
+      contents = run_cmd("echo", local.tag)
+    }
+
+    remote_state {
+      backend = "local"
+
+      config = {
+        path = get_terragrunt_dir()
+      }
     }
   }
 }
@@ -317,13 +325,47 @@ unit "app" {
 	// Stack locals resolve at generate time everywhere (mock_outputs, inputs, generate), so the literal is baked in.
 	assert.Contains(t, content, `"t1"`, "a stack local must render at generate time")
 	assert.NotContains(t, content, "local.tag", "a stack local must not be left verbatim, even in a deferred zone")
-	// In a deferred zone, a function call and a dependency reference stay verbatim for the generated unit.
-	assert.Contains(t, content, "get_terragrunt_dir()", "a function call in inputs must stay verbatim for the unit")
+	// In the inputs, generate, and remote_state zones a function call and a dependency reference stay verbatim,
+	// while a stack local inside a preserved function call still renders.
+	assert.Contains(t, content, "get_terragrunt_dir()", "a function call in a deferred zone must stay verbatim for the unit")
+	assert.Contains(t, content, `run_cmd("echo", "t1")`, "a function in the generate zone stays verbatim while its local argument renders")
 	assert.Contains(t, content, "dependency.vpc.outputs.id", "a dependency reference in inputs must stay verbatim")
 }
 
-// TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves
-// stack-level references (local.*) to literals at generate time.
+// TestParseStackFile_ConfigPathEvalErrorIsAnchoredAtConfigPath pins that a config_path that fails to evaluate
+// yields one clear "Invalid config_path" diagnostic anchored at the config_path expression, not at an unrelated block.
+func TestParseStackFile_ConfigPathEvalErrorIsAnchoredAtConfigPath(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  base = {}
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "dep" {
+      config_path = local.base.missing
+    }
+  }
+}
+`
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	require.True(t, diags.HasErrors())
+	assert.Equal(t, "Invalid config_path", diags[0].Summary)
+	assert.Contains(t, diags[0].Detail, `dependency "dep" config_path could not be evaluated`)
+	require.NotNil(t, diags[0].Subject, "the diagnostic must be anchored at the config_path expression")
+	assert.Equal(t, 12, diags[0].Subject.Start.Line, "the error must point at the config_path line, not an unrelated block")
+}
 
 // TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves
 // stack-level references (local.*) to literals at generate time.

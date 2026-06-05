@@ -155,12 +155,10 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return AutoIncludeParserStageError{Stage: "eval-context", File: stackFilePath, Err: evalCtxErr}
 		}
 
-		// Evaluate the autoinclude with the stack-file function set so directory-context functions like
-		// get_working_dir resolve against the stack file instead of re-parsing it as a regular config.
-		earlyFuncs, earlyFuncsErr := EarlyStackParseFunctions(ctx, scopedLogger, stackSourceDir, scopedPctx)
-		if earlyFuncsErr != nil {
-			return AutoIncludeParserStageError{Stage: "eval-context", File: stackFilePath, Err: earlyFuncsErr}
-		}
+		// Evaluate the autoinclude with the stack-file function set (derived from the eval context already built
+		// above) so directory-context functions like get_working_dir resolve against the stack file instead of
+		// re-parsing it as a regular config.
+		earlyFuncs := StackParseFunctionsFrom(prodEvalCtx.Functions, stackSourceDir)
 
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
 			Src:       stackSrcBytes,

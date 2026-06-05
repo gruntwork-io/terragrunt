@@ -428,6 +428,80 @@ func TestPartialEval_FunctionCallArgumentsArePartiallyEvaluated(t *testing.T) {
 	}
 }
 
+// TestPartialEval_DeferFunctions pins the deferred-zone contract: a function call stays verbatim (and is not
+// executed) while stack-level local.* still resolves, including inside the preserved call's arguments.
+func TestPartialEval_DeferFunctions(t *testing.T) {
+	t.Parallel()
+
+	newCtx := func(called *bool) *hcl.EvalContext {
+		evalCtx := buildEvalCtx()
+		evalCtx.Functions = map[string]function.Function{
+			"run_cmd": function.New(&function.Spec{
+				VarParam: &function.Parameter{Type: cty.DynamicPseudoType},
+				Type:     function.StaticReturnType(cty.String),
+				Impl:     func([]cty.Value, cty.Type) (cty.Value, error) { *called = true; return cty.StringVal("ran"), nil },
+			}),
+			"flag_fn": function.New(&function.Spec{
+				Type: function.StaticReturnType(cty.Bool),
+				Impl: func([]cty.Value, cty.Type) (cty.Value, error) { *called = true; return cty.True, nil },
+			}),
+		}
+
+		return evalCtx
+	}
+
+	eval := func(t *testing.T, called *bool, src string) string {
+		t.Helper()
+
+		expr, srcBytes := parseFirstAttrExpr(t, src)
+		out, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: newCtx(called), Deferred: testDeferred, DeferFunctions: true})
+		require.NoError(t, err)
+
+		return string(out)
+	}
+
+	t.Run("function call verbatim, local argument rendered", func(t *testing.T) {
+		t.Parallel()
+
+		var called bool
+
+		out := eval(t, &called, `val = run_cmd("echo", local.region)`)
+		assert.False(t, called, "a function in a deferred zone must not run at generate time")
+		assert.Contains(t, out, `run_cmd("echo", "us-east-1")`, "the call stays verbatim while the stack local renders")
+		assert.NotContains(t, out, "local.region")
+	})
+
+	t.Run("function call in conditional condition verbatim", func(t *testing.T) {
+		t.Parallel()
+
+		var called bool
+
+		out := eval(t, &called, `val = flag_fn() ? "a" : "b"`)
+		assert.False(t, called)
+		assert.Contains(t, out, "flag_fn()", "a function in a conditional condition stays verbatim in a deferred zone")
+	})
+
+	t.Run("function call in template verbatim, local rendered", func(t *testing.T) {
+		t.Parallel()
+
+		var called bool
+
+		out := eval(t, &called, `val = "pre-${run_cmd("echo", local.region)}-post"`)
+		assert.False(t, called)
+		assert.Contains(t, out, `pre-${run_cmd("echo", "us-east-1")}-post`)
+	})
+
+	t.Run("a pure local still renders with DeferFunctions", func(t *testing.T) {
+		t.Parallel()
+
+		var called bool
+
+		out := eval(t, &called, `val = local.region`)
+		assert.False(t, called)
+		assert.Contains(t, out, `"us-east-1"`)
+	})
+}
+
 // buildEvalCtx creates an eval context with local.env = "production" and
 // local.region = "us-east-1" for testing.
 func buildEvalCtx() *hcl.EvalContext {

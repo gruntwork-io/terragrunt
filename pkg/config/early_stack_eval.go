@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 
 	"github.com/zclconf/go-cty/cty"
@@ -10,6 +11,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
+
+// StackParseFunctionsFrom returns funcs with get_working_dir overridden to return baseDir, for callers that already
+// hold the stack-file eval context and want to avoid rebuilding it. The input map is not mutated.
+func StackParseFunctionsFrom(funcs map[string]function.Function, baseDir string) map[string]function.Function {
+	out := maps.Clone(funcs)
+	out[FuncNameGetWorkingDir] = stackDirGetWorkingDir(baseDir)
+
+	return out
+}
 
 // EarlyStackParseFunctions returns the HCL function map used to evaluate
 // expressions inside a terragrunt.stack.hcl. The keyset matches
