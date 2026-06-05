@@ -1179,7 +1179,8 @@ func TestAutoIncludeResolve_RejectsValuesReference(t *testing.T) {
 		src  string
 	}{
 		{
-			name: "unit mock_outputs",
+			// attr is the dependency label (blockOwnerLabel names a dependency block by its label).
+			name: "unit dependency mock_outputs",
 			attr: "dep",
 			src: `
 unit "u" {
@@ -1225,6 +1226,52 @@ stack "s" {
   autoinclude {
     inputs = {
       region = values.region
+    }
+  }
+}
+`,
+		},
+		{
+			// A stack autoinclude injects unit/stack blocks; a values.* reference inside an injected block must be rejected too.
+			name: "stack injected unit values",
+			attr: "extra",
+			src: `
+stack "s" {
+  source = "../catalog/stacks/s"
+  path   = "s"
+
+  autoinclude {
+    unit "extra" {
+      source = "../catalog/units/extra"
+      path   = "extra"
+
+      values = {
+        v = values.region
+      }
+    }
+  }
+}
+`,
+		},
+		{
+			// A values.* reference nested in a block (an injected unit's own autoinclude inputs) must be rejected.
+			name: "stack injected unit nested autoinclude inputs",
+			attr: "extra",
+			src: `
+stack "s" {
+  source = "../catalog/stacks/s"
+  path   = "s"
+
+  autoinclude {
+    unit "extra" {
+      source = "../catalog/units/extra"
+      path   = "extra"
+
+      autoinclude {
+        inputs = {
+          v = values.region
+        }
+      }
     }
   }
 }
@@ -1283,6 +1330,26 @@ stack "s" {
   autoinclude {
     locals {
       x = 1
+    }
+  }
+}
+`,
+		},
+		{
+			// A locals block nested inside a dependency block must also be rejected.
+			name: "nested inside dependency",
+			src: `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    dependency "dep" {
+      config_path = unit.u.path
+
+      locals {
+        x = 1
+      }
     }
   }
 }

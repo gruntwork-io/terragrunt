@@ -112,16 +112,8 @@ func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoInclu
 		}}
 	}
 
-	// Reject referencing the unit-scoped values namespace; the autoinclude resolves in the stack file context where values is unavailable.
-	if diags := rejectAutoIncludeValuesReference(body, kind, name); diags.HasErrors() {
-		return nil, diags
-	}
-
-	// Reject a locals block; stack-level locals belong in terragrunt.stack.hcl.
-	if diags := rejectAutoIncludeLocalsBlock(body, kind, name); diags.HasErrors() {
-		return nil, diags
-	}
-
+	// Stack-specific checks run first so a dependency output referenced by injected values yields the precise
+	// cross-level error rather than the generic values.* rejection (the dynamic-index form references both roots).
 	if kind == KindStack {
 		if diags := validateStackAutoIncludeDepValues(body, name); diags.HasErrors() {
 			return nil, diags
@@ -131,6 +123,16 @@ func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoInclu
 		if diags := rejectStackAutoIncludeDependencyBlocks(body, name); diags.HasErrors() {
 			return nil, diags
 		}
+	}
+
+	// Reject referencing the unit-scoped values namespace; the autoinclude resolves in the stack file context where values is unavailable.
+	if diags := rejectAutoIncludeValuesReference(body, kind, name); diags.HasErrors() {
+		return nil, diags
+	}
+
+	// Reject a locals block; stack-level locals belong in terragrunt.stack.hcl.
+	if diags := rejectAutoIncludeLocalsBlock(body, kind, name); diags.HasErrors() {
+		return nil, diags
 	}
 
 	deps := make([]AutoIncludeDependency, 0, len(body.Blocks))
@@ -447,7 +449,7 @@ func rejectAutoIncludeValuesReference(body *hclsyntax.Body, kind AutoIncludeKind
 
 // findValuesReference returns the first attribute referencing the values namespace plus a label for it, or nil when none.
 // A dependency config_path is exempt because it is resolved to a concrete path at generate time, which preserves the
-// cross-level path-passing pattern. Injected unit and stack blocks are skipped; they are validated separately.
+// cross-level path-passing pattern. Injected unit and stack blocks are scanned too, so a values.* reference there is rejected.
 func findValuesReference(body *hclsyntax.Body) (*hclsyntax.Attribute, string) {
 	for _, attr := range SortedAttributes(body.Attributes) {
 		if referencesRoot(attr.Expr, varValues) {
@@ -456,10 +458,6 @@ func findValuesReference(body *hclsyntax.Body) (*hclsyntax.Attribute, string) {
 	}
 
 	for _, block := range body.Blocks {
-		if block.Type == VarUnit || block.Type == VarStack {
-			continue
-		}
-
 		attr := findBlockValuesReference(block)
 		if attr == nil {
 			continue
@@ -495,31 +493,43 @@ func findBlockValuesReference(block *hclsyntax.Block) *hclsyntax.Attribute {
 	return nil
 }
 
-// blockOwnerLabel names a block for an error message: a dependency by its label, otherwise the block type.
+// blockOwnerLabel names a block for an error message: a labeled block by its label, otherwise the block type.
 func blockOwnerLabel(block *hclsyntax.Block) string {
-	if block.Type == blockDependency {
+	if len(block.Labels) > 0 {
 		return blockLabelsString(block)
 	}
 
 	return block.Type
 }
 
-// rejectAutoIncludeLocalsBlock rejects a locals block defined inside the autoinclude body for both kinds.
+// rejectAutoIncludeLocalsBlock rejects a locals block defined anywhere in the autoinclude body for both kinds.
 func rejectAutoIncludeLocalsBlock(body *hclsyntax.Body, kind AutoIncludeKind, name string) hcl.Diagnostics {
+	block := findLocalsBlock(body)
+	if block == nil {
+		return nil
+	}
+
+	typed := AutoIncludeLocalsBlockError{Subject: block.DefRange().Ptr(), Kind: string(kind), Component: name}
+
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "locals block is not allowed inside autoinclude",
+		Detail:   typed.Error(),
+		Subject:  typed.Subject,
+		Extra:    typed,
+	}}
+}
+
+// findLocalsBlock returns the first locals block anywhere in body, walking nested blocks; nil when none.
+func findLocalsBlock(body *hclsyntax.Body) *hclsyntax.Block {
 	for _, block := range body.Blocks {
-		if block.Type != blockLocals {
-			continue
+		if block.Type == blockLocals {
+			return block
 		}
 
-		typed := AutoIncludeLocalsBlockError{Subject: block.DefRange().Ptr(), Kind: string(kind), Component: name}
-
-		return hcl.Diagnostics{{
-			Severity: hcl.DiagError,
-			Summary:  "locals block is not allowed inside autoinclude",
-			Detail:   typed.Error(),
-			Subject:  typed.Subject,
-			Extra:    typed,
-		}}
+		if nested := findLocalsBlock(block.Body); nested != nil {
+			return nested
+		}
 	}
 
 	return nil
