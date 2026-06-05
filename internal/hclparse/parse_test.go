@@ -1174,14 +1174,18 @@ func TestAutoIncludeResolve_RejectsValuesReference(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name string
-		attr string
-		src  string
+		name      string
+		kind      string
+		component string
+		attr      string
+		src       string
 	}{
 		{
 			// attr is the dependency label (blockOwnerLabel names a dependency block by its label).
-			name: "unit dependency mock_outputs",
-			attr: "dep",
+			name:      "unit dependency mock_outputs",
+			kind:      "unit",
+			component: "u",
+			attr:      "dep",
 			src: `
 unit "u" {
   source = "../catalog/units/u"
@@ -1200,8 +1204,10 @@ unit "u" {
 `,
 		},
 		{
-			name: "unit inputs",
-			attr: "inputs",
+			name:      "unit inputs",
+			kind:      "unit",
+			component: "u",
+			attr:      "inputs",
 			src: `
 unit "u" {
   source = "../catalog/units/u"
@@ -1216,8 +1222,10 @@ unit "u" {
 `,
 		},
 		{
-			name: "stack inputs",
-			attr: "inputs",
+			name:      "stack inputs",
+			kind:      "stack",
+			component: "s",
+			attr:      "inputs",
 			src: `
 stack "s" {
   source = "../catalog/stacks/s"
@@ -1233,8 +1241,10 @@ stack "s" {
 		},
 		{
 			// A stack autoinclude injects unit/stack blocks; a values.* reference inside an injected block must be rejected too.
-			name: "stack injected unit values",
-			attr: "extra",
+			name:      "stack injected unit values",
+			kind:      "stack",
+			component: "s",
+			attr:      "extra",
 			src: `
 stack "s" {
   source = "../catalog/stacks/s"
@@ -1255,8 +1265,10 @@ stack "s" {
 		},
 		{
 			// A values.* reference nested in a block (an injected unit's own autoinclude inputs) must be rejected.
-			name: "stack injected unit nested autoinclude inputs",
-			attr: "extra",
+			name:      "stack injected unit nested autoinclude inputs",
+			kind:      "stack",
+			component: "s",
+			attr:      "extra",
 			src: `
 stack "s" {
   source = "../catalog/stacks/s"
@@ -1290,6 +1302,8 @@ stack "s" {
 			var valuesErr hclparse.AutoIncludeValuesReferenceError
 
 			require.ErrorAs(t, err, &valuesErr)
+			assert.Equal(t, tc.kind, valuesErr.Kind)
+			assert.Equal(t, tc.component, valuesErr.Component)
 			assert.Equal(t, tc.attr, valuesErr.Attr)
 			assert.Contains(t, err.Error(), "unit-scoped namespace")
 			assert.Contains(t, err.Error(), "stack-level local")
@@ -1297,16 +1311,50 @@ stack "s" {
 	}
 }
 
+// TestAutoIncludeResolve_ConfigPathMayReferenceValues pins that a values.* reference in a dependency config_path is
+// exempt from the rejection: config_path is resolved eagerly at generate time for the cross-level path-passing pattern.
+func TestAutoIncludeResolve_ConfigPathMayReferenceValues(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    dependency "dep" {
+      config_path = values.producer_path
+    }
+  }
+}
+`
+	values := cty.ObjectVal(map[string]cty.Value{"producer_path": cty.StringVal("../producer")})
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir, Values: &values,
+	})
+	require.NoError(t, err, "values.* in a dependency config_path is exempt and resolves at generate time")
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "u")]
+	require.True(t, ok)
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, "dep", resolved.Dependencies[0].Name)
+}
+
 // TestAutoIncludeResolve_RejectsLocalsBlock verifies a locals block inside autoinclude is rejected for both kinds.
 func TestAutoIncludeResolve_RejectsLocalsBlock(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name string
-		src  string
+		name      string
+		kind      string
+		component string
+		src       string
 	}{
 		{
-			name: "unit",
+			name:      "unit",
+			kind:      "unit",
+			component: "u",
 			src: `
 unit "u" {
   source = "../catalog/units/u"
@@ -1321,7 +1369,9 @@ unit "u" {
 `,
 		},
 		{
-			name: "stack",
+			name:      "stack",
+			kind:      "stack",
+			component: "s",
 			src: `
 stack "s" {
   source = "../catalog/stacks/s"
@@ -1337,7 +1387,9 @@ stack "s" {
 		},
 		{
 			// A locals block nested inside a dependency block must also be rejected.
-			name: "nested inside dependency",
+			name:      "nested inside dependency",
+			kind:      "unit",
+			component: "u",
 			src: `
 unit "u" {
   source = "../catalog/units/u"
@@ -1368,6 +1420,8 @@ unit "u" {
 			var localsErr hclparse.AutoIncludeLocalsBlockError
 
 			require.ErrorAs(t, err, &localsErr)
+			assert.Equal(t, tc.kind, localsErr.Kind)
+			assert.Equal(t, tc.component, localsErr.Component)
 			assert.Contains(t, err.Error(), "declare locals at the stack level")
 		})
 	}
