@@ -14,6 +14,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -133,8 +135,12 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 	return allCommands
 }
 
-// WrapWithTelemetry wraps CLI command execution with setting of telemetry
-// context and labels. If telemetry is disabled, just runs the command.
+// WrapWithTelemetry wraps CLI command execution with telemetry initialization,
+// context setting and labels. If telemetry is disabled, just runs the command.
+//
+// The telemeter is created here rather than at app startup because command
+// actions run after the full CLI parse, so telemetry options and experiments
+// (such as otel-logs) are honored whether they were set via flags or env vars.
 func WrapWithTelemetry(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -145,11 +151,32 @@ func WrapWithTelemetry(
 		cliCtx *clihelper.Context,
 		action clihelper.ActionFunc,
 	) error {
+		telemeter, err := telemetry.NewTelemeter(ctx, l, cliCtx.App.Name, cliCtx.App.Version, cliCtx.App.Writer, opts.Telemetry, opts.Experiments.Evaluate(experiment.OtelLogs))
+		if err != nil {
+			return err
+		}
+
+		defer func() {
+			if err := telemeter.Shutdown(ctx); err != nil {
+				_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
+			}
+		}()
+
+		ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
+
+		// Engines emit telemetry during shutdown, so stop them before the
+		// telemeter's deferred Shutdown flushes (deferred calls run LIFO).
+		defer func() {
+			if err := engine.Shutdown(ctx, l, opts.Experiments, opts.EngineOptions.NoEngine); err != nil {
+				_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
+			}
+		}()
+
 		cmdName := fmt.Sprintf(
 			"%s %s", cliCtx.Command.Name, opts.TerraformCommand,
 		)
 
-		return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, cmdName, map[string]any{
+		return telemeter.Collect(ctx, l, cmdName, map[string]any{
 			"terraformCommand": opts.TerraformCommand,
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,
