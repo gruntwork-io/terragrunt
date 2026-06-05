@@ -63,6 +63,8 @@ const (
 	testFixtureStackDepsStackAutoIncOverride     = "fixtures/stacks/stack-deps-stack-autoinclude-override"
 	testFixtureStackDepsStackAutoIncLocalPath    = "fixtures/stacks/stack-deps-stack-autoinclude-local-path"
 	testFixtureStackDepsMockLocal                = "fixtures/stacks/stack-deps-mock-local"
+	testFixtureStackDepsAutoIncValuesRejected    = "fixtures/stacks/stack-deps-autoinclude-values-rejected"
+	testFixtureStackDepsAutoIncFuncs             = "fixtures/stacks/stack-deps-autoinclude-funcs"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -166,6 +168,75 @@ func TestStackDepsMockLocalResolvesLocal(t *testing.T) {
 		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
 	require.NoError(t, err, "the generated stack must plan; stderr=%s", stderr)
 	assert.NotContains(t, stderr, "no variable named", "the generated stack must reference no undefined variables")
+}
+
+// TestStackDepsAutoIncludeRejectsValuesReference verifies that referencing values.* inside an autoinclude
+// fails at stack generate time with a clear error, since values is a unit-scoped namespace that is not
+// available in the stack file context.
+func TestStackDepsAutoIncludeRejectsValuesReference(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncValuesRejected)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncValuesRejected)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncValuesRejected)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+	require.Error(t, err, "referencing values.* inside an autoinclude must fail stack generate")
+	assert.Contains(t, err.Error(), "values is a unit-scoped namespace",
+		"the error must explain that values is not available at stack generate time")
+}
+
+// TestStackDepsAutoIncludeFunctionsAndDeps covers, end to end, an autoinclude that wires a dependency and
+// consumes it from the autoinclude's own inputs, plus how function calls are treated by location: a
+// read_terragrunt_config in config_path is evaluated at stack generate time, while a run_cmd in inputs stays
+// verbatim and evaluates inside the generated unit. The dependency mock feeds the inputs at plan time.
+func TestStackDepsAutoIncludeFunctionsAndDeps(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncFuncs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncFuncs)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncFuncs)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	generated, err := os.ReadFile(filepath.Join(rootPath, inthclparse.StackDir, "app", inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+
+	// read_terragrunt_config in config_path is a generate-time function: it is evaluated in the stack file
+	// context, so config_path is the resolved sibling path, not the function call.
+	assert.Contains(t, content, `"../data"`, "config_path from read_terragrunt_config must resolve at generate time")
+	assert.NotContains(t, content, "read_terragrunt_config", "read_terragrunt_config in config_path must be evaluated at generate, not deferred")
+
+	// A function call inside inputs stays verbatim so it evaluates in the generated unit's directory.
+	assert.Contains(t, content, `run_cmd("echo", "hi-from-unit")`, "run_cmd in inputs must stay verbatim for unit-time evaluation")
+	// A dependency output reference inside inputs stays verbatim for the unit run.
+	assert.Contains(t, content, "dependency.data.outputs.value", "a dependency output in inputs must stay verbatim")
+
+	// End to end: the dependency mock feeds inputs, run_cmd evaluates at the unit, and the stack plans cleanly.
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
+	require.NoError(t, err, "the generated stack must plan; stderr=%s", stderr)
+	assert.Contains(t, stdout, "mock-data:hi-from-unit",
+		"the dependency mock and the unit-evaluated run_cmd must both feed the unit inputs")
 }
 
 func TestStackDepsAutoIncludeSymlink(t *testing.T) {
