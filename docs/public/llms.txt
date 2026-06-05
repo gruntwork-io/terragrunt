@@ -1,0 +1,55 @@
+# Terragrunt Docs
+
+> Documentation for Terragrunt, the open-source orchestrator for Terraform and OpenTofu. Covers installation and core concepts, features (units, stacks, catalog, caching, filters), guides, full HCL and CLI reference, migration paths, the release process, troubleshooting, and Terragrunt Scale.
+
+## Getting Started
+
+- [Overview](https://docs.terragrunt.com/getting-started/overview/): What Terragrunt is and why to use it
+- [Install](https://docs.terragrunt.com/getting-started/install/): Installation instructions
+- [Quick Start](https://docs.terragrunt.com/getting-started/quick-start/): Run Terragrunt for the first time
+- [Terminology](https://docs.terragrunt.com/getting-started/terminology/): Key terms and concepts
+
+## Features
+
+- [Units](https://docs.terragrunt.com/features/units/): The basic building block of Terragrunt configuration
+- [Stacks](https://docs.terragrunt.com/features/stacks/): Group and orchestrate multiple units, including the run queue
+- [Catalog](https://docs.terragrunt.com/features/catalog/): Browse and scaffold modules from a catalog
+- [Caching](https://docs.terragrunt.com/features/caching/): Provider cache server and content-addressable storage (CAS)
+- [Filter](https://docs.terragrunt.com/features/filter/): Select which units a command runs against
+
+## Guides
+
+- [Terralith to Terragrunt](https://docs.terragrunt.com/guides/terralith-to-terragrunt/): Step-by-step migration from a monolith to Terragrunt
+- [CI with Terragrunt](https://docs.terragrunt.com/guides/ci-with-terragrunt/): Set up continuous integration
+
+## Reference
+
+- [HCL configuration](https://docs.terragrunt.com/reference/hcl/): Blocks, attributes, and functions
+- [CLI](https://docs.terragrunt.com/reference/cli/): Commands and global flags
+- [Experiments](https://docs.terragrunt.com/reference/experiments/): Opt-in experimental features
+- [Strict controls](https://docs.terragrunt.com/reference/strict-controls/): Enforce stricter behavior
+- [Logging](https://docs.terragrunt.com/reference/logging/): Log formatting and configuration
+- [Supported versions](https://docs.terragrunt.com/reference/supported-versions/)
+
+## Terragrunt Scale
+
+- [Overview](https://docs.terragrunt.com/terragrunt-scale/overview/): CI/CD platform for infrastructure automation
+- [Installation](https://docs.terragrunt.com/terragrunt-scale/installation/)
+- [Pipelines](https://docs.terragrunt.com/terragrunt-scale/pipelines/)
+- [Drift detection](https://docs.terragrunt.com/terragrunt-scale/drift-detection/)
+- [Patcher](https://docs.terragrunt.com/terragrunt-scale/patcher/)
+
+## Troubleshooting
+
+- [Debugging](https://docs.terragrunt.com/troubleshooting/debugging/)
+- [OpenTelemetry](https://docs.terragrunt.com/troubleshooting/open-telemetry/)
+- [Performance](https://docs.terragrunt.com/troubleshooting/performance/)
+
+## Optional
+
+- [Migration guides](https://docs.terragrunt.com/migrate/cli-redesign/): Upgrade paths and migrating from deprecated features
+- [1.0 guarantees](https://docs.terragrunt.com/process/1-0-guarantees/): Backward-compatibility commitments
+- [Releases](https://docs.terragrunt.com/process/releases/) and [changelog](https://docs.terragrunt.com/process/changelog/)
+- [Contributing](https://docs.terragrunt.com/community/contributing/)
+- [Support](https://docs.terragrunt.com/community/support/)
+- [License](https://docs.terragrunt.com/community/license/)
