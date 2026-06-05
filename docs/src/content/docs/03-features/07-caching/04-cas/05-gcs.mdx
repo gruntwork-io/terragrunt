@@ -1,0 +1,38 @@
+---
+title: Google Cloud Storage
+description: How the CAS probes and deduplicates Google Cloud Storage sources.
+slug: features/caching/cas/gcs
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
+</Aside>
+
+## Overview
+
+A GCS source is identified by a bucket and an object. Terragrunt reads the object's metadata to derive a content-addressed cache key.
+
+## The cheap probe
+
+The probe Terragrunt uses to attempt to avoid fetching GCS sources is an object metadata read. It downloads no body. Terragrunt reads the object's MD5 checksum when present, falling back to its CRC32C checksum, which GCS populates for every object.
+
+## Cache key & deduplication
+
+Both MD5 and CRC32C are content hashes, so the key is content-addressed and identical object bytes deduplicate across URLs and buckets. File blobs are content-addressed.
+
+## Cache miss
+
+If the metadata read fails, or returns no usable checksum, Terragrunt downloads the object and keys the tree by the content hash of what it fetched. A fresh probe key that is not yet stored also downloads, then stores under that key.
+
+## Cache hit
+
+When the probe returns a checksum already present in the store, Terragrunt links the cached tree without downloading.
+
+## Fallback behavior
+
+Any error reading object metadata makes the probe yield no key, and Terragrunt falls back to downloading and content-hashing the object.
+

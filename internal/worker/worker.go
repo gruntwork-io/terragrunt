@@ -100,12 +100,8 @@ func (wp *Pool) Submit(task Task) {
 		return
 	}
 
-	wp.wg.Add(1)
-
 	// Start a new goroutine for each task, but limit concurrency with semaphore
-	go func() {
-		defer wp.wg.Done()
-
+	wp.wg.Go(func() {
 		wp.semaphore <- struct{}{}
 
 		defer func() { <-wp.semaphore }()
@@ -114,7 +110,7 @@ func (wp *Pool) Submit(task Task) {
 		if err != nil {
 			wp.appendError(err)
 		}
-	}()
+	})
 }
 
 // Wait blocks until all tasks are completed and returns any errors

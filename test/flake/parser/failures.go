@@ -51,14 +51,8 @@ func ParseLogFile(logPath string, runID int64, jobName string, runURL string, fa
 			testName := matches[1]
 
 			// Extract context (lines before and after)
-			startLine := lineNum - contextLinesBefore
-			if startLine < 0 {
-				startLine = 0
-			}
-			endLine := lineNum + contextLinesAfter
-			if endLine > len(allLines) {
-				endLine = len(allLines)
-			}
+			startLine := max(lineNum-contextLinesBefore, 0)
+			endLine := min(lineNum+contextLinesAfter, len(allLines))
 
 			snippet := strings.Join(allLines[startLine:endLine], "\n")
 
@@ -94,14 +88,8 @@ func ParseLogFile(logPath string, runID int64, jobName string, runURL string, fa
 				continue
 			}
 
-			startLine := lineNum - contextLinesBefore
-			if startLine < 0 {
-				startLine = 0
-			}
-			endLine := lineNum + contextLinesAfter
-			if endLine > len(allLines) {
-				endLine = len(allLines)
-			}
+			startLine := max(lineNum-contextLinesBefore, 0)
+			endLine := min(lineNum+contextLinesAfter, len(allLines))
 
 			snippet := strings.Join(allLines[startLine:endLine], "\n")
 			errorMsg := extractErrorMessage(allLines, lineNum)
@@ -142,14 +130,8 @@ func ParseLogFile(logPath string, runID int64, jobName string, runURL string, fa
 				continue
 			}
 
-			startLine := lineNum - contextLinesBefore
-			if startLine < 0 {
-				startLine = 0
-			}
-			endLine := lineNum + contextLinesAfter
-			if endLine > len(allLines) {
-				endLine = len(allLines)
-			}
+			startLine := max(lineNum-contextLinesBefore, 0)
+			endLine := min(lineNum+contextLinesAfter, len(allLines))
 
 			snippet := strings.Join(allLines[startLine:endLine], "\n")
 

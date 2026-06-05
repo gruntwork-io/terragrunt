@@ -157,7 +157,10 @@ func evaluateAttributeFilter(l log.Logger, filter *AttributeExpression, componen
 		g := filter.Glob()
 
 		for _, c := range components {
-			if slices.ContainsFunc(c.Reading(), g.Match) {
+			// Read paths are OS-native; the glob is '/'-separated, so normalize first.
+			if slices.ContainsFunc(c.Reading(), func(reading string) bool {
+				return g.Match(filepath.ToSlash(reading))
+			}) {
 				result = append(result, c)
 
 				continue
@@ -192,7 +195,11 @@ func evaluateAttributeFilter(l log.Logger, filter *AttributeExpression, componen
 		g := filter.Glob()
 
 		for _, c := range components {
-			if slices.ContainsFunc(c.Sources(), g.Match) {
+			// terraform.source can carry native or mixed separators on Windows, so
+			// normalize before matching the '/'-separated glob.
+			if slices.ContainsFunc(c.Sources(), func(source string) bool {
+				return g.Match(filepath.ToSlash(source))
+			}) {
 				result = append(result, c)
 
 				continue

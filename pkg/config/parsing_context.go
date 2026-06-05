@@ -101,6 +101,11 @@ type ParsingContext struct {
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
 	NoCAS                            bool
+
+	// skipAutoIncludeMerge is set on contexts that parse the files an autoinclude pulls in through its
+	// own include blocks, so those files do not re-merge a sibling autoinclude. This bounds the merge to
+	// the unit being parsed and prevents an autoinclude that includes another file from recursing.
+	skipAutoIncludeMerge bool
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {

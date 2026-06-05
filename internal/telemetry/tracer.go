@@ -56,7 +56,7 @@ func NewTracer(
 		return nil, nil
 	}
 
-	provider, err := newTraceProvider(spanExporter, appName, appVersion, opts)
+	provider, err := newTraceProvider(ctx, spanExporter, appName, appVersion, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -118,15 +118,16 @@ func NewTracer(
 
 // newTraceProvider creates a new trace tracer with terragrunt version.
 func newTraceProvider(
-	exp sdktrace.SpanExporter, appName, appVersion string, opts *Options,
+	ctx context.Context, exp sdktrace.SpanExporter, appName, appVersion string, opts *Options,
 ) (*sdktrace.TracerProvider, error) {
-	r, err := resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
+	r, err := resource.New(ctx,
+		resource.WithSchemaURL(semconv.SchemaURL),
+		resource.WithAttributes(
 			semconv.ServiceName(appName),
 			semconv.ServiceVersion(appVersion),
 		),
+		resource.WithTelemetrySDK(),
+		resource.WithFromEnv(),
 	)
 	if err != nil {
 		return nil, err

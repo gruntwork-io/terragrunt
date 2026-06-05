@@ -231,3 +231,33 @@ func TestRegressionCASRefSubdirWorkingDir(t *testing.T) {
 	assert.Equal(t, "cas::sha1:"+hash, src.CanonicalSourceURL.String())
 	assert.Equal(t, filepath.Join(src.DownloadDir, "modules", "vpc"), src.WorkingDir)
 }
+
+// TestRegressionCASRefNoSubdir checks that a cas:: reference without a "//"
+// subdir yields an empty module path: SplitSourceURL preserves the whole ref as
+// the root repo, and NewSource leaves the working directory at the download
+// directory.
+func TestRegressionCASRefNoSubdir(t *testing.T) {
+	t.Parallel()
+
+	const hash = "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+
+	sourceURL, err := tf.ToSourceURL("cas::sha1:"+hash, ".")
+	require.NoError(t, err)
+	require.Equal(t, "cas::sha1", sourceURL.Scheme)
+
+	l := logger.CreateLogger()
+
+	actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, sourceURL)
+	require.NoError(t, err)
+
+	require.Equal(t, "cas::sha1:"+hash, actualRootRepo.String())
+	require.Empty(t, actualModulePath)
+
+	downloadDir := t.TempDir()
+
+	src, err := tf.NewSource(l, "cas::sha1:"+hash, downloadDir, t.TempDir(), false)
+	require.NoError(t, err)
+
+	assert.Equal(t, "cas::sha1:"+hash, src.CanonicalSourceURL.String())
+	assert.Equal(t, src.DownloadDir, src.WorkingDir)
+}

@@ -584,6 +584,35 @@ unit "app" {
 func TestParseStackFile_StackAutoInclude(t *testing.T) {
 	t.Parallel()
 
+	// A stack autoinclude injects valid terragrunt.stack.hcl content (unit/stack blocks), since stacks do not have dependencies.
+	src := `
+stack "networking" {
+  source = "../stacks/networking"
+  path   = "networking"
+
+  autoinclude {
+    unit "extra" {
+      source = "../catalog/units/extra"
+      path   = "extra"
+    }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("stack", "networking")]
+	require.True(t, ok, "stack networking should have autoinclude")
+	assert.Equal(t, hclparse.KindStack, resolved.Kind, "Kind must be KindStack so the generator picks terragrunt.autoinclude.stack.hcl")
+}
+
+// A stack autoinclude must not carry a dependency block: stacks do not have dependencies, and the
+// generated terragrunt.autoinclude.stack.hcl is strictly decoded as unit/stack blocks only, so the
+// rejection is raised at parse/generate time with a clear message instead of a later discovery decode error.
+func TestParseStackFile_StackAutoIncludeRejectsDependency(t *testing.T) {
+	t.Parallel()
+
 	src := `
 unit "vpc" {
   source = "../catalog/units/vpc"
@@ -602,14 +631,9 @@ stack "networking" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
-	require.NoError(t, err)
-
-	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("stack", "networking")]
-	require.True(t, ok, "stack networking should have autoinclude")
-	require.Len(t, resolved.Dependencies, 1)
-	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
-	assert.Equal(t, hclparse.KindStack, resolved.Kind, "Kind must be KindStack so the generator picks terragrunt.autoinclude.stack.hcl")
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.Error(t, err, "a stack autoinclude carrying a dependency block must be rejected")
+	assert.Contains(t, err.Error(), "dependency block is not allowed in a stack autoinclude")
 }
 
 // Pins the kind-to-filename mapping: unit autoincludes write terragrunt.autoinclude.hcl, stack autoincludes write terragrunt.autoinclude.stack.hcl.
@@ -627,8 +651,9 @@ stack "networking" {
   path   = "networking"
 
   autoinclude {
-    dependency "vpc" {
-      config_path = unit.vpc.path
+    unit "extra" {
+      source = "../catalog/units/extra"
+      path   = "extra"
     }
   }
 }

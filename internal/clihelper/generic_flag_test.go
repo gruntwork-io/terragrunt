@@ -37,13 +37,13 @@ func TestGenericFlagStringApply(t *testing.T) {
 			flag: clihelper.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
 		},
 		{
-			flag:          clihelper.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue("default-value")},
+			flag:          clihelper.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: new("default-value")},
 			args:          []string{"--foo", "arg-value"},
 			envs:          map[string]string{"FOO": "env-value"},
 			expectedValue: "arg-value",
 		},
 		{
-			flag:          clihelper.GenericFlag[string]{Name: "foo", Destination: mockDestValue("default-value")},
+			flag:          clihelper.GenericFlag[string]{Name: "foo", Destination: new("default-value")},
 			expectedValue: "default-value",
 		},
 		{
@@ -91,7 +91,7 @@ func TestGenericFlagIntApply(t *testing.T) {
 			expectedErr: errors.New(`invalid value "monkey" for env var FOO: must be 32-bit integer`),
 		},
 		{
-			flag:          clihelper.GenericFlag[int]{Name: "foo", Destination: mockDestValue(55)},
+			flag:          clihelper.GenericFlag[int]{Name: "foo", Destination: new(55)},
 			expectedValue: 55,
 		},
 	}
@@ -134,7 +134,7 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 			expectedErr: errors.New(`invalid value "monkey" for env var FOO: must be 64-bit integer`),
 		},
 		{
-			flag:          clihelper.GenericFlag[int64]{Name: "foo", Destination: mockDestValue(int64(55))},
+			flag:          clihelper.GenericFlag[int64]{Name: "foo", Destination: new(int64(55))},
 			expectedValue: 55,
 		},
 	}
