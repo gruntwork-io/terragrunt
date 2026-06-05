@@ -3,6 +3,7 @@ package tflint_test
 import (
 	"context"
 	"io"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -196,7 +197,8 @@ func TestConfigFilePath_FallsBackToProjectWalk(t *testing.T) {
 	}, []string{"tflint"})
 
 	require.NoError(t, err)
-	assert.Equal(t, "/work/.tflint.hcl", got)
+	// The project walk builds the path with filepath.Join (OS-native); compare in forward-slash space.
+	assert.Equal(t, "/work/.tflint.hcl", filepath.ToSlash(got))
 }
 
 func TestFindConfigInProject(t *testing.T) {
