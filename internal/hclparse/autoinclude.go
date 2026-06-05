@@ -39,8 +39,8 @@ type AutoIncludeHCL struct {
 // After the first parse extracts unit/stack names and paths, the autoinclude
 // body is partially evaluated:
 //   - dependency.config_path is resolved (references unit.*.path)
-//   - dependency remain (mock_outputs etc) is preserved for generation
-//   - inputs and other blocks are partially evaluated (local.* resolved, dependency.* preserved)
+//   - mock_outputs, inputs, and other content are partially evaluated the same way: stack-level local.* / unit.* / stack.* resolve, dependency.*.outputs.* is preserved
+//   - values.* references and locals blocks are rejected at generate time
 //
 // The RawBody is preserved for serializing the generated
 // terragrunt.autoinclude.hcl file.
@@ -110,6 +110,16 @@ func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoInclu
 			Detail:   "Did you mean to declare values = {...} on the parent unit/stack block (next to source/path) instead of inside the autoinclude block?",
 			Subject:  valuesAttr.Range().Ptr(),
 		}}
+	}
+
+	// Reject referencing the unit-scoped values namespace; the autoinclude resolves in the stack file context where values is unavailable.
+	if diags := rejectAutoIncludeValuesReference(body, kind, name); diags.HasErrors() {
+		return nil, diags
+	}
+
+	// Reject a locals block; stack-level locals belong in terragrunt.stack.hcl.
+	if diags := rejectAutoIncludeLocalsBlock(body, kind, name); diags.HasErrors() {
+		return nil, diags
 	}
 
 	if kind == KindStack {
@@ -401,15 +411,116 @@ func rejectStackAutoIncludeDependencyBlocks(body *hclsyntax.Body, stackName stri
 
 // valuesReferenceDependency reports whether expr references the dependency namespace in any form.
 // RootName matches every traversal uniformly: dependency.foo, dependency["foo"], and the dynamic
-// dependency[values.x] all report "dependency" as the root, so no per-form handling is needed. Any such
-// reference is unsupported because injected values are evaluated at stack generate time, when no
-// dependency outputs exist, regardless of whether the autoinclude declares that dependency.
+// dependency[values.x] all report "dependency" as the root, so no per-form handling is needed.
 func valuesReferenceDependency(expr hclsyntax.Expression) bool {
+	return referencesRoot(expr, varDependency)
+}
+
+// referencesRoot reports whether expr contains any traversal whose root name equals root.
+func referencesRoot(expr hclsyntax.Expression, root string) bool {
 	for _, traversal := range expr.Variables() {
-		if traversal.RootName() == varDependency {
+		if traversal.RootName() == root {
 			return true
 		}
 	}
 
 	return false
+}
+
+// rejectAutoIncludeValuesReference rejects any values.* reference in the autoinclude body for both kinds.
+func rejectAutoIncludeValuesReference(body *hclsyntax.Body, kind AutoIncludeKind, name string) hcl.Diagnostics {
+	attr, owner := findValuesReference(body)
+	if attr == nil {
+		return nil
+	}
+
+	typed := AutoIncludeValuesReferenceError{Subject: attr.Expr.Range().Ptr(), Kind: string(kind), Component: name, Attr: owner}
+
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "values reference is not allowed inside autoinclude",
+		Detail:   typed.Error(),
+		Subject:  typed.Subject,
+		Extra:    typed,
+	}}
+}
+
+// findValuesReference returns the first attribute referencing the values namespace plus a label for it, or nil when none.
+// A dependency config_path is exempt because it is resolved to a concrete path at generate time, which preserves the
+// cross-level path-passing pattern. Injected unit and stack blocks are skipped; they are validated separately.
+func findValuesReference(body *hclsyntax.Body) (*hclsyntax.Attribute, string) {
+	for _, attr := range SortedAttributes(body.Attributes) {
+		if referencesRoot(attr.Expr, varValues) {
+			return attr, attr.Name
+		}
+	}
+
+	for _, block := range body.Blocks {
+		if block.Type == VarUnit || block.Type == VarStack {
+			continue
+		}
+
+		attr := findBlockValuesReference(block)
+		if attr == nil {
+			continue
+		}
+
+		return attr, blockOwnerLabel(block)
+	}
+
+	return nil, ""
+}
+
+// findBlockValuesReference scans a block body for a values reference, exempting a dependency block's config_path.
+func findBlockValuesReference(block *hclsyntax.Block) *hclsyntax.Attribute {
+	for _, attr := range SortedAttributes(block.Body.Attributes) {
+		if block.Type == blockDependency && attr.Name == attrConfigPath {
+			continue
+		}
+
+		if referencesRoot(attr.Expr, varValues) {
+			return attr
+		}
+	}
+
+	for _, nested := range block.Body.Blocks {
+		attr := findBlockValuesReference(nested)
+		if attr == nil {
+			continue
+		}
+
+		return attr
+	}
+
+	return nil
+}
+
+// blockOwnerLabel names a block for an error message: a dependency by its label, otherwise the block type.
+func blockOwnerLabel(block *hclsyntax.Block) string {
+	if block.Type == blockDependency {
+		return blockLabelsString(block)
+	}
+
+	return block.Type
+}
+
+// rejectAutoIncludeLocalsBlock rejects a locals block defined inside the autoinclude body for both kinds.
+func rejectAutoIncludeLocalsBlock(body *hclsyntax.Body, kind AutoIncludeKind, name string) hcl.Diagnostics {
+	for _, block := range body.Blocks {
+		if block.Type != blockLocals {
+			continue
+		}
+
+		typed := AutoIncludeLocalsBlockError{Subject: block.DefRange().Ptr(), Kind: string(kind), Component: name}
+
+		return hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "locals block is not allowed inside autoinclude",
+			Detail:   typed.Error(),
+			Subject:  typed.Subject,
+			Extra:    typed,
+		}}
+	}
+
+	return nil
 }

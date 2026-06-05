@@ -3,8 +3,8 @@ version: "v1.0.8"
 category: "experiments-updated"
 ---
 
-#### `stack-dependencies`: resolve generate-time references in autoinclude `mock_outputs`
+#### `stack-dependencies`: autoinclude resolves stack-level references at generate time
 
-A `local.*` (or `unit.<name>.path` / `stack.<name>.path`) reference inside an `autoinclude` dependency's `mock_outputs` is now resolved at `terragrunt stack generate` time, the same as the `values` block. Previously such references were written to the generated `terragrunt.autoinclude.hcl` verbatim instead of being substituted with their value, which was inconsistent and surprising.
+An `autoinclude` block is evaluated in the context of the `terragrunt.stack.hcl` file where it is declared. Stack-level `local.*`, `unit.<name>.path`, `stack.<name>.path`, functions, and literals resolve to their values at `terragrunt stack generate` time, including inside the `inputs` block. Only `dependency.<name>.outputs.<key>` is kept verbatim and resolved inside the generated unit at run time.
 
-References that are only known later are kept verbatim and resolved when the generated unit is parsed: `values.*` (the unit's own values block) and `dependency.<name>.outputs.<key>`. This matches how the autoinclude `inputs` block already behaves.
+Two references are now rejected at generate time with a clear error: a `values.*` reference anywhere in the autoinclude body (values is a unit-scoped namespace that is not available in the stack file; use a stack-level local declared in `terragrunt.stack.hcl` or a literal), and a `locals` block defined inside the autoinclude (declare locals at the stack level instead). A dependency `config_path` may still reference `values.*` for the cross-level path-passing pattern, since `config_path` is fully resolved at generate time.

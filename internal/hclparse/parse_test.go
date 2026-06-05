@@ -257,15 +257,15 @@ unit "app" {
 }
 
 // TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves
-// generate-time references (local.*) to literals, while a runtime reference in non-dependency content
-// (inputs) stays deferred.
+// stack-level references (local.*) to literals at generate time.
 func TestGenerateAutoIncludeFile_MockOutputsResolvesLocal(t *testing.T) {
 	t.Parallel()
 
 	src := `
 locals {
   account = {
-    name = "my-account"
+    name   = "my-account"
+    region = "eu-west-1"
   }
 }
 
@@ -278,17 +278,13 @@ unit "app" {
   source = "../catalog/units/app"
   path   = "app"
 
-  values = {
-    region = "eu-west-1"
-  }
-
   autoinclude {
     dependency "account" {
       config_path = unit.account.path
 
       mock_outputs = {
         name   = local.account.name
-        region = values.region
+        region = local.account.region
       }
     }
   }
@@ -312,10 +308,11 @@ unit "app" {
 	content := string(generated)
 	// Dependency path: config_path = unit.account.path resolves to the sibling unit at generate time.
 	assert.Contains(t, content, `"../account"`, "the dependency config_path (unit.<name>.path) must resolve at generate time")
-	// Dependency mock output: a local resolves at generate; a unit value stays deferred for unit parse.
+	// Dependency mock outputs: stack-level locals resolve to literals at generate time.
 	assert.Contains(t, content, `"my-account"`, "a local in mock_outputs must resolve at generate time")
+	assert.Contains(t, content, `"eu-west-1"`, "a local in mock_outputs must resolve at generate time")
 	assert.NotContains(t, content, "local.account.name", "the local reference must not be left literal")
-	assert.Contains(t, content, "values.region", "a unit value in mock_outputs must stay deferred (resolved when the unit is parsed)")
+	assert.NotContains(t, content, "local.account.region", "the local reference must not be left literal")
 }
 
 func TestGenerateAutoIncludeFile_MultipleDeps(t *testing.T) {
@@ -1168,6 +1165,143 @@ stack "s" {
 			require.True(t, diags.HasErrors())
 			assert.Equal(t, "values is not allowed inside autoinclude", diags[0].Summary)
 			assert.Contains(t, diags[0].Detail, "parent unit/stack block")
+		})
+	}
+}
+
+// TestAutoIncludeResolve_RejectsValuesReference verifies a values.* reference inside autoinclude is rejected for both kinds.
+func TestAutoIncludeResolve_RejectsValuesReference(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		attr string
+		src  string
+	}{
+		{
+			name: "unit mock_outputs",
+			attr: "dep",
+			src: `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    dependency "dep" {
+      config_path = unit.u.path
+
+      mock_outputs = {
+        region = values.region
+      }
+    }
+  }
+}
+`,
+		},
+		{
+			name: "unit inputs",
+			attr: "inputs",
+			src: `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    inputs = {
+      region = values.region
+    }
+  }
+}
+`,
+		},
+		{
+			name: "stack inputs",
+			attr: "inputs",
+			src: `
+stack "s" {
+  source = "../catalog/stacks/s"
+  path   = "s"
+
+  autoinclude {
+    inputs = {
+      region = values.region
+    }
+  }
+}
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+				Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+			})
+
+			var valuesErr hclparse.AutoIncludeValuesReferenceError
+
+			require.ErrorAs(t, err, &valuesErr)
+			assert.Equal(t, tc.attr, valuesErr.Attr)
+			assert.Contains(t, err.Error(), "unit-scoped namespace")
+			assert.Contains(t, err.Error(), "stack-level local")
+		})
+	}
+}
+
+// TestAutoIncludeResolve_RejectsLocalsBlock verifies a locals block inside autoinclude is rejected for both kinds.
+func TestAutoIncludeResolve_RejectsLocalsBlock(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "unit",
+			src: `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    locals {
+      x = 1
+    }
+  }
+}
+`,
+		},
+		{
+			name: "stack",
+			src: `
+stack "s" {
+  source = "../catalog/stacks/s"
+  path   = "s"
+
+  autoinclude {
+    locals {
+      x = 1
+    }
+  }
+}
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+				Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+			})
+
+			var localsErr hclparse.AutoIncludeLocalsBlockError
+
+			require.ErrorAs(t, err, &localsErr)
+			assert.Contains(t, err.Error(), "declare locals at the stack level")
 		})
 	}
 }

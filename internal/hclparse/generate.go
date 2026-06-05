@@ -54,8 +54,8 @@ func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
 //   - dependency blocks with a resolved config_path; their other attributes
 //     (mock_outputs, mock_outputs_allowed_terraform_commands, etc.) are partially
 //     evaluated, so generate-time roots (local.*, unit.*, stack.*)
-//     resolve to literals while values.* and dependency.*.outputs.* stay verbatim
-//     (resolved when the generated unit is parsed).
+//     resolve to literals while dependency.*.outputs.* stays verbatim
+//     (resolved inside the generated unit at run time); values.* is rejected at generate time.
 //   - All non-dependency content (inputs, retry blocks, etc.) is partially
 //     evaluated the same way: dependency.*.outputs.* references are preserved
 //     verbatim for runtime resolution.
@@ -119,8 +119,8 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 }
 
 // copyBlock copies block from the AST to hclwrite output; partially evaluates attributes when evalCtx is
-// non-nil, otherwise verbatim. Generate-time roots (local.*, unit.*, stack.*) resolve to literals while values.* and
-// dependency.*.outputs.* are deferred (kept verbatim, resolved when the unit is parsed).
+// non-nil, otherwise verbatim. Generate-time roots (local.*, unit.*, stack.*) resolve to literals while
+// dependency.*.outputs.* is deferred (kept verbatim, resolved inside the unit); values.* is rejected at generate time.
 func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	newBlock := outBody.AppendNewBlock(block.Type, block.Labels)
 	blockBody := newBlock.Body()
@@ -190,9 +190,9 @@ func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
 
 // writeDependencyBlock writes a single dependency block with config_path converted to relative-to-targetDir.
 // Its other attributes (mock_outputs, etc.) are partially evaluated like the rest of the autoinclude body:
-// generate-time roots (local.*, unit.*, stack.*) resolve to literals while values.* and dependency.*.outputs.*
-// are kept verbatim (resolved when the generated unit is parsed). When evalCtx is nil the attributes are copied from source bytes
-// unchanged.
+// generate-time roots (local.*, unit.*, stack.*) resolve to literals while dependency.*.outputs.* is kept
+// verbatim (resolved inside the generated unit); values.* is rejected at generate time. When evalCtx is nil
+// the attributes are copied from source bytes unchanged.
 func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string, evalCtx *hcl.EvalContext) error {
 	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
