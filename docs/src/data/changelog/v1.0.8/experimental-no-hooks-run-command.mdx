@@ -3,14 +3,16 @@ version: "v1.0.8"
 category: "experiments-added"
 ---
 
-#### Add experimental --no-hooks flag support for terragrunt run 
+#### `optional-hooks` — Add experimental --no-hooks flag support for terragrunt run 
 
-The terragrunt run command now supports an experimental --no-hooks flag for disabling hook execution during command runs.
+The terragrunt `run` command now supports an experimental `--no-hooks` flag for disabling hook execution during command runs.
 
-The feature is gated behind the optional-hooks experiment and skips execution of before_hook, after_hook, and error_hook blocks when enabled.
+The feature is gated behind the `optional-hooks` experiment and skips execution of `before_hook`, `after_hook`, and `error_hook` blocks when enabled.
 
+```bash
 TG_EXPERIMENT=optional-hooks terragrunt run --no-hooks plan
+```
 
 This feature is currently experimental because disabling hooks changes Terragrunt execution semantics and may evolve in future releases.
 
-Using --no-hooks without enabling the optional-hooks experiment will return an error.
+Using `--no-hooks` without enabling the `optional-hooks` experiment will return an error.
