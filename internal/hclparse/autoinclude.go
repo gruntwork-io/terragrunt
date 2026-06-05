@@ -192,7 +192,15 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 
 	val, diags := configPathAttr.Expr.Value(evalCtx)
 	if diags.HasErrors() {
-		return AutoIncludeDependency{}, diags
+		// Surface one clear error anchored at config_path; the raw diagnostics can carry a function-internal
+		// subject (e.g. a function that re-parses the stack file) that otherwise renders as a misleading
+		// top-level error pointing at an unrelated unit or stack block.
+		return AutoIncludeDependency{}, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid config_path",
+			Detail:   fmt.Sprintf("dependency %q config_path could not be evaluated at stack generate time: %s", name, configPathEvalReason(diags)),
+			Subject:  pathRange,
+		}}
 	}
 
 	// Null/unknown evaluate without HCL diagnostics; surface them as typed diags with source position so callers can detect the failure and editors can underline the offending expression.
@@ -225,6 +233,23 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 		ConfigPath: val.AsString(),
 		Block:      block.AsHCLBlock(),
 	}, nil
+}
+
+// configPathEvalReason returns a one-line reason from config_path evaluation diagnostics, preferring a detail that names the failing function call so the underlying cause is clear.
+func configPathEvalReason(diags hcl.Diagnostics) string {
+	for _, d := range diags {
+		if strings.Contains(d.Detail, "Call to function") {
+			return d.Detail
+		}
+	}
+
+	for _, d := range diags {
+		if d.Detail != "" {
+			return d.Detail
+		}
+	}
+
+	return diags.Error()
 }
 
 // AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values. Returns EmptyArgError when unitDir is empty so callers can distinguish bad input from a missing file.

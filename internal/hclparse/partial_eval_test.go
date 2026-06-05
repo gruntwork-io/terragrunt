@@ -102,10 +102,10 @@ func TestPartialEval(t *testing.T) {
 			contains: []string{"try(dependency.vpc.outputs.vpc_id", `"default"`},
 		},
 		{
-			name:     "try with unresolved local arg verbatim",
-			hcl:      `val = try(local.missing, "default")`,
+			name:     "try referencing dependency preserved",
+			hcl:      `val = try(dependency.vpc.outputs.id, "default")`,
 			evalCtx:  buildEvalCtx(),
-			contains: []string{"try(local.missing", `"default"`},
+			contains: []string{"try(dependency.vpc.outputs.id", `"default"`},
 		},
 		{
 			name:     "conditional pure condition true",
@@ -255,57 +255,64 @@ func parseFirstAttrExpr(t *testing.T, src string) (hclsyntax.Expression, []byte)
 	return nil, nil
 }
 
-func TestPartialEval_PreservesFunctionCalls(t *testing.T) {
+func TestPartialEval_EvaluatesFunctionCallsUnlessTheyReferenceDependency(t *testing.T) {
 	t.Parallel()
 
-	var called bool
+	newCtx := func(called *bool) *hcl.EvalContext {
+		evalCtx := buildEvalCtx()
+		evalCtx.Functions = map[string]function.Function{
+			"danger": function.New(&function.Spec{
+				VarParam: &function.Parameter{Type: cty.DynamicPseudoType},
+				Type:     function.StaticReturnType(cty.String),
+				Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
+					*called = true
+					return cty.StringVal("executed"), nil
+				},
+			}),
+		}
 
-	evalCtx := buildEvalCtx()
-	evalCtx.Functions = map[string]function.Function{
-		"danger": function.New(&function.Spec{
-			Type: function.StaticReturnType(cty.String),
-			Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
-				called = true
-				return cty.StringVal("executed"), nil
-			},
-		}),
+		return evalCtx
 	}
 
-	expr, srcBytes := parseFirstAttrExpr(t, `val = danger()`)
+	t.Run("pure function call is evaluated", func(t *testing.T) {
+		t.Parallel()
 
-	resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred})
-	require.NoError(t, err)
+		var called bool
 
-	result := string(resultBytes)
+		expr, srcBytes := parseFirstAttrExpr(t, `val = danger()`)
 
-	assert.False(t, called, "partial evaluation must preserve function calls instead of executing them during generation")
-	assert.Contains(t, result, "danger()")
-	assert.NotContains(t, result, "executed")
+		resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: newCtx(&called), Deferred: testDeferred})
+		require.NoError(t, err)
+
+		assert.True(t, called, "a function call with no deferred reference is evaluated at generate time")
+		assert.Contains(t, string(resultBytes), "executed")
+	})
+
+	t.Run("function call referencing dependency is preserved", func(t *testing.T) {
+		t.Parallel()
+
+		var called bool
+
+		expr, srcBytes := parseFirstAttrExpr(t, `val = danger(dependency.vpc.outputs.id)`)
+
+		resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: newCtx(&called), Deferred: testDeferred})
+		require.NoError(t, err)
+
+		assert.False(t, called, "a function call referencing dependency.* is preserved for unit-time evaluation")
+		assert.Contains(t, string(resultBytes), "dependency.vpc.outputs.id")
+	})
 }
 
-func TestPartialEval_PreservesFunctionCallsInConditionalCondition(t *testing.T) {
+func TestPartialEval_PreservesConditionalReferencingDependency(t *testing.T) {
 	t.Parallel()
 
-	var called bool
+	expr, srcBytes := parseFirstAttrExpr(t, `val = dependency.vpc.outputs.enabled ? "yes" : "no"`)
 
-	evalCtx := buildEvalCtx()
-	evalCtx.Functions = map[string]function.Function{
-		"danger": function.New(&function.Spec{
-			Type: function.StaticReturnType(cty.Bool),
-			Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
-				called = true
-				return cty.BoolVal(true), nil
-			},
-		}),
-	}
-
-	expr, srcBytes := parseFirstAttrExpr(t, `val = danger() ? "yes" : dependency.vpc.outputs.vpc_id`)
-
-	resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred})
+	resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
 	require.NoError(t, err)
 
-	assert.False(t, called, "partial evaluation must not execute function calls in conditional conditions")
-	assert.Contains(t, string(resultBytes), `danger() ? "yes" : dependency.vpc.outputs.vpc_id`)
+	assert.Contains(t, string(resultBytes), `dependency.vpc.outputs.enabled ? "yes" : "no"`,
+		"a conditional whose condition references dependency.* is preserved for unit-time evaluation")
 }
 
 // TestPartialEval_DeeplyNestedExpressionReturnsTypedError verifies depth-exhausted input returns source bytes plus PartialEvalDepthExceededError.
@@ -380,21 +387,21 @@ func TestPartialEval_FunctionCallArgumentsArePartiallyEvaluated(t *testing.T) {
 		excludes []string
 	}{
 		{
-			name:     "unit ref argument",
-			hcl:      `val = format("%s/foo", unit.vpc.path)`,
-			contains: []string{`format("%s/foo", "/abs/vpc")`},
+			name:     "unit ref argument alongside dependency",
+			hcl:      `val = format("%s-%s", unit.vpc.path, dependency.vpc.outputs.id)`,
+			contains: []string{`"/abs/vpc"`, "dependency.vpc.outputs.id"},
 			excludes: []string{"unit.vpc.path"},
 		},
 		{
-			name:     "stack ref argument",
-			hcl:      `val = format("%s/foo", stack.network.path)`,
-			contains: []string{`format("%s/foo", "/abs/network")`},
+			name:     "stack ref argument alongside dependency",
+			hcl:      `val = format("%s-%s", stack.network.path, dependency.vpc.outputs.id)`,
+			contains: []string{`"/abs/network"`, "dependency.vpc.outputs.id"},
 			excludes: []string{"stack.network.path"},
 		},
 		{
-			name:     "template interpolation",
-			hcl:      `val = "prefix-${format("%s/foo", unit.vpc.path)}"`,
-			contains: []string{`${format("%s/foo", "/abs/vpc")}`},
+			name:     "template interpolation alongside dependency",
+			hcl:      `val = "prefix-${format("%s-%s", unit.vpc.path, dependency.vpc.outputs.id)}"`,
+			contains: []string{`"/abs/vpc"`, "dependency.vpc.outputs.id"},
 			excludes: []string{"unit.vpc.path"},
 		},
 	}

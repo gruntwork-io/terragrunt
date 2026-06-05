@@ -196,9 +196,9 @@ func TestStackDepsAutoIncludeRejectsValuesReference(t *testing.T) {
 }
 
 // TestStackDepsAutoIncludeFunctionsAndDeps covers, end to end, an autoinclude that wires a dependency and
-// consumes it from the autoinclude's own inputs, plus how function calls are treated by location: a
-// read_terragrunt_config in config_path is evaluated at stack generate time, while a run_cmd in inputs stays
-// verbatim and evaluates inside the generated unit. The dependency mock feeds the inputs at plan time.
+// consumes it from the autoinclude's own inputs. Every expression that does not reference dependency.* is
+// resolved in the stack file context at generate time (read_terragrunt_config in config_path and run_cmd in
+// inputs both render to literals), while a dependency output reference stays verbatim for the unit run.
 func TestStackDepsAutoIncludeFunctionsAndDeps(t *testing.T) {
 	t.Parallel()
 
@@ -226,12 +226,13 @@ func TestStackDepsAutoIncludeFunctionsAndDeps(t *testing.T) {
 	assert.Contains(t, content, `"../data"`, "config_path from read_terragrunt_config must resolve at generate time")
 	assert.NotContains(t, content, "read_terragrunt_config", "read_terragrunt_config in config_path must be evaluated at generate, not deferred")
 
-	// A function call inside inputs stays verbatim so it evaluates in the generated unit's directory.
-	assert.Contains(t, content, `run_cmd("echo", "hi-from-unit")`, "run_cmd in inputs must stay verbatim for unit-time evaluation")
+	// A function call inside inputs that does not reference dependency.* is resolved at generate time.
+	assert.Contains(t, content, `"hi-from-unit"`, "run_cmd in inputs must be rendered to its literal at generate time")
+	assert.NotContains(t, content, "run_cmd", "run_cmd in inputs must not be left verbatim")
 	// A dependency output reference inside inputs stays verbatim for the unit run.
 	assert.Contains(t, content, "dependency.data.outputs.value", "a dependency output in inputs must stay verbatim")
 
-	// End to end: the dependency mock feeds inputs, run_cmd evaluates at the unit, and the stack plans cleanly.
+	// End to end: the dependency mock feeds inputs, the rendered run_cmd value feeds the other input, and the stack plans cleanly.
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
 	require.NoError(t, err, "the generated stack must plan; stderr=%s", stderr)
