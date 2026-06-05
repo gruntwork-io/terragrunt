@@ -33,6 +33,8 @@ const (
 	testFixtureTerragruntHookIfParameter                          = "fixtures/hooks/if-parameter"
 	testFixtureHooksPathPreservation                              = "fixtures/hooks/path-preservation"
 	testFixtureHooksExitCodeError                                 = "fixtures/hooks/exit-code-error"
+	testFixtureHooksContextEnv                                    = "fixtures/hooks/hook-context-env"
+	testFixtureHooksNoHooks                                       = "fixtures/hooks/no-hooks"
 )
 
 func TestTerragruntHookIfParameter(t *testing.T) {
@@ -147,6 +149,70 @@ func TestTerragruntHookRunAllApply(t *testing.T) {
 
 	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
 	require.NoError(t, afterErr)
+}
+
+func TestTerragruntRunNoHooksRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping because we can't verify the experiment is required when experiment mode is enabled")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksNoHooks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksNoHooks)
+	directPath := filepath.Join(tmpEnvPath, testFixtureHooksNoHooks, "direct")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --no-hooks --non-interactive --working-dir %s "+
+				"--log-format=key-value -- plan -input=false",
+			directPath,
+		),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "optional-hooks")
+}
+
+func TestTerragruntRunNoHooksSkipsConfiguredHooks(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksNoHooks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksNoHooks)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksNoHooks)
+	directPath := filepath.Join(rootPath, "direct")
+	stackPath := filepath.Join(rootPath, "stack")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --experiment optional-hooks --no-hooks --non-interactive --working-dir "+directPath+
+			" -- plan -input=false",
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, stderr, "direct_required")
+	assertNoHookOutputFiles(t, directPath)
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --experiment optional-hooks --no-hooks --non-interactive --working-dir "+stackPath+
+			" -- plan -input=false",
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, stderr, "unit_a_required")
+	assert.Contains(t, stderr, "unit_b_required")
+	assertNoHookOutputFiles(t, filepath.Join(stackPath, "unit-a"), filepath.Join(stackPath, "unit-b"))
+}
+
+func assertNoHookOutputFiles(t *testing.T, unitPaths ...string) {
+	t.Helper()
+
+	for _, unitPath := range unitPaths {
+		assert.NoFileExists(t, filepath.Join(unitPath, "before.out"))
+		assert.NoFileExists(t, filepath.Join(unitPath, "after.out"))
+		assert.NoFileExists(t, filepath.Join(unitPath, "error.out"))
+	}
 }
 
 func TestTerragruntHookApplyAll(t *testing.T) {
@@ -457,6 +523,93 @@ func TestTerragruntHookPreservesAbsolutePaths(t *testing.T) {
 	// NOT converted to a relative path like "../../../.terraform.d/plugin-cache"
 	assert.Contains(t, stderr, "/home/testuser/.terraform.d/plugin-cache")
 	assert.NotContains(t, stderr, "../")
+}
+
+func TestTerragruntHookContextEnvExperimentEnabled(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksContextEnv)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksContextEnv)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksContextEnv)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --experiment hook-context-env --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
+	require.Error(t, err)
+
+	beforeOut, readErr := os.ReadFile(filepath.Join(rootPath, "before.out"))
+	require.NoError(t, readErr)
+	afterOut, readErr := os.ReadFile(filepath.Join(rootPath, "after.out"))
+	require.NoError(t, readErr)
+	errorOut, readErr := os.ReadFile(filepath.Join(rootPath, "error.out"))
+	require.NoError(t, readErr)
+
+	wantSource := filepath.Join(rootPath, "modules", "foo")
+
+	assert.Contains(t, string(beforeOut), "TG_CTX_HOOK_TYPE=before_hook")
+	assert.Contains(t, string(beforeOut), "TG_CTX_HOOK_NAME=shared_name_hook")
+	assert.Contains(t, string(beforeOut), "TG_CTX_TERRAGRUNT_DIR="+rootPath)
+	assert.Contains(t, string(beforeOut), "TG_CTX_SOURCE="+wantSource)
+
+	assert.Contains(t, string(afterOut), "TG_CTX_HOOK_TYPE=after_hook")
+	assert.Contains(t, string(afterOut), "TG_CTX_HOOK_NAME=shared_name_hook")
+	assert.Contains(t, string(afterOut), "TG_CTX_TERRAGRUNT_DIR="+rootPath)
+	assert.Contains(t, string(afterOut), "TG_CTX_SOURCE="+wantSource)
+
+	assert.Contains(t, string(errorOut), "TG_CTX_HOOK_TYPE=error_hook")
+	assert.Contains(t, string(errorOut), "TG_CTX_HOOK_NAME=error_hook_1")
+	assert.Contains(t, string(errorOut), "TG_CTX_TERRAGRUNT_DIR="+rootPath)
+	assert.Contains(t, string(errorOut), "TG_CTX_SOURCE="+wantSource)
+}
+
+func TestTerragruntHookContextEnvExperimentDisabled(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip()
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksContextEnv)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksContextEnv)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksContextEnv)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
+	require.Error(t, err)
+
+	beforeOut, readErr := os.ReadFile(filepath.Join(rootPath, "before.out"))
+	require.NoError(t, readErr)
+	afterOut, readErr := os.ReadFile(filepath.Join(rootPath, "after.out"))
+	require.NoError(t, readErr)
+	errorOut, readErr := os.ReadFile(filepath.Join(rootPath, "error.out"))
+	require.NoError(t, readErr)
+
+	// The existing context env vars are still set unconditionally.
+	assert.Contains(t, string(beforeOut), "TG_CTX_HOOK_NAME=shared_name_hook")
+
+	// The new env vars must NOT be set when the experiment is disabled.
+	for _, out := range [][]byte{beforeOut, afterOut, errorOut} {
+		assert.Contains(t, string(out), "TG_CTX_HOOK_TYPE=<unset>")
+		assert.Contains(t, string(out), "TG_CTX_SOURCE=<unset>")
+		assert.Contains(t, string(out), "TG_CTX_TERRAGRUNT_DIR=<unset>")
+	}
 }
 
 func TestTerragruntHookExitCodeError(t *testing.T) {
