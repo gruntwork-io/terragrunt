@@ -1,6 +1,6 @@
 # Terragrunt Docs
 
-> Documentation for Terragrunt, the open-source orchestrator for Terraform and OpenTofu. Covers installation and core concepts, features (units, stacks, catalog, caching, filters), guides, full HCL and CLI reference, migration paths, the release process, troubleshooting, and Terragrunt Scale.
+> Documentation for Terragrunt, the open-source orchestrator for OpenTofu and Terraform. Covers installation and core concepts, features (units, stacks, catalog, caching, filters), guides, full HCL and CLI reference, migration paths, the release process, troubleshooting, and Terragrunt Scale.
 
 ## Getting Started
 
