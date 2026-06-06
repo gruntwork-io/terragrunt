@@ -80,7 +80,7 @@ reviews:
         accurately reflects the page it links to. Flag broken or stale links at
         HIGH.
 
-    - path: 'docs/src/content/docs/**'
+    - path: 'docs/src/content/docs/**/*.{md,mdx}'
       instructions: >-
         LLMS.TXT DRIFT CHECK. docs/public/llms.txt curates a SUBSET of these
         pages by slug. Flag at HIGH only if this PR renames, moves, or deletes a
