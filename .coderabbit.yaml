@@ -61,6 +61,34 @@ reviews:
         clarification of existing behavior) do NOT need gating; do not flag
         those.
 
+    - path: 'docs/public/llms.txt'
+      instructions: >-
+        HAND-CURATED llms.txt INDEX. This file (https://llmstxt.org/) is served
+        verbatim at /llms.txt and is NOT auto-generated: the starlight-llms-txt
+        plugin's own /llms.txt route is suppressed by the
+        `starlightLlmsTxtWithoutIndex()` wrapper in docs/astro.config.mjs, while
+        the plugin still generates /llms-full.txt and /llms-small.txt. When this
+        file changes, verify: (1) every link is an absolute
+        https://docs.terragrunt.com/<slug>/ URL that resolves to a real page —
+        cross-check each slug against a content file under
+        docs/src/content/docs/ (the numeric `NN-` directory/file prefixes are
+        stripped from slugs) and against the redirects in docs/astro.config.mjs
+        and docs/vercel.json; flag any link whose target does not exist.
+        (2) The file still parses as valid llms.txt: a single `# Title` H1, an
+        optional `> summary` blockquote, then `##` sections of
+        `- [label](url): description` list items. (3) Each description still
+        accurately reflects the page it links to. Flag broken or stale links at
+        HIGH.
+
+    - path: 'docs/src/content/docs/**'
+      instructions: >-
+        LLMS.TXT DRIFT CHECK. docs/public/llms.txt curates a SUBSET of these
+        pages by slug. Flag at HIGH only if this PR renames, moves, or deletes a
+        page whose slug is referenced in docs/public/llms.txt (read that file
+        for the slug list), or adds a NEW top-level section peering with the
+        index's ## groups. Do NOT flag ordinary body edits or unreferenced
+        pages.
+
     - path: '**/*.go'
       instructions: >-
         Review the Go code for quality and correctness.
