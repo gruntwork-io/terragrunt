@@ -12,7 +12,7 @@
 ## Features
 
 - [Units](https://docs.terragrunt.com/features/units/): The basic building block of Terragrunt configuration
-- [Stacks](https://docs.terragrunt.com/features/stacks/): Group and orchestrate multiple units, including the run queue
+- [Stacks](https://docs.terragrunt.com/features/stacks/): Group and orchestrate multiple units, including documentation on the run queue
 - [Catalog](https://docs.terragrunt.com/features/catalog/): Browse and scaffold modules from a catalog
 - [Caching](https://docs.terragrunt.com/features/caching/): Provider cache server and content-addressable storage (CAS)
 - [Filter](https://docs.terragrunt.com/features/filter/): Select which units a command runs against
