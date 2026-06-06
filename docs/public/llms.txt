@@ -29,7 +29,7 @@
 - [Experiments](https://docs.terragrunt.com/reference/experiments/): Opt-in experimental features
 - [Strict controls](https://docs.terragrunt.com/reference/strict-controls/): Enforce stricter behavior
 - [Logging](https://docs.terragrunt.com/reference/logging/): Log formatting and configuration
-- [Supported versions](https://docs.terragrunt.com/reference/supported-versions/)
+- [Supported versions](https://docs.terragrunt.com/reference/supported-versions/): Supported versions of OpenTofu and Terraform
 
 ## Terragrunt Scale
 
