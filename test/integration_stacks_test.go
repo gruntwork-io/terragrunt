@@ -1516,7 +1516,7 @@ func TestStacksReadFiles(t *testing.T) {
 						assert.False(t, stackSource.IsNull(), "Field stack_source should exist in output")
 
 						if !stackSource.IsNull() {
-							assert.Contains(t, stackSource.AsString(), "/fixtures/stacks/read-stack/stacks/dev")
+							assert.Contains(t, filepath.ToSlash(stackSource.AsString()), "/fixtures/stacks/read-stack/stacks/dev")
 						}
 
 						// Verify expected fields count (including stack_source)

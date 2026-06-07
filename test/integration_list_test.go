@@ -145,7 +145,8 @@ unit  units/live/prod/vpc
 			require.NoError(t, err)
 			require.Empty(t, stderr)
 
-			assert.Equal(t, tc.expected, stdout)
+			// Tree/long output embeds component paths with OS-native separators; compare in forward-slash space.
+			assert.Equal(t, tc.expected, filepath.ToSlash(stdout))
 		})
 	}
 }
