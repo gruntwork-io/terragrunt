@@ -107,6 +107,7 @@ The `values` attribute passes data into units:
 
 ```hcl
 # terragrunt.stack.hcl
+
 unit "vpc" {
   source = "../units/vpc"
   path   = "vpc"
