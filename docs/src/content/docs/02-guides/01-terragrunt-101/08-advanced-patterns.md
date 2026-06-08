@@ -213,7 +213,7 @@ terragrunt run --filter '...service' -- plan
 
 ### Automatic Retry for Transient Errors
 
-AWS API calls occasionally fail due to:
+Cloud API calls occasionally fail due to:
 
 - Rate limiting
 - Eventual consistency
