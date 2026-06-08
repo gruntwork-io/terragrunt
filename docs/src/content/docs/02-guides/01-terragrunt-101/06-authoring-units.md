@@ -89,7 +89,7 @@ The same infrastructure split into **focused modules**:
 | **`vpc-subnet`** | Subnets, route tables, NAT gateways      | ~120 lines   |
 | **`vpc-route`**  | Individual routes                        | ~40 lines    |
 
-> Each module does **one thing well** and exposes outputs for downstream consumption.
+> Each module does **one thing well** and exposes inputs and outputs for downstream consumption.
 
 ---
 
