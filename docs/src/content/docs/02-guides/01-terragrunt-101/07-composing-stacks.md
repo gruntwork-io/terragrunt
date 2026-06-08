@@ -223,7 +223,7 @@ terragrunt stack generate
 
 This creates the directory structure defined in your `terragrunt.stack.hcl`. Each unit gets its own directory with a `terragrunt.hcl` file.
 
-When a stack includes a `stack` block (referencing another stack), the referenced stack's units are also generated.
+When a stack defines a `stack` block (referencing another stack), the referenced stack's units are also generated.
 
 ---
 
