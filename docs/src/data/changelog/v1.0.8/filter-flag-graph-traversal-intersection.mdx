@@ -1,0 +1,12 @@
+---
+version: "v1.0.8"
+category: "bug-fixes"
+---
+
+#### Intersecting a graph traversal with another filter no longer drops the traversed components
+
+A graph traversal combined with an intersected filter dropped the components reached in discovery.
+
+e.g., `...a-dependent | type=unit` (the dependents of `a-dependent`, intersected with type of `units`) returned only `a-dependent` itself instead of its dependents, and git-change traversals such as `...[HEAD~1...HEAD] | type=unit` lost the dependents of the changed units.
+
+A component that matched both a graph expression target and a positive filesystem or git filter was classified as discovered before the graph traversal ran, so the traversal never expanded from it. Terragrunt now checks graph expression targets first, so intersecting a traversal with another filter keeps the dependencies and dependents it reaches.

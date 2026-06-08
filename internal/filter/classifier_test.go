@@ -455,6 +455,31 @@ func TestClassifier_Classify(t *testing.T) {
 			expectedReason: filter.CandidacyReasonNone,
 			expectedIdx:    -1,
 		},
+		{
+			name:             "git_graph_target_with_intersected_attribute_returns_graph_target_candidate",
+			filterStrs:       []string{"...[main...feature] | type=unit"},
+			componentPath:    "./libs/db",
+			componentRef:     "main",
+			expectedStatus:   filter.StatusCandidate,
+			expectedReason:   filter.CandidacyReasonGraphTarget,
+			expectIdxGteZero: true,
+		},
+		{
+			name:             "path_graph_target_with_intersected_attribute_returns_graph_target_candidate",
+			filterStrs:       []string{"db... | type=unit"},
+			componentPath:    "./libs/db",
+			expectedStatus:   filter.StatusCandidate,
+			expectedReason:   filter.CandidacyReasonGraphTarget,
+			expectIdxGteZero: true,
+		},
+		{
+			name:           "attribute_filter_without_graph_expression_stays_ready_for_filter",
+			filterStrs:     []string{"type=unit"},
+			componentPath:  "./libs/db",
+			expectedStatus: filter.StatusReadyForFilter,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
 	}
 
 	for _, tt := range tests {

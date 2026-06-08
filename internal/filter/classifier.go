@@ -151,9 +151,9 @@ func NewClassifier(filters Filters) *Classifier {
 // Classification algorithm:
 //  1. Check if component ONLY matches negated filters -> EXCLUDED
 //  2. Check if parse expressions exist and parse data unavailable -> CANDIDATE (RequiresParse)
-//  3. Check if component matches any positive filesystem filter -> DISCOVERED
-//  4. Check if component matches any git expression -> DISCOVERED
-//  5. Check if component matches any graph expression target -> CANDIDATE (GraphTarget, returns index)
+//  3. Check if component matches any graph expression target -> CANDIDATE (GraphTarget, returns index)
+//  4. Check if component matches any positive filesystem filter -> DISCOVERED
+//  5. Check if component matches any git expression -> DISCOVERED
 //  6. Check if dependent filters exist and parse data unavailable -> CANDIDATE (PotentialDependent)
 //  7. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
 //  8. If no positive filters exist -> DISCOVERED (include-by-default)
@@ -176,16 +176,16 @@ func (c *Classifier) Classify(comp component.Component, classCtx ClassificationC
 		return StatusCandidate, CandidacyReasonRequiresParse, -1
 	}
 
+	if graphIdx := c.matchesGraphExpressionTarget(comp); graphIdx >= 0 {
+		return StatusCandidate, CandidacyReasonGraphTarget, graphIdx
+	}
+
 	if c.matchesPathExpression(comp) || c.matchesAttributeExpression(comp) {
 		return StatusReadyForFilter, CandidacyReasonNone, -1
 	}
 
 	if c.matchesGitExpression(comp) {
 		return StatusReadyForFilter, CandidacyReasonNone, -1
-	}
-
-	if graphIdx := c.matchesGraphExpressionTarget(comp); graphIdx >= 0 {
-		return StatusCandidate, CandidacyReasonGraphTarget, graphIdx
 	}
 
 	if c.HasDependentFilters() && !classCtx.ParseDataAvailable {

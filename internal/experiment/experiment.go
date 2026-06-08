@@ -69,6 +69,8 @@ const (
 	// HookContextEnv exposes additional TG_CTX_* environment variables to hook
 	// scripts: TG_CTX_HOOK_TYPE, TG_CTX_SOURCE, and TG_CTX_TERRAGRUNT_DIR.
 	HookContextEnv = "hook-context-env"
+	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
+	OptionalHooks = "optional-hooks"
 )
 
 const (
@@ -148,6 +150,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: HookContextEnv,
+		},
+		{
+			Name: OptionalHooks,
 		},
 	}
 }

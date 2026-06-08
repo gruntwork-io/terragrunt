@@ -8,8 +8,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
-import Before from '@components/Before.astro';
 
 For an alternate approach (that is more flexible, but not necessarily always the better solution), you can define explicit stacks using `terragrunt.stack.hcl` files. These are **blueprints** that programmatically generate units at runtime.
 
@@ -345,16 +343,6 @@ After running the stack, your directory structure will look like this:
 
 ## CAS Integration
 
-<Before version="1.0.3">
-
-<Aside type="tip">
-Experimental integration between CAS and Stacks is coming soon. Follow the progress in [#5558](https://github.com/gruntwork-io/terragrunt/issues/5558).
-</Aside>
-
-</Before>
-
-<Since version="1.0.3">
-
 <Aside type="tip">
 This functionality is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`. See the [CAS feature documentation](/features/caching/cas) for more details.
 </Aside>
@@ -412,19 +400,7 @@ When `update_source_with_cas = true` is set:
 
 Consumers do not set `update_source_with_cas` themselves. When the `cas` experiment is enabled and the source is remote, Terragrunt uses the CAS path automatically. The attribute only has effect inside catalog files, where it flags nested `source` attributes for rewriting.
 
-<Before version="1.0.5">
-
-<Aside type="tip">
-A `mutable` attribute that opts a `unit` or `stack` block out of CAS hardlinking is coming in v1.0.5.
-</Aside>
-
-</Before>
-
-<Since version="1.0.5">
-
 `unit` and `stack` blocks also accept a `mutable` attribute. When `mutable = true`, the unit's or stack's content under `.terragrunt-stack` is copied from the CAS store and the working tree is editable. The default is `false`: files are materialized read-only so an accidental edit cannot reach back into the shared CAS store.
-
-</Since>
 
 Given the catalog files above, and an ordinary consumer stack like:
 
@@ -505,8 +481,6 @@ Terragrunt copies the referenced directory into a temporary directory, computes 
 
 This is useful when iterating on a catalog before tagging a release: the same `update_source_with_cas = true` attributes in the catalog's `terragrunt.stack.hcl` and `terragrunt.hcl` files apply unchanged, whether consumers pull the catalog over Git or point at a local checkout.
 
-</Since>
-
 ## Known Limitations of Explicit Stacks
 
 There are currently some known limitations with explicit stacks that you should be aware of as you start to adopt them.
@@ -521,13 +495,7 @@ As such, if you currently have multiple stacks that need to depend on each other
 
 Every generation of a stack from a `terragrunt.stack.hcl` file can potentially result in network traffic to fetch the source for the stack and filesystem traffic to copy the generated units to the `.terragrunt-stack` directory. This can result in slow stack generation if you have very deeply nested stacks.
 
-<Before version="1.0.3">
-The planned solution for this in the future is to allow for some deduplication in stack generation, but this is not currently implemented.
-</Before>
-
-<Since version="1.0.3">
 To mitigate this, enable the [`cas` experiment](/reference/experiments/active#cas) and use `update_source_with_cas = true` in your catalog's stack and unit files. This deduplicates repository clones and resolves content from the local CAS store instead of fetching from the network on every generation. See [CAS Integration](#cas-integration) for details.
-</Since>
 
 ### Includes are not supported in `terragrunt.stack.hcl` files
 

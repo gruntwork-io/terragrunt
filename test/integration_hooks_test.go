@@ -34,6 +34,7 @@ const (
 	testFixtureHooksPathPreservation                              = "fixtures/hooks/path-preservation"
 	testFixtureHooksExitCodeError                                 = "fixtures/hooks/exit-code-error"
 	testFixtureHooksContextEnv                                    = "fixtures/hooks/hook-context-env"
+	testFixtureHooksNoHooks                                       = "fixtures/hooks/no-hooks"
 )
 
 func TestTerragruntHookIfParameter(t *testing.T) {
@@ -148,6 +149,70 @@ func TestTerragruntHookRunAllApply(t *testing.T) {
 
 	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
 	require.NoError(t, afterErr)
+}
+
+func TestTerragruntRunNoHooksRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping because we can't verify the experiment is required when experiment mode is enabled")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksNoHooks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksNoHooks)
+	directPath := filepath.Join(tmpEnvPath, testFixtureHooksNoHooks, "direct")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --no-hooks --non-interactive --working-dir %s "+
+				"--log-format=key-value -- plan -input=false",
+			directPath,
+		),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "optional-hooks")
+}
+
+func TestTerragruntRunNoHooksSkipsConfiguredHooks(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksNoHooks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksNoHooks)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksNoHooks)
+	directPath := filepath.Join(rootPath, "direct")
+	stackPath := filepath.Join(rootPath, "stack")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --experiment optional-hooks --no-hooks --non-interactive --working-dir "+directPath+
+			" -- plan -input=false",
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, stderr, "direct_required")
+	assertNoHookOutputFiles(t, directPath)
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --experiment optional-hooks --no-hooks --non-interactive --working-dir "+stackPath+
+			" -- plan -input=false",
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, stderr, "unit_a_required")
+	assert.Contains(t, stderr, "unit_b_required")
+	assertNoHookOutputFiles(t, filepath.Join(stackPath, "unit-a"), filepath.Join(stackPath, "unit-b"))
+}
+
+func assertNoHookOutputFiles(t *testing.T, unitPaths ...string) {
+	t.Helper()
+
+	for _, unitPath := range unitPaths {
+		assert.NoFileExists(t, filepath.Join(unitPath, "before.out"))
+		assert.NoFileExists(t, filepath.Join(unitPath, "after.out"))
+		assert.NoFileExists(t, filepath.Join(unitPath, "error.out"))
+	}
 }
 
 func TestTerragruntHookApplyAll(t *testing.T) {
