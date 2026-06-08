@@ -2,6 +2,7 @@ package hclparse_test
 
 import (
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"github.com/zclconf/go-cty/cty/function/stdlib"
 )
 
 const (
@@ -256,6 +258,287 @@ unit "app" {
 	assert.Contains(t, content, "dependency.vpc.outputs.val")
 }
 
+// TestGenerateAutoIncludeFile_DefersFunctionsInZones pins that the inputs, generate, and remote_state zones keep
+// function calls and dependency.* verbatim (evaluated in the generated unit) while stack-level local.* still
+// resolves at generate time, both in those zones and in non-zone content like mock_outputs.
+func TestGenerateAutoIncludeFile_DefersFunctionsInZones(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  tag = "t1"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+
+      mock_outputs = {
+        rendered = local.tag
+      }
+    }
+
+    inputs = {
+      dep_ref  = dependency.vpc.outputs.id
+      local_in = local.tag
+      fn_in    = get_terragrunt_dir()
+    }
+
+    generate "backend" {
+      path     = "backend.tf"
+      contents = run_cmd("echo", local.tag)
+    }
+
+    remote_state {
+      backend = "local"
+
+      config = {
+        path = get_terragrunt_dir()
+      }
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	// Stack locals resolve at generate time everywhere (mock_outputs, inputs, generate), so the literal is baked in.
+	assert.Contains(t, content, `"t1"`, "a stack local must render at generate time")
+	assert.NotContains(t, content, "local.tag", "a stack local must not be left verbatim, even in a deferred zone")
+	// In the inputs and generate zones a function call and a dependency reference stay verbatim,
+	// while a stack local inside a preserved function call still renders.
+	assert.Contains(t, content, "get_terragrunt_dir()", "a function call in a deferred zone must stay verbatim for the unit")
+	assert.Contains(t, content, `run_cmd("echo", "t1")`, "a function in the generate zone stays verbatim while its local argument renders")
+	assert.Contains(t, content, "dependency.vpc.outputs.id", "a dependency reference in inputs must stay verbatim")
+	// The remote_state config path is qualified by its attribute name so it pins that arm verbatim independently of the inputs occurrence.
+	assert.Contains(t, content, "path = get_terragrunt_dir()", "the remote_state config path must stay verbatim for the unit")
+}
+
+// TestParseStackFile_ConfigPathEvalErrorIsAnchoredAtConfigPath pins that a config_path that fails to evaluate
+// yields one clear "Invalid config_path" diagnostic anchored at the config_path expression, not at an unrelated block.
+func TestParseStackFile_ConfigPathEvalErrorIsAnchoredAtConfigPath(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  base = {}
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "dep" {
+      config_path = local.base.missing
+    }
+  }
+}
+`
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	require.True(t, diags.HasErrors())
+	assert.Equal(t, "Invalid config_path", diags[0].Summary)
+	assert.Contains(t, diags[0].Detail, `dependency "dep" config_path could not be evaluated`)
+	require.NotNil(t, diags[0].Subject, "the diagnostic must be anchored at the config_path expression")
+
+	srcLines := strings.Split(src, "\n")
+	require.LessOrEqual(t, diags[0].Subject.Start.Line, len(srcLines))
+	assert.Contains(t, srcLines[diags[0].Subject.Start.Line-1], "config_path",
+		"the error must point at the config_path line, not an unrelated block")
+}
+
+// TestGenerateAutoIncludeFile_MockOutputsRendersFunction pins that mock_outputs is not a deferred zone, so a
+// function call there is evaluated in the stack file context and rendered to a literal at generate time.
+func TestGenerateAutoIncludeFile_MockOutputsRendersFunction(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+
+      mock_outputs = {
+        name = upper("vpc")
+      }
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:       srcBytes,
+		Filename:  "terragrunt.stack.hcl",
+		StackDir:  testStackDir,
+		Functions: map[string]function.Function{"upper": stdlib.UpperFunc},
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `"VPC"`, "a function in mock_outputs must render to its literal at generate time")
+	assert.NotContains(t, content, "upper(", "a function in mock_outputs must not be left verbatim")
+}
+
+// TestGenerateAutoIncludeFile_MockOutputsDefersDependencyButRendersFunction pins the two-mechanism split in the
+// non-deferred mock_outputs zone: a function renders to its literal (DeferFunctions is false there) while a
+// dependency.* reference still stays verbatim through deferredRoots.
+func TestGenerateAutoIncludeFile_MockOutputsDefersDependencyButRendersFunction(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+
+      mock_outputs = {
+        name    = upper("vpc")
+        chained = dependency.other.outputs.id
+      }
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:       srcBytes,
+		Filename:  "terragrunt.stack.hcl",
+		StackDir:  testStackDir,
+		Functions: map[string]function.Function{"upper": stdlib.UpperFunc},
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `"VPC"`, "a function in mock_outputs renders to its literal even though dependency.* in the same block defers")
+	assert.NotContains(t, content, "upper(", "a function in mock_outputs must not be left verbatim")
+	assert.Contains(t, content, "dependency.other.outputs.id", "a dependency reference in mock_outputs stays verbatim through deferredRoots")
+}
+
+// TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves
+// stack-level references (local.*) to literals at generate time.
+func TestGenerateAutoIncludeFile_MockOutputsResolvesLocal(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  account = {
+    name   = "my-account"
+    region = "eu-west-1"
+  }
+}
+
+unit "account" {
+  source = "../catalog/units/account"
+  path   = "account"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "account" {
+      config_path = unit.account.path
+
+      mock_outputs = {
+        name   = local.account.name
+        region = local.account.region
+      }
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	// Dependency path: config_path = unit.account.path resolves to the sibling unit at generate time.
+	assert.Contains(t, content, `"../account"`, "the dependency config_path (unit.<name>.path) must resolve at generate time")
+	// Dependency mock outputs: stack-level locals resolve to literals at generate time.
+	assert.Contains(t, content, `"my-account"`, "a local in mock_outputs must resolve at generate time")
+	assert.Contains(t, content, `"eu-west-1"`, "a local in mock_outputs must resolve at generate time")
+	assert.NotContains(t, content, "local.account.name", "the local reference must not be left literal")
+	assert.NotContains(t, content, "local.account.region", "the local reference must not be left literal")
+}
+
 func TestGenerateAutoIncludeFile_MultipleDeps(t *testing.T) {
 	t.Parallel()
 
@@ -474,12 +757,15 @@ unit "app" {
 
 	content := string(generated)
 
-	assert.Contains(t, content, `"production"`)
-	assert.NotContains(t, content, "local.env")
-	assert.Contains(t, content, `"us-east-1"`)
-	assert.NotContains(t, content, "local.region")
-	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id")
-	assert.Contains(t, content, "production-${dependency.vpc.outputs.vpc_id}-app")
+	// Stack-level locals resolve at generate time everywhere, including inside the inputs zone.
+	assert.Contains(t, content, `"production"`, "local.env renders at generate time")
+	assert.NotContains(t, content, "local.env", "a stack local must not be left verbatim")
+	assert.Contains(t, content, `"us-east-1"`, "local.region renders at generate time, including inside inputs")
+	assert.NotContains(t, content, "local.region", "a stack local must not be left verbatim")
+
+	// A dependency reference stays verbatim; a template renders its local part and defers the dependency part.
+	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id", "a dependency reference stays verbatim")
+	assert.Contains(t, content, "production-${dependency.vpc.outputs.vpc_id}-app", "a template renders locals and defers dependency.*")
 	assert.Contains(t, content, `dependency "vpc"`)
 	assert.Contains(t, content, "mock_outputs")
 }
@@ -1108,6 +1394,350 @@ stack "s" {
 			assert.Contains(t, diags[0].Detail, "parent unit/stack block")
 		})
 	}
+}
+
+// TestAutoIncludeResolve_RejectsValuesReference verifies a values.* reference inside autoinclude is rejected for both kinds.
+func TestAutoIncludeResolve_RejectsValuesReference(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		kind      string
+		component string
+		attr      string
+		src       string
+	}{
+		{
+			// attr is the dependency label (blockOwnerLabel names a dependency block by its label).
+			name:      "unit dependency mock_outputs",
+			kind:      "unit",
+			component: "u",
+			attr:      "dep",
+			src: `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    dependency "dep" {
+      config_path = unit.u.path
+
+      mock_outputs = {
+        region = values.region
+      }
+    }
+  }
+}
+`,
+		},
+		{
+			name:      "unit inputs",
+			kind:      "unit",
+			component: "u",
+			attr:      "inputs",
+			src: `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    inputs = {
+      region = values.region
+    }
+  }
+}
+`,
+		},
+		{
+			name:      "stack inputs",
+			kind:      "stack",
+			component: "s",
+			attr:      "inputs",
+			src: `
+stack "s" {
+  source = "../catalog/stacks/s"
+  path   = "s"
+
+  autoinclude {
+    inputs = {
+      region = values.region
+    }
+  }
+}
+`,
+		},
+		{
+			// A stack autoinclude injects unit/stack blocks; a values.* reference inside an injected block must be rejected too.
+			name:      "stack injected unit values",
+			kind:      "stack",
+			component: "s",
+			attr:      "extra",
+			src: `
+stack "s" {
+  source = "../catalog/stacks/s"
+  path   = "s"
+
+  autoinclude {
+    unit "extra" {
+      source = "../catalog/units/extra"
+      path   = "extra"
+
+      values = {
+        v = values.region
+      }
+    }
+  }
+}
+`,
+		},
+		{
+			// A values.* reference nested in a block (an injected unit's own autoinclude inputs) must be rejected.
+			name:      "stack injected unit nested autoinclude inputs",
+			kind:      "stack",
+			component: "s",
+			attr:      "extra",
+			src: `
+stack "s" {
+  source = "../catalog/stacks/s"
+  path   = "s"
+
+  autoinclude {
+    unit "extra" {
+      source = "../catalog/units/extra"
+      path   = "extra"
+
+      autoinclude {
+        inputs = {
+          v = values.region
+        }
+      }
+    }
+  }
+}
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+				Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+			})
+
+			var valuesErr hclparse.AutoIncludeValuesReferenceError
+
+			require.ErrorAs(t, err, &valuesErr)
+			assert.Equal(t, tc.kind, valuesErr.Kind)
+			assert.Equal(t, tc.component, valuesErr.Component)
+			assert.Equal(t, tc.attr, valuesErr.Attr)
+			assert.Contains(t, err.Error(), "unit-scoped namespace")
+			assert.Contains(t, err.Error(), "stack-level local")
+		})
+	}
+}
+
+// TestAutoIncludeResolve_ConfigPathMayReferenceValues pins that a values.* reference in a dependency config_path is
+// exempt from the rejection: config_path is resolved eagerly at generate time for the cross-level path-passing pattern.
+func TestAutoIncludeResolve_ConfigPathMayReferenceValues(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    dependency "dep" {
+      config_path = values.producer_path
+    }
+  }
+}
+`
+	values := cty.ObjectVal(map[string]cty.Value{"producer_path": cty.StringVal("../producer")})
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir, Values: &values,
+	})
+	require.NoError(t, err, "values.* in a dependency config_path is exempt and resolves at generate time")
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "u")]
+	require.True(t, ok)
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, "dep", resolved.Dependencies[0].Name)
+}
+
+// TestAutoIncludeResolve_RejectsLocalsBlock verifies a locals block inside autoinclude is rejected for both kinds.
+func TestAutoIncludeResolve_RejectsLocalsBlock(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		kind      string
+		component string
+		src       string
+	}{
+		{
+			name:      "unit",
+			kind:      "unit",
+			component: "u",
+			src: `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    locals {
+      x = 1
+    }
+  }
+}
+`,
+		},
+		{
+			name:      "stack",
+			kind:      "stack",
+			component: "s",
+			src: `
+stack "s" {
+  source = "../catalog/stacks/s"
+  path   = "s"
+
+  autoinclude {
+    locals {
+      x = 1
+    }
+  }
+}
+`,
+		},
+		{
+			// A locals block nested inside a dependency block must also be rejected.
+			name:      "nested inside dependency",
+			kind:      "unit",
+			component: "u",
+			src: `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    dependency "dep" {
+      config_path = unit.u.path
+
+      locals {
+        x = 1
+      }
+    }
+  }
+}
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+				Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+			})
+
+			var localsErr hclparse.AutoIncludeLocalsBlockError
+
+			require.ErrorAs(t, err, &localsErr)
+			assert.Equal(t, tc.kind, localsErr.Kind)
+			assert.Equal(t, tc.component, localsErr.Component)
+			assert.Contains(t, err.Error(), "declare locals at the stack level")
+		})
+	}
+}
+
+// TestAutoIncludeResolve_RejectsNestedAutoInclude verifies an autoinclude block nested directly inside an
+// autoinclude block is rejected for both kinds.
+func TestAutoIncludeResolve_RejectsNestedAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "unit",
+			src: `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+    autoinclude {
+      inputs = {
+        x = "y"
+      }
+    }
+  }
+}
+`,
+		},
+		{
+			name: "stack",
+			src: `
+stack "s" {
+  source = "../catalog/stacks/s"
+  path   = "s"
+
+  autoinclude {
+    autoinclude {
+      inputs = {
+        x = "y"
+      }
+    }
+  }
+}
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+				Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+			})
+
+			var nestedErr hclparse.AutoIncludeNestedError
+
+			require.ErrorAs(t, err, &nestedErr)
+			assert.Contains(t, err.Error(), "must not contain another autoinclude block")
+		})
+	}
+}
+
+// TestAutoIncludeResolve_RejectsDeeplyNestedBlocks verifies the nested-block recursion guard returns a typed error
+// instead of overflowing the stack on a pathologically deep autoinclude body.
+func TestAutoIncludeResolve_RejectsDeeplyNestedBlocks(t *testing.T) {
+	t.Parallel()
+
+	const depth = 1100 // exceeds maxBlockDepth
+
+	nested := strings.Repeat("nested {\n", depth) + strings.Repeat("}\n", depth)
+	src := `
+unit "u" {
+  source = "../catalog/units/u"
+  path   = "u"
+
+  autoinclude {
+` + nested + `  }
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nesting too deep", "deep nesting must fail loud, not overflow the stack")
 }
 
 // TestParseStackFile_AutoIncludeReferencesUnitMergedFromInclude verifies a unit declared in an included file is reachable as unit.<name>.path during autoinclude resolution.

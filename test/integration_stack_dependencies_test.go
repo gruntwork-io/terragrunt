@@ -62,6 +62,9 @@ const (
 	testFixtureStackDepsApplyNoMocks             = "fixtures/stacks/stack-deps-apply-no-mocks"
 	testFixtureStackDepsStackAutoIncOverride     = "fixtures/stacks/stack-deps-stack-autoinclude-override"
 	testFixtureStackDepsStackAutoIncLocalPath    = "fixtures/stacks/stack-deps-stack-autoinclude-local-path"
+	testFixtureStackDepsMockLocal                = "fixtures/stacks/stack-deps-mock-local"
+	testFixtureStackDepsAutoIncValuesRejected    = "fixtures/stacks/stack-deps-autoinclude-values-rejected"
+	testFixtureStackDepsAutoIncFuncs             = "fixtures/stacks/stack-deps-autoinclude-funcs"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -110,8 +113,9 @@ func TestStackDepsAutoIncludeGenerationAndDAG(t *testing.T) {
 	assert.Contains(t, content, "../vpc")
 	assert.Contains(t, content, "mock_outputs_allowed_terraform_commands")
 	assert.Contains(t, content, "mock-vpc-id")
-	assert.Contains(t, content, `"test"`)
-	assert.NotContains(t, content, "local.env")
+	// A stack local renders at generate time, including inside the inputs zone.
+	assert.Contains(t, content, `"test"`, "a stack local inside inputs renders at generate time")
+	assert.NotContains(t, content, "local.env", "a stack local must not be left verbatim")
 	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id")
 
 	// Verify DAG sees the dependency
@@ -121,6 +125,119 @@ func TestStackDepsAutoIncludeGenerationAndDAG(t *testing.T) {
 
 	vpcDir := filepath.Join(liveDir, inthclparse.StackDir, "vpc")
 	assert.Equal(t, vpcDir, depPaths[0])
+}
+
+// TestStackDepsMockLocalResolvesLocal pins, end to end, that an autoinclude dependency's mock_outputs resolves
+// stack-level locals to literals at generate time. The run step confirms the generated stack plans cleanly while
+// the unit's own inputs keep the dependency.* references for the unit run.
+func TestStackDepsMockLocalResolvesLocal(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsMockLocal)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsMockLocal)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsMockLocal)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	generated, err := os.ReadFile(filepath.Join(rootPath, inthclparse.StackDir, "iam", inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+
+	// Dependency path: config_path = unit.account.path resolves to the sibling unit at generate time.
+	assert.Contains(t, content, `"../account"`, "the dependency config_path (unit.<name>.path) must resolve at generate time")
+
+	// Dependency mock outputs: stack-level locals are generate-time-knowable, so they resolve to literals here.
+	assert.Contains(t, content, `"my-account"`, "a local in mock_outputs must be resolved at generate time")
+	assert.Contains(t, content, `"eu-west-1"`, "a local in mock_outputs must be resolved at generate time")
+	assert.NotContains(t, content, "local.account", "a stack-level local must not be left literal")
+	assert.NotContains(t, content, "values.region", "values.* must not appear in the generated file")
+
+	// The autoinclude only contributes the mock dependency; inputs live in the unit's own terragrunt.hcl.
+	assert.NotContains(t, content, "inputs", "the generated autoinclude must contain only the mock dependency, not inputs")
+
+	// End to end: the unit's own inputs consume the dependency mock outputs, so the stack must plan cleanly.
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
+	require.NoError(t, err, "the generated stack must plan; stderr=%s", stderr)
+	assert.NotContains(t, stderr, "no variable named", "the generated stack must reference no undefined variables")
+}
+
+// TestStackDepsAutoIncludeRejectsValuesReference verifies that referencing values.* inside an autoinclude
+// fails at stack generate time with a clear error, since values is a unit-scoped namespace that is not
+// available in the stack file context.
+func TestStackDepsAutoIncludeRejectsValuesReference(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncValuesRejected)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncValuesRejected)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncValuesRejected)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+	require.Error(t, err, "referencing values.* inside an autoinclude must fail stack generate")
+	assert.Contains(t, err.Error(), "values is a unit-scoped namespace",
+		"the error must explain that values is not available at stack generate time")
+}
+
+// TestStackDepsAutoIncludeFunctionsAndDeps covers, end to end, how an autoinclude treats functions by location:
+// a read_terragrunt_config in config_path is resolved in the stack file context at generate time, while the
+// inputs block is a deferred zone kept verbatim and evaluated in the generated unit (so run_cmd and the
+// dependency output reference both stay verbatim). The mock feeds the deferred inputs at plan time.
+func TestStackDepsAutoIncludeFunctionsAndDeps(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncFuncs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncFuncs)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncFuncs)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	generated, err := os.ReadFile(filepath.Join(rootPath, inthclparse.StackDir, "app", inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+
+	// read_terragrunt_config in config_path is a generate-time function: it is evaluated in the stack file
+	// context, so config_path is the resolved sibling path, not the function call.
+	assert.Contains(t, content, `"../data"`, "config_path from read_terragrunt_config must resolve at generate time")
+	assert.NotContains(t, content, "read_terragrunt_config", "read_terragrunt_config in config_path must be evaluated at generate, not deferred")
+
+	// inputs is a deferred zone, emitted verbatim for unit-time evaluation: both the function call and the
+	// dependency output reference stay as written.
+	assert.Contains(t, content, `run_cmd("echo", "hi-from-unit")`, "a function call in inputs must stay verbatim and evaluate at the unit")
+	assert.Contains(t, content, "dependency.data.outputs.value", "a dependency output in inputs must stay verbatim")
+
+	// End to end: the dependency mock feeds inputs, run_cmd evaluates at the unit, and the stack plans cleanly.
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
+	require.NoError(t, err, "the generated stack must plan; stderr=%s", stderr)
+	assert.Contains(t, stdout, "mock-data:hi-from-unit",
+		"the dependency mock and the unit-evaluated run_cmd must both feed the unit inputs")
 }
 
 func TestStackDepsAutoIncludeSymlink(t *testing.T) {

@@ -1,0 +1,8 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: autoinclude resolves stack-level references at generate time
+
+An `autoinclude` block now resolves stack-level `local.*`, `unit.<name>.path`, `stack.<name>.path`, and function calls to literals at `terragrunt stack generate` time. Content inside the deferred zones (`inputs`, `generate`, `remote_state`) and any `dependency.<name>.outputs.<key>` reference stay verbatim and resolve in the generated unit. A `values.*` reference (except in a dependency `config_path`) or a `locals` block inside an autoinclude is now rejected at generate time.

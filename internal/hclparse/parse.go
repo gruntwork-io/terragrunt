@@ -21,8 +21,13 @@ const (
 	StackDir = ".terragrunt-stack"
 
 	// HCL block type and attribute names.
-	blockDependency = "dependency"
-	attrConfigPath  = "config_path"
+	blockDependency  = "dependency"
+	blockLocals      = "locals"
+	blockGenerate    = "generate"
+	blockRemoteState = "remote_state"
+	blockAutoInclude = "autoinclude"
+	attrConfigPath   = "config_path"
+	attrInputs       = "inputs"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"
@@ -506,8 +511,8 @@ func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx
 func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, kind AutoIncludeKind, name string, sourceBytes []byte) (*AutoIncludeResolved, error) {
 	resolved, diags := autoInclude.ResolveForKind(evalCtx, kind, name)
 	if diags.HasErrors() {
-		if typed := stackAutoIncludeDepValuesErr(diags); typed != nil {
-			return nil, *typed
+		if typed := autoIncludeTypedErr(diags); typed != nil {
+			return nil, typed
 		}
 
 		return nil, diags
@@ -522,11 +527,18 @@ func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, k
 	return resolved, nil
 }
 
-// stackAutoIncludeDepValuesErr extracts a StackAutoIncludeDependencyValuesError carried in a diagnostic's Extra field, or nil when none is present.
-func stackAutoIncludeDepValuesErr(diags hcl.Diagnostics) *StackAutoIncludeDependencyValuesError {
+// autoIncludeTypedErr extracts the first known typed autoinclude error carried in a diagnostic's Extra field, or nil when none is present.
+func autoIncludeTypedErr(diags hcl.Diagnostics) error {
 	for _, diag := range diags {
-		if typed, ok := diag.Extra.(StackAutoIncludeDependencyValuesError); ok {
-			return &typed
+		switch typed := diag.Extra.(type) {
+		case StackAutoIncludeDependencyValuesError:
+			return typed
+		case AutoIncludeValuesReferenceError:
+			return typed
+		case AutoIncludeLocalsBlockError:
+			return typed
+		case AutoIncludeNestedError:
+			return typed
 		}
 	}
 
