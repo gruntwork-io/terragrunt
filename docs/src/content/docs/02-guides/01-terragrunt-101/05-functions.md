@@ -246,6 +246,8 @@ Runs a shell command and **captures the output**.
 A common use case is fetching secrets from AWS Secrets Manager:
 
 ```hcl
+# terragrunt.hcl
+
 locals {
   db_password = run_cmd(
     "--terragrunt-quiet",
