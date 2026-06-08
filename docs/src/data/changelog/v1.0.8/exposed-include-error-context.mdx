@@ -1,0 +1,20 @@
+---
+version: "v1.0.8"
+category: "bug-fixes"
+---
+
+#### Exposed-include resolution errors now name the include block and parent file
+
+When resolving an `include` block with `expose = true`, Terragrunt surfaced low-level parsing or conversion errors with no indication of which include block or file was at fault. This was especially hard to debug for errors that carry no source location, such as:
+
+```text
+unsuitable value: a bool is required
+```
+
+The error is now annotated with the include block name and the included (parent) file path:
+
+```text
+exposed include "root" (/path/to/root.hcl): unsuitable value: a bool is required
+```
+
+This narrows the search from the entire configuration tree to the specific included file, making the source of the failure clear.
