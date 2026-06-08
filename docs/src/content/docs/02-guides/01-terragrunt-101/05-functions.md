@@ -366,6 +366,8 @@ The `mark_as_read()` function **registers the file** as having been read by the 
 `mark_as_read()` effectively enables Terragrunt to add units to a run queue dependent on non-HCL files.
 
 ```hcl
+# terragrunt.hcl
+
 locals {
   # Without mark_as_read - Terragrunt doesn't know this unit reads the file
   policy = jsondecode(file("${get_repo_root()}/policies/s3-read-only.json"))
