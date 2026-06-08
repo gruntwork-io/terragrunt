@@ -6,6 +6,8 @@ sidebar:
   order: 7
 ---
 
+import { FileTree, Aside } from '@astrojs/starlight/components';
+
 ## Learning Objectives
 
 Upon completing this module, you will be able to:
@@ -282,20 +284,22 @@ These are the most important attributes to remember when working with [`stack`](
 
 Nested stacks enable building **reusable infrastructure blueprints**:
 
-```text
-catalog/
-├── stacks/
-│   ├── eks-cluster/
-│   │   └── terragrunt.stack.hcl
-│   ├── monitoring/
-│   │   └── terragrunt.stack.hcl
-│   └── full-environment/
-│       └── terragrunt.stack.hcl  # Composes eks-cluster + monitoring
-└── units/
-    ├── vpc/
-    ├── eks/
-    └── prometheus/
-```
+<FileTree>
+
+- catalog/
+  - stacks/
+    - eks-cluster/
+      - terragrunt.stack.hcl
+    - monitoring/
+      - terragrunt.stack.hcl
+    - full-environment/
+      - terragrunt.stack.hcl (Composes eks-cluster + monitoring)
+  - units/
+    - vpc/
+    - eks/
+    - prometheus/
+
+</FileTree>
 
 | Level                | Purpose                              |
 | :------------------- | :----------------------------------- |
@@ -307,21 +311,23 @@ catalog/
 
 A powerful pattern is defining a **single stack blueprint** and deploying it **multiple times** with different configurations:
 
-```text
-project/
-├── stacks/
-│   └── three-tier-vpc/
-│       └── terragrunt.stack.hcl        # The blueprint (accepts values)
-├── units/
-│   └── ...                             # Reusable unit templates
-└── infrastructure-live/
-    └── dev/
-        └── us-east-1/
-            ├── vpc-dev1/
-            │   └── terragrunt.stack.hcl    # Instantiates blueprint for first VPC
-            └── vpc-dev2/
-                └── terragrunt.stack.hcl    # Instantiates blueprint for second VPC
-```
+<FileTree>
+
+- project/
+  - stacks/
+    - three-tier-vpc/
+      - terragrunt.stack.hcl (The blueprint — accepts values)
+  - units/
+    - ... (Reusable unit templates)
+  - infrastructure-live/
+    - dev/
+      - us-east-1/
+        - vpc-dev1/
+          - terragrunt.stack.hcl (Instantiates blueprint for first VPC)
+        - vpc-dev2/
+          - terragrunt.stack.hcl (Instantiates blueprint for second VPC)
+
+</FileTree>
 
 ---
 
@@ -402,7 +408,9 @@ stack "network" {
 }
 ```
 
-> These files are simple. They just specify the `source` and instance-specific `values`.
+<Aside>
+These files are simple. They just specify the `source` and instance-specific `values`.
+</Aside>
 
 ---
 

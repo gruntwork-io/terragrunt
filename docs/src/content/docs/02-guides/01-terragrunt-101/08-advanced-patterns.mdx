@@ -7,6 +7,8 @@ sidebar:
 next: false
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 ## Learning Objectives
 
 Upon completing this module, you will be able to:
@@ -126,15 +128,15 @@ aws configure export-credentials | \
 | **CI/CD friendly**        | Different roles for different pipeline stages |
 | **Multi-account support** | Assume different roles per account            |
 
-:::caution
+<Aside type="caution">
 **`--auth-provider-cmd` provides _dynamic_ credentials, not automatically _secure_ ones.** Terragrunt runs the command you give it and uses whatever it returns. It's your responsibility to write a script that fetches credentials securely. For example, source short-lived credentials from AWS SSO or OIDC, or return an `awsRole` so Terragrunt assumes and refreshes the role for you.
-:::
+</Aside>
 
 ## Run Strategies and Filtering
 
 ### Parallel Execution
 
-Control how many units run simultaneously with **`--parallelism`**:
+Control how many units run simultaneously with the [**`--parallelism`**](/reference/cli/commands/run#parallelism) flag:
 
 ```bash
 # Run up to 10 units in parallel
@@ -150,7 +152,7 @@ terragrunt run apply --all --parallelism 10
 
 ### Filtering Units
 
-Target specific units without running the entire stack using the **`--filter`** flag:
+Target specific units without running the entire stack using the [**`--filter`**](/features/filter) flag:
 
 ```bash
 # Include only networking units
@@ -166,7 +168,9 @@ terragrunt run --filter '{./prod/*} | !{./*/test/*}' -- plan
 terragrunt run --filter 'reading=root.hcl' -- plan
 ```
 
-> The `--filter` flag **implies `--all`**, so you don't need to specify both.
+<Aside type="note">
+The `--filter` flag **implies `--all`**, so you don't need to specify both.
+</Aside>
 
 ---
 
@@ -174,16 +178,17 @@ terragrunt run --filter 'reading=root.hcl' -- plan
 
 The filter flag supports a **flexible query language**:
 
-| Filter Type               | Example                           | Description               |
-| :------------------------ | :-------------------------------- | :------------------------ |
-| **Path-based**            | `'{./prod/**}'`                   | Glob patterns on paths    |
-| **Name-based**            | `'app*'`                          | Match unit names          |
-| **Type-based**            | `'type=unit'`                     | Filter by type            |
-| **Negation**              | `'!{./test/**}'`                  | Exclude matches           |
-| **Intersection** (AND)    | `'{./prod/**} \| type=unit'`      | Both must match           |
-| **Multiple filters** (OR) | `--filter 'app1' --filter 'app2'` | Either can match          |
-| **Dependencies**          | `'service...'`                    | Unit and its dependencies |
-| **Dependents**            | `'...service'`                    | Unit and its dependents   |
+| Filter Type               | Example                       | Description                                 |
+| :------------------------ | :---------------------------- | :------------------------------------------ |
+| **Path-based**            | `{./prod/**}`                 | Glob patterns on paths                      |
+| **Name-based**            | `app*`                        | Match unit names                            |
+| **Type-based**            | `type=unit`                   | Filter by type                              |
+| **Negation**              | `!{./test/**}`                | Exclude matches                             |
+| **Intersection** (AND)    | `{./prod/**} \| type=unit`    | Both must match                             |
+| **Multiple filters** (OR) | `--filter app1 --filter app2` | Either can match                            |
+| **Dependencies**          | `service...`                  | Unit and its dependencies                   |
+| **Dependents**            | `...service`                  | Unit and its dependents                     |
+| **Both directions**       | `...service...`               | Unit, its dependencies, and its dependents  |
 
 ---
 
