@@ -18,7 +18,7 @@ unit "vpc" {
     }
 
     inputs = {
-      availability_zones = try(values.availability_zones, dependency.data.outputs.availability_zones)
+      availability_zones = dependency.data.outputs.availability_zones
     }
   }
 }

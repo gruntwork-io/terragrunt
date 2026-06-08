@@ -1,0 +1,18 @@
+---
+name: no-hooks
+description: Disable Terragrunt hooks during run. Requires the optional-hooks experiment.
+lookup: true
+type: boolean
+env:
+  - TG_NO_HOOKS
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`optional-hooks`](/reference/experiments/active#optional-hooks) experiment. Enable it with `--experiment=optional-hooks` or `TG_EXPERIMENT=optional-hooks`; otherwise setting `--no-hooks` returns an error.
+</Aside>
+
+Skip Terragrunt hooks during a run.
+
+When enabled, Terragrunt does not execute configured `before_hook`, `after_hook`, or `error_hook` blocks for the run.

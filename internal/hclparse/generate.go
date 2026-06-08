@@ -51,12 +51,14 @@ func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
 // given directory from a resolved autoinclude.
 //
 // The generated file contains:
-//   - dependency blocks with resolved config_path and all other attributes
-//     (mock_outputs, mock_outputs_allowed_terraform_commands, etc.) copied
-//     from the original AST source bytes.
-//   - All non-dependency content (inputs, retry blocks, etc.) copied verbatim
-//     from the original AST source bytes: dependency.*.outputs.* references
-//     are preserved without evaluation.
+//   - dependency blocks with a resolved config_path; their other attributes
+//     (mock_outputs, mock_outputs_allowed_terraform_commands, etc.) are partially
+//     evaluated, so generate-time roots (local.*, values.*, unit.*, stack.*) and
+//     function calls resolve to literals while dependency.*.outputs.* stays verbatim
+//     (resolved inside the generated unit at run time).
+//   - All non-dependency content (inputs, generate, remote_state, etc.) is partially
+//     evaluated the same way: only dependency.* (and any expression referencing it) is
+//     preserved verbatim for runtime resolution.
 //
 // Requires non-nil fs and non-empty targetDir (panics otherwise). resolved may be nil (no-op). srcBytes must be the bytes of the file resolved.RawBody was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
 func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
@@ -89,7 +91,7 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 			continue
 		}
 
-		if err := writeDependencyBlock(outBody, dep, origBlock, srcBytes, targetDir); err != nil {
+		if err := writeDependencyBlock(outBody, dep, origBlock, srcBytes, targetDir, evalCtx); err != nil {
 			return err
 		}
 
@@ -116,28 +118,28 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	return nil
 }
 
-// copyBlock copies block from the AST to hclwrite output; partially evaluates attributes when evalCtx is non-nil, otherwise verbatim.
-func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext) error {
+// maxBlockDepth bounds nested-block recursion so a deep autoinclude body cannot overflow the stack; the resolve-time value scan shares this bound and rejects over-deep bodies first, so this guard is unreachable defense-in-depth kept for the bounded-recursion rule.
+const maxBlockDepth = 1000
+
+// copyBlock copies block from the AST to hclwrite output; partially evaluates attributes when evalCtx is
+// non-nil, otherwise verbatim. Generate-time roots (local.*, values.*, unit.*, stack.*) and function calls
+// resolve to literals while dependency.*.outputs.* is deferred (kept verbatim, resolved inside the unit).
+func copyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte, evalCtx *hcl.EvalContext, depth int) error {
+	if depth > maxBlockDepth {
+		return BlockDepthExceededError{MaxDepth: maxBlockDepth}
+	}
+
 	newBlock := outBody.AppendNewBlock(block.Type, block.Labels)
 	blockBody := newBlock.Body()
 
 	for _, attr := range SortedAttributes(block.Body.Attributes) {
-		if evalCtx == nil {
-			blockBody.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
-
-			continue
-		}
-
-		result, err := PartialEval(attr.Expr, &EvalArgs{EvalCtx: evalCtx, Deferred: deferredRoots, SrcBytes: srcBytes})
-		if err != nil {
+		if err := writeAttribute(blockBody, attr, srcBytes, evalCtx); err != nil {
 			return err
 		}
-
-		blockBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
 	for _, nested := range block.Body.Blocks {
-		if err := copyBlock(blockBody, nested, srcBytes, evalCtx); err != nil {
+		if err := copyBlock(blockBody, nested, srcBytes, evalCtx, depth+1); err != nil {
 			return err
 		}
 	}
@@ -193,8 +195,12 @@ func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
 	})
 }
 
-// writeDependencyBlock writes a single dependency block with config_path converted to relative-to-targetDir; all other attributes are copied from source bytes to preserve original expressions.
-func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string) error {
+// writeDependencyBlock writes a single dependency block with config_path converted to relative-to-targetDir.
+// Its other attributes (mock_outputs, etc.) are partially evaluated like the rest of the autoinclude body:
+// generate-time roots (local.*, values.*, unit.*, stack.*) and function calls resolve to literals while
+// dependency.*.outputs.* is kept verbatim (resolved inside the generated unit). When evalCtx is nil the
+// attributes are copied from source bytes unchanged.
+func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string, evalCtx *hcl.EvalContext) error {
 	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
 
@@ -206,19 +212,20 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 
 	depBody.SetAttributeRaw(attrConfigPath, quotedStringTokens(relPath))
 
-	// Copy all other attributes from source bytes (mock_outputs, etc.).
+	// Render the remaining attributes (mock_outputs, etc.) with the same partial evaluation.
 	for _, attr := range SortedAttributes(origBlock.Body.Attributes) {
 		if attr.Name == attrConfigPath {
 			continue
 		}
 
-		exprBytes := RangeBytes(srcBytes, attr.Expr.Range())
-		depBody.SetAttributeRaw(attr.Name, RawTokens(exprBytes))
+		if err := writeAttribute(depBody, attr, srcBytes, evalCtx); err != nil {
+			return err
+		}
 	}
 
-	// Copy nested blocks within the dependency (if any). Nested blocks are copied verbatim (evalCtx == nil), so PartialEval is not invoked and the call cannot return a PartialEval error here.
+	// Render nested blocks within the dependency (if any) with the same partial evaluation.
 	for _, nested := range origBlock.Body.Blocks {
-		if err := copyBlock(depBody, nested, srcBytes, nil); err != nil {
+		if err := copyBlock(depBody, nested, srcBytes, evalCtx, 0); err != nil {
 			return err
 		}
 	}
@@ -226,22 +233,14 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 	return nil
 }
 
-// writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body, partially evaluating each attribute.
+// writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body. Generate-time
+// roots (local.*, values.*, unit.*, stack.*) and function calls resolve to literals; only dependency.* (and any
+// expression referencing it) stays verbatim so it resolves in the generated unit.
 func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	for _, attr := range SortedAttributes(body.Attributes) {
-		if evalCtx == nil {
-			exprBytes := RangeBytes(srcBytes, attr.Expr.Range())
-			outBody.SetAttributeRaw(attr.Name, RawTokens(exprBytes))
-
-			continue
-		}
-
-		result, err := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
-		if err != nil {
+		if err := writeAttribute(outBody, attr, srcBytes, evalCtx); err != nil {
 			return err
 		}
-
-		outBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
 	for _, block := range body.Blocks {
@@ -249,7 +248,7 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 			continue
 		}
 
-		if err := copyBlock(outBody, block, srcBytes, evalCtx); err != nil {
+		if err := copyBlock(outBody, block, srcBytes, evalCtx, 0); err != nil {
 			return err
 		}
 	}
@@ -260,6 +259,27 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.
 func quotedStringTokens(value string) hclwrite.Tokens {
 	return hclwrite.TokensForValue(cty.StringVal(value))
+}
+
+// writeAttribute writes attr to body verbatim when evalCtx is nil, otherwise partially evaluated so generate-time
+// roots resolve and deferred roots stay verbatim. A function that errors at generate time is kept verbatim by
+// [PartialEval] (structural fallback) without surfacing an error, so it resolves in the generated unit; a genuine
+// unresolved reference (e.g. a missing local.*/values.* key) surfaces as an error and fails generation.
+func writeAttribute(body *hclwrite.Body, attr *hclsyntax.Attribute, srcBytes []byte, evalCtx *hcl.EvalContext) error {
+	if evalCtx == nil {
+		body.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
+
+		return nil
+	}
+
+	result, err := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
+	if err != nil {
+		return err
+	}
+
+	body.SetAttributeRaw(attr.Name, RawTokens(result))
+
+	return nil
 }
 
 // resolvedSourceFile returns the originating HCL filename from a resolved autoinclude for panic-message context.

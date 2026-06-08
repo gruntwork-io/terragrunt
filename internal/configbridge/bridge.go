@@ -162,6 +162,7 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.SourceUpdate = opts.SourceUpdate
 	runOpts.CASCloneDepth = opts.CASCloneDepth
 	runOpts.NoCAS = opts.NoCAS
+	runOpts.NoHooks = opts.NoRunHooks
 
 	return runOpts
 }
