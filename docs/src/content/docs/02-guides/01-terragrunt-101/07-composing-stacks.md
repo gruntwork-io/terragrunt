@@ -331,6 +331,7 @@ The central stack definition accepts values and passes them to its units:
 
 ```hcl
 # stacks/three-tier-vpc/terragrunt.stack.hcl
+
 locals {
   # Accept values from parent, with defaults for testing
   environment = try(values.environment, "dev")
