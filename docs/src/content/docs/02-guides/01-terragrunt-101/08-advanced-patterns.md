@@ -143,7 +143,7 @@ terragrunt run apply --all --parallelism 10
 
 | Value       | Effect                      |
 | :---------- | :-------------------------- |
-| **Lower**   | Reduces AWS API throttling  |
+| **Lower**   | Reduces API throttling  |
 | **Higher**  | Speeds up large deployments |
 | **Default** | 10                          |
 
