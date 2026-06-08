@@ -229,7 +229,9 @@ When a stack defines a `stack` block (referencing another stack), the referenced
 
 ### Generated File Management
 
-By default, `terragrunt stack generate` creates generated units in their `path` directories. A common pattern is to:
+By default, `terragrunt stack generate` creates generated units in their `path` directories nested under a `.terragrunt-stack` directory.
+
+A common pattern is to:
 
 1. Keep stack definitions in version control
 2. Add `.terragrunt-stack` to `.gitignore`
