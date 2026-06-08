@@ -1,7 +1,7 @@
 ---
 name: stack-dependencies
-status: active
 since: "1.0.1"
+completedSince: "v1.1.0-rc1"
 ---
 
 import Since from '@components/Since.astro';
@@ -75,8 +75,10 @@ unit "app" {
 }
 ```
 
+As of `v1.1.0-rc1` this experiment is complete and the feature is enabled by default, so the `--experiment stack-dependencies` flag is no longer required:
+
 ```bash
-terragrunt run --all --experiment stack-dependencies -- plan
+terragrunt run --all -- plan
 ```
 
 ### `stack-dependencies` - How to provide feedback

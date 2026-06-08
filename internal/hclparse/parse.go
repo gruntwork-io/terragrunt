@@ -474,7 +474,7 @@ func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx, KindUnit, autoIncludeSourceBytes(srcByFilename, unit.AutoInclude))
+		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx, KindUnit, unit.Name, autoIncludeSourceBytes(srcByFilename, unit.AutoInclude))
 		if err != nil {
 			return nil, err
 		}
@@ -489,7 +489,7 @@ func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx, KindStack, autoIncludeSourceBytes(srcByFilename, stack.AutoInclude))
+		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx, KindStack, stack.Name, autoIncludeSourceBytes(srcByFilename, stack.AutoInclude))
 		if err != nil {
 			return nil, err
 		}
@@ -503,9 +503,13 @@ func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx
 }
 
 // resolveAutoInclude resolves a single autoinclude block, attaches the eval context, tags it with the component kind so the generator picks the right filename, and records the originating file's bytes for include-aware expression slicing.
-func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, kind AutoIncludeKind, sourceBytes []byte) (*AutoIncludeResolved, error) {
-	resolved, diags := autoInclude.Resolve(evalCtx)
+func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, kind AutoIncludeKind, name string, sourceBytes []byte) (*AutoIncludeResolved, error) {
+	resolved, diags := autoInclude.ResolveForKind(evalCtx, kind, name)
 	if diags.HasErrors() {
+		if typed := stackAutoIncludeDepValuesErr(diags); typed != nil {
+			return nil, *typed
+		}
+
 		return nil, diags
 	}
 
@@ -516,4 +520,15 @@ func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, k
 	}
 
 	return resolved, nil
+}
+
+// stackAutoIncludeDepValuesErr extracts a StackAutoIncludeDependencyValuesError carried in a diagnostic's Extra field, or nil when none is present.
+func stackAutoIncludeDepValuesErr(diags hcl.Diagnostics) *StackAutoIncludeDependencyValuesError {
+	for _, diag := range diags {
+		if typed, ok := diag.Extra.(StackAutoIncludeDependencyValuesError); ok {
+			return &typed
+		}
+	}
+
+	return nil
 }

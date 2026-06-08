@@ -109,19 +109,7 @@ We use the linter as a guide to learn about how we can improve the Terragrunt co
 
 If you feel like the linter is missing a check that would be useful for improving the code quality of Terragrunt, please open an issue to discuss it, then open a pull request to add the check.
 
-There are two lint configurations currently in use:
-
-- **Default linter**
-
-  This is the default configuration that is used when running `golangci-lint run`. The configuration for this lint is defined in the `.golangci.yml` file.
-
-  These lints **must** pass before any code is merged into the `main` branch.
-
-- **Strict linter**
-
-  This is the more strict configuration that is used to check for additional issues in pull requests. This configuration is defined in the `.strict.golanci.yml` file.
-
-  These lints **do not have to pass** before code is merged into the `main` branch, but the results are useful to look at to improve code quality.
+The default in the `.golangci.yml` configuration file is used when running `golangci-lint run`. These lints **must** pass before any code is merged into the `main` branch.
 
 #### Default linter
 

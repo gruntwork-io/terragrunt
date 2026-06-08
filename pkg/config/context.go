@@ -11,20 +11,22 @@ import (
 type configKey byte
 
 const (
-	HclCacheContextKey              configKey = iota
-	TerragruntConfigCacheContextKey configKey = iota
-	RunCmdCacheContextKey           configKey = iota
-	DependencyOutputCacheContextKey configKey = iota
-	JSONOutputCacheContextKey       configKey = iota
-	OutputLocksContextKey           configKey = iota
-	SopsCacheContextKey             configKey = iota
+	HclCacheContextKey               configKey = iota
+	TerragruntConfigCacheContextKey  configKey = iota
+	RunCmdCacheContextKey            configKey = iota
+	DependencyOutputCacheContextKey  configKey = iota
+	JSONOutputCacheContextKey        configKey = iota
+	OutputLocksContextKey            configKey = iota
+	SopsCacheContextKey              configKey = iota
+	AutoIncludeSuffixCacheContextKey configKey = iota
 
-	hclCacheName              = "hclCache"
-	configCacheName           = "configCache"
-	runCmdCacheName           = "runCmdCache"
-	dependencyOutputCacheName = "dependencyOutputCache"
-	jsonOutputCacheName       = "jsonOutputCache"
-	sopsCacheName             = "sopsCache"
+	hclCacheName               = "hclCache"
+	configCacheName            = "configCache"
+	runCmdCacheName            = "runCmdCache"
+	dependencyOutputCacheName  = "dependencyOutputCache"
+	jsonOutputCacheName        = "jsonOutputCache"
+	sopsCacheName              = "sopsCache"
+	autoIncludeSuffixCacheName = "autoIncludeSuffixCache"
 )
 
 // WithConfigValues add to context default values for configuration.
@@ -36,6 +38,7 @@ func WithConfigValues(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, JSONOutputCacheContextKey, cache.NewCache[[]byte](jsonOutputCacheName))
 	ctx = context.WithValue(ctx, OutputLocksContextKey, util.NewKeyLocks())
 	ctx = context.WithValue(ctx, SopsCacheContextKey, cache.NewCache[string](sopsCacheName))
+	ctx = context.WithValue(ctx, AutoIncludeSuffixCacheContextKey, cache.NewCache[string](autoIncludeSuffixCacheName))
 
 	return ctx
 }

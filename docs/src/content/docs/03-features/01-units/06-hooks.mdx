@@ -57,6 +57,12 @@ All hooks add extra environment variables when executing the hook's run command:
 - `TG_CTX_COMMAND`
 - `TG_CTX_HOOK_NAME`
 
+When the [`hook-context-env`](/reference/experiments/active#hook-context-env) experiment is enabled, three additional variables are also set:
+
+- `TG_CTX_HOOK_TYPE` — `before_hook`, `after_hook`, or `error_hook`
+- `TG_CTX_SOURCE` — the resolved terraform source URL (CLI `--source` override, else evaluated `terraform.source` with source-map applied, else `.`)
+- `TG_CTX_TERRAGRUNT_DIR` — the directory of the current Terragrunt config
+
 For example:
 
 ```hcl
