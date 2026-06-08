@@ -171,6 +171,7 @@ The same pattern works at the stack level. A stack definition can accept values 
 
 ```hcl
 # stacks/vpc/terragrunt.stack.hcl
+
 locals {
   # Accept values from parent, with defaults
   environment = try(values.environment, "dev")
