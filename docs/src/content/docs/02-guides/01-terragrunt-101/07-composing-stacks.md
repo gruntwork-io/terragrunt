@@ -67,6 +67,7 @@ An explicit stack is defined in a file named **`terragrunt.stack.hcl`**:
 
 ```hcl
 # terragrunt.stack.hcl
+
 unit "vpc" {
   source = "../units/vpc"
   path   = "vpc"
