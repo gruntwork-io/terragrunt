@@ -211,7 +211,10 @@ Explicit stacks introduce new commands under **`terragrunt stack`**:
 
 ### The Generate Step
 
-Before operating on an explicit stack, you must **generate it**:
+Before operating on an explicit stack, you can explicitly **generate it**:
+
+
+Stacks are generated automatically by default for all commands that interact with stacks.
 
 ```bash
 cd my-stack/
