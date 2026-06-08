@@ -22,7 +22,7 @@ unit "app" {
     inputs = {
       # A dependency output stays verbatim and resolves inside the unit (from the mock at plan time).
       data_value = dependency.data.outputs.value
-      # A function call inside inputs stays verbatim so it evaluates in the generated unit's directory.
+      # A function call with no dependency.* reference resolves at generate time in the stack file context.
       greeting = run_cmd("echo", "hi-from-unit")
     }
   }

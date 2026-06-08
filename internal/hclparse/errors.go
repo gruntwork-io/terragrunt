@@ -208,32 +208,6 @@ func (e StackAutoIncludeDependencyValuesError) Error() string {
 	)
 }
 
-// AutoIncludeValuesReferenceError indicates an autoinclude expression references the unit-scoped values namespace, which is unavailable at stack generate time.
-type AutoIncludeValuesReferenceError struct {
-	Subject   *hcl.Range
-	Kind      string
-	Component string
-	Attr      string
-}
-
-func (e AutoIncludeValuesReferenceError) Error() string {
-	component := e.Component
-	if component == "" {
-		component = unknownPlaceholder
-	}
-
-	attr := e.Attr
-	if attr == "" {
-		attr = unknownPlaceholder
-	}
-
-	return fmt.Sprintf(
-		"autoinclude for %s %q references values.* in %q, but values is a unit-scoped namespace that is not available when the stack file is generated; "+
-			"replace the reference with a stack-level local declared in terragrunt.stack.hcl or a literal value",
-		e.Kind, component, attr,
-	)
-}
-
 // AutoIncludeNestedError indicates an autoinclude block is nested inside another autoinclude block, which is disallowed.
 type AutoIncludeNestedError struct {
 	Subject   *hcl.Range

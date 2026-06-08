@@ -108,22 +108,35 @@ func TestPartialEval(t *testing.T) {
 			contains: []string{"try(dependency.vpc.outputs.id", `"default"`},
 		},
 		{
-			name:     "conditional pure condition true",
+			// A generate-time-known condition collapses outright to the chosen branch: the unchosen
+			// branch and the conditional operator are dropped, so the deferred dependency arm disappears.
+			name:     "conditional pure condition true collapses to the chosen branch",
 			hcl:      `val = local.flag ? "yes" : dependency.vpc.outputs.vpc_id`,
 			evalCtx:  buildEvalCtx(),
 			contains: []string{`"yes"`},
+			excludes: []string{"dependency.vpc.outputs.vpc_id", "?"},
 		},
 		{
-			name:     "conditional pure condition false",
+			name:     "conditional pure condition false collapses to the chosen branch",
 			hcl:      `val = !local.flag ? "yes" : dependency.vpc.outputs.vpc_id`,
 			evalCtx:  buildEvalCtx(),
 			contains: []string{"dependency.vpc.outputs.vpc_id"},
+			excludes: []string{`"yes"`, "?"},
 		},
 		{
 			name:     "conditional deferred condition",
 			hcl:      `val = dependency.vpc.outputs.ready ? "yes" : "no"`,
 			evalCtx:  buildEvalCtx(),
 			contains: []string{"dependency.vpc.outputs.ready", `"yes"`, `"no"`},
+		},
+		{
+			// A deferred condition keeps the conditional structure while each arm is partially evaluated:
+			// the local.* arm renders to a literal at generate time, the dependency.* arm stays verbatim.
+			name:     "conditional deferred condition renders local arm, defers dependency arm",
+			hcl:      `val = dependency.vpc.outputs.ready ? local.region : dependency.vpc.outputs.vpc_id`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`dependency.vpc.outputs.ready ?`, `"us-east-1"`, "dependency.vpc.outputs.vpc_id"},
+			excludes: []string{"local.region"},
 		},
 		{
 			name:     "for expression with deferred",
@@ -429,22 +442,44 @@ func TestPartialEval_FunctionCallArgumentsArePartiallyEvaluated(t *testing.T) {
 	}
 }
 
-// TestPartialEval_DeferFunctions pins the deferred-zone contract: a function call stays verbatim (and is not
-// executed) while stack-level local.* still resolves, including inside the preserved call's arguments.
-func TestPartialEval_DeferFunctions(t *testing.T) {
+// TestPartialEval_FunctionResolution pins that a function call resolves at generate time unless it references the
+// deferred dependency.* root, in which case the call (and the dependency reference) stays verbatim for the generated
+// unit. Stack-level local.* always renders, including inside a preserved call.
+func TestPartialEval_FunctionResolution(t *testing.T) {
 	t.Parallel()
 
 	newCtx := func(called *bool) *hcl.EvalContext {
 		evalCtx := buildEvalCtx()
-		evalCtx.Functions = map[string]function.Function{
-			"run_cmd": function.New(&function.Spec{
-				VarParam: &function.Parameter{Type: cty.DynamicPseudoType},
-				Type:     function.StaticReturnType(cty.String),
-				Impl:     func([]cty.Value, cty.Type) (cty.Value, error) { *called = true; return cty.StringVal("ran"), nil },
+		evalCtx.Variables["dependency"] = cty.ObjectVal(map[string]cty.Value{
+			"vpc": cty.ObjectVal(map[string]cty.Value{
+				"outputs": cty.ObjectVal(map[string]cty.Value{
+					"region": cty.StringVal("eu-west-1"),
+				}),
 			}),
-			"flag_fn": function.New(&function.Spec{
-				Type: function.StaticReturnType(cty.Bool),
-				Impl: func([]cty.Value, cty.Type) (cty.Value, error) { *called = true; return cty.True, nil },
+		})
+		evalCtx.Functions = map[string]function.Function{
+			"upper": function.New(&function.Spec{
+				Params: []function.Parameter{{Type: cty.String}},
+				Type:   function.StaticReturnType(cty.String),
+				Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+					*called = true
+
+					return cty.StringVal(strings.ToUpper(args[0].AsString())), nil
+				},
+			}),
+			"tag": function.New(&function.Spec{
+				VarParam: &function.Parameter{Type: cty.String},
+				Type:     function.StaticReturnType(cty.String),
+				Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+					*called = true
+
+					parts := make([]string, len(args))
+					for i, a := range args {
+						parts[i] = a.AsString()
+					}
+
+					return cty.StringVal(strings.Join(parts, "-")), nil
+				},
 			}),
 		}
 
@@ -455,65 +490,66 @@ func TestPartialEval_DeferFunctions(t *testing.T) {
 		t.Helper()
 
 		expr, srcBytes := parseFirstAttrExpr(t, src)
-		out, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: newCtx(called), Deferred: testDeferred, DeferFunctions: true})
+		out, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: newCtx(called), Deferred: testDeferred})
 		require.NoError(t, err)
 
 		return string(out)
 	}
 
-	t.Run("function call verbatim, local argument rendered", func(t *testing.T) {
+	t.Run("pure function call resolves at generate time", func(t *testing.T) {
 		t.Parallel()
 
 		var called bool
 
-		out := eval(t, &called, `val = run_cmd("echo", local.region)`)
-		assert.False(t, called, "a function in a deferred zone must not run at generate time")
-		assert.Contains(t, out, `run_cmd("echo", "us-east-1")`, "the call stays verbatim while the stack local renders")
+		out := eval(t, &called, `val = upper(local.region)`)
+		assert.True(t, called, "a function with no dependency.* reference runs at generate time")
+		assert.Contains(t, out, `"US-EAST-1"`)
 		assert.NotContains(t, out, "local.region")
 	})
 
-	t.Run("function call in conditional condition verbatim", func(t *testing.T) {
+	t.Run("function referencing dependency stays verbatim and does not run", func(t *testing.T) {
 		t.Parallel()
 
 		var called bool
 
-		out := eval(t, &called, `val = flag_fn() ? "a" : "b"`)
-		assert.False(t, called)
-		assert.Contains(t, out, "flag_fn()", "a function in a conditional condition stays verbatim in a deferred zone")
+		out := eval(t, &called, `val = upper(dependency.vpc.outputs.region)`)
+		assert.False(t, called, "a function whose argument references dependency.* must not run at generate time")
+		assert.Contains(t, out, "upper(dependency.vpc.outputs.region)", "the call stays verbatim for the generated unit")
 	})
 
-	t.Run("function call in template verbatim, local rendered", func(t *testing.T) {
+	t.Run("deferred call renders its sibling local arg", func(t *testing.T) {
 		t.Parallel()
 
 		var called bool
 
-		out := eval(t, &called, `val = "pre-${run_cmd("echo", local.region)}-post"`)
-		assert.False(t, called)
-		assert.Contains(t, out, `pre-${run_cmd("echo", "us-east-1")}-post`)
+		out := eval(t, &called, `val = tag(local.region, dependency.vpc.outputs.region)`)
+		assert.False(t, called, "a call referencing dependency.* must not run at generate time")
+		assert.Contains(t, out, `tag("us-east-1", dependency.vpc.outputs.region)`, "the stack local renders while the dependency arg defers")
+		assert.NotContains(t, out, "local.region")
 	})
 
-	t.Run("a pure local still renders with DeferFunctions", func(t *testing.T) {
+	t.Run("function call in a conditional condition resolves", func(t *testing.T) {
 		t.Parallel()
 
 		var called bool
 
-		out := eval(t, &called, `val = local.region`)
-		assert.False(t, called)
-		assert.Contains(t, out, `"us-east-1"`)
+		out := eval(t, &called, `val = upper(local.region) == "US-EAST-1" ? "a" : "b"`)
+		assert.True(t, called)
+		assert.Contains(t, out, `"a"`, "the condition resolves at generate time and selects the true branch")
 	})
 }
 
 // TestPartialEval_CompositeExpressions pins that for/splat/binary-op/unary-op/index expressions render their
-// non-deferred stack references (local.*) while keeping the deferred parts (dependency.*, loop bodies, and
-// functions in a deferred zone) verbatim, so the generated unit never sees an unresolved stack-level reference.
+// non-deferred stack references (local.*) while keeping the deferred parts (dependency.* and loop bodies operating
+// on loop variables) verbatim, so the generated unit never sees an unresolved stack-level reference.
 func TestPartialEval_CompositeExpressions(t *testing.T) {
 	t.Parallel()
 
-	eval := func(t *testing.T, src string, deferFunctions bool) string {
+	eval := func(t *testing.T, src string) string {
 		t.Helper()
 
 		expr, srcBytes := parseFirstAttrExpr(t, src)
-		out, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred, DeferFunctions: deferFunctions})
+		out, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
 		require.NoError(t, err)
 
 		return string(out)
@@ -522,7 +558,7 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 	t.Run("binary op renders local and defers dependency", func(t *testing.T) {
 		t.Parallel()
 
-		out := eval(t, `val = local.region == dependency.vpc.outputs.region`, false)
+		out := eval(t, `val = local.region == dependency.vpc.outputs.region`)
 		assert.Contains(t, out, `"us-east-1" ==`, "the stack local renders")
 		assert.Contains(t, out, "dependency.vpc.outputs.region", "the dependency reference stays verbatim")
 		assert.NotContains(t, out, "local.region")
@@ -531,14 +567,14 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 	t.Run("unary op defers dependency", func(t *testing.T) {
 		t.Parallel()
 
-		out := eval(t, `val = !dependency.vpc.outputs.enabled`, false)
+		out := eval(t, `val = !dependency.vpc.outputs.enabled`)
 		assert.Contains(t, out, "!dependency.vpc.outputs.enabled")
 	})
 
 	t.Run("index renders local key and defers dependency collection", func(t *testing.T) {
 		t.Parallel()
 
-		out := eval(t, `val = dependency.vpc.outputs.subnets[local.count]`, false)
+		out := eval(t, `val = dependency.vpc.outputs.subnets[local.count]`)
 		assert.Contains(t, out, "dependency.vpc.outputs.subnets[3]", "the local index renders while the dependency collection defers")
 		assert.NotContains(t, out, "local.count")
 	})
@@ -546,7 +582,7 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 	t.Run("for renders collection local and defers the loop body", func(t *testing.T) {
 		t.Parallel()
 
-		out := eval(t, `val = [for x in local.names : upper(x)]`, true)
+		out := eval(t, `val = [for x in local.names : upper(x)]`)
 		assert.Contains(t, out, `["a", "b"]`, "the collection local renders")
 		assert.Contains(t, out, "upper(x)", "the loop body runs in the unit and stays verbatim")
 		assert.NotContains(t, out, "local.names")
@@ -555,14 +591,14 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 	t.Run("for over a dependency collection stays verbatim", func(t *testing.T) {
 		t.Parallel()
 
-		out := eval(t, `val = [for x in dependency.vpc.outputs.names : x]`, false)
+		out := eval(t, `val = [for x in dependency.vpc.outputs.names : x]`)
 		assert.Contains(t, out, "[for x in dependency.vpc.outputs.names : x]")
 	})
 
 	t.Run("for renders a stack local in the body and defers the loop var", func(t *testing.T) {
 		t.Parallel()
 
-		out := eval(t, `val = [for s in dependency.vpc.outputs.subnets : local.region]`, false)
+		out := eval(t, `val = [for s in dependency.vpc.outputs.subnets : local.region]`)
 		assert.Contains(t, out, `"us-east-1"`, "the stack local in the loop body renders")
 		assert.Contains(t, out, "dependency.vpc.outputs.subnets", "the dependency collection defers")
 		assert.NotContains(t, out, "local.region")
@@ -573,7 +609,7 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 
 		// The loop var `local` shadows the local namespace inside the for; after the for the deferred set must be
 		// restored so the sibling local.region renders instead of being kept verbatim as a still-deferred root.
-		out := eval(t, `val = [[for local in dependency.vpc.outputs.a : local], local.region]`, false)
+		out := eval(t, `val = [[for local in dependency.vpc.outputs.a : local], local.region]`)
 		assert.Contains(t, out, `"us-east-1"`, "the sibling local.region renders after the for, proving the deferred set was restored")
 		assert.Contains(t, out, "[for local in dependency.vpc.outputs.a : local]", "the loop var stays verbatim inside the for")
 	})
@@ -581,7 +617,7 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 	t.Run("nested for keeps both loop vars verbatim and renders the body local", func(t *testing.T) {
 		t.Parallel()
 
-		out := eval(t, `val = [for x in dependency.vpc.outputs.a : [for x in dependency.vpc.outputs.b : "${x}-${local.region}"]]`, false)
+		out := eval(t, `val = [for x in dependency.vpc.outputs.a : [for x in dependency.vpc.outputs.b : "${x}-${local.region}"]]`)
 		assert.Contains(t, out, "${x}-us-east-1", "the body local renders while the loop var stays verbatim")
 		assert.NotContains(t, out, "${local.region}", "local.region must not stay verbatim")
 	})
@@ -589,7 +625,7 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 	t.Run("splat over a dependency source stays verbatim", func(t *testing.T) {
 		t.Parallel()
 
-		out := eval(t, `val = dependency.vpc.outputs.subnets[*].id`, false)
+		out := eval(t, `val = dependency.vpc.outputs.subnets[*].id`)
 		assert.Contains(t, out, "dependency.vpc.outputs.subnets[*].id")
 	})
 }

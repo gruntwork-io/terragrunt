@@ -484,6 +484,9 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 
 	l.Infof("Generating %s for %s %s in %s", inthclparse.AutoIncludeFileNameForKind(kind), kind, cmp.name, util.RelPathForLog(opts.rootWorkingDir, dest, opts.logShowAbsPaths))
 
+	// The autoinclude resolves entirely in the stack file context, so the resolution-time eval context (functions
+	// scoped to the stack file, like the discovery path) is reused as-is: every expression except dependency.* is
+	// already a literal, and directory-context functions resolve where the autoinclude was authored.
 	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, resolved.SourceBytes, resolved.EvalCtx); err != nil {
 		return fmt.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
 	}
