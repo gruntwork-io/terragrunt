@@ -1,0 +1,14 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: `autoinclude` blocks can reference `values.*`
+
+An `autoinclude` block may now reference the stack's `values.*`. Previously a `values.*` reference was rejected at stack generate time, except in a dependency `config_path`. It now resolves to a literal like `local.*`, `unit.<name>.path`, and `stack.<name>.path`, wherever it appears: `inputs`, `generate`, `remote_state`, `mock_outputs`, and `config_path`.
+
+Function calls in an autoinclude now resolve at generate time too, in the `terragrunt.stack.hcl` context, instead of being kept verbatim and evaluated in the generated unit. Only a `dependency.*` reference (a dependency's outputs) stays verbatim and resolves inside the unit; in a mixed expression the stack-level parts resolve and only the `dependency.*` reference is kept.
+
+Because functions now evaluate against the stack file rather than the unit, directory and include functions report the stack file's location: `get_terragrunt_dir` returns the stack file's directory, and `path_relative_to_include` returns `"."`. If you relied on these resolving in the unit, move them to the unit's own configuration, or derive a per-unit value such as a `remote_state` backend key from `unit.<name>.path`.
+
+A `locals` block inside an autoinclude remains rejected; declare stack-level locals in `terragrunt.stack.hcl` instead.

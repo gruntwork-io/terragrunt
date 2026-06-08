@@ -155,13 +155,18 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return AutoIncludeParserStageError{Stage: "eval-context", File: stackFilePath, Err: evalCtxErr}
 		}
 
+		// Evaluate the autoinclude with the stack-file function set (derived from the eval context already built
+		// above) so directory-context functions like get_working_dir resolve against the stack file instead of
+		// re-parsing it as a regular config.
+		earlyFuncs := StackParseFunctionsFrom(prodEvalCtx.Functions, stackSourceDir)
+
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
 			Src:       stackSrcBytes,
 			Filename:  filepath.Base(stackFilePath),
 			StackDir:  stackSourceDir,
 			Values:    values,
 			Variables: prodEvalCtx.Variables,
-			Functions: prodEvalCtx.Functions,
+			Functions: earlyFuncs,
 		})
 		if parseErr != nil {
 			return AutoIncludeParserStageError{Stage: "parse", File: stackFilePath, Err: parseErr}
@@ -479,6 +484,9 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 
 	l.Infof("Generating %s for %s %s in %s", inthclparse.AutoIncludeFileNameForKind(kind), kind, cmp.name, util.RelPathForLog(opts.rootWorkingDir, dest, opts.logShowAbsPaths))
 
+	// The autoinclude resolves entirely in the stack file context, so the resolution-time eval context (functions
+	// scoped to the stack file, like the discovery path) is reused as-is: every expression except dependency.* is
+	// already a literal, and directory-context functions resolve where the autoinclude was authored.
 	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, resolved.SourceBytes, resolved.EvalCtx); err != nil {
 		return fmt.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
 	}
