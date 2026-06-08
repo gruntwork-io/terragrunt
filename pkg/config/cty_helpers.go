@@ -389,10 +389,7 @@ func includeConfigAsCtyVal(ctx context.Context, pctx *ParsingContext, l log.Logg
 	pctx = pctx.WithTrackInclude(nil)
 
 	if includeConfig.GetExpose() {
-		// Annotate any resolution error with the include block name and the included (parent) file path. Low-level
-		// errors from parsing/converting the included config (e.g. the gocty "unsuitable value: a bool is required")
-		// carry no source location, so without this wrapping the user has no way to tell which include block or file
-		// is at fault. See https://github.com/gruntwork-io/terragrunt/issues/6282.
+		// Annotate resolution errors with the include name and parent file, since low-level errors carry no source location.
 		parsedIncluded, err := parseIncludedConfig(ctx, pctx, l, &includeConfig)
 		if err != nil {
 			return cty.NilVal, fmt.Errorf("exposed include %s (%s): %w", includeBlockLabel(includeConfig), includeConfig.Path, err)
