@@ -239,6 +239,7 @@ Stacks can include **other stacks**, enabling composition at a higher level:
 
 ```hcl
 # terragrunt.stack.hcl
+
 unit "vpc" {
   source = "../units/vpc"
   path   = "vpc"
