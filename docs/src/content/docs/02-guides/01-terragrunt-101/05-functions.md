@@ -363,7 +363,7 @@ This matters when using `--filter 'reading=<file>'` to selectively run units tha
 
 The `mark_as_read()` function **registers the file** as having been read by the unit. It returns the file path, so you wrap it around the path you pass to `file()`:
 
-`mark_as_read()` effectively enables Terragrunt to add units to a run queue dependent on non-HCL files.
+`mark_as_read()` allows you to signal to Terragrunt internals that a file is used for driving configuration of units/stacks, even if the way in which they are read is opaque to Terragrunt.
 
 ```hcl
 # terragrunt.hcl
