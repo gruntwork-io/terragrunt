@@ -331,6 +331,8 @@ The `locals` block defines values you can **reuse** throughout your configuratio
 Access them with `local.<name>`.
 
 ```hcl
+# terragrunt.hcl
+
 locals {
   account_vars = read_terragrunt_config(find_in_parent_folders("account.hcl"))
   region_vars  = read_terragrunt_config(find_in_parent_folders("region.hcl"))
