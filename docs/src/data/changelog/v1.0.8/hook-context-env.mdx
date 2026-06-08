@@ -1,0 +1,18 @@
+---
+version: "v1.0.8"
+category: "experiments-added"
+---
+
+#### `hook-context-env` experiment exposes additional `TG_CTX_*` env vars to hooks
+
+Enable the new [`hook-context-env`](/reference/experiments/active#hook-context-env) experiment to surface three additional environment variables to every `before_hook`, `after_hook`, and `error_hook`:
+
+- `TG_CTX_HOOK_TYPE` — `before_hook`, `after_hook`, or `error_hook`, identifying which lifecycle phase invoked the hook.
+- `TG_CTX_SOURCE` — the resolved terraform source URL (CLI `--source` override, else evaluated `terraform.source` with source-map applied, else `.`).
+- `TG_CTX_TERRAGRUNT_DIR` — the directory of the current Terragrunt config.
+
+```bash
+terragrunt run --all --experiment hook-context-env -- apply
+```
+
+These variables make it easier to share a single hook script across lifecycle phases and to access the unit's source and config directory without threading them through hook arguments.

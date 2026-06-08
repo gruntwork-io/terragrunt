@@ -46,7 +46,7 @@ func collectBoolKeys(t reflect.Type) map[string]struct{} {
 		return nil
 	}
 
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -56,8 +56,7 @@ func collectBoolKeys(t reflect.Type) map[string]struct{} {
 
 	keys := make(map[string]struct{})
 
-	for i := range t.NumField() {
-		field := t.Field(i)
+	for field := range t.Fields() {
 		tag := field.Tag.Get("mapstructure")
 
 		// Handle squashed embedded structs
@@ -88,7 +87,7 @@ func collectFieldBoolKey(field *reflect.StructField, tag string) (string, bool) 
 	}
 
 	fieldType := field.Type
-	if fieldType.Kind() == reflect.Ptr {
+	if fieldType.Kind() == reflect.Pointer {
 		fieldType = fieldType.Elem()
 	}
 

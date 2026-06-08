@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
@@ -145,6 +146,8 @@ func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, f
 	if err != nil {
 		errs = append(errs, err)
 	}
+
+	registerSiblingAutoInclude(pctx, file.ConfigPath, trackInclude)
 
 	// set feature flags
 	tgFlags := terragruntFeatureFlags{}
@@ -401,6 +404,9 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 func TerragruntConfigFromPartialConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	cacheKey := fmt.Sprintf("%#v-%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList, pctx.TerragruntConfigPath)
 
+	// Fold the sibling autoinclude existence and content into the key so an in-process create, remove, or edit cannot return a stale entry, with the merge experiment-gated so the experiment-off key is byte-for-byte unchanged.
+	cacheKey += autoIncludeCacheKeySuffix(ctx, pctx, file.ConfigPath)
+
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, TerragruntConfigCacheContextKey)
 	if pctx.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
@@ -501,6 +507,13 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	}
 
 	output.IsPartial = true
+
+	// Provide a dependency placeholder so remote_state can reference dependency outputs during partial decode.
+	if pctx.DecodedDependencies == nil && pctx.SkipOutputsResolution && pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		pctx = pctx.Clone()
+		dynamicVal := cty.DynamicVal
+		pctx.DecodedDependencies = &dynamicVal
+	}
 
 	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
 	if err != nil {
@@ -712,8 +725,19 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		return output, joined
 	}
 
+	// Materialize the current file's exclude after includes merge so included feature flags resolve, and before the autoinclude merge so the autoinclude wins on top.
 	if hasExcludeBlock {
-		return processExcludes(ctx, pctx, l, output, file)
+		excludeOutput, err := processExcludes(ctx, pctx, l, output, file)
+		if err != nil {
+			return nil, err
+		}
+
+		output = excludeOutput
+	}
+
+	// Merge the sibling autoinclude into this partial output so discovery/run-queue agrees with the full parse.
+	if err := mergeAutoIncludePartialIfPresent(ctx, pctx, l, output); err != nil {
+		return nil, err
 	}
 
 	return output, nil
@@ -783,6 +807,159 @@ func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.Eval
 	}
 
 	return tgInc.Include, nil
+}
+
+// registerSiblingAutoInclude records the sibling terragrunt.autoinclude.hcl on trackInclude as a high-priority override when it is in scope and exists, so the merge consumers read one registered entry instead of recomputing the gate.
+func registerSiblingAutoInclude(pctx *ParsingContext, configPath string, trackInclude *TrackInclude) {
+	if trackInclude == nil {
+		return
+	}
+
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
+	if !ok {
+		return
+	}
+
+	if !util.FileExists(autoIncludePath) {
+		return
+	}
+
+	trackInclude.AutoIncludeOverride = &IncludeConfig{Path: autoIncludePath}
+}
+
+// mergeAutoIncludePartialIfPresent merges the registered sibling autoinclude override into a partial output using the same decode list, shallow, with the autoinclude winning, matching a regular include's default merge strategy.
+func mergeAutoIncludePartialIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, output *TerragruntConfig) error {
+	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
+		return nil
+	}
+
+	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
+
+	// Reset DecodedDependencies so the autoinclude file gets its own dependency resolution pass; reuse the same decode list.
+	clonedPctx := pctx.Clone()
+	clonedPctx.DecodedDependencies = nil
+	clonedPctx.skipAutoIncludeMerge = true
+	clonedPctx = clonedPctx.WithDecodeList(pctx.PartialParseDecodeList...)
+
+	autoIncludeConfig, err := PartialParseConfigFile(ctx, clonedPctx, l, autoIncludePath, nil)
+	if err != nil {
+		return fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
+	}
+
+	// Capture paths from each side's dependencies block before the merge flattens block derived paths together.
+	unitDependenciesBlockPaths := dependenciesBlockOnlyPaths(l, output)
+	autoDependenciesBlockPaths := dependenciesBlockOnlyPaths(l, autoIncludeConfig)
+
+	// Shallow merge with the autoinclude as the winning source, matching a regular include's default strategy.
+	if err := output.Merge(l, autoIncludeConfig); err != nil {
+		return fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
+	}
+
+	// Merge only appends the module dependency path list so rebuild it from the by name merged blocks to drop any overridden stale path.
+	reconcileAutoIncludeModulePaths(l, output, unitDependenciesBlockPaths, autoDependenciesBlockPaths)
+
+	return nil
+}
+
+// dependenciesBlockOnlyPaths returns the module dependency paths that came from a dependencies block rather than being derived from a dependency block.
+func dependenciesBlockOnlyPaths(l log.Logger, cfg *TerragruntConfig) []string {
+	if cfg == nil || cfg.Dependencies == nil {
+		return nil
+	}
+
+	blockPaths := make(map[string]struct{})
+
+	// Classify block derived paths through the same helper the rebuild uses so disabled and unresolved blocks are treated identically and a dependencies block edge overlapping a disabled block is not dropped.
+	blockDerived := dependencyBlocksToModuleDependencies(l, cfg.TerragruntDependencies)
+	if blockDerived != nil {
+		for _, path := range blockDerived.Paths {
+			blockPaths[path] = struct{}{}
+		}
+	}
+
+	blockOnly := make([]string, 0, len(cfg.Dependencies.Paths))
+
+	for _, path := range cfg.Dependencies.Paths {
+		if _, ok := blockPaths[path]; ok {
+			continue
+		}
+
+		blockOnly = append(blockOnly, path)
+	}
+
+	return blockOnly
+}
+
+// reconcileAutoIncludeModulePaths rebuilds the module dependency path list from the by name merged dependency blocks plus the preserved literal dependencies paths.
+func reconcileAutoIncludeModulePaths(l log.Logger, output *TerragruntConfig, preservedPaths ...[]string) {
+	rebuilt := dependencyBlocksToModuleDependencies(l, output.TerragruntDependencies)
+	if rebuilt == nil {
+		rebuilt = &ModuleDependencies{}
+	}
+
+	for _, set := range preservedPaths {
+		rebuilt.Paths = append(rebuilt.Paths, set...)
+	}
+
+	seen := make(map[string]struct{}, len(rebuilt.Paths))
+	deduped := make([]string, 0, len(rebuilt.Paths))
+
+	for _, path := range rebuilt.Paths {
+		if _, ok := seen[path]; ok {
+			continue
+		}
+
+		seen[path] = struct{}{}
+		deduped = append(deduped, path)
+	}
+
+	if len(deduped) == 0 {
+		output.Dependencies = nil
+		return
+	}
+
+	rebuilt.Paths = deduped
+	output.Dependencies = rebuilt
+}
+
+// autoIncludeCacheKeySuffix folds the sibling autoinclude existence and content into the partial-parse cache key when the StackDependencies experiment is on, returning the empty string with the experiment off so the existing key stays byte-for-byte unchanged.
+func autoIncludeCacheKeySuffix(ctx context.Context, pctx *ParsingContext, configPath string) string {
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
+	if !ok {
+		return ""
+	}
+
+	memo := cache.ContextCache[string](ctx, AutoIncludeSuffixCacheContextKey)
+
+	// Fingerprint the sibling cheaply so a cache hit reuses the content based suffix without re-reading the file.
+	fingerprint := autoIncludePath
+	if info, statErr := os.Stat(autoIncludePath); statErr == nil {
+		fingerprint = fmt.Sprintf("%s-%d-%d", autoIncludePath, info.ModTime().UnixMicro(), info.Size())
+	}
+
+	if suffix, found := memo.Get(ctx, fingerprint); found {
+		return suffix
+	}
+
+	suffix := autoIncludeContentSuffix(autoIncludePath)
+	memo.Put(ctx, fingerprint, suffix)
+
+	return suffix
+}
+
+// autoIncludeContentSuffix folds the sibling autoinclude existence and content into the cache key, with distinct sentinels for absent and unreadable.
+func autoIncludeContentSuffix(autoIncludePath string) string {
+	if !util.FileExists(autoIncludePath) {
+		return fmt.Sprintf("-autoinclude:%#v", false)
+	}
+
+	content, err := util.ReadFileAsString(autoIncludePath)
+	if err != nil {
+		// An unreadable autoinclude must not collide with the absent sentinel; key on the error text.
+		return fmt.Sprintf("-autoinclude:%#v-err:%#v", true, err.Error())
+	}
+
+	return fmt.Sprintf("-autoinclude:%#v-%#v", true, content)
 }
 
 // Custom error types

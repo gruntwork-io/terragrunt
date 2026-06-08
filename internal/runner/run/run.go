@@ -114,9 +114,10 @@ func Run(
 
 	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
 		return ProcessHooks(ctx, l, OSVenv(), ProcessHooksParams{
-			Hooks: cfg.Terraform.AfterHooks,
-			Opts:  terragruntOptionsClone,
-			Cfg:   cfg,
+			Hooks:    cfg.Terraform.AfterHooks,
+			Opts:     terragruntOptionsClone,
+			Cfg:      cfg,
+			HookType: HookTypeAfter,
 		})
 	}); err != nil {
 		return err
@@ -359,6 +360,7 @@ func RunActionWithHooks(
 		Hooks:              cfg.Terraform.BeforeHooks,
 		Opts:               opts,
 		Cfg:                cfg,
+		HookType:           HookTypeBefore,
 		PreviousExecErrors: allErrors,
 	})
 	if beforeHookErrors != nil {
@@ -377,12 +379,13 @@ func RunActionWithHooks(
 		Hooks:              cfg.Terraform.AfterHooks,
 		Opts:               opts,
 		Cfg:                cfg,
+		HookType:           HookTypeAfter,
 		PreviousExecErrors: allErrors,
 	}); postHookErrors != nil {
 		allErrors = append(allErrors, postHookErrors)
 	}
 
-	if errorHookErrors := ProcessErrorHooks(ctx, l, v.Exec, cfg.Terraform.ErrorHooks, opts, allErrors); errorHookErrors != nil {
+	if errorHookErrors := ProcessErrorHooks(ctx, l, v.Exec, cfg.Terraform.ErrorHooks, cfg, opts, allErrors); errorHookErrors != nil {
 		allErrors = append(allErrors, errorHookErrors)
 	}
 

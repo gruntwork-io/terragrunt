@@ -40,6 +40,11 @@ Metrics configuration:
   - `grpcHttp` - export metrics to an OpenTelemetry collector over gRPC [otlpmetricgrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc)
 - `TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local metrics collection.
 
+Resource attributes:
+
+- `OTEL_SERVICE_NAME` - overrides the `service.name` resource attribute attached to every span and metric. Defaults to `terragrunt`. Useful for distinguishing multiple Terragrunt invocations in the same backend (e.g. per-environment or per-user).
+- `OTEL_RESOURCE_ATTRIBUTES` - additional resource attributes to attach to every span and metric, formatted as a comma-separated list of `key=value` pairs (e.g. `deployment.environment=local,service.namespace=tensho`). Values set here override Terragrunt's defaults; if both `OTEL_SERVICE_NAME` and `service.name` in `OTEL_RESOURCE_ATTRIBUTES` are set, `OTEL_SERVICE_NAME` takes precedence per the [OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/resource/sdk/).
+
 ## Example configurations for trace collection
 
 Collection of examples how to configure Terragrunt to emit traces and metrics in OpenTelemetry format.

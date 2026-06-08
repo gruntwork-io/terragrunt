@@ -1,0 +1,10 @@
+---
+version: "v1.0.7"
+category: "experiments-updated"
+---
+
+#### `cas` — content-addressing for non-git sources
+
+CAS now covers module sources beyond git: `http(s)`, Amazon S3, Google Cloud Storage, and Mercurial. Repeat runs against an unchanged remote reuse the cached tree instead of downloading the bytes again.
+
+Before fetching, CAS issues a cheap remote probe (an HTTP `HEAD`, an S3 object-attributes lookup, a GCS metadata read, or `hg identify`) to derive a cache key without pulling the source. On a hit, the cached tree is linked directly; on a miss, or when the remote exposes no usable signal, CAS downloads the source, ingests it, and keys the resulting tree by its content hash. A remote that publishes a new version under the same address pins to a new entry, so a stale cache cannot serve outdated bytes.

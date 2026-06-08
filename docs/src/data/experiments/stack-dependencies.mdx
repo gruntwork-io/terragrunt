@@ -1,7 +1,7 @@
 ---
 name: stack-dependencies
-status: active
 since: "1.0.1"
+completedSince: "1.1"
 ---
 
 import Since from '@components/Since.astro';
@@ -20,7 +20,7 @@ The generated filename depends on the component kind:
 
 This experiment enables:
 
-- **`unit.<name>.path`** and **`stack.<name>.path`** variables in `terragrunt.stack.hcl` for referencing sibling component paths
+- **`unit.<name>.path`** and **`stack.<name>.path`** variables for referencing sibling component paths, both inside `autoinclude` blocks and in a unit or stack block's `values` (so a parent stack can pass a component path down to a child stack)
 - **`dependency` blocks targeting stack directories**: aggregated outputs from all units in the stack (`dependency.stack_name.outputs.unit_name.output_key`)
 - **Automatic deep merge** of `terragrunt.autoinclude.hcl` into unit configurations (autoinclude wins)
 - **Stack dependency expansion** in the run queue: depending on a stack waits until all its units complete

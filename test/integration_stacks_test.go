@@ -2491,6 +2491,84 @@ func TestCASInStacks(t *testing.T) {
 	assert.Equal(t, wantUnit, unitStr)
 }
 
+// TestCASInStacksUnitSourceSubdirSiblingsResolve is a regression test for a
+// unit whose terraform.source uses the "//" subdir convention with
+// update_source_with_cas. Generation rewrites the source to
+// cas::sha1:<hash>//modules/vpc. At runtime the full tree must materialize with
+// the working directory at the subdir, or a module that references a sibling
+// via a relative path (modules/vpc -> ../sibling) cannot resolve.
+func TestCASInStacksUnitSourceSubdirSiblingsResolve(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	// modules/vpc references a sibling module via a relative path. This only
+	// resolves if the materialized working directory keeps the surrounding tree
+	// (modules/sibling) reachable from modules/vpc.
+	require.NoError(t, srv.CommitFile("modules/vpc/main.tf", []byte(`module "sibling" {
+  source = "../sibling"
+}
+`), "commit vpc module"))
+
+	require.NoError(t, srv.CommitFile("modules/sibling/main.tf", []byte(`output "name" {
+  value = "sibling"
+}
+`), "commit sibling module"))
+
+	require.NoError(t, srv.CommitFile("units/bar/terragrunt.hcl", []byte(`terraform {
+  source = "../..//modules/vpc"
+
+  update_source_with_cas = true
+}
+`), "commit unit"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	remoteStack := `unit "bar" {
+  source = "../..//units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`
+	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit stack"))
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "live", "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	// Running the unit forces the runtime materialization path. The unit's
+	// source resolves to cas::sha1:<hash>//modules/vpc; if the subdir handling
+	// drops the surrounding tree, "../sibling" is unreachable and the run fails.
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "stack run plan failed; the sibling module referenced via ../sibling was likely unreachable:\n%s", stdout+stderr)
+}
+
 // TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS verifies that stack generation
 // errors when a unit or stack block declares update_source_with_cas = true while
 // --no-cas is set. The "experiment off" branch is covered by the unit tests in

@@ -1,0 +1,26 @@
+---
+version: "v1.0.7"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: `unit.<name>.path` and `stack.<name>.path` resolve in `values`
+
+The `stack-dependencies` experiment now exposes `unit.<name>.path` and `stack.<name>.path` when evaluating the `values` attribute of a `unit` or `stack` block, not only inside `autoinclude` blocks. A parent stack can pass the generated path of a sibling component down into a child stack, so a unit nested in that child stack can depend on a unit that lives at a different level of the hierarchy.
+
+```hcl
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+stack "app" {
+  source = "../catalog/stacks/app"
+  path   = "app"
+
+  values = {
+    vpc_path = unit.vpc.path
+  }
+}
+```
+
+A unit inside the `app` stack reads `values.vpc_path` and uses it as the `config_path` of an `autoinclude` dependency, wiring the cross-level relationship at generation time. Paths follow the same layout the generator produces, including `no_dot_terragrunt_stack` on the referenced block.

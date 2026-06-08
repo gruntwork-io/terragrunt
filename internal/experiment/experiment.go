@@ -66,6 +66,11 @@ const (
 	// OptOutAuth gates flags that opt out of running --auth-provider-cmd in
 	// specific phases (currently --no-discovery-auth-provider-cmd).
 	OptOutAuth = "opt-out-auth"
+	// HookContextEnv exposes additional TG_CTX_* environment variables to hook
+	// scripts: TG_CTX_HOOK_TYPE, TG_CTX_SOURCE, and TG_CTX_TERRAGRUNT_DIR.
+	HookContextEnv = "hook-context-env"
+	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
+	OptionalHooks = "optional-hooks"
 )
 
 const (
@@ -141,6 +146,12 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptOutAuth,
+		},
+		{
+			Name: HookContextEnv,
+		},
+		{
+			Name: OptionalHooks,
 		},
 	}
 }
