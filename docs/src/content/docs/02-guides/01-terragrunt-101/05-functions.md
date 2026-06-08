@@ -292,6 +292,8 @@ These functions return **lists of commands** that accept certain flags.
 Pair them with **`extra_arguments`**:
 
 ```hcl
+# terragrunt.hcl
+
 terraform {
   extra_arguments "vars" {
     commands  = get_terraform_commands_that_need_vars()
