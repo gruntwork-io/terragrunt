@@ -1,0 +1,12 @@
+---
+version: "v1.0.8"
+category: "documentation-updates"
+---
+
+#### Clean Markdown for every docs page
+
+Every page on the docs is now available as plain Markdown — just append `.md` to the URL. For example, [`/getting-started/install.md`](/getting-started/install.md) returns the install guide as clean Markdown.
+
+This makes the docs easy to hand to LLMs and AI coding assistants. The `.md` version drops the navigation, scripts, and other page chrome, so tools get just the content — a fraction of the tokens of the rendered page, which is cheaper and faster to feed into a model. It works on every page, including the [CLI command reference](/reference/cli/commands/run.md) and the changelog.
+
+Paste a `.md` link into Claude, Cursor, or your own retrieval pipeline to get a page exactly as written. It complements the existing [`llms.txt`](/llms.txt) and [`llms-full.txt`](/llms-full.txt) files with a precise, per-page source.
