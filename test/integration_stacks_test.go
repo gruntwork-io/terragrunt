@@ -36,6 +36,7 @@ const (
 	testFixtureStacksInputs                    = "fixtures/stacks/inputs"
 	testFixtureStacksOutputs                   = "fixtures/stacks/outputs"
 	testFixtureStacksOutputsImplicit           = "fixtures/stacks/outputs-implicit"
+	testFixtureStacksOutputsImplicitMixed      = "fixtures/stacks/outputs-implicit-mixed"
 	testFixtureStacksUnitValues                = "fixtures/stacks/unit-values"
 	testFixtureStacksLocalsError               = "fixtures/stacks/errors/locals-error"
 	testFixtureStacksUnitEmptyPath             = "fixtures/stacks/errors/unit-empty-path"
@@ -547,6 +548,41 @@ func TestStackOutputsImplicit(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, strings.TrimSpace(stdout))
 	})
+}
+
+// TestStackOutputsImplicitDefersToNestedExplicitStack pins down Behavior A: when
+// the working directory contains *any* terragrunt.stack.hcl (even one nested
+// several levels deep), `stack output` runs the explicit-stack flow and does
+// not pick up loose units sitting outside the stack — even with the implicit
+// experiment enabled. The experiment fallback is binary, not a merge.
+func TestStackOutputsImplicitDefersToNestedExplicitStack(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputsImplicitMixed)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputsImplicitMixed)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksOutputsImplicitMixed, "live")
+
+	// Apply everything so both the nested explicit stack and the loose unit
+	// have state. The assertion is that even though the loose unit has been
+	// applied and has outputs available, `stack output` does not include it
+	// because the explicit-stack flow takes precedence.
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --non-interactive --experiment stack-output-implicit --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var result map[string]map[string]any
+
+	err = json.Unmarshal([]byte(stdout), &result)
+	require.NoError(t, err)
+
+	// The nested explicit stack's unit appears under its explicit-stack name.
+	assert.Len(t, result, 1)
+	assert.Equal(t, "stacked", result["nested_app"]["value"])
+
+	// The loose top-level unit must not show up — the explicit-stack flow took
+	// precedence, the implicit fallback never ran.
+	assert.NotContains(t, result, "loose-unit")
 }
 
 func TestStackOutputsRaw(t *testing.T) {
