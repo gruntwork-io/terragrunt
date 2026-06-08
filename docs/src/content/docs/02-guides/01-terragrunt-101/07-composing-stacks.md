@@ -232,7 +232,7 @@ When a stack includes a `stack` block (referencing another stack), the reference
 By default, `terragrunt stack generate` creates generated units in their `path` directories. A common pattern is to:
 
 1. Keep stack definitions in version control
-2. Add generated files to `.gitignore`
+2. Add `.terragrunt-stack` to `.gitignore`
 3. Generate fresh in CI/CD before applying
 
 > Treat the `terragrunt.stack.hcl` as the source of truth; generated files are ephemeral.
