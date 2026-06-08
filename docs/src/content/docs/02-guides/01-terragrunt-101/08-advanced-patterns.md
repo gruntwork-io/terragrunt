@@ -237,6 +237,8 @@ errors {
 ### Adding Custom Error Patterns
 
 ```hcl
+# root.hcl
+
 errors {
   retry "rate_limits" {
     retryable_errors = concat(
