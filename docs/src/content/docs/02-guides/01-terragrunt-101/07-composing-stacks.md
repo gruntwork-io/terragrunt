@@ -130,6 +130,7 @@ Inside the unit's `terragrunt.hcl`, access these values via **`values.*`**:
 
 ```hcl
 # units/vpc/terragrunt.hcl
+
 terraform {
   source = "../../modules/vpc"
 }
