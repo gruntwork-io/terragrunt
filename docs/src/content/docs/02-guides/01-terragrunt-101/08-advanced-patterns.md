@@ -223,6 +223,7 @@ Configure **automatic retries**:
 
 ```hcl
 # root.hcl
+
 errors {
   retry "transient_aws_errors" {
     retryable_errors   = get_default_retryable_errors()
