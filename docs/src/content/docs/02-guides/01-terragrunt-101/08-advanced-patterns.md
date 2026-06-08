@@ -145,7 +145,6 @@ terragrunt run apply --all --parallelism 10
 | :---------- | :-------------------------- |
 | **Lower**   | Reduces API throttling  |
 | **Higher**  | Speeds up large deployments |
-| **Default** | 10                          |
 
 ---
 
