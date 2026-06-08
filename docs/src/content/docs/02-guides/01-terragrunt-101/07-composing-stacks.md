@@ -164,7 +164,7 @@ inputs = {
 }
 ```
 
-> Using `try()` allows the unit to work **both** as a standalone deployment **and** as part of a stack.
+> Using `try()` allows the unit to define sensible defaults for values that don't _have_ to be defined explicitly for generation.
 
 ---
 
