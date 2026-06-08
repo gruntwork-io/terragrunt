@@ -262,6 +262,8 @@ stack "logging" {
 
 ### Stack Block Attributes
 
+These are the most important attributes to remember when working with [`stack`](https://docs.terragrunt.com/reference/hcl/blocks/#stack) blocks.
+
 | Attribute    | Required | Description                               |
 | :----------- | :------- | :---------------------------------------- |
 | **`source`** | Yes      | Path to another stack definition          |
