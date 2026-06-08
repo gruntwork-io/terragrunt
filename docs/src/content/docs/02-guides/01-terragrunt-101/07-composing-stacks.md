@@ -92,6 +92,8 @@ When you run `terragrunt stack generate`, Terragrunt creates the directory struc
 
 ### Unit Block Attributes
 
+These are the most important attributes to remember when working with [`unit`](https://docs.terragrunt.com/reference/hcl/blocks/#unit) blocks.
+
 | Attribute    | Required | Description                                            |
 | :----------- | :------- | :----------------------------------------------------- |
 | **`source`** | Yes      | Where to fetch the unit configuration from             |
