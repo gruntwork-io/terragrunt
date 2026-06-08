@@ -205,7 +205,7 @@ Explicit stacks introduce new commands under **`terragrunt stack`**:
 | **`terragrunt stack run plan`**    | Plan all units in the stack              |
 | **`terragrunt stack run apply`**   | Apply all units in the stack             |
 | **`terragrunt stack run destroy`** | Destroy all units in reverse order       |
-| **`terragrunt stack run output`**  | Show outputs from all units              |
+| **`terragrunt stack output`**  | Show consolidated outputs from all units              |
 
 ---
 
