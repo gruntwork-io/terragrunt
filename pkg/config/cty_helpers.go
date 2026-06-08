@@ -4,7 +4,9 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 
 	"dario.cat/mergo"
 	"github.com/zclconf/go-cty/cty"
@@ -383,13 +385,41 @@ func includeBlockLabel(includeConfig IncludeConfig) string {
 	return fmt.Sprintf("%q", includeConfig.Name)
 }
 
+// ctyPathString renders the cty.Path carried by a cty.PathError as a dotted/indexed attribute string
+// (e.g. `.outputs["enabled"]` or `.list[1]`). It returns "" when err carries no cty.PathError or an empty path,
+// so callers can omit the segment. The path is populated only when go-cty descended into a Go map/struct to
+// reach the offending value; a top-level conversion such as gocty.ToCtyValue(v, cty.Bool) yields none.
+func ctyPathString(err error) string {
+	var pathErr cty.PathError
+	if !errors.As(err, &pathErr) {
+		return ""
+	}
+
+	var b strings.Builder
+
+	for _, step := range pathErr.Path {
+		switch s := step.(type) {
+		case cty.GetAttrStep:
+			b.WriteString("." + s.Name)
+		case cty.IndexStep:
+			// Let go-cty's JSON encoder render the key so we don't special-case string vs number keys.
+			key, _ := ctyjson.Marshal(s.Key, s.Key.Type())
+			b.WriteString("[" + string(key) + "]")
+		}
+	}
+
+	return b.String()
+}
+
 // includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return
 // the nil representation of cty.Value.
 func includeConfigAsCtyVal(ctx context.Context, pctx *ParsingContext, l log.Logger, includeConfig IncludeConfig) (cty.Value, error) {
 	pctx = pctx.WithTrackInclude(nil)
 
 	if includeConfig.GetExpose() {
-		// Annotate resolution errors with the include name and parent file, since low-level errors carry no source location.
+		// Annotate resolution errors with the include name and parent file. The conversion layer further annotates
+		// these with the failing field/attribute path (see TerragruntConfigAsCty), since low-level conversion errors
+		// carry no source location of their own.
 		parsedIncluded, err := parseIncludedConfig(ctx, pctx, l, &includeConfig)
 		if err != nil {
 			return cty.NilVal, fmt.Errorf("exposed include %s (%s): %w", includeBlockLabel(includeConfig), includeConfig.Path, err)

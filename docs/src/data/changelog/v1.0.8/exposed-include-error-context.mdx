@@ -3,18 +3,24 @@ version: "v1.0.8"
 category: "bug-fixes"
 ---
 
-#### Exposed-include resolution errors now name the include block and parent file
+#### Exposed-include resolution errors now name the include block, file, and failing field
 
-When resolving an `include` block with `expose = true`, Terragrunt surfaced low-level parsing or conversion errors with no indication of which include block or file was at fault. This was especially hard to debug for errors that carry no source location, such as:
+When resolving an `include` block with `expose = true`, Terragrunt surfaced low-level parsing or conversion errors with no indication of which include block, file, or field was at fault. This was especially hard to debug for errors that carry no source location, such as:
 
 ```text
 unsuitable value: a bool is required
 ```
 
-The error is now annotated with the include block name and the included (parent) file path:
+The error is now annotated with the include block name, the included (parent) file path, and a single dotted locator for the failing field — the top-level config field (`dependency`, `inputs`, `locals`, or `feature`) plus the attribute path within it when go-cty can determine one:
 
 ```text
-exposed include "root" (/path/to/root.hcl): unsuitable value: a bool is required
+exposed include "root" (/path/to/root.hcl): dependency.outputs["enabled"]: unsuitable value: a bool is required
 ```
 
-This narrows the search from the entire configuration tree to the specific included file, making the source of the failure clear.
+When go-cty cannot resolve a precise attribute path, the locator degrades to just the field name:
+
+```text
+exposed include "root" (/path/to/root.hcl): dependency: unsuitable value: a bool is required
+```
+
+Errors that originate in HCL parsing already carry a source range (`file:line:column`) and are preserved unchanged. This narrows the search from the entire configuration tree to a specific file and field.
