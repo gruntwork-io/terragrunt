@@ -4,6 +4,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"dario.cat/mergo"
 	"github.com/zclconf/go-cty/cty"
@@ -371,20 +372,35 @@ func includeMapAsCtyVal(ctx context.Context, pctx *ParsingContext, l log.Logger)
 	return ConvertValuesMapToCtyVal(exposedIncludeMap)
 }
 
+// includeBlockLabel returns a human-readable identifier for an include block to use in error messages:
+// the quoted name for a named include, or "(bare include)" for the legacy unnamed include
+// (whose Name is bareIncludeKey == "").
+func includeBlockLabel(includeConfig IncludeConfig) string {
+	if includeConfig.Name == bareIncludeKey {
+		return "(bare include)"
+	}
+
+	return fmt.Sprintf("%q", includeConfig.Name)
+}
+
 // includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return
 // the nil representation of cty.Value.
 func includeConfigAsCtyVal(ctx context.Context, pctx *ParsingContext, l log.Logger, includeConfig IncludeConfig) (cty.Value, error) {
 	pctx = pctx.WithTrackInclude(nil)
 
 	if includeConfig.GetExpose() {
+		// Annotate any resolution error with the include block name and the included (parent) file path. Low-level
+		// errors from parsing/converting the included config (e.g. the gocty "unsuitable value: a bool is required")
+		// carry no source location, so without this wrapping the user has no way to tell which include block or file
+		// is at fault. See https://github.com/gruntwork-io/terragrunt/issues/6282.
 		parsedIncluded, err := parseIncludedConfig(ctx, pctx, l, &includeConfig)
 		if err != nil {
-			return cty.NilVal, err
+			return cty.NilVal, fmt.Errorf("exposed include %s (%s): %w", includeBlockLabel(includeConfig), includeConfig.Path, err)
 		}
 
 		parsedIncludedCty, err := TerragruntConfigAsCty(parsedIncluded)
 		if err != nil {
-			return cty.NilVal, err
+			return cty.NilVal, fmt.Errorf("exposed include %s (%s): %w", includeBlockLabel(includeConfig), includeConfig.Path, err)
 		}
 
 		return parsedIncludedCty, nil
