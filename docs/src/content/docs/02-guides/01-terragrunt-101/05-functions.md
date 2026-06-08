@@ -215,6 +215,8 @@ locals {
 Decrypts **SOPS-encrypted files** (YAML, JSON, or binary).
 
 ```hcl
+# terragrunt.hcl
+
 locals {
   secrets = yamldecode(sops_decrypt_file("secrets.yaml.enc"))
 }
