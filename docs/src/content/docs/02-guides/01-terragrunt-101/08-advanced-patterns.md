@@ -266,6 +266,8 @@ errors {
 Some errors are expected and **safe to ignore**, like deleting resources that no longer exist:
 
 ```hcl
+# root.hcl
+
 errors {
   ignore "already_deleted" {
     ignorable_errors = [
