@@ -403,12 +403,22 @@ func ctyPathString(err error) string {
 			b.WriteString("." + s.Name)
 		case cty.IndexStep:
 			// Let go-cty's JSON encoder render the key so we don't special-case string vs number keys.
-			key, _ := ctyjson.Marshal(s.Key, s.Key.Type())
+			key, err := ctyjson.Marshal(s.Key, s.Key.Type())
+			if err != nil {
+				key = []byte(fmt.Sprintf("%v", s.Key))
+			}
+
 			b.WriteString("[" + string(key) + "]")
 		}
 	}
 
 	return b.String()
+}
+
+// fieldError annotates a config-field conversion error with the field name and, when go-cty can determine one,
+// the failing attribute path within it, as a single dotted locator (e.g. `dependency.outputs["enabled"]`).
+func fieldError(field string, err error) error {
+	return fmt.Errorf("%s%s: %w", field, ctyPathString(err), err)
 }
 
 // includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return

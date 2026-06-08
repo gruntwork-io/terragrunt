@@ -1,7 +1,6 @@
 package config //nolint:testpackage // needs access to unexported includeConfigAsCtyVal / includeBlockLabel
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -66,8 +65,8 @@ func TestCtyPathString(t *testing.T) {
 	require.Error(t, descend)
 	assert.Equal(t, `.outputs["enabled"]`, ctyPathString(descend))
 
-	// Mirror the conversion-layer wrap: field name + path collapse into one locator.
-	folded := fmt.Errorf("%s%s: %w", MetadataDependency, ctyPathString(descend), descend)
+	// fieldError folds the field name + path into one locator.
+	folded := fieldError(MetadataDependency, descend)
 	assert.Equal(t, `dependency.outputs["enabled"]: unsuitable value: a bool is required`, folded.Error())
 
 	var pathErr cty.PathError
@@ -77,7 +76,5 @@ func TestCtyPathString(t *testing.T) {
 	_, bare := gocty.ToCtyValue(cty.StringVal("x"), cty.Bool)
 	require.Error(t, bare)
 	assert.Empty(t, ctyPathString(bare))
-
-	foldedBare := fmt.Errorf("%s%s: %w", MetadataDependency, ctyPathString(bare), bare)
-	assert.Equal(t, `dependency: unsuitable value: a bool is required`, foldedBare.Error())
+	assert.Equal(t, `dependency: unsuitable value: a bool is required`, fieldError(MetadataDependency, bare).Error())
 }
