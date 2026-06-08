@@ -23,11 +23,8 @@ const (
 	// HCL block type and attribute names.
 	blockDependency  = "dependency"
 	blockLocals      = "locals"
-	blockGenerate    = "generate"
-	blockRemoteState = "remote_state"
 	blockAutoInclude = "autoinclude"
 	attrConfigPath   = "config_path"
-	attrInputs       = "inputs"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"
@@ -532,8 +529,6 @@ func autoIncludeTypedErr(diags hcl.Diagnostics) error {
 	for _, diag := range diags {
 		switch typed := diag.Extra.(type) {
 		case StackAutoIncludeDependencyValuesError:
-			return typed
-		case AutoIncludeValuesReferenceError:
 			return typed
 		case AutoIncludeLocalsBlockError:
 			return typed

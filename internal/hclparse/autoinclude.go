@@ -38,9 +38,9 @@ type AutoIncludeHCL struct {
 //
 // After the first parse extracts unit/stack names and paths, the autoinclude
 // body is partially evaluated:
-//   - dependency.config_path is resolved (references unit.*.path)
-//   - mock_outputs, inputs, and other content are partially evaluated the same way: stack-level local.* / unit.* / stack.* resolve, dependency.*.outputs.* is preserved
-//   - values.* references and locals blocks are rejected at generate time
+//   - dependency.config_path is resolved (references unit.*.path / values.*)
+//   - mock_outputs, inputs, and other content are partially evaluated the same way: stack-level local.* / values.* / unit.* / stack.* and function calls resolve, dependency.*.outputs.* is preserved
+//   - a locals block is rejected at generate time (stack-level locals belong in terragrunt.stack.hcl)
 //
 // The RawBody is preserved for serializing the generated
 // terragrunt.autoinclude.hcl file.
@@ -103,18 +103,9 @@ func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoInclu
 		return &AutoIncludeResolved{EvalCtx: evalCtx, RawBody: a.Remain}, nil
 	}
 
-	if valuesAttr, hasValues := body.Attributes["values"]; hasValues {
-		return nil, hcl.Diagnostics{{
-			Severity: hcl.DiagError,
-			Summary:  "values is not allowed inside autoinclude",
-			Detail:   "Did you mean to declare values = {...} on the parent unit/stack block (next to source/path) instead of inside the autoinclude block?",
-			Subject:  valuesAttr.Range().Ptr(),
-		}}
-	}
-
-	// Stack-specific checks run first so a dependency output referenced by injected values yields the precise
-	// cross-level error rather than the generic values.* rejection (the dynamic-index form references both roots).
 	if kind == KindStack {
+		// An injected unit/stack whose values reference dependency.* outputs is unsupported: those outputs are
+		// runtime-only, so values cannot be a generate-time literal. Reject it with a precise cross-level error.
 		if diags := validateStackAutoIncludeDepValues(body, name); diags.HasErrors() {
 			return nil, diags
 		}
@@ -123,11 +114,6 @@ func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoInclu
 		if diags := rejectStackAutoIncludeDependencyBlocks(body, name); diags.HasErrors() {
 			return nil, diags
 		}
-	}
-
-	// Reject referencing the unit-scoped values namespace; the autoinclude resolves in the stack file context where values is unavailable.
-	if diags := rejectAutoIncludeValuesReference(body, kind, name); diags.HasErrors() {
-		return nil, diags
 	}
 
 	// Reject a locals block; stack-level locals belong in terragrunt.stack.hcl.
@@ -451,96 +437,6 @@ func referencesRoot(expr hclsyntax.Expression, root string) bool {
 	}
 
 	return false
-}
-
-// rejectAutoIncludeValuesReference rejects any values.* reference in the autoinclude body for both kinds.
-func rejectAutoIncludeValuesReference(body *hclsyntax.Body, kind AutoIncludeKind, name string) hcl.Diagnostics {
-	attr, owner, err := findValuesReference(body)
-	if err != nil {
-		return blockDepthDiags(body, err)
-	}
-
-	if attr == nil {
-		return nil
-	}
-
-	typed := AutoIncludeValuesReferenceError{Subject: attr.Expr.Range().Ptr(), Kind: string(kind), Component: name, Attr: owner}
-
-	return hcl.Diagnostics{{
-		Severity: hcl.DiagError,
-		Summary:  "values reference is not allowed inside autoinclude",
-		Detail:   typed.Error(),
-		Subject:  typed.Subject,
-		Extra:    typed,
-	}}
-}
-
-// findValuesReference returns the first attribute referencing the values namespace plus a label for it, or nil when none.
-// A dependency config_path is exempt because it is resolved to a concrete path at generate time, which preserves the
-// cross-level path-passing pattern. Injected unit and stack blocks are scanned too, so a values.* reference there is rejected.
-func findValuesReference(body *hclsyntax.Body) (*hclsyntax.Attribute, string, error) {
-	for _, attr := range SortedAttributes(body.Attributes) {
-		if referencesRoot(attr.Expr, varValues) {
-			return attr, attr.Name, nil
-		}
-	}
-
-	for _, block := range body.Blocks {
-		attr, err := findBlockValuesReference(block, 0)
-		if err != nil {
-			return nil, "", err
-		}
-
-		if attr == nil {
-			continue
-		}
-
-		return attr, blockOwnerLabel(block), nil
-	}
-
-	return nil, "", nil
-}
-
-// findBlockValuesReference scans a block body for a values reference, exempting a dependency block's config_path;
-// depth bounds the nested-block recursion so a pathologically deep body cannot overflow the stack.
-func findBlockValuesReference(block *hclsyntax.Block, depth int) (*hclsyntax.Attribute, error) {
-	if depth > maxBlockDepth {
-		return nil, BlockDepthExceededError{MaxDepth: maxBlockDepth}
-	}
-
-	for _, attr := range SortedAttributes(block.Body.Attributes) {
-		if block.Type == blockDependency && attr.Name == attrConfigPath {
-			continue
-		}
-
-		if referencesRoot(attr.Expr, varValues) {
-			return attr, nil
-		}
-	}
-
-	for _, nested := range block.Body.Blocks {
-		attr, err := findBlockValuesReference(nested, depth+1)
-		if err != nil {
-			return nil, err
-		}
-
-		if attr == nil {
-			continue
-		}
-
-		return attr, nil
-	}
-
-	return nil, nil
-}
-
-// blockOwnerLabel names a block for an error message: a labeled block by its label, otherwise the block type.
-func blockOwnerLabel(block *hclsyntax.Block) string {
-	if len(block.Labels) > 0 {
-		return blockLabelsString(block)
-	}
-
-	return block.Type
 }
 
 // rejectAutoIncludeLocalsBlock rejects a locals block defined anywhere in the autoinclude body for both kinds.
