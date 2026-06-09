@@ -37,6 +37,16 @@ func TestOptOutAuthIsOngoing(t *testing.T) {
 	assert.False(t, got.Evaluate(), "opt-out-auth must be disabled by default")
 }
 
+func TestOptionalHooksIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.OptionalHooks)
+	require.NotNil(t, got, "optional-hooks experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "optional-hooks must be ongoing")
+	assert.False(t, got.Evaluate(), "optional-hooks must be disabled by default")
+}
+
 func TestValidateExperiments(t *testing.T) {
 	t.Parallel()
 

@@ -1,0 +1,52 @@
+---
+title: Git
+description: How the CAS resolves, fetches, and deduplicates Git sources.
+slug: features/caching/cas/git
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
+</Aside>
+
+Git is the most common source Terragrunt fetches and has the richest support in the CAS.
+
+## Overview
+
+A Git source is identified by a remote URL and a ref (a branch, tag, or commit). Terragrunt resolves that ref to a commit hash, which serves as both the cache key and the Git object name it fetches. Content keeps Git's native content addressing, so identical objects are shared across repositories and refs.
+
+## The cheap probe
+
+The probe Terragrunt uses to attempt to avoid fetching Git sources is `git ls-remote`. This asks the remote what commit a branch or tag currently points at without transferring any repository objects. The resolved commit hash becomes the cache key.
+
+Two special cases bypass or extend the probe:
+
+- **Pinned commit SHA already cached.** If you pin to a full commit SHA and that commit is already in the local store, Terragrunt answers from the store and skips `ls-remote` entirely, so the resolution stays offline. This is especially useful if you plan to use Terragrunt in an air-gapped environment.
+- **Commit SHA.** `ls-remote` only lists named refs. If it returns no match (you supplied a commit SHA directly), Terragrunt defers resolution to the fetch step, which canonicalizes the ref with `git rev-parse` against the local store after a full-history fetch.
+
+## Cache key & deduplication
+
+The cache key for the root tree is the commit hash itself, content-addressed by Git's native scheme. Both SHA-1 and SHA-256 repositories are supported, with the algorithm detected per repository. Because the commit hash is content-addressed, the same commit reached through two repositories or two refs resolves to the same stored tree, and identical file blobs are shared across every repository that contains them.
+
+## Cache miss
+
+On a miss, Terragrunt fetches into a central bare repository kept per remote URL under `git/` in the store (initialized on first use), holding a per-URL lock for the duration:
+
+1. Branch and tag refs use a shallow fetch. A bare commit SHA triggers a full-history fetch of every branch and tag so the SHA can be resolved locally.
+2. The blobs and trees reachable from the commit are extracted and stored, partitioned by hash prefix.
+3. The tree is read back from the store and hard linked into the target directory.
+
+<Aside type="tip" title="Partial cache misses">
+Git is unique among the getters in that a cache miss is not always all-or-nothing. Because the bare repository for each remote URL persists under `git/`, subsequent misses against the same URL reuse it and transfer only the objects that are new, rather than re-cloning. Other getters re-fetch the entire source on a miss.
+</Aside>
+
+## Cache hit
+
+When the commit hash is already keyed in the store, Terragrunt reads the tree and hard links its blobs into the target without fetching again from the remote. For a pinned commit SHA that is already cached, even the ref-resolution step stays offline.
+
+## Fallback behavior
+
+Concurrent units that target the same remote URL share one Git fetch instead of cloning in parallel. If that shared fetch through the central repository hangs or fails, Terragrunt logs a warning and falls back to a plain clone in a temporary directory. If the host cannot hard link from the store (for example across a filesystem boundary), Terragrunt copies the content instead.

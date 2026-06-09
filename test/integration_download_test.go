@@ -28,10 +28,8 @@ const (
 	testFixtureLocalRelativeDownloadPath              = "fixtures/download/local-relative"
 	testFixtureRemoteRelativeDownloadPath             = "fixtures/download/remote-relative"
 	testFixtureRemoteRelativeDownloadPathWithSlash    = "fixtures/download/remote-relative-with-slash"
-	testFixtureLocalWithBackend                       = "fixtures/download/local-with-backend"
 	testFixtureLocalWithExcludeDir                    = "fixtures/download/local-with-exclude-dir"
 	testFixtureLocalWithIncludeDir                    = "fixtures/download/local-with-include-dir"
-	testFixtureRemoteWithBackend                      = "fixtures/download/remote-with-backend"
 	testFixtureRemoteModuleInRoot                     = "fixtures/download/remote-module-in-root"
 	testFixtureLocalMissingBackend                    = "fixtures/download/local-with-missing-backend"
 	testFixtureLocalWithHiddenFolder                  = "fixtures/download/local-with-hidden-folder"
@@ -169,7 +167,8 @@ func TestLocalWithMissingBackend(t *testing.T) {
 func TestRemoteDownload(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRemoteDownloadPath)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureRemoteDownloadPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRemoteDownloadPath)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -218,7 +217,8 @@ func TestInvalidRemoteDownloadWithRetries(t *testing.T) {
 func TestRemoteDownloadWithRelativePath(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRemoteRelativeDownloadPath)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureRemoteRelativeDownloadPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRemoteRelativeDownloadPath)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -231,7 +231,8 @@ func TestRemoteDownloadWithRelativePath(t *testing.T) {
 func TestRemoteDownloadWithRelativePathAndSlashInBranch(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRemoteRelativeDownloadPathWithSlash)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureRemoteRelativeDownloadPathWithSlash)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRemoteRelativeDownloadPathWithSlash)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -244,7 +245,8 @@ func TestRemoteDownloadWithRelativePathAndSlashInBranch(t *testing.T) {
 func TestRemoteDownloadOverride(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, "fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOverrideDownloadPath)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -940,7 +942,8 @@ func TestDownloadWithCASEnabled(t *testing.T) {
 
 	fixturePath := "fixtures/download/remote"
 
-	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, fixturePath)
 	testPath := filepath.Join(tmpEnvPath, fixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 
@@ -962,7 +965,8 @@ func TestDownloadWithCASCommitRef(t *testing.T) {
 
 	fixturePath := "fixtures/download/remote-commit-ref"
 
-	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, fixturePath)
 	testPath := filepath.Join(tmpEnvPath, fixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 
@@ -990,7 +994,8 @@ func TestDownloadWithCASMutable(t *testing.T) {
 
 	fixturePath := "fixtures/download/remote-mutable"
 
-	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, fixturePath)
 	testPath := filepath.Join(tmpEnvPath, fixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 

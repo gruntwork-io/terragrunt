@@ -168,11 +168,8 @@ func runAnalyze(c *cli.Context) error {
 
 	if len(report.TestStats) > 0 {
 		fmt.Printf("\nTop flaky tests:\n")
-		maxShow := 5
-		if len(report.TestStats) < maxShow {
-			maxShow = len(report.TestStats)
-		}
-		for i := 0; i < maxShow; i++ {
+		maxShow := min(len(report.TestStats), 5)
+		for i := range maxShow {
 			s := report.TestStats[i]
 			fmt.Printf("  %d. %s (%d failures, %.1f%%)\n",
 				i+1, s.TestName, s.TotalFailures, s.FailureRate*100)

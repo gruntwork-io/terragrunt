@@ -29,6 +29,6 @@ output "test" {
 }
 
 module "remote" {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/download/hello-world?ref=v0.83.2"
+  source = "git::__MIRROR_URL__//test/fixtures/download/hello-world?ref=v0.83.2"
   name   = var.name
 }

@@ -469,6 +469,215 @@ func TestAutoIncludeDependencyPaths_FileParseErrorOnJSON(t *testing.T) {
 	require.ErrorAs(t, err, &fpe)
 }
 
+func TestResolveForKind_StackAutoIncludeDepValues(t *testing.T) {
+	t.Parallel()
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	// Unsupported: a stack autoinclude declares a dependency and an injected unit's values reference its outputs.
+	badSrc := `
+dependency "producer" {
+  config_path = unit.producer.path
+}
+
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    v = dependency.producer.outputs.val
+  }
+}
+`
+	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
+
+	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	require.True(t, diags.HasErrors(), "stack autoinclude consuming a sibling dependency via injected values must error")
+
+	extra, ok := diags[0].Extra.(error)
+	require.True(t, ok, "the diagnostic Extra must carry an error")
+
+	var typed hclparse.StackAutoIncludeDependencyValuesError
+	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error")
+	assert.Equal(t, "net", typed.StackName)
+	assert.Equal(t, "extra", typed.UnitName)
+	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
+
+	// Supported: injected unit values reference only unit.X.path, not a dependency output.
+	okSrc := `
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    v = unit.producer.path
+  }
+}
+`
+	supported := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, okSrc)}
+
+	_, okDiags := supported.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	require.False(t, okDiags.HasErrors(), "literal unit.path values must still resolve: %s", okDiags.Error())
+
+	// A real unit-level autoinclude carries a top-level dependency feeding unit-level inputs; the same
+	// dependency-output reference is allowed when the kind is unit (the established cross-level pattern).
+	unitSrc := `
+dependency "producer" {
+  config_path = unit.producer.path
+}
+
+inputs = {
+  v = dependency.producer.outputs.val
+}
+`
+	unitAutoInclude := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, unitSrc)}
+
+	_, unitDiags := unitAutoInclude.ResolveForKind(evalCtx, hclparse.KindUnit, "")
+	require.False(t, unitDiags.HasErrors(), "unit-level autoinclude with a dependency-output input must still resolve: %s", unitDiags.Error())
+}
+
+// TestResolveForKind_StackAutoIncludeDepValuesIndexForm pins that the index traversal form
+// dependency["producer"].outputs.val trips the same typed error as the attribute form, instead of
+// slipping past and falling through to a cryptic generic decode failure.
+func TestResolveForKind_StackAutoIncludeDepValuesIndexForm(t *testing.T) {
+	t.Parallel()
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	// The unsupported dependency-output reference written in index form.
+	badSrc := `
+dependency "producer" {
+  config_path = unit.producer.path
+}
+
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    v = dependency["producer"].outputs.val
+  }
+}
+`
+	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
+
+	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	require.True(t, diags.HasErrors(), "the index traversal form must trip the typed error too")
+
+	extra, ok := diags[0].Extra.(error)
+	require.True(t, ok, "the diagnostic Extra must carry an error")
+
+	var typed hclparse.StackAutoIncludeDependencyValuesError
+	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error for the index form")
+	assert.Equal(t, "extra", typed.UnitName)
+	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
+}
+
+// TestResolveForKind_StackAutoIncludeDepValuesDynamicIndex pins that a dynamic index
+// (dependency[values.dep_name].outputs.val) trips the typed error too. The dynamic index hides the
+// dependency name from static analysis, so the validator must reject the dependency root rather than
+// let it fall through to a cryptic generic decode failure.
+func TestResolveForKind_StackAutoIncludeDepValuesDynamicIndex(t *testing.T) {
+	t.Parallel()
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	// The dependency output reference written with a dynamic index whose name is not statically known.
+	badSrc := `
+dependency "producer" {
+  config_path = unit.producer.path
+}
+
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    dep_name = "producer"
+    v        = dependency[values.dep_name].outputs.val
+  }
+}
+`
+	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
+
+	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	require.True(t, diags.HasErrors(), "a dynamic dependency index must trip the typed error too")
+
+	extra, ok := diags[0].Extra.(error)
+	require.True(t, ok, "the diagnostic Extra must carry an error")
+
+	var typed hclparse.StackAutoIncludeDependencyValuesError
+	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error for the dynamic index form")
+	assert.Equal(t, "extra", typed.UnitName)
+	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
+}
+
+// TestResolveForKind_StackAutoIncludeUndeclaredDepRefAlsoRejected pins that the detection is generic,
+// not scoped to the autoinclude's own declared dependencies: injected values that reference ANY
+// dependency (here "other", which the autoinclude does not declare) still trip the typed error, because
+// injected values are evaluated at generation time when no dependency outputs exist.
+func TestResolveForKind_StackAutoIncludeUndeclaredDepRefAlsoRejected(t *testing.T) {
+	t.Parallel()
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	// The autoinclude declares "producer"; the injected unit's values reference a DIFFERENT, undeclared dep.
+	src := `
+dependency "producer" {
+  config_path = unit.producer.path
+}
+
+unit "extra" {
+  source = "."
+  path   = "extra"
+
+  values = {
+    v = dependency.other.outputs.val
+  }
+}
+`
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, src)}
+
+	_, diags := autoInclude.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	require.True(t, diags.HasErrors(), "any dependency reference in injected values must be rejected, declared or not")
+
+	extra, ok := diags[0].Extra.(error)
+	require.True(t, ok, "the diagnostic Extra must carry an error")
+
+	var typed hclparse.StackAutoIncludeDependencyValuesError
+	require.ErrorAs(t, extra, &typed, "the diagnostic must carry the typed error even for an undeclared dependency")
+	assert.Equal(t, "extra", typed.UnitName)
+	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
+}
+
 // parseHCLBody is a test helper that parses an HCL string and returns the body.
 func parseHCLBody(t *testing.T, src string) hcl.Body {
 	t.Helper()

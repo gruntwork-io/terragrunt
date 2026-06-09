@@ -13,7 +13,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -120,7 +119,7 @@ func attemptEvaluateLocals(
 
 	pctx.Locals = &localsAsCtyVal
 
-	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		l.Errorf("Could not convert include to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
 		return nil, evaluatedLocals, false, err

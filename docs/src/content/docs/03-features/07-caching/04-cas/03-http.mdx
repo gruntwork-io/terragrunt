@@ -1,0 +1,45 @@
+---
+title: HTTP
+description: How the CAS probes and deduplicates HTTP sources.
+slug: features/caching/cas/http
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
+</Aside>
+
+## Overview
+
+An HTTP source is identified by its URL. Terragrunt cannot key it by a content hash up front, so it asks the server for a validator (an `ETag` or `Last-Modified` value) and keys the cached tree by that validator, scoped to the URL.
+
+## The cheap probe
+
+The probe Terragrunt uses to attempt to avoid fetching HTTP sources is a `HEAD` request to the source URL. Terragrunt reads the `ETag` header when present, falling back to `Last-Modified`. Whichever it finds becomes the cache key.
+
+[`go-getter`](https://github.com/hashicorp/go-getter/) consumes a few query parameters itself rather than forwarding them to the server (`archive`, `checksum`, and `filename`). Terragrunt strips these before the `HEAD` request, because probing with them attached would split cache entries that resolve to the same downloaded bytes.
+
+## Cache key & deduplication
+
+The validator is treated as opaque, and the key is scoped to the URL. An `ETag` is not a portable content hash: a server may assign it however it likes, and multipart or weak ETags are not hashes of the body. Two different URLs that serve byte-identical content therefore do not deduplicate at the tree level. The underlying file blobs are still content-addressed, so identical files across sources continue to share blob storage.
+
+Weak-validator markers (`W/`) and surrounding quotes are normalized, so the same response keyed either way maps to one entry.
+
+## Cache miss
+
+If the probe produces no usable validator, or the validator is not yet present in the store, Terragrunt downloads the resource, walks it, hashes its files, and stores the tree. When the probe produced a key, the tree is stored under that key so the next run hits; when it did not, the tree is keyed by the content hash of what was downloaded.
+
+## Cache hit
+
+When the probe returns a validator already present in the store, Terragrunt links the cached tree and skips downloading the body.
+
+## Fallback behavior
+
+Any network error, non-2xx response, or timeout makes the probe yield no key. Terragrunt then falls back to downloading and content-hashing the result. The fetch still happens; only the short-circuit is skipped.
+
+## Supported URL forms / refs
+
+`http://` and `https://` URLs are accepted. The go-getter magic parameters (`archive=`, `checksum=`, `filename=`) are honored on the download but ignored by the probe. `.netrc` credentials are honored on the download.

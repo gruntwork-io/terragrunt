@@ -96,7 +96,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 
 	dependencyCty, err := dependencyBlocksAsCty(config.TerragruntDependencies)
 	if err != nil {
-		return cty.NilVal, err
+		return cty.NilVal, fieldError(MetadataDependency, err)
 	}
 
 	if dependencyCty != cty.NilVal {
@@ -123,7 +123,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 
 	inputsCty, err := convertToCtyWithJSON(config.Inputs)
 	if err != nil {
-		return cty.NilVal, err
+		return cty.NilVal, fieldError(MetadataInputs, err)
 	}
 
 	if inputsCty != cty.NilVal {
@@ -132,7 +132,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 
 	localsCty, err := convertToCtyWithJSON(config.Locals)
 	if err != nil {
-		return cty.NilVal, err
+		return cty.NilVal, fieldError(MetadataLocals, err)
 	}
 
 	if localsCty != cty.NilVal {
@@ -141,7 +141,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 
 	featureFlagsCty, err := featureFlagsBlocksAsCty(config.FeatureFlags)
 	if err != nil {
-		return cty.NilVal, err
+		return cty.NilVal, fieldError(MetadataFeatureFlag, err)
 	}
 
 	if featureFlagsCty != cty.NilVal {

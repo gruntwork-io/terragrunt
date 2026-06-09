@@ -1,0 +1,22 @@
+---
+name: optional-hooks
+status: active
+---
+
+Support for disabling Terragrunt hooks during `run`.
+
+### `optional-hooks` - What it does
+When enabled, users can pass `--no-hooks` to `terragrunt run` to skip configured `before_hook`, `after_hook`, and `error_hook` blocks.
+
+```bash
+terragrunt run --experiment optional-hooks --no-hooks -- plan
+```
+
+This is useful when a run needs to bypass hook automation temporarily, such as when debugging faulty hooks or OpenTofu/Terraform modules.
+
+### `optional-hooks` - Criteria for stabilization
+To transition the `optional-hooks` feature to a stable release, the following must be addressed:
+
+- [ ] Validate behavior with single-unit and queue-based runs.
+- [ ] Gather community feedback on whether all hook types should be skipped.
+- [ ] Confirm the flag name leaves room for more granular hook controls in the future.

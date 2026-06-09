@@ -169,7 +169,7 @@ func (p *RelationshipPhase) discoverRelationships(
 	}
 
 	if state.opts.Experiments.Evaluate(experiment.StackDependencies) {
-		paths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, paths, c)
+		paths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, paths)
 		if err != nil {
 			return err
 		}

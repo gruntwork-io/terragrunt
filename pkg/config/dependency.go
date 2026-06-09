@@ -41,7 +41,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -101,46 +100,70 @@ func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 		dep.SkipOutputs = sourceDepConfig.SkipOutputs
 	}
 
-	if sourceDepConfig.MockOutputs != nil {
-		if dep.MockOutputs == nil {
-			dep.MockOutputs = sourceDepConfig.MockOutputs
-		} else {
-			newMockOutputs, err := deepMergeCtyMaps(*dep.MockOutputs, *sourceDepConfig.MockOutputs)
-			if err != nil {
-				return err
-			}
-
-			dep.MockOutputs = newMockOutputs
-		}
+	if err := dep.mergeMockOutputs(sourceDepConfig); err != nil {
+		return err
 	}
 
-	if sourceDepConfig.MockOutputsAllowedTerraformCommands != nil {
-		if dep.MockOutputsAllowedTerraformCommands == nil {
-			dep.MockOutputsAllowedTerraformCommands = sourceDepConfig.MockOutputsAllowedTerraformCommands
-		} else {
-			mergedCmds := append(*dep.MockOutputsAllowedTerraformCommands, *sourceDepConfig.MockOutputsAllowedTerraformCommands...)
-			dep.MockOutputsAllowedTerraformCommands = &mergedCmds
-		}
-	}
+	dep.mergeMockOutputsAllowedTerraformCommands(sourceDepConfig)
 
 	return nil
 }
 
-// getMockOutputsMergeStrategy returns the MergeStrategyType following the deprecation of mock_outputs_merge_with_state
-// - If mock_outputs_merge_strategy_with_state is not null. The value of mock_outputs_merge_strategy_with_state will be returned
-// - If mock_outputs_merge_strategy_with_state is null and mock_outputs_merge_with_state is not null:
-//   - mock_outputs_merge_with_state being true returns ShallowMerge
-//   - mock_outputs_merge_with_state being false returns NoMerge
-func (dep *Dependency) getMockOutputsMergeStrategy() MergeStrategyType {
-	if dep.MockOutputsMergeStrategyWithState == nil {
-		if dep.MockOutputsMergeWithState != nil && (*dep.MockOutputsMergeWithState) {
-			return ShallowMerge
-		} else {
-			return NoMerge
-		}
+// mergeMockOutputs deep-merges sourceDepConfig.MockOutputs into dep.MockOutputs, adopting the source pointer when dep is unset and skipping when both sides point at the same value.
+func (dep *Dependency) mergeMockOutputs(sourceDepConfig *Dependency) error {
+	if sourceDepConfig.MockOutputs == nil {
+		return nil
 	}
 
-	return *dep.MockOutputsMergeStrategyWithState
+	if dep.MockOutputs == nil {
+		dep.MockOutputs = sourceDepConfig.MockOutputs
+		return nil
+	}
+
+	if dep.MockOutputs == sourceDepConfig.MockOutputs {
+		return nil
+	}
+
+	merged, err := deepMergeCtyMaps(*dep.MockOutputs, *sourceDepConfig.MockOutputs)
+	if err != nil {
+		return err
+	}
+
+	dep.MockOutputs = merged
+
+	return nil
+}
+
+// mergeMockOutputsAllowedTerraformCommands concatenates source commands onto dep's, adopting the source pointer when dep is unset and skipping when both sides point at the same slice.
+func (dep *Dependency) mergeMockOutputsAllowedTerraformCommands(sourceDepConfig *Dependency) {
+	if sourceDepConfig.MockOutputsAllowedTerraformCommands == nil {
+		return
+	}
+
+	if dep.MockOutputsAllowedTerraformCommands == nil {
+		dep.MockOutputsAllowedTerraformCommands = sourceDepConfig.MockOutputsAllowedTerraformCommands
+		return
+	}
+
+	if dep.MockOutputsAllowedTerraformCommands == sourceDepConfig.MockOutputsAllowedTerraformCommands {
+		return
+	}
+
+	merged := append(*dep.MockOutputsAllowedTerraformCommands, *sourceDepConfig.MockOutputsAllowedTerraformCommands...)
+	dep.MockOutputsAllowedTerraformCommands = &merged
+}
+
+// getMockOutputsMergeStrategy returns the merge strategy for mock outputs, prioritizing mock_outputs_merge_strategy_with_state over the deprecated mock_outputs_merge_with_state boolean and defaulting to NoMerge.
+func (dep *Dependency) getMockOutputsMergeStrategy() MergeStrategyType {
+	if dep.MockOutputsMergeStrategyWithState != nil {
+		return *dep.MockOutputsMergeStrategyWithState
+	}
+
+	if dep.MockOutputsMergeWithState != nil && (*dep.MockOutputsMergeWithState) {
+		return ShallowMerge
+	}
+
+	return NoMerge
 }
 
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
@@ -206,7 +229,7 @@ func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
 func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File) (*cty.Value, error) {
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +241,12 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
+
+	// Fold sibling autoinclude dependency blocks in before output retrieval so the unit body can reference them, like a regular include.
+	decodedDependency.Dependencies, err = foldSiblingAutoIncludeDeps(ctx, pctx, l, decodedDependency.Dependencies)
+	if err != nil {
+		return nil, err
+	}
 
 	// Validate that dependency config_path is not an empty string.
 	// Skip null/unknown values and non-strings (which can appear during partial decode or hclvalidate).
@@ -738,7 +767,7 @@ func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Lo
 	unitOutputs := make(map[string]cty.Value)
 
 	for _, unit := range units {
-		unitDir := GetUnitDir(stackDir, unit)
+		unitDir := unit.GeneratedPath(stackDir)
 		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 
 		if !util.FileExists(unitConfigPath) {
@@ -1117,6 +1146,7 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
 			ctx,
 			l,
+			pctx.Venv.Exec,
 			pctx.Env,
 			externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
 			amazonsts.NewProvider(l, mergedIAM, pctx.Env),
@@ -1214,7 +1244,7 @@ func getTerragruntOutputJSONFromInitFolder(
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	out, err := tf.RunCommandWithOutput(bareCtx, l, vexec.NewOSExec(), tfRunOpts, tf.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(bareCtx, l, pctx.Venv.Exec, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1279,6 +1309,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	if err = creds.NewGetter().ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
+		pctx.Venv.Exec,
 		pctx.Env,
 		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
 		amazonsts.NewProvider(l, mergedIAM, pctx.Env),
@@ -1343,7 +1374,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Now that the backend is initialized, run terraform output to get the data and return it.
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	out, err := tf.RunCommandWithOutput(bareCtx, l, vexec.NewOSExec(), tfRunOpts, tf.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(bareCtx, l, pctx.Venv.Exec, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1463,6 +1494,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
+		pctx.Venv.Exec,
 		pctx.Env,
 		externalcmd.NewProvider(l, pctx.AuthProviderCmd, shellRunOptsFromPctx(pctx)),
 	); err != nil {
@@ -1504,7 +1536,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	runOpts.AuthProviderCmd = pctx.AuthProviderCmd
 	runOpts.CASCloneDepth = pctx.CASCloneDepth
 
-	err = run.Run(ctx, l, runOpts, report.NewReport(), runCfg, credsGetter)
+	err = run.Run(ctx, l, run.FromRoot(pctx.Venv), runOpts, report.NewReport(), runCfg, credsGetter)
 	if err != nil {
 		return nil, err
 	}
@@ -1598,7 +1630,7 @@ func runTerraformInitForDependencyOutput(ctx context.Context, pctx *ParsingConte
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	if err := tf.RunCommand(bareCtx, l, vexec.NewOSExec(), initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
+	if err := tf.RunCommand(bareCtx, l, pctx.Venv.Exec, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf("%s", stderr.String())
@@ -1615,6 +1647,88 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	}
 
 	return filteredDeps
+}
+
+// foldSiblingAutoIncludeDeps merges the registered sibling autoinclude dependency blocks over the unit's own same-name blocks (shallow, by name, with the autoinclude winning), mirroring a regular include's default merge strategy.
+func foldSiblingAutoIncludeDeps(ctx context.Context, pctx *ParsingContext, l log.Logger, deps []Dependency) ([]Dependency, error) {
+	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
+		return deps, nil
+	}
+
+	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
+
+	autoFile, err := parseAutoIncludeFileCached(ctx, pctx, autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Rescope to the autoinclude's own locals so the unit's locals do not leak into the autoinclude decode.
+	autoPctx := pctx.Clone()
+	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
+	autoPctx.skipAutoIncludeMerge = true
+
+	baseBlocks, err := DecodeBaseBlocks(ctx, autoPctx, l, autoFile, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if baseBlocks != nil {
+		autoPctx = autoPctx.WithTrackInclude(baseBlocks.TrackInclude)
+		autoPctx = autoPctx.WithFeatures(baseBlocks.FeatureFlags)
+		autoPctx = autoPctx.WithLocals(baseBlocks.Locals)
+	}
+
+	evalCtx, err := createTerragruntEvalContext(ctx, autoPctx, l, autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	decoded := TerragruntDependency{}
+	if err := autoFile.Decode(&decoded, evalCtx); err != nil {
+		return nil, err
+	}
+
+	// Fold in dependency blocks the autoinclude inherits through its own include blocks, mirroring the unit decode path so inherited deps resolve before the unit body is evaluated.
+	if autoPctx.TrackInclude != nil && len(autoPctx.TrackInclude.CurrentList) > 0 {
+		merged, err := handleIncludeForDependency(ctx, autoPctx, l, decoded)
+		if err != nil {
+			return nil, err
+		}
+
+		decoded = *merged
+	}
+
+	autoDeps := decoded.Dependencies.FilteredWithoutConfigPath()
+	if len(autoDeps) == 0 {
+		return deps, nil
+	}
+
+	return mergeDependencyBlocks(deps, autoDeps), nil
+}
+
+// parseAutoIncludeFileCached parses the sibling autoinclude through the run-scoped HCL file cache so repeated dependency-output decodes reuse one parse, rebinding the shared AST to a fresh parser per call.
+func parseAutoIncludeFileCached(ctx context.Context, pctx *ParsingContext, autoIncludePath string) (*hclparse.File, error) {
+	fileInfo, err := os.Stat(autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
+	// Prefix the key so it cannot collide with the unit-config keys ParseConfigFile stores.
+	cacheKey := fmt.Sprintf("autoinclude-%v-%v", autoIncludePath, fileInfo.ModTime().UnixMicro())
+
+	if cached, found := hclCache.Get(ctx, cacheKey); found {
+		return cached.Rebind(hclparse.NewParser(pctx.ParserOptions...)), nil
+	}
+
+	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	hclCache.Put(ctx, cacheKey, file)
+
+	return file, nil
 }
 
 // IsValidConfigPath checks if a cty.Value is a valid, usable config path.

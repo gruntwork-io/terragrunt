@@ -1,0 +1,12 @@
+---
+version: "v1.0.7"
+category: "bug-fixes"
+---
+
+#### `update_source_with_cas`: preserve `//subdir` on a unit's `terraform.source`
+
+When a unit's `terraform.source` used the `//` subdir convention (for example, `source = "../..//modules/foo"`) and opted into `update_source_with_cas`, the rewritten source dropped the `//subdir` tail and the synthetic tree contained only the leaf module's files. A module that referenced a sibling via a relative path (`source = "../bar"`) could not resolve that reference after materialization.
+
+Rewrites now preserve the original `//subdir` (for example, `cas::sha1:<hash>//modules/foo`), and the synthetic tree is rooted at the path before `//`, so sibling files reachable via relative paths land in the materialized working directory.
+
+Sources without `//` are unchanged: the tree stays scoped to the leaf module, and the rewritten reference has no `//subdir` tail.

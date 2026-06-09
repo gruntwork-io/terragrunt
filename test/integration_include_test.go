@@ -22,9 +22,6 @@ import (
 const (
 	includeDeepFixturePath       = "fixtures/include-deep/"
 	includeDeepFixtureChildPath  = "child"
-	includeFixturePath           = "fixtures/include/"
-	includeShallowFixturePath    = "stage/my-app"
-	includeNoMergeFixturePath    = "qa/my-app"
 	includeExposeFixturePath     = "fixtures/include-expose/"
 	includeChildFixturePath      = "child"
 	includeMultipleFixturePath   = "fixtures/include-multiple/"

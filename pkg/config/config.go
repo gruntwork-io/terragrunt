@@ -30,7 +30,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/hashicorp/hcl/v2"
@@ -1378,7 +1377,7 @@ func ParseConfig(
 		pctx.DecodedDependencies = retrievedOutputs
 	}
 
-	evalContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
+	evalContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -1400,15 +1399,14 @@ func ParseConfig(
 	}
 
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
-	// Gated by the stack-dependencies experiment and skipped for either autoinclude file itself.
-	configBase := filepath.Base(file.ConfigPath)
-	if configBase != DefaultAutoIncludeFile && configBase != DefaultAutoIncludeStackFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
-		autoMerged, mergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config, file.ConfigPath)
-		if mergeErr != nil {
-			errs = append(errs, mergeErr)
-		} else if autoMerged != nil {
-			config = autoMerged
-		}
+	// Only replace config on success; the merge helper returns nil on failure and handleInclude below would nil-deref it.
+	merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config)
+	if autoMergeErr != nil {
+		errs = append(errs, autoMergeErr)
+	}
+
+	if autoMergeErr == nil {
+		config = merged
 	}
 
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
@@ -1445,47 +1443,6 @@ func ParseConfig(
 	}
 
 	return config, errors.Join(errs...)
-}
-
-// mergeAutoIncludeIfPresent checks for the unit-level terragrunt.autoinclude.hcl in the same directory as the config file and merges it into the config. The autoinclude takes precedence.
-func mergeAutoIncludeIfPresent(
-	ctx context.Context,
-	pctx *ParsingContext,
-	l log.Logger,
-	config *TerragruntConfig,
-	configPath string,
-) (*TerragruntConfig, error) {
-	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
-
-	if !util.FileExists(autoIncludePath) {
-		return nil, nil
-	}
-
-	l.Debugf("Found %s, auto-merging into unit config", autoIncludePath)
-
-	// Clone the parsing context and reset DecodedDependencies so the
-	// autoinclude file gets its own dependency resolution pass.
-	//
-	// PartialParseDecodeList is intentionally inherited from the parent:
-	// - During DAG construction (partial mode): extracts dependency config_path
-	//   for graph ordering WITHOUT resolving outputs (which aren't available yet)
-	// - During actual unit run (full mode): resolves dependency outputs normally
-	//   because the DAG already ensured dependencies ran first
-	autoIncludePctx := pctx.Clone()
-	autoIncludePctx.DecodedDependencies = nil
-
-	autoIncludeConfig, err := ParseConfigFile(ctx, autoIncludePctx, l, autoIncludePath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
-	}
-
-	// Shallow merge: autoinclude wins over the unit config.
-	// Merge(sourceConfig) merges sourceConfig INTO the receiver, with sourceConfig winning.
-	if err := config.Merge(l, autoIncludeConfig); err != nil {
-		return nil, fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
-	}
-
-	return config, nil
 }
 
 // DetectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
@@ -2318,4 +2275,55 @@ func ParseRemoteState(ctx context.Context, l log.Logger, pctx *ParsingContext) (
 	}
 
 	return cfg.GetRemoteState(ctx, l, pctx)
+}
+
+// siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside configPath
+// and whether it is in scope: the context is not already parsing a file pulled in by an autoinclude
+// merge (skipAutoIncludeMerge, which would recurse and let a pulled-in file fold its own sibling
+// autoinclude), the stack-dependencies experiment is enabled, and configPath is not itself an autoinclude
+// file. The registration that records the override on TrackInclude and the partial-parse cache key both
+// route through here. Existence is left to the caller so the cache-key path can distinguish absent from present.
+func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bool) {
+	if pctx.skipAutoIncludeMerge {
+		return "", false
+	}
+
+	if !pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		return "", false
+	}
+
+	configBase := filepath.Base(configPath)
+	if configBase == DefaultAutoIncludeFile || configBase == DefaultAutoIncludeStackFile {
+		return "", false
+	}
+
+	return filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile), true
+}
+
+// mergeAutoIncludeIfPresent merges the registered sibling autoinclude override into the unit config the same way a regular include does by default (shallow merge), with the autoinclude winning.
+func mergeAutoIncludeIfPresent(ctx context.Context, pctx *ParsingContext, l log.Logger, cfg *TerragruntConfig) (*TerragruntConfig, error) {
+	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
+		return cfg, nil
+	}
+
+	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
+
+	l.Debugf("Found %s, merging into unit config", autoIncludePath)
+
+	// Reset DecodedDependencies so the autoinclude file gets its own dependency resolution pass.
+	clonedPctx := pctx.Clone()
+	clonedPctx.DecodedDependencies = nil
+	clonedPctx.skipAutoIncludeMerge = true
+
+	autoIncludeConfig, err := ParseConfigFile(ctx, clonedPctx, l, autoIncludePath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
+	}
+
+	// Shallow merge with the autoinclude as the winning source, matching a regular include's default strategy.
+	if err := cfg.Merge(l, autoIncludeConfig); err != nil {
+		return nil, fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
+	}
+
+	return cfg, nil
 }
