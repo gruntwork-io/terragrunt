@@ -61,6 +61,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Fl
 				return nil
 			},
 		}),
+		shared.NewNoCASFlag(opts, prefix),
 	}
 
 	return append(shared.NewScaffoldingFlags(opts, prefix), catalogFlags...)

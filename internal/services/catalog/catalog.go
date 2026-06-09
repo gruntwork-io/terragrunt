@@ -152,7 +152,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 
 	// Evaluate experimental features for symlinks and content-addressable storage.
 	walkWithSymlinks := s.opts.Experiments.Evaluate(experiment.Symlinks)
-	allowCAS := s.opts.Experiments.Evaluate(experiment.CAS)
+	allowCAS := s.opts.Experiments.Evaluate(experiment.CAS) && !s.opts.NoCAS
 	slowReporting := s.opts.Experiments.Evaluate(experiment.SlowTaskReporting)
 
 	var errs []error
@@ -227,7 +227,7 @@ func (s *catalogServiceImpl) LoadStreamingURL(ctx context.Context, l log.Logger,
 	}
 
 	walkWithSymlinks := s.opts.Experiments.Evaluate(experiment.Symlinks)
-	allowCAS := s.opts.Experiments.Evaluate(experiment.CAS)
+	allowCAS := s.opts.Experiments.Evaluate(experiment.CAS) && !s.opts.NoCAS
 	slowReporting := s.opts.Experiments.Evaluate(experiment.SlowTaskReporting)
 
 	tempPath := catalogTempPath(repoURL)

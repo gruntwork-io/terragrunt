@@ -1,0 +1,12 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `--no-cas` flag for the `catalog` command
+
+The [`catalog`](/reference/cli/commands/catalog) command now accepts the `--no-cas` flag, which was already available on `run`, `stack generate`, and `stack run`. When set, catalog repositories are cloned with plain Git even if the `cas` experiment is enabled.
+
+```bash
+terragrunt catalog --experiment cas --no-cas
+```

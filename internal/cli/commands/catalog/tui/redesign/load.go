@@ -50,7 +50,7 @@ func LoadURL(
 	}
 
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
-	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
+	allowCAS := opts.Experiments.Evaluate(experiment.CAS) && !opts.NoCAS
 	slowReporting := opts.Experiments.Evaluate(experiment.SlowTaskReporting)
 
 	tempPath := CatalogTempPath(repoURL)
