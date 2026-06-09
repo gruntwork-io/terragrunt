@@ -1548,6 +1548,7 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 	}
 }
 
+// TestBestEffortParseConfigString verifies that best-effort parsing returns a partial config when recoverable errors occur.
 func TestBestEffortParseConfigString(t *testing.T) {
 	t.Parallel()
 
@@ -1675,6 +1676,7 @@ func TestParseConfigGenerateAttrWithHclFmt(t *testing.T) {
 	assert.False(t, *generateConfig.HclFmt)
 }
 
+// TestParseConfigWithMissingIfExists verifies that generate blocks require the if_exists attribute.
 func TestParseConfigWithMissingIfExists(t *testing.T) {
 	t.Parallel()
 
@@ -2007,6 +2009,7 @@ inputs = {
 	assert.Equal(t, terragruntConfig.Inputs, rereadConfig.Inputs)
 }
 
+// TestWriteToExcludeNoRun verifies that the exclude no-run setting is preserved when writing config.
 func TestWriteToExcludeNoRun(t *testing.T) {
 	t.Parallel()
 
@@ -2031,6 +2034,7 @@ exclude {
 	assert.Contains(t, buf.String(), "no_run")
 }
 
+// TestWriteToCatalogFields verifies that catalog fields are written to config output.
 func TestWriteToCatalogFields(t *testing.T) {
 	t.Parallel()
 
