@@ -65,6 +65,7 @@ const (
 	testFixtureStackDepsMockLocal                = "fixtures/stacks/stack-deps-mock-local"
 	testFixtureStackDepsAutoIncValuesResolved    = "fixtures/stacks/stack-deps-autoinclude-values-resolved"
 	testFixtureStackDepsAutoIncFuncs             = "fixtures/stacks/stack-deps-autoinclude-funcs"
+	testFixtureStackDepsValuesSiblingAutoInc     = "fixtures/stacks/stack-deps-values-sibling-autoinclude"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -2072,6 +2073,51 @@ func TestStackDepsCrossLevelViaValues(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "consumer received: produced-across-levels", string(inputContent),
 		"consumer must receive the producer's output across stack levels")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+}
+
+// TestStackDepsValuesRefWithSiblingAutoInclude reproduces the regression where a stack
+// block's values referencing unit.<name>.path failed generation with "There is no
+// variable named \"unit\"" whenever the same terragrunt.stack.hcl carried a sibling
+// unit with an autoinclude block. Both the child stack's consumer (wired via values)
+// and the sibling (wired via its own autoinclude) must receive the producer's output.
+func TestStackDepsValuesRefWithSiblingAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsValuesSiblingAutoInc)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsValuesSiblingAutoInc)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsValuesSiblingAutoInc)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	consumerDir := filepath.Join(rootPath, inthclparse.StackDir, "child", inthclparse.StackDir, "consumer")
+	require.FileExists(t, filepath.Join(consumerDir, inthclparse.AutoIncludeFile),
+		"consumer in the child stack must get an autoinclude wired to the parent's producer")
+
+	siblingDir := filepath.Join(rootPath, inthclparse.StackDir, "sibling")
+	require.FileExists(t, filepath.Join(siblingDir, inthclparse.AutoIncludeFile),
+		"the sibling unit's own autoinclude must still generate")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
+
+	consumerInput, err := os.ReadFile(helpers.FindCachedFile(t, consumerDir, "input.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "consumer received: produced-across-levels", string(consumerInput),
+		"consumer must receive the producer's output across stack levels despite the sibling autoinclude")
+
+	siblingInput, err := os.ReadFile(helpers.FindCachedFile(t, siblingDir, "input.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "consumer received: produced-across-levels", string(siblingInput),
+		"the sibling unit must receive the producer's output via its own autoinclude")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
 }
