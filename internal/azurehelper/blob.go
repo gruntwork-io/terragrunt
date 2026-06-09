@@ -76,6 +76,8 @@ func NewBlobClient(cfg *AzureConfig) (*BlobClient, error) {
 // from NewBlobClient so the constructor doesn't need a mutable (client, err)
 // switch.
 func newAzblobClient(cfg *AzureConfig, suffix string) (*azblob.Client, error) {
+	const errCreatingBlobClient = "creating blob client: %w"
+
 	host := fmt.Sprintf("%s.blob.%s", cfg.AccountName, suffix)
 	serviceURL := (&url.URL{Scheme: "https", Host: host}).String()
 	clientOpts := &azblob.ClientOptions{ClientOptions: cfg.ClientOptions}
@@ -90,7 +92,7 @@ func newAzblobClient(cfg *AzureConfig, suffix string) (*azblob.Client, error) {
 
 		client, err := azblob.NewClientWithNoCredential(sasURL, clientOpts)
 		if err != nil {
-			return nil, fmt.Errorf("creating blob client: %w", err)
+			return nil, fmt.Errorf(errCreatingBlobClient, err)
 		}
 
 		return client, nil
@@ -102,7 +104,7 @@ func newAzblobClient(cfg *AzureConfig, suffix string) (*azblob.Client, error) {
 
 		client, err := azblob.NewClientWithSharedKeyCredential(serviceURL, cred, clientOpts)
 		if err != nil {
-			return nil, fmt.Errorf("creating blob client: %w", err)
+			return nil, fmt.Errorf(errCreatingBlobClient, err)
 		}
 
 		return client, nil
@@ -113,7 +115,7 @@ func newAzblobClient(cfg *AzureConfig, suffix string) (*azblob.Client, error) {
 
 		client, err := azblob.NewClient(serviceURL, cfg.Credential, clientOpts)
 		if err != nil {
-			return nil, fmt.Errorf("creating blob client: %w", err)
+			return nil, fmt.Errorf(errCreatingBlobClient, err)
 		}
 
 		return client, nil
