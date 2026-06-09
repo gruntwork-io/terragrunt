@@ -14,9 +14,15 @@ import Before from '@components/Before.astro';
 
 <Before version="1.1.0">
 <Aside type="tip" title="Experimental">
-CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
+CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas` to opt in before it becomes the default in 1.1.
 </Aside>
 </Before>
+
+<Since version="1.1.0">
+<Aside type="note">
+CAS source fetching is enabled by default as of 1.1. Upgrade to 1.1 or later to use it; disable it with `--no-cas`.
+</Aside>
+</Since>
 
 Terragrunt supports a Content Addressable Store (CAS) to deduplicate content across multiple Terragrunt configurations.
 
