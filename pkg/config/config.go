@@ -723,6 +723,7 @@ type terragruntGenerateBlock struct {
 	CommentPrefix    *string `hcl:"comment_prefix,attr" mapstructure:"comment_prefix"`
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
 	Disable          *bool   `hcl:"disable,attr" mapstructure:"disable"`
+	HclFmt           *bool   `hcl:"hcl_fmt,attr" mapstructure:"hcl_fmt"`
 	Name             string  `hcl:",label" mapstructure:",omitempty"`
 	Path             string  `hcl:"path,attr" mapstructure:"path"`
 	IfExists         string  `hcl:"if_exists,attr" mapstructure:"if_exists"`
@@ -1854,6 +1855,7 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 		}
 
 		genConfig := codegen.GenerateConfig{
+			HclFmt:        block.HclFmt,
 			Path:          block.Path,
 			IfExists:      ifExists,
 			IfExistsStr:   block.IfExists,
