@@ -73,9 +73,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TMPDIR: ${{ matrix.os == 'macos' && '/tmp' || '' }}
 
-      # TEMP (Windows porting): the -json pipeline emits no readable failures to the
-      # console, so upload the raw test events to diagnose Windows failures. Remove
-      # before review.
+      - name: Annotate Test Failures
+        if: always() && steps.run-tests.outcome == 'failure'
+        run: ./.github/scripts/coverage/coverage-report.sh annotate test-events.ndjson
+        shell: bash
+
+      # TEMP (Windows porting): upload the raw test events to diagnose Windows
+      # failures offline. Remove before review.
       - name: Upload test events (${{ matrix.os }})
         if: always() && matrix.os == 'windows'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -149,3 +153,9 @@ jobs:
           detailed_summary: 'true'
           include_time_in_summary: 'true'
           group_suite: 'true'
+          # Go package paths are not Java classnames: the action turns them into
+          # file paths that don't exist in the repo, so its annotations land on
+          # the wrong files. The Annotate Test Failures step emits ::error
+          # annotations with correct file:line; keep this action for the job
+          # summary only.
+          check_annotations: 'false'
