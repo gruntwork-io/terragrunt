@@ -22,20 +22,25 @@ const (
 )
 
 // scaffoldModuleURL returns the canonical scaffold-module source on the
-// local mirror.
-func scaffoldModuleURL(m *helpers.TerragruntMirror) string {
+// local server, which it asks the server to serve.
+func scaffoldModuleURL(m *helpers.GitServer) string {
+	m.AddFixtures("test/fixtures/scaffold/scaffold-module")
+
 	return m.SourceURL("/test/fixtures/scaffold/scaffold-module", "")
 }
 
-// scaffoldInputsURL returns the inputs fixture source on the local mirror.
-func scaffoldInputsURL(m *helpers.TerragruntMirror) string {
+// scaffoldInputsURL returns the inputs fixture source on the local
+// server, which it asks the server to serve.
+func scaffoldInputsURL(m *helpers.GitServer) string {
+	m.AddFixtures("test/fixtures/inputs")
+
 	return m.SourceURL("/test/fixtures/inputs", "")
 }
 
 func TestScaffoldModule(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, scaffoldModuleURL(mirror)))
@@ -46,7 +51,7 @@ func TestScaffoldModule(t *testing.T) {
 func TestScaffoldModuleShortUrl(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, scaffoldInputsURL(mirror)))
@@ -61,7 +66,7 @@ func TestScaffoldModuleShortUrl(t *testing.T) {
 func TestScaffoldModuleShortUrlNoRootInclude(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var=EnableRootInclude=false", tmpEnvPath, scaffoldInputsURL(mirror)))
@@ -75,7 +80,7 @@ func TestScaffoldModuleShortUrlNoRootInclude(t *testing.T) {
 func TestScaffoldModuleDifferentRevision(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var=Ref=v0.67.4", tmpEnvPath, scaffoldInputsURL(mirror)))
@@ -157,7 +162,7 @@ func TestScaffold3rdPartyModule(t *testing.T) {
 func TestScaffoldOutputFolderFlag(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	outputFolder := tmpEnvPath + "/foo/bar"
@@ -169,7 +174,7 @@ func TestScaffoldOutputFolderFlag(t *testing.T) {
 func TestScaffoldWithRootHCL(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	tmpEnvPath := helpers.CopyEnvironment(t, testScaffoldWithRootHCL)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testScaffoldWithRootHCL)
@@ -344,7 +349,7 @@ func TestScaffoldWithBothFlagsDisabled(t *testing.T) {
 func TestScaffoldDoesNotFormatPreExistingFiles(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	// Write a pre-existing HCL file with intentionally poor formatting.

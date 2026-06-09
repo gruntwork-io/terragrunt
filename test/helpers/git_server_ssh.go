@@ -22,24 +22,43 @@ const (
 	sshOutputFilePerm fs.FileMode = 0o644
 )
 
+// sshMirror is a running localhost SSH git server together with the
+// resources that must be released when the owning test finishes: the
+// [gliderssh.Server], its listener, and the on-disk bare repo.
+// [GitServer.shutdown] releases them.
+type sshMirror struct {
+	server *gliderssh.Server
+	ln     net.Listener
+	// url is the SSH endpoint, of form
+	// `ssh://git@127.0.0.1:PORT/terragrunt.git`.
+	url string
+	// bareDir is the temporary bare repo the server serves; removed
+	// on shutdown.
+	bareDir string
+	// keyPEM is the OpenSSH-format private key the server accepts.
+	keyPEM []byte
+}
+
 // startSSHMirror brings up a localhost SSH git server backed by an
-// on-disk bare repo populated from fixturesDir. The server execs
-// `git-upload-pack` (or `git-receive-pack`) against the bare repo on
-// each session, ignoring the path the client requested because there
-// is only one repo to serve. Returns the SSH URL
-// (`ssh://git@HOST:PORT/terragrunt.git`) and the OpenSSH-format
-// private key PEM bytes that consumer tests materialize on disk via
-// [TerragruntMirror.RequireSSH] for the duration of each test.
+// on-disk bare repo populated with the given repo-relative fixture
+// directories (the same content the HTTP mirror serves). The server
+// execs `git-upload-pack` (or `git-receive-pack`) against the bare repo
+// on each session, ignoring the path the client requested because there
+// is only one repo to serve. The returned [sshMirror] carries the SSH
+// URL (`ssh://git@HOST:PORT/terragrunt.git`), the OpenSSH-format private
+// key bytes that consumer tests materialize on disk via
+// [GitServer.RequireSSH], and the server/listener/bare-repo
+// handles its owner releases via [GitServer.shutdown].
 //
 // Returns an error if `ssh` or `git-upload-pack` is not on PATH;
 // callers should treat that as "skip SSH tests" rather than fatal.
-func startSSHMirror(fixturesDir, mirrorHTTPURL string) (string, []byte, error) {
+func startSSHMirror(fixturesDir string, dirs []string, mirrorHTTPURL string) (*sshMirror, error) {
 	if _, err := exec.LookPath("ssh"); err != nil {
-		return "", nil, fmt.Errorf("ssh client not available: %w", err)
+		return nil, fmt.Errorf("ssh client not available: %w", err)
 	}
 
 	if _, err := exec.LookPath("git-upload-pack"); err != nil {
-		return "", nil, fmt.Errorf("git-upload-pack not available: %w", err)
+		return nil, fmt.Errorf("git-upload-pack not available: %w", err)
 	}
 
 	// Bind first so the port (and therefore the SSH URL) is known
@@ -49,14 +68,14 @@ func startSSHMirror(fixturesDir, mirrorHTTPURL string) (string, []byte, error) {
 
 	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
-		return "", nil, fmt.Errorf("listen: %w", err)
+		return nil, fmt.Errorf("listen: %w", err)
 	}
 
 	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
 	if !ok {
 		_ = ln.Close()
 
-		return "", nil, fmt.Errorf("listener returned non-TCP addr %T", ln.Addr())
+		return nil, fmt.Errorf("listener returned non-TCP addr %T", ln.Addr())
 	}
 
 	sshURL := fmt.Sprintf("ssh://git@127.0.0.1:%d/terragrunt.git", tcpAddr.Port)
@@ -65,27 +84,28 @@ func startSSHMirror(fixturesDir, mirrorHTTPURL string) (string, []byte, error) {
 	if err != nil {
 		_ = ln.Close()
 
-		return "", nil, fmt.Errorf("generate client key: %w", err)
+		return nil, fmt.Errorf("generate client key: %w", err)
 	}
 
 	hostSigner, err := generateHostSigner()
 	if err != nil {
 		_ = ln.Close()
 
-		return "", nil, fmt.Errorf("host signer: %w", err)
+		return nil, fmt.Errorf("host signer: %w", err)
 	}
 
 	bareDir, err := os.MkdirTemp("", "terragrunt-ssh-bare-*.git")
 	if err != nil {
 		_ = ln.Close()
 
-		return "", nil, fmt.Errorf("mkdir bare: %w", err)
+		return nil, fmt.Errorf("mkdir bare: %w", err)
 	}
 
-	if err := populateBareRepo(fixturesDir, bareDir, mirrorHTTPURL, sshURL); err != nil {
+	if err := populateBareRepo(fixturesDir, dirs, bareDir, mirrorHTTPURL, sshURL); err != nil {
 		_ = ln.Close()
+		_ = os.RemoveAll(bareDir)
 
-		return "", nil, fmt.Errorf("populate bare repo: %w", err)
+		return nil, fmt.Errorf("populate bare repo: %w", err)
 	}
 
 	server := &gliderssh.Server{
@@ -100,7 +120,13 @@ func startSSHMirror(fixturesDir, mirrorHTTPURL string) (string, []byte, error) {
 
 	go func() { _ = server.Serve(ln) }()
 
-	return sshURL, clientPriv, nil
+	return &sshMirror{
+		url:     sshURL,
+		keyPEM:  clientPriv,
+		server:  server,
+		ln:      ln,
+		bareDir: bareDir,
+	}, nil
 }
 
 // handleGitSSHSession services a single SSH `exec` request by running
@@ -176,17 +202,18 @@ func generateHostSigner() (cryptossh.Signer, error) {
 	return cryptossh.NewSignerFromKey(priv)
 }
 
-// populateBareRepo writes the fixture tree into a working repo on
-// disk, commits and tags it (using [TerragruntMirrorTags] and
-// [TerragruntMirrorBranches]), then runs `git push --mirror` into
-// the empty bare repo at bareDir. The work goes through the real
-// `git` binary, not go-git, because the SSH server execs the real
-// `git-upload-pack`, which only reads on-disk repositories.
+// populateBareRepo writes the given repo-relative fixture directories
+// into a working repo on disk, commits and tags it (using
+// [TerragruntMirrorTags] and [TerragruntMirrorBranches]), then runs
+// `git push --mirror` into the empty bare repo at bareDir. The work goes
+// through the real `git` binary, not go-git, because the SSH server
+// execs the real `git-upload-pack`, which only reads on-disk
+// repositories.
 //
-// __MIRROR_URL__ and __MIRROR_SSH_URL__ in `*.hcl`, `*.tf`, and
-// `*.tofu` files are substituted at copy time so a clone of one
-// fixture that references another stays inside the local mirror.
-func populateBareRepo(fixturesDir, bareDir, httpURL, sshURL string) error {
+// __MIRROR_URL__ and __MIRROR_SSH_URL__ in `*.hcl`, `*.tf`, and `*.tofu`
+// files are substituted at copy time so a clone of one fixture that
+// references another stays inside the local mirror.
+func populateBareRepo(fixturesDir string, dirs []string, bareDir, httpURL, sshURL string) error {
 	workDir, err := os.MkdirTemp("", "terragrunt-ssh-work-*")
 	if err != nil {
 		return fmt.Errorf("mkdir work: %w", err)
@@ -207,7 +234,7 @@ func populateBareRepo(fixturesDir, bareDir, httpURL, sshURL string) error {
 		}
 	}
 
-	if err := copyFixturesToDisk(fixturesDir, workDir, httpURL, sshURL); err != nil {
+	if err := copyFixturesToDisk(fixturesDir, dirs, workDir, httpURL, sshURL); err != nil {
 		return fmt.Errorf("copy fixtures: %w", err)
 	}
 
@@ -215,7 +242,11 @@ func populateBareRepo(fixturesDir, bareDir, httpURL, sshURL string) error {
 		return err
 	}
 
-	if err := runGit(workDir, "commit", "-m", "seed test/fixtures"); err != nil {
+	// --allow-empty: RequireSSH may build the bare repo before any
+	// fixtures are added (the SSH URL must be known so it can be
+	// substituted into a fixture rendered afterwards, which then
+	// refreshes this repo with content).
+	if err := runGit(workDir, "commit", "--allow-empty", "-m", "seed test/fixtures"); err != nil {
 		return err
 	}
 
@@ -258,16 +289,26 @@ func runGit(dir string, args ...string) error {
 	return nil
 }
 
-// copyFixturesToDisk mirrors fixturesDir into `<workDir>/test/fixtures/`,
-// reusing [walkFixtures] so the skip rules and placeholder
-// substitution stay in lockstep with the HTTP path.
-func copyFixturesToDisk(fixturesDir, workDir, httpURL, sshURL string) error {
-	return walkFixtures(fixturesDir, httpURL, sshURL, func(rel string, data []byte) error {
-		dst := filepath.Join(workDir, "test", "fixtures", filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(dst), sshDirPerm); err != nil {
+// copyFixturesToDisk writes the given repo-relative fixture directories
+// into workDir at their full `test/fixtures/...` path, reusing
+// [walkFixturesRooted] so the skip rules and placeholder substitution
+// stay in lockstep with the HTTP path.
+func copyFixturesToDisk(fixturesDir string, dirs []string, workDir, httpURL, sshURL string) error {
+	repoRoot := filepath.Dir(filepath.Dir(fixturesDir))
+
+	for _, dir := range dirs {
+		err := walkFixturesRooted(repoRoot, filepath.Join(repoRoot, dir), httpURL, sshURL, func(rel string, data []byte) error {
+			dst := filepath.Join(workDir, filepath.FromSlash(rel))
+			if err := os.MkdirAll(filepath.Dir(dst), sshDirPerm); err != nil {
+				return err
+			}
+
+			return os.WriteFile(dst, data, sshOutputFilePerm)
+		})
+		if err != nil {
 			return err
 		}
+	}
 
-		return os.WriteFile(dst, data, sshOutputFilePerm)
-	})
+	return nil
 }
