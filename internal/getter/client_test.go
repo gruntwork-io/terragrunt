@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -46,7 +48,7 @@ func TestGetAnyConvenience(t *testing.T) {
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "copy")
 	_, err := getter.GetAny(t.Context(), dst, "file://"+src,
-		getter.WithFileCopy(getter.NewFileCopyGetter()),
+		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	require.NoError(t, err)
 
@@ -64,7 +66,7 @@ func TestGetConvenience(t *testing.T) {
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "copy")
 	_, err := getter.Get(t.Context(), dst, "file://"+src,
-		getter.WithFileCopy(getter.NewFileCopyGetter()),
+		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	require.NoError(t, err)
 

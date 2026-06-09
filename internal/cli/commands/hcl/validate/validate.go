@@ -28,6 +28,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/view"
@@ -40,7 +41,7 @@ import (
 
 const splitCount = 2
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return fmt.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputsFlagName)
@@ -50,17 +51,17 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			return fmt.Errorf("specifying both -%s and -%s is invalid", JSONFlagName, InputsFlagName)
 		}
 
-		return RunValidateInputs(ctx, l, opts)
+		return RunValidateInputs(ctx, l, v, opts)
 	}
 
 	if opts.HCLValidateStrict {
 		return fmt.Errorf("specifying -%s without -%s is invalid", StrictFlagName, InputsFlagName)
 	}
 
-	return RunValidate(ctx, l, opts)
+	return RunValidate(ctx, l, v, opts)
 }
 
-func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	var diags diagnostic.Diagnostics
 
 	// Diagnostics handler to collect validation errors
@@ -95,6 +96,10 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		Filters:     opts.Filters,
 		Experiments: opts.Experiments,
 	})
+	if d != nil {
+		d = d.WithExec(v.Exec)
+	}
+
 	if err != nil {
 		return processDiagnostics(l, opts, diags, err)
 	}
@@ -135,6 +140,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			parseOpts.TerragruntConfigPath = stackFilePath
 
 			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
+			parser.Venv = v.ToRoot()
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
@@ -168,6 +174,8 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
 		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
+		pctx.Venv = v.ToRoot()
+
 		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
 			parseErrs = append(parseErrs, err)
 		}
@@ -231,7 +239,7 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 	return writer.Diagnostics(diags)
 }
 
-func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	opts = opts.Clone()
 
 	opts.SkipOutput = true
@@ -242,6 +250,10 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 		Filters:     opts.Filters,
 		Experiments: opts.Experiments,
 	})
+	if d != nil {
+		d = d.WithExec(v.Exec)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -289,21 +301,21 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 
 		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
-		prepared, err := prepare.PrepareConfig(ctx, l, unitOpts)
+		prepared, err := prepare.PrepareConfig(ctx, l, v, unitOpts)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Download source
-		updatedOpts, err := prepare.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
+		updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Generate config
-		if err := prepare.PrepareGenerate(l, updatedOpts, prepared.Cfg.ToRunConfig(l)); err != nil {
+		if err := prepare.PrepareGenerate(l, v, updatedOpts, prepared.Cfg.ToRunConfig(l)); err != nil {
 			errs = append(errs, err)
 			continue
 		}

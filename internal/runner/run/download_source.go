@@ -51,6 +51,7 @@ const (
 func DownloadTerraformSource(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	source string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -77,7 +78,7 @@ func DownloadTerraformSource(
 	dirLock.Lock()
 	defer dirLock.Unlock()
 
-	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r)
+	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, v, terraformSource, opts, cfg, r)
 	if err != nil {
 		return nil, err
 	}
@@ -151,6 +152,7 @@ func DownloadTerraformSource(
 func DownloadTerraformSourceIfNecessary(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	terraformSource *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -219,6 +221,7 @@ func DownloadTerraformSourceIfNecessary(
 	downloadErr := RunActionWithHooks(
 		ctx,
 		l,
+		v,
 		"download source",
 		optsForDownload,
 		cfg,
@@ -231,11 +234,11 @@ func DownloadTerraformSourceIfNecessary(
 					Spinner: "Downloading source from " + sourceURL + "...",
 					Done:    "Downloaded source from " + sourceURL,
 				}, func() error {
-					return downloadSource(childCtx, l, terraformSource, opts, cfg, r)
+					return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
 				})
 			}
 
-			return downloadSource(childCtx, l, terraformSource, opts, cfg, r)
+			return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
 		},
 	)
 	if downloadErr != nil {
@@ -332,6 +335,7 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 func downloadSource(
 	ctx context.Context,
 	l log.Logger,
+	v Venv,
 	src *tf.Source,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -370,7 +374,7 @@ func downloadSource(
 	}
 
 	return opts.RunWithErrorHandling(ctx, l, r, func() error {
-		client, err := BuildDownloadClient(l, opts, cfg)
+		client, err := BuildDownloadClient(l, v, opts, cfg)
 		if err != nil {
 			return err
 		}
@@ -431,7 +435,7 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 		Getters: []getter.Getter{
 			casProtocol,
 			getter.NewCASGetter(l, c, venv, &cloneOpts, getter.WithDefaultGenericDispatch(
-				getter.WithTFRConfig(l, opts.TofuImplementation),
+				getter.WithTFRConfig(l, opts.TofuImplementation, venv.FS),
 			)),
 		},
 	}
@@ -463,26 +467,25 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 // protocol set are: FileCopyGetter (copies local sources instead of
 // symlinking) and RegistryGetter (resolves tfr:// sources).
 //
-// opts.FS must be the OS-backed filesystem from [vfs.NewOSFS]; the returned
-// client shells out to go-getter and other libraries that bypass the vfs
+// v.FS must be the OS-backed filesystem from [vfs.NewOSFS]; it backs the
+// file-copy getter and the registry getter's archive expansion, both of
+// which shell out to go-getter and other libraries that bypass the vfs
 // abstraction. Returns [ErrNonOSFilesystem] otherwise.
 //
 // Exported so tests can assert the protocol set directly.
-func BuildDownloadClient(l log.Logger, opts *Options, cfg *runcfg.RunConfig) (*getter.Client, error) {
-	if !vfs.IsOSFS(opts.FS) {
+func BuildDownloadClient(l log.Logger, v Venv, opts *Options, cfg *runcfg.RunConfig) (*getter.Client, error) {
+	if !vfs.IsOSFS(v.FS) {
 		return nil, ErrNonOSFilesystem
 	}
 
 	return getter.NewClient(
 		getter.WithLogger(l),
-		getter.WithFileCopy(getter.NewFileCopyGetter().
+		getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).
 			WithLogger(l).
-			WithFS(opts.FS).
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
-		getter.WithTFRegistry(getter.NewRegistryGetter(l).
-			WithFS(opts.FS).
+		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
 			WithTofuImplementation(opts.TofuImplementation)),
 	), nil
 }
