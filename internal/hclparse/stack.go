@@ -114,16 +114,6 @@ func GeneratedComponentPath(stackDir, path string, noStack bool) string {
 	return filepath.Join(stackDir, StackDir, path)
 }
 
-// GeneratedPath returns the on-disk path this unit block generates to under stackDir.
-func (u *UnitBlockHCL) GeneratedPath(stackDir string) string {
-	return GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
-}
-
-// GeneratedPath returns the on-disk path this stack block generates to under stackDir.
-func (s *StackBlockHCL) GeneratedPath(stackDir string) string {
-	return GeneratedComponentPath(stackDir, s.Path, s.NoStack != nil && *s.NoStack)
-}
-
 // GeneratedPath returns the on-disk path this unit generates to under stackDir.
 func (u *unitPathOnlyHCL) GeneratedPath(stackDir string) string {
 	return GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
