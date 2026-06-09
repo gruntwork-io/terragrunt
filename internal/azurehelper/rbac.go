@@ -198,7 +198,7 @@ func (c *RBACClient) AssignRoleIfMissing(ctx context.Context, l log.Logger, in A
 // scope. If no such assignment exists this is a no-op (returns nil).
 //
 // When multiple matching assignments exist (uncommon but possible), all of
-// them are deleted; the first delete error encountered is returned.
+// them are deleted; any delete errors are aggregated via errors.Join.
 func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, principalID, roleDefinitionID string) error {
 	if scope == "" || principalID == "" || roleDefinitionID == "" {
 		return ErrScopePrincipalRoleArgs
@@ -224,28 +224,9 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 			return fmt.Errorf("listing role assignments for removal: %w", err)
 		}
 
-		for _, ra := range page.Value {
-			if ra == nil || ra.Properties == nil || ra.Properties.RoleDefinitionID == nil || ra.ID == nil {
-				continue
-			}
-
-			if !strings.HasSuffix(*ra.Properties.RoleDefinitionID, roleDefSuffix) {
-				continue
-			}
-
-			if _, err := c.client.DeleteByID(ctx, *ra.ID, nil); err != nil {
-				// Concurrent removal raced us to the same assignment - treat as success.
-				if IsNotFound(err) {
-					continue
-				}
-
-				errs = append(errs, fmt.Errorf("deleting role assignment %s: %w", *ra.ID, err))
-
-				continue
-			}
-
-			removed++
-		}
+		n, pageErrs := c.deleteMatchingAssignments(ctx, page.Value, roleDefSuffix)
+		errs = append(errs, pageErrs...)
+		removed += n
 	}
 
 	if err := errors.Join(errs...); err != nil {
@@ -255,6 +236,40 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 	l.Debugf("azurehelper: removed %d role assignment(s) for principal %s on %s", removed, principalID, scope)
 
 	return nil
+}
+
+// deleteMatchingAssignments deletes every assignment in ras whose role
+// definition ID ends with roleDefSuffix, returning how many were removed and
+// any delete errors. Assignments removed concurrently (404) count as success.
+func (c *RBACClient) deleteMatchingAssignments(ctx context.Context, ras []*armauthorization.RoleAssignment, roleDefSuffix string) (int, []error) {
+	var errs []error
+
+	removed := 0
+
+	for _, ra := range ras {
+		if ra == nil || ra.Properties == nil || ra.Properties.RoleDefinitionID == nil || ra.ID == nil {
+			continue
+		}
+
+		if !strings.HasSuffix(*ra.Properties.RoleDefinitionID, roleDefSuffix) {
+			continue
+		}
+
+		if _, err := c.client.DeleteByID(ctx, *ra.ID, nil); err != nil {
+			// Concurrent removal raced us to the same assignment - treat as success.
+			if IsNotFound(err) {
+				continue
+			}
+
+			errs = append(errs, fmt.Errorf("deleting role assignment %s: %w", *ra.ID, err))
+
+			continue
+		}
+
+		removed++
+	}
+
+	return removed, errs
 }
 
 // isAlreadyAssigned returns true for the Azure "RoleAssignmentExists"
