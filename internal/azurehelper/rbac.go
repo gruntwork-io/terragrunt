@@ -31,6 +31,10 @@ const (
 	RBACPropagationTimeout = 5 * time.Minute
 )
 
+// roleDefinitionsPath is the provider path segment that, appended to a scope
+// and a role definition GUID, forms a full role definition ID.
+const roleDefinitionsPath = "/providers/Microsoft.Authorization/roleDefinitions/"
+
 // RBACClient wraps the Azure role-assignment management API.
 type RBACClient struct {
 	client         *armauthorization.RoleAssignmentsClient
@@ -99,7 +103,7 @@ func (c *RBACClient) AssignRole(ctx context.Context, l log.Logger, in AssignRole
 
 	assignmentName := uuid.NewString()
 	roleDefID := "/subscriptions/" + c.subscriptionID +
-		"/providers/Microsoft.Authorization/roleDefinitions/" + in.RoleDefinitionID
+		roleDefinitionsPath + in.RoleDefinitionID
 
 	params := armauthorization.RoleAssignmentCreateParameters{
 		Properties: &armauthorization.RoleAssignmentProperties{
@@ -136,7 +140,7 @@ func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, 
 		return false, &InvalidPrincipalIDError{PrincipalID: principalID}
 	}
 
-	roleDefSuffix := "/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionID
+	roleDefSuffix := roleDefinitionsPath + roleDefinitionID
 
 	pager := c.client.NewListForScopePager(scope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
 		Filter: to.Ptr("principalId eq '" + principalID + "'"),
@@ -204,7 +208,7 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 		return &InvalidPrincipalIDError{PrincipalID: principalID}
 	}
 
-	roleDefSuffix := "/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionID
+	roleDefSuffix := roleDefinitionsPath + roleDefinitionID
 
 	pager := c.client.NewListForScopePager(scope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
 		Filter: to.Ptr("principalId eq '" + principalID + "'"),
