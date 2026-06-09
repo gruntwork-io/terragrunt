@@ -873,6 +873,29 @@ func TestExposedIncludeFullParseReturnsError(t *testing.T) {
 	require.Error(t, err, "Full parsing should fail when exposed include has unresolved dependency")
 }
 
+// TestExposedIncludeErrorIdentifiesIncludeBlock is a regression test for
+// https://github.com/gruntwork-io/terragrunt/issues/6282. When resolving an exposed include fails, the error must
+// identify WHICH include block and WHICH included (parent) file caused it, not just the child config path —
+// otherwise location-less errors (e.g. "unsuitable value: a bool is required") are impossible to debug.
+func TestExposedIncludeErrorIdentifiesIncludeBlock(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExposedIncludePartialParseError)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExposedIncludePartialParseError)
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	childPath := filepath.Join(rootPath, "child")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+childPath+" -- plan",
+	)
+	require.Error(t, err)
+	assert.Contains(t, stderr, `exposed include "root"`,
+		"error should name the include block so the user knows WHERE resolution failed")
+	assert.Contains(t, stderr, "root.hcl", "error should name the included (parent) file")
+}
+
 // TestQueueDisplayOrder verifies that the flat queue display lists units in
 // dependency order: dependencies before dependents.
 // Regression test for https://github.com/gruntwork-io/terragrunt/issues/5035
