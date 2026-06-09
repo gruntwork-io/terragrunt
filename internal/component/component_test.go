@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -204,6 +205,72 @@ func TestThreadSafeComponentsFindByPath(t *testing.T) {
 	// Find non-existent path
 	notFound := tsc.FindByPath("/nonexistent")
 	assert.Nil(t, notFound, "should not find non-existent path")
+}
+
+func TestUnitConfigConcurrentReadWrite(t *testing.T) {
+	t.Parallel()
+
+	unit := component.NewUnit("/test/unit")
+
+	source := "git::https://example.com/repo.git?ref=main"
+
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{
+			Source: &source,
+		},
+	}
+
+	var wg sync.WaitGroup
+
+	const writers = 5
+	const readers = 10
+	const iterations = 200
+
+	// Writers: concurrently store config via StoreConfig and WithConfig
+	for i := range writers {
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+
+			for range iterations {
+				if i%2 == 0 {
+					unit.StoreConfig(cfg)
+				} else {
+					unit.WithConfig(cfg)
+				}
+			}
+		}(i)
+	}
+
+	// Readers: concurrently read config via Config and Sources
+	for i := range readers {
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+
+			for range iterations {
+				if i%2 == 0 {
+					_ = unit.Config()
+				} else {
+					_ = unit.Sources()
+				}
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify final state is consistent
+	finalCfg := unit.Config()
+	require.NotNil(t, finalCfg)
+	require.NotNil(t, finalCfg.Terraform)
+	assert.Equal(t, source, *finalCfg.Terraform.Source)
+
+	sources := unit.Sources()
+	assert.Len(t, sources, 1)
+	assert.Equal(t, source, sources[0])
 }
 
 func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
