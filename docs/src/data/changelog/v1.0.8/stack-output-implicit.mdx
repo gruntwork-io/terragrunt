@@ -9,7 +9,7 @@ Gated behind the new [`stack-output-implicit`](/reference/experiments/active/#st
 
 `terragrunt stack output` previously required a `terragrunt.stack.hcl` file to produce aggregated outputs. When run in a directory with only loose units, it warned that no stack files were found and produced nothing.
 
-With the experiment enabled, it now falls back to discovering units directly under the working directory and aggregates their outputs keyed by the unit's directory path (relative to the working directory, forward slashes on every OS):
+With the experiment enabled, it now discovers units that are not declared in any stack and aggregates their outputs keyed by the unit's directory path (relative to the working directory, forward slashes on every OS). In a tree that also contains explicit stacks, the explicit outputs keep their declared names and implicit units are merged in alongside them (explicit wins on key collision):
 
 ```bash
 $ terragrunt stack output

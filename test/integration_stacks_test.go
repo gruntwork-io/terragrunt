@@ -550,39 +550,70 @@ func TestStackOutputsImplicit(t *testing.T) {
 	})
 }
 
-// TestStackOutputsImplicitDefersToNestedExplicitStack pins down Behavior A: when
-// the working directory contains *any* terragrunt.stack.hcl (even one nested
-// several levels deep), `stack output` runs the explicit-stack flow and does
-// not pick up loose units sitting outside the stack — even with the implicit
-// experiment enabled. The experiment fallback is binary, not a merge.
-func TestStackOutputsImplicitDefersToNestedExplicitStack(t *testing.T) {
+// TestStackOutputsImplicitMergesWithNestedExplicitStack verifies the merge
+// behavior of the stack-output-implicit experiment in a mixed tree: a
+// terragrunt.stack.hcl nested several levels deep — itself declaring a child
+// stack (stack of stacks) — plus loose units outside any stack. With the
+// experiment enabled, explicit-stack units keep their declared names
+// (including the dotted child-stack hierarchy) and loose units are added under
+// their relative paths; units materialized by the explicit stacks are not
+// double-counted under their path keys. Without the experiment, only the
+// explicit-stack output is produced.
+func TestStackOutputsImplicitMergesWithNestedExplicitStack(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputsImplicitMixed)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputsImplicitMixed)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksOutputsImplicitMixed, "live")
 
-	// Apply everything so both the nested explicit stack and the loose unit
-	// have state. The assertion is that even though the loose unit has been
-	// applied and has outputs available, `stack output` does not include it
-	// because the explicit-stack flow takes precedence.
+	// Apply everything so the explicit stacks' units and the loose units all
+	// have state to read.
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --non-interactive --experiment stack-output-implicit --working-dir "+rootPath)
-	require.NoError(t, err)
+	t.Run("experiment merges loose units with the explicit stacks", func(t *testing.T) {
+		t.Parallel()
 
-	var result map[string]map[string]any
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --non-interactive --experiment stack-output-implicit --working-dir "+rootPath)
+		require.NoError(t, err)
 
-	err = json.Unmarshal([]byte(stdout), &result)
-	require.NoError(t, err)
+		var result map[string]map[string]any
 
-	// The nested explicit stack's unit appears under its explicit-stack name.
-	assert.Len(t, result, 1)
-	assert.Equal(t, "stacked", result["nested_app"]["value"])
+		err = json.Unmarshal([]byte(stdout), &result)
+		require.NoError(t, err)
 
-	// The loose top-level unit must not show up — the explicit-stack flow took
-	// precedence, the implicit fallback never ran.
-	assert.NotContains(t, result, "loose-unit")
+		// The nested explicit stack's unit appears under its declared name.
+		assert.Equal(t, "stacked", result["nested_app"]["value"])
+
+		// The child stack's unit appears under the dotted stack hierarchy.
+		assert.Equal(t, map[string]any{"value": "stacked"}, result["child_stack"]["child_app"])
+
+		// Loose units outside the stacks appear under their relative paths.
+		assert.Contains(t, result["loose-unit"]["marker"], "loose top-level implicit unit")
+		assert.Equal(t, "stacked", result["units/stacked"]["value"])
+
+		// Units materialized by the explicit stacks (parent and child) must
+		// not be repeated under their directory paths.
+		assert.NotContains(t, result, "deeply/nested/folder/.terragrunt-stack/nested_app")
+		assert.NotContains(t, result, "deeply/nested/folder/.terragrunt-stack/child_stack/.terragrunt-stack/child_app")
+		assert.Len(t, result, 4)
+	})
+
+	t.Run("without the experiment only the explicit stacks are output", func(t *testing.T) {
+		t.Parallel()
+
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --non-interactive --working-dir "+rootPath)
+		require.NoError(t, err)
+
+		var result map[string]map[string]any
+
+		err = json.Unmarshal([]byte(stdout), &result)
+		require.NoError(t, err)
+
+		assert.Len(t, result, 2)
+		assert.Equal(t, "stacked", result["nested_app"]["value"])
+		assert.Equal(t, map[string]any{"value": "stacked"}, result["child_stack"]["child_app"])
+		assert.NotContains(t, result, "loose-unit")
+	})
 }
 
 func TestStackOutputsRaw(t *testing.T) {

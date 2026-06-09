@@ -5,6 +5,7 @@ package output
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -241,7 +242,67 @@ func StackOutput(
 		return cty.NilVal, fmt.Errorf("failed to convert unit output to cty value: %s %w", result, err)
 	}
 
-	return ctyResult, nil
+	if !opts.Experiments.Evaluate(experiment.StackOutputImplicit) {
+		return ctyResult, nil
+	}
+
+	// With the stack-output-implicit experiment enabled, loose units living
+	// outside any declared stack are aggregated too, keyed by relative path.
+	// Skip the units the discovery excluded plus the units materialized by the
+	// explicit stacks above (<stack-dir>/.terragrunt-stack/<unit-path>), so
+	// they are not counted twice. Nested stacks are covered because the
+	// recursive stack-file walk parses them into parsedStackFiles like any other.
+	skipPaths := make(map[string]struct{}, len(excludedPaths))
+	maps.Copy(skipPaths, excludedPaths)
+
+	for stackPath, stackFile := range parsedStackFiles {
+		targetDir := filepath.Join(filepath.Dir(stackPath), config.StackDir)
+
+		for _, unit := range stackFile.Units {
+			skipPaths[filepath.Clean(filepath.Join(targetDir, unit.Path))] = struct{}{}
+		}
+	}
+
+	implicitResult, err := implicitStackOutput(ctx, l, opts, skipPaths)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	return mergeOutputs(l, ctyResult, implicitResult), nil
+}
+
+// mergeOutputs combines explicit-stack outputs with implicit unit outputs into
+// a single object. On a top-level key collision the explicit value wins, since
+// explicit stacks are the declared source of truth for their namespace.
+func mergeOutputs(l log.Logger, explicit, implicit cty.Value) cty.Value {
+	if implicit == cty.NilVal {
+		return explicit
+	}
+
+	if explicit == cty.NilVal {
+		return implicit
+	}
+
+	merged := make(map[string]cty.Value)
+
+	for key, val := range explicit.AsValueMap() {
+		merged[key] = val
+	}
+
+	for key, val := range implicit.AsValueMap() {
+		if _, exists := merged[key]; exists {
+			l.Warnf("Skipping implicit output for %s: an explicit stack already defines this key", key)
+			continue
+		}
+
+		merged[key] = val
+	}
+
+	if len(merged) == 0 {
+		return cty.NilVal
+	}
+
+	return cty.ObjectVal(merged)
 }
 
 // nestUnitOutputs transforms a flat map of unit outputs into a nested hierarchical structure.

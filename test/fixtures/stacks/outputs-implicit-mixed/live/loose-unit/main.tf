@@ -1,3 +1,3 @@
 output "marker" {
-  value = "this is a loose top-level implicit unit and must NOT appear in stack output"
+  value = "loose top-level implicit unit, merged into stack output by the experiment"
 }

@@ -77,7 +77,7 @@ project1_app1.custom_value1 = "value1"
 
 Gated behind the [`stack-output-implicit`](/reference/experiments/active/#stack-output-implicit---what-it-does) experiment. Enable with `--experiment stack-output-implicit` (or `TG_EXPERIMENT=stack-output-implicit`).
 
-When enabled and no `terragrunt.stack.hcl` file is present, `terragrunt stack output` discovers the units under the working directory and aggregates their outputs keyed by each unit's directory path (relative to the working directory, forward slashes on every OS):
+When enabled, `terragrunt stack output` discovers units that are not declared in any `terragrunt.stack.hcl` file and aggregates their outputs keyed by each unit's directory path (relative to the working directory, forward slashes on every OS):
 
 ```bash
 $ terragrunt stack output
@@ -101,6 +101,8 @@ vpc-1234567890
 ```
 
 The path key is preserved verbatim, so two units in different directories never collide. As with explicit-stack unit names, directory names containing `.` cannot be drilled into with the dot separator — use `--format json` for those.
+
+In a tree that also contains explicit stacks, the explicit-stack outputs keep their declared `stack.unit` names and implicit units are merged in alongside them. Units materialized by an explicit stack are never repeated under a path key, and on a top-level key collision the explicit stack's value wins (the skipped implicit unit is reported with a warning).
 
 ## Output formats
 
