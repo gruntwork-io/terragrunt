@@ -48,6 +48,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -138,6 +139,12 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 			util.WithFastCopy(),
 		),
 	)
+
+	// If the copied tree references the local git mirror via placeholder
+	// (e.g., fixtures under `fixtures/download/` include `hello-world`,
+	// whose main.tf has a `__MIRROR_URL__` source), substitute against
+	// the live mirror so terraform/tofu can resolve the URL.
+	applyMirrorSubst(t, tmpDir)
 
 	return tmpDir
 }
@@ -1126,7 +1133,7 @@ func RunTerragruntCommandWithContext(
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
 
-	app := cli.NewApp(l, opts)
+	app := cli.NewApp(l, opts, venv.OSVenv())
 
 	ctx = log.ContextWithLogger(ctx, l)
 

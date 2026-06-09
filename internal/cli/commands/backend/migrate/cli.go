@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -40,7 +41,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	)
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
 	cmd := &clihelper.Command{
 		Name:      CommandName,
 		Usage:     "Migrate OpenTofu/Terraform state from one location to another.",
@@ -57,7 +58,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 				return errors.New(usageText)
 			}
 
-			return Run(ctx, l, srcPath, dstPath, opts.OptionsFromContext(ctx))
+			return Run(ctx, l, v, srcPath, dstPath, opts.OptionsFromContext(ctx))
 		},
 	}
 

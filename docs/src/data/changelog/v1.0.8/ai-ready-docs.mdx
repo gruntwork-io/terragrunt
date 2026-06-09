@@ -1,0 +1,16 @@
+---
+version: "v1.0.8"
+category: "documentation-updates"
+---
+
+#### Clean Markdown is available for every docs page at `<url>.md`
+
+Every docs page is now served as clean Markdown at the same URL with `.md` appended. For example, [`/getting-started/install`](/getting-started/install) is also available at [`/getting-started/install.md`](/getting-started/install.md).
+
+```bash
+curl https://docs.terragrunt.com/getting-started/install.md
+```
+
+The `.md` version contains the page content without the site navigation or other surrounding HTML, which makes it well suited as context for LLMs and AI tooling: it is smaller and carries only the documentation itself. Coverage includes every page, including the [CLI command reference](/reference/cli/commands/run.md) and the changelog.
+
+This complements the existing [`llms.txt`](/llms.txt) and [`llms-full.txt`](/llms-full.txt) files by providing a per-page Markdown source.

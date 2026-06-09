@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
@@ -19,6 +20,14 @@ func (d *Discovery) addParseReason(r parseReason) {
 // WithDiscoveryContext sets the discovery context.
 func (d *Discovery) WithDiscoveryContext(ctx *component.DiscoveryContext) *Discovery {
 	d.discoveryContext = ctx
+	return d
+}
+
+// WithExec sets the process-execution handle used by the git top-level
+// probe and the auth-provider-command credentials fetch. Callers with a
+// threaded root virtualized environment override the OS-backed default.
+func (d *Discovery) WithExec(exec vexec.Exec) *Discovery {
+	d.exec = exec
 	return d
 }
 

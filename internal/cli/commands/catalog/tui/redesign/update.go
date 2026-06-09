@@ -16,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -611,7 +612,7 @@ func discoverFormCmd(ctx context.Context, l log.Logger, opts *options.Terragrunt
 func discoverModuleFields(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, c *Component) tea.Msg {
 	quiet := l.WithOptions(log.WithOutput(io.Discard))
 
-	plan, err := scaffold.Prepare(ctx, quiet, opts, c.TerraformSourcePath(), "")
+	plan, err := scaffold.Prepare(ctx, quiet, venv.OSVenv(), opts, c.TerraformSourcePath(), "")
 	if err != nil {
 		return formDiscoveryErrMsg{err: err}
 	}

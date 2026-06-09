@@ -369,3 +369,80 @@ func FuzzGenerateAutoIncludeFile_ArgPanics(f *testing.F) {
 		_ = hclparse.GenerateAutoIncludeFile(fs, nil, targetDir, nil, nil)
 	})
 }
+
+// FuzzAutoIncludeResolveForKindStack tests AutoIncludeHCL.ResolveForKind for the stack kind with
+// arbitrary autoinclude bodies, exercising the dependency-values validator that rejects an injected
+// unit/stack whose values reference dependency outputs (dependency.foo, dependency["foo"], and the
+// dynamic dependency[values.x] forms). Verifies stack-kind resolution never panics regardless of input.
+func FuzzAutoIncludeResolveForKindStack(f *testing.F) {
+	seeds := []string{
+		`unit "extra" { source = "."; path = "extra"; values = { v = unit.producer.path } }`,
+		`unit "extra" { source = "."; path = "extra"; values = { v = dependency.foo.outputs.bar } }`,
+		`unit "extra" { source = "."; path = "extra"; values = { v = dependency["foo"].outputs.bar } }`,
+		`unit "extra" { source = "."; path = "extra"; values = { v = dependency[values.x].outputs.bar } }`,
+		`stack "child" { source = "."; path = "child"; values = { v = dependency.foo.outputs.bar } }`,
+		`dependency "foo" { config_path = unit.producer.path }
+unit "extra" { source = "."; path = "extra"; values = { v = dependency.foo.outputs.bar } }`,
+		`dependency "foo" { config_path = "../foo" }`,
+		``,
+		`{}`,
+		`unit "x" {}`,
+	}
+
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"producer": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("../producer")}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	f.Fuzz(func(t *testing.T, input string) {
+		file, diags := hclsyntax.ParseConfig([]byte(input), "fuzz.hcl", hcl.Pos{Line: 1, Column: 1})
+		if diags.HasErrors() {
+			return
+		}
+
+		autoInclude := &hclparse.AutoIncludeHCL{Remain: file.Body}
+		_, _ = autoInclude.ResolveForKind(evalCtx, hclparse.KindStack, "fuzz")
+	})
+}
+
+// FuzzUnitPathsFromStackDir_AutoIncludeContent fuzzes the content of a sibling
+// terragrunt.autoinclude.stack.hcl while running discovery expansion, exercising
+// mergeDiscoveryStackAutoInclude end to end: the hclsyntax parse, the dependency-values backstop, and
+// the strict unit/stack-only decode that rejects locals, includes, and other stray top-level content.
+// Verifies discovery never panics regardless of autoinclude content.
+func FuzzUnitPathsFromStackDir_AutoIncludeContent(f *testing.F) {
+	seeds := []string{
+		`unit "extra" { source = "."; path = "extra" }`,
+		`stack "child" { source = "."; path = "child" }`,
+		`unit "extra" { source = "."; path = "extra"; values = { v = dependency.foo.outputs.bar } }`,
+		`unit "base" { source = "."; path = "base2" }`,
+		`locals { x = 1 }`,
+		`include "root" { path = "../root.hcl" }`,
+		`generate "x" { path = "x.tf"; if_exists = "overwrite"; contents = "" }`,
+		`inputs = { a = 1 }`,
+		``,
+		`{}`,
+		`not hcl @#$`,
+	}
+
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, autoIncludeContent string) {
+		fs := vfs.NewMemMapFS()
+		_ = fs.MkdirAll("/fuzz", 0755)
+		_ = vfs.WriteFile(fs, "/fuzz/terragrunt.stack.hcl", []byte(`unit "base" { source = "."; path = "base" }`), 0644)
+		_ = vfs.WriteFile(fs, "/fuzz/"+hclparse.AutoIncludeStackFile, []byte(autoIncludeContent), 0644)
+
+		_, _ = hclparse.UnitPathsFromStackDir(fs, "/fuzz", noFuncs)
+	})
+}
