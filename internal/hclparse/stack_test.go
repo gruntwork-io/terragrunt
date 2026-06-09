@@ -80,6 +80,140 @@ func TestUnitPathsFromStackDir_RecursesNestedStacks(t *testing.T) {
 	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "more", ".terragrunt-stack", "deep")}, paths)
 }
 
+// TestUnitPathsFromStackDir_ValuesFileResolvesLocals pins that discovery loads the
+// generated terragrunt.values.hcl next to the stack file and publishes it as the
+// `values` variable, so a stack whose locals reference values.* expands instead of
+// failing with an unknown "values" variable (the gruntwork-io/terragrunt#5663 repro).
+func TestUnitPathsFromStackDir_ValuesFileResolvesLocals(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`locals {
+  env = values.env
+}
+
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "${local.env}-vpc"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.values.hcl", []byte(`env = "dev"
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.NoError(t, err, "locals referencing values.* must resolve when a sibling terragrunt.values.hcl exists")
+	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "dev-vpc")}, paths,
+		"the values file content must feed the local and therefore the generated unit path")
+}
+
+// TestUnitPathsFromStackDir_NoValuesFileLocalsStillResolve pins that a stack without a
+// sibling values file still expands when its locals do not reference values.*.
+func TestUnitPathsFromStackDir_NoValuesFileLocalsStillResolve(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`locals {
+  env = "prod"
+}
+
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "${local.env}-vpc"
+}
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "prod-vpc")}, paths)
+}
+
+// TestUnitPathsFromStackDir_ValuesReferenceWithoutFileFails pins that referencing
+// values.* without a sibling values file still fails with a typed local-eval error,
+// the same as a full stack parse that received no values.
+func TestUnitPathsFromStackDir_ValuesReferenceWithoutFileFails(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`locals {
+  env = values.env
+}
+
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "${local.env}-vpc"
+}
+`), 0644))
+
+	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.Error(t, err, "values.* without a sibling values file must fail, matching a full parse with no values")
+
+	var typed hclparse.LocalEvalError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "env", typed.Name)
+}
+
+// TestUnitPathsFromStackDir_NestedStackOwnValuesFile pins that values files are loaded
+// per stack directory during nested expansion: the parent and the nested stack each
+// resolve values.* from their own sibling terragrunt.values.hcl.
+func TestUnitPathsFromStackDir_NestedStackOwnValuesFile(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`locals {
+  env = values.env
+}
+
+stack "more" {
+  source = "."
+  path   = "${local.env}-more"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.values.hcl", []byte(`env = "dev"
+`), 0644))
+	// The nested generated dir carries its own values file with a different value.
+	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/dev-more/terragrunt.stack.hcl", []byte(`locals {
+  env = values.env
+}
+
+unit "deep" {
+  source = "."
+  path   = "${local.env}-deep"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/.terragrunt-stack/dev-more/terragrunt.values.hcl", []byte(`env = "stage"
+`), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "dev-more", ".terragrunt-stack", "stage-deep")}, paths,
+		"each nesting level must resolve values.* from its own sibling values file")
+}
+
+// TestUnitPathsFromStackDir_MalformedValuesFileReturnsError pins that a corrupt sibling
+// values file surfaces a typed parse error instead of being silently skipped.
+func TestUnitPathsFromStackDir_MalformedValuesFileReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+  source = "../units/vpc"
+  path   = "vpc"
+}
+`), 0644))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.values.hcl", []byte(`env = `), 0644))
+
+	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", noFuncs)
+	require.Error(t, err)
+
+	var typed hclparse.FileParseError
+	require.ErrorAs(t, err, &typed)
+}
+
 // TestUnitPathsFromStackDir_MergesStackAutoInclude pins that discovery folds a sibling
 // terragrunt.autoinclude.stack.hcl into expansion, so a unit injected by a stack-level autoinclude
 // produces a DAG edge the same way a full stack parse materializes it.

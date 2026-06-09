@@ -66,6 +66,7 @@ const (
 	testFixtureStackDepsAutoIncValuesResolved    = "fixtures/stacks/stack-deps-autoinclude-values-resolved"
 	testFixtureStackDepsAutoIncFuncs             = "fixtures/stacks/stack-deps-autoinclude-funcs"
 	testFixtureStackDepsValuesSiblingAutoInc     = "fixtures/stacks/stack-deps-values-sibling-autoinclude"
+	testFixtureStackDepsStackValuesLocals        = "fixtures/stacks/stack-deps-stack-values-locals"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -745,6 +746,41 @@ func TestStackDepsE2ECrossStack(t *testing.T) {
 		"app must receive the network stack's real vpc output, not the mock")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+}
+
+// TestStackDepsStackValuesInLocals pins that run-queue expansion of a stack-dir
+// dependency resolves values.* referenced in the target stack's locals from the
+// generated terragrunt.values.hcl sitting next to the generated terragrunt.stack.hcl,
+// instead of failing with an unknown "values" variable (gruntwork-io/terragrunt#5663).
+func TestStackDepsStackValuesInLocals(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackValuesLocals)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackValuesLocals)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackValuesLocals)
+
+	// The child stack uses get_repo_root() for unit sources, so the fixture copy must be a git repo.
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	err = runner.WithWorkDir(gitPath).Init(t.Context())
+	require.NoError(t, err)
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	// Generation wrote the child stack's values file and its locals consumed it: the
+	// generated unit dir carries the env prefix from values.env.
+	networkDir := filepath.Join(rootPath, inthclparse.StackDir, "network")
+	require.FileExists(t, filepath.Join(networkDir, "terragrunt.values.hcl"))
+	require.DirExists(t, filepath.Join(networkDir, inthclparse.StackDir, "dev-vpc"))
+
+	// Run-queue expansion of app's stack-dir dependency re-evaluates the child stack's
+	// locals; it must load the sibling values file rather than fail on values.env.
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
 }
 
 // Regression: a non-literal expression (here, format()) in an unrelated unit must not block autoinclude resolution. Generation succeeds and the autoinclude file is produced for the unit that declares it.
