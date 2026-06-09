@@ -61,7 +61,7 @@ const flags = defineCollection({
 });
 
 const changelog = defineCollection({
-	loader: glob({ pattern: "**/*.mdx", base: "src/data/changelog" }),
+	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/changelog" }),
 	schema: z.object({
 		version: z.string(),
 		category: z.enum(CHANGELOG_CATEGORY_SLUGS),
