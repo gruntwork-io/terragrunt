@@ -53,11 +53,6 @@ func deepMergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags []*FeatureFla
 	return mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags, (*FeatureFlag).DeepMerge)
 }
 
-// deepMergeMapOnlyFeatureBlocks deep merges feature flag map defaults without appending slices.
-func deepMergeMapOnlyFeatureBlocks(targetFeatureFlags, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
-	return mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags, (*FeatureFlag).DeepMergeMapOnly)
-}
-
 // mergeFeatureBlocks merges feature flags by name using the given merge function.
 func mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags []*FeatureFlag, mergeFlag func(*FeatureFlag, *FeatureFlag) error) ([]*FeatureFlag, error) {
 	if sourceFeatureFlags == nil && targetFeatureFlags == nil {
