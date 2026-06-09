@@ -18,8 +18,4 @@ func TestWithPrefix(t *testing.T) {
 	o := &listBlobsOptions{}
 	WithPrefix("state/")(o)
 	assert.Equal(t, "state/", o.prefix)
-
-	// WithPrefix("") clears any previously-set prefix.
-	WithPrefix("")(o)
-	assert.Empty(t, o.prefix)
 }

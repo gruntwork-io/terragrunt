@@ -14,9 +14,11 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	azblobcontainer "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 )
 
@@ -35,7 +37,6 @@ import (
 // fanning out.
 type BlobClient struct {
 	client         *azblob.Client
-	config         *AzureConfig
 	accountName    string
 	endpointSuffix string
 	container      string
@@ -67,7 +68,6 @@ func NewBlobClient(cfg *AzureConfig) (*BlobClient, error) {
 		client:         client,
 		accountName:    cfg.AccountName,
 		endpointSuffix: suffix,
-		config:         cfg,
 	}, nil
 }
 
@@ -176,9 +176,7 @@ func (c *BlobClient) CreateContainer(ctx context.Context, name string) error {
 		return nil
 	}
 
-	var respErr *azcore.ResponseError
-
-	if errors.As(err, &respErr) && strings.EqualFold(respErr.ErrorCode, "ContainerAlreadyExists") {
+	if respErr, ok := errors.AsType[*azcore.ResponseError](err); ok && strings.EqualFold(respErr.ErrorCode, "ContainerAlreadyExists") {
 		return nil
 	}
 
@@ -346,10 +344,11 @@ func (c *BlobClient) ListBlobs(ctx context.Context, container string, opts ...Li
 // Callers must not pre-encode (e.g. pass "folder%2Fkey") — the resulting
 // URL would double-encode.
 //
-// The copy is initiated synchronously (StartCopyFromURL returns once Azure
-// accepts the request) but Azure may complete the copy asynchronously for
-// large blobs; this method does not poll for completion. Callers needing
-// to block on completion should poll the destination blob's CopyStatus.
+// StartCopyFromURL accepts the request synchronously but Azure may complete
+// the data movement asynchronously for large blobs. CopyBlob polls the
+// destination blob's CopyStatus until it is no longer "pending" so callers
+// can rely on a nil return meaning the copy is committed. The poll honours
+// ctx; pass a context with a deadline to bound the wait.
 func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstContainer, dstKey string) error {
 	if srcContainer == "" || srcKey == "" || dstContainer == "" || dstKey == "" {
 		return ErrCopyBlobArgsRequired
@@ -362,11 +361,79 @@ func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstCont
 	}).String()
 
 	dst := c.client.ServiceClient().NewContainerClient(dstContainer).NewBlobClient(dstKey)
-	if _, err := dst.StartCopyFromURL(ctx, srcURL, nil); err != nil {
+
+	resp, err := dst.StartCopyFromURL(ctx, srcURL, nil)
+	if err != nil {
 		return fmt.Errorf("copying blob %s/%s to %s/%s: %w", srcContainer, srcKey, dstContainer, dstKey, err)
 	}
 
-	return nil
+	status := derefCopyStatus(resp.CopyStatus)
+	if status != blob.CopyStatusTypePending {
+		return checkCopyStatus(srcContainer, srcKey, dstContainer, dstKey, status, nil)
+	}
+
+	return c.waitForCopy(ctx, dst, srcContainer, srcKey, dstContainer, dstKey)
+}
+
+// copyPollInterval is how often CopyBlob polls the destination blob's
+// CopyStatus while the copy is pending.
+const copyPollInterval = 1 * time.Second
+
+// waitForCopy polls dst.GetProperties until CopyStatus is no longer pending
+// or ctx is cancelled.
+func (c *BlobClient) waitForCopy(ctx context.Context, dst *blob.Client, srcContainer, srcKey, dstContainer, dstKey string) error {
+	ticker := time.NewTicker(copyPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("waiting for copy of %s/%s to %s/%s: %w", srcContainer, srcKey, dstContainer, dstKey, ctx.Err())
+		case <-ticker.C:
+			props, err := dst.GetProperties(ctx, nil)
+			if err != nil {
+				return fmt.Errorf("polling copy status for %s/%s: %w", dstContainer, dstKey, err)
+			}
+
+			status := derefCopyStatus(props.CopyStatus)
+			if status == blob.CopyStatusTypePending {
+				continue
+			}
+
+			return checkCopyStatus(srcContainer, srcKey, dstContainer, dstKey, status, props.CopyStatusDescription)
+		}
+	}
+}
+
+// derefCopyStatus returns the value of a *CopyStatusType, or the empty
+// string when nil. The Azure SDK returns *CopyStatusType so a nil pointer
+// means the header was absent (no copy in progress, or already gone).
+func derefCopyStatus(s *blob.CopyStatusType) blob.CopyStatusType {
+	if s == nil {
+		return ""
+	}
+
+	return *s
+}
+
+// checkCopyStatus turns a terminal CopyStatus into nil (success) or an
+// error describing the failure. An empty status is treated as success
+// because the StartCopyFromURL response may omit the header when the copy
+// completes inline.
+func checkCopyStatus(srcContainer, srcKey, dstContainer, dstKey string, status blob.CopyStatusType, description *string) error {
+	switch status {
+	case blob.CopyStatusTypeSuccess, "":
+		return nil
+	case blob.CopyStatusTypeFailed, blob.CopyStatusTypeAborted:
+		desc := ""
+		if description != nil {
+			desc = ": " + *description
+		}
+
+		return fmt.Errorf("copying blob %s/%s to %s/%s: status=%s%s", srcContainer, srcKey, dstContainer, dstKey, status, desc)
+	default:
+		return fmt.Errorf("copying blob %s/%s to %s/%s: unexpected status=%s", srcContainer, srcKey, dstContainer, dstKey, status)
+	}
 }
 
 // endpointSuffixForCloud returns the blob endpoint host suffix for the cloud
