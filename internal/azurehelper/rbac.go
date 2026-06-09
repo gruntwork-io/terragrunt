@@ -22,17 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Built-in Azure role definition IDs (GUIDs). These are stable across all
-// subscriptions. The full role definition ID is
-// /subscriptions/{sub}/providers/Microsoft.Authorization/roleDefinitions/{guid}.
-//
-// See: https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
-const (
-	RoleStorageBlobDataOwner       = "b7e6dc6d-f1e8-4753-8033-0f276bb0955b"
-	RoleStorageBlobDataContributor = "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
-	RoleStorageBlobDataReader      = "2a2b9908-6ea1-4ae2-8e65-a410df84e7d1"
-)
-
 // RBAC propagation timing. Azure can take several minutes to propagate role
 // assignments to data-plane services; callers needing immediate access should
 // poll with these values.
@@ -86,8 +75,8 @@ type AssignRoleInput struct {
 	PrincipalID string
 	// PrincipalType: "User", "Group", "ServicePrincipal". Defaults to ServicePrincipal.
 	PrincipalType string
-	// RoleDefinitionID is the GUID portion of a role definition (e.g.
-	// RoleStorageBlobDataOwner). The full definition ID is composed for you.
+	// RoleDefinitionID is the GUID portion of a built-in or custom role
+	// definition. The full definition ID is composed for you.
 	RoleDefinitionID string
 }
 
@@ -221,7 +210,7 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 		Filter: to.Ptr("principalId eq '" + principalID + "'"),
 	})
 
-	var firstErr error
+	var errs []error
 
 	removed := 0
 
@@ -246,9 +235,7 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 					continue
 				}
 
-				if firstErr == nil {
-					firstErr = fmt.Errorf("deleting role assignment %s: %w", *ra.ID, err)
-				}
+				errs = append(errs, fmt.Errorf("deleting role assignment %s: %w", *ra.ID, err))
 
 				continue
 			}
@@ -257,8 +244,8 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 		}
 	}
 
-	if firstErr != nil {
-		return firstErr
+	if err := errors.Join(errs...); err != nil {
+		return err
 	}
 
 	l.Debugf("azurehelper: removed %d role assignment(s) for principal %s on %s", removed, principalID, scope)
@@ -275,8 +262,8 @@ func isAlreadyAssigned(err error) bool {
 		return false
 	}
 
-	var respErr *azcore.ResponseError
-	if !errors.As(err, &respErr) {
+	respErr, ok := errors.AsType[*azcore.ResponseError](err)
+	if !ok {
 		return false
 	}
 

@@ -99,8 +99,8 @@ func IsRetryable(err error) bool {
 		return false
 	}
 
-	var respErr *azcore.ResponseError
-	if !errors.As(err, &respErr) {
+	respErr, ok := errors.AsType[*azcore.ResponseError](err)
+	if !ok {
 		return true
 	}
 
@@ -126,8 +126,8 @@ func IsNotFound(err error) bool {
 		return false
 	}
 
-	var respErr *azcore.ResponseError
-	if !errors.As(err, &respErr) {
+	respErr, ok := errors.AsType[*azcore.ResponseError](err)
+	if !ok {
 		return false
 	}
 
@@ -149,6 +149,6 @@ func IsNotFound(err error) bool {
 // ErrorCode (case-insensitive). Use for narrow checks at call sites that
 // distinguish e.g. "ContainerNotFound" from "BlobNotFound".
 func isErrorCode(err error, code string) bool {
-	var respErr *azcore.ResponseError
-	return errors.As(err, &respErr) && strings.EqualFold(respErr.ErrorCode, code)
+	respErr, ok := errors.AsType[*azcore.ResponseError](err)
+	return ok && strings.EqualFold(respErr.ErrorCode, code)
 }

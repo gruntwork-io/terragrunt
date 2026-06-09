@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -349,9 +350,9 @@ func (in *StorageAccountConfig) withDefaults() {
 		in.AccessTier = defaultAccessTier
 	}
 
-	tags := make(map[string]string, len(in.Tags)+1)
-	for k, v := range in.Tags {
-		tags[k] = v
+	tags := maps.Clone(in.Tags)
+	if tags == nil {
+		tags = make(map[string]string, 1)
 	}
 
 	if _, ok := tags["created-by"]; !ok {
@@ -393,8 +394,8 @@ func stringMapPtr(in map[string]string) map[string]*string {
 // isStatusCode reports whether err is an azcore.ResponseError with the
 // supplied HTTP status.
 func isStatusCode(err error, status int) bool {
-	var respErr *azcore.ResponseError
-	if !errors.As(err, &respErr) {
+	respErr, ok := errors.AsType[*azcore.ResponseError](err)
+	if !ok {
 		return false
 	}
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -370,13 +371,14 @@ func (b *AzureConfigBuilder) firstEnv(keys ...string) string {
 	return ""
 }
 
+// parseBool returns the boolean value of an env-var-style string using
+// strconv.ParseBool semantics ("1", "t", "T", "TRUE", "true", "True", and
+// their negations). Surrounding whitespace is tolerated. Any unrecognised
+// value yields false, matching the convention used by the Terraform azurerm
+// provider for ARM_USE_MSI / ARM_USE_OIDC.
 func parseBool(s string) bool {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "1", "true", "yes":
-		return true
-	}
-
-	return false
+	v, _ := strconv.ParseBool(strings.TrimSpace(s))
+	return v
 }
 
 // cloudConfigForEnvironment maps a cloud environment alias to an Azure SDK
