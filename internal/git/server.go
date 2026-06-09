@@ -2,15 +2,21 @@ package git
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/go-git/go-billy/v6/memfs"
+	"github.com/go-git/go-billy/v6/util"
 	gogit "github.com/go-git/go-git/v6"
 	backendhttp "github.com/go-git/go-git/v6/backend/http"
 	"github.com/go-git/go-git/v6/plumbing"
+	"github.com/go-git/go-git/v6/plumbing/filemode"
+	"github.com/go-git/go-git/v6/plumbing/format/index"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/go-git/go-git/v6/plumbing/transport"
 	"github.com/go-git/go-git/v6/storage"
@@ -20,10 +26,11 @@ import (
 // Server is a pure-Go HTTP Git server backed by in-memory storage.
 // It is intended for use in tests.
 type Server struct {
-	store storage.Storer
-	repo  *gogit.Repository
-	ln    net.Listener
-	srv   *http.Server
+	store  storage.Storer
+	repo   *gogit.Repository
+	ln     net.Listener
+	srv    *http.Server
+	mounts map[string]storage.Storer
 }
 
 // NewServer creates a Server with an empty in-memory repository.
@@ -41,9 +48,21 @@ func NewServer() (*Server, error) {
 	}
 
 	return &Server{
-		store: store,
-		repo:  repo,
+		store:  store,
+		repo:   repo,
+		mounts: map[string]storage.Storer{},
 	}, nil
+}
+
+// Mount serves other's repository at the given URL path (e.g.
+// "/child.git") on this server's listener, so tests can exercise
+// same-host relative submodule URLs. Paths without a mount still
+// resolve to this server's own repository. Call before [Server.Start];
+// the mounted server itself does not need to be started.
+func (s *Server) Mount(path string, other *Server) {
+	// The HTTP backend strips the leading slash before it builds the
+	// endpoint handed to the loader, so mount keys are stored bare.
+	s.mounts[strings.TrimPrefix(path, "/")] = other.store
 }
 
 // Repo returns the underlying go-git repository so callers can create
@@ -128,6 +147,56 @@ func (s *Server) CommitSymlink(link, target, msg string) error {
 	return nil
 }
 
+// CommitSubmodule records a gitlink at path pinned to commitHash and,
+// when url is non-empty, registers the submodule in .gitmodules before
+// committing both. An empty url leaves the gitlink unregistered,
+// mirroring the orphaned entry left behind by accidentally committing
+// a nested repository. The gitlink lands as a tree entry with mode
+// 160000 and type commit, matching `git submodule add`.
+func (s *Server) CommitSubmodule(path, url, commitHash, msg string) error {
+	w, err := s.repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("worktree: %w", err)
+	}
+
+	if url != "" {
+		if err := appendGitmodules(w, path, url); err != nil {
+			return err
+		}
+	}
+
+	idx, err := s.repo.Storer.Index()
+	if err != nil {
+		return fmt.Errorf("read index: %w", err)
+	}
+
+	idx.Entries = append(idx.Entries, &index.Entry{
+		Name: path,
+		Hash: plumbing.NewHash(commitHash),
+		Mode: filemode.Submodule,
+	})
+
+	if err := s.repo.Storer.SetIndex(idx); err != nil {
+		return fmt.Errorf("write index: %w", err)
+	}
+
+	sig := &object.Signature{
+		Name:  "Test",
+		Email: "test@test.com",
+		When:  time.Now(),
+	}
+
+	_, err = w.Commit(msg, &gogit.CommitOptions{
+		Author:    sig,
+		Committer: sig,
+	})
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	return nil
+}
+
 // Head returns the canonical hash of the current HEAD commit. Useful
 // in tests that need to capture a non-tip commit hash before adding
 // further commits.
@@ -189,7 +258,7 @@ func (s *Server) SetBranch(name, hash string) error {
 // Start begins serving Git HTTP on a random local port.
 // Returns the base URL (e.g. "http://127.0.0.1:12345").
 func (s *Server) Start(ctx context.Context) (string, error) {
-	loader := &singleRepoLoader{store: s.store}
+	loader := &repoLoader{store: s.store, mounts: s.mounts}
 	backend := backendhttp.NewBackend(loader)
 
 	var lc net.ListenConfig
@@ -218,12 +287,43 @@ func (s *Server) Close() error {
 	return nil
 }
 
-// singleRepoLoader implements transport.Loader by always returning the same
-// storer, regardless of the endpoint path.
-type singleRepoLoader struct {
-	store storage.Storer
+// gitmodulesPerms is the file mode used for the .gitmodules file
+// written into the test worktree.
+const gitmodulesPerms = 0o644
+
+// appendGitmodules appends a submodule section for path and url to the
+// worktree's .gitmodules file and stages it.
+func appendGitmodules(w *gogit.Worktree, path, url string) error {
+	existing, err := util.ReadFile(w.Filesystem, ".gitmodules")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("read .gitmodules: %w", err)
+	}
+
+	section := fmt.Sprintf("[submodule %q]\n\tpath = %s\n\turl = %s\n", path, path, url)
+
+	if err := util.WriteFile(w.Filesystem, ".gitmodules", append(existing, section...), gitmodulesPerms); err != nil {
+		return fmt.Errorf("write .gitmodules: %w", err)
+	}
+
+	if _, err := w.Add(".gitmodules"); err != nil {
+		return fmt.Errorf("add .gitmodules: %w", err)
+	}
+
+	return nil
 }
 
-func (l *singleRepoLoader) Load(_ *transport.Endpoint) (storage.Storer, error) {
+// repoLoader implements transport.Loader by returning the default
+// storer for any endpoint path, with per-path mounts taking precedence
+// so one listener can serve several test repositories.
+type repoLoader struct {
+	store  storage.Storer
+	mounts map[string]storage.Storer
+}
+
+func (l *repoLoader) Load(ep *transport.Endpoint) (storage.Storer, error) {
+	if store, ok := l.mounts[ep.Path]; ok {
+		return store, nil
+	}
+
 	return l.store, nil
 }
