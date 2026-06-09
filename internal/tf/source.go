@@ -308,6 +308,15 @@ func parseSourceURL(source string) (*url.URL, error) {
 		return nil, err
 	}
 
+	// On Windows the underlying URL parser strips the leading slash that precedes
+	// a drive letter (file:///C:/... becomes Path "C:/..."), so url.URL.String()
+	// would re-serialize the non-RFC-8089 form "file://C:/..." that go-getter
+	// cannot dispatch. Restore the leading slash so the source round-trips. This
+	// is a no-op on Unix, where absolute file paths always begin with a slash.
+	if canonicalSourceURL.Scheme == "file" && len(canonicalSourceURL.Path) >= 2 && canonicalSourceURL.Path[1] == ':' {
+		canonicalSourceURL.Path = "/" + canonicalSourceURL.Path
+	}
+
 	// Reattach the "getter" prefix as part of the scheme
 	for _, forcedGetter := range forcedGetters {
 		canonicalSourceURL.Scheme = fmt.Sprintf("%s::%s", forcedGetter, canonicalSourceURL.Scheme)

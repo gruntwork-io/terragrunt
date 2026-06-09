@@ -294,6 +294,10 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 //     3. Verifying that at least one auth command detected concurrent execution
 //     (which is deterministic proof of parallelism)
 func TestAuthProviderParallelExecution(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderParallel)

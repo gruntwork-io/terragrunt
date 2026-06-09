@@ -79,8 +79,9 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, exec vexec.Exec, env map[
 
 	// Git on Windows always emits forward slashes from `rev-parse --show-toplevel`,
 	// so normalize to OS-native separators to stay consistent with the other path
-	// HCL functions (get_terragrunt_dir, find_in_parent_folders, etc.).
-	cmdOutput := filepath.FromSlash(strings.TrimSpace(cmd.Stdout.String()))
+	// HCL functions (get_terragrunt_dir, find_in_parent_folders, etc.). filepath.Clean
+	// also collapses any doubled separators Git may emit for temp paths on Windows.
+	cmdOutput := filepath.Clean(filepath.FromSlash(strings.TrimSpace(cmd.Stdout.String())))
 
 	if stderrString := strings.TrimSpace(stderr.String()); stderrString != "" {
 		l.Warnf("git rev-parse --show-toplevel resulted in stderr output: \n%v\n", stderrString)

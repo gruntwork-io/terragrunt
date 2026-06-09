@@ -3352,6 +3352,10 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 }
 
 func TestReadTerragruntAuthProviderCmd(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
@@ -3388,6 +3392,10 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 // in locals cannot see env vars injected by --auth-provider-cmd because
 // ObtainCredsForParsing is never called during the discovery parse phase.
 func TestReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
@@ -3419,6 +3427,10 @@ func TestReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
 }
 
 func TestReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
@@ -3479,6 +3491,10 @@ func TestReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) {
 }
 
 func TestNoDiscoveryAuthProviderCmdSkipsDiscoveryAuthWithRacing(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
@@ -3907,10 +3923,21 @@ func TestHclFmtStdin(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtStdin)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtStdin)
 
-	os.Stdin, _ = os.Open(filepath.Join(rootPath, "terragrunt.hcl"))
+	origStdin := os.Stdin
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl fmt --stdin")
+	stdinFile, err := os.Open(filepath.Join(rootPath, "terragrunt.hcl"))
 	require.NoError(t, err)
+
+	os.Stdin = stdinFile
+
+	stdout, _, runErr := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl fmt --stdin")
+
+	// Restore stdin and release the handle before the temp dir is cleaned up. On
+	// Windows an open handle blocks the directory removal in t.TempDir's cleanup.
+	os.Stdin = origStdin
+
+	require.NoError(t, stdinFile.Close())
+	require.NoError(t, runErr)
 
 	expectedDiff, err := os.ReadFile(filepath.Join(rootPath, "expected.hcl"))
 	require.NoError(t, err)
@@ -4454,6 +4481,10 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 }
 
 func TestErrorMessageIncludeInOutput(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorPrint)
@@ -4585,6 +4616,10 @@ func TestTF110EphemeralVars(t *testing.T) {
 
 //nolint:paralleltest
 func TestTfPath(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	// This test can't be parallelized because it explicitly unsets the TG_TF_PATH environment variable.
 	// t.Parallel()
 
@@ -4611,6 +4646,10 @@ func TestTfPath(t *testing.T) {
 }
 
 func TestTfPathOverridesConfig(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 	// Test that the terragrunt run version command correctly identifies and uses
 	// the terraform_binary path configuration if present

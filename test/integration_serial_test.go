@@ -897,6 +897,10 @@ func TestParseTFLog(t *testing.T) {
 }
 
 func TestTerragruntTelemetryPassTraceParent(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
 	helpers.CleanupTerraformFolder(t, testFixtureTraceParent)
@@ -927,6 +931,10 @@ func TestTerragruntTelemetryPassTraceParent(t *testing.T) {
 }
 
 func TestTerragruntTelemetryPassTraceParentEnvVariable(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	envParentTrace := "00-b2ff2d54551433d53dd807a666666666-0e6f631d793c718a-01"
 
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
@@ -958,6 +966,10 @@ func TestTerragruntTelemetryPassTraceParentEnvVariable(t *testing.T) {
 }
 
 func TestRunnerPoolTelemetry(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
 	helpers.CleanupTerraformFolder(t, testFixtureTraceParent)

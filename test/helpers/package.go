@@ -477,7 +477,9 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 
 	for _, match := range matches {
 		if match[2] == "false" {
-			includedModules = append(includedModules, match[1])
+			// The unit path is rendered with OS-native separators; normalize to
+			// forward slashes so assertions stay separator-agnostic on Windows.
+			includedModules = append(includedModules, filepath.ToSlash(match[1]))
 		}
 	}
 
@@ -528,7 +530,9 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 
 	for _, match := range matches {
 		if match[2] == "false" {
-			includedModules = append(includedModules, match[1])
+			// The unit path is rendered with OS-native separators; normalize to
+			// forward slashes so assertions stay separator-agnostic on Windows.
+			includedModules = append(includedModules, filepath.ToSlash(match[1]))
 		}
 	}
 

@@ -96,6 +96,15 @@ func rewriteDetectedResult(result, detectForce, detectSubdir, subDir, getForce s
 		}
 
 		u.Path += "//" + subDir
+
+		// On Windows the URL parser strips the leading slash before a drive letter
+		// (file:///C:/... yields Path "C:/..."), so url.URL.String() would emit the
+		// non-RFC-8089 form "file://C:/...". Restore the leading slash so the result
+		// stays dispatchable. No-op on Unix, where file paths begin with a slash.
+		if u.Scheme == "file" && len(u.Path) >= 2 && u.Path[1] == ':' {
+			u.Path = "/" + u.Path
+		}
+
 		result = u.String()
 	}
 
