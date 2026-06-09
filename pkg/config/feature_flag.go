@@ -48,31 +48,6 @@ func (feature *FeatureFlag) DeepMerge(source *FeatureFlag) error {
 	return nil
 }
 
-// DeepMergeMapOnly merges the source FeatureFlag into the target FeatureFlag without appending slices in defaults.
-func (feature *FeatureFlag) DeepMergeMapOnly(source *FeatureFlag) error {
-	if source.Name != "" {
-		feature.Name = source.Name
-	}
-
-	if source.Default == nil {
-		return nil
-	}
-
-	if feature.Default == nil {
-		feature.Default = source.Default
-		return nil
-	}
-
-	updatedDefaults, err := deepMergeCtyMapsMapOnly(*feature.Default, *source.Default)
-	if err != nil {
-		return err
-	}
-
-	feature.Default = updatedDefaults
-
-	return nil
-}
-
 // deepMergeFeatureBlocks deep merges feature flags by name.
 func deepMergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
 	return mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags, (*FeatureFlag).DeepMerge)
