@@ -264,7 +264,31 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World version remote", false)
+	terraformSource, opts, cfg, err := createConfig(t, canonicalURL, downloadDir, false)
+	require.NoError(t, err)
+
+	// The hello-world-version-remote fixture ships a file literally named
+	// "version-file.txt". CAS materializes downloaded sources read-only, so a
+	// bookkeeping write to that path would collide with the module's own file.
+	// Use the name Terragrunt actually writes in production
+	// (.terragrunt-source-version), which never appears in module content.
+	terraformSource.VersionFile = filepath.Join(downloadDir, ".terragrunt-source-version")
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		logger.CreateLogger(),
+		terraformSource,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
+
+	expectedFilePath := filepath.Join(downloadDir, "main.tf")
+	if assert.True(t, util.FileExists(expectedFilePath), "For terraform source %v", terraformSource) {
+		actualFileContents := readFile(t, expectedFilePath)
+		assert.Equal(t, "# Hello, World version remote", actualFileContents, "For terraform source %v", terraformSource)
+	}
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T) {
