@@ -62,8 +62,8 @@ func TestRunActionWithHooks_FiresBeforeActionAfterInOrder(t *testing.T) {
 
 // TestRunActionWithHooks_BeforeHookFailureSkipsAction pins the
 // contract that a failing before_hook prevents the wrapped action
-// from running entirely; after_hooks still fire because they don't
-// have RunOnError set the same way, and error_hooks see the failure.
+// from running entirely, while error_hooks whose OnErrors regex
+// matches the failure still fire.
 func TestRunActionWithHooks_BeforeHookFailureSkipsAction(t *testing.T) {
 	t.Parallel()
 

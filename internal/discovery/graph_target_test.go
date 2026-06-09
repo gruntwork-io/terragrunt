@@ -95,21 +95,24 @@ dependency "db" {
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
-	// Path A: via filter queries (`{./**}...`).
-	filtersA, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{./**}..."})
+	// Path A: filter queries (experiment ON equivalent)
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{`...{` + vpcDir + `}`})
+	require.NoError(t, err)
+
+	depsFilters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{./**}..."})
 	require.NoError(t, err)
 
 	configsA, err := discovery.NewDiscovery(tmpDir).
 		WithExec(memGitTopLevelExec(t, tmpDir)).
-		WithFilters(filtersA).
-		WithGraphTarget(vpcDir).
+		WithFilters(depsFilters).
+		WithFilters(filters).
 		Discover(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
-	// Path B: via graphTarget marker path alone.
+	// Path B: graph target marker
 	configsB, err := discovery.NewDiscovery(tmpDir).
 		WithExec(memGitTopLevelExec(t, tmpDir)).
-		WithRelationships().
+		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir).
 		Discover(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
