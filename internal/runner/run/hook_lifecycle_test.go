@@ -2,9 +2,9 @@ package run_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -137,7 +137,7 @@ func TestProcessErrorHooks_FiresAllMatchingHooks(t *testing.T) {
 	exec := vexec.NewMemExec(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 
-	priorErrs := new(errors.MultiError).Append(errors.New("AWS: AccessDenied for action s3:GetObject"))
+	priorErrs := []error{errors.New("AWS: AccessDenied for action s3:GetObject")}
 
 	hooks := []runcfg.ErrorHook{
 		{
@@ -160,7 +160,7 @@ func TestProcessErrorHooks_FiresAllMatchingHooks(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, newHookOpts(), priorErrs))
+	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs))
 
 	calls := rec.snapshot()
 	require.Len(t, calls, 2, "both matching error_hooks must fire")
@@ -185,7 +185,7 @@ func TestProcessErrorHooks_AccumulatesFailures(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	priorErrs := new(errors.MultiError).Append(errors.New("triggering error"))
+	priorErrs := []error{errors.New("triggering error")}
 
 	hooks := []runcfg.ErrorHook{
 		{Name: "fail-1", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"failing-hook"}},
@@ -193,6 +193,6 @@ func TestProcessErrorHooks_AccumulatesFailures(t *testing.T) {
 		{Name: "fail-2", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"failing-hook"}},
 	}
 
-	err := run.ProcessErrorHooks(t.Context(), l, exec, hooks, newHookOpts(), priorErrs)
+	err := run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs)
 	require.Error(t, err, "any failing error_hook must surface as a returned error")
 }

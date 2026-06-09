@@ -203,6 +203,7 @@ func newRunE2EOpts(t *testing.T, s runE2EScaffold, command string, extraArgs ...
 	args := iacargs.New(append([]string{command}, extraArgs...)...)
 
 	return &run.Options{
+		FS:                           vfs.NewOSFS(),
 		WorkingDir:                   s.dir,
 		RootWorkingDir:               s.dir,
 		DownloadDir:                  filepath.Join(s.dir, ".terragrunt-cache"),

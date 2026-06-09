@@ -78,6 +78,7 @@ var (
 type WelcomeModel struct {
 	ctx              context.Context
 	logger           log.Logger
+	venv             venv.Venv
 	lastDiscoveryErr error
 	opts             *options.TerragruntOptions
 	loadFunc         LoadFunc
@@ -87,7 +88,6 @@ type WelcomeModel struct {
 	errCh            chan error
 	statusText       string
 	spinner          spinner.Model
-	venv             venv.Venv
 	state            welcomeState
 	width            int
 	height           int
