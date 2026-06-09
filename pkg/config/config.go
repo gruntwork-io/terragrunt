@@ -446,6 +446,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			genBody.SetAttributeValue("disable", goboolToCty(gen.Disable))
 		}
 
+		if gen.HclFmt != nil {
+			genBody.SetAttributeValue("hcl_fmt", goboolToCty(*gen.HclFmt))
+		}
+
 		rootBody.AppendBlock(genBlock)
 	}
 

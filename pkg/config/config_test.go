@@ -1648,6 +1648,31 @@ func TestParseConfigGenerateBlockWithHclFmt(t *testing.T) {
 	assert.False(t, *generateConfig.HclFmt)
 }
 
+func TestParseConfigGenerateAttrWithHclFmt(t *testing.T) {
+	t.Parallel()
+
+	cfg := `generate = {
+  test = {
+    path = "test.tf"
+    if_exists = "overwrite"
+    contents = "test = 1"
+    hcl_fmt = false
+  }
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+	require.NotNil(t, terragruntConfig)
+
+	generateConfig, ok := terragruntConfig.GenerateConfigs["test"]
+	require.True(t, ok)
+	require.NotNil(t, generateConfig.HclFmt)
+	assert.False(t, *generateConfig.HclFmt)
+}
+
 func TestParseConfigWithMissingIfExists(t *testing.T) {
 	t.Parallel()
 
@@ -1867,6 +1892,7 @@ EOF
 	comment_prefix = "//"
 	disable_signature = true
 	disable = false
+	hcl_fmt = false
 }
 
 feature "test_feature" {
