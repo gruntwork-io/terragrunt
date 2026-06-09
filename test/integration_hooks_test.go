@@ -347,6 +347,10 @@ func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
 }
 
 func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	if helpers.IsTerragruntProviderCacheEnabled(t) {
@@ -530,6 +534,10 @@ func TestTerragruntHookPreservesAbsolutePaths(t *testing.T) {
 }
 
 func TestTerragruntHookContextEnvExperimentEnabled(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksContextEnv)
@@ -575,6 +583,10 @@ func TestTerragruntHookContextEnvExperimentEnabled(t *testing.T) {
 }
 
 func TestTerragruntHookContextEnvExperimentDisabled(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	if helpers.IsExperimentMode(t) {

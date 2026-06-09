@@ -645,7 +645,10 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 		// -var="'"foo"'"='bar'
 		// becomes:
 		// -var='foo'=bar
-		shlexedArgSlice, err := shlex.Split(arg)
+		//
+		// Normalize Windows paths before parsing: shlex treats backslashes as escape
+		// characters, which would corrupt a path like C:\foo\bar into C:foobar.
+		shlexedArgSlice, err := shlex.Split(filepath.ToSlash(arg))
 		if err != nil {
 			return vars, varFiles, err
 		}

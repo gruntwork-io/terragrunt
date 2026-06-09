@@ -94,7 +94,7 @@ func DownloadTerraformSource(
 	// overlays working-dir files on top of the downloaded source. These files may
 	// change independently of the source version hash, so the copy must always run.
 	sourceIsWorkingDir := tf.IsLocalSource(terraformSource.CanonicalSourceURL) &&
-		filepath.Clean(terraformSource.CanonicalSourceURL.Path) == filepath.Clean(opts.WorkingDir)
+		filepath.Clean(tf.FilePathFromURLPath(terraformSource.CanonicalSourceURL.Path)) == filepath.Clean(opts.WorkingDir)
 	needsModuleCopy := downloaded || !sourceIsWorkingDir
 
 	if needsModuleCopy {

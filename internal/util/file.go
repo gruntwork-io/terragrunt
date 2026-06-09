@@ -1802,12 +1802,17 @@ func SanitizePath(baseDir string, file string) (sanitized string, err error) {
 // If the path cannot be made relative, it returns the original path.
 // Paths that don't start with ".." get a "./" prefix for clarity.
 // If showAbsPath is true, the original targetPath is returned unchanged.
+//
+// Callers sometimes pass RFC 8089 file URL paths (e.g. a canonical source
+// URL with the scheme stripped). On Windows that form keeps a leading slash
+// before the drive letter ("/C:/foo"), which [filepath.Rel] cannot relate to
+// a native base path, so the URL form is converted first.
 func RelPathForLog(basePath, targetPath string, showAbsPath bool) string {
 	if showAbsPath {
 		return targetPath
 	}
 
-	if relPath, err := filepath.Rel(basePath, targetPath); err == nil {
+	if relPath, err := filepath.Rel(basePath, filePathFromURLPath(targetPath)); err == nil {
 		if relPath == "." {
 			return targetPath
 		}
@@ -1821,6 +1826,19 @@ func RelPathForLog(basePath, targetPath string, showAbsPath bool) string {
 	}
 
 	return targetPath
+}
+
+// filePathFromURLPath converts an RFC 8089 file URL path to a filesystem
+// path. On Windows the URL form keeps a leading slash before the drive
+// letter ("/C:/foo"); stripping it yields a path the os and path/filepath
+// packages understand. Every other path is returned unchanged, so this is a
+// no-op on Unix.
+func filePathFromURLPath(path string) string {
+	if len(path) >= 3 && path[0] == '/' && path[2] == ':' {
+		return path[1:]
+	}
+
+	return path
 }
 
 // ResolvePath resolves symlinks in a path for consistent comparison across platforms.

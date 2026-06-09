@@ -250,8 +250,29 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 func TmpDirWOSymlinks(t *testing.T) string {
 	t.Helper()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	// t.TempDir embeds the full test name. On Windows, deep fixture trees
+	// plus the .terragrunt-cache nesting then push child process working
+	// directories and git's GIT_DIR past the 260-char MAX_PATH, which
+	// CreateProcess and git.exe enforce regardless of LongPathsEnabled. A
+	// short random dir keeps the prefix small. Cleanup failures are
+	// tolerated: a straggler child process can hold a lock briefly, and the
+	// CI runner is disposable.
+	if IsWindows() {
+		shortDir, err := os.MkdirTemp("", "tg") //nolint:usetesting // t.TempDir embeds the test name; the point here is a short path.
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			if err := os.RemoveAll(shortDir); err != nil {
+				t.Logf("Failed to clean up temp dir %s: %v", shortDir, err)
+			}
+		})
+
+		shortDir, err = filepath.EvalSymlinks(shortDir)
+		require.NoError(t, err)
+
+		return shortDir
+	}
+
+	tmpDir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 
 	return tmpDir

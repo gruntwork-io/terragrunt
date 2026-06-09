@@ -1220,6 +1220,13 @@ func TestMoveFile(t *testing.T) {
 func TestRelPathForLog(t *testing.T) {
 	t.Parallel()
 
+	// RFC 8089 file URL path form of <RootFolder>/base: "/base" on Unix,
+	// "/C:/base" on Windows (leading slash before the drive letter).
+	urlStyleBase := filepath.ToSlash(helpers.RootFolder + "base")
+	if !strings.HasPrefix(urlStyleBase, "/") {
+		urlStyleBase = "/" + urlStyleBase
+	}
+
 	testCases := []struct {
 		name        string
 		basePath    string
@@ -1282,6 +1289,13 @@ func TestRelPathForLog(t *testing.T) {
 			targetPath:  helpers.RootFolder + "bar/baz",
 			showAbsPath: false,
 			expected:    ".." + string(filepath.Separator) + filepath.Join("bar", "baz"),
+		},
+		{
+			name:        "file URL path resolves relative to base",
+			basePath:    helpers.RootFolder + "base/child",
+			targetPath:  urlStyleBase,
+			showAbsPath: false,
+			expected:    "..",
 		},
 	}
 

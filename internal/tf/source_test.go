@@ -62,6 +62,30 @@ func TestSplitSourceUrl(t *testing.T) {
 	}
 }
 
+func TestFilePathFromURLPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{name: "windows-drive-letter", path: "/C:/tmp/module", expected: "C:/tmp/module"},
+		{name: "lowercase-drive-letter", path: "/c:/tmp/module", expected: "c:/tmp/module"},
+		{name: "unix-absolute", path: "/tmp/module", expected: "/tmp/module"},
+		{name: "relative", path: "../module", expected: "../module"},
+		{name: "empty", path: "", expected: ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.expected, tf.FilePathFromURLPath(tc.path))
+		})
+	}
+}
+
 func TestToSourceUrl(t *testing.T) {
 	t.Parallel()
 

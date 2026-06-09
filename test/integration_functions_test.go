@@ -196,7 +196,9 @@ func TestGetRepoRootCaching(t *testing.T) {
 	output := fmt.Sprintf("%s %s", stdout, stderr)
 	assert.Contains(t, output, "git show-toplevel result")
 	assert.Contains(t, output, "git rev-parse --show-toplevel")
-	assert.Contains(t, filepath.ToSlash(output), filepath.ToSlash(fmt.Sprintf(`repo_root = "%s"`, rootPath)))
+	// The plan output renders the HCL string with escaped backslashes on Windows
+	// (repo_root = "C:\\tmp\\..."), which matches Go's %q quoting of the path.
+	assert.Contains(t, output, fmt.Sprintf(`repo_root = %q`, rootPath))
 }
 
 func TestGetRepoRoot(t *testing.T) {

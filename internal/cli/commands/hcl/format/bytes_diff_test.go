@@ -2,7 +2,6 @@
 package format
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,11 +70,9 @@ func TestBytesDiff(t *testing.T) {
 
 			assert.NotEmpty(t, got, "expected non-empty diff output")
 
-			// Diff labels embed tc.path with the OS separator, so compare headers in
-			// forward-slash space. Hunk lines are compared as-is so the "\ No newline at end
-			// of file" marker is not rewritten.
+			// Diff labels always use forward slashes, regardless of platform.
 			for _, want := range tc.wantHeader {
-				assert.Contains(t, filepath.ToSlash(got), want, "diff missing header line")
+				assert.Contains(t, got, want, "diff missing header line")
 			}
 
 			for _, want := range tc.wantHunkLines {

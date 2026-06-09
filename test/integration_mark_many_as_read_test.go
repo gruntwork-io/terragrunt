@@ -42,7 +42,7 @@ func TestMarkManyAsReadRelpathSourceTriggersDiscovery(t *testing.T) {
 
 	runs, err := report.ParseJSONRunsFromFile(filepath.Join(rootPath, helpers.ReportFile))
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"live/unit"}, runs.Names())
+	assert.ElementsMatch(t, []string{"live/unit"}, helpers.ToSlashAll(runs.Names()))
 }
 
 // TestMarkManyAsReadDefaultDiscoversModuleChanges pins that the local module
@@ -70,7 +70,7 @@ func TestMarkManyAsReadDefaultDiscoversModuleChanges(t *testing.T) {
 
 	runs, err := report.ParseJSONRunsFromFile(filepath.Join(rootPath, helpers.ReportFile))
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"live/unit"}, runs.Names(),
+	assert.ElementsMatch(t, []string{"live/unit"}, helpers.ToSlashAll(runs.Names()),
 		"module source changes should cascade to the unit by default")
 }
 

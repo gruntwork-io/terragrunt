@@ -246,6 +246,10 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 // The generated CLI config must route modules.v1 through the cache server (so credentials get
 // rewritten — see issue #5970) without leaking the old malformed double-host URL from issue #5156.
 func TestTerragruntProviderCacheWithAbsoluteModuleURL(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since the mock registry's filesystem mirror layout requires a host:port directory name, and ':' is not allowed in Windows directory names")
+	}
+
 	rootPath := t.TempDir()
 	appPath := filepath.Join(rootPath, "app")
 	providerCacheDir := filepath.Join(rootPath, "providers-cache")

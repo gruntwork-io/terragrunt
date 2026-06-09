@@ -8,3 +8,7 @@ test/fixtures/locals/canonical/contents.txt eol=lf
 test/fixtures/read-config/** eol=lf
 test/fixtures/render-json/** eol=lf
 test/fixtures/render-json-metadata/** eol=lf
+# TestHclvalidateDiagnostic asserts exact byte offsets within these files.
+test/fixtures/hclvalidate/** eol=lf
+# TestHclFmtDiff compares the diff hunk byte-for-byte against expected.diff.
+test/fixtures/hclfmt-diff/** eol=lf

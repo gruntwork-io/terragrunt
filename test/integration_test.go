@@ -179,7 +179,7 @@ func TestDetailedExitCodeError(t *testing.T) {
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.Error(t, err)
-	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
+	assert.Contains(t, stderr, missingFileTFError())
 	assert.Equal(t, 1, exitCode.GetFinalDetailedExitCode())
 }
 
@@ -200,7 +200,18 @@ func TestRunAllReturnsErrorOnFailure(t *testing.T) {
 		"terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan",
 	)
 	require.Error(t, err)
-	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
+	assert.Contains(t, stderr, missingFileTFError())
+}
+
+// missingFileTFError returns the OS-specific tofu/terraform diagnostic emitted when the
+// detailed-exitcode fixture reads ./not-existing-file.txt. On Windows only the part of
+// the message that stays on a single line is returned, since tofu word-wraps diagnostics.
+func missingFileTFError() string {
+	if helpers.IsWindows() {
+		return "not-existing-file.txt: The system cannot find the"
+	}
+
+	return "not-existing-file.txt: no such file or directory"
 }
 
 func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
@@ -595,8 +606,13 @@ func TestLogWithAbsPath(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	// Normalize Windows path separators in the output so the forward-slash
+	// expectations below stay platform-agnostic.
+	stdout = filepath.ToSlash(stdout)
+	stderr = filepath.ToSlash(stderr)
+
 	for _, prefixName := range []string{"app", "dep"} {
-		prefixName = filepath.Join(rootPath, prefixName)
+		prefixName = filepath.ToSlash(filepath.Join(rootPath, prefixName))
 		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary(t.Context())+": Initializing provider plugins...")
 		assert.Contains(t, stderr, "DEBUG  ["+prefixName+"] Reading Terragrunt config file at "+prefixName+"/terragrunt.hcl")
 	}
@@ -617,6 +633,10 @@ func TestLogWithRelPath(t *testing.T) {
 			workingDir: "duplicate-dir-names/workspace/one/two/aaa", // dir `workspace` duplicated twice in path
 			assertFn: func(t *testing.T, _, stderr string) {
 				t.Helper()
+
+				// Normalize Windows path separators so the forward-slash
+				// expectations stay platform-agnostic.
+				stderr = filepath.ToSlash(stderr)
 
 				assert.Contains(t, stderr, "Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache")
 				assert.Contains(t, stderr, "[bbb/ccc/workspace]")
@@ -657,6 +677,10 @@ func TestLogFormatPrettyOutput(t *testing.T) {
 		"terragrunt run --all init --log-level debug --non-interactive --no-color --log-format=pretty  --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
+
+	// Normalize Windows path separators so the forward-slash expectations
+	// below stay platform-agnostic.
+	stderr = filepath.ToSlash(stderr)
 
 	for _, prefixName := range []string{"app", "dep"} {
 		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary(t.Context())+": Initializing provider plugins...")
@@ -701,6 +725,10 @@ func TestLogFormatKeyValueOutput(t *testing.T) {
 				"terragrunt run --all --log-level debug --non-interactive "+flag+" --working-dir "+rootPath+" -- init -no-color",
 			)
 			require.NoError(t, err)
+
+			// Normalize Windows path separators so the forward-slash
+			// expectations below stay platform-agnostic.
+			stderr = filepath.ToSlash(stderr)
 
 			for _, prefixName := range []string{"app", "dep"} {
 				assert.Contains(
@@ -3596,9 +3624,21 @@ func TestLogFailingDependencies(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --log-level trace", path))
 	require.Error(t, err)
 
+	// Normalize Windows path separators so the forward-slash expectation
+	// below stays platform-agnostic.
+	stderr = filepath.ToSlash(stderr)
+
+	// The fixture's module source "/tmp/not-existing-path" is an absolute path on Unix,
+	// so tofu/terraform fails downloading it. On Windows it is not absolute, so init
+	// fails earlier with an invalid source address diagnostic instead.
+	expectedTFError := "Error: Failed to download module"
+	if helpers.IsWindows() {
+		expectedTFError = "Error: Invalid module source address"
+	}
+
 	// Check that the error output contains terraform/tofu error details
 	assert.Contains(t, stderr, "Getting output of dependency ../dependency/terragrunt.hcl")
-	assert.Contains(t, stderr, "Error: Failed to download module")
+	assert.Contains(t, stderr, expectedTFError)
 }
 
 func TestDependencyInputsBlockedByDefault(t *testing.T) {
@@ -4007,6 +4047,10 @@ func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
 }
 
 func TestTerragruntNoWarningLocalPath(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since the fixture uses source = \"/dev/null\", which does not exist on Windows")
+	}
+
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDisabledPath)
@@ -4529,6 +4573,10 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 }
 
 func TestLogStreaming(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows: the fixture's local-exec command needs a POSIX shell (';' chaining and `sleep`); cmd.exe echoes it as a single line without sleeping, so there is no streamed output to time")
+	}
+
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogStreaming)

@@ -169,7 +169,14 @@ func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context, l log.Logger) fu
 				return
 			}
 
-			cmd.SendSignal(l, cmd.interruptSignal)
+			sig := cmd.interruptSignal
+			if sig == nil {
+				// Windows has no interrupt signal ([signal.InterruptSignal] is
+				// nil there); kill is the only way to stop the command.
+				sig = os.Kill
+			}
+
+			cmd.SendSignal(l, sig)
 		}
 	}()
 
@@ -205,12 +212,14 @@ func (cmd *Cmd) ForwardSignal(ctx context.Context, l log.Logger, sig os.Signal) 
 }
 
 // SendSignal sends the given `sig` to the executed command. Errors are logged
-// rather than returned; ErrProcessNotStarted is silently ignored because
-// callers may race against process startup.
+// rather than returned; [vexec.ErrProcessNotStarted] and [os.ErrProcessDone]
+// are silently ignored because callers may race against process startup and
+// exit.
 func (cmd *Cmd) SendSignal(l log.Logger, sig os.Signal) {
 	l.Debugf("%s signal is forwarded to %s", cases.Title(language.English).String(sig.String()), cmd.filename)
 
-	if err := cmd.vc.Signal(sig); err != nil && !errors.Is(err, vexec.ErrProcessNotStarted) {
+	if err := cmd.vc.Signal(sig); err != nil &&
+		!errors.Is(err, vexec.ErrProcessNotStarted) && !errors.Is(err, os.ErrProcessDone) {
 		l.Errorf("Failed to forwarding signal %s to %s: %v", sig, cmd.filename, err)
 	}
 }

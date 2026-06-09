@@ -441,23 +441,30 @@ func WriteSchema(w io.Writer) error {
 //   - If the path is not a subdirectory of the working directory, return the path as is.
 //
 //   - Otherwise, return the path relative to the working directory, with any leading slashes removed.
+//
+// The comparison happens in forward-slash space so that a working directory carrying
+// forward slashes on Windows (e.g. a `--graph-root` flag value) still matches run paths
+// built with native separators. The returned name uses native separators.
 func nameOfPath(path string, workingDir string) string {
+	slashPath := filepath.ToSlash(path)
+	slashWorkingDir := filepath.ToSlash(workingDir)
+
 	// If the path is the same as the working directory,
 	// return the base name of the path.
-	if path == workingDir {
+	if slashPath == slashWorkingDir {
 		return filepath.Base(path)
 	}
 
 	// If the path is not a subdirectory of the working directory,
 	// return the path as is.
-	if !strings.HasPrefix(path, workingDir) {
+	if !strings.HasPrefix(slashPath, slashWorkingDir) {
 		return path
 	}
 
-	path = strings.TrimPrefix(path, workingDir)
-	path = strings.TrimPrefix(path, string(os.PathSeparator))
+	name := strings.TrimPrefix(slashPath, slashWorkingDir)
+	name = strings.TrimPrefix(name, "/")
 
-	return path
+	return filepath.FromSlash(name)
 }
 
 // effectiveWorkingDir returns the working directory to use for path computation.

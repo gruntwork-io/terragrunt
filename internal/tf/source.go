@@ -98,7 +98,7 @@ func (src Source) String() string {
 func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 	if IsLocalSource(src.CanonicalSourceURL) {
 		sourceHash := sha256.New()
-		sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
+		sourceDir := filepath.Clean(FilePathFromURLPath(src.CanonicalSourceURL.Path))
 
 		var err error
 
@@ -146,6 +146,18 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 	}
 
 	return util.EncodeBase64Sha1(src.CanonicalSourceURL.Query().Encode()), nil
+}
+
+// FilePathFromURLPath converts an RFC-8089 file URL path to a filesystem
+// path. On Windows the URL form keeps a leading slash before the drive
+// letter (/C:/foo); stripping it yields a path the os package understands.
+// Every other path is returned unchanged, so this is a no-op on Unix.
+func FilePathFromURLPath(path string) string {
+	if len(path) >= 3 && path[0] == '/' && path[2] == ':' {
+		return path[1:]
+	}
+
+	return path
 }
 
 // WriteVersionFile writes a file into the DownloadDir that contains
