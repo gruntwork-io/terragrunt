@@ -58,6 +58,18 @@ const (
 	testFixtureS3BackendDisableInit              = "fixtures/s3-backend-disable-init"
 	testFixtureAssumeRoleWithExternalIDWithComma = "fixtures/assume-role/external-id-with-comma"
 
+	// Fixtures referenced only by AWS-gated tests. They live here, rather than in
+	// their untagged sibling files, so the unused check does not flag them when
+	// building without the aws tag.
+	testFixtureHooksBeforeAfterAndErrorMergePath  = "fixtures/hooks/before-after-and-error-merge"
+	testFixtureHooksInitOnceNoSourceWithBackend   = "fixtures/hooks/init-once/no-source-with-backend"
+	testFixtureHooksInitOnceWithSourceWithBackend = "fixtures/hooks/init-once/with-source-with-backend"
+	testFixtureLocalWithBackend                   = "fixtures/download/local-with-backend"
+	testFixtureRemoteWithBackend                  = "fixtures/download/remote-with-backend"
+	includeFixturePath                            = "fixtures/include/"
+	includeShallowFixturePath                     = "stage/my-app"
+	includeNoMergeFixturePath                     = "qa/my-app"
+
 	qaMyAppRelPath = "qa/my-app"
 )
 
@@ -1094,7 +1106,8 @@ func TestAwsRemoteWithBackend(t *testing.T) {
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRemoteWithBackend)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureRemoteWithBackend)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRemoteWithBackend)
 
 	rootTerragruntConfigPath := filepath.Join(rootPath, "terragrunt.hcl")
@@ -1345,7 +1358,8 @@ func TestAwsDependencyOutputOptimizationDisableTest(t *testing.T) {
 func TestAwsProviderPatch(t *testing.T) {
 	t.Parallel()
 
-	rootPath := helpers.CopyEnvironment(t, testFixtureAwsProviderPatch)
+	mirror := helpers.StartTerragruntMirror(t)
+	rootPath := mirror.RenderFixture(t, testFixtureAwsProviderPatch)
 	modulePath := filepath.Join(rootPath, testFixtureAwsProviderPatch)
 	mainTFFile := filepath.Join(modulePath, "main.tf")
 
@@ -1552,9 +1566,11 @@ func TestAwsDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 	// Use func to isolate each test run to a single s3 bucket that is deleted. We run the test multiple times
 	// because the underlying error we are trying to test against is nondeterministic, and thus may not always work
 	// the first time.
+	mirror := helpers.StartTerragruntMirror(t)
+
 	tt := func() {
 		helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
-		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
+		tmpEnvPath := mirror.RenderFixture(t, testFixtureGetOutput)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-906")
 
 		// Make sure to fill in the s3 bucket to the config. Also ensure the bucket is deleted before the next for

@@ -1277,7 +1277,8 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 func TestInvalidSource(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureNotExistingSource)
 	generateTestCase := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
@@ -3164,6 +3165,26 @@ func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 	assert.True(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
+func TestTerragruntRemoteStateCodegenPreservesAssumeRoleListCommas(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "s3-assume-role-lists")
+
+	helpers.CleanupTerraformFolder(t, generateTestCase)
+	helpers.CleanupTerragruntFolder(t, generateTestCase)
+
+	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+generateTestCase+" -- -backend=false")
+
+	backendPath := filepath.Join(helpers.FindCacheWorkingDir(t, generateTestCase), "backend.tf")
+	backendBytes, err := os.ReadFile(backendPath)
+	require.NoError(t, err)
+
+	backend := string(backendBytes)
+	assert.Contains(t, backend, `policy_arns = ["arn:aws:iam::123456789342:policy/test-policy", "arn:aws:iam::123456789342:policy/other-policy"]`)
+	assert.Contains(t, backend, `transitive_tag_keys = ["Project", "ProjectSlug"]`)
+}
+
 func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
 	t.Parallel()
 
@@ -3707,7 +3728,8 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownload)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureDownload)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureAutoInit)
 
@@ -4356,7 +4378,8 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 func TestLogFormatJSONOutput(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
+	mirror := helpers.StartTerragruntMirror(t)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureNotExistingSource)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 
@@ -4386,7 +4409,8 @@ func TestLogFormatJSONOutput(t *testing.T) {
 		msgs = append(msgs, msg)
 	}
 
-	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.83.2")
+	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::"+mirror.URL)
+	assert.Contains(t, strings.Join(msgs, ""), "ref=v0.83.2")
 }
 
 func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {

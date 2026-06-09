@@ -282,6 +282,8 @@ type TerragruntOptions struct {
 	// dependency-fetch-output-from-state feature even when the experiment
 	// is enabled.
 	NoDependencyFetchOutputFromState bool
+	// NoRunHooks disables before, after, and error hooks during run.
+	NoRunHooks bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
 	TFPathExplicitlySet bool
 	// FailFast is a flag to stop execution on the first error in apply of units.

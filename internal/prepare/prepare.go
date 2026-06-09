@@ -98,9 +98,10 @@ func PrepareSource(
 
 	if err = optsClone.RunWithErrorHandling(ctx, l, r, func() error {
 		return run.ProcessHooks(ctx, l, run.OSVenv(), run.ProcessHooksParams{
-			Hooks: runCfg.Terraform.AfterHooks,
-			Opts:  configbridge.NewRunOptions(optsClone),
-			Cfg:   runCfg,
+			Hooks:    runCfg.Terraform.AfterHooks,
+			Opts:     configbridge.NewRunOptions(optsClone),
+			Cfg:      runCfg,
+			HookType: run.HookTypeAfter,
 		})
 	}); err != nil {
 		return nil, err

@@ -1,0 +1,34 @@
+---
+title: Mercurial
+description: How the CAS probes and deduplicates Mercurial sources.
+slug: features/caching/cas/mercurial
+sidebar:
+  order: 6
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
+</Aside>
+
+## Overview
+
+A Mercurial source is identified by a repository URL and an optional revision. Terragrunt resolves that revision to a node hash and keys the cached tree by it.
+
+## The cheap probe
+
+The probe Terragrunt uses to attempt to avoid fetching Mercurial sources is `hg identify` against the remote, which resolves the requested revision to its full node hash without cloning. The revision comes from the URL's `?rev=` query parameter; absent or empty means `tip`. The full 40-character node hash is used rather than the abbreviated short form so the key is collision-safe.
+
+## Cache key & deduplication
+
+The node hash is a content identifier, so the key is content-addressed and the same revision reached through different URLs deduplicates to one stored tree. File blobs are content-addressed.
+
+## Cache miss
+
+When the resolved node hash is not yet in the store, Terragrunt clones the revision, ingests it, and links it into the target.
+
+## Cache hit
+
+When the node hash is already present, Terragrunt links the cached tree without cloning.
+

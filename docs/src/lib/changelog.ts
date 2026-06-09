@@ -206,6 +206,42 @@ export function parsePullRequests(body: string | null | undefined): PullRequestG
   return groupItemsByType(items);
 }
 
+// Squash-merged commits carry the PR number as a trailing "(#NNNN)" suffix.
+const COMMIT_PR_SUFFIX = /\s*\(#(\d+)\)\s*$/;
+
+interface CommitLike {
+  commit: { message: string; author?: { name?: string } | null };
+  author: { login: string } | null;
+}
+
+// Builds the grouped pull-request list for a version that has no GitHub release
+// yet, reconstructing each item from a squash-merge commit. Commits without a
+// "(#NNNN)" suffix aren't pull requests, so they're skipped.
+export function pullRequestsFromCommits(
+  commits: CommitLike[],
+  owner: string,
+  repo: string,
+): PullRequestGroup[] {
+  const items: PullRequestItem[] = [];
+  for (const commit of commits) {
+    const subject = commit.commit.message.split(/\r?\n/, 1)[0];
+    const match = COMMIT_PR_SUFFIX.exec(subject);
+    if (match === null) continue;
+    const prNumber = Number(match[1]);
+    const title = subject.replace(COMMIT_PR_SUFFIX, "");
+    const author = commit.author?.login ?? commit.commit.author?.name ?? "unknown";
+    items.push({
+      title,
+      author,
+      prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+      prNumber,
+      type: classifyTitle(title),
+    });
+  }
+  if (items.length === 0) return [];
+  return groupItemsByType(items);
+}
+
 export function pullRequestsToMarkdown(groups: PullRequestGroup[]): string {
   if (groups.length === 0) return "";
   const sections = groups.map((group) => {

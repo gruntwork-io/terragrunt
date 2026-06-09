@@ -1279,7 +1279,7 @@ func (manifest *fileManifest) cleanManifestEntries(
 ) ([]string, error) {
 	var manifestRelPaths []string
 
-	for entryCount := 0; entryCount < maxFileManifestEntries; entryCount++ {
+	for range maxFileManifestEntries {
 		entry, ok, err := ctx.decodeManifestEntry(decoder)
 		if err != nil || !ok {
 			return manifestRelPaths, err

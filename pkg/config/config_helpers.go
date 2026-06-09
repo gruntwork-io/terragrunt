@@ -168,6 +168,8 @@ type TrackInclude struct {
 	// Original is used to track the original included config, and is used for resolving the include related
 	// functions.
 	Original *IncludeConfig
+	// AutoIncludeOverride is the sibling terragrunt.autoinclude.hcl registered as a high-priority override that is merged on top and wins, kept off CurrentList/CurrentMap so include-identity readers never see it.
+	AutoIncludeOverride *IncludeConfig
 	// CurrentList is used to track the list of configs that should be imported and merged before the final
 	// TerragruntConfig is returned. This preserves the order of the blocks as they appear in the config, so that we can
 	// merge the included config in the right order.

@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"path"
 	"path/filepath"
 	"strconv"
 
@@ -37,7 +38,8 @@ type PathExpression struct {
 
 // NewPathFilter creates a new PathFilter with eager glob compilation.
 func NewPathFilter(value string) (*PathExpression, error) {
-	pattern := filepath.Clean(filepath.ToSlash(value))
+	// Glob patterns are matched against '/'-separated paths on every platform.
+	pattern := path.Clean(filepath.ToSlash(value))
 
 	compiled, err := glob.Compile(pattern)
 	if err != nil {
@@ -75,7 +77,8 @@ func NewAttributeExpression(key string, value string) (*AttributeExpression, err
 		pattern := value
 
 		if key == AttributeReading {
-			pattern = filepath.Clean(filepath.ToSlash(pattern))
+			// Clean in forward-slash space, as in NewPathFilter.
+			pattern = path.Clean(filepath.ToSlash(pattern))
 		}
 
 		compiled, err := glob.Compile(pattern)

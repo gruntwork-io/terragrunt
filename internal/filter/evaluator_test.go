@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -298,14 +297,14 @@ func TestEvaluate_AttributeFilter_Source(t *testing.T) {
 		component.NewUnit("./apps/app1").WithConfig(
 			&config.TerragruntConfig{
 				Terraform: &config.TerraformConfig{
-					Source: helpers.PointerTo("github.com/acme/foo"),
+					Source: new("github.com/acme/foo"),
 				},
 			},
 		),
 		component.NewUnit("./apps/app2").WithConfig(
 			&config.TerragruntConfig{
 				Terraform: &config.TerraformConfig{
-					Source: helpers.PointerTo("git::git@github.com:acme/bar?ref=v1.0.0"),
+					Source: new("git::git@github.com:acme/bar?ref=v1.0.0"),
 				},
 			},
 		),

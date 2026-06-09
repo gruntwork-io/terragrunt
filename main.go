@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
+	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -17,6 +18,13 @@ func main() {
 }
 
 func run() (code int) {
+	// Restore the parent shell's console mode on the way out. On Windows, PrepareConsole
+	// enables virtual terminal input/processing on the console Terragrunt shares with the
+	// parent shell; without restoring it, shells such as Nushell are left rendering arrow
+	// keys as raw escape sequences. No-op on non-Windows platforms.
+	originalConsole := exec.SaveConsoleState()
+	defer originalConsole.Restore()
+
 	opts := options.NewTerragruntOptions()
 	l := log.New(
 		log.WithOutput(opts.Writers.ErrWriter),

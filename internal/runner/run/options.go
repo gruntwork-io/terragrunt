@@ -76,6 +76,7 @@ type Options struct {
 	MaxFoldersToCheck            int
 	CASCloneDepth                int
 	NoCAS                        bool
+	NoHooks                      bool
 	AutoRetry                    bool
 	Headless                     bool
 	NonInteractive               bool

@@ -259,8 +259,9 @@ func TestStacksRunParseErrorNotSilentlySkipped(t *testing.T) {
 func TestStacksGenerateRemote(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.StartTerragruntMirror(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
@@ -371,15 +372,16 @@ func TestStacksApply(t *testing.T) {
 func TestStacksApplyRemote(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.StartTerragruntMirror(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
-	assert.Contains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+	assert.Contains(t, stderr, "app1 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
+	assert.Contains(t, stderr, "app2 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
 	assert.Contains(t, stdout, "local_file.file: Creation complete")
 
@@ -1151,6 +1153,8 @@ func TestStackApplyStrictIncludeWithFilter(t *testing.T) {
 func TestStacksSourceMap(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.StartTerragruntMirror(t)
+
 	// prepare local path to do override of source url
 	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	localTmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
@@ -1168,11 +1172,11 @@ func TestStacksSourceMap(t *testing.T) {
 
 	// prepare local environment with remote to use source map to replace
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	// generate path with replacement of local source with local path
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --source-map git::"+mirror.URL+"="+localTmpEnvPath+" --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Generating unit app1")
@@ -1181,12 +1185,12 @@ func TestStacksSourceMap(t *testing.T) {
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --non-interactive --working-dir "+rootPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::"+mirror.URL+"="+localTmpEnvPath+" --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	// validate that the source map was used to replace the source
-	assert.NotContains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
-	assert.NotContains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+	assert.NotContains(t, stderr, "app1 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
+	assert.NotContains(t, stderr, "app2 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
 
 	assert.Contains(t, stderr, "Running ./.terragrunt-stack/app1")
 	assert.Contains(t, stderr, "Running ./.terragrunt-stack/app2")
@@ -1630,8 +1634,9 @@ func validateNoStackDirs(t *testing.T, rootPath string) {
 func TestStacksSelfInclude(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.StartTerragruntMirror(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStackSelfInclude)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackSelfInclude)
+	tmpEnvPath := mirror.RenderFixture(t, testFixtureStackSelfInclude)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackSelfInclude, "live")
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
@@ -2457,11 +2462,14 @@ func TestCASInStacks(t *testing.T) {
 	unitStr := string(unitConfigContent)
 
 	// CAS digests depend on the resolved git ref and repo paths; assert exact file shape using the emitted hashes.
+	// Stack blocks always materialize the leaf directory directly, so the rewritten ref has no "//subdir" tail.
+	// Only the terraform.source inside the unit preserves the "//" tail so sibling files in the synthetic tree remain reachable.
 	casSHA1Quoted := regexp.MustCompile(`"cas::sha1:([a-f0-9]{40})"`)
 	stackMatch := casSHA1Quoted.FindStringSubmatch(stackStr)
 	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha1 reference in a quoted source attribute")
 
-	unitMatch := casSHA1Quoted.FindStringSubmatch(unitStr)
+	casSHA1QuotedUnit := regexp.MustCompile(`"cas::sha1:([a-f0-9]{40})//modules/baz"`)
+	unitMatch := casSHA1QuotedUnit.FindStringSubmatch(unitStr)
 	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha1 reference in a quoted source attribute")
 
 	wantStack := fmt.Sprintf(`unit "bar" {
@@ -2473,7 +2481,7 @@ func TestCASInStacks(t *testing.T) {
 `, stackMatch[1])
 
 	wantUnit := fmt.Sprintf(`terraform {
-  source = "cas::sha1:%s"
+  source = "cas::sha1:%s//modules/baz"
 
   update_source_with_cas = true
 }
@@ -2481,6 +2489,84 @@ func TestCASInStacks(t *testing.T) {
 
 	assert.Equal(t, wantStack, stackStr)
 	assert.Equal(t, wantUnit, unitStr)
+}
+
+// TestCASInStacksUnitSourceSubdirSiblingsResolve is a regression test for a
+// unit whose terraform.source uses the "//" subdir convention with
+// update_source_with_cas. Generation rewrites the source to
+// cas::sha1:<hash>//modules/vpc. At runtime the full tree must materialize with
+// the working directory at the subdir, or a module that references a sibling
+// via a relative path (modules/vpc -> ../sibling) cannot resolve.
+func TestCASInStacksUnitSourceSubdirSiblingsResolve(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	// modules/vpc references a sibling module via a relative path. This only
+	// resolves if the materialized working directory keeps the surrounding tree
+	// (modules/sibling) reachable from modules/vpc.
+	require.NoError(t, srv.CommitFile("modules/vpc/main.tf", []byte(`module "sibling" {
+  source = "../sibling"
+}
+`), "commit vpc module"))
+
+	require.NoError(t, srv.CommitFile("modules/sibling/main.tf", []byte(`output "name" {
+  value = "sibling"
+}
+`), "commit sibling module"))
+
+	require.NoError(t, srv.CommitFile("units/bar/terragrunt.hcl", []byte(`terraform {
+  source = "../..//modules/vpc"
+
+  update_source_with_cas = true
+}
+`), "commit unit"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	remoteStack := `unit "bar" {
+  source = "../..//units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`
+	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit stack"))
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "live", "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	// Running the unit forces the runtime materialization path. The unit's
+	// source resolves to cas::sha1:<hash>//modules/vpc; if the subdir handling
+	// drops the surrounding tree, "../sibling" is unreachable and the run fails.
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "stack run plan failed; the sibling module referenced via ../sibling was likely unreachable:\n%s", stdout+stderr)
 }
 
 // TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS verifies that stack generation
@@ -2636,12 +2722,14 @@ func TestCASInStacksLocalSource(t *testing.T) {
 	unitStr := string(unitConfigContent)
 
 	// Local sources are content-addressed with SHA-256.
-	casSHA256Quoted := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})"`)
-
-	stackMatch := casSHA256Quoted.FindStringSubmatch(stackStr)
+	// Stack blocks always materialize the leaf directory directly, so the rewritten ref has no "//subdir" tail.
+	// Only the terraform.source inside the unit preserves the "//" tail so sibling files in the synthetic tree remain reachable.
+	casSHA256QuotedStack := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})"`)
+	stackMatch := casSHA256QuotedStack.FindStringSubmatch(stackStr)
 	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha256 reference")
 
-	unitMatch := casSHA256Quoted.FindStringSubmatch(unitStr)
+	casSHA256QuotedUnit := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})//modules/baz"`)
+	unitMatch := casSHA256QuotedUnit.FindStringSubmatch(unitStr)
 	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha256 reference")
 
 	wantStack := fmt.Sprintf(`unit "bar" {
@@ -2653,7 +2741,7 @@ func TestCASInStacksLocalSource(t *testing.T) {
 `, stackMatch[1])
 
 	wantUnit := fmt.Sprintf(`terraform {
-  source = "cas::sha256:%s"
+  source = "cas::sha256:%s//modules/baz"
 
   update_source_with_cas = true
 }

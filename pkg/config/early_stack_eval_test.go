@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -142,6 +143,33 @@ func TestEarlyStackParseFunctions_GetWorkingDirOverride(t *testing.T) {
 	assert.Equal(t, cty.StringVal(baseDir), got)
 }
 
+// TestStackParseFunctionsFrom_OverridesWithoutMutating verifies the helper overrides get_working_dir to the
+// stack directory, preserves other functions, and does not mutate the input map.
+func TestStackParseFunctionsFrom_OverridesWithoutMutating(t *testing.T) {
+	t.Parallel()
+
+	sentinel := function.New(&function.Spec{
+		Type: function.StaticReturnType(cty.String),
+		Impl: func([]cty.Value, cty.Type) (cty.Value, error) { return cty.StringVal("PROD"), nil },
+	})
+	input := map[string]function.Function{
+		config.FuncNameGetWorkingDir: sentinel,
+		"other":                      sentinel,
+	}
+
+	out := config.StackParseFunctionsFrom(input, "/base/dir")
+
+	got, err := out[config.FuncNameGetWorkingDir].Call(nil)
+	require.NoError(t, err)
+	assert.Equal(t, cty.StringVal("/base/dir"), got, "get_working_dir must be overridden to the stack dir")
+
+	assert.Contains(t, out, "other", "other functions must be preserved")
+
+	gotIn, err := input[config.FuncNameGetWorkingDir].Call(nil)
+	require.NoError(t, err)
+	assert.Equal(t, cty.StringVal("PROD"), gotIn, "the input map must not be mutated")
+}
+
 func TestEarlyStackParseFunctions_GetTerraformCommandReadsPctx(t *testing.T) {
 	t.Parallel()
 
@@ -223,10 +251,12 @@ unit "vpc" {
 }
 `), 0644))
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), stackDir, newStackParsePctx(t, stackDir))
-	require.NoError(t, err)
+	pctx := newStackParsePctx(t, stackDir)
+	funcsFor := func(dir string) (map[string]function.Function, error) {
+		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), dir, pctx)
+	}
 
-	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcs)
+	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcsFor)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	// basename(dirname(.../root.hcl)) == basename(tmpRoot); resolve symlinks
@@ -252,10 +282,12 @@ unit "vpc" {
 }
 `), 0644))
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), stackDir, newStackParsePctx(t, stackDir))
-	require.NoError(t, err)
+	pctx := newStackParsePctx(t, stackDir)
+	funcsFor := func(dir string) (map[string]function.Function, error) {
+		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), dir, pctx)
+	}
 
-	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcs)
+	paths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir, funcsFor)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.True(t, strings.HasSuffix(paths[0], "computed-path"), "expected path to end with 'computed-path', got %q", paths[0])
