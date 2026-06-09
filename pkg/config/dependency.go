@@ -554,7 +554,13 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 				return fmt.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
 			}
 
-			skipOutputs := pctx.SkipOutput || (dependencyConfig.SkipOutputs != nil && *dependencyConfig.SkipOutputs)
+			skipOutputs := pctx.SkipOutput
+
+			if pctx.TerraformCommand == tf.CommandNameValidate {
+				// When running `terraform validate` look at the `skip_outputs` attribute on the dependency block
+				// so that we can return a dynamic value for outputs when `skip_putputs` is true.
+				skipOutputs = dependencyConfig.SkipOutputs != nil && *dependencyConfig.SkipOutputs
+			}
 
 			if dependencyConfig.RenderedOutputs != nil {
 				lock.Lock()
