@@ -241,6 +241,7 @@ func (s *catalogServiceImpl) LoadStreamingURL(ctx context.Context, l log.Logger,
 		Path:             tempPath,
 		WalkWithSymlinks: walkWithSymlinks,
 		AllowCAS:         allowCAS,
+		CASCloneDepth:    s.opts.CASCloneDepth,
 		SlowReporting:    slowReporting,
 		RootWorkingDir:   s.opts.RootWorkingDir,
 	})

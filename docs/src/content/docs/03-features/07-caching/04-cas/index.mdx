@@ -20,6 +20,8 @@ The CAS is used to speed up catalog cloning, OpenTofu/Terraform source fetching,
 
 You can disable the CAS at any time using the `--no-cas` flag. This flag is available on the [`run`](/reference/cli/commands/run), [`stack generate`](/reference/cli/commands/stack/generate), [`stack run`](/reference/cli/commands/stack/run), and [`catalog`](/reference/cli/commands/catalog) commands.
 
+The same commands accept the `--cas-clone-depth` flag, which controls the `git clone --depth` value the CAS uses when cloning a Git source (default `1`; `-1` clones the full history).
+
 ## Supported sources
 
 The CAS sits in front of every getter Terragrunt uses to fetch a source. Each getter resolves a source through a **cheap probe**: a low-cost remote request that yields a cache key without downloading the full payload (e.g. for Git this is `git ls-remote`). When the probe key is already present in the store, Terragrunt links the cached content to a target directory and skips the download entirely. Getters with no cheap probe always download (or, for local paths, copy) and then key the result by the content hash of what they fetched.

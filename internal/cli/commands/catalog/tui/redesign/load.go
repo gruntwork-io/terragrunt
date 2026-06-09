@@ -64,6 +64,7 @@ func LoadURL(
 		Path:             tempPath,
 		WalkWithSymlinks: walkWithSymlinks,
 		AllowCAS:         allowCAS,
+		CASCloneDepth:    opts.CASCloneDepth,
 		SlowReporting:    slowReporting,
 		RootWorkingDir:   opts.RootWorkingDir,
 	})

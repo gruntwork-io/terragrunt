@@ -307,18 +307,20 @@ func TestListModules_NoModulesFound(t *testing.T) {
 	assert.Empty(t, modules, "Should return empty modules slice on 'no modules found' error")
 }
 
-func TestLoad_NoCASOverridesExperiment(t *testing.T) {
+func TestLoad_PassesCASOptions(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name         string
+		cloneDepth   int
 		enableCAS    bool
 		noCAS        bool
 		wantAllowCAS bool
 	}{
-		{name: "cas experiment enabled", enableCAS: true, noCAS: false, wantAllowCAS: true},
-		{name: "cas experiment enabled with no-cas", enableCAS: true, noCAS: true, wantAllowCAS: false},
-		{name: "cas experiment disabled", enableCAS: false, noCAS: false, wantAllowCAS: false},
+		{name: "cas experiment enabled", cloneDepth: 1, enableCAS: true, noCAS: false, wantAllowCAS: true},
+		{name: "cas experiment enabled with no-cas", cloneDepth: 1, enableCAS: true, noCAS: true, wantAllowCAS: false},
+		{name: "cas experiment disabled", cloneDepth: 1, enableCAS: false, noCAS: false, wantAllowCAS: false},
+		{name: "custom clone depth", cloneDepth: 5, enableCAS: true, noCAS: false, wantAllowCAS: true},
 	}
 
 	for _, tc := range testCases {
@@ -328,15 +330,16 @@ func TestLoad_NoCASOverridesExperiment(t *testing.T) {
 			opts := options.NewTerragruntOptions()
 			opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 			opts.NoCAS = tc.noCAS
+			opts.CASCloneDepth = tc.cloneDepth
 
 			if tc.enableCAS {
 				require.NoError(t, opts.Experiments.EnableExperiment(experiment.CAS))
 			}
 
-			var gotAllowCAS bool
+			var gotRepoOpts module.RepoOpts
 
 			mockNewRepo := func(ctx context.Context, l log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
-				gotAllowCAS = repoOpts.AllowCAS
+				gotRepoOpts = *repoOpts
 
 				dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "cas-repo")
 				require.NoError(t, os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755))
@@ -354,7 +357,14 @@ func TestLoad_NoCASOverridesExperiment(t *testing.T) {
 			l := logger.CreateLogger()
 
 			require.NoError(t, svc.Load(t.Context(), l))
-			assert.Equal(t, tc.wantAllowCAS, gotAllowCAS)
+			assert.Equal(t, tc.wantAllowCAS, gotRepoOpts.AllowCAS)
+			assert.Equal(t, tc.cloneDepth, gotRepoOpts.CASCloneDepth)
+
+			gotRepoOpts = module.RepoOpts{}
+
+			require.NoError(t, svc.LoadStreamingURL(t.Context(), l, "github.com/gruntwork-io/cas-repo", func(_ *module.Module) {}))
+			assert.Equal(t, tc.wantAllowCAS, gotRepoOpts.AllowCAS)
+			assert.Equal(t, tc.cloneDepth, gotRepoOpts.CASCloneDepth)
 		})
 	}
 }
