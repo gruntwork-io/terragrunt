@@ -1625,6 +1625,7 @@ func TestBestEffortParseConfigString(t *testing.T) {
 	}
 }
 
+// TestParseConfigGenerateBlockWithHclFmt verifies that hcl_fmt is parsed from generate blocks.
 func TestParseConfigGenerateBlockWithHclFmt(t *testing.T) {
 	t.Parallel()
 
@@ -1648,6 +1649,7 @@ func TestParseConfigGenerateBlockWithHclFmt(t *testing.T) {
 	assert.False(t, *generateConfig.HclFmt)
 }
 
+// TestParseConfigGenerateAttrWithHclFmt verifies that hcl_fmt is parsed from generate attribute maps.
 func TestParseConfigGenerateAttrWithHclFmt(t *testing.T) {
 	t.Parallel()
 
@@ -1757,6 +1759,7 @@ dependency "dep" {
 	}, terragruntConfig)
 }
 
+// TestWriteTo verifies that a parsed Terragrunt config can be written and parsed again without losing supported fields.
 func TestWriteTo(t *testing.T) {
 	t.Parallel()
 
