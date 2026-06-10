@@ -8,6 +8,7 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Before from '@components/Before.astro';
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
 
@@ -1078,9 +1079,11 @@ block is not evaluated until *after* the queue has been populated with units to 
 
 ## mark_glob_as_read
 
+<Before version="1.1.0">
 <Aside type="caution">
 `mark_glob_as_read` requires the [`mark-many-as-read`](/reference/experiments/active#mark-many-as-read) experiment. Calling it without the experiment enabled returns an error.
 </Aside>
+</Before>
 
 <Aside type="caution">
 `mark_glob_as_read` writes to the same read tracker as [`mark_as_read`](#mark_as_read), so the same evaluation-order caveat applies: during a `run --all`, the queue is populated before `inputs` is evaluated, so a call placed in `inputs` (or any other later-evaluated block) will not influence queue construction. Call `mark_glob_as_read` from `locals` to ensure matched files are considered when the queue is built.

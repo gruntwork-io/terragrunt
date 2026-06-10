@@ -1723,7 +1723,12 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	if terragruntConfig.Terraform != nil { // since Terraform is nil each time avoid saving metadata when it is nil
 		terragruntConfig.SetFieldMetadata(MetadataTerraform, defaultMetadata)
 
-		if pctx.Experiments.Evaluate(experiment.MarkManyAsRead) && terragruntConfig.Terraform.Source != nil {
+		// This full-parse hook is not redundant with the partial-parse hook in
+		// PartialParseConfig. read_terragrunt_config() runs a full ParseConfigFile
+		// even during discovery's partial parse, and ParsingContext.Clone() shares
+		// FilesRead, so this hook is how files read via read_terragrunt_config of
+		// a config with a local module source reach reading= filters.
+		if terragruntConfig.Terraform.Source != nil {
 			markLocalModuleSourceAsRead(pctx, configPath, *terragruntConfig.Terraform.Source)
 		}
 	}
@@ -1930,6 +1935,14 @@ var moduleSourceReadExtensions = map[string]struct{}{
 // swallowed, since a genuinely broken source will surface during download.
 func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource string) {
 	sourceWithoutSubdir, subdir := getter.SourceDirSubdir(rawSource)
+
+	// Anchor a relative config path to the working directory before deriving
+	// the detector pwd. The file detector roots relative output at "/", so a
+	// relative pwd would resolve a relative source to the filesystem root and
+	// walk all of it.
+	if !filepath.IsAbs(configPath) {
+		configPath = filepath.Join(pctx.WorkingDir, configPath)
+	}
 
 	sourceURL, err := tf.ToSourceURL(sourceWithoutSubdir, filepath.Dir(configPath))
 	if err != nil || !tf.IsLocalSource(sourceURL) {
