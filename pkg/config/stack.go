@@ -534,9 +534,11 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 //     branch so nested components already rewritten to cas:: are not re-fetched.
 //  2. Source with CAS enabled: attempt a CAS-backed fetch (remote clone or local copy into a
 //     temp overlay) and copy from its content dir. This fires automatically whenever the cas
-//     experiment is on, so catalog authors don't need consumers to opt in per-block. On any CAS
-//     failure (for example, CAS can't handle a go-getter query param like depth=1), we fall
-//     through to the standard getter.
+//     experiment is on, so catalog authors don't need consumers to opt in per-block. On most CAS
+//     failures (for example, CAS can't handle a go-getter query param like depth=1), we fall
+//     through to the standard getter. Configuration errors that can never succeed via CAS, such
+//     as an interpolated source on a block with update_source_with_cas = true, fail generation
+//     instead of falling through.
 //  3. Standard: local copy or remote getter.
 //
 // The update_source_with_cas attribute on a consumer block is a no-op under path 2. It only
@@ -584,6 +586,13 @@ func fetchComponentSource(
 		casErr := fetchViaCAS(ctx, l, opts, cmp.sourceDir, kindStr, source, dest)
 		if casErr == nil {
 			return nil
+		}
+
+		// A non-literal source on an update_source_with_cas block can never
+		// be rewritten by CAS, so falling back would silently skip the rewrite
+		// the configuration asked for. Surface the error instead.
+		if errors.Is(casErr, cas.ErrSourceNotLiteral) {
+			return fmt.Errorf("failed to fetch %s %q via CAS: %w", kindStr, cmp.name, casErr)
 		}
 
 		l.Warnf("CAS processing failed for %s %q: %v. Falling back to standard getter.", kindStr, cmp.name, casErr)
