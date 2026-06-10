@@ -1,0 +1,10 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: stack dependencies resolve `values.*` in the target stack's locals
+
+Expanding a dependency that points at a generated stack directory no longer fails when that stack's `terragrunt.stack.hcl` reads `values.*` in its `locals` block. Previously, `terragrunt stack generate` succeeded but `terragrunt run --all` then failed with `There is no variable named "values"` while expanding the dependency into its units.
+
+Dependency expansion now reads the generated `terragrunt.values.hcl` next to each `terragrunt.stack.hcl` it visits, including nested stacks, so each nesting level resolves `values.*` from its own values file, the same way a full stack parse does.
