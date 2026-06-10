@@ -139,7 +139,7 @@ func TestLogUnitDeployOrder_DAGExperiment(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	exps := experiment.NewExperiments()
-	exps.EnableExperiment(experiment.DAGQueueDisplay)
+	require.NoError(t, exps.EnableExperiment(experiment.DAGQueueDisplay))
 
 	err := runner.LogUnitDeployOrder(l, false, false, exps)
 	require.NoError(t, err)
