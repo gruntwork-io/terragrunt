@@ -190,7 +190,7 @@ func GenerateDAGTree(components ListedComponents, s *TreeStyler) *tree.Tree {
 
 	// First pass: create all root nodes
 	for _, c := range components {
-		if len(c.Dependencies) == 0 || !components.Contains(c.Path) {
+		if len(c.Dependencies) == 0 {
 			rootNodes[c.Path] = tree.New().Root(s.colorizer.Colorize(c))
 		}
 	}
