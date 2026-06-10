@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	gcs "github.com/hashicorp/go-getter/gcs/v2"
-	s3 "github.com/hashicorp/go-getter/s3/v2"
 	getter "github.com/hashicorp/go-getter/v2"
 )
 
@@ -74,7 +73,7 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 	}
 
 	m := map[string]getter.Getter{
-		SchemeS3:    new(s3.Getter),
+		SchemeS3:    new(S3Getter),
 		SchemeGCS:   new(gcs.Getter),
 		SchemeHTTP:  &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpExtra), Scheme: SchemeHTTP},
 		SchemeHTTPS: &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpsExtra), Scheme: SchemeHTTPS},
@@ -126,7 +125,7 @@ func buildGetters(b *builder) []Getter {
 	hgGetter := new(getter.HgGetter)
 	smbClientGetter := new(getter.SmbClientGetter)
 	smbMountGetter := new(getter.SmbMountGetter)
-	s3Getter := new(s3.Getter)
+	s3Getter := new(S3Getter)
 	gcsGetter := new(gcs.Getter)
 
 	if b.tfRegistry != nil {

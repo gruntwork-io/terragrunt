@@ -40,13 +40,13 @@ type (
 
 // Concrete getter type aliases for callers that need to assert on the
 // underlying getter type (typically tests pinning the protocol set). The
-// git slot is intentionally absent: GitGetter is Terragrunt's own type
-// (defined in git.go), not the upstream go-getter/v2 GitGetter.
+// git and s3 slots are intentionally absent: GitGetter and S3Getter are
+// Terragrunt's own types (defined in git.go and s3.go), not the upstream
+// go-getter/v2 getters.
 type (
 	HgGetter        = getter.HgGetter
 	SmbClientGetter = getter.SmbClientGetter
 	SmbMountGetter  = getter.SmbMountGetter
 	FileGetter      = getter.FileGetter
-	S3Getter        = s3.Getter
 	GCSGetter       = gcs.Getter
 )
