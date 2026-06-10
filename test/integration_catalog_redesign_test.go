@@ -1,9 +1,13 @@
 package test_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"golang.org/x/term"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
@@ -140,6 +144,40 @@ func TestCatalogRedesignDiscoveryWithIgnoreFiles(t *testing.T) {
 	}
 
 	assert.Equal(t, want, got)
+}
+
+// TestCatalogRedesignNonTTYFailsFast verifies that running the redesigned
+// catalog without an interactive terminal exits with the friendly typed
+// error instead of bubbletea's raw TTY failure.
+//
+// The guard mirrors the command's own TTY probe: when the test environment
+// has a controlling terminal (a developer's shell), the command would
+// launch the real TUI and block, so the test only runs where a TTY is
+// genuinely unavailable (e.g. CI runners).
+func TestCatalogRedesignNonTTYFailsFast(t *testing.T) {
+	t.Parallel()
+
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		t.Skip("stdin is a terminal; the catalog TUI would launch for real")
+	}
+
+	if in, out, err := tea.OpenTTY(); err == nil {
+		closeErr := in.Close()
+		if out != in {
+			closeErr = errors.Join(closeErr, out.Close())
+		}
+
+		require.NoError(t, closeErr)
+		t.Skip("a controlling terminal is available; the catalog TUI would launch for real")
+	}
+
+	workDir := t.TempDir()
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt catalog --experiment catalog-redesign --working-dir "+workDir)
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, redesign.ErrNoTerminal)
 }
 
 func ignoreFileAction(t *testing.T, opts *options.TerragruntOptions) clihelper.FlagActionFunc[string] {

@@ -121,6 +121,10 @@ func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.Terragrunt
 // screen immediately while discovery runs in the background, then transitions
 // to the component list if components are found. Post-exit messages are
 // written to errWriter after the tea program restores the main terminal.
+//
+// When the session ends after a failure (discovery error, scaffold or copy
+// failure), the failure is returned so the command exits nonzero; a
+// deliberate quit with no failure returns nil.
 func RunRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, errWriter io.Writer, loadFunc LoadFunc) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -142,6 +146,20 @@ func RunRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}
 
 		return err
+	}
+
+	return sessionErr(finalModel)
+}
+
+// sessionErr extracts the failure the final model recorded during its
+// session, if any. The detailed, styled rendering has already been shown
+// in the TUI (or stashed as the exit message), so the returned error is
+// the concise form the CLI reports.
+func sessionErr(finalModel tea.Model) error {
+	type errCarrier interface{ Err() error }
+
+	if m, ok := finalModel.(errCarrier); ok {
+		return m.Err()
 	}
 
 	return nil
@@ -213,6 +231,26 @@ func (m WelcomeModel) View() tea.View {
 	return v
 }
 
+// Err returns the discovery failure that ended the session, or nil when
+// discovery succeeded or is still running. RunRedesign propagates it as the
+// command error after the user dismisses the error screen, so the catalog
+// command exits nonzero.
+func (m WelcomeModel) Err() error {
+	return m.lastDiscoveryErr
+}
+
+// ExitMessage returns the styled callout describing the discovery failure,
+// or "" when there is none. The error screen lives in the alt screen and
+// vanishes when the program exits, so EmitExitMessage reprints the details
+// into the user's scrollback while the returned error stays concise.
+func (m WelcomeModel) ExitMessage() string {
+	if m.lastDiscoveryErr == nil {
+		return ""
+	}
+
+	return formatSourceFailureNotice(m.lastDiscoveryErr, valuesBoxAccentRed)
+}
+
 // WithOpenURL replaces the function used to open URLs in the browser.
 func (m WelcomeModel) WithOpenURL(fn OpenURLFunc) WelcomeModel {
 	m.openURL = fn
@@ -221,26 +259,62 @@ func (m WelcomeModel) WithOpenURL(fn OpenURLFunc) WelcomeModel {
 }
 
 func (m WelcomeModel) discoveryErrorView() string {
+	// One slot per fixed line surrounding the detail block.
+	const fixedRows = 8
+
 	title := welcomeTitleStyle.Render(" Terragrunt Catalog ")
 
-	errMsg := "unknown error"
-	if m.lastDiscoveryErr != nil {
-		errMsg = m.lastDiscoveryErr.Error()
-	}
+	detail := m.discoveryErrorDetail()
 
-	body := welcomeBodyStyle.Render(lipgloss.JoinVertical(lipgloss.Left,
+	rows := make([]string, 0, len(detail)+fixedRows)
+
+	rows = append(rows,
 		"",
 		"An error occurred while discovering catalog sources:",
 		"",
-		welcomeCodeStyle.Render("  "+errMsg),
+	)
+
+	rows = append(rows, detail...)
+
+	rows = append(rows,
 		"",
 		"Please check your network connection, authentication, and",
 		"catalog configuration, then try again.",
 		"",
 		welcomeHintStyle.Render("q/esc: exit"),
-	))
+	)
+
+	body := welcomeBodyStyle.Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
 
 	return lipgloss.JoinVertical(lipgloss.Center, title, body)
+}
+
+// discoveryErrorDetail returns the body lines describing the discovery
+// failure. Per-source load failures render a summary plus one line per
+// failed source, so "all N sources failed" reads differently from the
+// no-sources welcome screen.
+func (m WelcomeModel) discoveryErrorDetail() []string {
+	errMsg := "unknown error"
+	if m.lastDiscoveryErr != nil {
+		errMsg = m.lastDiscoveryErr.Error()
+	}
+
+	var srcErr *SourceLoadError
+	if !errors.As(m.lastDiscoveryErr, &srcErr) {
+		return []string{welcomeCodeStyle.Render("  " + errMsg)}
+	}
+
+	rows := []string{welcomeCodeStyle.Render("  " + errMsg + ":")}
+
+	for _, f := range srcErr.Failures {
+		rows = append(rows,
+			"",
+			welcomeCodeStyle.Render("    "+f.URL),
+			welcomeHintStyle.Render("      "+f.Err.Error()),
+		)
+	}
+
+	return rows
 }
 
 func (m WelcomeModel) handleComponentMsg(msg componentMsg) (tea.Model, tea.Cmd) {
@@ -260,7 +334,12 @@ func (m WelcomeModel) handleComponentMsg(msg componentMsg) (tea.Model, tea.Cmd) 
 
 func (m WelcomeModel) handleDiscoveryComplete(msg DiscoveryCompleteMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
-		m.logger.Warnf("Discovery error: %v", msg.Err)
+		// No components arrived before the failure (otherwise the streaming
+		// Model would be handling this message), so the session has nothing
+		// to show. Render the error screen; the stashed error is returned
+		// by RunRedesign when the user quits and its details are reprinted
+		// via ExitMessage. Logging here would shred the alt-screen
+		// rendering, so nothing is logged.
 		m.lastDiscoveryErr = msg.Err
 		m.state = welcomeDiscoveryError
 

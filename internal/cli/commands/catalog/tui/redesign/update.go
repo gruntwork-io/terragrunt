@@ -2,6 +2,7 @@ package redesign
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -189,7 +190,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 
 		if msg.Err != nil {
-			m.logger.Warnf("Discovery error: %v", msg.Err)
+			// Components already streamed in, so the failure is partial and
+			// the session stays usable. Logging here would shred the
+			// alt-screen rendering (see discoverModuleFields), so surface
+			// it as a notice line in the list view and stash the per-source
+			// detail for the post-exit message.
+			m.loadErr = msg.Err
+			m.exitMessage = formatSourceFailureNotice(msg.Err, valuesBoxAccentYellow)
 		}
 
 		return m, nil
@@ -250,6 +257,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case formDiscoveryErrMsg:
 		m.exitMessage = formatActionFailure("discovering variables", msg.err)
+		m.terminalErr = fmt.Errorf("discovering variables: %w", msg.err)
 
 		return m, tea.Quit
 
@@ -266,6 +274,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ScaffoldFinishedMsg:
 		if msg.Err != nil {
 			m.exitMessage = formatActionFailure("scaffolding component", msg.Err)
+			m.terminalErr = fmt.Errorf("scaffolding component: %w", msg.Err)
 
 			return m, tea.Quit
 		}
@@ -277,6 +286,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case CopyFinishedMsg:
 		if msg.Err != nil {
 			m.exitMessage = formatActionFailure("copying component", msg.Err)
+			m.terminalErr = fmt.Errorf("copying component: %w", msg.Err)
 
 			return m, tea.Quit
 		}
@@ -402,6 +412,40 @@ var (
 	valuesBoxPathStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(valuesBoxPathColor))
 	valuesBoxMuteStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(valuesBoxMutedColor))
 )
+
+// formatSourceFailureNotice renders the post-exit callout for source-load
+// failures: a summary heading plus one line per failed source. The in-TUI
+// surfaces (the list-view notice line, the welcome error screen) live in
+// the alt screen and vanish on exit, so the detail lands in the user's
+// scrollback here. accent picks the border color: yellow for partial
+// failures that left the session usable, red for failures that ended it.
+func formatSourceFailureNotice(err error, accent string) string {
+	heading := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(accent)).
+		Bold(true).
+		Render(err.Error())
+
+	rows := []string{heading}
+
+	var srcErr *SourceLoadError
+	if errors.As(err, &srcErr) {
+		for _, f := range srcErr.Failures {
+			rows = append(rows,
+				"",
+				valuesBoxPathStyle.Render(f.URL),
+				valuesBoxMuteStyle.Render(f.Err.Error()),
+			)
+		}
+	}
+
+	content := lipgloss.JoinVertical(lipgloss.Left, rows...)
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(accent)).
+		Padding(bodyPaddingVertical, bodyPaddingHorizontal).
+		Render(content)
+}
 
 // formatCopyValuesMessage returns a lipgloss-bordered callout summarizing
 // what happened with the values stub, or "" when there's nothing to say.

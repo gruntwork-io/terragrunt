@@ -514,6 +514,95 @@ func TestModelCopyFinishedDisplayPathEscapesBaseDir(t *testing.T) {
 		"displayPath should produce a dot-relative path when baseDir contains abs")
 }
 
+// TestModelScaffoldFailureQuitsWithError verifies that a failed scaffold
+// quits the TUI carrying the failure, while still stashing the styled
+// in-TUI message, so the command exits nonzero and the user sees why.
+func TestModelScaffoldFailureQuitsWithError(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	opts.WorkingDir = t.TempDir()
+
+	l := logger.CreateLogger()
+	components := makeComponents(t)
+
+	componentCh := make(chan *redesign.ComponentEntry)
+	close(componentCh)
+
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+
+	scaffoldErr := errors.New("generate failed")
+
+	updated, cmd := m.Update(redesign.ScaffoldFinishedMsg{Err: scaffoldErr})
+	finalModel := updated.(redesign.Model)
+
+	require.Error(t, finalModel.Err(), "a failed scaffold should leave the session in an error state")
+	require.ErrorIs(t, finalModel.Err(), scaffoldErr)
+
+	require.NotNil(t, cmd, "a failed scaffold should quit the program")
+	assert.IsType(t, tea.QuitMsg{}, cmd(), "a failed scaffold should quit the program")
+
+	assert.Contains(t, stripANSI(finalModel.ExitMessage()), "error scaffolding component",
+		"the styled failure message should still display after exit")
+}
+
+// TestModelCopyFailureQuitsWithError verifies that a failed copy quits the
+// TUI carrying the failure.
+func TestModelCopyFailureQuitsWithError(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	opts.WorkingDir = t.TempDir()
+
+	l := logger.CreateLogger()
+	components := makeComponents(t)
+
+	componentCh := make(chan *redesign.ComponentEntry)
+	close(componentCh)
+
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+
+	copyErr := errors.New("destination exists")
+
+	updated, cmd := m.Update(redesign.CopyFinishedMsg{Err: copyErr})
+	finalModel := updated.(redesign.Model)
+
+	require.Error(t, finalModel.Err(), "a failed copy should leave the session in an error state")
+	require.ErrorIs(t, finalModel.Err(), copyErr)
+
+	require.NotNil(t, cmd, "a failed copy should quit the program")
+	assert.IsType(t, tea.QuitMsg{}, cmd(), "a failed copy should quit the program")
+}
+
+// TestModelCleanQuitHasNoErrorWithRacing verifies that quitting the list
+// deliberately, even after a successful session, carries no error.
+func TestModelCleanQuitHasNoErrorWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		l := logger.CreateLogger()
+		components := makeComponents(t)
+
+		componentCh := make(chan *redesign.ComponentEntry)
+		close(componentCh)
+
+		m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+
+		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
+
+		finalModel := driveModel(t, m, 120, 40, msgs).(redesign.Model)
+
+		require.NoError(t, finalModel.Err(), "a deliberate quit must not carry an error")
+	})
+}
+
 // TestModelRendererErrMsgSetsViewportAndPagerState drives a rendererErrMsg
 // through Update and verifies that the viewport content carries the error
 // and the session advances to PagerState.

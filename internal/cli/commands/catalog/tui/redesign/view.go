@@ -25,6 +25,7 @@ var (
 	infoPositionStyle = lipgloss.NewStyle().Padding(0, 1).BorderStyle(lipgloss.HiddenBorder())
 	infoLineStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#1D252F"))
 	infoHelp          = lipgloss.NewStyle().Padding(infoHelpPaddingTop, 0, 0, bodyPaddingHorizontal)
+	loadNoticeStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color(valuesBoxAccentYellow))
 )
 
 // View implements bubbletea.Model.View, dispatching to a sub-view based on
@@ -54,7 +55,15 @@ func (m Model) listView() string {
 	bar := RenderTabBar(m.activeTab, m.loading)
 	active := m.lists[m.activeTab]
 
-	return lipgloss.JoinVertical(lipgloss.Left, bar, "", active.View())
+	// The blank spacer between the tab strip and the list doubles as a
+	// status line: partial source-load failures render there, so the
+	// height math in the WindowSizeMsg handler stays unchanged.
+	notice := ""
+	if m.loadErr != nil {
+		notice = loadNoticeStyle.Render("⚠ " + m.loadErr.Error())
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, bar, notice, active.View())
 }
 
 func (m Model) pagerView() string {
