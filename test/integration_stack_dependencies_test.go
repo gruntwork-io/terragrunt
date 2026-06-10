@@ -2304,14 +2304,9 @@ func stackDepsFuncsFor(ctx context.Context, l log.Logger, pctx *config.ParsingCo
 
 // TestStackDepsHCLValidateReportsMalformedAutoInclude pins that `hcl validate` runs the strict
 // autoinclude parse over stack configs: a malformed autoinclude block (a locals block inside
-// autoinclude) fails validation with the experiment enabled instead of only failing later at
-// `stack generate`. Without the experiment the block stays unvalidated, so behavior is unchanged.
+// autoinclude) fails validation instead of only failing later at `stack generate`.
 func TestStackDepsHCLValidateReportsMalformedAutoInclude(t *testing.T) {
 	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, defeating the disabled-vs-enabled comparison this test pins")
-	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsHCLValidateAutoInc)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsHCLValidateAutoInc)
@@ -2319,13 +2314,9 @@ func TestStackDepsHCLValidateReportsMalformedAutoInclude(t *testing.T) {
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
-	// Without the experiment the autoinclude block falls into the lenient decode's Remain, as before.
+	// hcl validate runs the same strict parse `stack generate` uses, so it must reject the malformed block.
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --working-dir "+rootPath)
-	require.NoError(t, err, "without the experiment hcl validate must keep passing the stack config")
-
-	// With the experiment the same strict parse `stack generate` uses must reject the block.
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --working-dir "+rootPath)
-	require.Error(t, err, "with the experiment hcl validate must report the malformed autoinclude block")
+	require.Error(t, err, "hcl validate must report the malformed autoinclude block")
 }
 
 // TestStackDepsHCLValidateAcceptsValidAutoInclude pins that the strict autoinclude pass added to
