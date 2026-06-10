@@ -163,7 +163,7 @@ remote_state {
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "base"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "base", "base.hcl"), []byte(`
 dependency "foo" {
-  config_path  = "`+filepath.Join(tmpDir, "foo")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "foo"))+`"
   skip_outputs = true
   mock_outputs = {
     val = "`+marker+`"
@@ -223,7 +223,7 @@ inputs = {
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
 	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
 include "common" {
-  path           = "`+filepath.Join(tmpDir, "common.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "common.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
@@ -268,7 +268,7 @@ inputs = { from_unit = "a" }
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "b"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, config.DefaultAutoIncludeFile), []byte(`
 dependency "wanted" {
-  config_path  = "`+filepath.Join(tmpDir, "wanted-target")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "wanted-target"))+`"
   skip_outputs = true
   mock_outputs = { val = "wanted" }
   mock_outputs_allowed_terraform_commands = ["init"]
@@ -287,7 +287,7 @@ inputs = { from_base = "b" }
 	// The base directory has its OWN sibling autoinclude declaring a foreign dependency that must not leak.
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "b", config.DefaultAutoIncludeFile), []byte(`
 dependency "leak" {
-  config_path  = "`+filepath.Join(tmpDir, "leak-target")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "leak-target"))+`"
   skip_outputs = true
   mock_outputs = { val = "leaked" }
   mock_outputs_allowed_terraform_commands = ["init"]

@@ -88,7 +88,10 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	test.CreateCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
 	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/*/*"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { } }`
-	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersMirrorPath, providerCacheDir)
+	// The test-supplied mirror path is written via CreateCLIConfig, which renders it with
+	// forward slashes; the terragrunt-generated cache path is HCL-escaped (doubled backslashes
+	// on Windows). Shape each expectation accordingly.
+	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), filepath.ToSlash(providersMirrorPath), strings.ReplaceAll(providerCacheDir, `\`, `\\`))
 
 	// Retry to handle intermittent failures due to network issues on CICD
 	require.NoError(t, util.DoWithRetry(t.Context(), "Run terragrunt init with provider cache", 3, 0, logger.CreateLogger(), log.DebugLevel, func(ctx context.Context) error {
@@ -224,7 +227,8 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appsPath))
 
 	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/hashicorp/azurerm", "example.com/hashicorp/aws"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "network_mirror" { exclude = ["example.com/hashicorp/azurerm", "example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] url = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } }`
-	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersFilesystemMirrorPath, networkMirrorURL.String(), providerCacheDir)
+	// See the filesystem-mirror test above for why each path is shaped differently.
+	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), filepath.ToSlash(providersFilesystemMirrorPath), networkMirrorURL.String(), strings.ReplaceAll(providerCacheDir, `\`, `\\`))
 
 	for _, appName := range []string{"app0", "app1"} {
 		// Find the cache directory for each app since .terraformrc is now created there
@@ -443,8 +447,9 @@ func TestTerragruntDownloadDir(t *testing.T) {
 
 			unmarshalErr := json.Unmarshal(stdout.Bytes(), &dat)
 			require.NoError(t, unmarshalErr)
-			// compare the results
-			assert.Equal(t, tc.downloadDirReference, dat.DownloadDir)
+			// Compare in forward-slash space: a download dir set via
+			// "${get_terragrunt_dir()}/.download" in HCL mixes separators on Windows.
+			assert.Equal(t, filepath.ToSlash(tc.downloadDirReference), filepath.ToSlash(dat.DownloadDir))
 		})
 	}
 }
@@ -794,7 +799,8 @@ func TestTerragruntProviderCache(t *testing.T) {
 					provider                 = path.Join(registryName, provider)
 				)
 
-				providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
+				// path.Dir, not filepath.Dir: the lockfile block label always uses forward slashes.
+				providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{path.Dir(provider)})
 				assert.NotNil(t, providerBlock)
 
 				providerPath := filepath.Join(cacheWorkingDir, ".terraform/providers", provider)

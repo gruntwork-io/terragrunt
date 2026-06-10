@@ -34,6 +34,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
+// scaffoldCopyIncludes forces hidden entries into scaffold module and template
+// copies, which the file-copy getter would otherwise skip. Scaffolding needs a
+// faithful copy: templates keep their boilerplate under dot-directories.
+//
+//nolint:gochecknoglobals
+var scaffoldCopyIncludes = []string{".*", ".*/**", "**/.*", "**/.*/**"}
+
 const (
 	sourceURLTypeHTTPS = "git-https"
 	sourceURLTypeGit   = "git-ssh"
@@ -252,7 +259,14 @@ func Prepare(
 	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_module", map[string]any{
 		"module_url": resolvedURL,
 	}, func(ctx context.Context) error {
-		if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL); getErr != nil {
+		// The file-copy getter replaces go-getter's symlinking FileGetter: it
+		// tolerates the already-created destination and avoids junction points
+		// on Windows. Hidden entries are included: templates carry their
+		// boilerplate in dot-directories (e.g. .boilerplate).
+		if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL,
+			getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).WithLogger(l).
+				WithIncludeInCopy(scaffoldCopyIncludes...)),
+		); getErr != nil {
 			return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
 		}
 
@@ -535,9 +549,12 @@ func downloadTemplate(
 		return "", err
 	}
 
-	// Go-getter expects a pathspec or . for file paths
+	// Local template paths are fetched with the file-copy getter below, which
+	// copies the directory as-is. No "//." pathspec is appended: go-getter's
+	// subdir handling re-serializes file URLs into a form that loses the
+	// Windows drive letter.
 	if baseURL.Scheme == "" || baseURL.Scheme == "file" {
-		baseURL.Path = filepath.ToSlash(strings.TrimSuffix(baseURL.Path, "/")) + "//."
+		baseURL.Path = filepath.ToSlash(strings.TrimSuffix(baseURL.Path, "/"))
 	}
 
 	baseURL, err = rewriteTemplateURL(ctx, l, v, opts, baseURL)
@@ -556,7 +573,11 @@ func downloadTemplate(
 	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_template", map[string]any{
 		"template_url": baseURL.String(),
 	}, func(ctx context.Context) error {
-		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
+		// See the module download in Prepare for why the file-copy getter is used.
+		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String(),
+			getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).WithLogger(l).
+				WithIncludeInCopy(scaffoldCopyIncludes...)),
+		); getErr != nil {
 			return fmt.Errorf("downloading scaffold template from %s: %w", baseURL.String(), getErr)
 		}
 

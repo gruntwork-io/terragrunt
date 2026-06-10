@@ -1032,7 +1032,8 @@ func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 		for _, provider := range providers {
 			provider := path.Join(registryName, provider)
 
-			providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
+			// path.Dir, not filepath.Dir: the lockfile block label always uses forward slashes.
+			providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{path.Dir(provider)})
 			assert.NotNil(t, providerBlock)
 
 			providerPath := filepath.Join(providerCacheDir, provider)

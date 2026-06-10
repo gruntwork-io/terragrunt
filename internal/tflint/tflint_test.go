@@ -298,7 +298,8 @@ func TestFindConfigInProject(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tc.wantPath, got)
+			// The walk builds the path with filepath.Join (OS-native); compare in forward-slash space.
+			assert.Equal(t, tc.wantPath, filepath.ToSlash(got))
 		})
 	}
 }

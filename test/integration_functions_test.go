@@ -239,7 +239,9 @@ func TestGetRepoRoot(t *testing.T) {
 	repoRoot, ok := outputs["repo_root"]
 
 	assert.True(t, ok)
-	assert.Regexp(t, "/.*/TestGetRepoRoot.*/fixtures/get-repo-root", filepath.ToSlash(repoRoot.Value.(string)))
+	// The temp dir no longer embeds the test name on Windows, so only pin the
+	// fixture-relative tail of the repo root path.
+	assert.Regexp(t, "/.*/fixtures/get-repo-root$", filepath.ToSlash(repoRoot.Value.(string)))
 }
 
 func TestGetWorkingDirBuiltInFunc(t *testing.T) {

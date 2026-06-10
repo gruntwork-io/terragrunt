@@ -3,6 +3,7 @@ package shell_test
 import (
 	"context"
 	"net/url"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 
@@ -44,7 +45,8 @@ func TestGitTopLevelDirDispatchesGitRevParse(t *testing.T) {
 
 	root, err := shell.GitTopLevelDir(gitMemCtx(t), logger.CreateLogger(), exec, nil, "/tmp/repo")
 	require.NoError(t, err)
-	assert.Equal(t, "/tmp/repo", root)
+	// GitTopLevelDir normalizes to OS-native separators; compare in forward-slash space.
+	assert.Equal(t, "/tmp/repo", filepath.ToSlash(root))
 	assert.Equal(t, 1, calls)
 }
 
