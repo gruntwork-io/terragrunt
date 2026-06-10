@@ -71,8 +71,8 @@ type stackBlockInfo struct {
 
 // ReadStackBlocks reads all unit and stack blocks from a stack HCL file,
 // extracting the source and update_source_with_cas attributes. Blocks that set
-// update_source_with_cas = true must use a literal source string; an
-// interpolated source returns [ErrSourceNotLiteral] wrapped with the block
+// update_source_with_cas = true must use a literal source string; a
+// non-literal source returns [ErrSourceNotLiteral] wrapped with the block
 // type and name.
 func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
 	f, diags := hclwrite.ParseConfig(content, "terragrunt.stack.hcl", hcl.InitialPos)
@@ -127,7 +127,7 @@ func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
 
 // ReadTerraformSourceInfo reads the source and update_source_with_cas from a
 // terraform block. When update_source_with_cas = true, the source must be a
-// literal string; an interpolated source returns [ErrSourceNotLiteral].
+// literal string; a non-literal source returns [ErrSourceNotLiteral].
 func ReadTerraformSourceInfo(content []byte) (source string, updateWithCAS bool, err error) {
 	f, diags := hclwrite.ParseConfig(content, "terragrunt.hcl", hcl.InitialPos)
 	if diags.HasErrors() {
@@ -165,27 +165,64 @@ func ReadTerraformSourceInfo(content []byte) (source string, updateWithCAS bool,
 }
 
 // extractStringLiteral extracts a string value from an hclwrite attribute.
-// Returns [ErrSourceNotLiteral] when the expression contains template
-// interpolation ("${...}") or control ("%{...}") sequences, which cannot be
-// evaluated by this raw-token reader. Escaped sequences ("$${", "%%{") are
-// plain literal text and do not trigger the error. Returns empty string for
-// other non-literal expressions.
+// The expression must be a pure quoted string literal: an opening quote,
+// quoted-literal parts, and a closing quote. Escaped template sequences
+// ("$${", "%%{") tokenize as quoted-literal parts and are accepted. Any other
+// token shape, such as template interpolation, function calls, references
+// like local.foo, heredocs, or operators, returns [ErrSourceNotLiteral]
+// wrapped with the kind of expression found. This raw-token reader cannot
+// evaluate expressions, so anything it cannot read verbatim is rejected
+// rather than concatenated into a wrong source.
 func extractStringLiteral(attr *hclwrite.Attribute) (string, error) {
 	tokens := attr.Expr().BuildTokens(nil)
 
+	if len(tokens) < 2 ||
+		tokens[0].Type != hclsyntax.TokenOQuote ||
+		tokens[len(tokens)-1].Type != hclsyntax.TokenCQuote {
+		return "", fmt.Errorf("%w; the source is a %s", ErrSourceNotLiteral, nonLiteralKind(tokens))
+	}
+
 	var b strings.Builder
 
-	for _, tok := range tokens {
-		if tok.Type == hclsyntax.TokenTemplateInterp || tok.Type == hclsyntax.TokenTemplateControl {
-			return "", ErrSourceNotLiteral
+	for _, tok := range tokens[1 : len(tokens)-1] {
+		if tok.Type != hclsyntax.TokenQuotedLit {
+			return "", fmt.Errorf("%w; the source is a %s", ErrSourceNotLiteral, nonLiteralKind(tokens))
 		}
 
-		if tok.Type == hclsyntax.TokenQuotedLit {
-			b.Write(tok.Bytes)
-		}
+		b.Write(tok.Bytes)
 	}
 
 	return b.String(), nil
+}
+
+// nonLiteralKind names the shape of a non-literal expression for error
+// messages. The classification is best-effort: every shape maps to
+// [ErrSourceNotLiteral] either way, so an imprecise name only affects the
+// message text.
+func nonLiteralKind(tokens hclwrite.Tokens) string {
+	for _, tok := range tokens {
+		if tok.Type == hclsyntax.TokenTemplateInterp || tok.Type == hclsyntax.TokenTemplateControl {
+			return "template expression"
+		}
+	}
+
+	if len(tokens) == 0 {
+		return "non-literal expression"
+	}
+
+	if tokens[0].Type == hclsyntax.TokenOHeredoc {
+		return "heredoc"
+	}
+
+	if tokens[0].Type == hclsyntax.TokenIdent {
+		if len(tokens) > 1 && tokens[1].Type == hclsyntax.TokenOParen {
+			return "function call"
+		}
+
+		return "reference"
+	}
+
+	return "non-literal expression"
 }
 
 // extractBoolLiteral extracts a boolean value from an hclwrite attribute.

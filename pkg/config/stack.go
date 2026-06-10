@@ -588,7 +588,7 @@ func fetchComponentSource(
 			return nil
 		}
 
-		// An interpolated source on an update_source_with_cas block can never
+		// A non-literal source on an update_source_with_cas block can never
 		// be rewritten by CAS, so falling back would silently skip the rewrite
 		// the configuration asked for. Surface the error instead.
 		if errors.Is(casErr, cas.ErrSourceNotLiteral) {

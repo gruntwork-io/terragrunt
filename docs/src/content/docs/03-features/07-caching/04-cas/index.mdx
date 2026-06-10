@@ -71,7 +71,7 @@ terraform {
 This functionality is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
 </Aside>
 
-When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to allow for relative paths to other components in the catalog in `source` attributes. This removes the need to plumb remote Git URLs through `values` expressions.
+When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to allow for relative paths to other components in the catalog in `source` attributes. This removes the need to plumb remote Git URLs through `values` expressions. The `source` must be a literal string: interpolation, function calls, and references such as `local.foo` cause stack generation to fail.
 
 ```hcl
 # stacks/my-stack/terragrunt.stack.hcl (in your catalog repository)

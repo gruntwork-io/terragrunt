@@ -230,3 +230,103 @@ func TestReadTerraformSourceInfo_EscapedTemplateSourceWithCAS(t *testing.T) {
 	assert.Equal(t, "../..//modules/a$${b}", source)
 	assert.True(t, updateWithCAS)
 }
+
+// nonLiteralSourceCases enumerates source expressions that are not pure
+// quoted string literals. Each must be rejected when the block opts in to
+// update_source_with_cas and tolerated when it does not.
+var nonLiteralSourceCases = []struct {
+	name   string
+	source string
+}{
+	{name: "interpolation", source: `"../units/${local.name}"`},
+	{name: "reference", source: `local.foo`},
+	{name: "function call", source: `join("/", ["..", "units", "service"])`},
+	{name: "heredoc", source: "<<-EOT\n  ../units/service\nEOT"},
+	{name: "string concatenation", source: `"../units/" + local.name`},
+	{name: "number", source: `42`},
+}
+
+func TestReadStackBlocks_NonLiteralSourceWithCAS(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range nonLiteralSourceCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := []byte(`unit "service" {
+  source = ` + tc.source + `
+  update_source_with_cas = true
+  path = "service"
+}
+`)
+
+			_, err := cas.ReadStackBlocks(input)
+			require.ErrorIs(t, err, cas.ErrSourceNotLiteral)
+
+			var wrapped *cas.WrappedError
+
+			require.ErrorAs(t, err, &wrapped)
+			assert.Equal(t, "unit", wrapped.Op)
+			assert.Equal(t, "service", wrapped.Context)
+		})
+	}
+}
+
+func TestReadStackBlocks_NonLiteralSourceWithoutCAS(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range nonLiteralSourceCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := []byte(`unit "service" {
+  source = ` + tc.source + `
+  path   = "service"
+}
+`)
+
+			blocks, err := cas.ReadStackBlocks(input)
+			require.NoError(t, err)
+			require.Len(t, blocks, 1)
+			assert.False(t, blocks[0].UpdateSourceWithCAS)
+		})
+	}
+}
+
+func TestReadTerraformSourceInfo_NonLiteralSourceWithCAS(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range nonLiteralSourceCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := []byte(`terraform {
+  source = ` + tc.source + `
+  update_source_with_cas = true
+}
+`)
+
+			_, _, err := cas.ReadTerraformSourceInfo(input)
+			require.ErrorIs(t, err, cas.ErrSourceNotLiteral)
+		})
+	}
+}
+
+func TestReadTerraformSourceInfo_NonLiteralSourceWithoutCAS(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range nonLiteralSourceCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := []byte(`terraform {
+  source = ` + tc.source + `
+}
+`)
+
+			_, updateWithCAS, err := cas.ReadTerraformSourceInfo(input)
+			require.NoError(t, err)
+			assert.False(t, updateWithCAS)
+		})
+	}
+}

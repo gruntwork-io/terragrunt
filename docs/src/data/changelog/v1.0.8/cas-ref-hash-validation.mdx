@@ -5,6 +5,6 @@ category: "experiments-updated"
 
 #### `cas` — Malformed `cas::` references fail with a clear error
 
-A `cas::` source with a malformed hash, such as `cas::sha1:a`, used to crash Terragrunt with an internal error while looking the hash up in the store.
+A `cas::` source with a malformed hash, such as `cas::sha1:a`, used to fail with an opaque internal error while looking the hash up in the store.
 
 CAS references are now validated up front: the hash must be lowercase hexadecimal with exactly 40 characters for `sha1` or 64 for `sha256`. References that don't match are rejected with an error identifying the bad reference.

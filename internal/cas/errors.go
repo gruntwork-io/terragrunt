@@ -41,8 +41,9 @@ const (
 	ErrAbsoluteSource Error = "update_source_with_cas does not support absolute sources"
 	// ErrSourceEscapesRepo is returned when an update_source_with_cas source resolves outside the cloned repository
 	ErrSourceEscapesRepo Error = "update_source_with_cas source escapes repository root"
-	// ErrSourceNotLiteral is returned when an update_source_with_cas source uses template interpolation
-	ErrSourceNotLiteral Error = "update_source_with_cas requires a literal source string; interpolation is not supported"
+	// ErrSourceNotLiteral is returned when an update_source_with_cas source is not a
+	// literal string, such as one using interpolation, a function call, or a reference
+	ErrSourceNotLiteral Error = "update_source_with_cas requires a literal source string"
 	// ErrNotADirectory is returned when a path expected to be a directory is not.
 	ErrNotADirectory Error = "not a directory"
 )
