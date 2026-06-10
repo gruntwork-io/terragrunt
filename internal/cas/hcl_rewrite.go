@@ -70,7 +70,10 @@ type stackBlockInfo struct {
 }
 
 // ReadStackBlocks reads all unit and stack blocks from a stack HCL file,
-// extracting the source and update_source_with_cas attributes.
+// extracting the source and update_source_with_cas attributes. Blocks that set
+// update_source_with_cas = true must use a literal source string; an
+// interpolated source returns [ErrSourceNotLiteral] wrapped with the block
+// type and name.
 func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
 	f, diags := hclwrite.ParseConfig(content, "terragrunt.stack.hcl", hcl.InitialPos)
 	if diags.HasErrors() {
@@ -95,12 +98,25 @@ func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
 			BlockType: bt,
 		}
 
+		var sourceErr error
+
 		if attr := block.Body().GetAttribute("source"); attr != nil {
-			info.Source = extractStringLiteral(attr)
+			info.Source, sourceErr = extractStringLiteral(attr)
 		}
 
 		if attr := block.Body().GetAttribute("update_source_with_cas"); attr != nil {
 			info.UpdateSourceWithCAS = extractBoolLiteral(attr)
+		}
+
+		// A non-literal source only matters for blocks CAS will rewrite;
+		// other blocks are skipped by the caller, so their sources stay
+		// untouched and are evaluated later by the full HCL parser.
+		if info.UpdateSourceWithCAS && sourceErr != nil {
+			return nil, &WrappedError{
+				Op:      bt,
+				Context: info.Name,
+				Err:     sourceErr,
+			}
 		}
 
 		blocks = append(blocks, info)
@@ -109,7 +125,9 @@ func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
 	return blocks, nil
 }
 
-// ReadTerraformSourceInfo reads the source and update_source_with_cas from a terraform block.
+// ReadTerraformSourceInfo reads the source and update_source_with_cas from a
+// terraform block. When update_source_with_cas = true, the source must be a
+// literal string; an interpolated source returns [ErrSourceNotLiteral].
 func ReadTerraformSourceInfo(content []byte) (source string, updateWithCAS bool, err error) {
 	f, diags := hclwrite.ParseConfig(content, "terragrunt.hcl", hcl.InitialPos)
 	if diags.HasErrors() {
@@ -121,12 +139,23 @@ func ReadTerraformSourceInfo(content []byte) (source string, updateWithCAS bool,
 			continue
 		}
 
+		var sourceErr error
+
 		if attr := block.Body().GetAttribute("source"); attr != nil {
-			source = extractStringLiteral(attr)
+			source, sourceErr = extractStringLiteral(attr)
 		}
 
 		if attr := block.Body().GetAttribute("update_source_with_cas"); attr != nil {
 			updateWithCAS = extractBoolLiteral(attr)
+		}
+
+		// Without the rewrite opt-in the raw source is never consumed, so a
+		// non-literal source is left for the full HCL parser to evaluate.
+		if updateWithCAS && sourceErr != nil {
+			return "", false, &WrappedError{
+				Op:  "terraform",
+				Err: sourceErr,
+			}
 		}
 
 		return source, updateWithCAS, nil
@@ -136,19 +165,27 @@ func ReadTerraformSourceInfo(content []byte) (source string, updateWithCAS bool,
 }
 
 // extractStringLiteral extracts a string value from an hclwrite attribute.
-// Returns empty string if the attribute is not a simple string literal.
-func extractStringLiteral(attr *hclwrite.Attribute) string {
+// Returns [ErrSourceNotLiteral] when the expression contains template
+// interpolation ("${...}") or control ("%{...}") sequences, which cannot be
+// evaluated by this raw-token reader. Escaped sequences ("$${", "%%{") are
+// plain literal text and do not trigger the error. Returns empty string for
+// other non-literal expressions.
+func extractStringLiteral(attr *hclwrite.Attribute) (string, error) {
 	tokens := attr.Expr().BuildTokens(nil)
 
 	var b strings.Builder
 
 	for _, tok := range tokens {
+		if tok.Type == hclsyntax.TokenTemplateInterp || tok.Type == hclsyntax.TokenTemplateControl {
+			return "", ErrSourceNotLiteral
+		}
+
 		if tok.Type == hclsyntax.TokenQuotedLit {
 			b.Write(tok.Bytes)
 		}
 	}
 
-	return b.String()
+	return b.String(), nil
 }
 
 // extractBoolLiteral extracts a boolean value from an hclwrite attribute.

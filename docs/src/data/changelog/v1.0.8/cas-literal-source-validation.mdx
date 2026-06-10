@@ -1,0 +1,10 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `cas` — `update_source_with_cas` requires a literal source string
+
+When a catalog `unit`, `stack`, or `terraform` block set `update_source_with_cas = true` with a `source` containing interpolation, such as `"../units/${local.name}"`, the interpolated portion was silently dropped during rewriting. If the remaining prefix happened to name an existing directory, stack generation packaged that wrong directory without any error.
+
+Stack generation now fails with an error explaining that `update_source_with_cas` requires a literal source string and that interpolation is not supported.

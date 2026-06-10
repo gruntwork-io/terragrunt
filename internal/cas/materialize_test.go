@@ -210,13 +210,13 @@ func TestCASProtocolGetterGet(t *testing.T) {
 	l := logger.CreateLogger()
 
 	fileContent := []byte("resource {}\n")
-	fileHash := "file123"
+	fileHash := cas.HashSHA1.Sum(fileContent)
 
 	blobContent := cas.NewContent(blobStore)
 	require.NoError(t, blobContent.Store(l, v, fileHash, fileContent))
 
-	treeHash := "tree456"
-	treeData := []byte("100644 blob file123\tmain.tf\n")
+	treeData := []byte("100644 blob " + fileHash + "\tmain.tf\n")
+	treeHash := cas.HashSHA1.Sum(treeData)
 
 	synthContent := cas.NewContent(synthStore)
 	require.NoError(t, synthContent.Store(l, v, treeHash, treeData))
@@ -266,13 +266,13 @@ func TestCASProtocolGetterGet_Mutable(t *testing.T) {
 	l := logger.CreateLogger()
 
 	fileContent := []byte("resource {}\n")
-	fileHash := "filemut1"
+	fileHash := cas.HashSHA1.Sum(fileContent)
 
 	blobContent := cas.NewContent(blobStore)
 	require.NoError(t, blobContent.Store(l, v, fileHash, fileContent))
 
-	treeHash := "treemut1"
-	treeData := []byte("100644 blob filemut1\tmain.tf\n")
+	treeData := []byte("100644 blob " + fileHash + "\tmain.tf\n")
+	treeHash := cas.HashSHA1.Sum(treeData)
 
 	synthContent := cas.NewContent(synthStore)
 	require.NoError(t, synthContent.Store(l, v, treeHash, treeData))
