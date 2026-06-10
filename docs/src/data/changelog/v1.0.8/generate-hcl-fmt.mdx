@@ -1,0 +1,8 @@
+---
+version: "v1.0.8"
+category: "bug-fixes"
+---
+
+#### `generate` blocks now honor `hcl_fmt`
+
+Terragrunt now accepts `hcl_fmt` on `generate` blocks and preserves the setting when configurations are parsed, written, and parsed again. This lets generated `.tf`, `.hcl`, and `.tofu` files opt out of automatic HCL formatting by setting `hcl_fmt = false`, matching the existing `generate = { ... }` attribute-map behavior.
