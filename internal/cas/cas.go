@@ -336,6 +336,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 	}
 
 	l.Warnf("central git store unavailable for %s, falling back to temporary clone: %v", ref.URL, err)
+	RecordFallback(ctx, l, FallbackReasonGitStoreUnavailable, map[string]any{"url": ref.URL})
 
 	tempDir, cleanup, err := c.makeFallbackCloneDir(l, v)
 	if err != nil {
@@ -386,6 +387,7 @@ func (c *CAS) populateTreeFromCommitRef(
 	}
 
 	l.Warnf("central git store unavailable for %s, falling back to temporary clone: %v", ref.URL, err)
+	RecordFallback(ctx, l, FallbackReasonGitStoreUnavailable, map[string]any{"url": ref.URL})
 
 	tempDir, cleanup, err := c.makeFallbackCloneDir(l, v)
 	if err != nil {

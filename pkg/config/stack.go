@@ -587,6 +587,11 @@ func fetchComponentSource(
 		}
 
 		l.Warnf("CAS processing failed for %s %q: %v. Falling back to standard getter.", kindStr, cmp.name, casErr)
+		cas.RecordFallback(ctx, l, cas.FallbackReasonStackGenerationError, map[string]any{
+			"kind":   kindStr,
+			"name":   cmp.name,
+			"source": source,
+		})
 	}
 
 	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
