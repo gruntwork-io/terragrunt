@@ -211,8 +211,15 @@ func (c *CAS) probeSource(ctx context.Context, l log.Logger, src SourceRequest) 
 
 	key, err := src.Resolver.Probe(ctx, src.URL)
 	if err != nil {
+		// ErrNoVersionMetadata is the resolver's documented "no cheap
+		// signal" answer, not a degradation, so only real probe errors
+		// count as fallbacks.
 		if !errors.Is(err, ErrNoVersionMetadata) {
 			l.Debugf("cas: source probe for %s failed (falling back to content hash): %v", src.URL, err)
+			RecordFallback(ctx, l, FallbackReasonProbeFailure, map[string]any{
+				"url":    src.URL,
+				"scheme": src.Scheme,
+			})
 		}
 
 		return ""
