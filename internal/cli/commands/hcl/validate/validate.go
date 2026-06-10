@@ -157,7 +157,16 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 				continue
 			}
 
-			if _, err := config.ParseStackConfig(ctx, l, parser, file, values); err != nil {
+			stackCfg, err := config.ParseStackConfig(ctx, l, parser, file, values)
+			if err != nil {
+				parseErrs = append(parseErrs, err)
+				continue
+			}
+
+			// The lenient stack decode above leaves autoinclude blocks unvalidated, so run the
+			// strict autoinclude parse `stack generate` uses. It no-ops unless the
+			// stack-dependencies experiment is enabled and the config declares autoinclude.
+			if err := config.ValidateStackAutoIncludes(ctx, l, parser, stackFilePath, stackCfg, values); err != nil {
 				parseErrs = append(parseErrs, err)
 			}
 
