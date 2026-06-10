@@ -63,6 +63,16 @@ func TestParseTreeEntry(t *testing.T) {
 			},
 		},
 		{
+			name:  "submodule gitlink",
+			input: "160000 commit q7r8s9t0 modules/child",
+			want: git.TreeEntry{
+				Mode: "160000",
+				Type: "commit",
+				Hash: "q7r8s9t0",
+				Path: "modules/child",
+			},
+		},
+		{
 			name:    "invalid format",
 			input:   "invalid format",
 			wantErr: true,

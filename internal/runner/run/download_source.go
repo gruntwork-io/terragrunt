@@ -409,12 +409,16 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 	c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth))
 	if err != nil {
 		l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
+		cas.RecordFallback(ctx, l, cas.FallbackReasonInitError, map[string]any{"url": canonicalSourceURL})
+
 		return false, nil
 	}
 
 	venv, err := cas.OSVenv()
 	if err != nil {
 		l.Warnf("Failed to initialize CAS environment: %v. Falling back to standard getter.", err)
+		cas.RecordFallback(ctx, l, cas.FallbackReasonInitError, map[string]any{"url": canonicalSourceURL})
+
 		return false, nil
 	}
 
@@ -446,6 +450,7 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 		Pwd: opts.WorkingDir,
 	}); err != nil {
 		l.Warnf("CAS download failed: %v. Falling back to standard getter.", err)
+		cas.RecordFallback(ctx, l, cas.FallbackReasonGetterError, map[string]any{"url": canonicalSourceURL})
 
 		// Clear any partial CAS output before the fallback runs; mixing
 		// leftover CAS files with the standard getter's output leaves the

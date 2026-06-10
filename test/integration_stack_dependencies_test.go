@@ -65,6 +65,9 @@ const (
 	testFixtureStackDepsMockLocal                = "fixtures/stacks/stack-deps-mock-local"
 	testFixtureStackDepsAutoIncValuesResolved    = "fixtures/stacks/stack-deps-autoinclude-values-resolved"
 	testFixtureStackDepsAutoIncFuncs             = "fixtures/stacks/stack-deps-autoinclude-funcs"
+	testFixtureStackDepsValuesSiblingAutoInc     = "fixtures/stacks/stack-deps-values-sibling-autoinclude"
+	testFixtureStackDepsStackValuesLocals        = "fixtures/stacks/stack-deps-stack-values-locals"
+	testFixtureStackDepsHCLValidateAutoInc       = "fixtures/stacks/stack-deps-hclvalidate-autoinclude"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -744,6 +747,41 @@ func TestStackDepsE2ECrossStack(t *testing.T) {
 		"app must receive the network stack's real vpc output, not the mock")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
+}
+
+// TestStackDepsStackValuesInLocals pins that run-queue expansion of a stack-dir
+// dependency resolves values.* referenced in the target stack's locals from the
+// generated terragrunt.values.hcl sitting next to the generated terragrunt.stack.hcl,
+// instead of failing with an unknown "values" variable (gruntwork-io/terragrunt#5663).
+func TestStackDepsStackValuesInLocals(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackValuesLocals)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackValuesLocals)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackValuesLocals)
+
+	// The child stack uses get_repo_root() for unit sources, so the fixture copy must be a git repo.
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	err = runner.WithWorkDir(gitPath).Init(t.Context())
+	require.NoError(t, err)
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	// Generation wrote the child stack's values file and its locals consumed it: the
+	// generated unit dir carries the env prefix from values.env.
+	networkDir := filepath.Join(rootPath, inthclparse.StackDir, "network")
+	require.FileExists(t, filepath.Join(networkDir, "terragrunt.values.hcl"))
+	require.DirExists(t, filepath.Join(networkDir, inthclparse.StackDir, "dev-vpc"))
+
+	// Run-queue expansion of app's stack-dir dependency re-evaluates the child stack's
+	// locals; it must load the sibling values file rather than fail on values.env.
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan")
 }
 
 // Regression: a non-literal expression (here, format()) in an unrelated unit must not block autoinclude resolution. Generation succeeds and the autoinclude file is produced for the unit that declares it.
@@ -2076,6 +2114,51 @@ func TestStackDepsCrossLevelViaValues(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
 }
 
+// TestStackDepsValuesRefWithSiblingAutoInclude reproduces the regression where a stack
+// block's values referencing unit.<name>.path failed generation with "There is no
+// variable named \"unit\"" whenever the same terragrunt.stack.hcl carried a sibling
+// unit with an autoinclude block. Both the child stack's consumer (wired via values)
+// and the sibling (wired via its own autoinclude) must receive the producer's output.
+func TestStackDepsValuesRefWithSiblingAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsValuesSiblingAutoInc)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsValuesSiblingAutoInc)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsValuesSiblingAutoInc)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	consumerDir := filepath.Join(rootPath, inthclparse.StackDir, "child", inthclparse.StackDir, "consumer")
+	require.FileExists(t, filepath.Join(consumerDir, inthclparse.AutoIncludeFile),
+		"consumer in the child stack must get an autoinclude wired to the parent's producer")
+
+	siblingDir := filepath.Join(rootPath, inthclparse.StackDir, "sibling")
+	require.FileExists(t, filepath.Join(siblingDir, inthclparse.AutoIncludeFile),
+		"the sibling unit's own autoinclude must still generate")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
+
+	consumerInput, err := os.ReadFile(helpers.FindCachedFile(t, consumerDir, "input.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "consumer received: produced-across-levels", string(consumerInput),
+		"consumer must receive the producer's output across stack levels despite the sibling autoinclude")
+
+	siblingInput, err := os.ReadFile(helpers.FindCachedFile(t, siblingDir, "input.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "consumer received: produced-across-levels", string(siblingInput),
+		"the sibling unit must receive the producer's output via its own autoinclude")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
+}
+
 // TestStackDepsStackAutoIncludeDepValuesIsClearError covers the unsupported cross-level pattern: a
 // stack-level autoinclude declares a dependency block AND injects a unit whose values
 // derive from that dependency's outputs. stack generate must fail with the clear typed
@@ -2217,4 +2300,45 @@ func stackDepsFuncsFor(ctx context.Context, l log.Logger, pctx *config.ParsingCo
 	return func(dir string) (map[string]function.Function, error) {
 		return config.EarlyStackParseFunctions(ctx, l, dir, pctx)
 	}
+}
+
+// TestStackDepsHCLValidateReportsMalformedAutoInclude pins that `hcl validate` runs the strict
+// autoinclude parse over stack configs: a malformed autoinclude block (a locals block inside
+// autoinclude) fails validation with the experiment enabled instead of only failing later at
+// `stack generate`. Without the experiment the block stays unvalidated, so behavior is unchanged.
+func TestStackDepsHCLValidateReportsMalformedAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, defeating the disabled-vs-enabled comparison this test pins")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsHCLValidateAutoInc)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsHCLValidateAutoInc)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsHCLValidateAutoInc, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	// Without the experiment the autoinclude block falls into the lenient decode's Remain, as before.
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --working-dir "+rootPath)
+	require.NoError(t, err, "without the experiment hcl validate must keep passing the stack config")
+
+	// With the experiment the same strict parse `stack generate` uses must reject the block.
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --working-dir "+rootPath)
+	require.Error(t, err, "with the experiment hcl validate must report the malformed autoinclude block")
+}
+
+// TestStackDepsHCLValidateAcceptsValidAutoInclude pins that the strict autoinclude pass added to
+// `hcl validate` does not reject a well-formed autoinclude block.
+func TestStackDepsHCLValidateAcceptsValidAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoInclude)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoInclude)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoInclude, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --working-dir "+rootPath)
+	require.NoError(t, err, "a well-formed autoinclude block must pass hcl validate")
 }

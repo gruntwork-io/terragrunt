@@ -1277,8 +1277,8 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 func TestInvalidSource(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureNotExistingSource)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(testFixtureNotExistingSource)
 	generateTestCase := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
@@ -3703,7 +3703,7 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownload)
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture(testFixtureDownload)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureStdout)
 
@@ -3728,8 +3728,8 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureDownload)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(testFixtureDownload)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureAutoInit)
 
@@ -4378,8 +4378,8 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 func TestLogFormatJSONOutput(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureNotExistingSource)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(testFixtureNotExistingSource)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 

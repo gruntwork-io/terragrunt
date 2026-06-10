@@ -10,6 +10,7 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -304,4 +305,66 @@ func TestListModules_NoModulesFound(t *testing.T) {
 
 	assert.Contains(t, err.Error(), "no modules found in any of the configured repositories")
 	assert.Empty(t, modules, "Should return empty modules slice on 'no modules found' error")
+}
+
+func TestLoad_PassesCASOptions(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		cloneDepth   int
+		enableCAS    bool
+		noCAS        bool
+		wantAllowCAS bool
+	}{
+		{name: "cas experiment enabled", cloneDepth: 1, enableCAS: true, noCAS: false, wantAllowCAS: true},
+		{name: "cas experiment enabled with no-cas", cloneDepth: 1, enableCAS: true, noCAS: true, wantAllowCAS: false},
+		{name: "cas experiment disabled", cloneDepth: 1, enableCAS: false, noCAS: false, wantAllowCAS: false},
+		{name: "custom clone depth", cloneDepth: 5, enableCAS: true, noCAS: false, wantAllowCAS: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := options.NewTerragruntOptions()
+			opts.ScaffoldRootFileName = config.RecommendedParentConfigName
+			opts.NoCAS = tc.noCAS
+			opts.CASCloneDepth = tc.cloneDepth
+
+			if tc.enableCAS {
+				require.NoError(t, opts.Experiments.EnableExperiment(experiment.CAS))
+			}
+
+			var gotRepoOpts module.RepoOpts
+
+			mockNewRepo := func(ctx context.Context, l log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
+				gotRepoOpts = *repoOpts
+
+				dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "cas-repo")
+				require.NoError(t, os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755))
+				require.NoError(t, os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoOpts.CloneURL), 0644))
+				require.NoError(t, os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644))
+				require.NoError(t, os.WriteFile(filepath.Join(dummyRepoDir, "README.md"), []byte("# cas-module"), 0644))
+				require.NoError(t, os.WriteFile(filepath.Join(dummyRepoDir, "main.tf"), []byte{}, 0644))
+
+				repoOpts.CloneURL = dummyRepoDir
+
+				return module.NewRepo(ctx, l, fsys, repoOpts)
+			}
+
+			svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/cas-repo")
+			l := logger.CreateLogger()
+
+			require.NoError(t, svc.Load(t.Context(), l))
+			assert.Equal(t, tc.wantAllowCAS, gotRepoOpts.AllowCAS)
+			assert.Equal(t, tc.cloneDepth, gotRepoOpts.CASCloneDepth)
+
+			gotRepoOpts = module.RepoOpts{}
+
+			require.NoError(t, svc.LoadStreamingURL(t.Context(), l, "github.com/gruntwork-io/cas-repo", func(_ *module.Module) {}))
+			assert.Equal(t, tc.wantAllowCAS, gotRepoOpts.AllowCAS)
+			assert.Equal(t, tc.cloneDepth, gotRepoOpts.CASCloneDepth)
+		})
+	}
 }

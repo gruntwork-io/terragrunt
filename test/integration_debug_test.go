@@ -97,7 +97,7 @@ func TestTerragruntValidateInputs(t *testing.T) {
 	moduleDirs, err := filepath.Glob(filepath.Join("fixtures/validate-inputs", "*"))
 	require.NoError(t, err)
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 
 	for _, module := range moduleDirs {
 		name := filepath.Base(module)
@@ -106,7 +106,7 @@ func TestTerragruntValidateInputs(t *testing.T) {
 
 			// Render so __MIRROR_URL__ in the fixture resolves to the
 			// local git mirror instead of the literal placeholder.
-			tmpEnvPath := mirror.RenderFixture(t, module)
+			tmpEnvPath := mirror.RenderFixture(module)
 			modulePath := filepath.Join(tmpEnvPath, module)
 
 			nameDashSplit := strings.Split(name, "-")
@@ -161,10 +161,10 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedVar(t *testing.T)
 func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-unused-inputs")
 	helpers.CleanupTerraformFolder(t, moduleDir)
-	tmpEnvPath, _ := filepath.EvalSymlinks(mirror.RenderFixture(t, moduleDir))
+	tmpEnvPath, _ := filepath.EvalSymlinks(mirror.RenderFixture(moduleDir))
 	rootPath := filepath.Join(tmpEnvPath, moduleDir)
 
 	args := []string{"--strict"}
@@ -174,10 +174,10 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing
 func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-unused-inputs")
 	helpers.CleanupTerraformFolder(t, moduleDir)
-	tmpEnvPath, _ := filepath.EvalSymlinks(mirror.RenderFixture(t, moduleDir))
+	tmpEnvPath, _ := filepath.EvalSymlinks(mirror.RenderFixture(moduleDir))
 	rootPath := filepath.Join(tmpEnvPath, moduleDir)
 
 	args := []string{}

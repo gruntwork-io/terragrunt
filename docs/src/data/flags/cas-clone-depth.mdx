@@ -1,0 +1,18 @@
+---
+name: cas-clone-depth
+description: When using CAS, pass this value to git clone --depth (default 1; -1 clones full history).
+defaultVal: "1"
+type: integer
+env:
+  - TG_CAS_CLONE_DEPTH
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag only has an effect when the [`cas`](/reference/experiments/active#cas) experiment is enabled. Enable it with `--experiment=cas` or `TG_EXPERIMENT=cas`.
+</Aside>
+
+Controls the `--depth` value the CAS (Content Addressable Storage) uses when cloning a Git source. The default of `1` performs a shallow clone of the latest commit. Negative values clone the full history by omitting `--depth` entirely; zero is rejected because Git requires a positive depth.
+
+When passing a negative value, use the `--cas-clone-depth=-1` form so the leading dash isn't parsed as a flag.

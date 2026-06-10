@@ -1,0 +1,10 @@
+---
+version: "v1.0.8"
+category: "performance-improvements"
+---
+
+#### Faster read-file tracking with the `mark-many-as-read` experiment
+
+With the `mark-many-as-read` experiment enabled, Terragrunt records every module file it marks as read during parsing. The bookkeeping for that record scaled quadratically: each new path was checked against every path recorded so far, which got expensive for units with large local module sources, and monorepos paid that cost again for every unit and every command.
+
+Recording a path now takes constant time no matter how many paths came before it, and re-marking already-recorded files is cheaper still. The `reading` lists reported by `find` and `list` are unchanged.

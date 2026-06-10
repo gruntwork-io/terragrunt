@@ -282,7 +282,7 @@ func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureParsingDeprecated)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureParsingDeprecated)
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture(testFixtureParsingDeprecated)
 	childPath := filepath.Join(tmpEnvPath, testFixtureParsingDeprecated, "child")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(

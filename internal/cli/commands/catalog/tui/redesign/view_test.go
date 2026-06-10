@@ -125,6 +125,42 @@ func TestWelcomeDiscoveryErrorView_RendersErrorAndHint(t *testing.T) {
 	assert.Contains(t, content, "q/esc: exit", "should render the quit hint")
 }
 
+// TestWelcomeDiscoveryErrorView_AllSourcesFailedDetail verifies that when
+// every catalog source fails to load, the error screen lists each failed
+// source with its cause and does not masquerade as the "nothing found"
+// welcome screen.
+func TestWelcomeDiscoveryErrorView_AllSourcesFailedDetail(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	m := redesign.NewWelcomeModel(t.Context(), l, opts, blockingLoad)
+	m = updateModel(m, windowSize).(redesign.WelcomeModel)
+
+	srcErr := &redesign.SourceLoadError{
+		Failures: []redesign.SourceFailure{
+			{URL: "github.com/acme/modules", Err: errors.New("clone failed")},
+			{URL: "github.com/acme/templates", Err: errors.New("authentication required")},
+		},
+		Attempted: 2,
+	}
+
+	m = updateModel(m, redesign.DiscoveryCompleteMsg{Err: srcErr}).(redesign.WelcomeModel)
+
+	content := stripANSI(m.View().Content)
+
+	assert.Contains(t, content, "failed to load all 2 catalog sources", "should summarize that every source failed")
+	assert.Contains(t, content, "github.com/acme/modules", "should list the first failed source")
+	assert.Contains(t, content, "clone failed", "should show the first source's cause")
+	assert.Contains(t, content, "github.com/acme/templates", "should list the second failed source")
+	assert.Contains(t, content, "authentication required", "should show the second source's cause")
+	assert.NotContains(t, content, "No catalog sources were discovered",
+		"all-sources-failed must be distinguishable from nothing-found")
+}
+
 // --- Component List View ---
 
 func TestComponentListView_LoadingTitle(t *testing.T) {
@@ -155,6 +191,48 @@ func TestComponentListView_LoadingTitle(t *testing.T) {
 	content = stripANSI(m.View().Content)
 	assert.Contains(t, content, "All", "tab bar should still show the All tab")
 	assert.NotContains(t, content, "(loading...)", "loading indicator should be gone after discovery completes")
+}
+
+// TestComponentListView_PartialSourceFailureNotice verifies that when some
+// sources fail while others produced components, the list view renders a
+// notice line, the session does not end, and the per-source detail is
+// stashed for the post-exit message.
+func TestComponentListView_PartialSourceFailureNotice(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	components := makeComponents(t)
+	require.NotEmpty(t, components)
+
+	componentCh := make(chan *redesign.ComponentEntry, 10)
+	m := redesign.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+
+	updated, _ := m.Update(windowSize)
+	m = updated.(redesign.Model)
+
+	srcErr := &redesign.SourceLoadError{
+		Failures: []redesign.SourceFailure{
+			{URL: "github.com/acme/broken", Err: errors.New("clone failed")},
+		},
+		Attempted: 2,
+	}
+
+	updated, _ = m.Update(redesign.DiscoveryCompleteMsg{Err: srcErr})
+	m = updated.(redesign.Model)
+
+	content := stripANSI(m.View().Content)
+	assert.Contains(t, content, "failed to load 1 of 2 catalog sources",
+		"list view should carry a partial-failure notice")
+	assert.NotContains(t, content, "(loading...)", "discovery is complete despite the failure")
+
+	require.NoError(t, m.Err(), "a partial failure must not end the session")
+
+	exit := stripANSI(m.ExitMessage())
+	assert.Contains(t, exit, "github.com/acme/broken", "post-exit notice should name the failed source")
+	assert.Contains(t, exit, "clone failed", "post-exit notice should include the cause")
 }
 
 func TestComponentListView_MetadataRowRendered(t *testing.T) {
