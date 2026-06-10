@@ -1387,6 +1387,8 @@ The `generate` block supports the following arguments:
 - `disable_signature` (attribute): When `true`, disables including a signature in the generated file. This means that
   there will be no difference between `overwrite_terragrunt` and `overwrite` for the `if_exists` setting. Defaults to
   `false`. Optional.
+- `hcl_fmt` (attribute): When `false`, disables HCL formatting for generated `.tf`, `.hcl`, and `.tofu` files. Defaults
+  to `true`. Optional.
 - `contents` (attribute): The contents of the generated file.
 - `disable` (attribute): Disables this generate block.
 
