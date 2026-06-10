@@ -8,7 +8,7 @@ Aggregate unit outputs without requiring a `terragrunt.stack.hcl` file.
 ### `stack-output-implicit` - What it does
 When enabled, `terragrunt stack output` also discovers units that are not declared in any `terragrunt.stack.hcl` file ("implicit" units) and includes their outputs in the aggregated result. Each implicit unit's outputs are keyed by the unit's directory path relative to the working directory (forward slashes on every OS, including Windows).
 
-If the working directory contains no `terragrunt.stack.hcl` at all, the entire output comes from implicit discovery (instead of warning and returning nothing, as happens without the experiment). If explicit stacks are present too, their outputs keep the declared `stack.unit` names and implicit units are merged in under their path keys; units materialized by an explicit stack are never repeated under a path key, and on a top-level key collision the explicit stack's value wins (the skipped implicit unit is reported with a warning).
+If the working directory contains no `terragrunt.stack.hcl` at all, the entire output comes from implicit discovery (instead of warning and returning nothing, as happens without the experiment). If explicit stacks are present too, each stack's output tree is nested under the stack directory's path relative to the working directory — a stack at `prod/terragrunt.stack.hcl` declaring a unit `db` is addressed as `prod.db`, while a loose unit at `db/` is addressed as `db`. Every key reflects a filesystem position, so explicit and implicit entries cannot collide. A stack file in the working directory itself gets no prefix, preserving the established output shape, and units materialized by an explicit stack are never repeated under their own path keys.
 
 ```bash
 terragrunt stack output --experiment stack-output-implicit
@@ -45,5 +45,5 @@ To transition the `stack-output-implicit` feature to a stable release, the follo
 
 - [ ] Community feedback on the chosen key shape (relative path with forward slashes, no `./` prefix)
 - [ ] Confirmation that the dot-separator caveat for directory names containing `.` is acceptable, or design of an opt-in alternative drill-down syntax
-- [ ] Confirmation that merging implicit units with explicit stacks (explicit wins on collision) is the desired behavior in mixed trees
+- [ ] Confirmation that nesting explicit-stack trees under their directory position is the desired behavior in mixed trees
 - [ ] Coverage on Windows CI to lock in the cross-platform path normalization

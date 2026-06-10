@@ -554,11 +554,12 @@ func TestStackOutputsImplicit(t *testing.T) {
 // behavior of the stack-output-implicit experiment in a mixed tree: a
 // terragrunt.stack.hcl nested several levels deep — itself declaring a child
 // stack (stack of stacks) — plus loose units outside any stack. With the
-// experiment enabled, explicit-stack units keep their declared names
-// (including the dotted child-stack hierarchy) and loose units are added under
-// their relative paths; units materialized by the explicit stacks are not
-// double-counted under their path keys. Without the experiment, only the
-// explicit-stack output is produced.
+// experiment enabled, each explicit stack's tree is nested under the stack
+// directory's path relative to the working directory, and loose units are
+// added under their own relative paths, so all keys share one filesystem
+// namespace and cannot collide; units materialized by the explicit stacks are
+// not double-counted under their path keys. Without the experiment, only the
+// explicit-stack output is produced, unprefixed, as before the experiment.
 func TestStackOutputsImplicitMergesWithNestedExplicitStack(t *testing.T) {
 	t.Parallel()
 
@@ -581,11 +582,12 @@ func TestStackOutputsImplicitMergesWithNestedExplicitStack(t *testing.T) {
 		err = json.Unmarshal([]byte(stdout), &result)
 		require.NoError(t, err)
 
-		// The nested explicit stack's unit appears under its declared name.
-		assert.Equal(t, "stacked", result["nested_app"]["value"])
-
-		// The child stack's unit appears under the dotted stack hierarchy.
-		assert.Equal(t, map[string]any{"value": "stacked"}, result["child_stack"]["child_app"])
+		// The explicit stack's whole tree is nested under the stack
+		// directory's relative path; the declared unit and the child stack's
+		// dotted hierarchy live inside it.
+		stackTree := result["deeply/nested/folder"]
+		assert.Equal(t, map[string]any{"value": "stacked"}, stackTree["nested_app"])
+		assert.Equal(t, map[string]any{"child_app": map[string]any{"value": "stacked"}}, stackTree["child_stack"])
 
 		// Loose units outside the stacks appear under their relative paths.
 		assert.Contains(t, result["loose-unit"]["marker"], "loose top-level implicit unit")
@@ -595,7 +597,7 @@ func TestStackOutputsImplicitMergesWithNestedExplicitStack(t *testing.T) {
 		// not be repeated under their directory paths.
 		assert.NotContains(t, result, "deeply/nested/folder/.terragrunt-stack/nested_app")
 		assert.NotContains(t, result, "deeply/nested/folder/.terragrunt-stack/child_stack/.terragrunt-stack/child_app")
-		assert.Len(t, result, 4)
+		assert.Len(t, result, 3)
 	})
 
 	t.Run("without the experiment only the explicit stacks are output", func(t *testing.T) {
