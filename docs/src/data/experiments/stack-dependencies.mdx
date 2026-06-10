@@ -22,7 +22,7 @@ This experiment enables:
 
 - **`unit.<name>.path`** and **`stack.<name>.path`** variables for referencing sibling component paths, both inside `autoinclude` blocks and in a unit or stack block's `values` (so a parent stack can pass a component path down to a child stack)
 - **`dependency` blocks targeting stack directories**: aggregated outputs from all units in the stack (`dependency.stack_name.outputs.unit_name.output_key`)
-- **Automatic deep merge** of `terragrunt.autoinclude.hcl` into unit configurations (autoinclude wins)
+- **Automatic shallow merge** of `terragrunt.autoinclude.hcl` into unit configurations, using the same default merge strategy as a regular `include` (on conflicting top-level keys, the autoinclude wins and replaces the unit's value)
 - **Stack dependency expansion** in the run queue: depending on a stack waits until all its units complete
 
 #### Unit-to-unit dependencies within a stack
