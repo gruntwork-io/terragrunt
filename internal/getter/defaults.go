@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	gcs "github.com/hashicorp/go-getter/gcs/v2"
 	s3 "github.com/hashicorp/go-getter/s3/v2"
@@ -33,6 +34,7 @@ type genericFetcherConfig struct {
 	httpsExtra http.Header
 	tfrLogger  log.Logger
 	tfrImpl    tfimpl.Type
+	tfrFS      vfs.FS
 }
 
 // WithHTTPExtraHeaders attaches header to the bare http getter so
@@ -53,10 +55,11 @@ func WithHTTPSExtraHeaders(header http.Header) GenericFetcherOption {
 // maps so [CASGetter] cannot route tfr:// through CAS. The standard
 // (non-CAS) client registers its own [RegistryGetter] via
 // [WithTFRegistry] and is unaffected.
-func WithTFRConfig(l log.Logger, impl tfimpl.Type) GenericFetcherOption {
+func WithTFRConfig(l log.Logger, impl tfimpl.Type, fs vfs.FS) GenericFetcherOption {
 	return func(c *genericFetcherConfig) {
 		c.tfrLogger = l
 		c.tfrImpl = impl
+		c.tfrFS = fs
 	}
 }
 
@@ -80,7 +83,7 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 	}
 
 	if cfg.tfrLogger != nil {
-		m[SchemeTFR] = NewRegistryGetter(cfg.tfrLogger).WithTofuImplementation(cfg.tfrImpl)
+		m[SchemeTFR] = NewRegistryGetter(cfg.tfrLogger, cfg.tfrFS).WithTofuImplementation(cfg.tfrImpl)
 	}
 
 	return m
@@ -144,7 +147,7 @@ func buildGetters(b *builder) []Getter {
 
 		if b.tfRegistry != nil {
 			fetchers[SchemeTFR] = b.tfRegistry
-			resolverOpts = append(resolverOpts, WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation))
+			resolverOpts = append(resolverOpts, WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation, b.tfRegistry.FS))
 		}
 
 		out = append(out,

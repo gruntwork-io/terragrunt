@@ -18,16 +18,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Run runs the run command.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	tips.GiveStackTargetTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
+	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	if opts.TerraformCommand == tf.CommandNameDestroy {
 		opts.CheckDependentUnits = opts.DestroyDependenciesCheck
@@ -49,13 +48,14 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	tgOpts := opts.OptionsFromContext(ctx)
+	rv := run.FromRoot(v)
 
 	if tgOpts.RunAll {
-		return runall.Run(ctx, l, tgOpts)
+		return runall.Run(ctx, l, rv, tgOpts)
 	}
 
 	if tgOpts.Graph {
-		return graph.Run(ctx, l, tgOpts)
+		return graph.Run(ctx, l, rv, tgOpts)
 	}
 
 	if opts.ReportSchemaFile != "" {
@@ -72,7 +72,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	// Early exit for version command to avoid expensive setup
 	if opts.TerraformCommand == tf.CommandNameVersion {
-		return runVersionCommand(ctx, l, opts)
+		return runVersionCommand(ctx, l, opts, v)
 	}
 
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
@@ -81,18 +81,20 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
+		rv.Exec,
 		opts.Env,
 		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts)),
 	); err != nil {
 		return err
 	}
 
-	l, err := checkVersionConstraints(ctx, l, opts)
+	l, err := checkVersionConstraints(ctx, l, opts, v)
 	if err != nil {
 		return err
 	}
 
 	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	pctx.Venv = rv.ToRoot()
 
 	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
 	if err != nil {
@@ -100,7 +102,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	if opts.CheckDependentUnits {
-		allowDestroy := confirmActionWithDependentUnits(ctx, l, opts, cfg)
+		allowDestroy := confirmActionWithDependentUnits(ctx, l, rv, opts, cfg)
 		if !allowDestroy {
 			return nil
 		}
@@ -140,7 +142,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}()
 
-	runErr = run.Run(ctx, l, configbridge.NewRunOptions(tgOpts), r, runCfg, credsGetter)
+	runErr = run.Run(ctx, l, rv, configbridge.NewRunOptions(tgOpts), r, runCfg, credsGetter)
 
 	return runErr
 }
@@ -153,26 +155,26 @@ func isTerraformPath(opts *options.TerragruntOptions) bool {
 
 // runVersionCommand runs the version command. We do this instead of going through the normal run flow because
 // we can resolve `version` a lot more cheaply.
-func runVersionCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func runVersionCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
 	if !opts.TFPathExplicitlySet {
-		if tfPath, err := getTFPathFromConfig(ctx, l, opts); err != nil {
+		if tfPath, err := getTFPathFromConfig(ctx, l, v, opts); err != nil {
 			return err
 		} else if tfPath != "" {
 			opts.TFPath = tfPath
 		}
 	}
 
-	return tf.RunCommand(ctx, l, vexec.NewOSExec(), configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
+	return tf.RunCommand(ctx, l, v.Exec, configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 }
 
-func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {
+func getTFPathFromConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (string, error) {
 	if !util.FileExists(opts.TerragruntConfigPath) {
 		l.Debugf("Did not find the config file %s", opts.TerragruntConfigPath)
 
 		return "", nil
 	}
 
-	cfg, err := getTerragruntConfig(ctx, l, opts)
+	cfg, err := getTerragruntConfig(ctx, l, v, opts)
 	if err != nil {
 		return "", err
 	}
@@ -186,8 +188,8 @@ func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.Terrag
 // - TerraformVersion
 // - FeatureFlags
 // TODO: Look into a way to refactor this function to avoid the side effect.
-func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (log.Logger, error) {
-	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, opts)
+func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) (log.Logger, error) {
+	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, v, opts)
 	if err != nil {
 		return l, err
 	}
@@ -197,7 +199,7 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		opts.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	l, ver, impl, err := run.PopulateTFVersion(ctx, l, vexec.NewOSExec(), run.PopulateTFVersionInput{
+	l, ver, impl, err := run.PopulateTFVersion(ctx, l, v.Exec, run.PopulateTFVersionInput{
 		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
 		WorkingDir:   opts.WorkingDir,
 		VersionFiles: opts.VersionManagerFileName,
@@ -246,12 +248,9 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 	return l, nil
 }
 
-func getTerragruntConfig(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-) (*config.TerragruntConfig, error) {
+func getTerragruntConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
 	ctx, configCtx := configbridge.NewParsingContext(ctx, l, opts)
+	configCtx.Venv = v
 	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints,
 		config.FeatureFlagsBlock,
@@ -270,10 +269,11 @@ func getTerragruntConfig(
 func confirmActionWithDependentUnits(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) bool {
-	units := findDependentUnits(ctx, l, opts, cfg)
+	units := findDependentUnits(ctx, l, v, opts, cfg)
 	if len(units) != 0 {
 		if _, err := opts.Writers.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
 			l.Error(err)
@@ -305,10 +305,11 @@ func confirmActionWithDependentUnits(
 func findDependentUnits(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []string {
-	units := runner.FindDependentUnits(ctx, l, opts, cfg)
+	units := runner.FindDependentUnits(ctx, l, v, opts, cfg)
 
 	paths := make([]string, len(units))
 	for i, unit := range units {

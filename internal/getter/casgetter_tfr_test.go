@@ -12,6 +12,7 @@ import (
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
@@ -35,7 +36,7 @@ func TestCASGetter_TFRRoutesThroughCAS(t *testing.T) {
 	l := logger.CreateLogger()
 	httpClient := server.Client()
 
-	tfr := getter.NewRegistryGetter(l).
+	tfr := getter.NewRegistryGetter(l, vfs.NewOSFS()).
 		WithHTTPClient(httpClient).
 		WithTofuImplementation(tfimpl.Terraform)
 
