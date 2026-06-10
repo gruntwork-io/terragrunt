@@ -101,6 +101,7 @@ func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 func TestTflintInitSameModule(t *testing.T) {
 	mirror := helpers.NewGitServer(t)
 	rootPath := mirror.RenderFixture(testFixtureParallelRun, ".tflint.hcl")
+
 	t.Cleanup(func() {
 		helpers.RemoveFolder(t, rootPath)
 	})
