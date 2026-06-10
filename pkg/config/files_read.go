@@ -1,6 +1,7 @@
 package config
 
 import (
+	"maps"
 	"slices"
 	"sync"
 )
@@ -10,8 +11,8 @@ import (
 // and returns zero values from accessors, so call sites that don't need to
 // track reads can pass nil.
 type FilesRead struct {
-	paths []string
-	mu    sync.RWMutex
+	seen map[string]struct{}
+	mu   sync.RWMutex
 }
 
 // NewFilesRead returns an empty FilesRead ready for concurrent use.
@@ -28,14 +29,14 @@ func (f *FilesRead) Add(path string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if slices.Contains(f.paths, path) {
-		return
+	if f.seen == nil {
+		f.seen = make(map[string]struct{})
 	}
 
-	f.paths = append(f.paths, path)
+	f.seen[path] = struct{}{}
 }
 
-// Paths returns a snapshot copy of the recorded paths in insertion order.
+// Paths returns the recorded paths in lexical order.
 func (f *FilesRead) Paths() []string {
 	if f == nil {
 		return nil
@@ -44,7 +45,7 @@ func (f *FilesRead) Paths() []string {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	return slices.Clone(f.paths)
+	return slices.Sorted(maps.Keys(f.seen))
 }
 
 // Len returns the number of recorded paths.
@@ -56,5 +57,5 @@ func (f *FilesRead) Len() int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	return len(f.paths)
+	return len(f.seen)
 }
