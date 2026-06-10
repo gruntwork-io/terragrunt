@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -1117,4 +1119,211 @@ dependency "bar" {
 	require.NotNil(t, parsed.Dependencies)
 	assert.Contains(t, parsed.Dependencies.Paths, "./foo",
 		"a dependencies block path overlapping a disabled dependency block must survive the autoinclude merge")
+}
+
+// TestParseTerragruntConfig_ReadsStackAutoIncludeFile pins that read_terragrunt_config can read a
+// generated terragrunt.autoinclude.stack.hcl. The file is a stack-file fragment holding unit and
+// stack blocks, so it must decode through the same stack parsing path as terragrunt.stack.hcl and
+// return its components, not fail the strict unit-config decode.
+func TestParseTerragruntConfig_ReadsStackAutoIncludeFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// The generated stack-level autoinclude lives beside a nested stack's terragrunt.stack.hcl.
+	stackDir := filepath.Join(tmpDir, "stack")
+	require.NoError(t, os.MkdirAll(stackDir, 0755))
+
+	autoIncludePath := filepath.Join(stackDir, config.DefaultAutoIncludeStackFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+unit "db" {
+  source = "../catalog/units/db"
+  path   = "db"
+}
+
+stack "networking" {
+  source = "../catalog/stacks/networking"
+  path   = "networking"
+}
+`), 0644))
+
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	l := logger.CreateLogger()
+
+	cfgCty, err := config.ParseTerragruntConfig(ctx, pctx, l, autoIncludePath, nil)
+	require.NoError(t, err, "a stack-level autoinclude file must decode through the stack parsing path")
+
+	cfgMap, err := ctyhelper.ParseCtyValueToMap(cfgCty)
+	require.NoError(t, err)
+
+	unitsMap, ok := cfgMap[config.MetadataUnit].(map[string]any)
+	require.True(t, ok, "the decoded autoinclude must expose its unit blocks")
+
+	dbUnit, ok := unitsMap["db"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "../catalog/units/db", dbUnit["source"])
+	assert.Equal(t, "db", dbUnit["path"])
+
+	stacksMap, ok := cfgMap[config.MetadataStack].(map[string]any)
+	require.True(t, ok, "the decoded autoinclude must expose its stack blocks")
+
+	netStack, ok := stacksMap["networking"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "../catalog/stacks/networking", netStack["source"])
+	assert.Equal(t, "networking", netStack["path"])
+}
+
+// TestParseTerragruntConfig_StackAutoIncludeFileRequiresExperiment pins that without the
+// stack-dependencies experiment a terragrunt.autoinclude.stack.hcl still falls through to the strict
+// unit-config decode, which rejects its unit and stack blocks. The stack-file routing is part of the
+// experiment, so behavior without it is unchanged.
+func TestParseTerragruntConfig_StackAutoIncludeFileRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeStackFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+unit "db" {
+  source = "../catalog/units/db"
+  path   = "db"
+}
+`), 0644))
+
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+
+	l := logger.CreateLogger()
+
+	_, err := config.ParseTerragruntConfig(ctx, pctx, l, autoIncludePath, nil)
+	require.Error(t, err, "without the experiment the strict unit-config decode must keep rejecting unit blocks")
+}
+
+// TestParseTerragruntConfig_ReadsUnitAutoIncludeFile pins that read_terragrunt_config reads a
+// generated unit-level terragrunt.autoinclude.hcl through the regular unit-config path, returning
+// its dependency blocks and inputs.
+func TestParseTerragruntConfig_ReadsUnitAutoIncludeFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// The dependency target the autoinclude's dependency block points at.
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "vpc"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "vpc", config.DefaultTerragruntConfigPath), []byte(``), 0644))
+
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+dependency "vpc" {
+  config_path  = "./vpc"
+  skip_outputs = true
+  mock_outputs = {
+    vpc_id = "mock-vpc-id"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+
+inputs = {
+  env = "test"
+}
+`), 0644))
+
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	l := logger.CreateLogger()
+
+	cfgCty, err := config.ParseTerragruntConfig(ctx, pctx, l, autoIncludePath, nil)
+	require.NoError(t, err, "a unit-level autoinclude file must read through the unit-config path")
+
+	cfgMap, err := ctyhelper.ParseCtyValueToMap(cfgCty)
+	require.NoError(t, err)
+
+	inputs, ok := cfgMap[config.MetadataInputs].(map[string]any)
+	require.True(t, ok, "the decoded autoinclude must expose its inputs")
+	assert.Equal(t, "test", inputs["env"])
+
+	deps, ok := cfgMap[config.MetadataDependency].(map[string]any)
+	require.True(t, ok, "the decoded autoinclude must expose its dependency blocks")
+
+	vpcDep, ok := deps["vpc"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "./vpc", vpcDep["config_path"])
+}
+
+// TestValidateStackAutoIncludes_ReportsMalformedAutoInclude pins that the strict autoinclude parse
+// behind `hcl validate` reports a malformed autoinclude block (here a locals block, which is
+// explicitly rejected) that the lenient ParseStackConfig decode lets through into Remain.
+func TestValidateStackAutoIncludes_ReportsMalformedAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	stackPath := filepath.Join(tmpDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackPath, []byte(`
+unit "app" {
+  source = "./units/app"
+  path   = "app"
+
+  autoinclude {
+    locals {
+      env = "dev"
+    }
+  }
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, stackPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	l := logger.CreateLogger()
+
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
+	require.NoError(t, err, "the lenient stack decode must keep accepting the malformed autoinclude block")
+
+	err = config.ValidateStackAutoIncludes(ctx, l, pctx, stackPath, stackCfg, nil)
+	require.Error(t, err, "the strict autoinclude parse must report the locals block")
+
+	var stageErr config.AutoIncludeParserStageError
+	require.ErrorAs(t, err, &stageErr)
+
+	var localsErr inthclparse.AutoIncludeLocalsBlockError
+	require.ErrorAs(t, err, &localsErr)
+	assert.Equal(t, "app", localsErr.Component)
+}
+
+// TestValidateStackAutoIncludes_NoOpWithoutExperiment pins that without the stack-dependencies
+// experiment the strict autoinclude validation does not run, leaving `hcl validate` behavior unchanged.
+func TestValidateStackAutoIncludes_NoOpWithoutExperiment(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	stackPath := filepath.Join(tmpDir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackPath, []byte(`
+unit "app" {
+  source = "./units/app"
+  path   = "app"
+
+  autoinclude {
+    locals {
+      env = "dev"
+    }
+  }
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, stackPath)
+
+	l := logger.CreateLogger()
+
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, config.ValidateStackAutoIncludes(ctx, l, pctx, stackPath, stackCfg, nil),
+		"without the experiment the strict autoinclude validation must not run")
 }

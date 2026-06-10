@@ -67,6 +67,7 @@ const (
 	testFixtureStackDepsAutoIncFuncs             = "fixtures/stacks/stack-deps-autoinclude-funcs"
 	testFixtureStackDepsValuesSiblingAutoInc     = "fixtures/stacks/stack-deps-values-sibling-autoinclude"
 	testFixtureStackDepsStackValuesLocals        = "fixtures/stacks/stack-deps-stack-values-locals"
+	testFixtureStackDepsHCLValidateAutoInc       = "fixtures/stacks/stack-deps-hclvalidate-autoinclude"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -2299,4 +2300,45 @@ func stackDepsFuncsFor(ctx context.Context, l log.Logger, pctx *config.ParsingCo
 	return func(dir string) (map[string]function.Function, error) {
 		return config.EarlyStackParseFunctions(ctx, l, dir, pctx)
 	}
+}
+
+// TestStackDepsHCLValidateReportsMalformedAutoInclude pins that `hcl validate` runs the strict
+// autoinclude parse over stack configs: a malformed autoinclude block (a locals block inside
+// autoinclude) fails validation with the experiment enabled instead of only failing later at
+// `stack generate`. Without the experiment the block stays unvalidated, so behavior is unchanged.
+func TestStackDepsHCLValidateReportsMalformedAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, defeating the disabled-vs-enabled comparison this test pins")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsHCLValidateAutoInc)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsHCLValidateAutoInc)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsHCLValidateAutoInc, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	// Without the experiment the autoinclude block falls into the lenient decode's Remain, as before.
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --working-dir "+rootPath)
+	require.NoError(t, err, "without the experiment hcl validate must keep passing the stack config")
+
+	// With the experiment the same strict parse `stack generate` uses must reject the block.
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --experiment stack-dependencies --working-dir "+rootPath)
+	require.Error(t, err, "with the experiment hcl validate must report the malformed autoinclude block")
+}
+
+// TestStackDepsHCLValidateAcceptsValidAutoInclude pins that the strict autoinclude pass added to
+// `hcl validate` does not reject a well-formed autoinclude block.
+func TestStackDepsHCLValidateAcceptsValidAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoInclude)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoInclude)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoInclude, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err, "a well-formed autoinclude block must pass hcl validate")
 }

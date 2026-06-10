@@ -120,65 +120,9 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	// When the stack-dependencies experiment is enabled, perform a two-pass
 	// parse to resolve autoinclude blocks and generate terragrunt.autoinclude.hcl files.
-	var autoIncludes map[string]*inthclparse.AutoIncludeResolved
-
-	var stackSrcBytes []byte
-
-	if pctx.Experiments.Evaluate(experiment.StackDependencies) && stackConfigHasAutoInclude(stackFile) {
-		// The autoinclude phase uses the internal HCL parser, which currently expects
-		// hclsyntax input (not JSON bodies). Preserve explicit failure behavior for JSON
-		// stack files that still declare autoinclude.
-		if !stackConfigHasAutoIncludeHCL(stackFile) {
-			return AutoIncludeParserStageError{
-				Stage: "autoinclude-parser",
-				File:  stackFilePath,
-				Err:   fmt.Errorf("stack autoinclude is only supported for HCL stack files, not JSON: %s", stackFilePath),
-			}
-		}
-
-		// stackSrcBytes is read separately for the autoinclude parser, which slices expression byte ranges from the original file when generating terragrunt.autoinclude.hcl.
-		stackSrcBytes, err = os.ReadFile(stackFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
-		}
-
-		// Rescope the parsing context to the stack file so terragrunt functions resolve paths relative to it instead of the root caller.
-		scopedLogger, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
-		if scopedErr != nil {
-			return AutoIncludeParserStageError{Stage: "rescope", File: stackFilePath, Err: scopedErr}
-		}
-
-		// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
-		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, scopedLogger, stackFilePath)
-		if evalCtxErr != nil {
-			return AutoIncludeParserStageError{Stage: "eval-context", File: stackFilePath, Err: evalCtxErr}
-		}
-
-		// Evaluate the autoinclude with the stack-file function set (derived from the eval context already built
-		// above) so directory-context functions like get_working_dir resolve against the stack file instead of
-		// re-parsing it as a regular config.
-		earlyFuncs := StackParseFunctionsFrom(prodEvalCtx.Functions, stackSourceDir)
-
-		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
-			Src:       stackSrcBytes,
-			Filename:  filepath.Base(stackFilePath),
-			StackDir:  stackSourceDir,
-			Values:    values,
-			Variables: prodEvalCtx.Variables,
-			Functions: earlyFuncs,
-		})
-		if parseErr != nil {
-			return AutoIncludeParserStageError{Stage: "parse", File: stackFilePath, Err: parseErr}
-		}
-
-		autoIncludes = parseResult.AutoIncludes
-
-		// The phased parser resolves autoincludes from the base stack file only. A sibling
-		// terragrunt.autoinclude.stack.hcl overrides same-name components wholesale, so an overridden
-		// component must not inherit the base block's resolved unit-level autoinclude.
-		if pruneErr := pruneOverriddenStackAutoIncludes(autoIncludes, stackSourceDir, prodEvalCtx, scopedPctx.ParserOptions); pruneErr != nil {
-			return AutoIncludeParserStageError{Stage: "autoinclude-override-prune", File: stackFilePath, Err: pruneErr}
-		}
+	autoIncludes, stackSrcBytes, err := resolveStackAutoIncludes(ctx, l, pctx, stackFilePath, stackFile, values)
+	if err != nil {
+		return err
 	}
 
 	casEnabled := pctx.Experiments.Evaluate(experiment.CAS) && !pctx.NoCAS
@@ -218,6 +162,87 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	}
 
 	return nil
+}
+
+// ValidateStackAutoIncludes runs the strict autoinclude parse over the stack file at
+// stackFilePath without generating anything, so tooling such as `hcl validate` reports
+// the same autoinclude errors [GenerateStackFile] would raise. stackFile is the config
+// already parsed from stackFilePath via [ParseStackConfig]. It is a no-op when the
+// stack-dependencies experiment is disabled or no unit or stack declares autoinclude.
+func ValidateStackAutoIncludes(ctx context.Context, l log.Logger, pctx *ParsingContext, stackFilePath string, stackFile *StackConfig, values *cty.Value) error {
+	_, _, err := resolveStackAutoIncludes(ctx, l, pctx, stackFilePath, stackFile, values)
+
+	return err
+}
+
+// resolveStackAutoIncludes runs the strict phased autoinclude parse over the stack file at
+// stackFilePath and returns the resolved autoincludes keyed by [inthclparse.AutoIncludeKey],
+// plus the raw stack file bytes the generator slices expression ranges from. It returns nil
+// results when the stack-dependencies experiment is disabled or stackFile declares no
+// autoinclude blocks, mirroring the gate [GenerateStackFile] has always applied.
+func resolveStackAutoIncludes(ctx context.Context, l log.Logger, pctx *ParsingContext, stackFilePath string, stackFile *StackConfig, values *cty.Value) (map[string]*inthclparse.AutoIncludeResolved, []byte, error) {
+	if !pctx.Experiments.Evaluate(experiment.StackDependencies) || !stackConfigHasAutoInclude(stackFile) {
+		return nil, nil, nil
+	}
+
+	stackSourceDir := filepath.Dir(stackFilePath)
+
+	// The autoinclude phase uses the internal HCL parser, which currently expects
+	// hclsyntax input (not JSON bodies). Preserve explicit failure behavior for JSON
+	// stack files that still declare autoinclude.
+	if !stackConfigHasAutoIncludeHCL(stackFile) {
+		return nil, nil, AutoIncludeParserStageError{
+			Stage: "autoinclude-parser",
+			File:  stackFilePath,
+			Err:   fmt.Errorf("stack autoinclude is only supported for HCL stack files, not JSON: %s", stackFilePath),
+		}
+	}
+
+	// stackSrcBytes is read separately for the autoinclude parser, which slices expression byte ranges from the original file when generating terragrunt.autoinclude.hcl.
+	stackSrcBytes, err := os.ReadFile(stackFilePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
+	}
+
+	// Rescope the parsing context to the stack file so terragrunt functions resolve paths relative to it instead of the root caller.
+	scopedLogger, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
+	if scopedErr != nil {
+		return nil, nil, AutoIncludeParserStageError{Stage: "rescope", File: stackFilePath, Err: scopedErr}
+	}
+
+	// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
+	prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, scopedLogger, stackFilePath)
+	if evalCtxErr != nil {
+		return nil, nil, AutoIncludeParserStageError{Stage: "eval-context", File: stackFilePath, Err: evalCtxErr}
+	}
+
+	// Evaluate the autoinclude with the stack-file function set (derived from the eval context already built
+	// above) so directory-context functions like get_working_dir resolve against the stack file instead of
+	// re-parsing it as a regular config.
+	earlyFuncs := StackParseFunctionsFrom(prodEvalCtx.Functions, stackSourceDir)
+
+	parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
+		Src:       stackSrcBytes,
+		Filename:  filepath.Base(stackFilePath),
+		StackDir:  stackSourceDir,
+		Values:    values,
+		Variables: prodEvalCtx.Variables,
+		Functions: earlyFuncs,
+	})
+	if parseErr != nil {
+		return nil, nil, AutoIncludeParserStageError{Stage: "parse", File: stackFilePath, Err: parseErr}
+	}
+
+	autoIncludes := parseResult.AutoIncludes
+
+	// The phased parser resolves autoincludes from the base stack file only. A sibling
+	// terragrunt.autoinclude.stack.hcl overrides same-name components wholesale, so an overridden
+	// component must not inherit the base block's resolved unit-level autoinclude.
+	if pruneErr := pruneOverriddenStackAutoIncludes(autoIncludes, stackSourceDir, prodEvalCtx, scopedPctx.ParserOptions); pruneErr != nil {
+		return nil, nil, AutoIncludeParserStageError{Stage: "autoinclude-override-prune", File: stackFilePath, Err: pruneErr}
+	}
+
+	return autoIncludes, stackSrcBytes, nil
 }
 
 // validateUpdateSourceWithCAS rejects stack files that declare update_source_with_cas = true
