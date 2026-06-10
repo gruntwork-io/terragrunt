@@ -32,8 +32,8 @@ type genericFetcherConfig struct {
 	httpExtra  http.Header
 	httpsExtra http.Header
 	tfrLogger  log.Logger
-	tfrImpl    tfimpl.Type
 	tfrFS      vfs.FS
+	tfrImpl    tfimpl.Type
 }
 
 // WithHTTPExtraHeaders attaches header to the bare http getter so
