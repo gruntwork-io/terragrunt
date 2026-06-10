@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"slices"
+	"strings"
+	"sync"
 
 	"golang.org/x/sync/errgroup"
 
@@ -26,6 +29,12 @@ const urlChannelBufferSize = 10
 // discovery and component loading in the background. When loading completes,
 // the TUI transitions to the component list or shows a welcome screen.
 func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, repoURL string) error {
+	// Fail fast with a clear error when there is no terminal to attach the
+	// TUI to, instead of surfacing bubbletea's raw TTY failure.
+	if err := redesign.EnsureOSTTY(l); err != nil {
+		return err
+	}
+
 	// If an explicit URL was passed via CLI, use the default path
 	if repoURL != "" {
 		return runDefault(ctx, l, opts, repoURL)
@@ -63,6 +72,15 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			loaders, loadCtx := errgroup.WithContext(ctx)
 			loaders.SetLimit(maxWorkers)
 
+			// Per-source failures are collected rather than logged: log
+			// writes during the alt-screen shred the TUI's rendering, and
+			// swallowing them would leave the user staring at a misleading
+			// "no sources" screen when every repository failed to load.
+			var (
+				failuresMu sync.Mutex
+				failures   []redesign.SourceFailure
+			)
+
 			seen := make(map[string]struct{})
 
 			for repoURL := range urlCh {
@@ -73,12 +91,20 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				seen[repoURL] = struct{}{}
 
 				loaders.Go(func() error {
-					if err := redesign.LoadURL(loadCtx, l, opts, repoURL, componentCh); err != nil {
-						// Suppress errors from context cancellation (user quit the TUI).
-						if loadCtx.Err() == nil {
-							l.Warnf("Error loading %s: %v", repoURL, err)
-						}
+					err := redesign.LoadURL(loadCtx, l, opts, repoURL, componentCh)
+					if err == nil {
+						return nil
 					}
+
+					// Suppress errors from context cancellation (user quit the TUI).
+					if loadCtx.Err() != nil {
+						return nil
+					}
+
+					failuresMu.Lock()
+					defer failuresMu.Unlock()
+
+					failures = append(failures, redesign.SourceFailure{URL: repoURL, Err: err})
 
 					return nil
 				})
@@ -90,6 +116,14 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 			if err := g.Wait(); err != nil {
 				return fmt.Errorf("discovering sources: %w", err)
+			}
+
+			if len(failures) > 0 {
+				slices.SortFunc(failures, func(a, b redesign.SourceFailure) int {
+					return strings.Compare(a.URL, b.URL)
+				})
+
+				return &redesign.SourceLoadError{Failures: failures, Attempted: len(seen)}
 			}
 
 			return nil

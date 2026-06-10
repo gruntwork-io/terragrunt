@@ -3,6 +3,7 @@ package redesign_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -92,6 +93,110 @@ func TestWelcomeLoadingScreen_NoSourcesWithRacing(t *testing.T) {
 
 		_, isWelcome := finalModel.(redesign.WelcomeModel)
 		assert.True(t, isWelcome, "should remain on welcome screen when no sources found")
+	})
+}
+
+// TestWelcomeDiscoveryErrorQuitPropagatesErrorWithRacing verifies that a
+// discovery failure recorded by the welcome model survives the user's quit,
+// so RunRedesign returns it and the catalog command exits nonzero.
+func TestWelcomeDiscoveryErrorQuitPropagatesErrorWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		l := logger.CreateLogger()
+
+		discoveryErr := errors.New("network unreachable")
+		erroringLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
+			return discoveryErr
+		}
+
+		m := redesign.NewWelcomeModel(t.Context(), l, opts, erroringLoad)
+
+		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
+
+		finalModel := driveModel(t, m, 120, 40, msgs)
+
+		welcome, isWelcome := finalModel.(redesign.WelcomeModel)
+		require.True(t, isWelcome, "should remain on welcome screen after a discovery error")
+		require.Error(t, welcome.Err(), "quitting after a discovery error should carry the failure")
+		require.ErrorIs(t, welcome.Err(), discoveryErr)
+	})
+}
+
+// TestWelcomeAllSourcesFailedPropagatesTypedErrorWithRacing verifies that
+// when every catalog source fails to load, the welcome model ends the
+// session with the aggregated SourceLoadError.
+func TestWelcomeAllSourcesFailedPropagatesTypedErrorWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		l := logger.CreateLogger()
+
+		allFailedLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
+			return &redesign.SourceLoadError{
+				Failures: []redesign.SourceFailure{
+					{URL: "github.com/acme/modules", Err: errors.New("clone failed")},
+					{URL: "github.com/acme/templates", Err: errors.New("authentication required")},
+				},
+				Attempted: 2,
+			}
+		}
+
+		m := redesign.NewWelcomeModel(t.Context(), l, opts, allFailedLoad)
+
+		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
+
+		finalModel := driveModel(t, m, 120, 40, msgs)
+
+		welcome, isWelcome := finalModel.(redesign.WelcomeModel)
+		require.True(t, isWelcome, "should remain on welcome screen when every source fails")
+
+		var srcErr *redesign.SourceLoadError
+
+		require.ErrorAs(t, welcome.Err(), &srcErr)
+		assert.True(t, srcErr.AllFailed(), "every attempted source failed")
+
+		// The error screen vanishes with the alt screen, so the details
+		// must also be stashed for the post-exit message.
+		exit := stripANSI(welcome.ExitMessage())
+		assert.Contains(t, exit, "github.com/acme/modules")
+		assert.Contains(t, exit, "clone failed")
+		assert.Contains(t, exit, "github.com/acme/templates")
+		assert.Contains(t, exit, "authentication required")
+	})
+}
+
+// TestWelcomeCleanQuitReturnsNoErrorWithRacing verifies that a deliberate
+// quit with no failure leaves the model error-free, so the command exits
+// zero.
+func TestWelcomeCleanQuitReturnsNoErrorWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		l := logger.CreateLogger()
+
+		noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
+			return nil
+		}
+
+		m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
+
+		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
+
+		finalModel := driveModel(t, m, 120, 40, msgs)
+
+		welcome, isWelcome := finalModel.(redesign.WelcomeModel)
+		require.True(t, isWelcome)
+		require.NoError(t, welcome.Err(), "a clean quit must not carry an error")
 	})
 }
 

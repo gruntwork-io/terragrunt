@@ -23,17 +23,20 @@ import (
 )
 
 // EmitExitMessage prints any post-exit message that the final model stashed
-// during its session (e.g. the values-stub callout on a successful copy).
-// It runs after the tea program restores the main terminal buffer, because
-// messages queued via tea.Printf while the alt screen is active get discarded
-// when the alt screen is torn down.
+// during its session (e.g. the values-stub callout on a successful copy, or
+// the discovery-failure details from the welcome screen). It runs after the
+// tea program restores the main terminal buffer, because messages queued via
+// tea.Printf while the alt screen is active get discarded when the alt
+// screen is torn down.
 func EmitExitMessage(finalModel tea.Model, errWriter io.Writer, l log.Logger) {
-	listModel, ok := finalModel.(Model)
-	if !ok || listModel.ExitMessage() == "" {
+	type exitMessenger interface{ ExitMessage() string }
+
+	m, ok := finalModel.(exitMessenger)
+	if !ok || m.ExitMessage() == "" {
 		return
 	}
 
-	if _, err := fmt.Fprintln(errWriter, listModel.ExitMessage()); err != nil {
+	if _, err := fmt.Fprintln(errWriter, m.ExitMessage()); err != nil {
 		l.Warnf("Failed to write exit message: %v", err)
 	}
 }
@@ -66,19 +69,27 @@ type Model struct {
 	// work (e.g. scaffold.Prepare downloading sources) propagates the
 	// user's Ctrl+C through this context, so the call returns instead of
 	// blocking on an abandoned download.
-	ctx                 context.Context
-	lists               [numTabs]list.Model
-	logger              log.Logger
-	terragruntOptions   *options.TerragruntOptions
-	selectedComponent   *Component
-	delegateKeys        *tui.DelegateKeyMap
-	buttonBar           *buttonbar.ButtonBar
-	componentCh         chan *ComponentEntry
-	errCh               chan error
-	mdRenderer          *glamour.TermRenderer
-	form                *FormModel
-	scaffoldPlan        *scaffold.Plan
-	valuesRefs          *ValuesReferences
+	ctx               context.Context
+	lists             [numTabs]list.Model
+	logger            log.Logger
+	terragruntOptions *options.TerragruntOptions
+	selectedComponent *Component
+	delegateKeys      *tui.DelegateKeyMap
+	buttonBar         *buttonbar.ButtonBar
+	componentCh       chan *ComponentEntry
+	errCh             chan error
+	mdRenderer        *glamour.TermRenderer
+	form              *FormModel
+	scaffoldPlan      *scaffold.Plan
+	valuesRefs        *ValuesReferences
+	// terminalErr is the failure that ended the session (a scaffold, copy,
+	// or form-discovery error). RunRedesign returns it so the catalog
+	// command exits nonzero; a deliberate quit leaves it nil.
+	terminalErr error
+	// loadErr is a non-fatal discovery failure (some catalog sources failed
+	// to load while others produced components). It renders as a notice in
+	// the list view rather than ending the session.
+	loadErr             error
 	pagerKeys           tui.PagerKeyMap
 	listKeys            list.KeyMap
 	currentPagerButtons []button
@@ -129,6 +140,13 @@ func NewModelWithExitMessageForTest(msg string) Model {
 // ActiveTab returns which of the All/Modules/Templates tabs is focused.
 func (m Model) ActiveTab() TabKind {
 	return m.activeTab
+}
+
+// Err returns the failure that ended the session, or nil when the session
+// ended without one (a deliberate quit). RunRedesign propagates it so the
+// catalog command exits nonzero after an in-TUI failure.
+func (m Model) Err() error {
+	return m.terminalErr
 }
 
 // Loading reports whether discovery is still running. When true, the tab
