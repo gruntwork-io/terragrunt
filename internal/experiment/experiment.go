@@ -231,9 +231,11 @@ func (exps Experiments) NotifyCompletedExperiments(logger log.Logger) {
 	logger.Warnf("%s", NewCompletedExperimentsWarning(completed.Names()).String())
 }
 
-// Evaluate returns true if the experiment is found and enabled otherwise returns false.
+// Evaluate returns true if the experiment is found and evaluates to true, otherwise returns false.
+//
+// Completed experiments evaluate to true, per [Experiment.Evaluate].
 func (exps Experiments) Evaluate(name string) bool {
-	if experiment := exps.FilterByStatus(StatusOngoing).Find(name); experiment != nil {
+	if experiment := exps.Find(name); experiment != nil {
 		return experiment.Evaluate()
 	}
 
