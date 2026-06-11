@@ -193,7 +193,7 @@ func TestStackDepsAutoIncludeTemplateLiteralInterpolation(t *testing.T) {
 	rootPath, err = filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
 
 	generated, err := os.ReadFile(filepath.Join(rootPath, inthclparse.StackDir, "app", inthclparse.AutoIncludeFile))
 	require.NoError(t, err)
