@@ -20,8 +20,10 @@ const (
 	CLIRedesign = "cli-redesign"
 	// Stacks is the experiment that allows stacks to be used in Terragrunt.
 	Stacks = "stacks"
-	// CAS is the experiment that enables using the CAS package for git operations
-	// in the catalog command, which provides better performance through content-addressable storage.
+	// CAS names the now-stable content-addressable storage behavior. CAS speeds up
+	// catalog cloning, OpenTofu/Terraform source cloning, and stack generation by
+	// avoiding redundant downloads of Git repositories. It is enabled by default and
+	// can be disabled with the --no-cas flag.
 	CAS = "cas"
 	// Report is the experiment that enables the new run report.
 	Report = "report"
@@ -100,7 +102,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: CAS,
+			Name:   CAS,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   Report,
@@ -135,7 +138,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: CatalogRedesign,
+			Name:   CatalogRedesign,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   MarkManyAsRead,

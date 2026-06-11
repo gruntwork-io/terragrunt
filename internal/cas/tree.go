@@ -167,6 +167,10 @@ func linkTree(
 					return err
 				}
 
+				if err := v.FS.RemoveAll(work.path); err != nil {
+					return fmt.Errorf("clear existing entry before symlink %s: %w", work.path, err)
+				}
+
 				if err := vfs.Symlink(v.FS, string(target), work.path); err != nil {
 					return fmt.Errorf("symlink %s -> %s: %w", work.path, string(target), err)
 				}

@@ -264,7 +264,32 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World version remote", false)
+	terraformSource, opts, cfg, err := createConfig(t, canonicalURL, downloadDir, false)
+	require.NoError(t, err)
+
+	// The hello-world-version-remote fixture ships a file literally named
+	// "version-file.txt". CAS materializes downloaded sources read-only, so a
+	// bookkeeping write to that path would collide with the module's own file.
+	// Use the name Terragrunt actually writes in production
+	// (.terragrunt-source-version), which never appears in module content.
+	terraformSource.VersionFile = filepath.Join(downloadDir, ".terragrunt-source-version")
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		logger.CreateLogger(),
+		run.OSVenv(),
+		terraformSource,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
+
+	expectedFilePath := filepath.Join(downloadDir, "main.tf")
+	if assert.True(t, util.FileExists(expectedFilePath), "For terraform source %v", terraformSource) {
+		actualFileContents := readFile(t, expectedFilePath)
+		assert.Equal(t, "# Hello, World version remote", actualFileContents, "For terraform source %v", terraformSource)
+	}
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T) {
@@ -822,10 +847,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()
-	err = opts.Experiments.EnableExperiment(experiment.CAS)
-	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -864,10 +886,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()
-	err = opts.Experiments.EnableExperiment(experiment.CAS)
-	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -905,10 +924,7 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()
-	err = opts.Experiments.EnableExperiment(experiment.CAS)
-	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -929,67 +945,47 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 }
 
 // TestDownloadSourceUpdateSourceWithCASRequiresCAS verifies that setting
-// update_source_with_cas = true on a terraform block errors when CAS is unavailable,
-// either because the experiment is off or because --no-cas is set.
+// update_source_with_cas = true on a terraform block errors when CAS is
+// disabled via --no-cas.
 func TestDownloadSourceUpdateSourceWithCASRequiresCAS(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name      string
-		enableCAS bool
-		noCAS     bool
-	}{
-		{name: "experiment off", enableCAS: false, noCAS: false},
-		{name: "experiment on with --no-cas", enableCAS: true, noCAS: true},
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "file://"+localSourcePath),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
 
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+	opts.NoCAS = true
+	opts.TerragruntConfigPath = "/tmp/terragrunt.hcl"
 
-			localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
-			src := &tf.Source{
-				CanonicalSourceURL: parseURL(t, "file://"+localSourcePath),
-				DownloadDir:        tmpDir,
-				WorkingDir:         tmpDir,
-				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
-			}
-
-			opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
-			require.NoError(t, err)
-
-			opts.Experiments = experiment.NewExperiments()
-			if tc.enableCAS {
-				require.NoError(t, opts.Experiments.EnableExperiment(experiment.CAS))
-			}
-
-			opts.NoCAS = tc.noCAS
-			opts.TerragruntConfigPath = "/tmp/terragrunt.hcl"
-
-			cfg := &runcfg.RunConfig{
-				Terraform: runcfg.TerraformConfig{
-					UpdateSourceWithCAS: true,
-				},
-			}
-
-			l := logger.CreateLogger()
-			l.SetOptions(log.WithOutput(io.Discard))
-
-			_, err = run.DownloadTerraformSourceIfNecessary(
-				t.Context(), l, run.OSVenv(), src,
-				configbridge.NewRunOptions(opts),
-				cfg, report.NewReport(),
-			)
-			require.Error(t, err)
-
-			var target *cas.UpdateSourceWithCASRequiresCASError
-			require.ErrorAs(t, err, &target)
-			assert.Equal(t, "terraform", target.BlockType)
-			assert.Equal(t, opts.TerragruntConfigPath, target.Path)
-		})
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			UpdateSourceWithCAS: true,
+		},
 	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(), l, run.OSVenv(), src,
+		configbridge.NewRunOptions(opts),
+		cfg, report.NewReport(),
+	)
+	require.Error(t, err)
+
+	var target *cas.UpdateSourceWithCASRequiresCASError
+	require.ErrorAs(t, err, &target)
+	assert.Equal(t, "terraform", target.BlockType)
+	assert.Equal(t, opts.TerragruntConfigPath, target.Path)
 }
 
 // TestDownloadSourceWithCASMultipleSources tests that CAS works with multiple different sources
@@ -1001,10 +997,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 
 	opts.Env = util.EnvironMap()
 
-	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()
-	err = opts.Experiments.EnableExperiment(experiment.CAS)
-	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{

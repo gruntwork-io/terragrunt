@@ -119,7 +119,7 @@ func (e *UpdateSourceWithCASRequiresCASError) Error() string {
 
 	return fmt.Sprintf(
 		"%s in %s sets update_source_with_cas = true, which requires "+
-			"the 'cas' experiment to be enabled and the --no-cas flag to be unset",
+			"the --no-cas flag to be unset",
 		subject, e.Path,
 	)
 }

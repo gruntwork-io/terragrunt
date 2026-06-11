@@ -351,7 +351,7 @@ func downloadSource(
 		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.Writers.LogShowAbsPaths),
 		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.Writers.LogShowAbsPaths))
 
-	allowCAS := opts.Experiments.Evaluate(experiment.CAS) && !opts.NoCAS
+	allowCAS := !opts.NoCAS
 
 	if cfg.Terraform.UpdateSourceWithCAS && !allowCAS {
 		return &cas.UpdateSourceWithCASRequiresCASError{
@@ -400,7 +400,7 @@ func downloadSource(
 func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Options, mutable bool) (bool, error) {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
 
-	l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
+	l.Debugf("CAS enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
 
 	if err := cas.ValidateCASCloneDepth(opts.CASCloneDepth); err != nil {
 		return false, err

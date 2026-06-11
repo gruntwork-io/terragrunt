@@ -7,11 +7,14 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
 
+<Before version="1.1.0">
 <Aside type="tip" title="Experimental">
 CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
 </Aside>
 
+</Before>
 ## Overview
 
 A GCS source is identified by a bucket and an object. Terragrunt reads the object's metadata to derive a content-addressed cache key.

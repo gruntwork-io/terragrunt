@@ -947,13 +947,13 @@ func TestDownloadWithCASEnabled(t *testing.T) {
 	testPath := filepath.Join(tmpEnvPath, fixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 
-	// Run with CAS experiment enabled
+	// CAS is enabled by default.
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
 
-	cmd := "terragrunt apply --auto-approve --non-interactive --experiment cas --log-level debug --working-dir " + testPath
+	cmd := "terragrunt apply --auto-approve --non-interactive --log-level debug --working-dir " + testPath
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 	require.NoError(t, err)
 
@@ -970,7 +970,7 @@ func TestDownloadWithCASCommitRef(t *testing.T) {
 	testPath := filepath.Join(tmpEnvPath, fixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 
-	applyCmd := "terragrunt apply --auto-approve --non-interactive --experiment cas --working-dir " + testPath
+	applyCmd := "terragrunt apply --auto-approve --non-interactive --working-dir " + testPath
 	require.NoError(t, helpers.RunTerragruntCommand(t, applyCmd, io.Discard, io.Discard))
 
 	var (
@@ -978,7 +978,7 @@ func TestDownloadWithCASCommitRef(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	outputCmd := "terragrunt output -raw test --non-interactive --experiment cas --working-dir " + testPath
+	outputCmd := "terragrunt output -raw test --non-interactive --working-dir " + testPath
 	require.NoError(t, helpers.RunTerragruntCommand(t, outputCmd, &stdout, &stderr))
 
 	assert.Equal(t, "Hello, World", stdout.String())
@@ -1004,7 +1004,7 @@ func TestDownloadWithCASMutable(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	cmd := "terragrunt apply --auto-approve --non-interactive --experiment cas --log-level debug --working-dir " + testPath
+	cmd := "terragrunt apply --auto-approve --non-interactive --log-level debug --working-dir " + testPath
 	require.NoError(t, helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr))
 
 	cacheDir := filepath.Join(testPath, ".terragrunt-cache")

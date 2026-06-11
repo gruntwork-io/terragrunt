@@ -125,7 +125,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		return err
 	}
 
-	casEnabled := pctx.Experiments.Evaluate(experiment.CAS) && !pctx.NoCAS
+	casEnabled := !pctx.NoCAS
 
 	if err := validateUpdateSourceWithCAS(stackFile, stackFilePath, casEnabled); err != nil {
 		return err
@@ -579,7 +579,7 @@ func fetchComponentSource(
 
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
-			return fmt.Errorf("cas:: source on %s %q requires the 'cas' experiment to be enabled", kindStr, cmp.name)
+			return fmt.Errorf("cas:: source on %s %q requires the --no-cas flag to be unset", kindStr, cmp.name)
 		}
 
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
