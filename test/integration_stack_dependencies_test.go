@@ -68,6 +68,7 @@ const (
 	testFixtureStackDepsValuesSiblingAutoInc     = "fixtures/stacks/stack-deps-values-sibling-autoinclude"
 	testFixtureStackDepsStackValuesLocals        = "fixtures/stacks/stack-deps-stack-values-locals"
 	testFixtureStackDepsHCLValidateAutoInc       = "fixtures/stacks/stack-deps-hclvalidate-autoinclude"
+	testFixtureStackDepsAutoIncTemplateLiteral   = "fixtures/stacks/stack-deps-autoinclude-template-literal"
 	testFixtureStackDepsAutoIncObjectKey         = "fixtures/stacks/stack-deps-autoinclude-object-key"
 )
 
@@ -173,6 +174,33 @@ func TestStackDepsMockLocalResolvesLocal(t *testing.T) {
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan")
 	require.NoError(t, err, "the generated stack must plan; stderr=%s", stderr)
 	assert.NotContains(t, stderr, "no variable named", "the generated stack must reference no undefined variables")
+}
+
+// TestStackDepsAutoIncludeTemplateLiteralInterpolation verifies, end to end, that an autoinclude template which
+// interpolates a non-string literal (${0}) alongside a dependency.* reference generates without panicking; the
+// literal resolves to its string form and the dependency reference stays verbatim for the unit.
+func TestStackDepsAutoIncludeTemplateLiteralInterpolation(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncTemplateLiteral)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncTemplateLiteral)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncTemplateLiteral)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	generated, err := os.ReadFile(filepath.Join(rootPath, inthclparse.StackDir, "app", inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Regexp(t, `(?m)^\s*v\s*=\s*"0-\$\{dependency\.vpc\.outputs\.id\}"\s*$`, content, "a non-string literal interpolation must resolve to its string form, the dependency reference stays verbatim")
 }
 
 // TestStackDepsAutoIncludeResolvesObjectKey verifies, end to end, that an interpolated object key in an autoinclude resolves at stack generate time even when the object's value defers to dependency.*, so no stack-level reference leaks into the generated unit.

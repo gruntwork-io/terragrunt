@@ -152,6 +152,42 @@ func TestPartialEval(t *testing.T) {
 			excludes: []string{"local.count"},
 		},
 		{
+			// Regression: a number-literal interpolation (${0}) in a template that takes the structural path
+			// (it references dependency.*) must not panic; the literal renders and the dependency stays verbatim.
+			name:     "number literal interpolation with deferred",
+			hcl:      `val = "${0}-${dependency.vpc.outputs.id}"`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`"0-${dependency.vpc.outputs.id}"`},
+		},
+		{
+			name:     "bool literal interpolation with deferred",
+			hcl:      `val = "${true}-${dependency.vpc.outputs.id}"`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`"true-${dependency.vpc.outputs.id}"`},
+		},
+		{
+			name:     "float literal interpolation with deferred",
+			hcl:      `val = "${1.5}-${dependency.vpc.outputs.id}"`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`"1.5-${dependency.vpc.outputs.id}"`},
+		},
+		{
+			// A null literal can't be stringified: it stays an interpolation so the runtime
+			// produces a faithful error instead of generate baking in a wrong value.
+			name:     "null literal interpolation with deferred stays deferred",
+			hcl:      `val = "${null}-${dependency.vpc.outputs.id}"`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{"${null}", "${dependency.vpc.outputs.id}"},
+		},
+		{
+			// A pure part whose value can't convert to string (a tuple) is emitted back as an
+			// interpolation rather than rendered inline.
+			name:     "non-string-convertible interpolation with deferred stays deferred",
+			hcl:      `val = "${[1, 2]}-${dependency.vpc.outputs.id}"`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{"${[1, 2]}", "${dependency.vpc.outputs.id}"},
+		},
+		{
 			name:     "parentheses pure inner",
 			hcl:      `val = (local.env)`,
 			evalCtx:  buildEvalCtx(),
