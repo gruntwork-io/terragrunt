@@ -559,7 +559,7 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(
 	err := client.CreateS3Bucket(ctx, l, cfg.Bucket, CreateS3BucketOpts{Tags: client.S3BucketTags})
 	if err != nil {
 		if accessError := client.checkBucketAccess(ctx, cfg.Bucket, cfg.Key); accessError != nil {
-			return accessError
+			return errors.Join(err, accessError)
 		}
 
 		if isBucketAlreadyOwnedByYouError(err) {
