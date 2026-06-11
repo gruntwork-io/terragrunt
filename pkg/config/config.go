@@ -1958,6 +1958,10 @@ func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource str
 		moduleDir = filepath.Clean(filepath.Join(pctx.WorkingDir, moduleDir))
 	}
 
+	if !pctx.FilesRead.MarkDirIfNew(moduleDir) {
+		return
+	}
+
 	walkFunc := filepath.WalkDir
 	if pctx.Experiments.Evaluate(experiment.Symlinks) {
 		walkFunc = util.WalkDirWithSymlinks
