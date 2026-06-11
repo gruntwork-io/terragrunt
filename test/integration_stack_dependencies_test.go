@@ -175,9 +175,7 @@ func TestStackDepsMockLocalResolvesLocal(t *testing.T) {
 	assert.NotContains(t, stderr, "no variable named", "the generated stack must reference no undefined variables")
 }
 
-// TestStackDepsAutoIncludeResolvesObjectKey verifies, end to end, that an interpolated object key in an autoinclude
-// resolves at stack generate time even when the object's value defers to dependency.* (the structural partial-eval
-// path), so no stack-level reference leaks into the generated unit.
+// TestStackDepsAutoIncludeResolvesObjectKey verifies, end to end, that an interpolated object key in an autoinclude resolves at stack generate time even when the object's value defers to dependency.*, so no stack-level reference leaks into the generated unit.
 func TestStackDepsAutoIncludeResolvesObjectKey(t *testing.T) {
 	t.Parallel()
 
@@ -202,9 +200,9 @@ func TestStackDepsAutoIncludeResolvesObjectKey(t *testing.T) {
 	assert.Contains(t, content, `"pre_key"`, "an interpolated object key must resolve at generate time")
 	assert.NotContains(t, content, "local.prefix", "an interpolated object key must not leak a stack-level reference into the generated unit")
 	assert.Contains(t, content, "dependency.vpc.outputs.id", "the dependency reference stays verbatim for the unit")
+	assert.Contains(t, content, "pre_mock", "an interpolated key inside a dependency block attribute must resolve at generate time")
 
-	// End to end: the generated unit must evaluate (a leaked local.prefix would fail here), with the resolved
-	// key carrying the mocked dependency output through to the unit's planned outputs.
+	// End to end: the generated unit must evaluate (a leaked stack reference would fail here), with the resolved key carrying the mocked dependency output through to the unit's planned outputs.
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
 	require.NoError(t, err, "the generated stack must plan; stderr=%s", stderr)

@@ -630,10 +630,7 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 	})
 }
 
-// TestPartialEval_ObjectKeys pins how object keys behave on the structural partial-eval path: a key that
-// HCL evaluates as an expression (interpolated, function call, or parenthesized) resolves at generate time unless
-// it references the deferred dependency.* root, while a literal-name key keeps its source form, so the generated
-// unit never sees an unresolved stack-level reference in a key.
+// TestPartialEval_ObjectKeys pins that an expression key resolves at generate time unless it references the deferred dependency.* root, while a literal-name key keeps its source form, so the generated unit never sees an unresolved stack-level reference in a key.
 func TestPartialEval_ObjectKeys(t *testing.T) {
 	t.Parallel()
 
@@ -714,12 +711,29 @@ func TestPartialEval_ObjectKeys(t *testing.T) {
 			excludes: []string{`"true"`},
 		},
 		{
-			// HCL rejects a naked multi-step traversal key as ambiguous at evaluation; it keeps its source form so
-			// that error surfaces where the object is evaluated, instead of silently resolving as a reference.
+			// HCL rejects a naked multi-step traversal key as ambiguous, so it keeps its source form instead of silently resolving as a reference.
 			name:     "naked multi-step traversal key stays verbatim",
 			hcl:      `val = { local.env = dependency.vpc.outputs.vpc_id }`,
 			contains: []string{"local.env"},
 			excludes: []string{`"production"`},
+		},
+		{
+			// A single-interpolation key (TemplateWrapExpr) must re-emit its "${...}" wrapper: a naked traversal key is ambiguous HCL.
+			name:     "deferred single-interpolation key keeps its quotes",
+			hcl:      `val = { "${dependency.vpc.outputs.vpc_id}" = "x" }`,
+			contains: []string{`"${dependency.vpc.outputs.vpc_id}"`},
+		},
+		{
+			name:     "pure single-interpolation key resolves",
+			hcl:      `val = { "${local.env}" = dependency.vpc.outputs.vpc_id }`,
+			contains: []string{`"production"`},
+			excludes: []string{"local.env"},
+		},
+		{
+			// A naked loop-var identifier would be a literal-string key, silently collapsing every element to the same key.
+			name:     "loop-var single-interpolation key keeps its quotes",
+			hcl:      `val = [for k in ["a", "b"] : { "${k}" = dependency.vpc.outputs.vpc_id }]`,
+			contains: []string{`"${k}"`},
 		},
 	}
 
@@ -734,6 +748,10 @@ func TestPartialEval_ObjectKeys(t *testing.T) {
 
 			result := string(resultBytes)
 
+			// Substring assertions cannot catch a malformed key rendering, so the emitted HCL must also parse.
+			_, diags := hclsyntax.ParseConfig([]byte("attr = "+result), "out.hcl", hcl.Pos{Line: 1, Column: 1})
+			require.False(t, diags.HasErrors(), "emitted HCL must parse, got %q: %s", result, diags.Error())
+
 			for _, want := range tc.contains {
 				assert.Contains(t, result, want, "expected result to contain %q, got %q", want, result)
 			}
@@ -743,6 +761,122 @@ func TestPartialEval_ObjectKeys(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestPartialEval_ObjectKeyUndefinedReferenceFails pins that an object key referencing a name missing from the stack context surfaces a typed error (failing generation) instead of leaking the unresolved reference into the generated unit.
+func TestPartialEval_ObjectKeyUndefinedReferenceFails(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		hcl  string
+	}{
+		{
+			name: "template key with undefined local",
+			hcl:  `val = { "${local.missing}_k" = dependency.vpc.outputs.vpc_id }`,
+		},
+		{
+			name: "single-interpolation key with undefined local",
+			hcl:  `val = { "${local.missing}" = dependency.vpc.outputs.vpc_id }`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
+
+			_, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
+			require.Error(t, err, "a key referencing an undefined stack name must fail generation")
+
+			var unresolvedErr hclparse.PartialEvalUnresolvedError
+			require.ErrorAs(t, err, &unresolvedErr)
+		})
+	}
+}
+
+// TestPartialEval_TemplateDirectives pins that a %{ for }/%{ if } directive on the structural path is emitted verbatim as a unit (re-emitting it inside ${...} would corrupt the output) while the template's other parts still partially evaluate, and that a generate-time-knowable directive template resolves on the fast path.
+func TestPartialEval_TemplateDirectives(t *testing.T) {
+	t.Parallel()
+
+	eval := func(t *testing.T, src string) string {
+		t.Helper()
+
+		expr, srcBytes := parseFirstAttrExpr(t, src)
+		out, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
+		require.NoError(t, err)
+
+		return string(out)
+	}
+
+	requireValidHCL := func(t *testing.T, out string) {
+		t.Helper()
+
+		_, diags := hclsyntax.ParseConfig([]byte("attr = "+out), "out.hcl", hcl.Pos{Line: 1, Column: 1})
+		require.False(t, diags.HasErrors(), "the emitted template must be valid HCL, got %q: %s", out, diags.Error())
+	}
+
+	t.Run("for directive with a deferred body stays verbatim and valid", func(t *testing.T) {
+		t.Parallel()
+
+		tmpl := `"%{ for x in local.names }${x}-${dependency.vpc.outputs.id}%{ endfor }"`
+		out := eval(t, `val = `+tmpl)
+		assert.Equal(t, tmpl, out, "a directive template on the structural path is emitted verbatim")
+		requireValidHCL(t, out)
+	})
+
+	t.Run("if directive with a deferred condition stays verbatim and valid", func(t *testing.T) {
+		t.Parallel()
+
+		tmpl := `"prefix-%{ if dependency.vpc.outputs.ready }yes%{ endif }"`
+		out := eval(t, `val = `+tmpl)
+		assert.Equal(t, tmpl, out)
+		requireValidHCL(t, out)
+	})
+
+	t.Run("if directive with a deferred body stays verbatim and valid", func(t *testing.T) {
+		t.Parallel()
+
+		tmpl := `"%{ if local.flag }${dependency.vpc.outputs.id}%{ endif }"`
+		out := eval(t, `val = `+tmpl)
+		assert.Equal(t, tmpl, out)
+		requireValidHCL(t, out)
+	})
+
+	t.Run("genuine conditional interpolation with a deferred condition is not mistaken for a directive", func(t *testing.T) {
+		t.Parallel()
+
+		out := eval(t, `val = "v-${dependency.vpc.outputs.ready ? local.env : "b"}"`)
+		assert.Equal(t, `"v-${dependency.vpc.outputs.ready ? "production" : "b"}"`, out,
+			"a real ${cond ? a : b} part keeps its interpolation wrapping while its pure arms render")
+		requireValidHCL(t, out)
+	})
+
+	t.Run("genuine conditional interpolation with a deferred arm is not mistaken for a directive", func(t *testing.T) {
+		t.Parallel()
+
+		out := eval(t, `val = "v-${!local.flag ? local.env : dependency.vpc.outputs.id}"`)
+		assert.Equal(t, `"v-${dependency.vpc.outputs.id}"`, out,
+			"a real conditional part collapses to its chosen branch instead of being emitted as a directive")
+		requireValidHCL(t, out)
+	})
+
+	t.Run("pure interpolation resolves next to a deferred directive", func(t *testing.T) {
+		t.Parallel()
+
+		out := eval(t, `val = "${local.env}-%{ if dependency.vpc.outputs.ready }yes%{ endif }"`)
+		assert.Equal(t, `"production-%{ if dependency.vpc.outputs.ready }yes%{ endif }"`, out,
+			"the stack local renders while the directive stays verbatim as a unit")
+		requireValidHCL(t, out)
+	})
+
+	t.Run("pure directive template resolves on the fast path", func(t *testing.T) {
+		t.Parallel()
+
+		out := eval(t, `val = "%{ for x in local.names }${x},%{ endfor }"`)
+		assert.Equal(t, `"a,b,"`, out, "a generate-time-knowable directive template resolves to its literal")
+	})
 }
 
 // buildEvalCtx creates an eval context with local.env = "production" and

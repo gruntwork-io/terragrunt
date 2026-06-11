@@ -78,10 +78,9 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 		return partialEvalFunctionCall(e, args)
 	case *hclsyntax.ObjectConsExpr:
 		return partialEvalObject(e, args)
-	// Reached only for an expression key (see objectKeyIsExpression) that references a deferred root or whose
-	// whole-key evaluation failed: resolvable sub-parts render while the deferred parts stay verbatim.
+	// Reached only for an expression key (see objectKeyIsExpression) that defers or failed whole-key evaluation.
 	case *hclsyntax.ObjectConsKeyExpr:
-		return PartialEval(e.Wrapped, args)
+		return partialEvalObjectKey(e, args)
 	case *hclsyntax.TupleConsExpr:
 		return partialEvalTuple(e, args)
 	case *hclsyntax.ConditionalExpr:
@@ -253,6 +252,13 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, err
 			}
 		}
 
+		// A %{ for }/%{ if } directive part spans its own markers and cannot be re-emitted inside ${...}, so it is emitted verbatim as a unit and resolves in the generated unit.
+		if directiveBytes, isDirective := templateDirectiveSource(part, args.SrcBytes); isDirective {
+			buf.Write(directiveBytes)
+
+			continue
+		}
+
 		// Deferred or eval failed: emit as interpolation.
 		buf.WriteString("${")
 
@@ -270,6 +276,32 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, err
 	return buf.Bytes(), firstErr
 }
 
+// templateDirectiveSource returns the verbatim source of a %{ for }/%{ if } directive part, or nil and false for any other template part. hclsyntax has no directive node, so detection is per synthesized type: only those two types can ever take the verbatim path, every other part keeps its ${...} wrapping.
+func templateDirectiveSource(part hclsyntax.Expression, src []byte) ([]byte, bool) {
+	srcBytes := RangeBytes(src, part.Range())
+	if len(srcBytes) == 0 {
+		return nil, false
+	}
+
+	switch part.(type) {
+	// A TemplateJoinExpr is synthesized only by a %{ for } directive.
+	case *hclsyntax.TemplateJoinExpr:
+		return srcBytes, true
+	// A %{ if } directive desugars to a ConditionalExpr that, unlike a genuine ${cond ? a : b} interpolation, spans its own directive markers and so does not re-parse as a standalone expression.
+	case *hclsyntax.ConditionalExpr:
+		return srcBytes, !isExpressionSource(srcBytes)
+	default:
+		return nil, false
+	}
+}
+
+// isExpressionSource reports whether src parses as a standalone HCL expression; an interpolation part does (its range is exactly the inner expression) while a directive part does not (its range spans the directive markers).
+func isExpressionSource(src []byte) bool {
+	_, diags := hclsyntax.ParseExpression(src, "", hcl.Pos{Line: 1, Column: 1})
+
+	return !diags.HasErrors()
+}
+
 // HCLStringContent returns the inner content of an HCL-escaped string
 // (without surrounding quotes). Uses hclwrite.TokensForValue for correct
 // escaping of all HCL special characters.
@@ -281,8 +313,7 @@ func HCLStringContent(s string) []byte {
 }
 
 func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) ([]byte, error) {
-	// Stitch the value expressions plus any expression keys (interpolated, function call, or parenthesized);
-	// a literal-name key stays verbatim from the source like the `=` + `,` + braces.
+	// Stitch the value expressions plus any expression keys; a literal-name key stays verbatim from the source like the `=` + `,` + braces.
 	children := make([]hclsyntax.Expression, 0, len(e.Items))
 
 	for _, item := range e.Items {
@@ -296,11 +327,7 @@ func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) ([]byte, err
 	return partialEvalChildren(args, e.Range(), children)
 }
 
-// objectKeyIsExpression reports whether an object key is evaluated as an expression by HCL (an interpolated
-// template, a function call, or a parenthesized key) and so participates in partial evaluation. A naked
-// identifier or keyword key behaves as a literal string (mirrors ObjectConsKeyExpr's literal-name detection),
-// and a naked multi-step traversal key (a.b = ...) is ambiguous HCL that must keep its source form so the
-// ambiguity error surfaces where the object is evaluated, instead of silently resolving as a reference.
+// objectKeyIsExpression reports whether HCL evaluates an object key as an expression (interpolated template, function call, or parenthesized key); a naked identifier or keyword key is a literal string (mirrors ObjectConsKeyExpr's literal-name detection) and a naked multi-step traversal key keeps its source form so HCL's ambiguity error surfaces where the object is evaluated.
 func objectKeyIsExpression(keyExpr hclsyntax.Expression) bool {
 	key, ok := keyExpr.(*hclsyntax.ObjectConsKeyExpr)
 	if !ok {
@@ -321,6 +348,21 @@ func objectKeyIsExpression(keyExpr hclsyntax.Expression) bool {
 	}
 
 	return true
+}
+
+// partialEvalObjectKey renders an expression key that defers or failed whole-key evaluation; a single-interpolation key (TemplateWrapExpr) re-emits its "${...}" wrapper around the partially evaluated inner expression, because the naked inner expression changes meaning in key position (ambiguous or literal-string HCL).
+func partialEvalObjectKey(e *hclsyntax.ObjectConsKeyExpr, args *EvalArgs) ([]byte, error) {
+	wrap, ok := e.Wrapped.(*hclsyntax.TemplateWrapExpr)
+	if !ok {
+		return PartialEval(e.Wrapped, args)
+	}
+
+	inner, err := PartialEval(wrap.Wrapped, args)
+
+	out := append([]byte(`"${`), inner...)
+	out = append(out, '}', '"')
+
+	return out, err
 }
 
 func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) ([]byte, error) {

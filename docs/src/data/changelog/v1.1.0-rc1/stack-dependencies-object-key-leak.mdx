@@ -5,6 +5,6 @@ category: "experiments-updated"
 
 #### `stack-dependencies`: resolve interpolated object keys in autoinclude blocks
 
-An interpolated object key inside an `autoinclude` block (for example `{ "${local.prefix}_key" = ... }`) now
-resolves at `terragrunt stack generate` time even when the object's value references `dependency.*`. Previously
-the key was emitted verbatim into the generated unit, leaking a stack-level reference that does not exist there.
+`terragrunt stack generate` now resolves interpolated object keys in `autoinclude` blocks (for example
+`{ "${local.prefix}_key" = ... }`), even when the value references `dependency.*`. Previously the generated
+unit kept the key verbatim, leaking a stack-only reference that is not valid in the unit scope.
