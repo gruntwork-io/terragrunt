@@ -31,6 +31,7 @@ type GCPSessionConfig struct {
 	AccessToken                        string
 	ImpersonateServiceAccount          string
 	ImpersonateServiceAccountDelegates []string
+	StorageCustomEndpoint              string
 }
 
 // GCPConfigBuilder constructs GCP client options using the builder pattern.
@@ -132,6 +133,10 @@ func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, er
 		}
 
 		clientOpts = []option.ClientOption{option.WithTokenSource(ts)}
+	}
+
+	if gcpCfg != nil && gcpCfg.StorageCustomEndpoint != "" {
+		clientOpts = append(clientOpts, option.WithEndpoint(gcpCfg.StorageCustomEndpoint))
 	}
 
 	return clientOpts, nil
