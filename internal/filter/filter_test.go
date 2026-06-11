@@ -48,99 +48,65 @@ func TestFilter_ParseAndEvaluate(t *testing.T) {
 			name:         "simple name filter",
 			filterString: "app1",
 			expected: component.Components{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				testComponents[0],
 			},
 		},
 		{
 			name:         "attribute filter",
 			filterString: "name=db",
 			expected: component.Components{
-				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				testComponents[3],
 			},
 		},
 		{
 			name:         "path filter with wildcard",
 			filterString: "./apps/*",
 			expected: component.Components{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				testComponents[0],
+				testComponents[1],
+				testComponents[2],
 			},
 		},
 		{
 			name:         "negated filter",
 			filterString: "!legacy",
 			expected: component.Components{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./services/web").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./services/worker").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				testComponents[0],
+				testComponents[1],
+				testComponents[3],
+				testComponents[4],
+				testComponents[5],
+				testComponents[6],
 			},
 		},
 		{
 			name:         "intersection of path and name",
 			filterString: "./apps/* | app1",
 			expected: component.Components{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				testComponents[0],
 			},
 		},
 		{
 			name:         "intersection with negation",
 			filterString: "./apps/* | !legacy",
 			expected: component.Components{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				testComponents[0],
+				testComponents[1],
 			},
 		},
 		{
 			name:         "chained intersections",
 			filterString: "./apps/* | !legacy | app1",
 			expected: component.Components{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				testComponents[0],
 			},
 		},
 		{
 			name:         "recursive wildcard",
 			filterString: "./services/**",
 			expected: component.Components{
-				component.NewUnit("./services/web").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./services/worker").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				testComponents[5],
+				testComponents[6],
 			},
 		},
 		{
@@ -207,9 +173,7 @@ func TestFilter_Apply(t *testing.T) {
 			filterString: "app1",
 			components:   testComponents,
 			expected: component.Components{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				testComponents[0],
 			},
 		},
 		{
@@ -217,12 +181,8 @@ func TestFilter_Apply(t *testing.T) {
 			filterString: "./libs/*",
 			components:   testComponents,
 			expected: component.Components{
-				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				testComponents[3],
+				testComponents[4],
 			},
 		},
 		{
@@ -397,12 +357,8 @@ func TestFilter_EdgeCasesAndErrorHandling(t *testing.T) {
 		}
 
 		expected := component.Components{
-			component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-				WorkingDir: ".",
-			}),
-			component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
-				WorkingDir: ".",
-			}),
+			testComponents[0],
+			testComponents[1],
 		}
 
 		for _, tt := range tests {

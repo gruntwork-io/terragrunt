@@ -146,15 +146,9 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := component.Components{
-			component.NewUnit("./apps/app1"),
-			component.NewUnit("./apps/app2"),
-			component.NewUnit("./apps/legacy"),
-		}
-
-		for _, c := range expected {
-			c.SetDiscoveryContext(&component.DiscoveryContext{
-				WorkingDir: ".",
-			})
+			components[0],
+			components[1],
+			components[2],
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -171,14 +165,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := component.Components{
-			component.NewUnit("./apps/app1"),
-			component.NewUnit("./libs/db"),
-		}
-
-		for _, c := range expected {
-			c.SetDiscoveryContext(&component.DiscoveryContext{
-				WorkingDir: ".",
-			})
+			components[0],
+			components[3],
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -195,15 +183,9 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := component.Components{
-			component.NewUnit("./apps/app1"),
-			component.NewUnit("./apps/app2"),
-			component.NewUnit("./apps/legacy"),
-		}
-
-		for _, c := range expected {
-			c.SetDiscoveryContext(&component.DiscoveryContext{
-				WorkingDir: ".",
-			})
+			components[0],
+			components[1],
+			components[2],
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -222,14 +204,8 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := component.Components{
-			component.NewUnit("./apps/app1"),
-			component.NewUnit("./apps/app2"),
-		}
-
-		for _, c := range expected {
-			c.SetDiscoveryContext(&component.DiscoveryContext{
-				WorkingDir: ".",
-			})
+			components[0],
+			components[1],
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -246,13 +222,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := component.Components{
-			component.NewUnit("./apps/app1"),
-		}
-
-		for _, c := range expected {
-			c.SetDiscoveryContext(&component.DiscoveryContext{
-				WorkingDir: ".",
-			})
+			components[0],
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -269,15 +239,9 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := component.Components{
-			component.NewUnit("./apps/app1"),
-			component.NewUnit("./apps/app2"),
-			component.NewUnit("./libs/api"),
-		}
-
-		for _, c := range expected {
-			c.SetDiscoveryContext(&component.DiscoveryContext{
-				WorkingDir: ".",
-			})
+			components[0],
+			components[1],
+			components[4],
 		}
 
 		assert.ElementsMatch(t, expected, result)
@@ -299,15 +263,9 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := component.Components{
-			component.NewUnit("./apps/app1"),
-			component.NewUnit("./apps/app2"),
-			component.NewUnit("./libs/db"),
-		}
-
-		for _, c := range expected {
-			c.SetDiscoveryContext(&component.DiscoveryContext{
-				WorkingDir: ".",
-			})
+			components[0],
+			components[1],
+			components[3],
 		}
 
 		assert.ElementsMatch(t, expected, result)

@@ -40,18 +40,24 @@ func NewStack(path string) *Stack {
 
 // WithDiscoveryContext sets the discovery context for this stack.
 func (s *Stack) WithDiscoveryContext(ctx *DiscoveryContext) *Stack {
-	s.discoveryContext = ctx
+	s.SetDiscoveryContext(ctx)
 
 	return s
 }
 
 // Config returns the parsed Stack configuration for this stack.
 func (s *Stack) Config() *config.StackConfig {
+	s.rLock()
+	defer s.rUnlock()
+
 	return s.cfg
 }
 
 // StoreConfig stores the parsed Stack configuration for this stack.
 func (s *Stack) StoreConfig(cfg *config.StackConfig) {
+	s.lock()
+	defer s.unlock()
+
 	s.cfg = cfg
 }
 
@@ -73,11 +79,12 @@ func (s *Stack) SetPath(path string) {
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
 // Falls back to the original path if relative path calculation fails or WorkingDir is empty.
 func (s *Stack) DisplayPath() string {
-	if s.discoveryContext == nil || s.discoveryContext.WorkingDir == "" {
+	dCtx := s.DiscoveryContext()
+	if dCtx == nil || dCtx.WorkingDir == "" {
 		return s.path
 	}
 
-	if rel, err := filepath.Rel(s.discoveryContext.WorkingDir, s.path); err == nil {
+	if rel, err := filepath.Rel(dCtx.WorkingDir, s.path); err == nil {
 		return rel
 	}
 
@@ -86,21 +93,33 @@ func (s *Stack) DisplayPath() string {
 
 // External returns whether the component is external.
 func (s *Stack) External() bool {
+	s.rLock()
+	defer s.rUnlock()
+
 	return s.external
 }
 
 // SetExternal marks the component as external.
 func (s *Stack) SetExternal() {
+	s.lock()
+	defer s.unlock()
+
 	s.external = true
 }
 
 // Reading returns the list of files being read by this component.
 func (s *Stack) Reading() []string {
+	s.rLock()
+	defer s.rUnlock()
+
 	return s.reading
 }
 
 // SetReading sets the list of files being read by this component.
 func (s *Stack) SetReading(files ...string) {
+	s.lock()
+	defer s.unlock()
+
 	s.reading = files
 }
 
@@ -118,21 +137,28 @@ func (s *Stack) ConfigFile() string {
 
 // DiscoveryContext returns the discovery context for this component.
 func (s *Stack) DiscoveryContext() *DiscoveryContext {
+	s.rLock()
+	defer s.rUnlock()
+
 	return s.discoveryContext
 }
 
 // SetDiscoveryContext sets the discovery context for this component.
 func (s *Stack) SetDiscoveryContext(ctx *DiscoveryContext) {
+	s.lock()
+	defer s.unlock()
+
 	s.discoveryContext = ctx
 }
 
 // Origin returns the origin of the discovery context for this component.
 func (s *Stack) Origin() Origin {
-	if s.discoveryContext == nil {
+	dCtx := s.DiscoveryContext()
+	if dCtx == nil {
 		return OriginUnknown
 	}
 
-	return s.discoveryContext.Origin()
+	return dCtx.Origin()
 }
 
 // lock locks the Stack.
@@ -229,8 +255,8 @@ func (s *Stack) String() string {
 	sort.Strings(units)
 
 	workingDir := s.path
-	if s.discoveryContext != nil && s.discoveryContext.WorkingDir != "" {
-		workingDir = s.discoveryContext.WorkingDir
+	if dCtx := s.DiscoveryContext(); dCtx != nil && dCtx.WorkingDir != "" {
+		workingDir = dCtx.WorkingDir
 	}
 
 	return fmt.Sprintf("Stack at %s:\n%s", workingDir, strings.Join(units, "\n"))

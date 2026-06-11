@@ -629,16 +629,41 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	unit, ok := candidate.(*component.Unit)
+	if _, ok := candidate.(*component.Unit); !ok {
+		return nil
+	}
+
+	graphState := state.graphTraversalState
+
+	// Canonicalize before parsing so the config cached on the canonical Unit is
+	// reused across all graph targets, instead of re-parsing a fresh copy of
+	// every walked config once per target.
+	canonicalCandidate, created := graphState.threadSafeComponents.EnsureComponent(candidate)
+	if created {
+		if dCtx := state.target.DiscoveryContext(); dCtx != nil {
+			canonicalCandidate.SetDiscoveryContext(graphDiscoveryContext(dCtx))
+		}
+	}
+
+	unit, ok := canonicalCandidate.(*component.Unit)
 	if !ok {
 		return nil
 	}
 
-	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
-	graphState := state.graphTraversalState
+	// The walk found the actual config file on disk, while a canonical created
+	// earlier from a dependency path only guessed the default filename. Align
+	// the canonical before parsing so the discovered file is the one parsed.
+	if !created && unit.Config() == nil {
+		if walked, ok := candidate.(*component.Unit); ok &&
+			walked.ConfigFile() != "" && walked.ConfigFile() != unit.ConfigFile() {
+			unit.SetConfigFile(walked.ConfigFile())
+		}
+	}
 
-	if err := ensureParsed(ctx, l, candidate, graphState.opts, graphState.discovery); err != nil {
-		if !state.graphTraversalState.discovery.suppressParseErrors {
+	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
+
+	if err := ensureParsed(ctx, l, canonicalCandidate, graphState.opts, graphState.discovery); err != nil {
+		if !graphState.discovery.suppressParseErrors {
 			state.errMu.Lock()
 
 			*state.errs = append(*state.errs, err)
@@ -651,7 +676,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	cfg := unit.Config()
 
-	deps, err := extractDependencyPaths(cfg, candidate)
+	deps, err := extractDependencyPaths(cfg, canonicalCandidate)
 	if err != nil {
 		state.errMu.Lock()
 
@@ -664,7 +689,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	var stackErr error
 
-	deps, stackErr = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.graphTraversalState.opts, deps)
+	deps, stackErr = stackDependencyPaths(ctx, l, vfs.NewOSFS(), graphState.opts, deps)
 	if stackErr != nil {
 		state.errMu.Lock()
 		*state.errs = append(*state.errs, stackErr)
@@ -673,31 +698,13 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	canonicalCandidate, created := state.graphTraversalState.threadSafeComponents.EnsureComponent(candidate)
-	if created {
-		dCtx := state.target.DiscoveryContext()
-		if dCtx != nil {
-			copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
-
-			// Clear the Ref and related args for graph-discovered components.
-			// They shouldn't inherit the git ref from the target, as this would
-			// cause them to match git filters and become targets themselves.
-			copiedCtx.Ref = ""
-			copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-				return arg == "-destroy"
-			})
-
-			canonicalCandidate.SetDiscoveryContext(copiedCtx)
-		}
-	}
-
 	dependsOnTarget := false
+	parentCtx := canonicalCandidate.DiscoveryContext()
 
 	for _, dep := range deps {
-		depComponent := componentFromDependencyPath(dep, state.graphTraversalState.threadSafeComponents)
-		depComponent, _ = state.graphTraversalState.threadSafeComponents.EnsureComponent(depComponent)
+		depComponent := componentFromDependencyPath(dep, graphState.threadSafeComponents)
+		depComponent, _ = graphState.threadSafeComponents.EnsureComponent(depComponent)
 
-		parentCtx := canonicalCandidate.DiscoveryContext()
 		if parentCtx != nil && isExternal(parentCtx.WorkingDir, dep) {
 			if ext, ok := depComponent.(*component.Unit); ok {
 				ext.SetExternal()
@@ -759,17 +766,7 @@ func (p *GraphPhase) resolveDependency(
 
 	addedComponent, created := threadSafeComponents.EnsureComponent(depComponent)
 	if created {
-		copiedCtx := parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
-
-		// Clear the Ref and related args for graph-discovered dependencies.
-		// They shouldn't inherit the git ref from the parent, as this would
-		// cause them to match git filters and become targets themselves.
-		copiedCtx.Ref = ""
-		copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-			return arg == "-destroy"
-		})
-
-		depComponent.SetDiscoveryContext(copiedCtx)
+		depComponent.SetDiscoveryContext(graphDiscoveryContext(parentCtx))
 	}
 
 	if isExternal(parentCtx.WorkingDir, depPath) {
@@ -781,4 +778,19 @@ func (p *GraphPhase) resolveDependency(
 	parent.AddDependency(addedComponent)
 
 	return addedComponent, nil
+}
+
+// graphDiscoveryContext copies dCtx for a graph-discovered component.
+// The Ref and related args are cleared: graph-discovered components shouldn't
+// inherit the git ref from the component that led to them, as this would cause
+// them to match git filters and become targets themselves.
+func graphDiscoveryContext(dCtx *component.DiscoveryContext) *component.DiscoveryContext {
+	copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
+
+	copiedCtx.Ref = ""
+	copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
+		return arg == "-destroy"
+	})
+
+	return copiedCtx
 }

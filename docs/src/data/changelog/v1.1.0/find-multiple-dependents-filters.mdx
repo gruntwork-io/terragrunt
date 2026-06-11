@@ -1,0 +1,16 @@
+---
+version: "v1.1.0"
+category: "performance-improvements"
+---
+
+#### `find`: constant-time evaluation of multiple dependents filters
+
+Running `terragrunt find` with many `...<unit>` dependents filters re-parsed every discovered configuration once per filter, so runtime grew linearly with the number of filters:
+
+```bash
+terragrunt find --filter '...units/a' --filter '...units/b' --filter '...units/c'
+```
+
+On large repositories this added roughly the cost of a full discovery per filter (e.g., ~5–6s per filter on an 814-unit repository, adding up to over half an hour for CI invocations passing hundreds of filters).
+
+Discovery now reuses parsed configurations across all filter targets, so passing many dependents filters in one invocation costs roughly the same as passing one. Results are unchanged.
