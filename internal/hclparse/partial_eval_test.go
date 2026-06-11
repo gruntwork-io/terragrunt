@@ -152,6 +152,26 @@ func TestPartialEval(t *testing.T) {
 			excludes: []string{"local.count"},
 		},
 		{
+			// Regression: a number-literal interpolation (${0}) in a template that takes the structural path
+			// (it references dependency.*) must not panic; the literal renders and the dependency stays verbatim.
+			name:     "number literal interpolation with deferred",
+			hcl:      `val = "${0}-${dependency.vpc.outputs.id}"`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`"0-${dependency.vpc.outputs.id}"`},
+		},
+		{
+			name:     "bool literal interpolation with deferred",
+			hcl:      `val = "${true}-${dependency.vpc.outputs.id}"`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`"true-${dependency.vpc.outputs.id}"`},
+		},
+		{
+			name:     "float literal interpolation with deferred",
+			hcl:      `val = "${1.5}-${dependency.vpc.outputs.id}"`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`"1.5-${dependency.vpc.outputs.id}"`},
+		},
+		{
 			name:     "parentheses pure inner",
 			hcl:      `val = (local.env)`,
 			evalCtx:  buildEvalCtx(),
