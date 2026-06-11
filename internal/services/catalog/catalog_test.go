@@ -10,7 +10,6 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -313,13 +312,12 @@ func TestLoad_PassesCASOptions(t *testing.T) {
 	testCases := []struct {
 		name         string
 		cloneDepth   int
-		enableCAS    bool
 		noCAS        bool
 		wantAllowCAS bool
 	}{
-		{name: "cas enabled", cloneDepth: 1, enableCAS: true, noCAS: false, wantAllowCAS: true},
-		{name: "no-cas flag disables cas", cloneDepth: 1, enableCAS: true, noCAS: true, wantAllowCAS: false},
-		{name: "custom clone depth", cloneDepth: 5, enableCAS: true, noCAS: false, wantAllowCAS: true},
+		{name: "cas enabled", cloneDepth: 1, noCAS: false, wantAllowCAS: true},
+		{name: "no-cas flag disables cas", cloneDepth: 1, noCAS: true, wantAllowCAS: false},
+		{name: "custom clone depth", cloneDepth: 5, noCAS: false, wantAllowCAS: true},
 	}
 
 	for _, tc := range testCases {
@@ -330,10 +328,6 @@ func TestLoad_PassesCASOptions(t *testing.T) {
 			opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 			opts.NoCAS = tc.noCAS
 			opts.CASCloneDepth = tc.cloneDepth
-
-			if tc.enableCAS {
-				require.NoError(t, opts.Experiments.EnableExperiment(experiment.CAS))
-			}
 
 			var gotRepoOpts module.RepoOpts
 
