@@ -542,6 +542,9 @@ func InitTestGitRunner(t *testing.T, tmpDir string) *git.GitRunner {
 	require.NoError(t, runner.Init(t.Context()))
 	require.NoError(t, runner.ConfigSet(t.Context(), "user.email", "test@example.com"))
 	require.NoError(t, runner.ConfigSet(t.Context(), "user.name", "Test User"))
+	// Local config outranks a host-level commit.gpgsign=true, which would
+	// otherwise sign every test commit and hang where signing prompts.
+	require.NoError(t, runner.ConfigSet(t.Context(), "commit.gpgsign", "false"))
 
 	return runner
 }

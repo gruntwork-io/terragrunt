@@ -62,7 +62,10 @@ func NewServer() (*Server, error) {
 	ctx := context.Background()
 	bareDir := filepath.Join(projectRoot, "repo.git")
 
-	if err := s.gitIn(ctx, projectRoot, "init", "--bare", bareDir); err != nil {
+	// `-b main` pins HEAD in both repos: pushes only ever create
+	// refs/heads/main, and a bare HEAD left at git's built-in default
+	// (master) would dangle, so clones and ls-remote would not see HEAD.
+	if err := s.gitIn(ctx, projectRoot, "init", "--bare", "-b", "main", bareDir); err != nil {
 		return nil, fmt.Errorf("init bare repo: %w", err)
 	}
 
@@ -74,13 +77,8 @@ func NewServer() (*Server, error) {
 		return nil, fmt.Errorf("create work dir: %w", err)
 	}
 
-	if err := s.gitIn(ctx, workDir, "init"); err != nil {
+	if err := s.gitIn(ctx, workDir, "init", "-b", "main"); err != nil {
 		return nil, fmt.Errorf("init work dir: %w", err)
-	}
-
-	// Set main regardless of the host's init.defaultBranch setting.
-	if err := s.gitIn(ctx, workDir, "symbolic-ref", "HEAD", "refs/heads/main"); err != nil {
-		return nil, fmt.Errorf("set default branch: %w", err)
 	}
 
 	if err := s.gitIn(ctx, workDir, "remote", "add", "origin", bareDir); err != nil {
@@ -223,18 +221,7 @@ func (s *Server) CommitFiles(ctx context.Context, files map[string][]byte, msg s
 
 // Head returns the canonical hash of the current HEAD commit.
 func (s *Server) Head(ctx context.Context) (string, error) {
-	var stdout, stderr strings.Builder
-
-	cmd := exec.CommandContext(ctx, s.gitPath, "rev-parse", "HEAD")
-	cmd.Dir = s.workDir
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("git rev-parse HEAD: %w\n%s", err, strings.TrimSpace(stderr.String()))
-	}
-
-	return strings.TrimSpace(stdout.String()), nil
+	return s.gitOut(ctx, s.workDir, "rev-parse", "HEAD")
 }
 
 // Tag creates a lightweight tag at the current HEAD with the given name.
@@ -249,15 +236,17 @@ func (s *Server) Tag(ctx context.Context, name string) error {
 
 // DeleteTag removes the named tag. It is a no-op when the tag does not exist.
 func (s *Server) DeleteTag(ctx context.Context, name string) error {
-	cmd := exec.CommandContext(ctx, s.gitPath, "tag", "-d", name)
-	cmd.Dir = s.bareDir
-
-	out, err := cmd.CombinedOutput()
-	if err != nil && !strings.Contains(string(out), "not found") {
-		return fmt.Errorf("git tag -d %s: %w\n%s", name, err, strings.TrimSpace(string(out)))
+	// `tag -l` exits zero either way; an empty listing is the no-op case.
+	tags, err := s.gitOut(ctx, s.bareDir, "tag", "-l", name)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	if tags == "" {
+		return nil
+	}
+
+	return s.gitIn(ctx, s.bareDir, "tag", "-d", name)
 }
 
 // Branch creates a branch at the current HEAD with the given name.
@@ -386,6 +375,11 @@ func (h *routingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Env: []string{
 			"GIT_PROJECT_ROOT=" + h.projectRoot,
 			"GIT_HTTP_EXPORT_ALL=1",
+			// Suppress host git config for the same reason gitCommand
+			// does: upload-pack behavior must not vary with developer
+			// settings.
+			"GIT_CONFIG_GLOBAL=" + os.DevNull,
+			"GIT_CONFIG_NOSYSTEM=1",
 		},
 	}).ServeHTTP(w, r2)
 }
@@ -415,15 +409,40 @@ func (s *Server) push(ctx context.Context) error {
 // gitIn runs a git command with Dir set to dir, returning a formatted error
 // that includes the combined output on failure.
 func (s *Server) gitIn(ctx context.Context, dir string, args ...string) error {
-	cmd := exec.CommandContext(ctx, s.gitPath, args...)
-	cmd.Dir = dir
-
-	out, err := cmd.CombinedOutput()
+	out, err := s.gitCommand(ctx, dir, args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 
 	return nil
+}
+
+// gitOut runs a git command like [Server.gitIn] but returns its trimmed
+// stdout.
+func (s *Server) gitOut(ctx context.Context, dir string, args ...string) (string, error) {
+	var stdout, stderr strings.Builder
+
+	cmd := s.gitCommand(ctx, dir, args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+// gitCommand builds a git command rooted at dir with the host's global and
+// system git config suppressed, so server behavior cannot vary with developer
+// settings such as init.defaultBranch, commit.gpgsign, or core.hooksPath.
+func (s *Server) gitCommand(ctx context.Context, dir string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, s.gitPath, args...)
+	cmd.Dir = dir
+
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1")
+
+	return cmd
 }
 
 // appendGitmodules appends a submodule section for path and url to
