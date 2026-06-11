@@ -827,10 +827,9 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	//
 	// A stack-level autoinclude file (terragrunt.autoinclude.stack.hcl) is a stack-file
 	// fragment holding unit and stack blocks, so it decodes through the same stack parsing
-	// path; the strict unit decode below would reject those blocks. Routing is gated on the
-	// experiment that introduces the file so behavior without it is unchanged.
+	// path; the strict unit decode below would reject those blocks.
 	targetBase := filepath.Base(targetConfig)
-	isStackAutoIncludeFile := targetBase == DefaultAutoIncludeStackFile && pctx.Experiments.Evaluate(experiment.StackDependencies)
+	isStackAutoIncludeFile := targetBase == DefaultAutoIncludeStackFile
 
 	if targetBase == DefaultStackFile || isStackAutoIncludeFile {
 		stackSourceDir := filepath.Dir(targetConfig)

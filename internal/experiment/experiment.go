@@ -130,7 +130,8 @@ func NewExperiments() Experiments {
 			Name: DAGQueueDisplay,
 		},
 		{
-			Name: StackDependencies,
+			Name:   StackDependencies,
+			Status: StatusCompleted,
 		},
 		{
 			Name: CatalogRedesign,
