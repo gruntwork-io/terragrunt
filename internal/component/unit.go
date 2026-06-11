@@ -188,6 +188,11 @@ func (u *Unit) Sources() []string {
 }
 
 // DiscoveryContext returns the discovery context for this component.
+//
+// The returned context must be treated as read-only once the component is
+// shared across goroutines: the lock guards the pointer, not the pointed-to
+// struct. Use Copy or CopyWithNewOrigin to derive a modified context and
+// publish it via SetDiscoveryContext.
 func (u *Unit) DiscoveryContext() *DiscoveryContext {
 	u.rLock()
 	defer u.rUnlock()
@@ -196,6 +201,9 @@ func (u *Unit) DiscoveryContext() *DiscoveryContext {
 }
 
 // SetDiscoveryContext sets the discovery context for this component.
+//
+// The context must not be mutated after it is published here; derive a copy
+// first if changes are needed (see DiscoveryContext).
 func (u *Unit) SetDiscoveryContext(ctx *DiscoveryContext) {
 	u.lock()
 	defer u.unlock()

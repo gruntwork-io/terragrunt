@@ -136,6 +136,11 @@ func (s *Stack) ConfigFile() string {
 }
 
 // DiscoveryContext returns the discovery context for this component.
+//
+// The returned context must be treated as read-only once the component is
+// shared across goroutines: the lock guards the pointer, not the pointed-to
+// struct. Use Copy or CopyWithNewOrigin to derive a modified context and
+// publish it via SetDiscoveryContext.
 func (s *Stack) DiscoveryContext() *DiscoveryContext {
 	s.rLock()
 	defer s.rUnlock()
@@ -144,6 +149,9 @@ func (s *Stack) DiscoveryContext() *DiscoveryContext {
 }
 
 // SetDiscoveryContext sets the discovery context for this component.
+//
+// The context must not be mutated after it is published here; derive a copy
+// first if changes are needed (see DiscoveryContext).
 func (s *Stack) SetDiscoveryContext(ctx *DiscoveryContext) {
 	s.lock()
 	defer s.unlock()
