@@ -1,6 +1,6 @@
 ---
 name: no-discovery-auth-provider-cmd
-description: Skip running --auth-provider-cmd during the discovery phase. Requires the opt-out-auth experiment.
+description: Skip running --auth-provider-cmd during the discovery phase.
 lookup: true
 type: boolean
 env:
@@ -9,10 +9,13 @@ since: "v1.0.6"
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
 
+<Before version="1.1.0">
 <Aside type="tip" title="Experimental">
 This flag is gated behind the [`opt-out-auth`](/reference/experiments/active#opt-out-auth) experiment. Enable it with `--experiment=opt-out-auth` (or `TG_EXPERIMENT=opt-out-auth`); otherwise setting `--no-discovery-auth-provider-cmd` returns an error. The flag's behavior may change while the experiment is in progress.
 </Aside>
+</Before>
 
 Skip running `--auth-provider-cmd` during the discovery phase.
 

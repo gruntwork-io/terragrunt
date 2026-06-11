@@ -64,8 +64,9 @@ const (
 	AzureBackend = "azure-backend"
 	// DeepMerge enables the deep_merge HCL function.
 	DeepMerge = "deep-merge"
-	// OptOutAuth gates flags that opt out of running --auth-provider-cmd in
-	// specific phases (currently --no-discovery-auth-provider-cmd).
+	// OptOutAuth names the now-stable flags that opt out of running
+	// --auth-provider-cmd in specific phases. The
+	// --no-discovery-auth-provider-cmd flag is enabled by default.
 	OptOutAuth = "opt-out-auth"
 	// HookContextEnv exposes additional TG_CTX_* environment variables to hook
 	// scripts: TG_CTX_HOOK_TYPE, TG_CTX_SOURCE, and TG_CTX_TERRAGRUNT_DIR.
@@ -148,7 +149,8 @@ func NewExperiments() Experiments {
 			Name: DeepMerge,
 		},
 		{
-			Name: OptOutAuth,
+			Name:   OptOutAuth,
+			Status: StatusCompleted,
 		},
 		{
 			Name: HookContextEnv,
