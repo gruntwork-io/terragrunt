@@ -7,20 +7,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	gogit "github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
 func TestNewWorktrees(t *testing.T) {
@@ -28,43 +23,9 @@ func TestNewWorktrees(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
-
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Second commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
+	require.NoError(t, runner.Commit(t.Context(), "Second commit", "--allow-empty"))
 
 	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
@@ -90,33 +51,8 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize Git repository
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
-
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -239,33 +175,8 @@ func TestExpressionExpansion(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner(vexec.NewOSExec())
-			require.NoError(t, err)
-
-			runner = runner.WithWorkDir(tmpDir)
-
-			err = runner.Init(t.Context())
-			require.NoError(t, err)
-
-			err = runner.GoOpenRepo()
-			require.NoError(t, err)
-
-			t.Cleanup(func() {
-				err = runner.GoCloseStorage()
-				if err != nil {
-					t.Logf("Error closing storage: %s", err)
-				}
-			})
-
-			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-				AllowEmptyCommits: true,
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
+			runner := helpers.InitTestGitRunner(t, tmpDir)
+			require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
 			wp := &worktrees.WorktreePair{
 				Diffs: tt.diffs,
@@ -386,33 +297,8 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner(vexec.NewOSExec())
-			require.NoError(t, err)
-
-			runner = runner.WithWorkDir(tmpDir)
-
-			err = runner.Init(t.Context())
-			require.NoError(t, err)
-
-			err = runner.GoOpenRepo()
-			require.NoError(t, err)
-
-			t.Cleanup(func() {
-				err = runner.GoCloseStorage()
-				if err != nil {
-					t.Logf("Error closing storage: %s", err)
-				}
-			})
-
-			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-				AllowEmptyCommits: true,
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
+			runner := helpers.InitTestGitRunner(t, tmpDir)
+			require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
 			wp := &worktrees.WorktreePair{
 				Diffs: tt.diffs,
@@ -692,34 +578,10 @@ func TestWorktreeCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize Git repository
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
+	runner := helpers.InitTestGitRunner(t, tmpDir)
 
 	for i := range 3 {
-		err = runner.GoCommit(fmt.Sprintf("Commit %d", i), &gogit.CommitOptions{
-			AllowEmptyCommits: true,
-			Author: &object.Signature{
-				Name:  "Test User",
-				Email: "test@example.com",
-				When:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Commit(t.Context(), fmt.Sprintf("Commit %d", i), "--allow-empty"))
 	}
 
 	opts := options.NewTerragruntOptions()

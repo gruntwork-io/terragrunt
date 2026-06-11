@@ -20,10 +20,10 @@ func startSubmoduleServer(t *testing.T, files map[string]string) (string, string
 	srv := newEmptyTestServer(t)
 
 	for path, content := range files {
-		require.NoError(t, srv.CommitFile(path, []byte(content), "add "+path))
+		require.NoError(t, srv.CommitFile(t.Context(), path, []byte(content), "add "+path))
 	}
 
-	head, err := srv.Head()
+	head, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
 	url, err := srv.Start(t.Context())
@@ -41,8 +41,8 @@ func TestCAS_CloneRepoWithSubmodule(t *testing.T) {
 	})
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("main.tf", []byte(`# parent`), "add main.tf"))
-	require.NoError(t, srv.CommitSubmodule("modules/child", subURL, subHead, "add submodule"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte(`# parent`), "add main.tf"))
+	require.NoError(t, srv.CommitSubmodule(t.Context(), "modules/child", subURL, subHead, "add submodule"))
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
@@ -98,18 +98,20 @@ func TestCAS_CloneRepoWithNestedSubmodules(t *testing.T) {
 	})
 
 	childSrv := newEmptyTestServer(t)
-	require.NoError(t, childSrv.CommitFile("module.tf", []byte(`# child`), "add module.tf"))
-	require.NoError(t, childSrv.CommitSubmodule("vendor/leaf", grandchildURL, grandchildHead, "add grandchild"))
+	require.NoError(t, childSrv.CommitFile(t.Context(), "module.tf", []byte(`# child`), "add module.tf"))
+	require.NoError(t, childSrv.CommitSubmodule(
+		t.Context(), "vendor/leaf", grandchildURL, grandchildHead, "add grandchild",
+	))
 
-	childHead, err := childSrv.Head()
+	childHead, err := childSrv.Head(t.Context())
 	require.NoError(t, err)
 
 	childURL, err := childSrv.Start(t.Context())
 	require.NoError(t, err)
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("main.tf", []byte(`# parent`), "add main.tf"))
-	require.NoError(t, srv.CommitSubmodule("modules/child", childURL, childHead, "add child"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte(`# parent`), "add main.tf"))
+	require.NoError(t, srv.CommitSubmodule(t.Context(), "modules/child", childURL, childHead, "add child"))
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
@@ -143,12 +145,12 @@ func TestCAS_CloneRepoWithUnregisteredGitlink(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("main.tf", []byte(`# parent`), "add main.tf"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte(`# parent`), "add main.tf"))
 
 	// The pinned hash is never fetched, so any well-formed SHA works.
 	const danglingHash = "0123456789abcdef0123456789abcdef01234567"
 
-	require.NoError(t, srv.CommitSubmodule("vendor/orphan", "", danglingHash, "add orphan gitlink"))
+	require.NoError(t, srv.CommitSubmodule(t.Context(), "vendor/orphan", "", danglingHash, "add orphan gitlink"))
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
@@ -186,16 +188,16 @@ func TestCAS_CloneSubmoduleWithRelativeURL(t *testing.T) {
 	t.Parallel()
 
 	childSrv := newEmptyTestServer(t)
-	require.NoError(t, childSrv.CommitFile("module.tf", []byte(`# child module`), "add module.tf"))
+	require.NoError(t, childSrv.CommitFile(t.Context(), "module.tf", []byte(`# child module`), "add module.tf"))
 
-	childHead, err := childSrv.Head()
+	childHead, err := childSrv.Head(t.Context())
 	require.NoError(t, err)
 
 	srv := newEmptyTestServer(t)
 	srv.Mount("/child.git", childSrv)
 
-	require.NoError(t, srv.CommitFile("main.tf", []byte(`# parent`), "add main.tf"))
-	require.NoError(t, srv.CommitSubmodule("modules/child", "../child.git", childHead, "add submodule"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte(`# parent`), "add main.tf"))
+	require.NoError(t, srv.CommitSubmodule(t.Context(), "modules/child", "../child.git", childHead, "add submodule"))
 
 	baseURL, err := srv.Start(t.Context())
 	require.NoError(t, err)

@@ -284,7 +284,7 @@ func TestGitRunner_FetchAndHasObject(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
 
-	require.NoError(t, srv.CommitFile("README.md", []byte("# test"), "initial"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# test"), "initial"))
 
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)

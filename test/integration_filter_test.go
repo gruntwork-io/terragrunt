@@ -8,18 +8,11 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	gogit "github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing"
-	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
 const (
@@ -723,30 +716,14 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
+	runner := helpers.InitTestGitRunner(t, tmpDir)
 
 	// Create three units initially
 	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
 	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
 	unitToBeUntouchedDir := filepath.Join(tmpDir, "unit-to-be-untouched")
 
-	err = os.MkdirAll(unitToBeModifiedDir, 0755)
+	err := os.MkdirAll(unitToBeModifiedDir, 0755)
 	require.NoError(t, err)
 
 	err = os.MkdirAll(unitToBeRemovedDir, 0755)
@@ -769,39 +746,17 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initial commit
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
-
-	head, err := runner.GoOpenRepoHead()
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
 	// If users don't have a default branch set, we'll make sure that the `main` branch exists
 	b, err := runner.Config(t.Context(), "init.defaultBranch")
 	if err != nil || b != "main" {
-		err = runner.GoCheckout(&gogit.CheckoutOptions{
-			Branch: plumbing.ReferenceName("refs/heads/main"),
-			Create: true,
-			Hash:   head.Hash(),
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Checkout(t.Context(), "main", true))
 	}
 
 	// We'll checkout a new branch so that we can compare against main in the filter-affected flag test
-	err = runner.GoCheckout(&gogit.CheckoutOptions{
-		Branch: plumbing.ReferenceName("refs/heads/filter-affected-test"),
-		Create: true,
-		Hash:   head.Hash(),
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Checkout(t.Context(), "filter-affected-test", true))
 
 	// Modify the unit to be modified
 	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit modified`), 0644)
@@ -822,17 +777,8 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 	// Do nothing to the unit to be untouched
 
 	// Commit the modification and removal in a single commit
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Create, modify, and remove units"))
 
 	// Clean up terraform folders before running
 	helpers.CleanupTerraformFolder(t, tmpDir)
@@ -892,27 +838,11 @@ func TestFilterFlagWithFindGitFilterRelativeInclude(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
+	runner := helpers.InitTestGitRunner(t, tmpDir)
 
 	// Create a root.hcl at the repo root that the nested unit will include
 	rootHCLPath := filepath.Join(tmpDir, "root.hcl")
-	err = os.WriteFile(rootHCLPath, []byte(`# Root config
+	err := os.WriteFile(rootHCLPath, []byte(`# Root config
 `), 0644)
 	require.NoError(t, err)
 
@@ -929,39 +859,17 @@ func TestFilterFlagWithFindGitFilterRelativeInclude(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initial commit on main
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
-
-	head, err := runner.GoOpenRepoHead()
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
 	// Ensure the main branch exists
 	b, err := runner.Config(t.Context(), "init.defaultBranch")
 	if err != nil || b != "main" {
-		err = runner.GoCheckout(&gogit.CheckoutOptions{
-			Branch: plumbing.ReferenceName("refs/heads/main"),
-			Create: true,
-			Hash:   head.Hash(),
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Checkout(t.Context(), "main", true))
 	}
 
 	// Create a feature branch
-	err = runner.GoCheckout(&gogit.CheckoutOptions{
-		Branch: plumbing.ReferenceName("refs/heads/relative-include-test"),
-		Create: true,
-		Hash:   head.Hash(),
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Checkout(t.Context(), "relative-include-test", true))
 
 	// Modify the nested unit
 	err = os.WriteFile(nestedUnitHCLPath, []byte(`include "root" {
@@ -972,17 +880,8 @@ func TestFilterFlagWithFindGitFilterRelativeInclude(t *testing.T) {
 `), 0644)
 	require.NoError(t, err)
 
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Modify nested unit", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Modify nested unit"))
 
 	helpers.CleanupTerraformFolder(t, tmpDir)
 
@@ -1036,23 +935,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner(vexec.NewOSExec())
-			require.NoError(t, err)
-
-			runner = runner.WithWorkDir(tmpDir)
-
-			err = runner.Init(t.Context())
-			require.NoError(t, err)
-
-			err = runner.GoOpenRepo()
-			require.NoError(t, err)
-
-			t.Cleanup(func() {
-				err = runner.GoCloseStorage()
-				if err != nil {
-					t.Logf("Error closing storage: %s", err)
-				}
-			})
+			runner := helpers.InitTestGitRunner(t, tmpDir)
 
 			// Create three units initially using helper
 			unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
@@ -1064,20 +947,11 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 			_ = createTestUnit(t, unitToBeUntouchedDir, `# Unit to be untouched`)
 
 			// Initial commit
-			err = runner.GoAdd(".")
-			require.NoError(t, err)
-
-			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
 			// Modify the unit to be modified
-			err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit modified`), 0644)
+			err := os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit modified`), 0644)
 			require.NoError(t, err)
 
 			// Remove the unit to be removed (delete the directory)
@@ -1091,17 +965,8 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 			// Do nothing to the unit to be untouched
 
 			// Commit the modification and removal in a single commit
-			err = runner.GoAdd(".")
-			require.NoError(t, err)
-
-			err = runner.GoCommit("Create, modify, and remove units", &gogit.CommitOptions{
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Create, modify, and remove units"))
 
 			// Run terragrunt run --all --filter with git filter
 			// Note: We use 'plan' command which should work even without terraform init
@@ -1222,26 +1087,10 @@ func TestFilterFlagWithRunAllGitFilterRemovedUnitDestroyFlag(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
+	runner := helpers.InitTestGitRunner(t, tmpDir)
 
 	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
-	err = os.MkdirAll(unitToBeRemovedDir, 0755)
+	err := os.MkdirAll(unitToBeRemovedDir, 0755)
 	require.NoError(t, err)
 
 	terragruntHCL := `# Unit to be removed
@@ -1261,17 +1110,8 @@ terraform {
 	err = os.WriteFile(filepath.Join(unitToBeRemovedDir, "main.tf"), []byte(mainTF), 0644)
 	require.NoError(t, err)
 
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Initial commit with unit", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit with unit"))
 
 	// Apply the unit so that it shows up in state first.
 	cmd := "terragrunt run --non-interactive --all --no-color --report-file report.json --working-dir " + tmpDir + " -- apply"
@@ -1293,22 +1133,14 @@ terraform {
 	err = os.RemoveAll(unitToBeRemovedDir)
 	require.NoError(t, err)
 
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Remove unit", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Remove unit"))
 
 	cmd = "terragrunt run --non-interactive --all --no-color --working-dir " + tmpDir +
 		" --filter '[HEAD~1]' --filter-allow-destroy -- plan"
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
 
 	combinedOutput := stdout + stderr
 
@@ -1384,57 +1216,23 @@ func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
 			tmpDir, err := filepath.EvalSymlinks(tmpDir)
 			require.NoError(t, err)
 
-			runner, err := git.NewGitRunner(vexec.NewOSExec())
-			require.NoError(t, err)
-
-			runner = runner.WithWorkDir(tmpDir)
-
-			err = runner.Init(t.Context())
-			require.NoError(t, err)
-
-			err = runner.GoOpenRepo()
-			require.NoError(t, err)
-
-			t.Cleanup(func() {
-				err = runner.GoCloseStorage()
-				if err != nil {
-					t.Logf("Error closing storage: %s", err)
-				}
-			})
+			runner := helpers.InitTestGitRunner(t, tmpDir)
 
 			// Create a unit with the specified configuration
 			unitDir := filepath.Join(tmpDir, "test-unit")
 			unitHCLPath := createTestUnit(t, unitDir, tc.unitConfig)
 
 			// Initial commit
-			err = runner.GoAdd(".")
-			require.NoError(t, err)
-
-			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
 			// Modify the unit to trigger Git filter detection
 			err = os.WriteFile(unitHCLPath, []byte(tc.unitConfig+"\n# Modified"), 0644)
 			require.NoError(t, err)
 
 			// Commit the modification
-			err = runner.GoAdd(".")
-			require.NoError(t, err)
-
-			err = runner.GoCommit("Modify unit", &gogit.CommitOptions{
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Modify unit"))
 
 			// Run terragrunt run --all --filter with git filter
 			cmd := "terragrunt run --all --no-color --working-dir " + tmpDir + " --filter '[HEAD~1...HEAD]' --report-file " + helpers.ReportFile + " -- plan"
@@ -1517,27 +1315,11 @@ func TestFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner(vexec.NewOSExec())
-			require.NoError(t, err)
-
-			runner = runner.WithWorkDir(tmpDir)
-
-			err = runner.Init(t.Context())
-			require.NoError(t, err)
-
-			err = runner.GoOpenRepo()
-			require.NoError(t, err)
-
-			t.Cleanup(func() {
-				err = runner.GoCloseStorage()
-				if err != nil {
-					t.Logf("Error closing storage: %s", err)
-				}
-			})
+			runner := helpers.InitTestGitRunner(t, tmpDir)
 
 			// Create a catalog of units that will be referenced by stacks
 			legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
-			err = os.MkdirAll(legacyUnitDir, 0755)
+			err := os.MkdirAll(legacyUnitDir, 0755)
 			require.NoError(t, err)
 			_ = createTestUnit(t, legacyUnitDir, `# Legacy unit`)
 
@@ -1588,17 +1370,8 @@ unit "unit-to-be-removed-from-stack" {
 			require.NoError(t, err)
 
 			// Initial commit
-			err = runner.GoAdd(".")
-			require.NoError(t, err)
-
-			err = runner.GoCommit("Initial commit with stacks", &gogit.CommitOptions{
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Initial commit with stacks"))
 
 			// Modify the stack-to-be-modified: add a unit, modify a unit, remove a unit
 			modifiedStackContent := `unit "unit-to-be-added" {
@@ -1639,17 +1412,8 @@ unit "unit-to-be-created-2" {
 			// Leave stack-to-be-untouched unchanged
 
 			// Commit the changes
-			err = runner.GoAdd(".")
-			require.NoError(t, err)
-
-			err = runner.GoCommit("Modify, create, and remove stacks", &gogit.CommitOptions{
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Modify, create, and remove stacks"))
 
 			// Run terragrunt run --all --filter with git filter
 			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "' --report-file " + helpers.ReportFile
@@ -2252,27 +2016,11 @@ func TestOutDirWithGitFilter(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	outDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
+	runner := helpers.InitTestGitRunner(t, tmpDir)
 
 	// Create initial unit
 	unitDir := filepath.Join(tmpDir, "unit-initial")
-	err = os.MkdirAll(unitDir, 0755)
+	err := os.MkdirAll(unitDir, 0755)
 	require.NoError(t, err)
 
 	// Create terragrunt.hcl
@@ -2286,17 +2034,8 @@ resource "null_resource" "test" {}
 	require.NoError(t, err)
 
 	// Initial commit
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
 	// Create a new unit (this will be detected by the git filter)
 	newUnitDir := filepath.Join(tmpDir, "unit-new")
@@ -2312,17 +2051,8 @@ resource "null_resource" "test" {}
 	require.NoError(t, err)
 
 	// Commit the new unit
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Add new unit", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Add new unit"))
 
 	// Run terragrunt with --out-dir and git filter
 	// The bug was that plan files went to /tmp/terragrunt-worktree-... instead of outDir
@@ -2367,27 +2097,11 @@ func TestDestroyWithOutDirGitFilter(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	outDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
+	runner := helpers.InitTestGitRunner(t, tmpDir)
 
 	// create unit to destroy
 	unitDir := filepath.Join(tmpDir, "unit-to-destroy")
-	err = os.MkdirAll(unitDir, 0755)
+	err := os.MkdirAll(unitDir, 0755)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# Unit to destroy`), 0644)
@@ -2399,17 +2113,8 @@ resource "null_resource" "test" {}
 	require.NoError(t, err)
 
 	// Initial commit
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
 	// do initial apply
 	cmd := "terragrunt run --all --no-color --non-interactive --working-dir " + tmpDir +
@@ -2420,17 +2125,8 @@ resource "null_resource" "test" {}
 	err = os.RemoveAll(unitDir)
 	require.NoError(t, err)
 
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Unit removal", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Unit removal"))
 
 	cmd = "terragrunt run --all --no-color --experiment-mode --non-interactive --working-dir " + tmpDir +
 		" --out-dir " + outDir + " --filter-allow-destroy --filter '[HEAD~1...HEAD]' -- plan"

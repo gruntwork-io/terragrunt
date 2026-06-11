@@ -2,264 +2,287 @@ package git
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/cgi"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
-	"time"
-
-	"github.com/go-git/go-billy/v6/memfs"
-	"github.com/go-git/go-billy/v6/util"
-	gogit "github.com/go-git/go-git/v6"
-	backendhttp "github.com/go-git/go-git/v6/backend/http"
-	"github.com/go-git/go-git/v6/plumbing"
-	"github.com/go-git/go-git/v6/plumbing/filemode"
-	"github.com/go-git/go-git/v6/plumbing/format/index"
-	"github.com/go-git/go-git/v6/plumbing/object"
-	"github.com/go-git/go-git/v6/plumbing/transport"
-	"github.com/go-git/go-git/v6/storage"
-	"github.com/go-git/go-git/v6/storage/memory"
 )
 
-// Server is a pure-Go HTTP Git server backed by in-memory storage.
+const (
+	serverDirMode  os.FileMode = 0o755
+	serverFileMode os.FileMode = 0o644
+)
+
+// Server is an HTTP Git server backed by on-disk repositories.
 // It is intended for use in tests.
 type Server struct {
-	store  storage.Storer
-	repo   *gogit.Repository
-	ln     net.Listener
-	srv    *http.Server
-	mounts map[string]storage.Storer
+	ln          net.Listener
+	srv         *http.Server
+	projectRoot string // GIT_PROJECT_ROOT for git http-backend
+	bareDir     string // projectRoot/repo.git — the repo served over HTTP
+	workDir     string // non-bare clone used for mutations
+	gitPath     string
+	mounts      []serverMount
 }
 
-// NewServer creates a Server with an empty in-memory repository.
+type serverMount struct {
+	path    string
+	bareDir string
+}
+
+// NewServer creates a Server with an empty repository.
 func NewServer() (*Server, error) {
-	store := memory.NewStorage()
-	wt := memfs.New()
-
-	repo, err := gogit.Init(
-		store,
-		gogit.WithWorkTree(wt),
-		gogit.WithDefaultBranch(plumbing.NewBranchReferenceName("main")),
-	)
+	gitPath, err := exec.LookPath("git")
 	if err != nil {
-		return nil, fmt.Errorf("init repo: %w", err)
+		return nil, fmt.Errorf("git not found on PATH: %w", err)
 	}
 
-	return &Server{
-		store:  store,
-		repo:   repo,
-		mounts: map[string]storage.Storer{},
-	}, nil
+	projectRoot, err := os.MkdirTemp("", "tg-git-server-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp dir: %w", err)
+	}
+
+	s := &Server{
+		projectRoot: projectRoot,
+		gitPath:     gitPath,
+	}
+
+	ctx := context.Background()
+	bareDir := filepath.Join(projectRoot, "repo.git")
+
+	if err := s.gitIn(ctx, projectRoot, "init", "--bare", bareDir); err != nil {
+		_ = os.RemoveAll(projectRoot)
+		return nil, fmt.Errorf("init bare repo: %w", err)
+	}
+
+	s.bareDir = bareDir
+
+	workDir := filepath.Join(projectRoot, "work")
+
+	if err := os.MkdirAll(workDir, serverDirMode); err != nil {
+		_ = os.RemoveAll(projectRoot)
+		return nil, fmt.Errorf("create work dir: %w", err)
+	}
+
+	if err := s.gitIn(ctx, workDir, "init"); err != nil {
+		_ = os.RemoveAll(projectRoot)
+		return nil, fmt.Errorf("init work dir: %w", err)
+	}
+
+	// Set main regardless of the host's init.defaultBranch setting.
+	if err := s.gitIn(ctx, workDir, "symbolic-ref", "HEAD", "refs/heads/main"); err != nil {
+		_ = os.RemoveAll(projectRoot)
+		return nil, fmt.Errorf("set default branch: %w", err)
+	}
+
+	if err := s.gitIn(ctx, workDir, "remote", "add", "origin", bareDir); err != nil {
+		_ = os.RemoveAll(projectRoot)
+		return nil, fmt.Errorf("add remote: %w", err)
+	}
+
+	if err := s.gitIn(ctx, workDir, "config", "user.email", "test@test.com"); err != nil {
+		_ = os.RemoveAll(projectRoot)
+		return nil, fmt.Errorf("config user.email: %w", err)
+	}
+
+	if err := s.gitIn(ctx, workDir, "config", "user.name", "Test"); err != nil {
+		_ = os.RemoveAll(projectRoot)
+		return nil, fmt.Errorf("config user.name: %w", err)
+	}
+
+	s.workDir = workDir
+
+	return s, nil
 }
 
-// Mount serves other's repository at the given URL path (e.g.
-// "/child.git") on this server's listener, so tests can exercise
-// same-host relative submodule URLs. Paths without a mount still
-// resolve to this server's own repository. Call before [Server.Start];
-// the mounted server itself does not need to be started.
+// Mount serves other's repository at the given URL path (e.g. "/child.git")
+// on this server's listener. Call before [Server.Start]; the mounted server
+// itself does not need to be started.
 func (s *Server) Mount(path string, other *Server) {
-	// The HTTP backend strips the leading slash before it builds the
-	// endpoint handed to the loader, so mount keys are stored bare.
-	s.mounts[strings.TrimPrefix(path, "/")] = other.store
+	s.mounts = append(s.mounts, serverMount{
+		path:    strings.TrimPrefix(path, "/"),
+		bareDir: other.bareDir,
+	})
 }
 
-// Repo returns the underlying go-git repository so callers can create
-// commits, branches, etc. before starting the server.
-func (s *Server) Repo() *gogit.Repository {
-	return s.repo
-}
+// CommitFile writes a single file to the working tree and commits it.
+func (s *Server) CommitFile(ctx context.Context, path string, data []byte, msg string) error {
+	fullPath := filepath.Join(s.workDir, filepath.FromSlash(path))
 
-// CommitFile is a convenience that writes a single file to the worktree and
-// commits it. It returns the commit hash.
-func (s *Server) CommitFile(path string, data []byte, msg string) error {
-	w, err := s.repo.Worktree()
-	if err != nil {
-		return fmt.Errorf("worktree: %w", err)
+	if err := os.MkdirAll(filepath.Dir(fullPath), serverDirMode); err != nil {
+		return fmt.Errorf("mkdir for %s: %w", path, err)
 	}
 
-	f, err := w.Filesystem.Create(path)
-	if err != nil {
-		return fmt.Errorf("create file %s: %w", path, err)
+	if err := os.WriteFile(fullPath, data, serverFileMode); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
 	}
 
-	if _, err := f.Write(data); err != nil {
-		return fmt.Errorf("write file %s: %w", path, err)
-	}
-
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("close file %s: %w", path, err)
-	}
-
-	if _, err := w.Add(path); err != nil {
+	if err := s.gitIn(ctx, s.workDir, "add", path); err != nil {
 		return fmt.Errorf("add %s: %w", path, err)
 	}
 
-	sig := &object.Signature{
-		Name:  "Test",
-		Email: "test@test.com",
-		When:  time.Now(),
-	}
-
-	_, err = w.Commit(msg, &gogit.CommitOptions{
-		Author:    sig,
-		Committer: sig,
-	})
-	if err != nil {
+	if err := s.gitIn(ctx, s.workDir, "commit", "-m", msg); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
 
-	return nil
+	return s.push(ctx)
 }
 
-// CommitSymlink creates a symlink in the worktree pointing at target and
-// commits it. The recorded tree entry is mode 120000 (git's symlink type),
-// matching the on-disk representation produced by `git add` on a symlink.
-func (s *Server) CommitSymlink(link, target, msg string) error {
-	w, err := s.repo.Worktree()
-	if err != nil {
-		return fmt.Errorf("worktree: %w", err)
+// CommitSymlink creates a symlink in the working tree and commits it.
+// The recorded tree entry uses mode 120000 (git's symlink type).
+func (s *Server) CommitSymlink(ctx context.Context, link, target, msg string) error {
+	fullLink := filepath.Join(s.workDir, filepath.FromSlash(link))
+
+	if err := os.MkdirAll(filepath.Dir(fullLink), serverDirMode); err != nil {
+		return fmt.Errorf("mkdir for symlink %s: %w", link, err)
 	}
 
-	if err := w.Filesystem.Symlink(target, link); err != nil {
+	if err := os.Symlink(target, fullLink); err != nil {
 		return fmt.Errorf("symlink %s -> %s: %w", link, target, err)
 	}
 
-	if _, err := w.Add(link); err != nil {
+	if err := s.gitIn(ctx, s.workDir, "add", link); err != nil {
 		return fmt.Errorf("add %s: %w", link, err)
 	}
 
-	sig := &object.Signature{
-		Name:  "Test",
-		Email: "test@test.com",
-		When:  time.Now(),
-	}
-
-	_, err = w.Commit(msg, &gogit.CommitOptions{
-		Author:    sig,
-		Committer: sig,
-	})
-	if err != nil {
+	if err := s.gitIn(ctx, s.workDir, "commit", "-m", msg); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
 
-	return nil
+	return s.push(ctx)
 }
 
-// CommitSubmodule records a gitlink at path pinned to commitHash and,
-// when url is non-empty, registers the submodule in .gitmodules before
-// committing both. An empty url leaves the gitlink unregistered,
-// mirroring the orphaned entry left behind by accidentally committing
-// a nested repository. The gitlink lands as a tree entry with mode
-// 160000 and type commit, matching `git submodule add`.
-func (s *Server) CommitSubmodule(path, url, commitHash, msg string) error {
-	w, err := s.repo.Worktree()
-	if err != nil {
-		return fmt.Errorf("worktree: %w", err)
-	}
-
+// CommitSubmodule records a gitlink at path pinned to commitHash and, when url
+// is non-empty, registers the submodule in .gitmodules before committing both.
+// An empty url leaves the gitlink unregistered, mirroring the orphaned entry
+// left behind by accidentally committing a nested repository.
+func (s *Server) CommitSubmodule(ctx context.Context, path, url, commitHash, msg string) error {
 	if url != "" {
-		if err := appendGitmodules(w, path, url); err != nil {
+		if err := s.appendGitmodules(ctx, path, url); err != nil {
 			return err
 		}
 	}
 
-	idx, err := s.repo.Storer.Index()
-	if err != nil {
-		return fmt.Errorf("read index: %w", err)
+	// git update-index --cacheinfo records the gitlink (mode 160000) without
+	// requiring the submodule to be checked out locally.
+	cacheinfo := fmt.Sprintf("160000,%s,%s", commitHash, path)
+
+	if err := s.gitIn(ctx, s.workDir, "update-index", "--add", "--cacheinfo", cacheinfo); err != nil {
+		return fmt.Errorf("update-index for submodule %s: %w", path, err)
 	}
 
-	idx.Entries = append(idx.Entries, &index.Entry{
-		Name: path,
-		Hash: plumbing.NewHash(commitHash),
-		Mode: filemode.Submodule,
-	})
-
-	if err := s.repo.Storer.SetIndex(idx); err != nil {
-		return fmt.Errorf("write index: %w", err)
-	}
-
-	sig := &object.Signature{
-		Name:  "Test",
-		Email: "test@test.com",
-		When:  time.Now(),
-	}
-
-	_, err = w.Commit(msg, &gogit.CommitOptions{
-		Author:    sig,
-		Committer: sig,
-	})
-	if err != nil {
+	if err := s.gitIn(ctx, s.workDir, "commit", "-m", msg); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
 
-	return nil
+	return s.push(ctx)
 }
 
-// Head returns the canonical hash of the current HEAD commit. Useful
-// in tests that need to capture a non-tip commit hash before adding
-// further commits.
-func (s *Server) Head() (string, error) {
-	ref, err := s.repo.Head()
-	if err != nil {
-		return "", fmt.Errorf("resolve HEAD: %w", err)
+// CommitEmpty creates a commit with no file changes. Useful for seeding an
+// initial commit before any content exists.
+func (s *Server) CommitEmpty(ctx context.Context, msg string) error {
+	if err := s.gitIn(ctx, s.workDir, "commit", "--allow-empty", "-m", msg); err != nil {
+		return fmt.Errorf("commit: %w", err)
 	}
 
-	return ref.Hash().String(), nil
+	return s.push(ctx)
 }
 
-// Tag creates an annotated tag at the current HEAD with the given name.
-func (s *Server) Tag(name string) error {
-	ref, err := s.repo.Head()
+// CommitFiles writes a batch of files and commits them in a single commit.
+// The files map keys are slash-separated paths relative to the repo root.
+func (s *Server) CommitFiles(ctx context.Context, files map[string][]byte, msg string) error {
+	for path, data := range files {
+		fullPath := filepath.Join(s.workDir, filepath.FromSlash(path))
+
+		if err := os.MkdirAll(filepath.Dir(fullPath), serverDirMode); err != nil {
+			return fmt.Errorf("mkdir for %s: %w", path, err)
+		}
+
+		if err := os.WriteFile(fullPath, data, serverFileMode); err != nil {
+			return fmt.Errorf("write %s: %w", path, err)
+		}
+	}
+
+	if err := s.gitIn(ctx, s.workDir, "add", "-A"); err != nil {
+		return fmt.Errorf("add all: %w", err)
+	}
+
+	if err := s.gitIn(ctx, s.workDir, "commit", "-m", msg); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	return s.push(ctx)
+}
+
+// Head returns the canonical hash of the current HEAD commit.
+func (s *Server) Head(ctx context.Context) (string, error) {
+	cmd := exec.CommandContext(ctx, s.gitPath, "rev-parse", "HEAD")
+	cmd.Dir = s.workDir
+
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("rev-parse HEAD: %w", err)
+	}
+
+	return strings.TrimSpace(string(out)), nil
+}
+
+// Tag creates a lightweight tag at the current HEAD with the given name.
+func (s *Server) Tag(ctx context.Context, name string) error {
+	head, err := s.Head(ctx)
 	if err != nil {
 		return fmt.Errorf("resolve HEAD: %w", err)
 	}
 
-	sig := &object.Signature{Name: "Test", Email: "test@test.com", When: time.Now()}
+	return s.gitIn(ctx, s.bareDir, "tag", name, head)
+}
 
-	if _, err := s.repo.CreateTag(name, ref.Hash(), &gogit.CreateTagOptions{
-		Tagger:  sig,
-		Message: name,
-	}); err != nil {
-		return fmt.Errorf("create tag %s: %w", name, err)
-	}
-
+// DeleteTag removes the named tag. It is a no-op when the tag does not exist.
+func (s *Server) DeleteTag(ctx context.Context, name string) error {
+	_ = s.gitIn(ctx, s.bareDir, "tag", "-d", name)
 	return nil
 }
 
 // Branch creates a branch at the current HEAD with the given name.
-func (s *Server) Branch(name string) error {
-	ref, err := s.repo.Head()
+func (s *Server) Branch(ctx context.Context, name string) error {
+	head, err := s.Head(ctx)
 	if err != nil {
 		return fmt.Errorf("resolve HEAD: %w", err)
 	}
 
-	branchRef := plumbing.NewHashReference(plumbing.NewBranchReferenceName(name), ref.Hash())
-	if err := s.repo.Storer.SetReference(branchRef); err != nil {
-		return fmt.Errorf("set branch %s: %w", name, err)
-	}
-
-	return nil
+	return s.gitIn(ctx, s.bareDir, "update-ref", "refs/heads/"+name, head)
 }
 
-// SetBranch points the named branch at the given commit hash, creating
-// it if missing. Tests use this to rewind a branch past a tagged
-// commit so the commit is reachable only via the tag.
-func (s *Server) SetBranch(name, hash string) error {
-	ref := plumbing.NewHashReference(plumbing.NewBranchReferenceName(name), plumbing.NewHash(hash))
-	if err := s.repo.Storer.SetReference(ref); err != nil {
-		return fmt.Errorf("set branch %s to %s: %w", name, hash, err)
-	}
-
-	return nil
+// SetBranch points the named branch at the given commit hash, creating it if
+// missing. Tests use this to rewind a branch past a tagged commit so the
+// commit is reachable only via the tag.
+func (s *Server) SetBranch(ctx context.Context, name, hash string) error {
+	return s.gitIn(ctx, s.bareDir, "update-ref", "refs/heads/"+name, hash)
 }
 
-// Start begins serving Git HTTP on a random local port.
-// Returns the base URL (e.g. "http://127.0.0.1:12345").
+// Start begins serving Git HTTP on a random local port and returns the base
+// URL (e.g. "http://127.0.0.1:12345").
 func (s *Server) Start(ctx context.Context) (string, error) {
-	loader := &repoLoader{store: s.store, mounts: s.mounts}
-	backend := backendhttp.NewBackend(loader)
+	for _, m := range s.mounts {
+		target := filepath.Join(s.projectRoot, m.path)
+
+		if err := os.Symlink(m.bareDir, target); err != nil {
+			return "", fmt.Errorf("mount %s: %w", m.path, err)
+		}
+	}
+
+	handler := &cgi.Handler{
+		Path: s.gitPath,
+		Args: []string{"http-backend"},
+		Env: []string{
+			"GIT_PROJECT_ROOT=" + s.projectRoot,
+			"GIT_HTTP_EXPORT_ALL=1",
+		},
+	}
 
 	var lc net.ListenConfig
 
@@ -269,61 +292,73 @@ func (s *Server) Start(ctx context.Context) (string, error) {
 	}
 
 	s.ln = ln
-	s.srv = &http.Server{
-		Handler: backend,
-	}
+	s.srv = &http.Server{Handler: handler}
 
 	go func() { _ = s.srv.Serve(ln) }()
 
 	return "http://" + ln.Addr().String(), nil
 }
 
-// Close shuts down the server.
-func (s *Server) Close() error {
+// Close shuts down the server and removes its temporary directory.
+func (s *Server) Close() (retErr error) {
 	if s.srv != nil {
-		return s.srv.Close()
+		if err := s.srv.Close(); err != nil {
+			retErr = fmt.Errorf("close http server: %w", err)
+		}
+	}
+
+	if s.ln != nil {
+		if err := s.ln.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("close listener: %w", err)
+		}
+	}
+
+	if err := os.RemoveAll(s.projectRoot); err != nil && retErr == nil {
+		retErr = fmt.Errorf("remove temp dir: %w", err)
+	}
+
+	return retErr
+}
+
+// push pushes the current workDir HEAD to refs/heads/main in the bare repo.
+// All Server commits land on main.
+func (s *Server) push(ctx context.Context) error {
+	return s.gitIn(ctx, s.workDir, "push", "origin", "HEAD:refs/heads/main")
+}
+
+// gitIn runs a git command with Dir set to dir, returning a formatted error
+// that includes the combined output on failure.
+func (s *Server) gitIn(ctx context.Context, dir string, args ...string) error {
+	cmd := exec.CommandContext(ctx, s.gitPath, args...)
+	cmd.Dir = dir
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 
 	return nil
 }
 
-// gitmodulesPerms is the file mode used for the .gitmodules file
-// written into the test worktree.
-const gitmodulesPerms = 0o644
+// appendGitmodules appends a submodule section for path and url to
+// .gitmodules and stages the file.
+func (s *Server) appendGitmodules(ctx context.Context, path, url string) error {
+	gmPath := filepath.Join(s.workDir, ".gitmodules")
 
-// appendGitmodules appends a submodule section for path and url to the
-// worktree's .gitmodules file and stages it.
-func appendGitmodules(w *gogit.Worktree, path, url string) error {
-	existing, err := util.ReadFile(w.Filesystem, ".gitmodules")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	existing, err := os.ReadFile(gmPath)
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("read .gitmodules: %w", err)
 	}
 
 	section := fmt.Sprintf("[submodule %q]\n\tpath = %s\n\turl = %s\n", path, path, url)
 
-	if err := util.WriteFile(w.Filesystem, ".gitmodules", append(existing, section...), gitmodulesPerms); err != nil {
+	if err := os.WriteFile(gmPath, append(existing, section...), serverFileMode); err != nil {
 		return fmt.Errorf("write .gitmodules: %w", err)
 	}
 
-	if _, err := w.Add(".gitmodules"); err != nil {
+	if err := s.gitIn(ctx, s.workDir, "add", ".gitmodules"); err != nil {
 		return fmt.Errorf("add .gitmodules: %w", err)
 	}
 
 	return nil
-}
-
-// repoLoader implements transport.Loader by returning the default
-// storer for any endpoint path, with per-path mounts taking precedence
-// so one listener can serve several test repositories.
-type repoLoader struct {
-	store  storage.Storer
-	mounts map[string]storage.Storer
-}
-
-func (l *repoLoader) Load(ep *transport.Endpoint) (storage.Storer, error) {
-	if store, ok := l.mounts[ep.Path]; ok {
-		return store, nil
-	}
-
-	return l.store, nil
 }
