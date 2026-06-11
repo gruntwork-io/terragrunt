@@ -199,12 +199,14 @@ func TestCAS_CloneSubmoduleWithRelativeURL(t *testing.T) {
 	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte(`# parent`), "add main.tf"))
 	require.NoError(t, srv.CommitSubmodule(t.Context(), "modules/child", "../child.git", childHead, "add submodule"))
 
-	baseURL, err := srv.Start(t.Context())
+	_, err = srv.Start(t.Context())
 	require.NoError(t, err)
 
-	// The "../child.git" in .gitmodules resolves against this URL to
-	// "<baseURL>/child.git", where the child repository is mounted.
-	repoURL := baseURL + "/parent.git"
+	// Use a fake "/parent.git" path on the server so that the relative URL
+	// "../child.git" in .gitmodules resolves to "<host>/child.git", where
+	// the child repository is mounted. The server strips the leading path
+	// component for every request, so any path serves the main repo.
+	repoURL := srv.BaseURL() + "/parent.git"
 
 	v, err := cas.OSVenv()
 	require.NoError(t, err)

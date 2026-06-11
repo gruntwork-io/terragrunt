@@ -22,7 +22,7 @@ const (
 type Server struct {
 	ln          net.Listener
 	srv         *http.Server
-	projectRoot string // GIT_PROJECT_ROOT for git http-backend
+	projectRoot string // root temp dir removed in Close
 	bareDir     string // projectRoot/repo.git — the repo served over HTTP
 	workDir     string // non-bare clone used for mutations
 	gitPath     string
@@ -281,24 +281,21 @@ func (s *Server) SetBranch(ctx context.Context, name, hash string) error {
 	return s.gitIn(ctx, s.bareDir, "update-ref", "refs/heads/"+name, hash)
 }
 
-// Start begins serving Git HTTP on a random local port and returns the base
-// URL (e.g. "http://127.0.0.1:12345").
+// Start begins serving Git HTTP on a random local port and returns the full
+// repository URL (e.g. "http://127.0.0.1:12345/repo.git"). The server maps
+// any URL path to the main repo — unknown path components are rewritten to the
+// real bare-repo directory name — while mount paths are served from their own
+// bare directories. Use [Server.BaseURL] to construct URLs with an arbitrary
+// path component (e.g. for relative submodule URL tests).
 func (s *Server) Start(ctx context.Context) (string, error) {
+	// Create symlinks in projectRoot so git-http-backend (GIT_PROJECT_ROOT mode)
+	// can resolve mounted repos by path component.
 	for _, m := range s.mounts {
 		target := filepath.Join(s.projectRoot, m.path)
 
 		if err := os.Symlink(m.bareDir, target); err != nil {
 			return "", fmt.Errorf("mount %s: %w", m.path, err)
 		}
-	}
-
-	handler := &cgi.Handler{
-		Path: s.gitPath,
-		Args: []string{"http-backend"},
-		Env: []string{
-			"GIT_PROJECT_ROOT=" + s.projectRoot,
-			"GIT_HTTP_EXPORT_ALL=1",
-		},
 	}
 
 	var lc net.ListenConfig
@@ -309,11 +306,88 @@ func (s *Server) Start(ctx context.Context) (string, error) {
 	}
 
 	s.ln = ln
-	s.srv = &http.Server{Handler: handler}
+	s.srv = &http.Server{Handler: &routingHandler{
+		gitPath:     s.gitPath,
+		projectRoot: s.projectRoot,
+		repoName:    filepath.Base(s.bareDir),
+		mounts:      s.mounts,
+	}}
 
 	go func() { _ = s.srv.Serve(ln) }()
 
-	return "http://" + ln.Addr().String(), nil
+	return "http://" + ln.Addr().String() + "/" + filepath.Base(s.bareDir), nil
+}
+
+// BaseURL returns the scheme and authority (host:port) of the server with no
+// repository path, e.g. "http://127.0.0.1:12345". Call this after [Server.Start]
+// when you need to construct a URL with a specific path component that differs
+// from the default "/repo.git" returned by [Server.Start].
+func (s *Server) BaseURL() string {
+	if s.ln == nil {
+		return ""
+	}
+
+	return "http://" + s.ln.Addr().String()
+}
+
+// routingHandler wraps git-http-backend to make the server path-agnostic for
+// the main repository while still routing mount paths to their own bare dirs.
+//
+// git-http-backend (GIT_PROJECT_ROOT mode) derives the repo from the leading
+// path component of PATH_INFO. This handler rewrites PATH_INFO so that any
+// unrecognised leading component is replaced with the real repo directory name,
+// preserving the old go-git behaviour where any URL path served the main repo.
+type routingHandler struct {
+	gitPath     string
+	projectRoot string
+	repoName    string // basename of the main bare dir, e.g. "repo.git"
+	mounts      []serverMount
+}
+
+func (h *routingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+
+	// Extract the leading path component (the virtual repo name).
+	var virtualName, rest string
+	if idx := strings.Index(path[1:], "/"); idx >= 0 {
+		virtualName = path[1 : 1+idx]
+		rest = path[1+idx:]
+	} else {
+		virtualName = path[1:]
+		rest = "/"
+	}
+
+	// If the virtual name doesn't match the real repo name or any mount,
+	// rewrite it to the real repo name so git-http-backend finds the repo.
+	if virtualName != h.repoName {
+		known := false
+
+		for _, m := range h.mounts {
+			if virtualName == m.path {
+				known = true
+
+				break
+			}
+		}
+
+		if !known {
+			path = "/" + h.repoName + rest
+		}
+	}
+
+	r2 := r.Clone(r.Context())
+	u := *r.URL
+	u.Path = path
+	r2.URL = &u
+
+	(&cgi.Handler{
+		Path: h.gitPath,
+		Args: []string{"http-backend"},
+		Env: []string{
+			"GIT_PROJECT_ROOT=" + h.projectRoot,
+			"GIT_HTTP_EXPORT_ALL=1",
+		},
+	}).ServeHTTP(w, r2)
 }
 
 // Close shuts down the server and removes its temporary directory.

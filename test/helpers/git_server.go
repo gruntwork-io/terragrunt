@@ -78,7 +78,7 @@ var TerragruntMirrorBranches = []string{
 // uses SSH must not call t.Parallel.
 type GitServer struct {
 	// URL is the HTTP endpoint, of form
-	// `http://127.0.0.1:PORT/terragrunt.git`.
+	// `http://127.0.0.1:PORT/repo.git`.
 	URL string
 	// SSHURL is the SSH endpoint, set once [GitServer.RequireSSH]
 	// succeeds, else empty.
@@ -126,11 +126,11 @@ func NewGitServer(t *testing.T) *GitServer {
 	fixturesDir, err := locateFixturesDir()
 	require.NoError(t, err, "locate fixtures dir")
 
-	// Append `/terragrunt.git` so the HTTP URL is symmetric with the SSH
-	// URL. The underlying [git.Server] uses a single-repo loader that
-	// ignores the request path, so any path resolves to the same storer.
+	// Start returns the full repo URL (http://host:port/repo.git); use it
+	// directly. The SSH mirror uses a separate path (/terragrunt.git) on its
+	// own server, so the two URLs do not need to share a path component.
 	s := &GitServer{
-		URL:         base + "/terragrunt.git",
+		URL:         base,
 		t:           t,
 		fixturesDir: fixturesDir,
 		httpServer:  srv,
