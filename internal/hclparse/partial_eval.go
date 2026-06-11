@@ -78,6 +78,10 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 		return partialEvalFunctionCall(e, args)
 	case *hclsyntax.ObjectConsExpr:
 		return partialEvalObject(e, args)
+	// Reached only for an expression key (see objectKeyIsExpression) that references a deferred root or whose
+	// whole-key evaluation failed: resolvable sub-parts render while the deferred parts stay verbatim.
+	case *hclsyntax.ObjectConsKeyExpr:
+		return PartialEval(e.Wrapped, args)
 	case *hclsyntax.TupleConsExpr:
 		return partialEvalTuple(e, args)
 	case *hclsyntax.ConditionalExpr:
@@ -277,13 +281,46 @@ func HCLStringContent(s string) []byte {
 }
 
 func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) ([]byte, error) {
-	// Stitch only the value expressions; keys + `=` + `,` + braces stay verbatim from the source.
-	children := make([]hclsyntax.Expression, len(e.Items))
-	for i, item := range e.Items {
-		children[i] = item.ValueExpr
+	// Stitch the value expressions plus any expression keys (interpolated, function call, or parenthesized);
+	// a literal-name key stays verbatim from the source like the `=` + `,` + braces.
+	children := make([]hclsyntax.Expression, 0, len(e.Items))
+
+	for _, item := range e.Items {
+		if objectKeyIsExpression(item.KeyExpr) {
+			children = append(children, item.KeyExpr)
+		}
+
+		children = append(children, item.ValueExpr)
 	}
 
 	return partialEvalChildren(args, e.Range(), children)
+}
+
+// objectKeyIsExpression reports whether an object key is evaluated as an expression by HCL (an interpolated
+// template, a function call, or a parenthesized key) and so participates in partial evaluation. A naked
+// identifier or keyword key behaves as a literal string (mirrors ObjectConsKeyExpr's literal-name detection),
+// and a naked multi-step traversal key (a.b = ...) is ambiguous HCL that must keep its source form so the
+// ambiguity error surfaces where the object is evaluated, instead of silently resolving as a reference.
+func objectKeyIsExpression(keyExpr hclsyntax.Expression) bool {
+	key, ok := keyExpr.(*hclsyntax.ObjectConsKeyExpr)
+	if !ok {
+		return false
+	}
+
+	// A parenthesized key is always evaluated as an expression, even when it wraps a bare identifier.
+	if key.ForceNonLiteral {
+		return true
+	}
+
+	if hcl.ExprAsKeyword(key.Wrapped) != "" {
+		return false
+	}
+
+	if _, naked := key.Wrapped.(*hclsyntax.ScopeTraversalExpr); naked {
+		return false
+	}
+
+	return true
 }
 
 func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) ([]byte, error) {

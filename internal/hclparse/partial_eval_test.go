@@ -630,6 +630,121 @@ func TestPartialEval_CompositeExpressions(t *testing.T) {
 	})
 }
 
+// TestPartialEval_ObjectKeys pins how object keys behave on the structural partial-eval path: a key that
+// HCL evaluates as an expression (interpolated, function call, or parenthesized) resolves at generate time unless
+// it references the deferred dependency.* root, while a literal-name key keeps its source form, so the generated
+// unit never sees an unresolved stack-level reference in a key.
+func TestPartialEval_ObjectKeys(t *testing.T) {
+	t.Parallel()
+
+	evalCtx := buildEvalCtx()
+	evalCtx.Functions = map[string]function.Function{
+		"upper": function.New(&function.Spec{
+			Params: []function.Parameter{{Type: cty.String}},
+			Type:   function.StaticReturnType(cty.String),
+			Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+				return cty.StringVal(strings.ToUpper(args[0].AsString())), nil
+			},
+		}),
+	}
+
+	tests := []struct {
+		name     string
+		hcl      string
+		contains []string
+		excludes []string
+	}{
+		{
+			// The reported bug: a deferred value forces the structural path; the interpolated key must still resolve.
+			name:     "interpolated key with deferred value resolves",
+			hcl:      `val = { "${local.env}_key" = dependency.vpc.outputs.vpc_id }`,
+			contains: []string{`"production_key"`, "dependency.vpc.outputs.vpc_id"},
+			excludes: []string{"local.env"},
+		},
+		{
+			name:     "interpolated key resolves in a nested object",
+			hcl:      `val = { outer = { "${local.env}_key" = dependency.vpc.outputs.vpc_id } }`,
+			contains: []string{`"production_key"`, "dependency.vpc.outputs.vpc_id"},
+			excludes: []string{"local.env"},
+		},
+		{
+			name:     "naked identifier key stays verbatim",
+			hcl:      `val = { name = dependency.vpc.outputs.vpc_id }`,
+			contains: []string{"name"},
+			excludes: []string{`"name"`},
+		},
+		{
+			name:     "quoted literal key keeps its content",
+			hcl:      `val = { "my-key" = dependency.vpc.outputs.vpc_id }`,
+			contains: []string{`"my-key"`},
+		},
+		{
+			name:     "key deferring to dependency stays verbatim while the pure value renders",
+			hcl:      `val = { "${dependency.vpc.outputs.vpc_id}_key" = local.env }`,
+			contains: []string{"${dependency.vpc.outputs.vpc_id}", `"production"`},
+			excludes: []string{"local.env"},
+		},
+		{
+			name:     "mixed template key renders the local part and defers the dependency part",
+			hcl:      `val = { "${local.env}-${dependency.vpc.outputs.vpc_id}" = "x" }`,
+			contains: []string{"production-${dependency.vpc.outputs.vpc_id}"},
+			excludes: []string{"local.env"},
+		},
+		{
+			name:     "function call key resolves at generate time",
+			hcl:      `val = { "${upper(local.env)}_key" = dependency.vpc.outputs.vpc_id }`,
+			contains: []string{`"PRODUCTION_key"`},
+			excludes: []string{"upper(", "local.env"},
+		},
+		{
+			name:     "parenthesized key resolves as an expression",
+			hcl:      `val = { (local.env) = dependency.vpc.outputs.vpc_id }`,
+			contains: []string{`"production"`},
+			excludes: []string{"local.env", "("},
+		},
+		{
+			name:     "parenthesized key deferring to dependency stays verbatim",
+			hcl:      `val = { (dependency.vpc.outputs.vpc_id) = "x" }`,
+			contains: []string{"(dependency.vpc.outputs.vpc_id)"},
+		},
+		{
+			name:     "keyword key stays verbatim",
+			hcl:      `val = { true = dependency.vpc.outputs.vpc_id }`,
+			contains: []string{"true"},
+			excludes: []string{`"true"`},
+		},
+		{
+			// HCL rejects a naked multi-step traversal key as ambiguous at evaluation; it keeps its source form so
+			// that error surfaces where the object is evaluated, instead of silently resolving as a reference.
+			name:     "naked multi-step traversal key stays verbatim",
+			hcl:      `val = { local.env = dependency.vpc.outputs.vpc_id }`,
+			contains: []string{"local.env"},
+			excludes: []string{`"production"`},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
+
+			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: testDeferred})
+			require.NoError(t, err)
+
+			result := string(resultBytes)
+
+			for _, want := range tc.contains {
+				assert.Contains(t, result, want, "expected result to contain %q, got %q", want, result)
+			}
+
+			for _, notWant := range tc.excludes {
+				assert.NotContains(t, result, notWant, "expected result NOT to contain %q, got %q", notWant, result)
+			}
+		})
+	}
+}
+
 // buildEvalCtx creates an eval context with local.env = "production" and
 // local.region = "us-east-1" for testing.
 func buildEvalCtx() *hcl.EvalContext {
