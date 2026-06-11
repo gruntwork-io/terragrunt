@@ -333,6 +333,7 @@ remote_state {
     skip_bucket_versioning    = true
     enable_bucket_policy_only = false
     encryption_key            = "GOOGLE_ENCRYPTION_KEY"
+    storage_custom_endpoint   = "https://storage.example.com"
   }
 }
 ```
@@ -340,6 +341,7 @@ remote_state {
 - `skip_bucket_versioning` — Skip versioning on the state bucket. Use only if the object store does not support versioning.
 - `enable_bucket_policy_only` — Enable uniform bucket-level access. See [uniform bucket-level access](https://cloud.google.com/storage/docs/uniform-bucket-level-access) for details.
 - `encryption_key` — A Cloud KMS key name to use for encrypting state objects.
+- `storage_custom_endpoint` — A custom endpoint to route Cloud Storage API calls to, instead of the default `https://storage.googleapis.com`. Requires Terraform v1.6.0+ which added native support for this backend setting.
 
 If you experience an error for any of these configurations, confirm you are using Terraform v0.12.0 or greater.
 
