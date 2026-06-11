@@ -300,7 +300,6 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 // stackDependencyPaths expands stack directory dependency paths into their constituent unit paths.
 // Autoinclude-declared dependencies are already folded into the parsed config by the partial-parse
 // merge (which honors enabled/disabled and same-name override), so they arrive via depPaths here.
-// Only called when the StackDependencies experiment is enabled.
 func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,

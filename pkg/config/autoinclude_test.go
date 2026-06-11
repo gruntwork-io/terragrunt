@@ -375,7 +375,6 @@ inputs = {
 `), 0644))
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
-	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 
@@ -415,7 +414,6 @@ inputs = {
 `), 0644))
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
-	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 
@@ -429,43 +427,6 @@ inputs = {
 	assert.Equal(t, "autoinclude-value", parsed.Inputs["extra"])
 	// Unit value preserved when no conflict
 	assert.Equal(t, "unit-value", parsed.Inputs["keep"])
-}
-
-func TestMergeAutoInclude_ExperimentDisabled(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
-terraform {
-  source = "."
-}
-
-inputs = {
-  name = "original"
-}
-`), 0644))
-
-	// Autoinclude exists but experiment is NOT enabled
-	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
-inputs = {
-  name = "should-not-merge"
-}
-`), 0644))
-
-	ctx, pctx := newTestParsingContext(t, cfgPath)
-	// NOT enabling StackDependencies experiment
-
-	l := logger.CreateLogger()
-
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
-	require.NoError(t, err)
-	require.NotNil(t, parsed)
-
-	// Autoinclude should NOT be merged
-	assert.Equal(t, "original", parsed.Inputs["name"])
 }
 
 // Defensive test: a sibling terragrunt.autoinclude.stack.hcl (the stack-level filename) must NOT be merged into a unit's terragrunt.hcl. Stack-level autoincludes are handled by the stack parser path; merging here would defeat the point of the filename split.
@@ -494,7 +455,6 @@ inputs = {
 `), 0644))
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
-	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 
@@ -545,46 +505,6 @@ dependency "foo" {
 
 	_, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
 	require.NoError(t, err)
-}
-
-// Negative guard: with the experiment disabled the placeholder is not injected so the same partial parse still errors, proving the gate is not over-broad.
-func TestPartialParseAutoIncludeRemoteStateDependencyExperimentDisabled(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
-remote_state {
-  backend = "local"
-  generate = {
-    path      = "backend.tf"
-    if_exists = "overwrite"
-  }
-  config = {
-    path = dependency.foo.outputs.bar
-  }
-}
-`), 0644))
-
-	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
-dependency "foo" {
-  config_path = "../foo"
-  mock_outputs = {
-    bar = "mocked"
-  }
-}
-`), 0644))
-
-	ctx, pctx := newTestParsingContext(t, cfgPath)
-	// NOT enabling StackDependencies experiment.
-	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).WithSkipOutputsResolution()
-
-	l := logger.CreateLogger()
-
-	_, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
-	require.Error(t, err)
 }
 
 // A full parse must fold the autoinclude dependency block in so a remote_state config referencing its mock output resolves to the marker value.
@@ -1176,32 +1096,6 @@ stack "networking" {
 	assert.Equal(t, "networking", netStack["path"])
 }
 
-// TestParseTerragruntConfig_StackAutoIncludeFileRequiresExperiment pins that without the
-// stack-dependencies experiment a terragrunt.autoinclude.stack.hcl still falls through to the strict
-// unit-config decode, which rejects its unit and stack blocks. The stack-file routing is part of the
-// experiment, so behavior without it is unchanged.
-func TestParseTerragruntConfig_StackAutoIncludeFileRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-
-	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeStackFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
-unit "db" {
-  source = "../catalog/units/db"
-  path   = "db"
-}
-`), 0644))
-
-	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, cfgPath)
-
-	l := logger.CreateLogger()
-
-	_, err := config.ParseTerragruntConfig(ctx, pctx, l, autoIncludePath, nil)
-	require.Error(t, err, "without the experiment the strict unit-config decode must keep rejecting unit blocks")
-}
-
 // TestParseTerragruntConfig_ReadsUnitAutoIncludeFile pins that read_terragrunt_config reads a
 // generated unit-level terragrunt.autoinclude.hcl through the regular unit-config path, returning
 // its dependency blocks and inputs.
@@ -1294,36 +1188,4 @@ unit "app" {
 	var localsErr inthclparse.AutoIncludeLocalsBlockError
 	require.ErrorAs(t, err, &localsErr)
 	assert.Equal(t, "app", localsErr.Component)
-}
-
-// TestValidateStackAutoIncludes_NoOpWithoutExperiment pins that without the stack-dependencies
-// experiment the strict autoinclude validation does not run, leaving `hcl validate` behavior unchanged.
-func TestValidateStackAutoIncludes_NoOpWithoutExperiment(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-
-	stackPath := filepath.Join(tmpDir, config.DefaultStackFile)
-	require.NoError(t, os.WriteFile(stackPath, []byte(`
-unit "app" {
-  source = "./units/app"
-  path   = "app"
-
-  autoinclude {
-    locals {
-      env = "dev"
-    }
-  }
-}
-`), 0644))
-
-	ctx, pctx := newTestParsingContext(t, stackPath)
-
-	l := logger.CreateLogger()
-
-	stackCfg, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
-	require.NoError(t, err)
-
-	require.NoError(t, config.ValidateStackAutoIncludes(ctx, l, pctx, stackPath, stackCfg, nil),
-		"without the experiment the strict autoinclude validation must not run")
 }

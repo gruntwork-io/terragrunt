@@ -118,8 +118,8 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	stackTargetDir := filepath.Join(stackSourceDir, StackDir)
 
-	// When the stack-dependencies experiment is enabled, perform a two-pass
-	// parse to resolve autoinclude blocks and generate terragrunt.autoinclude.hcl files.
+	// Perform a two-pass parse to resolve autoinclude blocks and generate
+	// terragrunt.autoinclude.hcl files.
 	autoIncludes, stackSrcBytes, err := resolveStackAutoIncludes(ctx, l, pctx, stackFilePath, stackFile, values)
 	if err != nil {
 		return err
@@ -167,8 +167,8 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 // ValidateStackAutoIncludes runs the strict autoinclude parse over the stack file at
 // stackFilePath without generating anything, so tooling such as `hcl validate` reports
 // the same autoinclude errors [GenerateStackFile] would raise. stackFile is the config
-// already parsed from stackFilePath via [ParseStackConfig]. It is a no-op when the
-// stack-dependencies experiment is disabled or no unit or stack declares autoinclude.
+// already parsed from stackFilePath via [ParseStackConfig]. It is a no-op when no unit
+// or stack declares autoinclude.
 func ValidateStackAutoIncludes(ctx context.Context, l log.Logger, pctx *ParsingContext, stackFilePath string, stackFile *StackConfig, values *cty.Value) error {
 	_, _, err := resolveStackAutoIncludes(ctx, l, pctx, stackFilePath, stackFile, values)
 
@@ -178,10 +178,9 @@ func ValidateStackAutoIncludes(ctx context.Context, l log.Logger, pctx *ParsingC
 // resolveStackAutoIncludes runs the strict phased autoinclude parse over the stack file at
 // stackFilePath and returns the resolved autoincludes keyed by [inthclparse.AutoIncludeKey],
 // plus the raw stack file bytes the generator slices expression ranges from. It returns nil
-// results when the stack-dependencies experiment is disabled or stackFile declares no
-// autoinclude blocks, mirroring the gate [GenerateStackFile] has always applied.
+// results when stackFile declares no autoinclude blocks.
 func resolveStackAutoIncludes(ctx context.Context, l log.Logger, pctx *ParsingContext, stackFilePath string, stackFile *StackConfig, values *cty.Value) (map[string]*inthclparse.AutoIncludeResolved, []byte, error) {
-	if !pctx.Experiments.Evaluate(experiment.StackDependencies) || !stackConfigHasAutoInclude(stackFile) {
+	if !stackConfigHasAutoInclude(stackFile) {
 		return nil, nil, nil
 	}
 
@@ -844,11 +843,9 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 
 	// Expose unit.<name>.path / stack.<name>.path so a unit or stack block's values
 	// can reference where sibling components generate to (e.g. to pass a unit path
-	// down to a child stack). Gated on the experiment that introduces the feature.
-	if parser.Experiments.Evaluate(experiment.StackDependencies) {
-		if err := injectStackComponentRefs(file, evalParsingContext, filepath.Dir(file.ConfigPath), parser.ParserOptions); err != nil {
-			return nil, err
-		}
+	// down to a child stack).
+	if err := injectStackComponentRefs(file, evalParsingContext, filepath.Dir(file.ConfigPath), parser.ParserOptions); err != nil {
+		return nil, err
 	}
 
 	config := &StackConfigFile{}
@@ -856,18 +853,15 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, decodeErr
 	}
 
-	// Process include blocks and merge any generated stack-level autoinclude file
-	// when the stack-dependencies experiment is enabled.
-	if parser.Experiments.Evaluate(experiment.StackDependencies) {
-		stackDir := filepath.Dir(file.ConfigPath)
+	// Process include blocks and merge any generated stack-level autoinclude file.
+	stackDir := filepath.Dir(file.ConfigPath)
 
-		if err := processStackConfigIncludes(config, stackDir, evalParsingContext, parser.ParserOptions); err != nil {
-			return nil, err
-		}
+	if err := processStackConfigIncludes(config, stackDir, evalParsingContext, parser.ParserOptions); err != nil {
+		return nil, err
+	}
 
-		if err := mergeStackAutoIncludeFile(l, config, stackDir, filepath.Base(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
-			return nil, err
-		}
+	if err := mergeStackAutoIncludeFile(l, config, stackDir, filepath.Base(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
+		return nil, err
 	}
 
 	localsParsed := map[string]any{}

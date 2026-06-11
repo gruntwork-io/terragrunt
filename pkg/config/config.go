@@ -2286,15 +2286,11 @@ func ParseRemoteState(ctx context.Context, l log.Logger, pctx *ParsingContext) (
 // siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside configPath
 // and whether it is in scope: the context is not already parsing a file pulled in by an autoinclude
 // merge (skipAutoIncludeMerge, which would recurse and let a pulled-in file fold its own sibling
-// autoinclude), the stack-dependencies experiment is enabled, and configPath is not itself an autoinclude
-// file. The registration that records the override on TrackInclude and the partial-parse cache key both
-// route through here. Existence is left to the caller so the cache-key path can distinguish absent from present.
+// autoinclude), and configPath is not itself an autoinclude file. The registration that records the
+// override on TrackInclude and the partial-parse cache key both route through here. Existence is left
+// to the caller so the cache-key path can distinguish absent from present.
 func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bool) {
 	if pctx.skipAutoIncludeMerge {
-		return "", false
-	}
-
-	if !pctx.Experiments.Evaluate(experiment.StackDependencies) {
 		return "", false
 	}
 
