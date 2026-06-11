@@ -1311,18 +1311,6 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 // so "a/**/*.tf" will not match "a/b.tf"; use "a/{*.tf,**/*.tf}" to cover
 // both depths. Returns the list of absolute file paths that were marked.
 func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) ([]string, error) {
-	if !pctx.Experiments.Evaluate(experiment.MarkManyAsRead) {
-		pattern := ""
-		if len(args) > 0 {
-			pattern = args[0]
-		}
-
-		return nil, MarkGlobAsReadRequiresExperimentError{
-			ConfigPath: pctx.TerragruntConfigPath,
-			Pattern:    pattern,
-		}
-	}
-
 	if len(args) != 1 {
 		return nil, WrongNumberOfParamsError{Func: FuncNameMarkGlobAsRead, Expected: "1", Actual: len(args)}
 	}

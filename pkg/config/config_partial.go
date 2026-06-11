@@ -621,6 +621,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 	}
 
+	if output.Terraform != nil && output.Terraform.Source != nil {
+		markLocalModuleSourceAsRead(pctx, file.ConfigPath, *output.Terraform.Source)
+	}
+
 	// If this file includes another, parse and merge the partial blocks. Otherwise, just return this config.
 	// If there have been errors during this parse, don't attempt to parse the included config.
 	// TrackInclude is nil when DecodeBaseBlocks returned (nil, err), e.g. an invalid feature
@@ -637,10 +641,6 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			config.ProcessedIncludes = pctx.TrackInclude.CurrentMap
 			output = config
 		}
-	}
-
-	if pctx.Experiments.Evaluate(experiment.MarkManyAsRead) && output.Terraform != nil && output.Terraform.Source != nil {
-		markLocalModuleSourceAsRead(pctx, file.ConfigPath, *output.Terraform.Source)
 	}
 
 	if joined := errors.Join(errs...); joined != nil {
