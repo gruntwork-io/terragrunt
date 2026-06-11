@@ -625,15 +625,10 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 	return err
 }
 
-// LogUnitDeployOrder logs the order of units to be processed.
-// When the dag-queue-display experiment is enabled, the output is rendered as a DAG tree
-// showing dependency relationships between units. Otherwise, a flat list is shown.
+// LogUnitDeployOrder logs the order of units to be processed as a DAG tree
+// showing dependency relationships between units.
 func (rnr *Runner) LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths bool, experiments experiment.Experiments) error {
-	if experiments.Evaluate(experiment.DAGQueueDisplay) {
-		return rnr.logUnitDeployOrderDAG(l, isDestroy, showAbsPaths)
-	}
-
-	return rnr.logUnitDeployOrderFlat(l, showAbsPaths)
+	return rnr.logUnitDeployOrderDAG(l, isDestroy, showAbsPaths)
 }
 
 // logUnitDeployOrderDAG renders the queue as a DAG tree showing dependency relationships.
@@ -650,24 +645,6 @@ func (rnr *Runner) logUnitDeployOrderDAG(l log.Logger, isDestroy bool, showAbsPa
 	header := deployOrderHeader(isDestroy)
 
 	l.Info(header + t.String())
-
-	return nil
-}
-
-// logUnitDeployOrderFlat renders the queue as a flat list of units.
-func (rnr *Runner) logUnitDeployOrderFlat(l log.Logger, showAbsPaths bool) error {
-	var sb strings.Builder
-
-	for _, unit := range rnr.queue.Entries {
-		unitPath := unit.Component.DisplayPath()
-		if showAbsPaths {
-			unitPath = unit.Component.Path()
-		}
-
-		fmt.Fprintf(&sb, "- Unit %s\n", unitPath)
-	}
-
-	l.Info(sb.String())
 
 	return nil
 }
