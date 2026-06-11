@@ -20,8 +20,10 @@ const (
 	CLIRedesign = "cli-redesign"
 	// Stacks is the experiment that allows stacks to be used in Terragrunt.
 	Stacks = "stacks"
-	// CAS is the experiment that enables using the CAS package for git operations
-	// in the catalog command, which provides better performance through content-addressable storage.
+	// CAS names the now-stable content-addressable storage behavior. CAS speeds up
+	// catalog cloning, OpenTofu/Terraform source cloning, and stack generation by
+	// avoiding redundant downloads of Git repositories. It is enabled by default and
+	// can be disabled with the --no-cas flag.
 	CAS = "cas"
 	// Report is the experiment that enables the new run report.
 	Report = "report"
@@ -51,10 +53,11 @@ const (
 	StackDependencies = "stack-dependencies"
 	// CatalogRedesign is the experiment that enables the redesigned catalog experience.
 	CatalogRedesign = "catalog-redesign"
-	// MarkManyAsRead enables behaviors that mark many files as read in one
-	// step: automatic marking of files inside a local terraform module source
-	// (so reading-based filter expressions detect changes to the module) and
-	// the mark_glob_as_read HCL function.
+	// MarkManyAsRead names the now-stable behaviors that mark many files as
+	// read in one step: automatic marking of files inside a local terraform
+	// module source (so reading-based filter expressions detect changes to
+	// the module) and the mark_glob_as_read HCL function. Both are enabled
+	// by default.
 	MarkManyAsRead = "mark-many-as-read"
 	// AzureBackend reserves the experiment flag for native Azure Storage (azurerm)
 	// remote state support. The backend is stubbed out for now; full Azure helper
@@ -99,7 +102,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: CAS,
+			Name:   CAS,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   Report,
@@ -130,13 +134,16 @@ func NewExperiments() Experiments {
 			Name: DAGQueueDisplay,
 		},
 		{
-			Name: StackDependencies,
+			Name:   StackDependencies,
+			Status: StatusCompleted,
 		},
 		{
-			Name: CatalogRedesign,
+			Name:   CatalogRedesign,
+			Status: StatusCompleted,
 		},
 		{
-			Name: MarkManyAsRead,
+			Name:   MarkManyAsRead,
+			Status: StatusCompleted,
 		},
 		{
 			Name: AzureBackend,

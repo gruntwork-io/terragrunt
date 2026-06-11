@@ -24,7 +24,7 @@ func NewCASFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper
 			Name:        NoCASFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoCASFlagName),
 			Destination: &opts.NoCAS,
-			Usage:       "Disable the CAS (Content Addressable Storage) feature even when the experiment is enabled.",
+			Usage:       "Disable the CAS (Content Addressable Storage) feature.",
 		}),
 		flags.NewFlag(&clihelper.GenericFlag[int]{
 			Name:        CASCloneDepthFlagName,

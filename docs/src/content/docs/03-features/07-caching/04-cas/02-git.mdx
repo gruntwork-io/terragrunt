@@ -7,11 +7,14 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
 
+<Before version="1.1.0">
 <Aside type="tip" title="Experimental">
 CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
 </Aside>
 
+</Before>
 Git is the most common source Terragrunt fetches and has the richest support in the CAS.
 
 ## Overview

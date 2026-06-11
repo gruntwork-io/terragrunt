@@ -1,0 +1,91 @@
+---
+title: Terragrunt vs Terragrunt Scale
+description: A comparison for teams deciding whether to run Terragrunt on its own or adopt Terragrunt Scale.
+slug: terragrunt-scale/terragrunt-at-scale
+sidebar:
+  label: Terragrunt at scale
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page is for teams deciding whether to run Terragrunt on its own or adopt Terragrunt Scale.
+
+## The Short Version
+
+Terragrunt is the engine: it runs OpenTofu/Terraform across many units, manages dependencies through a DAG, and keeps your configuration DRY. It does not run itself. Someone on your team has to wire it into CI, decide what to plan and apply, gate merges, watch for drift, and chase module upgrades.
+
+Terragrunt Scale is that wiring, built and maintained for you. It runs entirely in your own CI runners and never touches your cloud accounts or state files directly. The trade-off you are evaluating is engineering hours spent building and maintaining pipeline glue versus a managed product that ships those workflows out of the box.
+
+Gruntwork also funds Terragrunt's development from Scale revenue, so the open-source tool you already run keeps getting better while Scale carries the pipeline maintenance for you.
+
+## Side by Side
+
+| Capability | Terragrunt | Terragrunt Scale |
+| --- | --- | --- |
+| Run OpenTofu/Terraform across units | Yes | Yes |
+| Dependency-aware DAG ordering | Yes | Yes |
+| DRY configuration, code generation | Yes | Yes |
+| `plan` on pull requests | Build it yourself | Built in |
+| `apply` on merge | Build it yourself | Built in |
+| Blast radius minimization (only changed units) | Build it yourself | Built in |
+| OIDC, per-environment least-privilege auth | Build it yourself | Built in |
+| Aggregated PR comments for reviewers | Build it yourself | Built in |
+| Multi-environment deploys in one PR | Build it yourself | Built in |
+| Scheduled drift detection with remediation PRs | Build it yourself | Built in ([Drift Detection](/terragrunt-scale/drift-detection)) |
+| Automated module/provider upgrade PRs | Build it yourself | Built in ([Patcher](/terragrunt-scale/patcher)) |
+| Maintenance of the above as Terragrunt evolves | Your team | Gruntwork |
+
+## Where the ROI Comes From
+
+---
+
+### You Stop Building and Maintaining Pipeline Glue
+
+A production Terragrunt pipeline is not a weekend project. It needs to detect which units changed, plan and apply only those in dependency order, fan out across environments with separate credentials, aggregate output so reviewers can actually read it, and handle failures without leaving state half-applied. Teams routinely spend weeks of senior engineering time building this, then keep paying to maintain it every time Terragrunt, the CI provider, or their cloud auth model changes.
+
+Scale ships this as a product. The recurring maintenance cost moves off your team's backlog.
+
+### Faster, Safer Pull Requests
+
+[Pipelines](/terragrunt-scale/pipelines) runs `plan` automatically on every PR and `apply` on merge, with results aggregated into a single structured comment. Reviewers see every change in one place instead of digging through CI logs. Blast radius minimization means a one-line change plans one unit instead of the entire stack. Pipeline runs are shorter, cloud API usage is lower, and an unrelated change is far less likely to ride along.
+
+### Drift Caught Before It Becomes an Incident
+
+[Drift Detection](/terragrunt-scale/drift-detection) scans deployed infrastructure against your code on a schedule and opens a pull request when they diverge. Without it, drift tends to surface at the worst time: in the middle of an unrelated change, or during an outage. With it, the same drift arrives as a reviewable PR on an ordinary day, when someone has time to look at it.
+
+### Dependency Upgrades That Don't Rot
+
+[Patcher](/terragrunt-scale/patcher) watches for new OpenTofu/Terraform module and provider versions and opens upgrade PRs, including help with breaking changes. The usual alternative is modules drifting years behind until a forced upgrade turns into a multi-sprint project. Continuous small upgrades are cheaper than one large overdue one.
+
+### Security Posture Without the Build Cost
+
+Scale uses short-lived, scoped OIDC credentials per environment rather than long-lived secrets, and all execution happens inside your own runners. Scale never has direct access to your cloud accounts or state. You get least-privilege CI auth without designing and auditing it yourself.
+
+## What You Keep Either Way
+
+Adopting Scale is not a lock-in trade. It runs open-source Terragrunt under the hood, in your infrastructure. Your configuration, modules, and state stay yours and stay portable. If you leave Scale, you still have a working Terragrunt setup.
+
+## Sizing the Decision
+
+Estimate ROI against the cost of the engineer who would otherwise own the pipeline:
+
+- **Build cost avoided** — weeks of senior time to build PR plan/apply, blast radius logic, multi-environment auth, and drift/upgrade automation.
+- **Maintenance cost avoided** — the ongoing fraction of an engineer who keeps that glue working as tools change.
+- **Incident cost avoided** — drift and stale-dependency failures caught as routine PRs instead of outages.
+- **Throughput gained** — faster reviews and shorter pipeline runs across every infrastructure change your team ships.
+
+If your team is small or runs a handful of units, Terragrunt plus a modest CI wrapper is often enough. Scale's free tier (up to 25 [units](/getting-started/terminology#unit), GitHub + AWS today) lets you try the managed workflow at that scale. Once the number of units, environments, and engineers grows, the glue becomes a real line item, and that is the point where Scale typically pays for itself.
+
+## Recommendation
+
+- **Stay on Terragrunt alone** if you have few units, simple environments, and the in-house appetite to own a small amount of CI wiring.
+- **Move to Scale** once pipeline glue, drift, and dependency upkeep are consuming meaningful engineering time, or once a missed-drift or stale-dependency incident would be expensive. Start on the free tier to validate the workflow before committing.
+
+<Aside type="tip" title="Free Tier Available">
+
+Terragrunt Scale is free for up to 25 [units](/getting-started/terminology#unit).
+
+[Sign up](https://app.gruntwork.io) to get started today!
+
+</Aside>

@@ -827,10 +827,9 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	//
 	// A stack-level autoinclude file (terragrunt.autoinclude.stack.hcl) is a stack-file
 	// fragment holding unit and stack blocks, so it decodes through the same stack parsing
-	// path; the strict unit decode below would reject those blocks. Routing is gated on the
-	// experiment that introduces the file so behavior without it is unchanged.
+	// path; the strict unit decode below would reject those blocks.
 	targetBase := filepath.Base(targetConfig)
-	isStackAutoIncludeFile := targetBase == DefaultAutoIncludeStackFile && pctx.Experiments.Evaluate(experiment.StackDependencies)
+	isStackAutoIncludeFile := targetBase == DefaultAutoIncludeStackFile
 
 	if targetBase == DefaultStackFile || isStackAutoIncludeFile {
 		stackSourceDir := filepath.Dir(targetConfig)
@@ -1312,18 +1311,6 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 // so "a/**/*.tf" will not match "a/b.tf"; use "a/{*.tf,**/*.tf}" to cover
 // both depths. Returns the list of absolute file paths that were marked.
 func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) ([]string, error) {
-	if !pctx.Experiments.Evaluate(experiment.MarkManyAsRead) {
-		pattern := ""
-		if len(args) > 0 {
-			pattern = args[0]
-		}
-
-		return nil, MarkGlobAsReadRequiresExperimentError{
-			ConfigPath: pctx.TerragruntConfigPath,
-			Pattern:    pattern,
-		}
-	}
-
 	if len(args) != 1 {
 		return nil, WrongNumberOfParamsError{Func: FuncNameMarkGlobAsRead, Expected: "1", Actual: len(args)}
 	}

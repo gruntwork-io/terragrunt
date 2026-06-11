@@ -712,14 +712,11 @@ func getTerragruntOutput(
 		pctx.TerragruntConfigPath,
 	)
 
-	// When the stack-dependencies experiment is enabled, check if config_path
-	// points to a directory containing a stack file. If so, resolve outputs
-	// from all units in the stack as a nested map.
-	if pctx.Experiments.Evaluate(experiment.StackDependencies) {
-		stackOutput, handled, err := tryGetStackOutput(ctx, pctx, l, targetConfigPath, dependencyConfig)
-		if handled {
-			return stackOutput, stackOutput == nil, err
-		}
+	// Check if config_path points to a directory containing a stack file. If so,
+	// resolve outputs from all units in the stack as a nested map.
+	stackOutput, handled, err := tryGetStackOutput(ctx, pctx, l, targetConfigPath, dependencyConfig)
+	if handled {
+		return stackOutput, stackOutput == nil, err
 	}
 
 	if !util.FileExists(targetConfigPath) {

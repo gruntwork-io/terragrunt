@@ -2371,10 +2371,6 @@ func TestStackOutputWithExclude(t *testing.T) {
 func TestCASInStacks(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Experiment mode is not enabled")
-	}
-
 	srv, err := git.NewServer()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
@@ -2500,10 +2496,6 @@ func TestCASInStacks(t *testing.T) {
 func TestCASInStacksUnitSourceSubdirSiblingsResolve(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Experiment mode is not enabled")
-	}
-
 	srv, err := git.NewServer()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
@@ -2571,16 +2563,10 @@ func TestCASInStacksUnitSourceSubdirSiblingsResolve(t *testing.T) {
 
 // TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS verifies that stack generation
 // errors when a unit or stack block declares update_source_with_cas = true while
-// --no-cas is set. The "experiment off" branch is covered by the unit tests in
-// internal/runner/run/download_source_test.go; integration-mode here always has the
-// cas experiment enabled via TG_EXPERIMENT_MODE, so --no-cas is the only way to
-// disable CAS for this scenario.
+// --no-cas is set. CAS is enabled by default, so --no-cas is the way to disable it
+// for this scenario.
 func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Experiment mode is not enabled")
-	}
 
 	testCases := []struct {
 		name        string
@@ -2640,10 +2626,6 @@ func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
 // rewritten to cas::sha256 references that materialize correctly at run time.
 func TestCASInStacksLocalSource(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Experiment mode is not enabled")
-	}
 
 	// Keep the catalog on a sibling path outside the live working directory so
 	// terragrunt stack generate doesn't discover the catalog's stack file as a
