@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -79,7 +80,7 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
 
-	err = scaffold.Run(ctx, createLogger(), opts, auroraModule.TerraformSourcePath(), "")
+	err = scaffold.Run(ctx, createLogger(), venv.OSVenv(), opts, auroraModule.TerraformSourcePath(), "")
 	require.NoError(t, err)
 
 	cfg := readConfig(t, opts)
@@ -127,7 +128,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
 
-	err = scaffold.Run(ctx, createLogger(), opts, auroraModule.TerraformSourcePath(), "")
+	err = scaffold.Run(ctx, createLogger(), venv.OSVenv(), opts, auroraModule.TerraformSourcePath(), "")
 	require.NoError(t, err)
 
 	cfg := readConfig(t, opts)

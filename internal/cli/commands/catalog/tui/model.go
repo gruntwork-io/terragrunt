@@ -68,19 +68,19 @@ type Model struct {
 	// work (e.g. scaffold.Prepare downloading sources) propagates the
 	// user's Ctrl+C through this context, so the call returns instead of
 	// blocking on an abandoned download.
-	ctx                 context.Context
-	lists               [numTabs]list.Model
-	logger              log.Logger
-	terragruntOptions   *options.TerragruntOptions
-	selectedComponent   *Component
-	delegateKeys        *DelegateKeyMap
-	buttonBar           *buttonbar.ButtonBar
-	componentCh         chan *ComponentEntry
-	errCh               chan error
-	mdRenderer          *glamour.TermRenderer
-	form                *FormModel
-	scaffoldPlan        *scaffold.Plan
-	valuesRefs          *ValuesReferences
+	ctx               context.Context
+	lists             [numTabs]list.Model
+	logger            log.Logger
+	terragruntOptions *options.TerragruntOptions
+	selectedComponent *Component
+	delegateKeys      *DelegateKeyMap
+	buttonBar         *buttonbar.ButtonBar
+	componentCh       chan *ComponentEntry
+	errCh             chan error
+	mdRenderer        *glamour.TermRenderer
+	form              *FormModel
+	scaffoldPlan      *scaffold.Plan
+	valuesRefs        *ValuesReferences
 	// terminalErr is the failure that ended the session (a scaffold, copy,
 	// or form-discovery error). Run returns it so the catalog command exits
 	// nonzero; a deliberate quit leaves it nil.

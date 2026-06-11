@@ -109,17 +109,17 @@ func TestWelcomeDiscoveryErrorQuitPropagatesErrorWithRacing(t *testing.T) {
 		l := logger.CreateLogger()
 
 		discoveryErr := errors.New("network unreachable")
-		erroringLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
+		erroringLoad := func(_ context.Context, _ tui.StatusFunc, _ chan<- *tui.ComponentEntry) error {
 			return discoveryErr
 		}
 
-		m := redesign.NewWelcomeModel(t.Context(), l, opts, erroringLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, opts, erroringLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
 		finalModel := driveModel(t, m, 120, 40, msgs)
 
-		welcome, isWelcome := finalModel.(redesign.WelcomeModel)
+		welcome, isWelcome := finalModel.(tui.WelcomeModel)
 		require.True(t, isWelcome, "should remain on welcome screen after a discovery error")
 		require.Error(t, welcome.Err(), "quitting after a discovery error should carry the failure")
 		require.ErrorIs(t, welcome.Err(), discoveryErr)
@@ -138,9 +138,9 @@ func TestWelcomeAllSourcesFailedPropagatesTypedErrorWithRacing(t *testing.T) {
 
 		l := logger.CreateLogger()
 
-		allFailedLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
-			return &redesign.SourceLoadError{
-				Failures: []redesign.SourceFailure{
+		allFailedLoad := func(_ context.Context, _ tui.StatusFunc, _ chan<- *tui.ComponentEntry) error {
+			return &tui.SourceLoadError{
+				Failures: []tui.SourceFailure{
 					{URL: "github.com/acme/modules", Err: errors.New("clone failed")},
 					{URL: "github.com/acme/templates", Err: errors.New("authentication required")},
 				},
@@ -148,16 +148,16 @@ func TestWelcomeAllSourcesFailedPropagatesTypedErrorWithRacing(t *testing.T) {
 			}
 		}
 
-		m := redesign.NewWelcomeModel(t.Context(), l, opts, allFailedLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, opts, allFailedLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
 		finalModel := driveModel(t, m, 120, 40, msgs)
 
-		welcome, isWelcome := finalModel.(redesign.WelcomeModel)
+		welcome, isWelcome := finalModel.(tui.WelcomeModel)
 		require.True(t, isWelcome, "should remain on welcome screen when every source fails")
 
-		var srcErr *redesign.SourceLoadError
+		var srcErr *tui.SourceLoadError
 
 		require.ErrorAs(t, welcome.Err(), &srcErr)
 		assert.True(t, srcErr.AllFailed(), "every attempted source failed")
@@ -184,17 +184,17 @@ func TestWelcomeCleanQuitReturnsNoErrorWithRacing(t *testing.T) {
 
 		l := logger.CreateLogger()
 
-		noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
+		noSourcesLoad := func(_ context.Context, _ tui.StatusFunc, _ chan<- *tui.ComponentEntry) error {
 			return nil
 		}
 
-		m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
+		m := tui.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
 		finalModel := driveModel(t, m, 120, 40, msgs)
 
-		welcome, isWelcome := finalModel.(redesign.WelcomeModel)
+		welcome, isWelcome := finalModel.(tui.WelcomeModel)
 		require.True(t, isWelcome)
 		require.NoError(t, welcome.Err(), "a clean quit must not carry an error")
 	})

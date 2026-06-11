@@ -174,10 +174,10 @@ func TestCatalogRedesignNonTTYFailsFast(t *testing.T) {
 	workDir := t.TempDir()
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-redesign --working-dir "+workDir)
+		"terragrunt catalog --working-dir "+workDir)
 
 	require.Error(t, err)
-	require.ErrorIs(t, err, redesign.ErrNoTerminal)
+	require.ErrorIs(t, err, tui.ErrNoTerminal)
 }
 
 func ignoreFileAction(t *testing.T, opts *options.TerragruntOptions) clihelper.FlagActionFunc[string] {
