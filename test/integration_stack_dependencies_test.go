@@ -191,7 +191,7 @@ func TestStackDepsAutoIncludeResolvesObjectKey(t *testing.T) {
 	rootPath, err = filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
 
 	generated, err := os.ReadFile(filepath.Join(rootPath, inthclparse.StackDir, "app", inthclparse.AutoIncludeFile))
 	require.NoError(t, err)
@@ -204,7 +204,7 @@ func TestStackDepsAutoIncludeResolvesObjectKey(t *testing.T) {
 
 	// End to end: the generated unit must evaluate (a leaked stack reference would fail here), with the resolved key carrying the mocked dependency output through to the unit's planned outputs.
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- plan")
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan")
 	require.NoError(t, err, "the generated stack must plan; stderr=%s", stderr)
 	assert.Contains(t, stdout, "pre_key=mock-vpc-id",
 		"the resolved object key must carry the mocked dependency output into the unit inputs")

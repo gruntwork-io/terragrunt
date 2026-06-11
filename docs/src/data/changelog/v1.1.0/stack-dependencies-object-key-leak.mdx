@@ -1,9 +1,9 @@
 ---
-version: "v1.1.0-rc1"
-category: "experiments-updated"
+version: "v1.1.0"
+category: "bug-fixes"
 ---
 
-#### `stack-dependencies`: resolve interpolated object keys in autoinclude blocks
+#### Resolve interpolated object keys in autoinclude blocks
 
 `terragrunt stack generate` now resolves interpolated object keys in `autoinclude` blocks (for example
 `{ "${local.prefix}_key" = ... }`), even when the value references `dependency.*`. Previously the generated
