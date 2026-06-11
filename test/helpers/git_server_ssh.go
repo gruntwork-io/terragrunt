@@ -251,10 +251,8 @@ func populateBareRepo(fixturesDir string, dirs []string, bareDir, httpURL, sshUR
 	}
 
 	for _, tag := range TerragruntMirrorTags {
-		// `-a -m` matches the annotated tags created on the HTTP
-		// mirror via [git.Server.Tag], so both mirrors expose the
-		// same tag object type.
-		if err := runGit(workDir, "tag", "-a", "-m", tag, tag); err != nil {
+		// Lightweight tags match [git.Server.Tag], keeping both mirrors symmetric.
+		if err := runGit(workDir, "tag", tag); err != nil {
 			return err
 		}
 	}

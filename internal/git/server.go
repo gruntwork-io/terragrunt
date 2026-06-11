@@ -46,6 +46,14 @@ func NewServer() (*Server, error) {
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
 
+	ok := false
+
+	defer func() {
+		if !ok {
+			_ = os.RemoveAll(projectRoot)
+		}
+	}()
+
 	s := &Server{
 		projectRoot: projectRoot,
 		gitPath:     gitPath,
@@ -55,7 +63,6 @@ func NewServer() (*Server, error) {
 	bareDir := filepath.Join(projectRoot, "repo.git")
 
 	if err := s.gitIn(ctx, projectRoot, "init", "--bare", bareDir); err != nil {
-		_ = os.RemoveAll(projectRoot)
 		return nil, fmt.Errorf("init bare repo: %w", err)
 	}
 
@@ -64,37 +71,33 @@ func NewServer() (*Server, error) {
 	workDir := filepath.Join(projectRoot, "work")
 
 	if err := os.MkdirAll(workDir, serverDirMode); err != nil {
-		_ = os.RemoveAll(projectRoot)
 		return nil, fmt.Errorf("create work dir: %w", err)
 	}
 
 	if err := s.gitIn(ctx, workDir, "init"); err != nil {
-		_ = os.RemoveAll(projectRoot)
 		return nil, fmt.Errorf("init work dir: %w", err)
 	}
 
 	// Set main regardless of the host's init.defaultBranch setting.
 	if err := s.gitIn(ctx, workDir, "symbolic-ref", "HEAD", "refs/heads/main"); err != nil {
-		_ = os.RemoveAll(projectRoot)
 		return nil, fmt.Errorf("set default branch: %w", err)
 	}
 
 	if err := s.gitIn(ctx, workDir, "remote", "add", "origin", bareDir); err != nil {
-		_ = os.RemoveAll(projectRoot)
 		return nil, fmt.Errorf("add remote: %w", err)
 	}
 
 	if err := s.gitIn(ctx, workDir, "config", "user.email", "test@test.com"); err != nil {
-		_ = os.RemoveAll(projectRoot)
 		return nil, fmt.Errorf("config user.email: %w", err)
 	}
 
 	if err := s.gitIn(ctx, workDir, "config", "user.name", "Test"); err != nil {
-		_ = os.RemoveAll(projectRoot)
 		return nil, fmt.Errorf("config user.name: %w", err)
 	}
 
 	s.workDir = workDir
+
+	ok = true
 
 	return s, nil
 }
@@ -220,15 +223,18 @@ func (s *Server) CommitFiles(ctx context.Context, files map[string][]byte, msg s
 
 // Head returns the canonical hash of the current HEAD commit.
 func (s *Server) Head(ctx context.Context) (string, error) {
+	var stdout, stderr strings.Builder
+
 	cmd := exec.CommandContext(ctx, s.gitPath, "rev-parse", "HEAD")
 	cmd.Dir = s.workDir
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("rev-parse HEAD: %w", err)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("git rev-parse HEAD: %w\n%s", err, strings.TrimSpace(stderr.String()))
 	}
 
-	return strings.TrimSpace(string(out)), nil
+	return strings.TrimSpace(stdout.String()), nil
 }
 
 // Tag creates a lightweight tag at the current HEAD with the given name.
@@ -243,7 +249,14 @@ func (s *Server) Tag(ctx context.Context, name string) error {
 
 // DeleteTag removes the named tag. It is a no-op when the tag does not exist.
 func (s *Server) DeleteTag(ctx context.Context, name string) error {
-	_ = s.gitIn(ctx, s.bareDir, "tag", "-d", name)
+	cmd := exec.CommandContext(ctx, s.gitPath, "tag", "-d", name)
+	cmd.Dir = s.bareDir
+
+	out, err := cmd.CombinedOutput()
+	if err != nil && !strings.Contains(string(out), "not found") {
+		return fmt.Errorf("git tag -d %s: %w\n%s", name, err, strings.TrimSpace(string(out)))
+	}
+
 	return nil
 }
 
@@ -260,6 +273,10 @@ func (s *Server) Branch(ctx context.Context, name string) error {
 // SetBranch points the named branch at the given commit hash, creating it if
 // missing. Tests use this to rewind a branch past a tagged commit so the
 // commit is reachable only via the tag.
+//
+// Note: all Commit* methods push only to refs/heads/main. Calling SetBranch
+// for a branch other than main, then calling CommitFile or similar, will not
+// advance that branch — it will only advance main.
 func (s *Server) SetBranch(ctx context.Context, name, hash string) error {
 	return s.gitIn(ctx, s.bareDir, "update-ref", "refs/heads/"+name, hash)
 }
@@ -302,14 +319,9 @@ func (s *Server) Start(ctx context.Context) (string, error) {
 // Close shuts down the server and removes its temporary directory.
 func (s *Server) Close() (retErr error) {
 	if s.srv != nil {
+		// http.Server.Close closes the listener; don't close s.ln separately.
 		if err := s.srv.Close(); err != nil {
 			retErr = fmt.Errorf("close http server: %w", err)
-		}
-	}
-
-	if s.ln != nil {
-		if err := s.ln.Close(); err != nil && retErr == nil {
-			retErr = fmt.Errorf("close listener: %w", err)
 		}
 	}
 

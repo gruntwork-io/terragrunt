@@ -954,7 +954,7 @@ func (g *GitRunner) ConfigSet(ctx context.Context, name, value string) error {
 		return &WrappedError{
 			Op:      "git_config_set",
 			Context: stderr.String(),
-			Err:     ErrCommandSpawn,
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 
