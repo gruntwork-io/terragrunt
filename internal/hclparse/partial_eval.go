@@ -230,7 +230,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, err
 	buf.WriteByte('"')
 
 	for _, part := range e.Parts {
-		if lit, ok := part.(*hclsyntax.LiteralValueExpr); ok {
+		if lit, ok := part.(*hclsyntax.LiteralValueExpr); ok && lit.Val.Type() == cty.String {
 			buf.Write(HCLStringContent(lit.Val.AsString()))
 
 			continue
