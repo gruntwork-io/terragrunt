@@ -580,7 +580,7 @@ func fetchComponentSource(
 
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
-			return fmt.Errorf("cas:: source on %s %q requires the 'cas' experiment to be enabled", kindStr, cmp.name)
+			return fmt.Errorf("cas:: source on %s %q requires the --no-cas flag to be unset", kindStr, cmp.name)
 		}
 
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {

@@ -317,9 +317,8 @@ func TestLoad_PassesCASOptions(t *testing.T) {
 		noCAS        bool
 		wantAllowCAS bool
 	}{
-		{name: "cas experiment enabled", cloneDepth: 1, enableCAS: true, noCAS: false, wantAllowCAS: true},
-		{name: "cas experiment enabled with no-cas", cloneDepth: 1, enableCAS: true, noCAS: true, wantAllowCAS: false},
-		{name: "cas experiment disabled", cloneDepth: 1, enableCAS: false, noCAS: false, wantAllowCAS: false},
+		{name: "cas enabled", cloneDepth: 1, enableCAS: true, noCAS: false, wantAllowCAS: true},
+		{name: "no-cas flag disables cas", cloneDepth: 1, enableCAS: true, noCAS: true, wantAllowCAS: false},
 		{name: "custom clone depth", cloneDepth: 5, enableCAS: true, noCAS: false, wantAllowCAS: true},
 	}
 

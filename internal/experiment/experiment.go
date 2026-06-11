@@ -136,7 +136,8 @@ func NewExperiments() Experiments {
 			Name: StackDependencies,
 		},
 		{
-			Name: CatalogRedesign,
+			Name:   CatalogRedesign,
+			Status: StatusCompleted,
 		},
 		{
 			Name: MarkManyAsRead,

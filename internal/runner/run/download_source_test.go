@@ -277,6 +277,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
+		run.OSVenv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 		cfg,
