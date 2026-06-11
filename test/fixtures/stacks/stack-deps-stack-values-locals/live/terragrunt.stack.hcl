@@ -29,8 +29,7 @@ unit "app" {
     }
 
     inputs = {
-      # additional test to see if interpolation of "${0}" works as expected
-      vpc_id = "${0}-${dependency.network.outputs.vpc.vpc_id}"
+      vpc_id = dependency.network.outputs.vpc.vpc_id
     }
   }
 }

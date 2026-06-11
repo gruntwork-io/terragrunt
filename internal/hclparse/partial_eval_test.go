@@ -172,6 +172,22 @@ func TestPartialEval(t *testing.T) {
 			contains: []string{`"1.5-${dependency.vpc.outputs.id}"`},
 		},
 		{
+			// A null literal can't be stringified: it stays an interpolation so the runtime
+			// produces a faithful error instead of generate baking in a wrong value.
+			name:     "null literal interpolation with deferred stays deferred",
+			hcl:      `val = "${null}-${dependency.vpc.outputs.id}"`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{"${null}", "${dependency.vpc.outputs.id}"},
+		},
+		{
+			// A pure part whose value can't convert to string (a tuple) is emitted back as an
+			// interpolation rather than rendered inline.
+			name:     "non-string-convertible interpolation with deferred stays deferred",
+			hcl:      `val = "${[1, 2]}-${dependency.vpc.outputs.id}"`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{"${[1, 2]}", "${dependency.vpc.outputs.id}"},
+		},
+		{
 			name:     "parentheses pure inner",
 			hcl:      `val = (local.env)`,
 			evalCtx:  buildEvalCtx(),

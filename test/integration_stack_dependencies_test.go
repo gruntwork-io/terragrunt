@@ -199,7 +199,7 @@ func TestStackDepsAutoIncludeTemplateLiteralInterpolation(t *testing.T) {
 	require.NoError(t, err)
 
 	content := string(generated)
-	assert.Contains(t, content, `"0-${dependency.vpc.outputs.id}"`, "a non-string literal interpolation must resolve to its string form, the dependency reference stays verbatim")
+	assert.Regexp(t, `(?m)^\s*v\s*=\s*"0-\$\{dependency\.vpc\.outputs\.id\}"\s*$`, content, "a non-string literal interpolation must resolve to its string form, the dependency reference stays verbatim")
 }
 
 // TestStackDepsAutoIncludeResolvesValuesReference verifies that a values.* reference inside an autoinclude resolves
