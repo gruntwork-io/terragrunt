@@ -7,4 +7,4 @@ category: "experiments-updated"
 
 The `stack-dependencies` experiment is complete. Support for the `autoinclude` block in `terragrunt.stack.hcl` files, including `unit.<name>.path` / `stack.<name>.path` references, dependencies that target stack directories, automatic merge of `terragrunt.autoinclude.hcl`, and stack dependency expansion in the run queue, is now enabled by default.
 
-The `--experiment stack-dependencies` flag is no longer needed. Passing it (or listing it in an `experiments` block) still works but emits a completed-experiment warning, so you can drop it at your convenience.
+The `--experiment stack-dependencies` flag is no longer needed. Passing it still works but emits a completed-experiment warning, so you can drop it at your convenience.

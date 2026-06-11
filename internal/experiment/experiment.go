@@ -131,7 +131,8 @@ func NewExperiments() Experiments {
 			Name: SlowTaskReporting,
 		},
 		{
-			Name: DAGQueueDisplay,
+			Name:   DAGQueueDisplay,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   StackDependencies,
