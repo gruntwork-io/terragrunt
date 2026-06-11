@@ -38,7 +38,7 @@ inputs = {
 	// A unit with a resolvable include so TrackInclude is set and the post-merge handleInclude branch dereferences config on a shallow merge.
 	require.NoError(t, os.WriteFile(cfgPath, []byte(`
 include "root" {
-  path           = "`+filepath.Join(parentDir, "root.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(parentDir, "root.hcl"))+`"
   merge_strategy = "shallow"
 }
 
@@ -176,7 +176,7 @@ dependency "foo" {
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
 	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
 include "base" {
-  path           = "`+filepath.Join(tmpDir, "base", "base.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "base", "base.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
@@ -275,7 +275,7 @@ dependency "wanted" {
 }
 
 include "base" {
-  path           = "`+filepath.Join(tmpDir, "b", "base.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "b", "base.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
