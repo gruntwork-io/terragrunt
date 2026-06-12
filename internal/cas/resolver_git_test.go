@@ -16,9 +16,9 @@ func TestGitResolver_ProbeHEAD(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("hi"), "init"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
 
-	headHash, err := srv.Head()
+	headHash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
 	url, err := srv.Start(t.Context())
@@ -36,10 +36,10 @@ func TestGitResolver_ProbeBranch(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("hi"), "init"))
-	require.NoError(t, srv.Branch("feature"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
+	require.NoError(t, srv.Branch(t.Context(), "feature"))
 
-	branchHash, err := srv.Head()
+	branchHash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
 	url, err := srv.Start(t.Context())
@@ -56,8 +56,8 @@ func TestGitResolver_ProbeTag(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("hi"), "init"))
-	require.NoError(t, srv.Tag("v1.0.0"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
+	require.NoError(t, srv.Tag(t.Context(), "v1.0.0"))
 
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
@@ -76,9 +76,9 @@ func TestGitResolver_CommitFormRefReturnsErrNoVersionMetadata(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("hi"), "init"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
 
-	commitSHA, err := srv.Head()
+	commitSHA, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
 	url, err := srv.Start(t.Context())
@@ -97,7 +97,7 @@ func TestGitResolver_UnknownRefReturnsErrNoVersionMetadata(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("hi"), "init"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
 
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
@@ -112,9 +112,9 @@ func TestGitResolver_TokenIsCacheKeyVerbatim(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("hi"), "init"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
 
-	headHash, err := srv.Head()
+	headHash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
 	url, err := srv.Start(t.Context())
@@ -140,9 +140,9 @@ func TestGitResolver_FullSHAHitsLocalCacheOffline(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("hi"), "init"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
 
-	headHash, err := srv.Head()
+	headHash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
 	url, err := srv.Start(t.Context())

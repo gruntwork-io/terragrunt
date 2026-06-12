@@ -14,12 +14,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	gliderssh "github.com/gliderlabs/ssh"
-	gogit "github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,7 +78,7 @@ var TerragruntMirrorBranches = []string{
 // uses SSH must not call t.Parallel.
 type GitServer struct {
 	// URL is the HTTP endpoint, of form
-	// `http://127.0.0.1:PORT/terragrunt.git`.
+	// `http://127.0.0.1:PORT/repo.git`.
 	URL string
 	// SSHURL is the SSH endpoint, set once [GitServer.RequireSSH]
 	// succeeds, else empty.
@@ -122,17 +120,17 @@ func NewGitServer(t *testing.T) *GitServer {
 	srv, err := git.NewServer()
 	require.NoError(t, err, "new git server")
 
-	base, err := srv.Start(context.Background())
+	base, err := srv.Start(t.Context())
 	require.NoError(t, err, "start git server")
 
 	fixturesDir, err := locateFixturesDir()
 	require.NoError(t, err, "locate fixtures dir")
 
-	// Append `/terragrunt.git` so the HTTP URL is symmetric with the SSH
-	// URL. The underlying [git.Server] uses a single-repo loader that
-	// ignores the request path, so any path resolves to the same storer.
+	// Start returns the full repo URL (http://host:port/repo.git); use it
+	// directly. The SSH mirror uses a separate path (/terragrunt.git) on its
+	// own server, so the two URLs do not need to share a path component.
 	s := &GitServer{
-		URL:         base + "/terragrunt.git",
+		URL:         base,
 		t:           t,
 		fixturesDir: fixturesDir,
 		httpServer:  srv,
@@ -156,22 +154,13 @@ func NewGitServer(t *testing.T) *GitServer {
 // branch at it. It runs before the server is shared, so it needs no
 // lock.
 func (s *GitServer) initRefs() error {
-	w, err := s.httpServer.Repo().Worktree()
-	if err != nil {
-		return fmt.Errorf("worktree: %w", err)
-	}
+	ctx := s.t.Context()
 
-	sig := &object.Signature{Name: "Test", Email: "test@test.com", When: time.Now()}
-
-	if _, err := w.Commit("seed empty repository", &gogit.CommitOptions{
-		Author:            sig,
-		Committer:         sig,
-		AllowEmptyCommits: true,
-	}); err != nil {
+	if err := s.httpServer.CommitEmpty(ctx, "seed empty repository"); err != nil {
 		return fmt.Errorf("seed commit: %w", err)
 	}
 
-	head, err := s.httpServer.Head()
+	head, err := s.httpServer.Head(ctx)
 	if err != nil {
 		return fmt.Errorf("resolve head: %w", err)
 	}
@@ -282,7 +271,7 @@ func (s *GitServer) add(subpaths []string) error {
 		return nil
 	}
 
-	if err := commitDirs(s.httpServer, s.fixturesDir, added, s.URL); err != nil {
+	if err := commitDirs(s.t.Context(), s.httpServer, s.fixturesDir, added, s.URL); err != nil {
 		return err
 	}
 
@@ -290,7 +279,7 @@ func (s *GitServer) add(subpaths []string) error {
 		s.committed[dir] = true
 	}
 
-	head, err := s.httpServer.Head()
+	head, err := s.httpServer.Head(s.t.Context())
 	if err != nil {
 		return fmt.Errorf("resolve head: %w", err)
 	}
@@ -359,20 +348,20 @@ func (s *GitServer) RequireSSH() {
 // retagLocked moves every tag and branch to the current HEAD. The caller
 // must hold s.mu.
 func (s *GitServer) retagLocked() error {
-	repo := s.httpServer.Repo()
+	ctx := s.t.Context()
 
 	for _, tag := range TerragruntMirrorTags {
-		if err := repo.DeleteTag(tag); err != nil && !errors.Is(err, gogit.ErrTagNotFound) {
+		if err := s.httpServer.DeleteTag(ctx, tag); err != nil {
 			return fmt.Errorf("delete tag %s: %w", tag, err)
 		}
 
-		if err := s.httpServer.Tag(tag); err != nil {
+		if err := s.httpServer.Tag(ctx, tag); err != nil {
 			return fmt.Errorf("tag %s: %w", tag, err)
 		}
 	}
 
 	for _, branch := range TerragruntMirrorBranches {
-		if err := s.httpServer.Branch(branch); err != nil {
+		if err := s.httpServer.Branch(ctx, branch); err != nil {
 			return fmt.Errorf("branch %s: %w", branch, err)
 		}
 	}
@@ -516,43 +505,19 @@ func locateFixturesDir() (string, error) {
 }
 
 // commitDirs writes the files of each repo-relative fixture directory in
-// dirs into srv's worktree at their full `test/fixtures/<rel>` path,
-// substituting [MirrorURLPlaceholder] with mirrorURL, then bulk-stages
-// and creates a single commit on top of the current HEAD. Passing an
-// empty dirs is a no-op.
-//
-// Bulk-staging via [AddOptions.All] is required because per-file `Add()`
-// calls `Status()` on the entire worktree each time, which degrades to
-// O(n²); serving only the fixtures a test needs keeps the count small.
-func commitDirs(srv *git.Server, fixturesDir string, dirs []string, mirrorURL string) error {
+// dirs into srv's working tree, substituting [MirrorURLPlaceholder] with
+// mirrorURL, then creates a single commit. Passing an empty dirs is a no-op.
+func commitDirs(ctx context.Context, srv *git.Server, fixturesDir string, dirs []string, mirrorURL string) error {
 	if len(dirs) == 0 {
 		return nil
 	}
 
 	repoRoot := filepath.Dir(filepath.Dir(fixturesDir))
-
-	repo := srv.Repo()
-
-	w, err := repo.Worktree()
-	if err != nil {
-		return fmt.Errorf("worktree: %w", err)
-	}
+	files := make(map[string][]byte)
 
 	for _, dir := range dirs {
 		walkErr := walkFixturesRooted(repoRoot, filepath.Join(repoRoot, dir), mirrorURL, "", func(rel string, data []byte) error {
-			f, err := w.Filesystem.Create(rel)
-			if err != nil {
-				return fmt.Errorf("create %s: %w", rel, err)
-			}
-
-			if _, err := f.Write(data); err != nil {
-				return fmt.Errorf("write %s: %w", rel, err)
-			}
-
-			if err := f.Close(); err != nil {
-				return fmt.Errorf("close %s: %w", rel, err)
-			}
-
+			files[rel] = data
 			return nil
 		})
 		if walkErr != nil {
@@ -560,18 +525,26 @@ func commitDirs(srv *git.Server, fixturesDir string, dirs []string, mirrorURL st
 		}
 	}
 
-	if err := w.AddWithOptions(&gogit.AddOptions{All: true}); err != nil {
-		return fmt.Errorf("add all: %w", err)
-	}
+	return srv.CommitFiles(ctx, files, "seed test/fixtures from working tree")
+}
 
-	sig := &object.Signature{Name: "Test", Email: "test@test.com", When: time.Now()}
+// InitTestGitRunner creates a [git.GitRunner] backed by a fresh git repository
+// in tmpDir. The repo is configured with a test author identity so commits can
+// be made without further setup. It returns the runner with WorkDir set to tmpDir.
+func InitTestGitRunner(t *testing.T, tmpDir string) *git.GitRunner {
+	t.Helper()
 
-	if _, err := w.Commit("seed test/fixtures from working tree", &gogit.CommitOptions{
-		Author:    sig,
-		Committer: sig,
-	}); err != nil {
-		return fmt.Errorf("commit: %w", err)
-	}
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
 
-	return nil
+	runner = runner.WithWorkDir(tmpDir)
+
+	require.NoError(t, runner.Init(t.Context()))
+	require.NoError(t, runner.ConfigSet(t.Context(), "user.email", "test@example.com"))
+	require.NoError(t, runner.ConfigSet(t.Context(), "user.name", "Test User"))
+	// Local config outranks a host-level commit.gpgsign=true, which would
+	// otherwise sign every test commit and hang where signing prompts.
+	require.NoError(t, runner.ConfigSet(t.Context(), "commit.gpgsign", "false"))
+
+	return runner
 }

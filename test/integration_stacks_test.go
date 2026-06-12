@@ -2377,9 +2377,9 @@ func TestCASInStacks(t *testing.T) {
 	t.Cleanup(func() { _ = srv.Close() })
 
 	bazModule := ``
-	require.NoError(t, srv.CommitFile("modules/baz/main.tf", []byte(bazModule), "commit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "modules/baz/main.tf", []byte(bazModule), "commit"))
 
-	require.NoError(t, srv.CommitFile("units/bar/terragrunt.hcl", []byte(`terraform {
+	require.NoError(t, srv.CommitFile(t.Context(), "units/bar/terragrunt.hcl", []byte(`terraform {
   source = "../..//modules/baz"
 
   update_source_with_cas = true
@@ -2396,7 +2396,7 @@ func TestCASInStacks(t *testing.T) {
   update_source_with_cas = true
 }
 `
-	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit"))
 
 	tmp := helpers.TmpDirWOSymlinks(t)
 
@@ -2504,17 +2504,17 @@ func TestCASInStacksUnitSourceSubdirSiblingsResolve(t *testing.T) {
 	// modules/vpc references a sibling module via a relative path. This only
 	// resolves if the materialized working directory keeps the surrounding tree
 	// (modules/sibling) reachable from modules/vpc.
-	require.NoError(t, srv.CommitFile("modules/vpc/main.tf", []byte(`module "sibling" {
+	require.NoError(t, srv.CommitFile(t.Context(), "modules/vpc/main.tf", []byte(`module "sibling" {
   source = "../sibling"
 }
 `), "commit vpc module"))
 
-	require.NoError(t, srv.CommitFile("modules/sibling/main.tf", []byte(`output "name" {
+	require.NoError(t, srv.CommitFile(t.Context(), "modules/sibling/main.tf", []byte(`output "name" {
   value = "sibling"
 }
 `), "commit sibling module"))
 
-	require.NoError(t, srv.CommitFile("units/bar/terragrunt.hcl", []byte(`terraform {
+	require.NoError(t, srv.CommitFile(t.Context(), "units/bar/terragrunt.hcl", []byte(`terraform {
   source = "../..//modules/vpc"
 
   update_source_with_cas = true
@@ -2531,7 +2531,7 @@ func TestCASInStacksUnitSourceSubdirSiblingsResolve(t *testing.T) {
   update_source_with_cas = true
 }
 `
-	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit stack"))
+	require.NoError(t, srv.CommitFile(t.Context(), "stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit stack"))
 
 	tmp := helpers.TmpDirWOSymlinks(t)
 

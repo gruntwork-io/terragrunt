@@ -14,11 +14,7 @@ import (
 	"testing"
 	"time"
 
-	gogit "github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing/object"
-	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -633,41 +629,16 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner(vexec.NewOSExec())
-			require.NoError(t, err)
-
-			runner = runner.WithWorkDir(tmpDir)
-
-			err = runner.Init(t.Context())
-			require.NoError(t, err)
-
-			err = runner.GoOpenRepo()
-			require.NoError(t, err)
-
-			t.Cleanup(func() {
-				err = runner.GoCloseStorage()
-				if err != nil {
-					t.Logf("Error closing storage: %s", err)
-				}
-			})
+			runner := helpers.InitTestGitRunner(t, tmpDir)
 
 			createReportTestUnit(t, filepath.Join(tmpDir, "unit-modified"), "# Unit to be modified")
 			createReportTestUnit(t, filepath.Join(tmpDir, "unit-removed"), "# Unit to be removed")
 			createReportTestUnit(t, filepath.Join(tmpDir, "unit-untouched"), "# Unit to be untouched")
 
-			err = runner.GoAdd(".")
-			require.NoError(t, err)
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
-			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
-
-			err = os.WriteFile(filepath.Join(tmpDir, "unit-modified", "terragrunt.hcl"), []byte("# Modified"), 0644)
+			err := os.WriteFile(filepath.Join(tmpDir, "unit-modified", "terragrunt.hcl"), []byte("# Modified"), 0644)
 			require.NoError(t, err)
 
 			err = os.RemoveAll(filepath.Join(tmpDir, "unit-removed"))
@@ -675,17 +646,8 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 
 			createReportTestUnit(t, filepath.Join(tmpDir, "unit-created"), "# Unit created")
 
-			err = runner.GoAdd(".")
-			require.NoError(t, err)
-
-			err = runner.GoCommit("Modify, create, and remove units", &gogit.CommitOptions{
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Modify, create, and remove units"))
 
 			reportFile := "report." + tc.reportFormat
 			cmd := fmt.Sprintf(

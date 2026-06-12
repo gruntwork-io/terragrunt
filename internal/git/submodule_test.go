@@ -159,11 +159,13 @@ func TestGitRunner_SubmoduleURLs(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
 
-	require.NoError(t, srv.CommitFile("README.md", []byte("# repo"), "add readme"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# repo"), "add readme"))
 
 	const pinnedHash = "0123456789abcdef0123456789abcdef01234567"
 
-	require.NoError(t, srv.CommitSubmodule("modules/child", "https://example.com/child.git", pinnedHash, "add submodule"))
+	require.NoError(t, srv.CommitSubmodule(
+		t.Context(), "modules/child", "https://example.com/child.git", pinnedHash, "add submodule",
+	))
 
 	url, err := srv.Start(ctx)
 	require.NoError(t, err)

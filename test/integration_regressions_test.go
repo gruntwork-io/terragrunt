@@ -1028,8 +1028,8 @@ func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
 
-	require.NoError(t, srv.CommitFile("main.tf", []byte("# benign\n"), "module"))
-	require.NoError(t, srv.CommitFile(".terragrunt-module-manifest", encodeForgedManifest(t, forgedFile(sentinel)), "forged manifest"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# benign\n"), "module"))
+	require.NoError(t, srv.CommitFile(t.Context(), ".terragrunt-module-manifest", encodeForgedManifest(t, forgedFile(sentinel)), "forged manifest"))
 
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
