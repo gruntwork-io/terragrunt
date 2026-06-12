@@ -1,0 +1,12 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Fix permission denied when a `generate` block overwrites a CAS-materialized file
+
+`generate` blocks with `if_exists = "overwrite"` (and `"overwrite_terragrunt"`) no longer fail with
+`permission denied` when the target file already exists in a CAS-materialized OpenTofu/Terraform module
+source (for example, a module that ships its own `versions.tf`). CAS materializes source files as
+read-only, so Terragrunt now replaces the read-only file with an independent writable file. The shared
+CAS store is never modified, and subsequent rematerializations still receive the pristine module content.
