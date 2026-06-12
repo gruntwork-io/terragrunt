@@ -1,0 +1,8 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### S3 bucket creation failures report the underlying error
+
+When creating the state bucket failed during backend bootstrap, the reported error was a misleading `NoSuchBucket` from a follow-up access check, hiding the actual cause. The original creation error, such as `AccessDenied`, is now part of the reported message.
