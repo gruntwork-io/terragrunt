@@ -101,6 +101,36 @@ Discovery-time authentication exists for a reason: any configuration that needs 
 
 Use the flag when you know your configurations parse successfully without any prior authentication, and credentials are only needed at run time.
 
+## Reducing Parse Overhead
+
+Commands that operate on multiple units, like `run --all`, parse the configuration of every discovered unit before anything runs. Included files don't get parsed once and shared: they are evaluated again in the context of each unit that includes them. Anything expensive in a root configuration is paid once per unit, not once per invocation, so small per-parse costs add up quickly on large repositories.
+
+### External Commands During Parsing
+
+The [`run_cmd`](/reference/hcl/functions/#run_cmd) HCL function executes during parsing, and its results are cached per directory. A `run_cmd` call in a root configuration included by a hundred units runs a hundred times, once per unit, even when it produces the same output every time.
+
+When the output doesn't depend on the directory it runs in (resolving the current git commit for tagging resources, say), pass `--terragrunt-global-cache` so the command runs once per invocation and every other unit reuses the result:
+
+```hcl
+locals {
+  commit = run_cmd("--terragrunt-global-cache", "git", "rev-parse", "--short", "HEAD")
+}
+```
+
+### Static Configuration as JSON or YAML
+
+The [`read_terragrunt_config`](/reference/hcl/functions/#read_terragrunt_config) HCL function evaluates the target file as HCL each time it's called, including any function calls the file makes. When that file is included by many units, the whole evaluation repeats for each one.
+
+That cost buys you dynamic behavior, and shared configuration often doesn't need any: region names, tag maps, account IDs, and similar values are just static data. Storing static data as JSON or YAML and decoding it is cheaper than evaluating it as HCL:
+
+```hcl
+locals {
+  common = yamldecode(file(find_in_parent_folders("common.yaml")))
+}
+```
+
+This also makes the shared file easier to reason about, since a `.yaml` or `.json` file can't run commands or depend on parsing context.
+
 ## Tuning Parallelism
 
 When you use commands with the `--all` or `--graph` flags, Terragrunt queues up a run for every unit involved. The [`--parallelism`](/reference/cli/commands/run#parallelism) flag (or the `TG_PARALLELISM` environment variable) caps how many of those runs are allowed to execute at the same time.
