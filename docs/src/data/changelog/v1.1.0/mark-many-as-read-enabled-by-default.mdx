@@ -1,10 +1,25 @@
 ---
 version: "v1.1.0"
 category: "new-features"
+order: 4
 ---
 
 #### Reading detection for local module sources
 
-Reading-based filters now detect changes to local module sources by default. When a unit's `terraform` block points at a local module, Terragrunt records the module's `*.tf`, `*.tf.json`, `*.hcl`, `*.tofu`, and `*.tofu.json` files as read by that unit, so `--filter 'reading=<path>'` and `--queue-include-units-reading` pick the unit up when a module file changes. The `mark_glob_as_read()` HCL function, which expands a glob and marks every matching file as read in one call, also works without any experiment flag.
+Terragrunt can select units by the files they read, which is the basis of change-based runs in CI. Previously, pointing a unit's `terraform` block at a local directory didn't mark the files inside that directory as read, so a change to the module wouldn't select the unit.
 
-Existing pipelines built on `--queue-include-units-reading` or `reading=` filters may select more units than before, because changes to local module files now count as reads. Previously gated behind the `mark-many-as-read` experiment, these behaviors no longer require `--experiment mark-many-as-read`. Passing the flag is now a no-op that logs a warning about the completed experiment, so it can simply be removed from invocations.
+When a unit's source is a local module, Terragrunt now records the module's `*.tf`, `*.tf.json`, `*.hcl`, `*.tofu`, and `*.tofu.json` files as read by that unit, so `--filter 'reading=<path>'` and `--queue-include-units-reading` select the unit when a module file changes:
+
+```bash
+terragrunt run --all --filter 'reading=./modules/vpc/main.tf' -- plan
+```
+
+For files that reading detection doesn't track on its own, the new [`mark_glob_as_read()`](/reference/hcl/functions#mark_glob_as_read) HCL function expands a glob and marks every matching file as read in one call:
+
+```hcl
+locals {
+  configs = mark_glob_as_read("${get_terragrunt_dir()}/config/{*.yaml,**/*.yaml}")
+}
+```
+
+Existing pipelines built on `--queue-include-units-reading` or `reading=` filters may select more units than before, because changes to local module files now count as reads. Previously gated behind the `mark-many-as-read` experiment, these behaviors no longer require `--experiment mark-many-as-read`.
