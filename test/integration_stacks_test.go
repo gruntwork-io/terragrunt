@@ -2934,21 +2934,21 @@ provider "registry.opentofu.org/hashicorp/null" {
 }
 `
 
-	require.NoError(t, srv.CommitFile("modules/app/main.tf", []byte(`output "app" {
+	require.NoError(t, srv.CommitFile(t.Context(), "modules/app/main.tf", []byte(`output "app" {
   value = "app"
 }
 `), "commit module"))
-	require.NoError(t, srv.CommitFile("modules/app/.terraform.lock.hcl", []byte(staleLock), "commit module lock"))
+	require.NoError(t, srv.CommitFile(t.Context(), "modules/app/.terraform.lock.hcl", []byte(staleLock), "commit module lock"))
 
-	require.NoError(t, srv.CommitFile("units/app/terragrunt.hcl", []byte(`terraform {
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/terragrunt.hcl", []byte(`terraform {
   source = "../..//modules/app"
 
   update_source_with_cas = true
 }
 `), "commit unit"))
-	require.NoError(t, srv.CommitFile("units/app/.terraform.lock.hcl", []byte(staleLock), "commit unit lock"))
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/.terraform.lock.hcl", []byte(staleLock), "commit unit lock"))
 
-	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
+	require.NoError(t, srv.CommitFile(t.Context(), "stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
   source = "../..//units/app"
   path   = "app"
 
@@ -3020,16 +3020,16 @@ func TestCASInStacksCommittedValuesFileOverwritten(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
 
-	require.NoError(t, srv.CommitFile("units/app/terragrunt.hcl", []byte(``), "commit unit"))
-	require.NoError(t, srv.CommitFile("units/app/main.tf", []byte(`output "app" {
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/terragrunt.hcl", []byte(``), "commit unit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/main.tf", []byte(`output "app" {
   value = "app"
 }
 `), "commit unit module"))
-	require.NoError(t, srv.CommitFile("units/app/terragrunt.values.hcl", []byte(`# committed stale values
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/terragrunt.values.hcl", []byte(`# committed stale values
 project = "stale"
 `), "commit unit values"))
 
-	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
+	require.NoError(t, srv.CommitFile(t.Context(), "stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
   source = "../..//units/app"
   path   = "app"
 
@@ -3086,18 +3086,18 @@ func TestCASInStacksCommittedAutoincludeFileOverwritten(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
 
-	require.NoError(t, srv.CommitFile("units/app/terragrunt.hcl", []byte(``), "commit unit"))
-	require.NoError(t, srv.CommitFile("units/app/main.tf", []byte(`output "app" {
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/terragrunt.hcl", []byte(``), "commit unit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/main.tf", []byte(`output "app" {
   value = "app"
 }
 `), "commit unit module"))
-	require.NoError(t, srv.CommitFile("units/app/terragrunt.autoinclude.hcl", []byte(`# committed stale autoinclude
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/terragrunt.autoinclude.hcl", []byte(`# committed stale autoinclude
 inputs = {
   stale = true
 }
 `), "commit unit autoinclude"))
 
-	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
+	require.NoError(t, srv.CommitFile(t.Context(), "stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
   source = "../..//units/app"
   path   = "app"
 
