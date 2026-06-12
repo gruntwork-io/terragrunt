@@ -3,8 +3,6 @@ version: "v1.1.0"
 category: "bug-fixes"
 ---
 
-#### Fix panic on a non-string literal interpolation in an autoinclude template
+#### Fix panic on non-string literal interpolation in `autoinclude` templates
 
-`terragrunt stack generate` no longer panics when an `autoinclude` template interpolates a non-string literal
-(for example `"${0}"` or `"${true}"`) alongside a `dependency.*` reference. The interpolated literal is now
-rendered to its string form (`${0}` becomes `0`) and the dependency reference is preserved for the unit.
+`terragrunt stack generate` no longer panics when an `autoinclude` template interpolates a non-string literal (for example `"${0}"` or `"${true}"`) alongside a `dependency.*` reference. The interpolated literal is now rendered to its string form (`${0}` becomes `0`) and the dependency reference is preserved for the unit.

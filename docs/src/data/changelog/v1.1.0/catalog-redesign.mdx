@@ -1,0 +1,15 @@
+---
+version: "v1.1.0"
+category: "new-features"
+order: 3
+---
+
+#### Redesigned `terragrunt catalog`
+
+The [`catalog`](/features/catalog) command has been redesigned. It now starts without any configuration, discovers components across your catalog repositories in the background, and streams them into the TUI as they're found.
+
+Discovery is no longer limited to a `modules/` directory; components can live anywhere in a catalog repository. To control what gets discovered, add a `.terragrunt-catalog-ignore` file with `.gitignore`-style globs for the paths you want filtered out.
+
+Components in the TUI now carry metadata to help you navigate a large catalog: each one shows a kind label (`template`, `stack`, `unit`, or `module`) and optional tags defined in the front-matter of its `README.md`. From the component list, press `s` to open a new screen that interactively collects the values used to [scaffold](/features/catalog/scaffold) the component into your repository.
+
+Previously gated behind the `catalog-redesign` experiment, the redesigned catalog is now the default `terragrunt catalog` experience.

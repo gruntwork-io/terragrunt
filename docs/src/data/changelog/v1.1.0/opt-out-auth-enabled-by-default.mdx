@@ -1,12 +1,26 @@
 ---
 version: "v1.1.0"
 category: "new-features"
+order: 5
 ---
 
-#### `--no-discovery-auth-provider-cmd` added
+import { Aside } from '@astrojs/starlight/components'
 
-`--no-discovery-auth-provider-cmd` (env: `TG_NO_DISCOVERY_AUTH_PROVIDER_CMD`) is now stable and no longer requires the `opt-out-auth` experiment flag. The flag skips `--auth-provider-cmd` invocations during the discovery phase, leaving auth to run only for the units that actually execute.
+#### Skip auth during discovery with `--no-discovery-auth-provider-cmd`
 
-This reduces wall-clock time on large `run --all` invocations with reading-based filters, where the auth command previously ran once per discovered unit rather than only the subset that would run.
+By default, Terragrunt runs your [`--auth-provider-cmd`](/features/units/authentication) once for every unit it discovers, so HCL functions that need credentials resolve correctly during parsing. In a large repository, that can mean hundreds of invocations before any unit runs, which can dominate wall-clock time on change-based runs.
 
-Previously gated behind the `opt-out-auth` experiment, the flag now works without `--experiment=opt-out-auth`. Passing the experiment flag is now a no-op that logs a warning about the completed experiment, so it can be removed from invocations.
+The `--no-discovery-auth-provider-cmd` flag (env: `TG_NO_DISCOVERY_AUTH_PROVIDER_CMD`) skips those invocations during the discovery phase, leaving auth to run only for the units that actually execute:
+
+```bash
+terragrunt run --all \
+  --no-discovery-auth-provider-cmd \
+  --queue-include-units-reading=./changed-file.txt \
+  -- plan
+```
+
+<Aside type="caution">
+  Use this only when you know parsing resolves without credentials. Units whose configuration depends on values from `--auth-provider-cmd` during discovery (for example, via `get_aws_account_id()`) will fail to parse when the flag is set.
+</Aside>
+
+Previously gated behind the `opt-out-auth` experiment, the flag now works without `--experiment opt-out-auth`.
