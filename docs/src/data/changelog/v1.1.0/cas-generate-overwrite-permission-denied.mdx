@@ -1,0 +1,13 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Fix permission denied when generated files overwrite CAS-materialized files
+
+Files Terragrunt generates over a CAS-materialized source no longer fail with `permission denied` when the
+source ships its own copy: `generate` blocks with `if_exists = "overwrite"` (for example a module-shipped
+`versions.tf`), unit values written to `terragrunt.values.hcl`, and autoinclude files written to
+`terragrunt.autoinclude.hcl`. The read-only file is replaced with a writable one, and the shared CAS store
+is never modified. Committed `.terraform.lock.hcl` files were already handled correctly and are now covered
+by a regression test.

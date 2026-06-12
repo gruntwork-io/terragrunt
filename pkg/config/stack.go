@@ -1301,6 +1301,13 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 		body.SetAttributeValue(key, valueMap[key])
 	}
 
+	// CAS may materialize the target as a read-only hard link, so remove it before writing
+	if util.IsFile(filePath) {
+		if err := os.Remove(filePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to remove values file %s before writing: %w", filePath, err)
+		}
+	}
+
 	if err := os.WriteFile(filePath, file.Bytes(), valueFilePerm); err != nil {
 		return fmt.Errorf("failed to write values file %s: %w", filePath, err)
 	}
