@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestGitRunner_LsRemote(t *testing.T) {
@@ -332,4 +333,39 @@ func TestGitRunner_HasObjectSurfacesNonMissingFailures(t *testing.T) {
 	// does not trigger a refetch loop.
 	_, err = runner.HasObject(t.Context(), "not-a-hash")
 	require.Error(t, err)
+}
+
+func TestGitRunner_WithWorkDirGetRepoRootWithRacing(t *testing.T) {
+	t.Parallel()
+
+	dir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(dir)
+	require.NoError(t, runner.Init(t.Context()))
+
+	// GetRepoRoot memoizes on first success, so only that first call writes.
+	// Derive a fresh runner per round and race the memoizing call against a
+	// concurrent WithWorkDir copy of the same runner.
+	const rounds = 50
+
+	g, ctx := errgroup.WithContext(t.Context())
+
+	for range rounds {
+		fresh := runner.WithWorkDir(dir)
+
+		g.Go(func() error {
+			_, err := fresh.GetRepoRoot(ctx)
+
+			return err
+		})
+
+		g.Go(func() error {
+			return fresh.WithWorkDir(dir).RequiresWorkDir()
+		})
+	}
+
+	require.NoError(t, g.Wait())
 }

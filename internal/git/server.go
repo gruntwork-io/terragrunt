@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -35,7 +36,7 @@ type serverMount struct {
 }
 
 // NewServer creates a Server with an empty repository.
-func NewServer() (*Server, error) {
+func NewServer() (_ *Server, retErr error) {
 	gitPath, err := exec.LookPath("git")
 	if err != nil {
 		return nil, fmt.Errorf("git not found on PATH: %w", err)
@@ -46,11 +47,13 @@ func NewServer() (*Server, error) {
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
 
-	ok := false
-
 	defer func() {
-		if !ok {
-			_ = os.RemoveAll(projectRoot)
+		if retErr == nil {
+			return
+		}
+
+		if err := os.RemoveAll(projectRoot); err != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("remove temp dir: %w", err))
 		}
 	}()
 
@@ -85,7 +88,7 @@ func NewServer() (*Server, error) {
 		return nil, fmt.Errorf("add remote: %w", err)
 	}
 
-	if err := s.gitIn(ctx, workDir, "config", "user.email", "test@test.com"); err != nil {
+	if err := s.gitIn(ctx, workDir, "config", "user.email", "test@example.com"); err != nil {
 		return nil, fmt.Errorf("config user.email: %w", err)
 	}
 
@@ -94,8 +97,6 @@ func NewServer() (*Server, error) {
 	}
 
 	s.workDir = workDir
-
-	ok = true
 
 	return s, nil
 }
