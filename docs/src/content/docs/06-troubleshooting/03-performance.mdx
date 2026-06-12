@@ -15,6 +15,48 @@ Normally, it's best practice to start by measuring performance before making any
 
 However, given the nature of the problems that Terragrunt solves, there are some obvious wins that you can make without measuring performance, if you're aware of the tradeoffs.
 
+### Running Fewer Units
+
+The fastest run is the one that doesn't happen. Before tuning how quickly units run, make sure you aren't running units that don't need to run at all.
+
+The [`--filter`](/features/filter) flag selects the units a command operates on using a flexible query language. The simplest form is a [path expression](/features/filter/path), which is also the easiest way to control which units are discovered and run:
+
+```bash
+terragrunt run --all --filter './prod/**' -- plan
+```
+
+The biggest win is usually in CI: instead of planning every unit in the repository on every change, use a [Git expression](/features/filter/git) to target only the units affected by a change:
+
+```bash
+terragrunt run --all --filter '[main...HEAD]' -- plan
+```
+
+The [`--filter-affected`](/reference/cli/commands/run#filter-affected) flag is a shorthand for exactly this, comparing your repository's default branch to `HEAD`:
+
+```bash
+terragrunt run --all --filter-affected -- plan
+```
+
+Filters can also select by [name](/features/filter/name), [path](/features/filter/path), [attribute](/features/filter/attributes), and [graph relationship](/features/filter/graph) (a unit plus everything that depends on it, say), and they can be [combined](/features/filter/combining). The older `--queue-include-dir`, `--queue-include-units-reading`, and related `--queue-*` flags still work as aliases for equivalent filter expressions.
+
+#### Running Fewer Units - Gotchas
+
+Filtering reduces how many units run, but not always how many are discovered. Depending on the expression, Terragrunt may still need to parse configurations beyond the filtered set to evaluate the filter and build the dependency graph, so discovery-phase costs can remain. The [Skipping Auth During Discovery](#skipping-auth-during-discovery) and [Reducing Parse Overhead](#reducing-parse-overhead) sections below address those.
+
+Expressions also differ in how much discovery work they cause:
+
+| Expression | Example | Discovery work |
+| ---------- | ------- | -------------- |
+| [Name](/features/filter/name), [path](/features/filter/path), and attributes like `type=` | `./prod/**` | Walks the directory tree; no parsing |
+| `reading=` | `reading=common.yaml` | Parses candidate units to determine which files each one reads |
+| [Git](/features/filter/git#how-it-works) | `[main...HEAD]` | Generates a temporary Git worktree for each reference being compared |
+| [Graph](/features/filter/graph), dependencies | `vpc...` | Follows the dependencies declared by the target |
+| [Graph](/features/filter/graph), dependents | `...vpc` | Searches from the target's directory up to the repository root, parsing configurations along the way |
+
+Dependent discovery is the most expensive of these, and it can parse directories well outside your working directory.
+
+The `--filter-affected` flag compares committed changes. Uncommitted local modifications may not be included, and Terragrunt logs a warning when it detects them.
+
 ### Provider Cache Dir
 
 One of the most expensive things that OpenTofu/Terraform does, from a bandwidth and disk utilization perspective, is download and install providers. These are large binary files that are downloaded from the internet, and not cached across units by default.
@@ -25,7 +67,7 @@ This feature automatically configures OpenTofu to use its built-in provider cach
 
 For most users at sensible scales, this is an automatic performance win that you don't need to do anything to enable.
 
-### Provider Cache Dir - Gotchas
+#### Provider Cache Dir - Gotchas
 
 At very large scales, you might find that the filesystem lock contention between OpenTofu processes to synchronize access to the provider cache directory is a bottleneck. You might also find that you can't use the provider cache directory because you are storing your provider cache in a shared NFS mount or are using Terraform or an older version of OpenTofu.
 
