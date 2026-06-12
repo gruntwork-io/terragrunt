@@ -6,6 +6,9 @@ sidebar:
   order: 3
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+
 ## Easy Wins
 
 Normally, it's best practice to start by measuring performance before making any changes. This allows you to understand the impact of your changes, and to identify areas for improvement.
@@ -69,6 +72,34 @@ We are coordinating with the OpenTofu team to improve the performance of the `ou
 Additionally, this experiment is **not compatible with OpenTofu state encryption**. When client-side state encryption is enabled, the state file in S3 is encrypted before upload and cannot be parsed directly by Terragrunt, resulting in a hard failure. If you encounter JSON parsing errors when using this experiment, check whether you have OpenTofu state encryption enabled and disable the experiment with `--no-dependency-fetch-output-from-state` if so.
 
 See [#1549](https://github.com/opentofu/opentofu/issues/1549) for more details.
+
+### Skipping Auth During Discovery
+
+<Before version="1.1.0">
+<Aside type="tip" title="Experimental">
+The `--no-discovery-auth-provider-cmd` flag is gated behind the [`opt-out-auth`](/reference/experiments/active#opt-out-auth) experiment. Enable it with `--experiment=opt-out-auth` (or `TG_EXPERIMENT=opt-out-auth`); otherwise setting the flag returns an error.
+</Aside>
+</Before>
+
+If you use the [`--auth-provider-cmd`](/reference/cli/commands/run#auth-provider-cmd) flag to fetch credentials at runtime, Terragrunt runs that command once per parsed component during the discovery phase, so that configuration parsing can reliably resolve HCL functions like `get_aws_account_id` and `run_cmd`.
+
+On large repositories, this can dominate wall-clock time, because the auth command runs for every discovered unit, not just the subset that will actually run. This is especially noticeable when using reading-based filters like `--queue-include-units-reading`, where discovery has to parse the whole tree to select a small number of units.
+
+The [`--no-discovery-auth-provider-cmd`](/reference/cli/commands/run#no-discovery-auth-provider-cmd) flag (env: `TG_NO_DISCOVERY_AUTH_PROVIDER_CMD`) skips those discovery-time invocations. The auth provider command still runs normally for the units that actually execute.
+
+```bash
+terragrunt run --all \
+  --auth-provider-cmd /path/to/auth-script.sh \
+  --no-discovery-auth-provider-cmd \
+  --queue-include-units-reading=./changed-file.txt \
+  plan
+```
+
+#### Skipping Auth During Discovery - Gotchas
+
+Discovery-time authentication exists for a reason: any configuration that needs credentials just to parse will fail without it. If a unit's `source` URL, dependency paths, or other discovery-relevant blocks depend on values produced by `--auth-provider-cmd` (an account ID fetched via `get_aws_account_id`, or a `run_cmd` call that hits an authenticated API), parsing that unit will fail with the flag set.
+
+Use the flag when you know your configurations parse successfully without any prior authentication, and credentials are only needed at run time.
 
 ## Tuning Parallelism
 
