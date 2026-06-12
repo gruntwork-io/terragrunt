@@ -1,7 +1,7 @@
 ---
 name: stack-dependencies
 since: "1.0.1"
-completedSince: "1.1"
+completedSince: "1.1.0"
 ---
 
 import Since from '@components/Since.astro';
@@ -11,14 +11,23 @@ import { Aside } from '@astrojs/starlight/components';
 Support for the `autoinclude` block in `terragrunt.stack.hcl` files, enabling dependency relationships and configuration overrides during stack generation.
 
 ### `stack-dependencies` - What it does
-When enabled, this experiment adds support for the `autoinclude` block nested inside `unit` and `stack` blocks in `terragrunt.stack.hcl` files. The `autoinclude` block allows users to define `dependency` blocks and arbitrary configuration that gets generated into an autoinclude file during stack generation. This file is automatically merged into the unit/stack configuration when parsed.
+
+<Before version="1.1.0">
+When enabled, this experiment adds support for the `autoinclude` block nested inside `unit` and `stack` blocks in `terragrunt.stack.hcl` files.
+</Before>
+
+<Since version="1.1.0">
+This experiment flag is no longer needed, as the `autoinclude` block is now available by default. The block nests inside `unit` and `stack` blocks in `terragrunt.stack.hcl` files.
+</Since>
+
+The `autoinclude` block allows users to define `dependency` blocks and arbitrary configuration that gets generated into an autoinclude file during stack generation. This file is automatically merged into the unit/stack configuration when parsed.
 
 The generated filename depends on the component kind:
 
 - **Unit autoincludes** are written as `terragrunt.autoinclude.hcl` next to the unit's `terragrunt.hcl`.
 - **Stack autoincludes** are written as `terragrunt.autoinclude.stack.hcl` next to the nested stack's `terragrunt.stack.hcl`. The `.stack.hcl` suffix mirrors `terragrunt.stack.hcl` so tooling (LSP, `read_terragrunt_config()`, indexers) can identify the file's purpose from its name alone.
 
-This experiment enables:
+The feature also includes:
 
 - **`unit.<name>.path`** and **`stack.<name>.path`** variables for referencing sibling component paths, both inside `autoinclude` blocks and in a unit or stack block's `values` (so a parent stack can pass a component path down to a child stack)
 - **`dependency` blocks targeting stack directories**: aggregated outputs from all units in the stack (`dependency.stack_name.outputs.unit_name.output_key`)
@@ -75,12 +84,23 @@ unit "app" {
 }
 ```
 
+<Before version="1.1.0">
+
 ```bash
 terragrunt run --all --experiment stack-dependencies -- plan
 ```
 
+</Before>
+
 ### `stack-dependencies` - How to provide feedback
+
+<Before version="1.1.0">
 Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwork-io/terragrunt/issues/5663) GitHub Issue.
+</Before>
+
+<Since version="1.1.0">
+Now that the `stack-dependencies` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+</Since>
 
 ### `stack-dependencies` - Implementation roadmap
 
@@ -108,7 +128,7 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 <Since version="1.0.7">
 
 - [x] The `.terragrunt-stack-origin` marker file is no longer written when nested stack files are copied into `.terragrunt-stack/<name>/`. Use `update_source_with_cas = true` <Before version="1.1.0">(with the `cas` experiment enabled) </Before>on `unit` and `stack` blocks to keep relative `source` paths working in catalog stack files; relative attributes are rewritten to `cas::` references at generation time so the generated tree is self-contained.
-- [ ] Community feedback on `autoinclude` syntax and merge behavior
-- [ ] Validate performance at scale
+- [x] Community feedback on `autoinclude` syntax and merge behavior
+- [x] Validate performance at scale
 
 </Since>

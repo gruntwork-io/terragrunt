@@ -9,6 +9,7 @@ sidebar:
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
 import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
@@ -1962,9 +1963,11 @@ Terragrunt will recursively generate a stack using the contents of the `.terragr
 
 ## autoinclude
 
+<Before version="1.1.0">
 <Aside type="tip" title="Experimental">
 The `autoinclude` block is part of the [`stack-dependencies` experiment](/reference/experiments/active#stack-dependencies). Enable it with `--experiment stack-dependencies`.
 </Aside>
+</Before>
 
 The `autoinclude` block is used inside [`unit`](#unit) and [`stack`](#stack) blocks in Terragrunt stack files (`terragrunt.stack.hcl`) to inject configuration into the generated component during stack generation. Its main job is declaring `dependency` relationships between components of a stack without editing the unit sources in your catalog.
 
@@ -2014,7 +2017,7 @@ unit "app" {
 }
 ```
 
-Running `terragrunt stack generate --experiment stack-dependencies` produces:
+Running <Before version="1.1.0">`terragrunt stack generate --experiment stack-dependencies`</Before><Since version="1.1.0">`terragrunt stack generate`</Since> produces:
 
 <FileTree>
 
