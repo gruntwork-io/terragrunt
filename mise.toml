@@ -1,6 +1,6 @@
 [tools]
 go = "1.26.0"
-opentofu = "1.12.0"
+opentofu = "1.12.2"
 golangci-lint = "2.11.4"
 "go:github.com/goph/licensei/cmd/licensei" = "v0.9.0"
 "go:go.uber.org/mock/mockgen" = "v0.6.0"
