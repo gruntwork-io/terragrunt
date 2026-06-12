@@ -2814,7 +2814,7 @@ EOF
 		require.NoError(t, err, "run --all plan failed; the generate block likely could not overwrite the read-only versions.tf:\n%s", stdout+stderr)
 	}
 
-	generatedVersions := readCachedVersionsFiles(t, devDir)
+	generatedVersions := readCachedFiles(t, devDir, "versions.tf")
 	require.NotEmpty(t, generatedVersions, "expected a versions.tf in the CAS-materialized working directory")
 
 	for _, content := range generatedVersions {
@@ -2900,7 +2900,7 @@ EOF
 	)
 	require.NoError(t, err, "run --all plan failed; the generate block likely could not overwrite the read-only versions.tf:\n%s", stdout+stderr)
 
-	generatedVersions := readCachedVersionsFiles(t, devDir)
+	generatedVersions := readCachedFiles(t, devDir, "versions.tf")
 	require.NotEmpty(t, generatedVersions, "expected a versions.tf in the unit's working directory copy")
 
 	for _, content := range generatedVersions {
@@ -2918,9 +2918,243 @@ EOF
 	assert.Contains(t, string(catalogVersions), ">= 1.0.0", "catalog source of truth must stay untouched")
 }
 
-// readCachedVersionsFiles returns the contents of every versions.tf found
-// inside a .terragrunt-cache directory under root.
-func readCachedVersionsFiles(t *testing.T, root string) []string {
+// TestCASInStacksCommittedLockFileUpdatedOnInit verifies that committed
+// .terraform.lock.hcl files cloned through CAS as read-only files survive the
+// auto-init lock file rewrite and the copy back into the generated unit.
+func TestCASInStacksCommittedLockFileUpdatedOnInit(t *testing.T) {
+	t.Parallel()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	staleLock := `# committed stale lock file
+provider "registry.opentofu.org/hashicorp/null" {
+  version = "3.2.1"
+}
+`
+
+	require.NoError(t, srv.CommitFile("modules/app/main.tf", []byte(`output "app" {
+  value = "app"
+}
+`), "commit module"))
+	require.NoError(t, srv.CommitFile("modules/app/.terraform.lock.hcl", []byte(staleLock), "commit module lock"))
+
+	require.NoError(t, srv.CommitFile("units/app/terragrunt.hcl", []byte(`terraform {
+  source = "../..//modules/app"
+
+  update_source_with_cas = true
+}
+`), "commit unit"))
+	require.NoError(t, srv.CommitFile("units/app/.terraform.lock.hcl", []byte(staleLock), "commit unit lock"))
+
+	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
+  source = "../..//units/app"
+  path   = "app"
+
+  update_source_with_cas = true
+}
+`), "commit stack"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "live", "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --no-stack-generate --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "run --all plan failed; init likely could not update the read-only committed lock file:\n%s", stdout+stderr)
+
+	unitDir := filepath.Join(tmp, "live", ".terragrunt-stack", "foo", ".terragrunt-stack", "app")
+
+	workingLocks, err := filepath.Glob(filepath.Join(unitDir, ".terragrunt-cache", "*", "*", "modules", "app", ".terraform.lock.hcl"))
+	require.NoError(t, err)
+	require.Len(t, workingLocks, 1, "expected the lock file in the unit's working directory")
+
+	workingLock, err := os.ReadFile(workingLocks[0])
+	require.NoError(t, err)
+	assert.NotContains(t, string(workingLock), "3.2.1", "init must prune the stale provider from the working directory lock file")
+	assert.Contains(t, string(workingLock), "maintained automatically")
+
+	// The materialized tree copy outside the working directory must stay pristine.
+	treeLocks, err := filepath.Glob(filepath.Join(unitDir, ".terragrunt-cache", "*", "*", "units", "app", ".terraform.lock.hcl"))
+	require.NoError(t, err)
+
+	for _, treeLock := range treeLocks {
+		content, readErr := os.ReadFile(treeLock)
+		require.NoError(t, readErr)
+		assert.Contains(t, string(content), "3.2.1", "materialized tree lock file must stay untouched")
+	}
+
+	copiedBack, err := os.ReadFile(filepath.Join(unitDir, ".terraform.lock.hcl"))
+	require.NoError(t, err, "init must copy the updated lock file back into the generated unit")
+	assert.NotContains(t, string(copiedBack), "3.2.1")
+	assert.Contains(t, string(copiedBack), "maintained automatically")
+}
+
+// TestCASInStacksCommittedValuesFileOverwritten verifies that stack generation
+// replaces a committed terragrunt.values.hcl cloned through CAS as a read-only
+// file instead of failing with a permission error.
+func TestCASInStacksCommittedValuesFileOverwritten(t *testing.T) {
+	t.Parallel()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	require.NoError(t, srv.CommitFile("units/app/terragrunt.hcl", []byte(``), "commit unit"))
+	require.NoError(t, srv.CommitFile("units/app/main.tf", []byte(`output "app" {
+  value = "app"
+}
+`), "commit unit module"))
+	require.NoError(t, srv.CommitFile("units/app/terragrunt.values.hcl", []byte(`# committed stale values
+project = "stale"
+`), "commit unit values"))
+
+	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
+  source = "../..//units/app"
+  path   = "app"
+
+  update_source_with_cas = true
+
+  values = {
+    project = "demo"
+  }
+}
+`), "commit stack"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "live", "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "stack generate failed; the values file likely could not overwrite the read-only committed one:\n%s", stdout+stderr)
+
+	valuesPath := filepath.Join(tmp, "live", ".terragrunt-stack", "foo", ".terragrunt-stack", "app", "terragrunt.values.hcl")
+	values, err := os.ReadFile(valuesPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(values), `project = "demo"`)
+	assert.Contains(t, string(values), "Auto-generated")
+	assert.NotContains(t, string(values), "stale")
+
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --no-stack-generate --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "run --all plan failed:\n%s", stdout+stderr)
+}
+
+// TestCASInStacksCommittedAutoincludeFileOverwritten verifies that stack
+// generation replaces a committed terragrunt.autoinclude.hcl cloned through
+// CAS as a read-only file instead of failing with a permission error.
+func TestCASInStacksCommittedAutoincludeFileOverwritten(t *testing.T) {
+	t.Parallel()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	require.NoError(t, srv.CommitFile("units/app/terragrunt.hcl", []byte(``), "commit unit"))
+	require.NoError(t, srv.CommitFile("units/app/main.tf", []byte(`output "app" {
+  value = "app"
+}
+`), "commit unit module"))
+	require.NoError(t, srv.CommitFile("units/app/terragrunt.autoinclude.hcl", []byte(`# committed stale autoinclude
+inputs = {
+  stale = true
+}
+`), "commit unit autoinclude"))
+
+	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
+  source = "../..//units/app"
+  path   = "app"
+
+  update_source_with_cas = true
+
+  autoinclude {
+    generate "injected" {
+      path      = "injected.tf"
+      if_exists = "overwrite"
+      contents  = <<-TF
+        output "injected" {
+          value = "injected"
+        }
+      TF
+    }
+  }
+}
+`), "commit stack"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "live", "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "stack generate failed; the autoinclude file likely could not overwrite the read-only committed one:\n%s", stdout+stderr)
+
+	autoincludePath := filepath.Join(tmp, "live", ".terragrunt-stack", "foo", ".terragrunt-stack", "app", "terragrunt.autoinclude.hcl")
+	autoinclude, err := os.ReadFile(autoincludePath)
+	require.NoError(t, err)
+	assert.Contains(t, string(autoinclude), "injected.tf")
+	assert.Contains(t, string(autoinclude), "Generated by Terragrunt from autoinclude block")
+	assert.NotContains(t, string(autoinclude), "stale")
+
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --no-stack-generate --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "run --all plan failed:\n%s", stdout+stderr)
+}
+
+// readCachedFiles returns the contents of every file with the given name
+// found inside a .terragrunt-cache directory under root.
+func readCachedFiles(t *testing.T, root, fileName string) []string {
 	t.Helper()
 
 	var contents []string
@@ -2930,7 +3164,7 @@ func readCachedVersionsFiles(t *testing.T, root string) []string {
 			return err
 		}
 
-		if d.IsDir() || d.Name() != "versions.tf" {
+		if d.IsDir() || d.Name() != fileName {
 			return nil
 		}
 
