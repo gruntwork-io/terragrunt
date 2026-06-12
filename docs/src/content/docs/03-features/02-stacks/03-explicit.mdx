@@ -191,9 +191,11 @@ terragrunt stack run apply
 
 ## Declaring Dependencies Between Units
 
+<Before version="1.1.0">
 <Aside type="tip" title="Experimental">
 The `autoinclude` block is part of the [`stack-dependencies` experiment](/reference/experiments/active#stack-dependencies). Enable it with `--experiment stack-dependencies`.
 </Aside>
+</Before>
 
 A unit in a stack can depend on a sibling unit without the catalog source knowing anything about the relationship. Add an `autoinclude` block to the `unit` block and declare the `dependency` there:
 
@@ -225,7 +227,7 @@ unit "app" {
 }
 ```
 
-The `unit.vpc.path` variable resolves to the generated directory of the `vpc` unit. Running `terragrunt stack generate --experiment stack-dependencies` writes the dependency into a `terragrunt.autoinclude.hcl` file next to the `app` unit's `terragrunt.hcl`:
+The `unit.vpc.path` variable resolves to the generated directory of the `vpc` unit. Running <Before version="1.1.0">`terragrunt stack generate --experiment stack-dependencies`</Before><Since version="1.1.0">`terragrunt stack generate`</Since> writes the dependency into a `terragrunt.autoinclude.hcl` file next to the `app` unit's `terragrunt.hcl`:
 
 <FileTree>
 
@@ -584,7 +586,13 @@ The `dependency` block cannot set the value of the `config_path` attribute to th
 
 As such, if you currently have multiple stacks that need to depend on each other, or on units within each other's stacks, you will need to either use implicit stacks, or work around this limitation by setting the `config_path` attribute to the path of the unit within the stack, and carefully ensuring that all stacks are generated before any units are run.
 
+<Before version="1.1.0">
 The [`stack-dependencies` experiment](/reference/experiments/active#stack-dependencies) lifts this limitation: a `dependency` declared in an [`autoinclude` block](/reference/hcl/blocks#autoinclude) can target a stack directory and read the aggregated outputs of its units. See [Declaring Dependencies Between Units](#declaring-dependencies-between-units).
+</Before>
+
+<Since version="1.1.0">
+The [`autoinclude` block](/reference/hcl/blocks#autoinclude) lifts this limitation: a `dependency` declared there can target a stack directory and read the aggregated outputs of its units. See [Declaring Dependencies Between Units](#declaring-dependencies-between-units).
+</Since>
 
 ### Deeply nested stack generation can be slow
 

@@ -8,10 +8,18 @@ env:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
+<Before version="1.1.0">
 <Aside type="tip" title="Experimental">
 This flag only has an effect when the [`cas`](/reference/experiments/active#cas) experiment is enabled. Enable it with `--experiment=cas` or `TG_EXPERIMENT=cas`.
 </Aside>
+</Before>
+
+<Since version="1.1.0">
+This flag has no effect when the CAS is disabled with `--no-cas`.
+</Since>
 
 Controls the `--depth` value the CAS (Content Addressable Storage) uses when cloning a Git source. The default of `1` performs a shallow clone of the latest commit. Negative values clone the full history by omitting `--depth` entirely; zero is rejected because Git requires a positive depth.
 
