@@ -69,6 +69,7 @@ const (
 	testFixtureStackDepsStackValuesLocals        = "fixtures/stacks/stack-deps-stack-values-locals"
 	testFixtureStackDepsHCLValidateAutoInc       = "fixtures/stacks/stack-deps-hclvalidate-autoinclude"
 	testFixtureStackDepsAutoIncTemplateLiteral   = "fixtures/stacks/stack-deps-autoinclude-template-literal"
+	testFixtureStackDepsAutoIncObjectKey         = "fixtures/stacks/stack-deps-autoinclude-object-key"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -200,6 +201,41 @@ func TestStackDepsAutoIncludeTemplateLiteralInterpolation(t *testing.T) {
 
 	content := string(generated)
 	assert.Regexp(t, `(?m)^\s*v\s*=\s*"0-\$\{dependency\.vpc\.outputs\.id\}"\s*$`, content, "a non-string literal interpolation must resolve to its string form, the dependency reference stays verbatim")
+}
+
+// TestStackDepsAutoIncludeResolvesObjectKey verifies, end to end, that an interpolated object key in an autoinclude resolves at stack generate time even when the object's value defers to dependency.*, so no stack-level reference leaks into the generated unit.
+func TestStackDepsAutoIncludeResolvesObjectKey(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncObjectKey)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncObjectKey)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncObjectKey)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	generated, err := os.ReadFile(filepath.Join(rootPath, inthclparse.StackDir, "app", inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `"pre_key"`, "an interpolated object key must resolve at generate time")
+	assert.NotContains(t, content, "local.prefix", "an interpolated object key must not leak a stack-level reference into the generated unit")
+	assert.Contains(t, content, "dependency.vpc.outputs.id", "the dependency reference stays verbatim for the unit")
+	assert.Contains(t, content, "pre_mock", "an interpolated key inside a dependency block attribute must resolve at generate time")
+
+	// End to end: the generated unit must evaluate (a leaked stack reference would fail here), with the resolved key carrying the mocked dependency output through to the unit's planned outputs.
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan")
+	require.NoError(t, err, "the generated stack must plan; stderr=%s", stderr)
+	assert.Contains(t, stdout, "pre_key=mock-vpc-id",
+		"the resolved object key must carry the mocked dependency output into the unit inputs")
 }
 
 // TestStackDepsAutoIncludeResolvesValuesReference verifies that a values.* reference inside an autoinclude resolves
