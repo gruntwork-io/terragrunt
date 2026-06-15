@@ -230,6 +230,41 @@ func TestPartialEval(t *testing.T) {
 	}
 }
 
+// TestPartialEval_NonFiniteNumberFallsBackToSource checks a non-finite result (1 / 0 -> +Inf) falls back to verbatim source, not an invalid bare "Inf".
+func TestPartialEval_NonFiniteNumberFallsBackToSource(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		hcl      string
+		contains string
+	}{
+		{name: "positive infinity from division", hcl: `val = 1 / 0`, contains: "1 / 0"},
+		{name: "negative infinity from division", hcl: `val = -1 / 0`, contains: "-1 / 0"},
+		{name: "infinity nested in tuple", hcl: `val = [1 / 0]`, contains: "1 / 0"},
+		{name: "infinity nested in object", hcl: `val = { v = 1 / 0 }`, contains: "1 / 0"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
+
+			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred})
+			require.NoError(t, err)
+
+			result := string(resultBytes)
+
+			assert.NotContains(t, result, "Inf", "non-finite number must not render as an Inf identifier, got %q", result)
+			assert.Contains(t, result, tc.contains, "expected verbatim source fallback, got %q", result)
+
+			_, diags := hclsyntax.ParseExpression(resultBytes, "result.hcl", hcl.Pos{Line: 1, Column: 1})
+			assert.False(t, diags.HasErrors(), "partial-eval result must be valid HCL, got %q: %s", result, diags.Error())
+		})
+	}
+}
+
 func TestIsPure(t *testing.T) {
 	t.Parallel()
 

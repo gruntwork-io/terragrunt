@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/function/stdlib"
@@ -43,12 +44,6 @@ func aiFuzzValues() *cty.Value {
 func genUnitAutoIncludeBody(t *testing.T, body string) []byte {
 	t.Helper()
 
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("panic generating unit autoinclude for body:\n%s\npanic: %v", body, r)
-		}
-	}()
-
 	src := `
 locals {
   env   = "prod"
@@ -73,18 +68,18 @@ unit "app" {
 }
 `
 
-	return generateAutoIncludeForKind(t, src, hclparse.KindUnit, "app", hclparse.AutoIncludeFile)
+	var out []byte
+
+	require.NotPanicsf(t, func() {
+		out = generateAutoIncludeForKind(t, src, hclparse.KindUnit, "app", hclparse.AutoIncludeFile)
+	}, "panic generating unit autoinclude for body:\n%s", body)
+
+	return out
 }
 
 // genStackAutoIncludeBody is the stack-kind analogue: it wraps body as the autoinclude block of a stack "child".
 func genStackAutoIncludeBody(t *testing.T, body string) []byte {
 	t.Helper()
-
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("panic generating stack autoinclude for body:\n%s\npanic: %v", body, r)
-		}
-	}()
 
 	src := `
 unit "vpc" {
@@ -102,13 +97,22 @@ stack "child" {
 }
 `
 
-	return generateAutoIncludeForKind(t, src, hclparse.KindStack, "child", hclparse.AutoIncludeStackFile)
+	var out []byte
+
+	require.NotPanicsf(t, func() {
+		out = generateAutoIncludeForKind(t, src, hclparse.KindStack, "child", hclparse.AutoIncludeStackFile)
+	}, "panic generating stack autoinclude for body:\n%s", body)
+
+	return out
 }
 
 // generateAutoIncludeForKind parses src, resolves the autoinclude for (kind, name), generates it, and returns the
 // generated file bytes (nil when the construct is rejected or produces no file).
 func generateAutoIncludeForKind(t *testing.T, src string, kind hclparse.AutoIncludeKind, name, fileName string) []byte {
 	t.Helper()
+
+	// The read-back fileName must match the kind the generator derives from, else a stale or missing file masks bugs.
+	require.Equalf(t, hclparse.AutoIncludeFileNameForKind(kind), fileName, "harness fileName %q does not match kind %q", fileName, kind)
 
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
@@ -124,9 +128,22 @@ func generateAutoIncludeForKind(t *testing.T, src string, kind hclparse.AutoIncl
 		return nil
 	}
 
-	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey(kind, name)]
+	key := hclparse.AutoIncludeKey(kind, name)
+
+	resolved, ok := result.AutoIncludes[key]
 	if !ok {
 		return nil
+	}
+
+	// A stored entry must be populated and consistent: generation needs EvalCtx and RawBody, and Kind drives the filename.
+	require.NotNilf(t, resolved, "autoinclude %s present but nil for body:\n%s", key, src)
+	require.NotNilf(t, resolved.EvalCtx, "autoinclude %s resolved with nil EvalCtx for body:\n%s", key, src)
+	require.NotNilf(t, resolved.RawBody, "autoinclude %s resolved with nil RawBody for body:\n%s", key, src)
+	require.Equalf(t, kind, resolved.Kind, "autoinclude %s resolved with kind %q for body:\n%s", key, resolved.Kind, src)
+
+	// A stack autoinclude injects only unit/stack blocks, so a cleanly resolved stack entry carries no dependencies.
+	if kind == hclparse.KindStack {
+		require.Emptyf(t, resolved.Dependencies, "stack autoinclude %s retained %d resolved dependencies for body:\n%s", key, len(resolved.Dependencies), src)
 	}
 
 	if genErr := hclparse.GenerateAutoIncludeFile(fs, resolved, aiFuzzGenDir, srcBytes, resolved.EvalCtx); genErr != nil {
@@ -149,9 +166,12 @@ func reparsesAsValidHCL(t *testing.T, body string, generated []byte) {
 		return
 	}
 
-	if _, diags := hclsyntax.ParseConfig(generated, "generated.hcl", hcl.Pos{Line: 1, Column: 1}); diags.HasErrors() {
-		t.Fatalf("generated invalid HCL for autoinclude body:\n%s\noutput:\n%s\ndiags: %s", body, generated, diags.Error())
+	_, diags := hclsyntax.ParseConfig(generated, "generated.hcl", hcl.Pos{Line: 1, Column: 1})
+	if !diags.HasErrors() {
+		return
 	}
+
+	require.Failf(t, "generated invalid HCL", "autoinclude body:\n%s\noutput:\n%s\ndiags: %s", body, generated, diags.Error())
 }
 
 // aiBlockBodySeeds is the shared seed corpus of HCL constructs placed inside an autoinclude block: scalars,
@@ -179,6 +199,7 @@ func aiBlockBodySeeds() []string {
 		`inputs = { v = dependency.vpc.outputs.subnets[*].id }`,
 		`inputs = { v = dependency.vpc.outputs.list[local.env] }`,
 		`inputs = { v = local.count + 1 }`,
+		`inputs = { v = 1 / 0 }`,
 		`inputs = { v = { "${local.env}_k" = dependency.vpc.outputs.id } }`,
 		"dependency \"db\" {\n  config_path = unit.vpc.path\n}",
 		"dependency \"db\" {\n  config_path  = unit.vpc.path\n  mock_outputs = { id = local.env }\n}",
