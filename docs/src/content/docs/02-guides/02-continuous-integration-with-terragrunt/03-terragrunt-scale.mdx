@@ -1,6 +1,6 @@
 ---
 title: Terragrunt Scale
-description: Signing up for Terragrunt Scale Free Tier and walking through the onboarding wizard
+description: Signing up for Terragrunt Scale Free Tier and walking through the onboarding wizards
 slug: guides/ci-with-terragrunt/terragrunt-scale
 sidebar:
   order: 3
@@ -10,19 +10,21 @@ import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import signupPage from '../../../../assets/img/guides/continuous-integration-with-terragrunt/signup-page.png';
 import onboardingWizard from '../../../../assets/img/guides/continuous-integration-with-terragrunt/onboarding-wizard.png';
-import installGithubApp from '../../../../assets/img/guides/continuous-integration-with-terragrunt/install-github-app.png';
+import selectScm from '../../../../assets/img/guides/continuous-integration-with-terragrunt/select-scm.png';
+import selectCloud from '../../../../assets/img/guides/continuous-integration-with-terragrunt/select-cloud.png';
 import bootstrapScript from '../../../../assets/img/guides/continuous-integration-with-terragrunt/bootstrap-script.png';
-import bootstrapCompletion from '../../../../assets/img/guides/continuous-integration-with-terragrunt/bootstrap-completion.png';
 
 Terragrunt Scale is Gruntwork's solution for running Terragrunt at scale. You can learn more about it [here](/terragrunt-scale/overview/).
 
-By the end of this section, you'll have a GitHub repository with Terragrunt infrastructure code, GitHub Actions workflows for plan-on-PR and apply-on-merge automation, OIDC authentication to your AWS account, and sample infrastructure ready to deploy.
+Onboarding is organized into three short wizards:
 
-## Create a new GitHub repository
+1. **Connect your source control manager**, which installs the Gruntwork GitHub App and picks the repository to set up.
+2. **Run your first pipeline**, which installs Pipelines in your repository and walks you through a full plan/apply/destroy cycle without using any cloud credentials.
+3. **Connect your cloud**, which provisions OIDC authentication and the IAM roles Pipelines uses to deploy real infrastructure.
 
-Before signing up, [create a new empty GitHub repository](https://github.com/new) that Terragrunt Scale will bootstrap. The onboarding wizard will install the Gruntwork GitHub App on this repository, open a pull request that scaffolds the Terragrunt configuration, and configure the GitHub Actions workflows that drive your pipeline.
+The ordering is deliberate. You get a working pipeline that plans on every PR and applies on merge before you connect AWS, so you can see the GitOps workflow end to end before any real infrastructure or credentials are involved.
 
-A fresh, empty repository works best. If you point the wizard at an existing repository, the bootstrap pull request can conflict with files already in place.
+By the end of this section, you'll have a GitHub repository with Terragrunt infrastructure code, GitHub Actions workflows for plan-on-PR and apply-on-merge automation, OIDC authentication to your AWS account, and a pipeline ready to deploy real infrastructure.
 
 ## Sign up for Terragrunt Scale Free Tier
 
@@ -30,52 +32,78 @@ Head to the [Terragrunt Scale Free Tier signup](https://app.gruntwork.io/signup/
 
 <img src={signupPage.src} alt="Terragrunt Scale Free Tier signup page" />
 
-## Walk through the onboarding
+After signing up, the home screen presents the three setup steps. The first step unlocks the other two, and you can step away and pick back up where you left off at any point.
 
-The onboarding wizard will walk you through a few steps to get your environment set up. The walkthrough below captures every screen so you can see exactly what the experience looks like before you commit to running it yourself; expand it when you're ready to follow along.
+The walkthrough below captures the experience so you can see what each wizard does before you commit to running it yourself. Expand it when you're ready to follow along.
+
+<Aside type="note">
+The screenshots throughout this guide might not match exactly what you see in the Gruntwork Developer Portal. We're constantly improving the onboarding experience, so the wording and layout can change between releases. The overall flow stays the same.
+</Aside>
 
 <details>
 <summary>Walkthrough screenshots</summary>
 
-<img src={onboardingWizard.src} alt="Onboarding wizard landing screen" />
+<img src={onboardingWizard.src} alt="Terragrunt Scale home screen showing the three setup steps" />
 
-### Installing the GitHub App
+## Connect your source control manager
 
-Right now, the only Source Control Manager (SCM) the Terragrunt Scale Free Tier onboarding wizard supports is GitHub. Pipelines also works with GitLab, but the onboarding wizard doesn't support GitLab yet.
+Right now, the only Source Control Manager (SCM) the onboarding wizard supports is GitHub. Pipelines also works with GitLab, but the wizard doesn't support GitLab yet.
 
-The wizard will prompt you to install the [Gruntwork.io](https://gruntwork.io/) GitHub App on your GitHub account or organization. This app is what allows Terragrunt Scale to post plan results as comments on your pull requests and checkout Git repositories you give it access to. It acquires this access from within your GitHub Actions workflows, and it does not access your cloud infrastructure or your OpenTofu state.
+<img src={selectScm.src} alt="Select your source control manager step in the onboarding wizard" />
 
-<img src={installGithubApp.src} alt="Install the Gruntwork GitHub App" />
+The wizard prompts you to install the [Gruntwork.io](https://gruntwork.io/) GitHub App on your GitHub account or organization. This app is what allows Terragrunt Scale to open pull requests and post plan results as comments on them, and to check out the Git repositories you give it access to. It acquires this access from within your GitHub Actions workflows, and it does not access your cloud infrastructure or your OpenTofu state.
 
-### Bootstrapping AWS resources
+When prompted, choose "Only select repositories" and select the repository you want to set up.
 
-Right now, the only supported cloud provider for the Terragrunt Scale Free Tier onboarding wizard is AWS. Pipelines has support for Azure and GCP (and custom self-configured authentication for anything else), but the onboarding wizard only supports AWS at the time of writing.
+After the app is installed and verified, the wizard asks you to choose the repository to configure. You can select an existing infrastructure repository or create a new empty one and select it here.
+
+A fresh, empty repository works best. If you point the wizard at an existing repository, the pull requests it opens can conflict with files already in place.
+
+## Run your first pipeline
+
+This wizard installs Pipelines in your repository and teaches the GitOps workflow without using any cloud credentials. It does this with a placeholder unit that creates a `null_resource`, which exercises the full plan/apply cycle without provisioning anything in AWS.
+
+You'll work through three pull requests:
+
+1. **Add a unit.** The first pull request installs Pipelines in your repository (the GitHub Actions workflows, the Pipelines configuration, a `.mise.toml`, and a credential-less environment) and adds the tutorial unit. Pipelines runs `plan` automatically and posts the result as a comment. Merge it and Pipelines runs `apply`.
+2. **Modify a unit.** The second pull request changes an input value on the tutorial unit. Pipelines detects the change from the Git diff, plans it, and applies it on merge.
+3. **Destroy a unit.** The third pull request removes the tutorial unit. Pipelines runs `plan -destroy` to show what will be removed, then destroys the resource on merge.
+
+Because this wizard runs without cloud credentials, the tutorial unit uses local state and the environment it lands in has an empty `authentication {}` block. The real cloud authentication gets added in the next wizard.
+
+<Aside type="note">
+This wizard is optional. If you'd rather connect your cloud right away, you can skip it. The "Connect your cloud" wizard installs Pipelines for you if the tutorial hasn't already done so.
+</Aside>
+
+## Connect your cloud
+
+Right now, the only supported cloud provider for the onboarding wizard is AWS. Pipelines has support for Azure and GCP (and custom self-configured authentication for anything else), but the wizard only supports AWS at the time of writing.
+
+<img src={selectCloud.src} alt="Select your cloud provider step in the onboarding wizard" />
+
+The wizard generates a script that you run in [AWS CloudShell](https://docs.aws.amazon.com/cloudshell/latest/userguide/welcome.html) against the AWS account you want to use. This script provisions an [OpenID Connect (OIDC) provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html), the IAM roles that GitHub Actions will assume when running plans and applies, and an S3 bucket for your OpenTofu/Terraform state. If you're unsure about running it, you can read the full source to learn what it does. You can even use the convenient "Analyze script with AI?" option to help you understand the different parts.
 
 <img src={bootstrapScript.src} alt="AWS bootstrap script step in the onboarding wizard" />
-
-The wizard generates a script that you run against your AWS account. This script provisions an [OpenID Connect (OIDC) provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) and IAM roles that GitHub Actions will assume when running plans and applies. If you're unsure about running it, you can read the full source to learn what it does. You can even use the convenient "Analyze script with AI?" to help you understand the different parts.
 
 <Aside type="tip">
 The Free Tier is self-serve. If you're on a paid Terragrunt Scale plan, Gruntwork support can help walk you through this bootstrap step and tailor it to your account setup.
 </Aside>
 
-We'll look at what OIDC does and why it matters in the next section.
+We'll look at what OIDC does and why it matters later in this section.
 
-<img src={bootstrapCompletion.src} alt="Bootstrap completion and bootstrap pull request prompt" />
+Once the script finishes, the wizard detects completion and opens a pull request that imports those IAM resources into your infrastructure code and configures Pipelines to authenticate with them. This pull request adds the S3 backend configuration, the bootstrap stack, and a real environment with an `aws_oidc` block in place of the empty `authentication {}` from the previous wizard. You can optionally include a sample `s3-bucket` unit in this pull request to verify the connection by deploying a real resource.
 
-In the next step, you'll get prompted to create a pull request to bootstrap your repository. This sets up your repository for the basic configurations required to get up and running with Terragrunt Scale.
-
-Once the bootstrap is complete, the wizard will prompt you to create your first unit in your repository as part of a basic tutorial. Go through that tutorial, and read along to learn more about how Terragrunt Scale works, and how it drives infrastructure updates in a GitOps workflow.
+Review and merge that pull request, and your repository is ready to deploy real infrastructure through Pipelines.
 
 </details>
 
-## Understanding what the onboarding wizard set up
+## Understanding what onboarding set up
 
-The onboarding did a lot of work automatically. Before we start using the pipeline, it's worth slowing down a second and exploring what's been provisioned.
+Onboarding did a lot of work automatically across those three wizards. Before we start using the pipeline, it's worth slowing down a second and exploring what's been assembled.
 
 ### Repository structure
 
-[Clone the repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) that onboarding created and take a look at the directory tree.
+[Clone the repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) that onboarding configured and take a look at the directory tree.
 
 <FileTree>
 - .github
@@ -96,6 +124,8 @@ The onboarding did a lot of work automatically. Before we start using the pipeli
 - README.md
 - root.hcl
 </FileTree>
+
+This is the end state after both pull requests merge. The "Run your first pipeline" wizard contributes the workflows, the Pipelines configuration, and `.mise.toml`. The "Connect your cloud" wizard contributes `root.hcl`, the account directory, the bootstrap stack, and the `aws_oidc` authentication.
 
 If you've worked with Terragrunt before, this structure should look familiar. If you want to see the canonical version of this pattern, take a look at the [terragrunt-infrastructure-live-stacks-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example) repository.
 
@@ -120,7 +150,7 @@ This is the plan-on-PR, apply-on-merge pattern described in the introduction. **
 
 Pipelines uses [HCL](https://docs.gruntwork.io/2.0/reference/pipelines/configurations-as-code/) to configure how it operates.
 
-The onboarding wizard installed two files in `.gruntwork` to configure Pipelines for you: `repository.hcl` and `environment-account-name.hcl`.
+Onboarding installed two files in `.gruntwork` to configure Pipelines for you: `repository.hcl` and `environment-account-name.hcl`.
 
 #### `repository.hcl`
 
@@ -177,11 +207,13 @@ environment "account-name" {
 
 The `environment` block defines configurations for a particular set of units in your repository. You use the `filter` block to select those units by glob, and an `authentication` block to define how those units should be authenticated.
 
+During the "Run your first pipeline" wizard, this `authentication` block was empty (`authentication {}`), which is why the tutorial unit planned and applied without any cloud credentials. When you connected your cloud, the wizard filled it in with the `aws_oidc` block above.
+
 There are a couple [different ways to authenticate](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/) in Pipelines. The one that's been pre-configured here is the AWS OIDC authentication method. In this method, authentication takes place in an AWS account with the account ID `account_id`, and the `plan_iam_role_arn` IAM role is assumed on PR creation/update, whereas the `apply_iam_role_arn` IAM role is assumed on pushes to the deploy branch (e.g. `main`).
 
 ### OIDC authentication
 
-When the bootstrap step ran, it created an [OIDC provider](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/#overview) and [IAM roles](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/aws?config-type=hcl#how-pipelines-knows-what-aws-principals-to-authenticate-as) in your AWS account. Here's [what's happening when a CI job runs](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/aws?config-type=hcl#publicly-available-cicd-platforms):
+When the bootstrap script ran, it created an [OIDC provider](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/#overview) and [IAM roles](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/aws?config-type=hcl#how-pipelines-knows-what-aws-principals-to-authenticate-as) in your AWS account. Here's [what's happening when a CI job runs](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/cloud-auth/aws?config-type=hcl#publicly-available-cicd-platforms):
 
 1. GitHub Actions requests a short-lived token from GitHub's OIDC provider.
 2. That token is exchanged with AWS STS for temporary credentials by assuming the IAM role that the bootstrap step created.
