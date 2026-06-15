@@ -157,8 +157,9 @@ func NewStackDependencyExpansionError(depPath string, err error) error {
 }
 
 // FilterBoundaryDirError indicates that the directory given as a graph boundary
-// (the "(dir)" operand of a filter expression) does not exist or is not a
-// directory. Wraps the underlying filesystem error, if any.
+// (the "(dir)" operand of a filter expression, or the --filter-boundary flag)
+// does not exist or is not a directory. Wraps the underlying filesystem error,
+// if any, so callers can extract typed details via errors.As.
 type FilterBoundaryDirError struct {
 	Wrapped  error
 	Boundary string
@@ -178,9 +179,9 @@ func NewFilterBoundaryDirError(boundary string, err error) error {
 }
 
 // FilterBoundaryScopeError indicates that the working directory is not inside
-// the directory given as a dependent-direction graph boundary. Dependent
-// discovery walks up from the working directory, so a boundary that does not
-// contain it can never take effect.
+// the directory given as the boundary. Dependent discovery walks up from the
+// working directory, so a boundary that does not contain it can never take
+// effect.
 type FilterBoundaryScopeError struct {
 	Boundary   string
 	WorkingDir string
@@ -189,7 +190,7 @@ type FilterBoundaryScopeError struct {
 func (e FilterBoundaryScopeError) Error() string {
 	return fmt.Sprintf(
 		"filter boundary %q does not contain the working directory %q. "+
-			"A dependent-direction boundary must be the working directory or one of its parents.",
+			"The boundary must be the working directory or one of its parent directories.",
 		e.Boundary, e.WorkingDir,
 	)
 }

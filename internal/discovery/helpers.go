@@ -401,6 +401,31 @@ func stackDependencyPaths(
 	return result, nil
 }
 
+// dependentWalkBoundary returns where the upstream dependent walk must stop:
+// the user's filter boundary when set, otherwise the detected git root. An
+// empty result means the walk is unbounded (no boundary could be determined).
+func (d *Discovery) dependentWalkBoundary() string {
+	if d.filterBoundary != "" {
+		return d.filterBoundary
+	}
+
+	return d.gitRoot
+}
+
+// validateBoundaryDir reports whether resolved names an existing directory.
+func validateBoundaryDir(fs vfs.FS, resolved string) error {
+	info, err := fs.Stat(resolved)
+	if err != nil {
+		return NewFilterBoundaryDirError(resolved, err)
+	}
+
+	if !info.IsDir() {
+		return NewFilterBoundaryDirError(resolved, errors.New("not a directory"))
+	}
+
+	return nil
+}
+
 // resolveGraphBoundary canonicalizes a raw "(dir)" boundary value against
 // the working directory and validates that it points at an existing directory.
 // Returns the resolved absolute path.
@@ -412,13 +437,31 @@ func resolveGraphBoundary(fs vfs.FS, workingDir, boundary string) (string, error
 
 	resolved = filepath.Clean(resolved)
 
-	info, err := fs.Stat(resolved)
-	if err != nil {
-		return "", NewFilterBoundaryDirError(resolved, err)
+	if err := validateBoundaryDir(fs, resolved); err != nil {
+		return "", err
 	}
 
-	if !info.IsDir() {
-		return "", NewFilterBoundaryDirError(resolved, errors.New("not a directory"))
+	return resolved, nil
+}
+
+// resolveFilterBoundary canonicalizes a user-supplied filter boundary against
+// the working directory and validates that it is an existing directory that
+// contains the working directory. Returns the resolved absolute path.
+func resolveFilterBoundary(fs vfs.FS, workingDir, boundary string) (string, error) {
+	resolved, err := util.CanonicalResolvedPath(boundary, workingDir)
+	if err != nil {
+		return "", NewFilterBoundaryDirError(boundary, err)
+	}
+
+	if err := validateBoundaryDir(fs, resolved); err != nil {
+		return "", err
+	}
+
+	resolvedWorkingDir := util.ResolvePath(workingDir)
+
+	rel, err := filepath.Rel(resolved, resolvedWorkingDir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", NewFilterBoundaryScopeError(resolved, workingDir)
 	}
 
 	return resolved, nil

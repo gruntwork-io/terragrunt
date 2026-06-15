@@ -97,7 +97,8 @@
 //   - [Discovery.WithWorktrees]: Set worktrees for Git-based filters
 //   - [Discovery.WithConfigFilenames]: Set custom config filenames to discover
 //   - [Discovery.WithParserOptions]: Set custom HCL parser options
-//   - [Discovery.WithGitRoot]: Set git root for dependent discovery boundary
+//   - [Discovery.WithGitRoot]: Set the git root used as the default dependent-walk ceiling
+//   - [Discovery.WithFilterBoundary]: Enclose graph discovery within a directory instead of the git root
 //   - [Discovery.WithGraphTarget]: Set graph target for pruning results
 //   - [Discovery.WithOptions]: Ingest runner options for parser and graph settings
 //

@@ -31,6 +31,15 @@ Any configuration that is discovered outside the boundary, whether a dependent o
 
 A boundary bounds discovery traversal rather than filtering results, so an in-boundary unit reachable only by passing through an out-of-boundary unit is intentionally excluded (e.g. `a` --> `b` --> `c`, and yo`b` is not part of the boundary, will prevent graph traversal from `a` to reach `c` and vice-versa).
 
+The experiment also unlocks the [`--filter-boundary`](/reference/cli/commands/find#filter-boundary) flag (env: `TG_FILTER_BOUNDARY`), which applies one boundary to every `--filter` expression on the command, in both directions:
+
+```bash
+cd environments/staging
+terragrunt find --experiment bounded-discovery --filter '...{vpc}' --filter-boundary .
+```
+
+An inline `(dir)` operand overrides the flag for the expression that carries it. See the [`--filter-boundary` reference](/reference/cli/commands/find#filter-boundary) for how the boundary is resolved.
+
 ### `bounded-discovery` - How to provide feedback
 
 Provide your feedback in the [`bounded-discovery` Experiment Feedback Discussion](https://github.com/gruntwork-io/terragrunt/discussions/6581).
@@ -41,5 +50,6 @@ To transition the `bounded-discovery` feature to a stable release, the following
 
 - [ ] Confirm a single directory boundary covers the common isolation layouts (per-environment directories, shared parent configuration).
 - [ ] Decide whether a boundary should also accept a glob, or remain directory-only.
+- [ ] Decide whether path-restricting filter intersections (e.g. `...{unit} | ./**`) should narrow the boundary automatically, making the explicit boundary unnecessary for most uses.
 - [ ] Decide whether and how the boundary should apply to Git-based filter expressions (e.g. `[main...HEAD]`).
-- [ ] Positive feedback from users relying on the operand in repositories with isolated environments.
+- [ ] Positive feedback from users relying on the operand and the flag in repositories with isolated environments.

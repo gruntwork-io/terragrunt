@@ -2,9 +2,11 @@ package shared
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -16,8 +18,15 @@ const (
 	FilterFlagName             = "filter"
 	FilterAffectedFlagName     = "filter-affected"
 	FilterAllowDestroyFlagName = "filter-allow-destroy"
+	FilterBoundaryFlagName     = "filter-boundary"
 	FilterFileFlagName         = "filters-file"
 	NoFilterFileFlagName       = "no-filters-file"
+)
+
+// ErrFilterBoundaryRequiresExperiment is returned when --filter-boundary is
+// set without the bounded-discovery experiment enabled.
+var ErrFilterBoundaryRequiresExperiment = errors.New(
+	"--filter-boundary requires the 'bounded-discovery' experiment to be enabled (e.g., --experiment=bounded-discovery)",
 )
 
 // NewFilterFlags creates flags for specifying filter queries.
@@ -97,6 +106,25 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 				EnvVars:     tgPrefix.EnvVars(FilterAllowDestroyFlagName),
 				Destination: &opts.FilterAllowDestroy,
 				Usage:       "Allow destroy runs when using Git-based filters.",
+			},
+		),
+		flags.NewFlag(
+			&clihelper.GenericFlag[string]{
+				Name:        FilterBoundaryFlagName,
+				EnvVars:     tgPrefix.EnvVars(FilterBoundaryFlagName),
+				Destination: &opts.FilterBoundary,
+				Usage:       "Bound --filter discovery to a directory, not git root. Requires the 'bounded-discovery' experiment.",
+				Action: func(_ context.Context, _ *clihelper.Context, value string) error {
+					if value == "" {
+						return nil
+					}
+
+					if opts.Experiments.Evaluate(experiment.BoundedDiscovery) {
+						return nil
+					}
+
+					return ErrFilterBoundaryRequiresExperiment
+				},
 			},
 		),
 		flags.NewFlag(

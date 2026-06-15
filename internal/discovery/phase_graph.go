@@ -204,7 +204,8 @@ func (p *GraphPhase) processGraphTarget(
 			depth = graphExpr.Dependencies.Depth
 		}
 
-		boundary := ""
+		// An inline "(dir)" operand overrides --filter-boundary for this expression.
+		boundary := state.discovery.filterBoundary
 
 		if graphExpr.Dependencies.Boundary != "" {
 			resolved, err := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependencies.Boundary)
@@ -233,9 +234,10 @@ func (p *GraphPhase) processGraphTarget(
 		}
 
 		// The upstream dependent walk is capped by an explicit boundary when the
-		// expression carries one, otherwise by the detected git root.
+		// expression carries one, otherwise by --filter-boundary, otherwise by
+		// the detected git root.
 		startDir := state.discovery.workingDir
-		boundaryRoot := state.discovery.gitRoot
+		boundaryRoot := state.discovery.dependentWalkBoundary()
 
 		if graphExpr.Dependents.Boundary != "" {
 			resolved, rerr := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependents.Boundary)
@@ -485,9 +487,9 @@ type upstreamDiscoveryState struct {
 }
 
 // discoverDependentsUpstream discovers dependents by walking up the filesystem
-// from the target component's directory to gitRoot (or filesystem root if gitRoot is empty).
-// At each directory level, it walks down to find terragrunt configs and checks if they
-// depend on the target component.
+// from the target component's directory to boundaryRoot (or filesystem root if
+// boundaryRoot is empty). At each directory level, it walks down to find
+// terragrunt configs and checks if they depend on the target component.
 func (p *GraphPhase) discoverDependentsUpstream(
 	ctx context.Context,
 	l log.Logger,
