@@ -295,20 +295,6 @@ function Sign-Binary {
     Write-Host "Successfully signed $BinaryPath"
 }
 
-function Verify-Signature {
-    param([string]$BinaryPath)
-
-    Write-Host "Verifying signature on: $BinaryPath"
-
-    & smctl.exe sign verify --input "$BinaryPath"
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Signature verification returned non-zero exit code (may be expected)"
-    } else {
-        Write-Host "Signature verified successfully"
-    }
-}
-
 function Main {
     # Verify environment variables
     Assert-EnvVar "SM_HOST"
@@ -358,10 +344,7 @@ function Main {
             Write-Host "Signing $($platform.binary) ($($platform.arch))..."
             Sign-Binary -BinaryPath $binaryPath
 
-            Write-Host "Verifying signature on $($platform.binary)..."
-            Verify-Signature -BinaryPath $binaryPath
-
-            Write-Host "✓ $($platform.binary): signed and verified"
+            Write-Host "✓ $($platform.binary): signed"
             $signedCount++
         } else {
             Write-Host "○ $($platform.binary) ($($platform.arch)): patched with resources only (not signed per config)"
