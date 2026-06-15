@@ -208,7 +208,7 @@ func TestExpressionExpansion(t *testing.T) {
 				case *filter.PathExpression:
 					toPaths = append(toPaths, expr.Value)
 				case *filter.AttributeExpression:
-					if expr.Key == "reading" {
+					if expr.Key == filter.AttributeReading {
 						toReadings = append(toReadings, expr.Value)
 					}
 				}
@@ -312,7 +312,7 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 
 			for _, f := range toFilters {
 				if attrExpr, ok := f.Expression().(*filter.AttributeExpression); ok {
-					if attrExpr.Key == "reading" {
+					if attrExpr.Key == filter.AttributeReading {
 						readings = append(readings, attrExpr.Value)
 					}
 				}
@@ -327,7 +327,7 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 
 				for _, f := range toFilters {
 					if attrExpr, ok := f.Expression().(*filter.AttributeExpression); ok {
-						if attrExpr.Key == "reading" && attrExpr.Value == expectedReading {
+						if attrExpr.Key == filter.AttributeReading && attrExpr.Value == expectedReading {
 							found = true
 
 							assert.Equal(t, "reading", attrExpr.Key, "Filter should have reading key")
@@ -348,12 +348,13 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name               string
-		setupFilesystem    func(tmpDir string) error
-		diffs              *git.Diffs
-		expectedToPaths    []string
-		expectedToReadings []string
-		expectedFrom       int
+		name                 string
+		setupFilesystem      func(tmpDir string) error
+		diffs                *git.Diffs
+		expectedToPaths      []string
+		expectedToReadings   []string
+		expectedFromReadings []string
+		expectedFrom         int
 	}{
 		{
 			name: "removed file in unit directory creates path filter",
@@ -378,7 +379,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			expectedFrom:       0,
 		},
 		{
-			name: "removed file in non-unit directory creates no filter",
+			name: "removed file in non-unit directory creates reading filter against from worktree",
 			setupFilesystem: func(tmpDir string) error {
 				// Create non-unit directory (no terragrunt.hcl)
 				nonUnitDir := filepath.Join(tmpDir, "non-unit")
@@ -389,9 +390,10 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 					"non-unit/some-file.tf",
 				},
 			},
-			expectedToPaths:    []string{},
-			expectedToReadings: []string{},
-			expectedFrom:       0,
+			expectedToPaths:      []string{},
+			expectedToReadings:   []string{},
+			expectedFromReadings: []string{"non-unit/some-file.tf"},
+			expectedFrom:         1,
 		},
 		{
 			name: "added file in unit directory creates path filter",
@@ -416,7 +418,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			expectedFrom:       0,
 		},
 		{
-			name: "added file in non-unit directory creates no filter",
+			name: "added file in non-unit directory creates reading filter against to worktree",
 			setupFilesystem: func(tmpDir string) error {
 				// Create non-unit directory (no terragrunt.hcl)
 				nonUnitDir := filepath.Join(tmpDir, "non-unit")
@@ -428,7 +430,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				},
 			},
 			expectedToPaths:    []string{},
-			expectedToReadings: []string{},
+			expectedToReadings: []string{"non-unit/new-file.tf"},
 			expectedFrom:       0,
 		},
 		{
@@ -540,6 +542,17 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			// Verify from filters count
 			assert.Len(t, fromFilters, tt.expectedFrom, "From filters count should match")
 
+			// Extract reading filters from fromFilters
+			fromReadings := []string{}
+
+			for _, f := range fromFilters {
+				if expr, ok := f.Expression().(*filter.AttributeExpression); ok && expr.Key == filter.AttributeReading {
+					fromReadings = append(fromReadings, expr.Value)
+				}
+			}
+
+			assert.ElementsMatch(t, tt.expectedFromReadings, fromReadings, "From reading filters should match")
+
 			// Extract path and reading filters from toFilters
 			toPathsMap := make(map[string]bool)
 			toReadings := []string{}
@@ -549,7 +562,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				case *filter.PathExpression:
 					toPathsMap[expr.Value] = true
 				case *filter.AttributeExpression:
-					if expr.Key == "reading" {
+					if expr.Key == filter.AttributeReading {
 						toReadings = append(toReadings, expr.Value)
 					}
 				}
