@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
@@ -344,16 +346,21 @@ func TestAutoIncludeDependencyPaths_AbsolutePath(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
-dependency "vpc" {
-  config_path = "/absolute/path/to/vpc"
-}
-`), 0644))
+	root := helpers.OSAbs(t, "/test")
+	absVPC := helpers.OSAbs(t, "/absolute/path/to/vpc")
 
-	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	// config_path is embedded into HCL, so use forward slashes to keep it valid and absolute
+	// on every platform.
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(root, hclparse.AutoIncludeFile), []byte(fmt.Sprintf(`
+dependency "vpc" {
+  config_path = %q
+}
+`, filepath.ToSlash(absVPC))), 0644))
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, root)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
-	assert.Equal(t, "/absolute/path/to/vpc", paths[0])
+	assert.Equal(t, filepath.ToSlash(absVPC), filepath.ToSlash(paths[0]))
 }
 
 // Each malformed dependency block surfaces as a typed MalformedDependencyError naming the dependency: the contract is loud-fail, not silent skip.

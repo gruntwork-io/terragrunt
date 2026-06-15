@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -51,7 +52,8 @@ func TestCanonicalPath(t *testing.T) {
 
 			actual, err := util.CanonicalPath(tc.path, tc.basePath)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expected, actual, "For path %s and basePath %s", tc.path, tc.basePath)
+			// CanonicalPath returns OS-native separators; compare in forward-slash space.
+			assert.Equal(t, tc.expected, filepath.ToSlash(actual), "For path %s and basePath %s", tc.path, tc.basePath)
 		})
 	}
 }
@@ -528,7 +530,8 @@ func TestFileManifestCleanRejectsTooManyReferencedManifests(t *testing.T) {
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "exceeded 100000 manifests")
-	assert.Contains(t, err.Error(), root)
+	// The path is embedded into the error via %q, which doubles backslashes on Windows.
+	assert.Contains(t, err.Error(), strings.ReplaceAll(root, `\`, `\\`))
 }
 
 func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
@@ -547,7 +550,8 @@ func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "entry cap")
-	assert.Contains(t, err.Error(), root)
+	// The path is embedded into the error via %q, which doubles backslashes on Windows.
+	assert.Contains(t, err.Error(), strings.ReplaceAll(root, `\`, `\\`))
 }
 
 func writeManifest(t *testing.T, path string, paths ...string) {
@@ -1190,7 +1194,7 @@ func Test_sanitizePath(t *testing.T) {
 
 			require.NoError(t, err)
 
-			assert.Equalf(t, tt.want, got, "sanitizePath(%v, %v)", tt.baseDir, tt.file)
+			assert.Equalf(t, tt.want, filepath.ToSlash(got), "sanitizePath(%v, %v)", tt.baseDir, tt.file)
 		})
 	}
 }
@@ -1215,6 +1219,13 @@ func TestMoveFile(t *testing.T) {
 
 func TestRelPathForLog(t *testing.T) {
 	t.Parallel()
+
+	// RFC 8089 file URL path form of <RootFolder>/base: "/base" on Unix,
+	// "/C:/base" on Windows (leading slash before the drive letter).
+	urlStyleBase := filepath.ToSlash(helpers.RootFolder + "base")
+	if !strings.HasPrefix(urlStyleBase, "/") {
+		urlStyleBase = "/" + urlStyleBase
+	}
 
 	testCases := []struct {
 		name        string
@@ -1278,6 +1289,13 @@ func TestRelPathForLog(t *testing.T) {
 			targetPath:  helpers.RootFolder + "bar/baz",
 			showAbsPath: false,
 			expected:    ".." + string(filepath.Separator) + filepath.Join("bar", "baz"),
+		},
+		{
+			name:        "file URL path resolves relative to base",
+			basePath:    helpers.RootFolder + "base/child",
+			targetPath:  urlStyleBase,
+			showAbsPath: false,
+			expected:    "..",
 		},
 	}
 

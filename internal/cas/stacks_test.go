@@ -89,7 +89,7 @@ func TestResolveInRepoSource(t *testing.T) {
 		},
 		{
 			name:    "absolute source rejected",
-			source:  filepath.Join(string(filepath.Separator), "etc", "passwd"),
+			source:  helpers.OSAbs(t, "/etc/passwd"),
 			wantErr: cas.ErrAbsoluteSource,
 		},
 		{

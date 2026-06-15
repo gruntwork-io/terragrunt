@@ -523,7 +523,10 @@ func TestColorizer(t *testing.T) {
 func TestDotFormat(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	// The rendered names are <base-of-working-dir-parent>/<unit>; pin the
+	// parent base to "001" so expectations hold with any temp dir naming.
+	tmpDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "001")
+	require.NoError(t, os.MkdirAll(tmpDir, 0755))
 
 	testDirs := []string{
 		"unit1",
@@ -581,14 +584,17 @@ dependency "unit1" {
 	"001/unit2" -> "001/unit1";
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }
 
 func TestDotFormatWithoutDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	// The rendered names are <base-of-working-dir-parent>/<unit>; pin the
+	// parent base to "001" so expectations hold with any temp dir naming.
+	tmpDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "001")
+	require.NoError(t, os.MkdirAll(tmpDir, 0755))
 
 	testDirs := []string{
 		"unit1",
@@ -643,14 +649,17 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	"001/unit3" ;
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }
 
 func TestDotFormatWithComplexDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	// The rendered names are <base-of-working-dir-parent>/<unit>; pin the
+	// parent base to "001" so expectations hold with any temp dir naming.
+	tmpDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "001")
+	require.NoError(t, os.MkdirAll(tmpDir, 0755))
 
 	testDirs := []string{
 		"unit1",
@@ -721,14 +730,17 @@ dependency "unit2" {
 	"001/unit3" -> "001/unit2";
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }
 
 func TestDotFormatWithExcludedComponents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	// The rendered names are <base-of-working-dir-parent>/<unit>; pin the
+	// parent base to "001" so expectations hold with any temp dir naming.
+	tmpDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "001")
+	require.NoError(t, os.MkdirAll(tmpDir, 0755))
 
 	testDirs := []string{
 		"unit1",
@@ -800,14 +812,17 @@ dependency "unit2" {
 	"001/unit3" -> "001/unit2";
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }
 
 func TestDotFormatWithExcludedDependency(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	// The rendered names are <base-of-working-dir-parent>/<unit>; pin the
+	// parent base to "001" so expectations hold with any temp dir naming.
+	tmpDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "001")
+	require.NoError(t, os.MkdirAll(tmpDir, 0755))
 
 	testDirs := []string{
 		"unit1",
@@ -871,14 +886,17 @@ dependency "unit1" {
 	"001/unit2" -> "001/unit1";
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }
 
 func TestTextFormatExcludesExcludedComponents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	// The rendered names are <base-of-working-dir-parent>/<unit>; pin the
+	// parent base to "001" so expectations hold with any temp dir naming.
+	tmpDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "001")
+	require.NoError(t, os.MkdirAll(tmpDir, 0755))
 
 	testDirs := []string{
 		"unit1",
@@ -943,7 +961,10 @@ exclude {
 func TestDotFormatWithMultipleExcludedComponents(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	// The rendered names are <base-of-working-dir-parent>/<unit>; pin the
+	// parent base to "001" so expectations hold with any temp dir naming.
+	tmpDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "001")
+	require.NoError(t, os.MkdirAll(tmpDir, 0755))
 
 	testDirs := []string{
 		"unit1",
@@ -1028,6 +1049,6 @@ dependency "unit3" {
 	"001/unit4" -> "001/unit3";
 }
 `,
-		outputStr,
+		filepath.ToSlash(outputStr),
 	)
 }

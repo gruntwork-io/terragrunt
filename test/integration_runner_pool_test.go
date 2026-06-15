@@ -220,9 +220,10 @@ func TestRunnerPoolDestroyFailFast(t *testing.T) {
 	stdout, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- destroy")
 	// Check that error output contains terraform error details
 	assert.Contains(t, stderr, "level=error")
-	// Verify that unit-b failed
+	// Verify that unit-b failed. Normalize Windows path separators so the
+	// forward-slash expectation stays platform-agnostic.
 	assert.Contains(t, stderr, "Failed to execute")
-	assert.Contains(t, stderr, "in ./unit-b")
+	assert.Contains(t, filepath.ToSlash(stderr), "in ./unit-b")
 	assert.NotContains(t, stdout, "unit-b tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed")
 	assert.NotContains(t, stdout, "unit-a tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed.")
 }
@@ -294,6 +295,10 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 //     3. Verifying that at least one auth command detected concurrent execution
 //     (which is deterministic proof of parallelism)
 func TestAuthProviderParallelExecution(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderParallel)

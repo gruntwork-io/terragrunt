@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
@@ -241,11 +242,15 @@ func TestEvalSymlinks(t *testing.T) {
 		resolved, err := vfs.EvalSymlinks(fs, "/root/real/sub")
 
 		require.NoError(t, err)
-		assert.Equal(t, "/root/real/sub", resolved)
+		assert.Equal(t, "/root/real/sub", filepath.ToSlash(resolved))
 	})
 
 	t.Run("resolves parent symlink", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("memfs symlink resolution is not separator-portable on Windows")
+		}
 
 		fs := vfs.NewMemMapFS()
 		require.NoError(t, fs.MkdirAll("/root/real/sub", 0o755))
@@ -271,6 +276,10 @@ func TestParentPathHasSymlink(t *testing.T) {
 
 	t.Run("parent path contains symlink", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("symlink creation/resolution is not separator-portable on Windows")
+		}
 
 		fs := vfs.NewMemMapFS()
 		require.NoError(t, fs.MkdirAll("/root/real", 0o755))
@@ -328,7 +337,7 @@ func TestParentPathHasSymlink(t *testing.T) {
 	t.Run("absolute relative path is unsafe", func(t *testing.T) {
 		t.Parallel()
 
-		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "/root/file.txt")
+		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", helpers.OSAbs(t, "/root/file.txt"))
 
 		require.NoError(t, err)
 		assert.True(t, hasSymlink)
@@ -345,6 +354,10 @@ func TestParentPathHasSymlink(t *testing.T) {
 
 	t.Run("deep nested parent symlink", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("symlink creation/resolution is not separator-portable on Windows")
+		}
 
 		fs := vfs.NewMemMapFS()
 		require.NoError(t, fs.MkdirAll("/root/a/b/real", 0o755))
@@ -481,6 +494,10 @@ func TestUnzip(t *testing.T) {
 	t.Run("permissions preserved with umask 0", func(t *testing.T) {
 		t.Parallel()
 
+		if helpers.IsWindows() {
+			t.Skip("Unix file permission bits are not represented on Windows")
+		}
+
 		fs := vfs.NewOSFS()
 		tempDir := t.TempDir()
 		zipPath := filepath.Join(tempDir, "archive.zip")
@@ -500,6 +517,10 @@ func TestUnzip(t *testing.T) {
 
 	t.Run("permissions with umask applied", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("Unix file permission bits are not represented on Windows")
+		}
 
 		fs := vfs.NewOSFS()
 		tempDir := t.TempDir()
@@ -791,6 +812,10 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 func TestUnzipSymlinkEscape(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsWindows() {
+		t.Skip("symlink creation/resolution is not separator-portable on Windows")
+	}
+
 	l := logger.CreateLogger()
 
 	t.Run("allows symlink to file within destination", func(t *testing.T) {
@@ -916,7 +941,7 @@ func TestWalkDir(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"/root", "/root/dir", "/root/dir/nested.txt", "/root/top.txt"}, paths)
+		assert.Equal(t, []string{"/root", "/root/dir", "/root/dir/nested.txt", "/root/top.txt"}, helpers.ToSlashAll(paths))
 	})
 
 	t.Run("empty directory", func(t *testing.T) {
@@ -965,7 +990,7 @@ func TestWalkDir(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"/root", "/root/keep", "/root/keep/visible.txt"}, paths)
+		assert.Equal(t, []string{"/root", "/root/keep", "/root/keep/visible.txt"}, helpers.ToSlashAll(paths))
 	})
 
 	t.Run("nonexistent root returns error to callback", func(t *testing.T) {

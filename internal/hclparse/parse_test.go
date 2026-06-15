@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1823,16 +1824,20 @@ func TestParseStackFile_LocalEvaluatedOnce(t *testing.T) {
 
 	var calls atomic.Int32
 
+	// Absolute include path embedded into HCL: forward slashes keep it valid and absolute on
+	// every platform.
+	includePath := helpers.OSAbs(t, "/includes/extra.stack.hcl")
+
 	onceFn := function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.String),
 		Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
 			calls.Add(1)
-			return cty.StringVal("/includes/extra.stack.hcl"), nil
+			return cty.StringVal(filepath.ToSlash(includePath)), nil
 		},
 	})
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/includes/extra.stack.hcl", []byte(`
+	require.NoError(t, vfs.WriteFile(fs, includePath, []byte(`
 unit "extra" {
   source = "../catalog/units/extra"
   path   = "extra"
@@ -1857,7 +1862,7 @@ unit "app" {
 	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
 		Src:      src,
 		Filename: "terragrunt.stack.hcl",
-		StackDir: "/test",
+		StackDir: helpers.OSAbs(t, "/test"),
 		Functions: map[string]function.Function{
 			"once": onceFn,
 		},

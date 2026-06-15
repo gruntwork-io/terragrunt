@@ -595,7 +595,9 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			}
 
 			require.NoError(t, err, "Command should succeed")
-			assert.Equal(t, tt.expectedOutput, stdout, "Output should match expected result")
+			// find renders unit paths with OS-native separators; normalize to forward
+			// slashes so these documentation examples match on Windows too.
+			assert.Equal(t, tt.expectedOutput, filepath.ToSlash(stdout), "Output should match expected result")
 		})
 	}
 }
@@ -657,7 +659,9 @@ func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 			require.NoError(t, err, "Command should succeed")
 
-			assert.Equal(t, tc.expectedOutput, stdout, "Output should match expected result")
+			// find renders unit paths with OS-native separators; normalize to forward
+			// slashes so these documentation examples match on Windows too.
+			assert.Equal(t, tc.expectedOutput, filepath.ToSlash(stdout), "Output should match expected result")
 		})
 	}
 }

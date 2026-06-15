@@ -1,2 +1,14 @@
 # Ensure golden test files are not treated as text files to prevent line ending conversions
 *.golden -text
+
+# Pin LF for fixtures whose byte-for-byte contents are asserted in tests. Without this,
+# Git's autocrlf checks them out with CRLF on Windows, so OpenTofu/Terragrunt reads back
+# "\r\n" and the assertions (which expect "\n") fail.
+test/fixtures/locals/canonical/contents.txt eol=lf
+test/fixtures/read-config/** eol=lf
+test/fixtures/render-json/** eol=lf
+test/fixtures/render-json-metadata/** eol=lf
+# TestHclvalidateDiagnostic asserts exact byte offsets within these files.
+test/fixtures/hclvalidate/** eol=lf
+# TestHclFmtDiff compares the diff hunk byte-for-byte against expected.diff.
+test/fixtures/hclfmt-diff/** eol=lf

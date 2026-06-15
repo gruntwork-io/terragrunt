@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -180,7 +181,7 @@ func TestLinkTreeSymlinks(t *testing.T) {
 		{
 			name:         "absolute symlink target is rejected",
 			treeData:     []byte(`120000 blob 4444444444 escape.txt`),
-			storeTargets: map[string]string{"4444444444": "/etc/passwd"},
+			storeTargets: map[string]string{"4444444444": helpers.OSAbs(t, "/etc/passwd")},
 			wantErr:      true,
 		},
 		{

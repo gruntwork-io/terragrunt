@@ -196,7 +196,9 @@ func TestGetRepoRootCaching(t *testing.T) {
 	output := fmt.Sprintf("%s %s", stdout, stderr)
 	assert.Contains(t, output, "git show-toplevel result")
 	assert.Contains(t, output, "git rev-parse --show-toplevel")
-	assert.Contains(t, output, fmt.Sprintf(`repo_root = "%s"`, rootPath))
+	// The plan output renders the HCL string with escaped backslashes on Windows
+	// (repo_root = "C:\\tmp\\..."), which matches Go's %q quoting of the path.
+	assert.Contains(t, output, fmt.Sprintf(`repo_root = %q`, rootPath))
 }
 
 func TestGetRepoRoot(t *testing.T) {
@@ -237,7 +239,9 @@ func TestGetRepoRoot(t *testing.T) {
 	repoRoot, ok := outputs["repo_root"]
 
 	assert.True(t, ok)
-	assert.Regexp(t, "/.*/TestGetRepoRoot.*/fixtures/get-repo-root", repoRoot.Value)
+	// The temp dir no longer embeds the test name on Windows, so only pin the
+	// fixture-relative tail of the repo root path.
+	assert.Regexp(t, "/.*/fixtures/get-repo-root$", filepath.ToSlash(repoRoot.Value.(string)))
 }
 
 func TestGetWorkingDirBuiltInFunc(t *testing.T) {
@@ -389,7 +393,7 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	pathFromRoot, hasPathFromRoot := outputs["path_from_root"]
 
 	assert.True(t, hasPathFromRoot)
-	assert.Equal(t, testFixtureGetPathFromRepoRoot, pathFromRoot.Value)
+	assert.Equal(t, testFixtureGetPathFromRepoRoot, filepath.ToSlash(pathFromRoot.Value.(string)))
 }
 
 func TestGetPathToRepoRoot(t *testing.T) {
@@ -432,7 +436,8 @@ func TestGetPathToRepoRoot(t *testing.T) {
 		value, hasValue := outputs[name]
 
 		assert.True(t, hasValue)
-		assert.Equal(t, expected, value.Value)
+		// get_path_to_repo_root returns OS-native separators; compare in forward-slash space.
+		assert.Equal(t, filepath.ToSlash(expected), filepath.ToSlash(value.Value.(string)))
 	}
 }
 

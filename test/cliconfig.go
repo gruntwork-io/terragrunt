@@ -4,6 +4,7 @@ package test
 import (
 	"html/template"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -67,6 +68,12 @@ type CLIConfigSettings struct {
 
 func CreateCLIConfig(t *testing.T, file *os.File, settings *CLIConfigSettings) {
 	t.Helper()
+
+	// Backslashes in Windows paths are illegal escapes inside quoted HCL
+	// strings; tofu accepts forward slashes on every platform.
+	for i, method := range settings.FilesystemMirrorMethods {
+		settings.FilesystemMirrorMethods[i].Path = filepath.ToSlash(method.Path)
+	}
 
 	tmp, err := template.New("cliconfig").Parse(testCLIConfigTemplate)
 	require.NoError(t, err)

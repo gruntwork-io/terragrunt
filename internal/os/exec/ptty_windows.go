@@ -5,14 +5,11 @@ package exec
 import (
 	"os"
 	"os/exec"
-	"strings"
 
 	"golang.org/x/sys/windows"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
-
-const InvalidHandleErrorMessage = "The handle is invalid"
 
 // PrepareConsole enables support for escape sequences on Windows.
 // Returns true if virtual terminal processing was successfully enabled on at least one output handle.
@@ -94,11 +91,9 @@ func enableVirtualTerminalProcessing(logger log.Logger, file *os.File) bool {
 
 	handle := windows.Handle(file.Fd())
 	if err := windows.GetConsoleMode(handle, &mode); err != nil {
-		if strings.Contains(err.Error(), InvalidHandleErrorMessage) {
-			logger.Debugf("failed to get console mode: %v", err)
-		} else {
-			logger.Errorf("failed to get console mode: %v", err)
-		}
+		// The output handle is not an interactive console (e.g. redirected to a pipe or file),
+		// so virtual terminal processing cannot be enabled. This is expected and harmless.
+		logger.Debugf("failed to get console mode: %v", err)
 
 		return false
 	}

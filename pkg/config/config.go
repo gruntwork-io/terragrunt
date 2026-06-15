@@ -1949,7 +1949,9 @@ func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource str
 		return
 	}
 
-	moduleDir := filepath.Clean(sourceURL.Path)
+	// The URL path keeps the RFC-8089 leading slash before a Windows drive letter
+	// (/C:/foo); convert it to a filesystem path before cleaning.
+	moduleDir := filepath.Clean(tf.FilePathFromURLPath(sourceURL.Path))
 	if subdir != "" {
 		moduleDir = filepath.Clean(filepath.Join(moduleDir, subdir))
 	}

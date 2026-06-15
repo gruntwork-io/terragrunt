@@ -1,12 +1,14 @@
 package hclparse_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/function"
@@ -704,6 +706,10 @@ func TestParseStackFileFromPath_NoFile(t *testing.T) {
 func TestParseStackFileFromPath_StackDirIsFileReturnsError(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsWindows() {
+		t.Skip("Windows does not return a read error when a file is traversed as a directory")
+	}
+
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "another-name.hcl")
 	require.NoError(t, os.WriteFile(filePath, []byte(`# regular file, not a directory`), 0644))
@@ -776,28 +782,32 @@ unit "vpc" {
 func TestParseStackFile_WithInclude(t *testing.T) {
 	t.Parallel()
 
+	root := helpers.OSAbs(t, "/test")
+	includePath := filepath.Join(root, "includes", "extra.stack.hcl")
+
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test/includes", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/includes/extra.stack.hcl", []byte(`
+	require.NoError(t, fs.MkdirAll(filepath.Join(root, "includes"), 0755))
+	require.NoError(t, vfs.WriteFile(fs, includePath, []byte(`
 unit "monitoring" {
   source = "../catalog/units/monitoring"
   path   = "monitoring"
 }
 `), 0644))
 
-	// Create the main stack file
-	mainSrc := `
+	// Create the main stack file. The include path is embedded into HCL, so it must use
+	// forward slashes to stay valid (and absolute) on every platform.
+	mainSrc := fmt.Sprintf(`
 include "extra" {
-  path = "/test/includes/extra.stack.hcl"
+  path = %q
 }
 
 unit "vpc" {
   source = "../catalog/units/vpc"
   path   = "vpc"
 }
-`
+`, filepath.ToSlash(includePath))
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: "/test/terragrunt.stack.hcl", StackDir: "/test"})
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(root, "terragrunt.stack.hcl"), StackDir: root})
 	require.NoError(t, err)
 
 	// Should have both units: vpc from main + monitoring from include

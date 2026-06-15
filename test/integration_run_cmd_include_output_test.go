@@ -20,6 +20,10 @@ const (
 // files (like root.hcl) is visible when running terragrunt commands on a stack.
 // This is a regression test for issue #5400.
 func TestRunCmdOutputFromIncludedFileInStack(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureRunCmdIncludeOutput)

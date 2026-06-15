@@ -187,9 +187,12 @@ func ParentPathHasSymlink(fsys FS, rootDir, rel string) (bool, error) {
 	return false, nil
 }
 
-// MkdirTemp creates a temporary directory on the given filesystem.
-func MkdirTemp(fs FS, dir, pattern string) (string, error) {
-	return afero.TempDir(fs, dir, pattern)
+// MkdirTemp creates a temporary directory on the given filesystem. prefix is a literal name
+// prefix to which a random suffix is appended. Unlike [os.MkdirTemp], it is not a wildcard
+// pattern, so callers must not pass a trailing "*". afero keeps the "*" verbatim, and "*" is
+// an illegal character in Windows paths.
+func MkdirTemp(fs FS, dir, prefix string) (string, error) {
+	return afero.TempDir(fs, dir, prefix)
 }
 
 // Link creates a hard link. It delegates to LinkIfPossible for filesystems

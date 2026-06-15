@@ -1254,7 +1254,9 @@ dependency "db" {
 
 	// The key test: verify that get_original_terragrunt_dir() returned the correct directory
 	// It should resolve to the app unit's directory, not the initial opts value (tmpDir)
+	// The source is get_original_terragrunt_dir() (OS-native) joined with "/module" in HCL, so
+	// it mixes separators on Windows; compare in forward-slash space.
 	expectedSource := filepath.Join(appDir, "module")
-	assert.Equal(t, expectedSource, *appComponent.Config().Terraform.Source,
+	assert.Equal(t, filepath.ToSlash(expectedSource), filepath.ToSlash(*appComponent.Config().Terraform.Source),
 		"terraform source should use the correct unit directory from get_original_terragrunt_dir()")
 }

@@ -179,7 +179,7 @@ func TestDetailedExitCodeError(t *testing.T) {
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.Error(t, err)
-	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
+	assert.Contains(t, stderr, missingFileTFError())
 	assert.Equal(t, 1, exitCode.GetFinalDetailedExitCode())
 }
 
@@ -200,7 +200,18 @@ func TestRunAllReturnsErrorOnFailure(t *testing.T) {
 		"terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan",
 	)
 	require.Error(t, err)
-	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
+	assert.Contains(t, stderr, missingFileTFError())
+}
+
+// missingFileTFError returns the OS-specific tofu/terraform diagnostic emitted when the
+// detailed-exitcode fixture reads ./not-existing-file.txt. On Windows only the part of
+// the message that stays on a single line is returned, since tofu word-wraps diagnostics.
+func missingFileTFError() string {
+	if helpers.IsWindows() {
+		return "not-existing-file.txt: The system cannot find the"
+	}
+
+	return "not-existing-file.txt: no such file or directory"
 }
 
 func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
@@ -595,8 +606,13 @@ func TestLogWithAbsPath(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	// Normalize Windows path separators in the output so the forward-slash
+	// expectations below stay platform-agnostic.
+	stdout = filepath.ToSlash(stdout)
+	stderr = filepath.ToSlash(stderr)
+
 	for _, prefixName := range []string{"app", "dep"} {
-		prefixName = filepath.Join(rootPath, prefixName)
+		prefixName = filepath.ToSlash(filepath.Join(rootPath, prefixName))
 		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary(t.Context())+": Initializing provider plugins...")
 		assert.Contains(t, stderr, "DEBUG  ["+prefixName+"] Reading Terragrunt config file at "+prefixName+"/terragrunt.hcl")
 	}
@@ -617,6 +633,10 @@ func TestLogWithRelPath(t *testing.T) {
 			workingDir: "duplicate-dir-names/workspace/one/two/aaa", // dir `workspace` duplicated twice in path
 			assertFn: func(t *testing.T, _, stderr string) {
 				t.Helper()
+
+				// Normalize Windows path separators so the forward-slash
+				// expectations stay platform-agnostic.
+				stderr = filepath.ToSlash(stderr)
 
 				assert.Contains(t, stderr, "Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache")
 				assert.Contains(t, stderr, "[bbb/ccc/workspace]")
@@ -657,6 +677,10 @@ func TestLogFormatPrettyOutput(t *testing.T) {
 		"terragrunt run --all init --log-level debug --non-interactive --no-color --log-format=pretty  --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
+
+	// Normalize Windows path separators so the forward-slash expectations
+	// below stay platform-agnostic.
+	stderr = filepath.ToSlash(stderr)
 
 	for _, prefixName := range []string{"app", "dep"} {
 		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary(t.Context())+": Initializing provider plugins...")
@@ -701,6 +725,10 @@ func TestLogFormatKeyValueOutput(t *testing.T) {
 				"terragrunt run --all --log-level debug --non-interactive "+flag+" --working-dir "+rootPath+" -- init -no-color",
 			)
 			require.NoError(t, err)
+
+			// Normalize Windows path separators so the forward-slash
+			// expectations below stay platform-agnostic.
+			stderr = filepath.ToSlash(stderr)
 
 			for _, prefixName := range []string{"app", "dep"} {
 				assert.Contains(
@@ -1004,7 +1032,8 @@ func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 		for _, provider := range providers {
 			provider := path.Join(registryName, provider)
 
-			providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
+			// path.Dir, not filepath.Dir: the lockfile block label always uses forward slashes.
+			providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{path.Dir(provider)})
 			assert.NotNil(t, providerBlock)
 
 			providerPath := filepath.Join(providerCacheDir, provider)
@@ -3352,6 +3381,10 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 }
 
 func TestReadTerragruntAuthProviderCmd(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
@@ -3388,6 +3421,10 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 // in locals cannot see env vars injected by --auth-provider-cmd because
 // ObtainCredsForParsing is never called during the discovery parse phase.
 func TestReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
@@ -3419,6 +3456,10 @@ func TestReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
 }
 
 func TestReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
@@ -3479,6 +3520,10 @@ func TestReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) {
 }
 
 func TestNoDiscoveryAuthProviderCmdSkipsDiscoveryAuthWithRacing(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
@@ -3580,9 +3625,21 @@ func TestLogFailingDependencies(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --log-level trace", path))
 	require.Error(t, err)
 
+	// Normalize Windows path separators so the forward-slash expectation
+	// below stays platform-agnostic.
+	stderr = filepath.ToSlash(stderr)
+
+	// The fixture's module source "/tmp/not-existing-path" is an absolute path on Unix,
+	// so tofu/terraform fails downloading it. On Windows it is not absolute, so init
+	// fails earlier with an invalid source address diagnostic instead.
+	expectedTFError := "Error: Failed to download module"
+	if helpers.IsWindows() {
+		expectedTFError = "Error: Invalid module source address"
+	}
+
 	// Check that the error output contains terraform/tofu error details
 	assert.Contains(t, stderr, "Getting output of dependency ../dependency/terragrunt.hcl")
-	assert.Contains(t, stderr, "Error: Failed to download module")
+	assert.Contains(t, stderr, expectedTFError)
 }
 
 func TestDependencyInputsBlockedByDefault(t *testing.T) {
@@ -3907,10 +3964,21 @@ func TestHclFmtStdin(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtStdin)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtStdin)
 
-	os.Stdin, _ = os.Open(filepath.Join(rootPath, "terragrunt.hcl"))
+	origStdin := os.Stdin
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl fmt --stdin")
+	stdinFile, err := os.Open(filepath.Join(rootPath, "terragrunt.hcl"))
 	require.NoError(t, err)
+
+	os.Stdin = stdinFile
+
+	stdout, _, runErr := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl fmt --stdin")
+
+	// Restore stdin and release the handle before the temp dir is cleaned up. On
+	// Windows an open handle blocks the directory removal in t.TempDir's cleanup.
+	os.Stdin = origStdin
+
+	require.NoError(t, stdinFile.Close())
+	require.NoError(t, runErr)
 
 	expectedDiff, err := os.ReadFile(filepath.Join(rootPath, "expected.hcl"))
 	require.NoError(t, err)
@@ -3980,6 +4048,10 @@ func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
 }
 
 func TestTerragruntNoWarningLocalPath(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since the fixture uses source = \"/dev/null\", which does not exist on Windows")
+	}
+
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDisabledPath)
@@ -4454,6 +4526,10 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 }
 
 func TestErrorMessageIncludeInOutput(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorPrint)
@@ -4498,6 +4574,10 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 }
 
 func TestLogStreaming(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows: the fixture's local-exec command needs a POSIX shell (';' chaining and `sleep`); cmd.exe echoes it as a single line without sleeping, so there is no streamed output to time")
+	}
+
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogStreaming)
@@ -4585,6 +4665,10 @@ func TestTF110EphemeralVars(t *testing.T) {
 
 //nolint:paralleltest
 func TestTfPath(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	// This test can't be parallelized because it explicitly unsets the TG_TF_PATH environment variable.
 	// t.Parallel()
 
@@ -4611,6 +4695,10 @@ func TestTfPath(t *testing.T) {
 }
 
 func TestTfPathOverridesConfig(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 	// Test that the terragrunt run version command correctly identifies and uses
 	// the terraform_binary path configuration if present

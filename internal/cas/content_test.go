@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -166,6 +167,10 @@ func TestContent_Link(t *testing.T) {
 	t.Run("force copy creates independent inode on real filesystem", func(t *testing.T) {
 		t.Parallel()
 
+		if helpers.IsWindows() {
+			t.Skip("Unix inode/permission semantics are not represented on Windows")
+		}
+
 		v, err := cas.OSVenv()
 		require.NoError(t, err)
 
@@ -234,6 +239,10 @@ func TestContent_Link(t *testing.T) {
 	t.Run("default path hardlinks executable when store carries matching perms", func(t *testing.T) {
 		t.Parallel()
 
+		if helpers.IsWindows() {
+			t.Skip("Unix inode/permission semantics are not represented on Windows")
+		}
+
 		v, err := cas.OSVenv()
 		require.NoError(t, err)
 
@@ -270,6 +279,10 @@ func TestContent_Link(t *testing.T) {
 	t.Run("default path falls back to copy on perm collision", func(t *testing.T) {
 		t.Parallel()
 
+		if helpers.IsWindows() {
+			t.Skip("Unix inode/permission semantics are not represented on Windows")
+		}
+
 		v, err := cas.OSVenv()
 		require.NoError(t, err)
 
@@ -303,6 +316,10 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("force copy preserves executable bits", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("Unix inode/permission semantics are not represented on Windows")
+		}
 
 		v, err := cas.OSVenv()
 		require.NoError(t, err)

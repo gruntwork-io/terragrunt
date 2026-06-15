@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -189,7 +190,7 @@ func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) 
 
 	synctest.Test(t, func(t *testing.T) {
 		fsys := vfs.NewMemMapFS()
-		repoDir := testRepoDir
+		repoDir := helpers.OSAbs(t, testRepoDir)
 
 		unitBody := `locals {
   region = values.region
@@ -236,7 +237,7 @@ func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		fsys := vfs.NewMemMapFS()
-		repoDir := testRepoDir
+		repoDir := helpers.OSAbs(t, testRepoDir)
 
 		unitBody := `locals {
   region = values.region

@@ -1,5 +1,6 @@
 [tools]
 go-junit-report = "2.1.0"
+gotestsum = "1.13.0"
 pre-commit = { version = "4.2.0", os = ["macos", "linux"] }
 gcloud = "535.0.0"
 awscli = "2.28.15"

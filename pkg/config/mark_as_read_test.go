@@ -38,11 +38,13 @@ func TestMarkGlobAsRead(t *testing.T) {
 	require.NotNil(t, out)
 
 	require.NotNil(t, pctx.FilesRead)
+	// mark_glob_as_read resolves through glob.Expand, which returns forward-slash paths, so
+	// compare against forward-slash expectations.
 	read := pctx.FilesRead.Paths()
-	assert.Contains(t, read, filepath.Join(dir, "a.tf"))
-	assert.Contains(t, read, filepath.Join(dir, "b.tf"))
-	assert.Contains(t, read, filepath.Join(dir, "nested", "c.tf"))
-	assert.NotContains(t, read, filepath.Join(dir, "README.md"))
+	assert.Contains(t, read, filepath.ToSlash(filepath.Join(dir, "a.tf")))
+	assert.Contains(t, read, filepath.ToSlash(filepath.Join(dir, "b.tf")))
+	assert.Contains(t, read, filepath.ToSlash(filepath.Join(dir, "nested", "c.tf")))
+	assert.NotContains(t, read, filepath.ToSlash(filepath.Join(dir, "README.md")))
 }
 
 // TestMarkGlobAsReadEscapesMetacharacter verifies that a backslash-escaped

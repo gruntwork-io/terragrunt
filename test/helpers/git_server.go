@@ -314,6 +314,10 @@ func (s *GitServer) add(subpaths []string) error {
 func (s *GitServer) RequireSSH() {
 	s.t.Helper()
 
+	if IsWindows() {
+		s.t.Skip("the in-process git-over-SSH server relies on Unix-only setup (GIT_SSH_COMMAND, /dev/null) unavailable on the Windows runner")
+	}
+
 	s.mu.Lock()
 
 	if s.sshServer == nil {

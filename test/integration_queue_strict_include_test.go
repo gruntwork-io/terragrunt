@@ -213,7 +213,8 @@ func TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir(t *testing.T) {
 	// The command should succeed and discover the unit
 	require.NoError(t, err, "Command should succeed\nstdout: %s\nstderr: %s", stdout, stderr)
 
-	output := stdout + stderr
+	// Unit paths are rendered with OS-native separators; compare in forward-slash space.
+	output := filepath.ToSlash(stdout + stderr)
 
 	// Verify that the unit reading sources/source.hcl is discovered and included
 	// This should pass after the fix, but currently fails due to the bug

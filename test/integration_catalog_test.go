@@ -75,7 +75,9 @@ func TestScaffoldGitModule(t *testing.T) {
 	assert.NotNil(t, auroraModule)
 
 	testPath := helpers.TmpDirWOSymlinks(t)
-	opts, err := options.NewTerragruntOptionsForTest(testPath)
+	// The argument is a config-file path: WorkingDir becomes its parent. Anchor
+	// it inside the temp dir so the test never works in the shared temp root.
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(testPath, "terragrunt.hcl"))
 	require.NoError(t, err)
 
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
@@ -125,7 +127,9 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	assert.NotNil(t, auroraModule)
 
 	testPath := helpers.TmpDirWOSymlinks(t)
-	opts, err := options.NewTerragruntOptionsForTest(testPath)
+	// The argument is a config-file path: WorkingDir becomes its parent. Anchor
+	// it inside the temp dir so the test never works in the shared temp root.
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(testPath, "terragrunt.hcl"))
 	require.NoError(t, err)
 
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}

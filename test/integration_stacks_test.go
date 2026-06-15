@@ -173,6 +173,8 @@ func TestNestedStacksGenerate(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
 	require.NoError(t, err)
 
+	stderr = filepath.ToSlash(stderr)
+
 	// Check that logs contain stack generation messages
 	assert.Contains(t, stderr, "Generating stack prod from ./terragrunt.stack.hcl")
 	assert.Contains(t, stderr, "Generating stack dev from ./terragrunt.stack.hcl")
@@ -436,6 +438,8 @@ func TestStackCleanRecursively(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(live, ".terragrunt-stack"))
 	assert.NoDirExists(t, filepath.Join(liveV2, ".terragrunt-stack"))
 
+	stderr = filepath.ToSlash(stderr)
+
 	assert.Contains(t, stderr, "Deleting stack directory: live/.terragrunt-stack")
 	assert.Contains(t, stderr, "Deleting stack directory: live-v2/.terragrunt-stack")
 }
@@ -655,7 +659,7 @@ func TestStackOutputsParallelFetchingWithRacing(t *testing.T) {
 		seen := make(map[string]bool, unitCount)
 		order := make([]string, 0, unitCount)
 
-		for _, match := range prefixRe.FindAllStringSubmatch(stderr, -1) {
+		for _, match := range prefixRe.FindAllStringSubmatch(filepath.ToSlash(stderr), -1) {
 			unit := match[1]
 			if seen[unit] {
 				continue
@@ -1165,8 +1169,10 @@ func TestStacksSourceMap(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
+	// Skip stale .terragrunt-test manifests left behind by CopyEnvironment: copying one
+	// over the manifest this copy holds open fails on Windows with a sharing violation.
 	if err := util.CopyFolderContentsWithFilter(logger.CreateLogger(), filepath.Join(localTmpEnvPath, "fixtures"), localTmpTest, ".terragrunt-test", func(path string) bool {
-		return true
+		return filepath.Base(path) != ".terragrunt-test"
 	}); err != nil {
 		assert.NoError(t, err)
 	}
@@ -1188,6 +1194,8 @@ func TestStacksSourceMap(t *testing.T) {
 
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::"+mirror.URL+"="+localTmpEnvPath+" --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
+
+	stderr = filepath.ToSlash(stderr)
 
 	// validate that the source map was used to replace the source
 	assert.NotContains(t, stderr, "app1 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
@@ -1517,7 +1525,7 @@ func TestStacksReadFiles(t *testing.T) {
 						assert.False(t, stackSource.IsNull(), "Field stack_source should exist in output")
 
 						if !stackSource.IsNull() {
-							assert.Contains(t, stackSource.AsString(), "/fixtures/stacks/read-stack/stacks/dev")
+							assert.Contains(t, filepath.ToSlash(stackSource.AsString()), "/fixtures/stacks/read-stack/stacks/dev")
 						}
 
 						// Verify expected fields count (including stack_source)
@@ -1884,8 +1892,10 @@ func TestStackTerragruntDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	// %q mirrors HCL string escaping, so on Windows the expected value carries
+	// the same doubled backslashes tofu prints (terragrunt_dir = "C:\\tmp\\...").
 	expectedTerragruntDir := filepath.Join(rootPath, "tennant_1")
-	assert.Contains(t, out, fmt.Sprintf(`terragrunt_dir = "%s"`, expectedTerragruntDir))
+	assert.Contains(t, out, fmt.Sprintf(`terragrunt_dir = %q`, expectedTerragruntDir))
 }
 
 func TestStackOriginalTerragruntDir(t *testing.T) {
@@ -1948,9 +1958,9 @@ func TestStackOriginalTerragruntDir(t *testing.T) {
 			expected = filepath.Join(expected, dotStackDirName, nestedUnitDirs)
 		}
 
-		expected = filepath.ToSlash(expected)
-
-		assert.Contains(t, string(content), `stack_dir = "`+expected+`"`, "wrong stack_dir in %s", valuesPath)
+		// %q mirrors HCL string escaping, so on Windows the expected value carries
+		// the same doubled backslashes the generated file holds (stack_dir = "C:\\tmp\\...").
+		assert.Contains(t, string(content), fmt.Sprintf(`stack_dir = %q`, expected), "wrong stack_dir in %s", valuesPath)
 	}
 }
 

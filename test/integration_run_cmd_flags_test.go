@@ -76,6 +76,10 @@ func runCmdFlagsFixture(t *testing.T) runCmdFixtureResult {
 }
 
 func TestRunCmdQuietRedactsOutput(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	result := runCmdFlagsFixture(t)
@@ -85,6 +89,10 @@ func TestRunCmdQuietRedactsOutput(t *testing.T) {
 }
 
 func TestRunCmdGlobalCacheSharesResultAcrossModules(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	result := runCmdFlagsFixture(t)
@@ -101,6 +109,10 @@ func TestRunCmdGlobalCacheSharesResultAcrossModules(t *testing.T) {
 }
 
 func TestRunCmdNoCacheSkipsCachedValue(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	result := runCmdFlagsFixture(t)

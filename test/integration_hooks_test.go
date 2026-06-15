@@ -259,6 +259,10 @@ func TestTerragruntAfterHook(t *testing.T) {
 }
 
 func TestTerragruntBeforeAndAfterHook(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
@@ -343,6 +347,10 @@ func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
 }
 
 func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	if helpers.IsTerragruntProviderCacheEnabled(t) {
@@ -500,7 +508,7 @@ func TestTerragruntInfo(t *testing.T) {
 	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
 	require.NoError(t, errUnmarshal)
 
-	assert.Equal(t, fmt.Sprintf("%s/%s", rootPath, helpers.TerragruntCache), dat.DownloadDir)
+	assert.Equal(t, filepath.Join(rootPath, helpers.TerragruntCache), dat.DownloadDir)
 	assert.Equal(t, wrappedBinary(t.Context()), dat.TerraformBinary)
 	assert.Empty(t, dat.IAMRole)
 }
@@ -526,6 +534,10 @@ func TestTerragruntHookPreservesAbsolutePaths(t *testing.T) {
 }
 
 func TestTerragruntHookContextEnvExperimentEnabled(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksContextEnv)
@@ -571,6 +583,10 @@ func TestTerragruntHookContextEnvExperimentEnabled(t *testing.T) {
 }
 
 func TestTerragruntHookContextEnvExperimentDisabled(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Parallel()
 
 	if helpers.IsExperimentMode(t) {

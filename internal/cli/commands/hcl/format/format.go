@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -287,6 +288,10 @@ func checkErrors(l log.Logger, disableColor bool, contents []byte, tgHclFile str
 }
 
 // bytesDiff returns a unified diff between the original and formatted HCL contents.
-func bytesDiff(b1, b2 []byte, path string) []byte {
-	return diff.Diff(filepath.Join("old", path), b1, filepath.Join("new", path), b2)
+// The "old"/"new" labels are joined with forward slashes on every platform, since
+// unified diff headers conventionally use forward slashes even on Windows.
+func bytesDiff(b1, b2 []byte, filename string) []byte {
+	slashFilename := filepath.ToSlash(filename)
+
+	return diff.Diff(path.Join("old", slashFilename), b1, path.Join("new", slashFilename), b2)
 }

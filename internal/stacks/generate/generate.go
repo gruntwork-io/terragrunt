@@ -323,6 +323,14 @@ func addNewNodesToGraph(
 	}
 }
 
+// generationMaxPath caps the length of stack-file paths discovered during
+// generation. Cyclic stack configurations generate ever-deeper
+// .terragrunt-stack trees; paths longer than this are treated as evidence of
+// such a cycle so generation stops deterministically on every platform,
+// including Windows where extended-length path support means the OS never
+// rejects the deepening paths itself.
+const generationMaxPath = 1024
+
 // ListStackFiles returns canonical, symlink-resolved stack-file paths under the absolute opts.WorkingDir.
 func ListStackFiles(
 	ctx context.Context,
@@ -360,6 +368,10 @@ func ListStackFiles(
 			return nil, err
 		}
 
+		if err := checkGenerationPathLength(canonical); err != nil {
+			return nil, err
+		}
+
 		foundFiles = append(foundFiles, canonical)
 	}
 
@@ -369,10 +381,24 @@ func ListStackFiles(
 			return nil, err
 		}
 
+		if err := checkGenerationPathLength(canonical); err != nil {
+			return nil, err
+		}
+
 		foundFiles = append(foundFiles, canonical)
 	}
 
 	return foundFiles, nil
+}
+
+// checkGenerationPathLength returns a [MaxPathLengthExceededError] when path is
+// at least [generationMaxPath] characters long.
+func checkGenerationPathLength(path string) error {
+	if len(path) >= generationMaxPath {
+		return &MaxPathLengthExceededError{Path: path, Limit: generationMaxPath}
+	}
+
+	return nil
 }
 
 // ListStackFilesWithExcludes searches for stack files and also returns the set

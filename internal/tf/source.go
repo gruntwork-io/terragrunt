@@ -98,7 +98,7 @@ func (src Source) String() string {
 func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 	if IsLocalSource(src.CanonicalSourceURL) {
 		sourceHash := sha256.New()
-		sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
+		sourceDir := filepath.Clean(FilePathFromURLPath(src.CanonicalSourceURL.Path))
 
 		var err error
 
@@ -146,6 +146,18 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 	}
 
 	return util.EncodeBase64Sha1(src.CanonicalSourceURL.Query().Encode()), nil
+}
+
+// FilePathFromURLPath converts an RFC-8089 file URL path to a filesystem
+// path. On Windows the URL form keeps a leading slash before the drive
+// letter (/C:/foo); stripping it yields a path the os package understands.
+// Every other path is returned unchanged, so this is a no-op on Unix.
+func FilePathFromURLPath(path string) string {
+	if len(path) >= 3 && path[0] == '/' && path[2] == ':' {
+		return path[1:]
+	}
+
+	return path
 }
 
 // WriteVersionFile writes a file into the DownloadDir that contains
@@ -306,6 +318,15 @@ func parseSourceURL(source string) (*url.URL, error) {
 	canonicalSourceURL, err := getter.URLParse(rawSourceURL)
 	if err != nil {
 		return nil, err
+	}
+
+	// On Windows the underlying URL parser strips the leading slash that precedes
+	// a drive letter (file:///C:/... becomes Path "C:/..."), so url.URL.String()
+	// would re-serialize the non-RFC-8089 form "file://C:/..." that go-getter
+	// cannot dispatch. Restore the leading slash so the source round-trips. This
+	// is a no-op on Unix, where absolute file paths always begin with a slash.
+	if canonicalSourceURL.Scheme == "file" && len(canonicalSourceURL.Path) >= 2 && canonicalSourceURL.Path[1] == ':' {
+		canonicalSourceURL.Path = "/" + canonicalSourceURL.Path
 	}
 
 	// Reattach the "getter" prefix as part of the scheme

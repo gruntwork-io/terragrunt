@@ -890,7 +890,7 @@ func TestFilterFlagWithFindGitFilterRelativeInclude(t *testing.T) {
 
 	require.NoError(t, err, "terragrunt find with git filter failed: %s", stderr)
 
-	results := strings.Split(strings.TrimSpace(stdout), "\n")
+	results := helpers.ToSlashAll(strings.Split(strings.TrimSpace(stdout), "\n"))
 	assert.ElementsMatch(t, []string{"level1/level2/level3/nested-unit"}, results)
 }
 

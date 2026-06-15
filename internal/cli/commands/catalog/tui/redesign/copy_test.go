@@ -20,7 +20,7 @@ func TestCopyCmd_CopiesIntoWorkingDirectory(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 
 	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# vpc unit\n")
 	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "inputs.hcl"), "# inputs\n")
@@ -33,7 +33,7 @@ func TestCopyCmd_CopiesIntoWorkingDirectory(t *testing.T) {
 	require.Len(t, components, 1)
 	require.Equal(t, redesign.ComponentKindUnit, components[0].Kind)
 
-	workingDir := testWorkingDir
+	workingDir := helpers.OSAbs(t, testWorkingDir)
 	require.NoError(t, fsys.MkdirAll(workingDir, 0o755))
 
 	opts := options.NewTerragruntOptions()
@@ -51,7 +51,7 @@ func TestCopyCmd_WritesValuesStubForUnit(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 
 	unitBody := `
 locals {
@@ -71,7 +71,7 @@ inputs = {
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
-	workingDir := testWorkingDir
+	workingDir := helpers.OSAbs(t, testWorkingDir)
 	require.NoError(t, fsys.MkdirAll(workingDir, 0o755))
 
 	opts := options.NewTerragruntOptions()
@@ -105,7 +105,7 @@ func TestCopyCmd_LeavesExistingValuesFileAlone(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"),
 		`locals { region = values.region }`)
 
@@ -115,7 +115,7 @@ func TestCopyCmd_LeavesExistingValuesFileAlone(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
-	workingDir := testWorkingDir
+	workingDir := helpers.OSAbs(t, testWorkingDir)
 	existing := []byte(`region = "us-east-1"` + "\n")
 	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(workingDir, "terragrunt.values.hcl"), existing, 0o644))
 
@@ -133,7 +133,7 @@ func TestCopyCmd_RefusesToOverwriteExistingFile(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 	writeFileFS(t, fsys, filepath.Join(repoDir, "stack-a", "terragrunt.stack.hcl"), "# stack\n")
 
 	repo := newFakeRepo(t, fsys, repoDir)
@@ -142,7 +142,7 @@ func TestCopyCmd_RefusesToOverwriteExistingFile(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
-	workingDir := testWorkingDir
+	workingDir := helpers.OSAbs(t, testWorkingDir)
 	writeFileFS(t, fsys, filepath.Join(workingDir, "terragrunt.stack.hcl"), "# preexisting")
 
 	opts := options.NewTerragruntOptions()
@@ -170,7 +170,7 @@ func TestCopyCmd_RejectsEmptyWorkingDir(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
 
 	repo := newFakeRepo(t, fsys, repoDir)
@@ -190,7 +190,7 @@ func TestCopyCmd_FailsWhenSourceMissing(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
 
 	repo := newFakeRepo(t, fsys, repoDir)
@@ -202,7 +202,7 @@ func TestCopyCmd_FailsWhenSourceMissing(t *testing.T) {
 	// Remove the source directory after discovery so the copy walk fails.
 	require.NoError(t, fsys.RemoveAll(filepath.Join(repoDir, "vpc")))
 
-	workingDir := testWorkingDir
+	workingDir := helpers.OSAbs(t, testWorkingDir)
 	require.NoError(t, fsys.MkdirAll(workingDir, 0o755))
 
 	opts := options.NewTerragruntOptions()
@@ -248,7 +248,7 @@ func TestCopyCmd_WithFSUsesInjectedFilesystem(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	repoDir := testRepoDir
+	repoDir := helpers.OSAbs(t, testRepoDir)
 	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
 
 	repo := newFakeRepo(t, fsys, repoDir)
@@ -257,7 +257,7 @@ func TestCopyCmd_WithFSUsesInjectedFilesystem(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
-	workingDir := testWorkingDir
+	workingDir := helpers.OSAbs(t, testWorkingDir)
 	require.NoError(t, fsys.MkdirAll(workingDir, 0o755))
 
 	opts := options.NewTerragruntOptions()

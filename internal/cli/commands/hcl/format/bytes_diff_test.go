@@ -70,6 +70,7 @@ func TestBytesDiff(t *testing.T) {
 
 			assert.NotEmpty(t, got, "expected non-empty diff output")
 
+			// Diff labels always use forward slashes, regardless of platform.
 			for _, want := range tc.wantHeader {
 				assert.Contains(t, got, want, "diff missing header line")
 			}

@@ -3,6 +3,7 @@ package redesign_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
@@ -15,6 +16,10 @@ import (
 // /var/folders symlink to /private/var/folders; an unresolved root makes
 // discovery's filepath.Rel emit a "../" traversal that go-getter rejects.
 func TestCatalogTempPathResolvesSymlinkedTmpDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("TMPDIR and symlinked temp dirs are Unix-specific; covered by Unix CI")
+	}
+
 	// t.Setenv forbids t.Parallel.
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)

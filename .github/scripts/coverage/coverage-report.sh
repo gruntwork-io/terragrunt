@@ -7,6 +7,8 @@ set -euo pipefail
 #   run <out-dir> [packages...]      Run the suite with -json. Writes coverage.out,
 #                                    test-events.ndjson and result.xml into <out-dir>.
 #                                    Packages default to ./... (the full suite).
+#   annotate <events.ndjson>         Emit GitHub ::error annotations (file, line,
+#                                    failure output) for failed tests in an events file.
 #   collect <out-dir> [packages...]  run + summary + timing in one call (tolerates
 #                                    test failures); produces both summaries.
 #   summary <cover.out> <out.json>   Roll a cover profile into per-package coverage
@@ -46,11 +48,19 @@ cmd_run() {
 	mkdir -p "$out"
 	local events="$out/test-events.ndjson" cover="$out/coverage.out" junit="$out/result.xml"
 
+	# github-actions format emits ::error file=...,line=... annotations and
+	# re-prints failed test output in the end-of-run summary, so failures are
+	# readable straight from the job log.
+	local format="${GOTESTSUM_FORMAT:-pkgname}"
+	[[ -n "${GITHUB_ACTIONS:-}" ]] && format="${GOTESTSUM_FORMAT:-github-actions}"
+
 	set +e
-	go test -json -coverprofile="$cover" -covermode=atomic "${pkgs[@]}" -timeout "${TEST_TIMEOUT:-45m}" |
-		tee "$events" |
-		go-junit-report -parser gojson -set-exit-code >"$junit"
-	local status=${PIPESTATUS[0]}
+	gotestsum \
+		--format "$format" \
+		--jsonfile "$events" \
+		--junitfile "$junit" \
+		-- -coverprofile="$cover" -covermode=atomic -timeout "${TEST_TIMEOUT:-45m}" "${pkgs[@]}"
+	local status=$?
 	set -e
 
 	echo "go test exit status: $status"
@@ -58,6 +68,48 @@ cmd_run() {
 	echo "Cover:  $cover"
 	echo "JUnit:  $junit"
 	return "$status"
+}
+
+# Emit GitHub ::error annotations for failed tests from go test -json events.
+# Only tests whose output carries a `foo_test.go:NN:` location are annotated;
+# GitHub shows at most 10 error annotations per step, the rest stay in the log.
+cmd_annotate() {
+	local events="${1:?Usage: coverage-report.sh annotate <events.ndjson>}"
+	if [[ ! -f "$events" ]]; then
+		echo "Error: events file '$events' not found" >&2
+		exit 1
+	fi
+
+	local module
+	module="$(go list -m)"
+
+	jq -rn --raw-input --arg module "$module" '
+		def esc_data: gsub("%"; "%25") | gsub("\r"; "%0D") | gsub("\n"; "%0A");
+		def esc_prop: esc_data | gsub(":"; "%3A") | gsub(","; "%2C");
+
+		reduce (
+			inputs
+			| select(length > 0)
+			| fromjson?
+			| select((.Test // "") != "")
+		) as $e (
+			{out: {}, failed: []};
+			($e.Package + "|" + $e.Test) as $k
+			| if $e.Action == "output" then .out[$k] += [$e.Output]
+			elif $e.Action == "fail" then .failed += [$k]
+			else . end
+		)
+		| .out as $out
+		| .failed[]
+		| split("|") as [$pkg, $test]
+		| ($pkg | ltrimstr($module) | ltrimstr("/")) as $dir
+		| ($out[$pkg + "|" + $test] // []) as $lines
+		| ($lines | map(capture("^\\s+(?<file>[^\\s:]+_test\\.go):(?<line>[0-9]+): ")) | first) as $loc
+		| select($loc != null)
+		| (if $dir == "" then $loc.file else $dir + "/" + $loc.file end) as $file
+		| ($lines | map(select(test("^(===|--- )") | not)) | join("") | .[0:2500]) as $msg
+		| "::error file=\($file | esc_prop),line=\($loc.line),title=\($test | esc_prop) (\($pkg | esc_prop))::\($msg | esc_data)"
+	' "$events"
 }
 
 # Roll a cover profile into per-package coverage JSON plus an HTML report
@@ -746,6 +798,7 @@ main() {
 	shift || true
 	case "$cmd" in
 	run) cmd_run "$@" ;;
+	annotate) cmd_annotate "$@" ;;
 	collect) cmd_collect "$@" ;;
 	summary) cmd_summary "$@" ;;
 	timing) cmd_timing "$@" ;;

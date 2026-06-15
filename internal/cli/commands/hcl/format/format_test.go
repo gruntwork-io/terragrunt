@@ -487,8 +487,10 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
+	// Filter queries are parsed with glob semantics where "\" is an escape character, so an
+	// absolute path must be supplied in forward-slash space on every platform.
 	filters, parseErr := filter.ParseFilterQueries(logger.CreateLogger(), []string{
-		filepath.Join(tmpPath, "terragrunt.hcl"),
+		filepath.ToSlash(filepath.Join(tmpPath, "terragrunt.hcl")),
 		"./a/b/c/d/e/**",
 	})
 	require.NoError(t, parseErr)

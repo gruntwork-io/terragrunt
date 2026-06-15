@@ -56,7 +56,7 @@ exclude {
 			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
 			require.NoError(t, os.WriteFile(childPath, []byte(`
 include "root" {
-  path = "`+parentPath+`"
+  path = "`+filepath.ToSlash(parentPath)+`"
   `+tt.includeBody+`
 }
 `), 0644))
@@ -122,7 +122,7 @@ exclude {
 			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
 			require.NoError(t, os.WriteFile(childPath, []byte(`
 include "root" {
-  path = "`+parentPath+`"
+  path = "`+filepath.ToSlash(parentPath)+`"
   `+tt.includeBody+`
 }
 
@@ -192,7 +192,7 @@ errors {
 			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
 			require.NoError(t, os.WriteFile(childPath, []byte(`
 include "root" {
-  path = "`+parentPath+`"
+  path = "`+filepath.ToSlash(parentPath)+`"
   `+tt.includeBody+`
 }
 `), 0644))
@@ -247,7 +247,7 @@ engine {
 			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
 			require.NoError(t, os.WriteFile(childPath, []byte(`
 include "root" {
-  path = "`+parentPath+`"
+  path = "`+filepath.ToSlash(parentPath)+`"
   `+tt.includeBody+`
 }
 `), 0644))
@@ -301,7 +301,7 @@ feature "from_parent" {
 			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
 			require.NoError(t, os.WriteFile(childPath, []byte(`
 include "root" {
-  path = "`+parentPath+`"
+  path = "`+filepath.ToSlash(parentPath)+`"
   `+tt.includeBody+`
 }
 `), 0644))

@@ -25,6 +25,32 @@ func IsWindows() bool {
 	return runtime.GOOS == "windows"
 }
 
+// FileURL builds a file:// URL for an absolute OS path that is valid on every platform.
+// On Unix "/tmp/x" yields "file:///tmp/x"; on Windows "C:\\tmp\\x" yields "file:///C:/tmp/x"
+// (the leading slash before the drive letter is required by RFC 8089 and go-getter).
+func FileURL(absPath string) string {
+	p := filepath.ToSlash(absPath)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+
+	return "file://" + p
+}
+
+// OSAbs converts a forward-slash, "/"-rooted path into an absolute path on the host OS. On
+// Unix the input is already absolute and is returned cleaned; on Windows it is anchored to
+// the current drive (e.g. "/repo" becomes "C:\repo"). Tests use it to synthesize absolute
+// paths, especially against an in-memory filesystem, that [filepath.IsAbs] accepts on every
+// platform.
+func OSAbs(t *testing.T, unixPath string) string {
+	t.Helper()
+
+	abs, err := filepath.Abs(filepath.FromSlash(unixPath))
+	require.NoError(t, err)
+
+	return abs
+}
+
 // MustAbs resolves rel against the Go test process working directory.
 // [util.CopyFolderContents] and related helpers require absolute paths
 // so their dest-inside-source guard isn't fooled by Terragrunt's
@@ -38,6 +64,18 @@ func MustAbs(t *testing.T, rel string) string {
 	require.NoError(t, err)
 
 	return abs
+}
+
+// ToSlashAll returns a copy of paths with each element converted to forward slashes via
+// [filepath.ToSlash]. It keeps path-slice assertions separator-agnostic so tests that pin
+// forward-slash expectations pass against OS-native output on Windows.
+func ToSlashAll(paths []string) []string {
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		out[i] = filepath.ToSlash(p)
+	}
+
+	return out
 }
 
 func ValidateHookTraceParent(t *testing.T, hook, str string) {
@@ -212,8 +250,29 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 func TmpDirWOSymlinks(t *testing.T) string {
 	t.Helper()
 
-	tmpDir := t.TempDir()
-	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	// t.TempDir embeds the full test name. On Windows, deep fixture trees
+	// plus the .terragrunt-cache nesting then push child process working
+	// directories and git's GIT_DIR past the 260-char MAX_PATH, which
+	// CreateProcess and git.exe enforce regardless of LongPathsEnabled. A
+	// short random dir keeps the prefix small. Cleanup failures are
+	// tolerated: a straggler child process can hold a lock briefly, and the
+	// CI runner is disposable.
+	if IsWindows() {
+		shortDir, err := os.MkdirTemp("", "tg") //nolint:usetesting // t.TempDir embeds the test name; the point here is a short path.
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			if err := os.RemoveAll(shortDir); err != nil {
+				t.Logf("Failed to clean up temp dir %s: %v", shortDir, err)
+			}
+		})
+
+		shortDir, err = filepath.EvalSymlinks(shortDir)
+		require.NoError(t, err)
+
+		return shortDir
+	}
+
+	tmpDir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 
 	return tmpDir
