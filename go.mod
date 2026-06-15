@@ -70,9 +70,9 @@ require (
 
 require (
 	charm.land/bubbles/v2 v2.1.0
-	charm.land/bubbletea/v2 v2.0.7
-	charm.land/glamour/v2 v2.0.1
-	charm.land/lipgloss/v2 v2.0.4
+	charm.land/bubbletea/v2 v2.0.6
+	charm.land/glamour/v2 v2.0.0
+	charm.land/lipgloss/v2 v2.0.3
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.24
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.59.0
