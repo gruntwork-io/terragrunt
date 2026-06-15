@@ -216,9 +216,8 @@ func (p *GraphPhase) processGraphTarget(
 			return err
 		}
 
-		if state.discovery.gitRoot != "" {
+		if boundaryRoot := state.discovery.dependentWalkBoundary(); boundaryRoot != "" {
 			startDir := state.discovery.workingDir
-			boundaryRoot := state.discovery.gitRoot
 
 			if dCtx := c.DiscoveryContext(); dCtx != nil &&
 				dCtx.WorkingDir != "" &&
@@ -298,6 +297,11 @@ func (p *GraphPhase) discoverDependencies(
 
 	for _, depPath := range depPaths {
 		g.Go(func() error {
+			if boundary := state.discovery.filterBoundary; boundary != "" && isExternal(boundary, depPath) {
+				l.Debugf("Dependency %s is outside filter boundary %s; skipping", depPath, boundary)
+				return nil
+			}
+
 			depComponent, err := p.resolveDependency(
 				c, depPath, state.threadSafeComponents,
 			)
@@ -424,9 +428,9 @@ type upstreamDiscoveryState struct {
 }
 
 // discoverDependentsUpstream discovers dependents by walking up the filesystem
-// from the target component's directory to gitRoot (or filesystem root if gitRoot is empty).
-// At each directory level, it walks down to find terragrunt configs and checks if they
-// depend on the target component.
+// from the target component's directory to boundaryRoot (or filesystem root if
+// boundaryRoot is empty). At each directory level, it walks down to find
+// terragrunt configs and checks if they depend on the target component.
 func (p *GraphPhase) discoverDependentsUpstream(
 	ctx context.Context,
 	l log.Logger,

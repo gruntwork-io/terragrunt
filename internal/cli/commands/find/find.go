@@ -33,6 +33,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		Exclude:           opts.Exclude,
 		Include:           opts.Include,
 		Reading:           opts.Reading,
+		FilterBoundary:    opts.FilterBoundary,
 		Filters:           opts.Filters,
 		Experiments:       opts.Experiments,
 	})

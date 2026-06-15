@@ -135,8 +135,17 @@ type Discovery struct {
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string
 
-	// gitRoot is the git repository root, used as boundary for dependent discovery.
+	// gitRoot is the detected git repository root: the default ceiling for the
+	// upstream dependent walk. It is detected lazily and only when needed, so
+	// it stays empty when a filterBoundary is set (see
+	// [Discovery.dependentWalkBoundary]).
 	gitRoot string
+
+	// filterBoundary is the user-supplied --filter-boundary enclosure (resolved
+	// to an absolute path). When set, it caps the dependent walk in place of
+	// gitRoot and prunes dependencies that resolve outside it. Empty unless the
+	// bounded-filter experiment's flag is used.
+	filterBoundary string
 
 	// graphTarget is the target path for graph filtering (prune to target + dependents).
 	graphTarget string
