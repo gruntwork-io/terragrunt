@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig } from "astro/config";
+import { unified } from "@astrojs/markdown-remark";
 
 import starlight from "@astrojs/starlight";
 import sitemap from "@astrojs/sitemap";
@@ -198,7 +199,9 @@ export default defineConfig({
     }),
   ],
   markdown: {
-    rehypePlugins: [rehypeChangelogAnchors],
+    // A custom `processor` still receives the integration-injected plugins (Starlight's syntax
+    // highlighting, etc.) merged in automatically, so we only register our own rehype plugin here.
+    processor: unified({ rehypePlugins: [rehypeChangelogAnchors] }),
   },
   // Note that some redirects are handled in vercel.json instead.
   //
