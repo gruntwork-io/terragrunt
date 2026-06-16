@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -60,6 +61,15 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 		}
 	}()
+
+	if len(worktrees.WorktreePairs) > 0 {
+		gen := generate.NewGenerator()
+
+		genErr := gen.GenerateStacks(ctx, l, opts.TerragruntOptions, worktrees, generate.WithWorktreeOnly())
+		if genErr != nil {
+			return fmt.Errorf("failed to generate stacks in worktrees: %w", genErr)
+		}
+	}
 
 	d = d.WithWorktrees(worktrees)
 

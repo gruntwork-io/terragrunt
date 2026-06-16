@@ -1,0 +1,12 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Fix `find` and `list` missing units inside generated stacks for Git-based filters
+
+`terragrunt find` and `terragrunt list` with a Git-based filter (for example `--filter '[HEAD^1...HEAD]'`) now detect units inside generated stacks. Previously they did not generate stacks in the worktrees they create for the comparison, so no unit nested in a generated stack was ever surfaced, while `terragrunt run --all` with the same filter targeted those units correctly.
+
+This affected every change that lands inside a generated stack, including a modified `terragrunt.stack.hcl`, a change to a unit's own files, and a change to a file the stack reads via `read_terragrunt_config` or `mark_glob_as_read`.
+
+Stacks are generated only inside the comparison worktrees; `find` and `list` still do not generate stacks in your current working directory by default.
