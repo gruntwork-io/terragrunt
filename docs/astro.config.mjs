@@ -216,27 +216,30 @@ export default defineConfig({
     }),
   ],
   markdown: {
-    rehypePlugins: [
-      rehypeChangelogAnchors,
-      [
-        rehypeExternalLinks,
-        {
-          target: "_blank",
-          rel: ["noopener", "noreferrer"],
-          // Treat http(s) URLs not on docs.terragrunt.com as external.
-          /** @param {import('hast').Element} element */
-          test: (element) => {
-            const href = element.properties?.href;
-            if (typeof href !== "string") return false;
-            if (!/^https?:\/\//i.test(href)) return false;
-            return !/^https?:\/\/(?:[^/]*\.)?docs\.terragrunt\.com(?:[/?#]|$)/i.test(href);
-          },
-        },
-      ],
-    ],
     // A custom `processor` still receives the integration-injected plugins (Starlight's syntax
-    // highlighting, etc.) merged in automatically, so we only register our own rehype plugin here.
-    processor: unified({ rehypePlugins: [rehypeChangelogAnchors] }),
+    // highlighting, etc.) merged in automatically, so we only register our own rehype plugins
+    // here. Both plugins must live inside the processor: Astro's top-level
+    // `markdown.rehypePlugins` is deprecated and is ignored when a custom `processor` is set.
+    processor: unified({
+      rehypePlugins: [
+        rehypeChangelogAnchors,
+        [
+          rehypeExternalLinks,
+          {
+            target: "_blank",
+            rel: ["noopener", "noreferrer"],
+            // Treat http(s) URLs not on docs.terragrunt.com as external.
+            /** @param {import('hast').Element} element */
+            test: (element) => {
+              const href = element.properties?.href;
+              if (typeof href !== "string") return false;
+              if (!/^https?:\/\//i.test(href)) return false;
+              return !/^https?:\/\/(?:[^/]*\.)?docs\.terragrunt\.com(?:[/?#]|$)/i.test(href);
+            },
+          },
+        ],
+      ],
+    }),
   },
   // Note that some redirects are handled in vercel.json instead.
   //
