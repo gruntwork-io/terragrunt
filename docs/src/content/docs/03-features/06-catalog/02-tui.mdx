@@ -116,6 +116,29 @@ terragrunt catalog --ignore-file ./my-ignore-rules
 
 This is useful when you don't control the upstream repository, or when you want to temporarily scope discovery without editing files under version control. It can also be set via the `TG_IGNORE_FILE` environment variable. The path must exist; a missing file is an error.
 
+## Component kinds
+
+<Before version="1.1.0">
+<Aside type="tip" title="Catalog Redesign Experiment">
+This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Enable it with `--experiment catalog-redesign` to opt in before it becomes the default in 1.1.
+</Aside>
+</Before>
+
+<Since version="1.1.0">
+<Aside type="note">
+This behavior is available by default as of 1.1, with no experiment required.
+</Aside>
+</Since>
+
+Discovery classifies every directory it finds into one of four kinds, shown as a colored pill next to each entry and used to populate the [browse tabs](#browse-tabs):
+
+- **Module**: a directory of OpenTofu/Terraform `.tf` files.
+- **Template**: a directory holding a `.boilerplate/` subdirectory or a top-level `boilerplate.yml`.
+- **Unit**: a directory containing a `terragrunt.hcl`.
+- **Stack**: a directory containing a `terragrunt.stack.hcl`.
+
+Pressing `s` scaffolds the selected component through the [interactive form](#interactive-scaffold-form), and the kind decides what that produces. For modules and templates, Terragrunt generates fresh configuration from the form values. For units and stacks, it copies the component's existing files into your working directory so you can edit them in place, alongside a `terragrunt.values.hcl` carrying any `values.*` references the form collected. Scaffolding a unit or stack refuses to overwrite an existing file, so a name collision in the destination aborts the action.
+
 ## Browse tabs
 
 <Before version="1.1.0">
@@ -130,7 +153,9 @@ This behavior is available by default as of 1.1, with no experiment required.
 </Aside>
 </Since>
 
-The list view is split into three tabs: `All`, `Modules`, and `Templates`. `All` is selected when the TUI launches. Press `tab` to move to the next tab and `shift+tab` to move to the previous; cycling wraps at either end. The active tab filters the list down to components of that kind, and each tab keeps its own cursor position and search filter, so switching back preserves where you were.
+The list view is split into five tabs: `All`, `Templates`, `Stacks`, `Units`, and `Modules`. `All` is selected when the TUI launches and lists every discovered component; the other four each filter the list down to a single [component kind](#component-kinds). Press `tab` to move to the next tab and `shift+tab` to move to the previous; cycling wraps at either end. Each tab keeps its own cursor position and search filter, so switching back preserves where you were.
+
+A component can show up under more than one kind-specific tab when its front-matter tags name another kind. See [Component tags](#component-tags).
 
 ## README front-matter
 
@@ -248,7 +273,7 @@ The default view, shown after discovery completes.
 | `home`, `ctrl+a` | Jump to first row |
 | `end`, `ctrl+e` | Jump to last row |
 | `enter` | View the selected component's README |
-| `s` | Scaffold the selected component (interactive form) |
+| `s` | Scaffold the selected component (interactive form); see [Component kinds](#component-kinds) |
 | `tab` | Next tab<Before version="1.1.0"> (redesign experiment)</Before> |
 | `shift+tab` | Previous tab<Before version="1.1.0"> (redesign experiment)</Before> |
 | `/` | Search and filter the visible list |
@@ -269,7 +294,7 @@ Active after pressing `enter` on a component.
 | `tab` | Focus the next button in the footer |
 | `shift+tab` | Focus the previous button in the footer |
 | `enter` | Activate the focused button |
-| `s` | Scaffold (interactive form) |
+| `s` | Scaffold the selected component (interactive form) |
 | `w` | Toggle soft-wrapping of long README lines |
 | `?` | Toggle the expanded help view |
 | `q`, `esc` | Back to the list |
