@@ -388,7 +388,7 @@ const (
 
 // formatActionFailure renders a bordered callout describing a failed
 // scaffold or copy action. action is a verb phrase ("scaffolding component",
-// "copying component"). The message is stashed on the model so RunRedesign
+// "copying component"). The message is stashed on the model so Run
 // can print it after the alt screen is restored; tea.Printf lines emitted
 // during alt-screen are discarded on exit.
 func formatActionFailure(action string, err error) string {
@@ -427,8 +427,7 @@ func formatSourceFailureNotice(err error, accent string) string {
 
 	rows := []string{heading}
 
-	var srcErr *SourceLoadError
-	if errors.As(err, &srcErr) {
+	if srcErr, ok := errors.AsType[*SourceLoadError](err); ok {
 		for _, f := range srcErr.Failures {
 			rows = append(rows,
 				"",

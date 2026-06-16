@@ -98,7 +98,7 @@ func TestWelcomeLoadingScreen_NoSourcesWithRacing(t *testing.T) {
 
 // TestWelcomeDiscoveryErrorQuitPropagatesErrorWithRacing verifies that a
 // discovery failure recorded by the welcome model survives the user's quit,
-// so RunRedesign returns it and the catalog command exits nonzero.
+// so Run returns it and the catalog command exits nonzero.
 func TestWelcomeDiscoveryErrorQuitPropagatesErrorWithRacing(t *testing.T) {
 	t.Parallel()
 

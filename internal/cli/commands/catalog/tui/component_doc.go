@@ -10,9 +10,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
-// Note: this file is a redesign-owned fork of internal/services/catalog/module/doc.go.
-// It is intentionally duplicated to keep the redesign path isolated from the
-// legacy catalog pipeline.
+// Note: this file is a fork of internal/services/catalog/module/doc.go.
+// It is intentionally duplicated to keep the catalog TUI isolated from that
+// module's discovery types.
 
 const (
 	mdExt   = ".md"

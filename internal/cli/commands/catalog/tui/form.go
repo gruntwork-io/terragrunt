@@ -244,8 +244,7 @@ type FormSubmitMsg struct {
 type FormCancelMsg struct{}
 
 // Cursor reports the index of the currently focused field. Exposed for
-// tests; production code in the redesign package navigates fields via the
-// form's keymap.
+// tests; production code navigates fields via the form's keymap.
 func (f *FormModel) Cursor() int {
 	return f.cursor
 }

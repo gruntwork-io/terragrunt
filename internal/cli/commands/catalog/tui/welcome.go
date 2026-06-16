@@ -228,7 +228,7 @@ func (m WelcomeModel) View() tea.View {
 }
 
 // Err returns the discovery failure that ended the session, or nil when
-// discovery succeeded or is still running. RunRedesign propagates it as the
+// discovery succeeded or is still running. Run propagates it as the
 // command error after the user dismisses the error screen, so the catalog
 // command exits nonzero.
 func (m WelcomeModel) Err() error {
@@ -333,7 +333,7 @@ func (m WelcomeModel) handleDiscoveryComplete(msg DiscoveryCompleteMsg) (tea.Mod
 		// No components arrived before the failure (otherwise the streaming
 		// Model would be handling this message), so the session has nothing
 		// to show. Render the error screen; the stashed error is returned
-		// by RunRedesign when the user quits and its details are reprinted
+		// by Run when the user quits and its details are reprinted
 		// via ExitMessage. Logging here would shred the alt-screen
 		// rendering, so nothing is logged.
 		m.lastDiscoveryErr = msg.Err

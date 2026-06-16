@@ -52,17 +52,17 @@ func (k ComponentKind) IsCopyable() bool {
 	return k == ComponentKindUnit || k == ComponentKindStack
 }
 
-// Component is the redesign-owned representation of a scaffoldable directory
+// Component is the catalog TUI's representation of a scaffoldable directory
 // discovered inside a cloned repository. It is intentionally independent of
-// services/catalog/module.Module so the redesign path can evolve without
-// coupling to the legacy catalog discovery pipeline.
+// services/catalog/module.Module so catalog browsing can evolve without
+// coupling to that module's discovery types.
 type Component struct {
 	// Doc is always non-nil; use NewComponentDoc/FindComponentDoc.
 	Doc *ComponentDoc
 
 	// Repo is the cloned repository this component lives in. It comes from
-	// services/catalog/module.NewRepo, which is the only part of the legacy
-	// catalog pipeline the redesign reuses (generic clone/git plumbing).
+	// services/catalog/module.NewRepo, which the TUI reuses only for its
+	// generic clone/git plumbing.
 	Repo *module.Repo
 
 	// Dir is the slash-relative path from the repo root. Empty string means
