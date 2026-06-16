@@ -46,6 +46,7 @@ func NewUnitRunner(unit *component.Unit) *UnitRunner {
 func (runner *UnitRunner) runTerragrunt(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -90,7 +91,7 @@ func (runner *UnitRunner) runTerragrunt(
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, unitExitCode)
 
-	runErr := run.Run(ctx, l, configbridge.NewRunOptions(opts), r, cfg, credsGetter)
+	runErr := run.Run(ctx, l, v, configbridge.NewRunOptions(opts), r, cfg, credsGetter)
 
 	// Store the unit exit code in the global map using the unit path as key.
 	if globalExitCode != nil {
@@ -132,6 +133,7 @@ func (runner *UnitRunner) runTerragrunt(
 func (runner *UnitRunner) Run(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -143,7 +145,7 @@ func (runner *UnitRunner) Run(
 		return nil
 	}
 
-	if err := runner.runTerragrunt(ctx, l, opts, r, cfg, credsGetter); err != nil {
+	if err := runner.runTerragrunt(ctx, l, v, opts, r, cfg, credsGetter); err != nil {
 		return err
 	}
 
@@ -171,7 +173,7 @@ func (runner *UnitRunner) Run(
 		adhocReport := report.NewReport()
 
 		runOpts := configbridge.NewRunOptions(jsonOptions)
-		if err := run.Run(ctx, jsonLogger, runOpts, adhocReport, cfg, credsGetter); err != nil {
+		if err := run.Run(ctx, jsonLogger, v, runOpts, adhocReport, cfg, credsGetter); err != nil {
 			return err
 		}
 

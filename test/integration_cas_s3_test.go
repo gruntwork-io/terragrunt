@@ -3,14 +3,8 @@
 package test_test
 
 import (
-	"bytes"
 	"path/filepath"
-	"strings"
 	"testing"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
@@ -28,33 +22,8 @@ func TestAwsCASS3ChecksumProbe(t *testing.T) {
 	t.Parallel()
 
 	region := helpers.TerraformRemoteStateS3Region
-	bucket := "terragrunt-cas-test-" + strings.ToLower(helpers.UniqueID())
 	key := "modules/example.tar.gz"
-
-	s3Client := helpers.CreateS3ClientForTest(t, region)
-
-	_, err := s3Client.CreateBucket(t.Context(), &s3.CreateBucketInput{
-		Bucket: aws.String(bucket),
-		CreateBucketConfiguration: &types.CreateBucketConfiguration{
-			LocationConstraint: types.BucketLocationConstraint(region),
-		},
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		if err := helpers.DeleteS3Bucket(t, region, bucket); err != nil {
-			t.Logf("delete bucket %s: %v", bucket, err)
-		}
-	})
-
-	body := makeModuleArchive(t)
-	_, err = s3Client.PutObject(t.Context(), &s3.PutObjectInput{
-		Bucket:            aws.String(bucket),
-		Key:               aws.String(key),
-		Body:              bytes.NewReader(body),
-		ChecksumAlgorithm: types.ChecksumAlgorithmSha256,
-	})
-	require.NoError(t, err)
+	bucket := provisionS3ModuleArchive(t, region, key)
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
@@ -66,13 +35,6 @@ func TestAwsCASS3ChecksumProbe(t *testing.T) {
 	g := tggetter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{}, tggetter.WithDefaultGenericDispatch())
 	client := &tggetter.Client{Getters: []tggetter.Getter{g}}
 
-	// Legacy regional path-style URL: the bare go-getter s3.Getter's
-	// parseUrl only handles 3-part hostnames. Modern virtual-host
-	// URLs (`bucket.s3.region.amazonaws.com`, 5 parts) and modern
-	// path-style URLs (`s3.region.amazonaws.com`, 4 parts) both fail
-	// the bare getter's len(hostParts) != 3 check. `s3-region.amazonaws.com`
-	// is the form both the bare getter and our S3Resolver's parseS3URL
-	// recognize, so the test URL stays compatible with both.
 	src := "s3::https://s3-" + region + ".amazonaws.com/" + bucket + "/" + key
 
 	first := filepath.Join(helpers.TmpDirWOSymlinks(t), "first")

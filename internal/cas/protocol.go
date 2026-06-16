@@ -29,10 +29,15 @@ const (
 // validAlgorithms are the hash algorithm prefixes accepted in CAS references.
 var validAlgorithms = []HashAlgorithm{HashSHA1, HashSHA256}
 
+const (
+	// sha1HexLen is the length of a hex-encoded SHA-1 digest.
+	sha1HexLen = 40
+	// sha256HexLen is the length of a hex-encoded SHA-256 digest.
+	sha256HexLen = 64
+)
+
 // DetectHashAlgorithm detects the hash algorithm from a hex-encoded hash string.
 func DetectHashAlgorithm(hexHash string) HashAlgorithm {
-	const sha256HexLen = 64
-
 	if len(hexHash) >= sha256HexLen {
 		return HashSHA256
 	}
@@ -59,7 +64,9 @@ func (a HashAlgorithm) Sum(data []byte) string {
 
 // ParseCASRef extracts the hash and algorithm from a CAS reference string.
 // Expected format: "<algorithm>:<hash>" (after cas:: prefix has been stripped by Detect).
-// Accepted algorithms: "sha1", "sha256".
+// Accepted algorithms: "sha1", "sha256". The hash must be lowercase hex of the
+// digest length for the algorithm (40 characters for [HashSHA1], 64 for
+// [HashSHA256]); anything else returns [ErrCASRefInvalidHash].
 func ParseCASRef(ref string) (string, error) {
 	for _, alg := range validAlgorithms {
 		prefix := string(alg) + ":"
@@ -74,6 +81,14 @@ func ParseCASRef(ref string) (string, error) {
 				Op:      "parse_cas_ref",
 				Context: ref,
 				Err:     ErrCASRefEmptyHash,
+			}
+		}
+
+		if !isValidHexDigest(after, alg) {
+			return "", &WrappedError{
+				Op:      "parse_cas_ref",
+				Context: ref,
+				Err:     ErrCASRefInvalidHash,
 			}
 		}
 
@@ -150,4 +165,26 @@ func (c *CAS) MaterializeTree(
 	}
 
 	return LinkTree(ctx, v, c.blobStore, treeStoreUsed, tree, dest, opts...)
+}
+
+// isValidHexDigest reports whether s is a lowercase hex digest of the length
+// expected for alg: 40 characters for [HashSHA1], 64 for [HashSHA256].
+func isValidHexDigest(s string, alg HashAlgorithm) bool {
+	wantLen := sha1HexLen
+	if alg == HashSHA256 {
+		wantLen = sha256HexLen
+	}
+
+	if len(s) != wantLen {
+		return false
+	}
+
+	for i := range len(s) {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+
+	return true
 }

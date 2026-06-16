@@ -44,7 +44,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -179,24 +178,21 @@ type TrackInclude struct {
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this ctx that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
 //
-// The vexec.Exec parameter is captured by the run_cmd HCL function closure so
-// that subprocess execution flows through the caller-supplied backend (real
-// os/exec in production, in-memory mock in tests). It is not used by any
-// other HCL function.
-func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l log.Logger, e vexec.Exec, configPath string) (*hcl.EvalContext, error) {
+// The subprocess backend for run_cmd is taken from pctx.Venv.Exec so that
+// execution flows through the threaded virtualized environment (real os/exec
+// in production, in-memory mock in tests). It is not used by any other HCL
+// function.
+func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l log.Logger, configPath string) (*hcl.EvalContext, error) {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(configPath),
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		FuncNameFindInParentFolders:     wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, FindInParentFolders),
-		FuncNamePathRelativeToInclude:   wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeToInclude),
-		FuncNamePathRelativeFromInclude: wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeFromInclude),
-		FuncNameGetEnv:                  wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, getEnvironmentVariable),
-		FuncNameRunCmd: wrapStringSliceToStringAsFuncImpl(ctx, pctx, l,
-			func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
-				return RunCommand(ctx, pctx, l, e, params)
-			}),
+		FuncNameFindInParentFolders:                     wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, FindInParentFolders),
+		FuncNamePathRelativeToInclude:                   wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeToInclude),
+		FuncNamePathRelativeFromInclude:                 wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeFromInclude),
+		FuncNameGetEnv:                                  wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, getEnvironmentVariable),
+		FuncNameRunCmd:                                  wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, RunCommand),
 		FuncNameReadTerragruntConfig:                    readTerragruntConfigAsFuncImpl(ctx, pctx, l),
 		FuncNameGetPlatform:                             wrapVoidToStringAsFuncImpl(ctx, pctx, l, getPlatform),
 		FuncNameGetRepoRoot:                             wrapVoidToStringAsFuncImpl(ctx, pctx, l, getRepoRoot),
@@ -291,12 +287,12 @@ func getPlatform(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 
 // Return the repository root as an absolute path
 func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	return shell.GitTopLevelDir(ctx, l, pctx.Env, pctx.WorkingDir)
+	return shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
 }
 
 // Return the path from the repository root
 func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Env, pctx.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -311,7 +307,7 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 // Return the path to the repository root
 func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Env, pctx.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -373,15 +369,16 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 // RunCommand is a helper function that runs a command and returns the stdout as the interpolation
 // for each `run_cmd` in locals section, function is called twice result.
 //
-// The vexec.Exec parameter selects the subprocess backend. Production callers
-// pass vexec.NewOSExec() (or the value threaded through createTerragruntEvalContext);
-// tests can pass a vexec.NewMemExec mock to intercept subprocess invocations.
-func RunCommand(ctx context.Context, pctx *ParsingContext, l log.Logger, e vexec.Exec, args []string) (string, error) {
-	return runCommandImpl(ctx, pctx, l, e, args)
+// The subprocess backend is taken from pctx.Venv.Exec so execution flows
+// through the threaded virtualized environment. Production callers see the
+// real os/exec backend; tests can inject vexec.NewMemExec via the parsing
+// context to intercept subprocess invocations.
+func RunCommand(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) (string, error) {
+	return runCommandImpl(ctx, pctx, l, args)
 }
 
 // runCommandImpl contains the actual implementation of RunCommand
-func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, e vexec.Exec, args []string) (string, error) {
+func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) (string, error) {
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	runCommandCache := cache.ContextCache[*RunCmdCacheEntry](ctx, RunCmdCacheContextKey)
@@ -389,6 +386,12 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, e v
 	if len(args) == 0 {
 		return "", EmptyStringNotAllowedError("parameter to the run_cmd function")
 	}
+
+	// Clone the caller's slice before flag stripping. slices.Delete
+	// reuses the backing array, so without this the caller's args would
+	// be mutated in place and subsequent calls (or shared state in the
+	// HCL evaluator) would see post-strip residue.
+	args = slices.Clone(args)
 
 	suppressOutput := false
 	disableCache := false
@@ -467,7 +470,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, e v
 	cmdOutput, err := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		e,
+		pctx.Venv.Exec,
 		shellRunOptsFromPctx(pctx),
 		currentPath,
 		true,
@@ -821,7 +824,14 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	pctx.SkipOutputsResolution = false
 
 	// check if file is stack file, decode as stack file
-	if filepath.Base(targetConfig) == DefaultStackFile {
+	//
+	// A stack-level autoinclude file (terragrunt.autoinclude.stack.hcl) is a stack-file
+	// fragment holding unit and stack blocks, so it decodes through the same stack parsing
+	// path; the strict unit decode below would reject those blocks.
+	targetBase := filepath.Base(targetConfig)
+	isStackAutoIncludeFile := targetBase == DefaultAutoIncludeStackFile
+
+	if targetBase == DefaultStackFile || isStackAutoIncludeFile {
 		stackSourceDir := filepath.Dir(targetConfig)
 
 		values, readErr := ReadValues(ctx, pctx, l, stackSourceDir)
@@ -1301,18 +1311,6 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 // so "a/**/*.tf" will not match "a/b.tf"; use "a/{*.tf,**/*.tf}" to cover
 // both depths. Returns the list of absolute file paths that were marked.
 func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) ([]string, error) {
-	if !pctx.Experiments.Evaluate(experiment.MarkManyAsRead) {
-		pattern := ""
-		if len(args) > 0 {
-			pattern = args[0]
-		}
-
-		return nil, MarkGlobAsReadRequiresExperimentError{
-			ConfigPath: pctx.TerragruntConfigPath,
-			Pattern:    pattern,
-		}
-	}
-
 	if len(args) != 1 {
 		return nil, WrongNumberOfParamsError{Func: FuncNameMarkGlobAsRead, Expected: "1", Actual: len(args)}
 	}

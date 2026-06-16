@@ -352,7 +352,9 @@ func parseComponent(
 		shellOpts := configbridge.ShellRunOptsFromOpts(parseOpts)
 
 		if parseOpts.DiscoveryAuthProviderCmd {
-			if _, err := creds.ObtainCredsForParsing(ctx, l, parseOpts.AuthProviderCmd, parseOpts.Env, shellOpts); err != nil {
+			if _, err := creds.ObtainCredsForParsing(
+				ctx, l, discovery.exec, parseOpts.AuthProviderCmd, parseOpts.Env, shellOpts,
+			); err != nil {
 				return fmt.Errorf("obtaining auth provider credentials for %s: %w", parseOpts.TerragruntConfigPath, err)
 			}
 		}

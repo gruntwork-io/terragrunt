@@ -282,7 +282,7 @@ func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureParsingDeprecated)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureParsingDeprecated)
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture(testFixtureParsingDeprecated)
 	childPath := filepath.Join(tmpEnvPath, testFixtureParsingDeprecated, "child")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
@@ -896,15 +896,11 @@ func TestExposedIncludeErrorIdentifiesIncludeBlock(t *testing.T) {
 	assert.Contains(t, stderr, "root.hcl", "error should name the included (parent) file")
 }
 
-// TestQueueDisplayOrder verifies that the flat queue display lists units in
+// TestQueueDisplayOrder verifies that the DAG queue display lists units in
 // dependency order: dependencies before dependents.
 // Regression test for https://github.com/gruntwork-io/terragrunt/issues/5035
 func TestQueueDisplayOrder(t *testing.T) {
 	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping: experiment mode enables dag-queue-display which changes queue output format")
-	}
 
 	// The fixture has the chain: vpc -> database -> backend-app -> frontend-app
 	// plus monitoring (independent).
@@ -995,7 +991,7 @@ func TestDAGQueueDisplay(t *testing.T) {
 		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
 
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-			t, "terragrunt run --all --non-interactive --no-color --experiment dag-queue-display --working-dir "+rootPath+" -- plan",
+			t, "terragrunt run --all --non-interactive --no-color --working-dir "+rootPath+" -- plan",
 		)
 		require.NoError(t, err)
 
@@ -1011,7 +1007,7 @@ func TestDAGQueueDisplay(t *testing.T) {
 		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
 
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-			t, "terragrunt run --all --non-interactive --no-color --experiment dag-queue-display --working-dir "+rootPath+" -- plan -destroy",
+			t, "terragrunt run --all --non-interactive --no-color --working-dir "+rootPath+" -- plan -destroy",
 		)
 		require.NoError(t, err)
 
@@ -1032,8 +1028,8 @@ func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
 
-	require.NoError(t, srv.CommitFile("main.tf", []byte("# benign\n"), "module"))
-	require.NoError(t, srv.CommitFile(".terragrunt-module-manifest", encodeForgedManifest(t, forgedFile(sentinel)), "forged manifest"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# benign\n"), "module"))
+	require.NoError(t, srv.CommitFile(t.Context(), ".terragrunt-module-manifest", encodeForgedManifest(t, forgedFile(sentinel)), "forged manifest"))
 
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)

@@ -6,6 +6,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -45,6 +48,11 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 
 	if err := updateLockfile(ctx, file, providers); err != nil {
 		return err
+	}
+
+	// CAS may materialize the lock file as a read-only hard link, so remove it before writing
+	if err := os.Remove(filename); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("failed to remove lock file %s before writing: %w", filename, err)
 	}
 
 	const ownerWriteGlobalReadPerms = 0644

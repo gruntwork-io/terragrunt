@@ -1,0 +1,8 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Reject `update_source_with_cas` on a `terraform` block when CAS is disabled
+
+`terragrunt stack generate --no-cas` now fails when a generated unit's `terraform` block sets `update_source_with_cas = true`, instead of silently emitting the unit with its relative `source` unchanged. The relative source has no meaning once CAS is disabled, so the generated unit could not resolve its module. This matches the existing behavior for the same attribute on `unit` and `stack` blocks, and for a `run` invoked with `--no-cas`.

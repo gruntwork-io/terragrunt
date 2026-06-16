@@ -1,16 +1,28 @@
 ---
 name: opt-out-auth
 since: "1.0.6"
+completedSince: "1.1.0"
 ---
+
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Opt out of running `--auth-provider-cmd` during the discovery phase.
 
 ### `opt-out-auth` - What it does
 By default, Terragrunt runs `--auth-provider-cmd` once per parsed component during the discovery phase, so configuration parsing can reliably resolve HCL functions such as `get_aws_account_id` and `run_cmd`. On large repositories, this dominates wall-clock time because the auth command runs for every discovered unit rather than only the subset that will actually run.
 
+<Before version="1.1.0">
 Enabling this experiment unlocks the `--no-discovery-auth-provider-cmd` flag (env: `TG_NO_DISCOVERY_AUTH_PROVIDER_CMD`), which skips those discovery-time auth invocations. The auth provider command still runs normally for the units that actually execute.
+</Before>
+
+<Since version="1.1.0">
+The `--no-discovery-auth-provider-cmd` flag (env: `TG_NO_DISCOVERY_AUTH_PROVIDER_CMD`) skips those discovery-time auth invocations. The auth provider command still runs normally for the units that actually execute. This experiment flag is no longer needed, as `--no-discovery-auth-provider-cmd` is now available by default.
+</Since>
 
 Units whose discovery-relevant blocks depend on credentials produced by `--auth-provider-cmd` will fail to parse with the flag set. Use it when you know parsing will resolve successfully without any prior authentication.
+
+<Before version="1.1.0">
 
 ```bash
 terragrunt run --all \
@@ -20,13 +32,33 @@ terragrunt run --all \
   plan
 ```
 
+</Before>
+
+<Since version="1.1.0">
+
+```bash
+terragrunt run --all \
+  --no-discovery-auth-provider-cmd \
+  --queue-include-units-reading=./changed-file.txt \
+  plan
+```
+
+</Since>
+
 ### `opt-out-auth` - How to provide feedback
+
+<Before version="1.1.0">
 Provide your feedback on the [`opt-out-auth` GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/6224).
+</Before>
+
+<Since version="1.1.0">
+Now that the `opt-out-auth` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+</Since>
 
 ### `opt-out-auth` - Criteria for stabilization
-To transition the `opt-out-auth` feature to a stable release, the following must be addressed, at a minimum:
+To transition the `opt-out-auth` feature to a stable release, the following were completed:
 
-- [ ] Confirm the discovery-phase opt-out covers the auth scenarios users rely on without surprising parse failures.
-- [ ] Measure the wall-clock improvement on large `run --all` invocations with reading-based filters.
-- [ ] Decide whether additional phases warrant their own opt-out flags.
-- [ ] Community feedback on real-world usage.
+- [x] Confirm the discovery-phase opt-out covers the auth scenarios users rely on without surprising parse failures.
+- [x] Measure the wall-clock improvement on large `run --all` invocations with reading-based filters.
+- [x] Decide whether additional phases warrant their own opt-out flags.
+- [x] Community feedback on real-world usage.

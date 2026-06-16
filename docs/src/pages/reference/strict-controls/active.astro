@@ -3,7 +3,6 @@ export const prerender = true;
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import StrictControlEntries from '@components/StrictControlEntries.astro';
 import { getCollection } from 'astro:content';
-import { sidebar } from '../../../data/sidebar';
 
 const showUnreleased = import.meta.env.DEV;
 
@@ -37,7 +36,6 @@ for (const entry of entries) {
 		description: 'Strict controls that convert deprecated feature warnings into errors.',
 	}}
 	headings={headings}
-	sidebar={sidebar}
 >
 	<p>
 		The following strict controls are available. See the <a href="/reference/strict-controls">strict controls overview</a> for how to enable them.

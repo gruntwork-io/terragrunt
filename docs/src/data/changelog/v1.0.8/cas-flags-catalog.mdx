@@ -1,0 +1,12 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### CAS flags for the `catalog` command
+
+The [`catalog`](/reference/cli/commands/catalog) command now accepts the `--no-cas` and `--cas-clone-depth` flags, which were already available on `run`, `stack generate`, and `stack run`. When `--no-cas` is set, catalog repositories are cloned with plain Git even if the `cas` experiment is enabled. `--cas-clone-depth` controls the `git clone --depth` value the CAS uses when cloning catalog repositories.
+
+```bash
+terragrunt catalog --experiment cas --cas-clone-depth=-1
+```

@@ -5,7 +5,6 @@ import ExperimentEntries from '@components/ExperimentEntries.astro';
 import { getCollection } from 'astro:content';
 import { getLatestRelease } from '@lib/github';
 import { isCompleted, isVersionReleased } from '@lib/experiments';
-import { sidebar } from '../../../data/sidebar';
 
 const showUnreleased = import.meta.env.DEV;
 
@@ -43,7 +42,6 @@ for (const entry of entries) {
 		description: 'Experimental features available for opt-in.',
 	}}
 	headings={headings}
-	sidebar={sidebar}
 >
 	<p>
 		The following experiments are available for opt-in. See the <a href="/reference/experiments">experiments overview</a> for how to enable them.

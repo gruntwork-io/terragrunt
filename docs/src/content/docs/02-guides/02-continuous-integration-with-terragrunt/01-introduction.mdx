@@ -41,13 +41,14 @@ Setting all of this up from scratch is a significant amount of engineering work.
 
 - How CI works in the context of IaC, and what makes it different from CI for application code.
 - How Terragrunt Scale sets up GitHub Actions workflows for plan-on-PR and apply-on-merge.
+- How you can exercise a full plan/apply/destroy cycle before connecting any cloud credentials.
 - How OIDC authentication works and why it replaces long-lived AWS credentials.
 - How DAG-aware orchestration handles changes across multiple infrastructure units.
 
 ## What you'll do
 
-1. Sign up for Terragrunt Scale Free Tier and walk through onboarding.
-2. Explore the repository structure, workflows, and authentication that onboarding configures.
-3. Make an infrastructure change, open a PR, and see the plan.
-4. Merge the PR and watch the apply.
+1. Sign up for Terragrunt Scale Free Tier and connect your GitHub repository.
+2. Run your first pipeline through a plan/apply/destroy cycle without any cloud credentials.
+3. Connect your AWS account so Pipelines can deploy real infrastructure.
+4. Explore the repository structure, workflows, and authentication that onboarding configures.
 5. Make a multi-unit change and see how Terragrunt orchestrates it across the dependency graph.

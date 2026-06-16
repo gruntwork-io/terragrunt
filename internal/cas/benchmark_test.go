@@ -199,9 +199,9 @@ func startBenchServer(b *testing.B) string {
 
 	b.Cleanup(func() { _ = srv.Close() })
 
-	require.NoError(b, srv.CommitFile("README.md", []byte("# test repo"), "add readme"))
-	require.NoError(b, srv.CommitFile("main.tf", []byte(`resource "null_resource" "test" {}`), "add main.tf"))
-	require.NoError(b, srv.CommitFile("test/integration_test.go", []byte("package test"), "add test file"))
+	require.NoError(b, srv.CommitFile(b.Context(), "README.md", []byte("# test repo"), "add readme"))
+	require.NoError(b, srv.CommitFile(b.Context(), "main.tf", []byte(`resource "null_resource" "test" {}`), "add main.tf"))
+	require.NoError(b, srv.CommitFile(b.Context(), "test/integration_test.go", []byte("package test"), "add test file"))
 
 	url, err := srv.Start(b.Context())
 	require.NoError(b, err)

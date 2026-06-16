@@ -1,6 +1,7 @@
 package tflint
 
 import (
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
@@ -23,4 +24,11 @@ type Venv struct {
 // real OS filesystem.
 func OSVenv() Venv {
 	return Venv{Exec: vexec.NewOSExec(), FS: vfs.NewOSFS()}
+}
+
+// FromRoot projects the root [venv.Venv] threaded from the CLI entrypoint
+// into the tflint package's local Venv. The two carry the same handles but
+// are distinct types so the tflint package owns its own contract.
+func FromRoot(v venv.Venv) Venv {
+	return Venv{Exec: v.Exec, FS: v.FS}
 }

@@ -264,7 +264,32 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World version remote", false)
+	terraformSource, opts, cfg, err := createConfig(t, canonicalURL, downloadDir, false)
+	require.NoError(t, err)
+
+	// The hello-world-version-remote fixture ships a file literally named
+	// "version-file.txt". CAS materializes downloaded sources read-only, so a
+	// bookkeeping write to that path would collide with the module's own file.
+	// Use the name Terragrunt actually writes in production
+	// (.terragrunt-source-version), which never appears in module content.
+	terraformSource.VersionFile = filepath.Join(downloadDir, ".terragrunt-source-version")
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		logger.CreateLogger(),
+		run.OSVenv(),
+		terraformSource,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
+
+	expectedFilePath := filepath.Join(downloadDir, "main.tf")
+	if assert.True(t, util.FileExists(expectedFilePath), "For terraform source %v", terraformSource) {
+		actualFileContents := readFile(t, expectedFilePath)
+		assert.Equal(t, "# Hello, World version remote", actualFileContents, "For terraform source %v", terraformSource)
+	}
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T) {
@@ -297,6 +322,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
+		run.OSVenv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -459,6 +485,7 @@ func testDownloadTerraformSourceIfNecessary(
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
+		run.OSVenv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -631,7 +658,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 			require.NoError(t, err)
 
-			client, err := run.BuildDownloadClient(logger.CreateLogger(), configbridge.NewRunOptions(terragruntOptions), tc.cfg)
+			client, err := run.BuildDownloadClient(logger.CreateLogger(), run.OSVenv(), configbridge.NewRunOptions(terragruntOptions), tc.cfg)
 			require.NoError(t, err)
 
 			fileGetter, ok := findGetter[*getter.FileCopyGetter](client.Getters)
@@ -657,6 +684,7 @@ func TestBuildDownloadClientHTTPNetrc(t *testing.T) {
 
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
+		run.OSVenv(),
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
@@ -680,6 +708,7 @@ func TestBuildDownloadClientCoversDefaultSchemes(t *testing.T) {
 
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
+		run.OSVenv(),
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
@@ -742,7 +771,7 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	r := report.NewReport()
 
 	// sourceURL "." represents the current directory (no terraform.source specified)
-	updatedOpts, err := run.DownloadTerraformSource(t.Context(), l, ".", configbridge.NewRunOptions(opts), cfg, r)
+	updatedOpts, err := run.DownloadTerraformSource(t.Context(), l, run.OSVenv(), ".", configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	// Verify that the working directory was changed to the cache directory (inside downloadDir)
@@ -791,7 +820,7 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	// Mock the download source function call
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
 
 	require.NoError(t, err)
 
@@ -818,10 +847,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()
-	err = opts.Experiments.EnableExperiment(experiment.CAS)
-	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -834,7 +860,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -860,10 +886,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()
-	err = opts.Experiments.EnableExperiment(experiment.CAS)
-	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -876,7 +899,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	// Verify the file was downloaded
@@ -901,10 +924,7 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()
-	err = opts.Experiments.EnableExperiment(experiment.CAS)
-	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -917,7 +937,7 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -925,67 +945,47 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 }
 
 // TestDownloadSourceUpdateSourceWithCASRequiresCAS verifies that setting
-// update_source_with_cas = true on a terraform block errors when CAS is unavailable,
-// either because the experiment is off or because --no-cas is set.
+// update_source_with_cas = true on a terraform block errors when CAS is
+// disabled via --no-cas.
 func TestDownloadSourceUpdateSourceWithCASRequiresCAS(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name      string
-		enableCAS bool
-		noCAS     bool
-	}{
-		{name: "experiment off", enableCAS: false, noCAS: false},
-		{name: "experiment on with --no-cas", enableCAS: true, noCAS: true},
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "file://"+localSourcePath),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
 
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+	opts.NoCAS = true
+	opts.TerragruntConfigPath = "/tmp/terragrunt.hcl"
 
-			localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
-			src := &tf.Source{
-				CanonicalSourceURL: parseURL(t, "file://"+localSourcePath),
-				DownloadDir:        tmpDir,
-				WorkingDir:         tmpDir,
-				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
-			}
-
-			opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
-			require.NoError(t, err)
-
-			opts.Experiments = experiment.NewExperiments()
-			if tc.enableCAS {
-				require.NoError(t, opts.Experiments.EnableExperiment(experiment.CAS))
-			}
-
-			opts.NoCAS = tc.noCAS
-			opts.TerragruntConfigPath = "/tmp/terragrunt.hcl"
-
-			cfg := &runcfg.RunConfig{
-				Terraform: runcfg.TerraformConfig{
-					UpdateSourceWithCAS: true,
-				},
-			}
-
-			l := logger.CreateLogger()
-			l.SetOptions(log.WithOutput(io.Discard))
-
-			_, err = run.DownloadTerraformSourceIfNecessary(
-				t.Context(), l, src,
-				configbridge.NewRunOptions(opts),
-				cfg, report.NewReport(),
-			)
-			require.Error(t, err)
-
-			var target *cas.UpdateSourceWithCASRequiresCASError
-			require.ErrorAs(t, err, &target)
-			assert.Equal(t, "terraform", target.BlockType)
-			assert.Equal(t, opts.TerragruntConfigPath, target.Path)
-		})
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			UpdateSourceWithCAS: true,
+		},
 	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(), l, run.OSVenv(), src,
+		configbridge.NewRunOptions(opts),
+		cfg, report.NewReport(),
+	)
+	require.Error(t, err)
+
+	var target *cas.UpdateSourceWithCASRequiresCASError
+	require.ErrorAs(t, err, &target)
+	assert.Equal(t, "terraform", target.BlockType)
+	assert.Equal(t, opts.TerragruntConfigPath, target.Path)
 }
 
 // TestDownloadSourceWithCASMultipleSources tests that CAS works with multiple different sources
@@ -997,10 +997,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 
 	opts.Env = util.EnvironMap()
 
-	// Enable CAS experiment
 	opts.Experiments = experiment.NewExperiments()
-	err = opts.Experiments.EnableExperiment(experiment.CAS)
-	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -1043,7 +1040,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
 			}
 
-			_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+			_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
 
 			if tc.name == "Local file source" {
 				require.NoError(t, err)
@@ -1096,7 +1093,7 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 
 	dst := filepath.Join(t.TempDir(), "module.tf")
 
-	client, err := run.BuildDownloadClient(logger.CreateLogger(), configbridge.NewRunOptions(opts), cfg)
+	client, err := run.BuildDownloadClient(logger.CreateLogger(), run.OSVenv(), configbridge.NewRunOptions(opts), cfg)
 	require.NoError(t, err)
 
 	_, err = client.Get(t.Context(), &getter.Request{
@@ -1129,6 +1126,7 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystem(t *testing.T) {
 	_, err = run.DownloadTerraformSource(
 		t.Context(),
 		l,
+		run.OSVenv(),
 		".",
 		runOpts,
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
@@ -1154,6 +1152,7 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
+		run.OSVenv(),
 		src,
 		runOpts,
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
@@ -1172,10 +1171,13 @@ func TestBuildDownloadClientRejectsNonOSFilesystem(t *testing.T) {
 	require.NoError(t, err)
 
 	runOpts := configbridge.NewRunOptions(opts)
-	runOpts.FS = vfs.NewMemMapFS()
+
+	v := run.OSVenv()
+	v.FS = vfs.NewMemMapFS()
 
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
+		v,
 		runOpts,
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)

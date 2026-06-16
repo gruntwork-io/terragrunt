@@ -64,6 +64,16 @@ Component is a generic term to refer to something that is either a unit or a sta
 
 Certain Terragrunt commands operate on components (e.g. [`find`](/reference/cli/commands/find) and [`list`](/reference/cli/commands/list)) while others operate on particular types of components (e.g. [`run`](/reference/cli/commands/run) only runs units whereas [`stack generate`](/reference/cli/commands/stack/generate) and [`stack output`](/reference/cli/commands/stack/output) commands run on stacks).
 
+### Discovery
+
+Discovery is the process by which Terragrunt scans the filesystem to determine which [components](#component) exist in a project.
+
+Terragrunt discovers units by the presence of `terragrunt.hcl` files and stacks by the presence of `terragrunt.stack.hcl` files, starting from the current working directory and descending through child directories.
+
+Discovery is the first step in building the [Run Queue](#run-queue), as Terragrunt needs to know which components are relevant before it can determine what work to do and in what order.
+
+The [`find`](/reference/cli/commands/find) and [`list`](/reference/cli/commands/list) commands expose discovery directly, letting you inspect which components Terragrunt sees without performing any runs. This makes them useful for dry-running infrastructure targeting (for example, in combination with the [`--filter`](/features/filter) flag) before invoking a command that affects infrastructure.
+
 ### Module
 
 A module is an [OpenTofu/Terraform construct](https://opentofu.org/docs/language/modules/) defined using a collection of OpenTofu/Terraform configurations ending in `.tf` (or `.tofu` in the case of OpenTofu) that represent a general pattern of infrastructure that can be instantiated multiple times.
