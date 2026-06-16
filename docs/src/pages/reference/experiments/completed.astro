@@ -4,7 +4,6 @@ import ExperimentEntries from '@components/ExperimentEntries.astro';
 import { getCollection } from 'astro:content';
 import { getLatestRelease } from '@lib/github';
 import { isCompleted } from '@lib/experiments';
-import { sidebar } from '../../../data/sidebar';
 
 const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
 const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
@@ -40,7 +39,6 @@ for (const entry of completed) {
 		description: 'Experiments that have graduated to stable features.',
 	}}
 	headings={headings}
-	sidebar={sidebar}
 >
 	<p>
 		These experiments have been completed and their features are now available by default. The experiment flags are no longer needed.
