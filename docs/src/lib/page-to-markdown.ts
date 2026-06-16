@@ -63,7 +63,7 @@ const htmlToMarkdownPipeline = unified()
 	.use(rehypeParse, { fragment: true })
 	.use(function minifyLlmsTxt() {
 		return (tree, file) => {
-			if (!file.data.starlightLlmsTxt.minify) {
+			if (!file.data.starlightLlmsTxt?.minify) {
 				return;
 			}
 			remove(tree, (_node) => {
@@ -210,7 +210,7 @@ const htmlToMarkdownPipeline = unified()
 
 /** A content-collection entry that can be rendered to HTML via `render()`. */
 type RenderableEntry = CollectionEntry<
-	'docs' | 'commands' | 'experiments' | 'strictControls' | 'changelog'
+	'docs' | 'commands' | 'experiments' | 'strictControls' | 'changelog' | 'flags'
 >;
 
 /**
