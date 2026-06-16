@@ -26,6 +26,8 @@ const (
 	RBRACE   // right brace (})
 	LBRACKET // left bracket ([)
 	RBRACKET // right bracket (])
+	LPAREN   // left parenthesis (()
+	RPAREN   // right parenthesis ())
 
 	// Graph operators
 	ELLIPSIS // ellipsis operator (...)
@@ -57,6 +59,10 @@ func (t TokenType) String() string {
 		return "["
 	case RBRACKET:
 		return "]"
+	case LPAREN:
+		return "("
+	case RPAREN:
+		return ")"
 	case ELLIPSIS:
 		return "..."
 	case CARET:

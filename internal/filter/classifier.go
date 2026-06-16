@@ -81,6 +81,10 @@ type GraphExpressionInfo struct {
 	Target Expression
 	// FullExpression is the complete graph expression.
 	FullExpression *GraphExpression
+	// DependentBoundary, when set, encloses dependent traversal within a directory.
+	DependentBoundary string
+	// DependencyBoundary, when set, encloses dependency traversal within a directory.
+	DependencyBoundary string
 	// Index is the position of this expression in the original filter list.
 	Index int
 	// IncludeDependencies indicates if dependencies should be traversed.
@@ -216,6 +220,8 @@ func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
 		info := &GraphExpressionInfo{
 			Target:              node.Target,
 			FullExpression:      node,
+			DependentBoundary:   node.DependentBoundary,
+			DependencyBoundary:  node.DependencyBoundary,
 			Index:               filterIndex,
 			IncludeDependencies: node.IncludeDependencies,
 			IncludeDependents:   node.IncludeDependents,
@@ -258,6 +264,8 @@ func (c *Classifier) extractNegatedGraphExpressions(expr Expression, filterIndex
 			info := &GraphExpressionInfo{
 				Target:              graphExpr.Target,
 				FullExpression:      graphExpr,
+				DependentBoundary:   graphExpr.DependentBoundary,
+				DependencyBoundary:  graphExpr.DependencyBoundary,
 				Index:               filterIndex,
 				IncludeDependencies: graphExpr.IncludeDependencies,
 				IncludeDependents:   graphExpr.IncludeDependents,

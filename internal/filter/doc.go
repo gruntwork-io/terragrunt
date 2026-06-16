@@ -91,6 +91,23 @@
 //
 // When depth is not specified, traversal is unlimited (default behavior).
 //
+// ## Graph Boundary
+//
+// A boundary encloses graph traversal within a directory, in place of the
+// default outer limit (the git repository root for dependents, the declared
+// path for dependencies). It occupies the same operand slot as depth, written
+// as a parenthesized directory:
+//
+//	(./envs/prod)...{vpc}                  # dependents of vpc, within ./envs/prod
+//	{vpc}...(./envs/prod)                   # dependencies of vpc, within ./envs/prod
+//	(../shared)...{vpc}...(./envs/prod)     # independent bounds per direction
+//	(.)...{vpc}                             # dependents of vpc, within the working directory
+//
+// Dependencies and dependents that resolve outside the boundary are neither
+// read nor returned, the same way a too-deep node is excluded by a depth bound.
+// The value must be an existing directory, resolved against the working
+// directory. This syntax is gated behind the bounded-filter experiment.
+//
 // ## Numeric Directory Disambiguation
 //
 // When a purely numeric token appears adjacent to "...", it is interpreted as a depth:

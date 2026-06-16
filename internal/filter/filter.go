@@ -55,6 +55,22 @@ func (f *Filter) RequiresParse() (Expression, bool) {
 	return f.expr.RequiresParse()
 }
 
+// HasGraphBoundary reports whether any graph expression in the filter carries
+// an inline "(dir)" boundary operand.
+func (f *Filter) HasGraphBoundary() bool {
+	found := false
+
+	WalkExpressions(f.expr, func(e Expression) bool {
+		if g, ok := e.(*GraphExpression); ok && (g.DependentBoundary != "" || g.DependencyBoundary != "") {
+			found = true
+		}
+
+		return true
+	})
+
+	return found
+}
+
 // Negated returns the equivalent filter with negation flipped.
 //
 // If the filter is already negated, it will return the non-negated filter.

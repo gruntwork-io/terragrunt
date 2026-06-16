@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -540,6 +541,12 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	}
 
 	opts.Filters = deduped
+
+	// The inline "(dir)" graph boundary is gated behind the bounded-filter
+	// experiment, regardless of whether it arrived via --filter or a filters file.
+	if opts.Filters.HasGraphBoundary() && !opts.Experiments.Evaluate(experiment.BoundedFilter) {
+		return filter.ErrBoundaryRequiresExperiment
+	}
 
 	// --- Terragrunt Version
 	terragruntVersion, err := version.NewVersion(cliCtx.Version)

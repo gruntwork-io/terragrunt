@@ -237,6 +237,8 @@ func (i *InfixExpression) Negated() Expression {
 // Depth fields control how many levels of dependencies/dependents to traverse.
 type GraphExpression struct {
 	Target              Expression
+	DependentBoundary   string
+	DependencyBoundary  string
 	IncludeDependents   bool
 	IncludeDependencies bool
 	ExcludeTarget       bool
@@ -276,10 +278,7 @@ func (g *GraphExpression) String() string {
 	result := ""
 
 	if g.IncludeDependents {
-		if g.DependentDepth > 0 {
-			result += strconv.Itoa(g.DependentDepth)
-		}
-
+		result += graphBoundOperand(g.DependentBoundary, g.DependentDepth)
 		result += "..."
 	}
 
@@ -291,13 +290,24 @@ func (g *GraphExpression) String() string {
 
 	if g.IncludeDependencies {
 		result += "..."
-
-		if g.DependencyDepth > 0 {
-			result += strconv.Itoa(g.DependencyDepth)
-		}
+		result += graphBoundOperand(g.DependencyBoundary, g.DependencyDepth)
 	}
 
 	return result
+}
+
+// graphBoundOperand renders the operand that bounds graph traversal in one
+// direction: a "(dir)" directory boundary, a numeric depth, or nothing.
+func graphBoundOperand(boundary string, depth int) string {
+	if boundary != "" {
+		return "(" + boundary + ")"
+	}
+
+	if depth > 0 {
+		return strconv.Itoa(depth)
+	}
+
+	return ""
 }
 func (g *GraphExpression) RequiresDiscovery() (Expression, bool) {
 	// Graph expressions require dependency discovery to traverse the graph
