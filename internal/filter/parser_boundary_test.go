@@ -156,6 +156,61 @@ func TestFilters_HasGraphBoundary(t *testing.T) {
 	assert.False(t, filter.Filters{without}.HasGraphBoundary())
 }
 
+// TestParser_BracedPathWithParens verifies that a path whose name contains
+// literal parentheses is disambiguated by wrapping it in braces, so the
+// parens are kept as part of the path rather than parsed as a boundary.
+func TestParser_BracedPathWithParens(t *testing.T) {
+	t.Parallel()
+
+	t.Run("braced path keeps literal parens", func(t *testing.T) {
+		t.Parallel()
+
+		expr, err := filter.NewParser(filter.NewLexer("{./weird(name)}")).ParseExpression()
+		require.NoError(t, err)
+
+		path, ok := expr.(*filter.PathExpression)
+		require.True(t, ok, "Expected PathExpression, got %T", expr)
+		assert.Equal(t, "./weird(name)", path.Value)
+	})
+
+	t.Run("braced parens path as graph target", func(t *testing.T) {
+		t.Parallel()
+
+		expr, err := filter.NewParser(filter.NewLexer("{./weird(name)}...")).ParseExpression()
+		require.NoError(t, err)
+
+		graphExpr, ok := expr.(*filter.GraphExpression)
+		require.True(t, ok, "Expected GraphExpression, got %T", expr)
+		assert.Equal(t, mustPath(t, "./weird(name)"), graphExpr.Target)
+		assert.True(t, graphExpr.IncludeDependencies)
+		assert.Empty(t, graphExpr.DependencyBoundary)
+	})
+
+	t.Run("parens boundary with braced parens target", func(t *testing.T) {
+		t.Parallel()
+
+		// The leading parens are a boundary delimiter; the braced parens are
+		// kept as a literal path. They must not be conflated.
+		expr, err := filter.NewParser(filter.NewLexer("(./bound)...{./weird(name)}")).ParseExpression()
+		require.NoError(t, err)
+
+		graphExpr, ok := expr.(*filter.GraphExpression)
+		require.True(t, ok, "Expected GraphExpression, got %T", expr)
+		assert.Equal(t, mustPath(t, "./weird(name)"), graphExpr.Target)
+		assert.True(t, graphExpr.IncludeDependents)
+		assert.Equal(t, "./bound", graphExpr.DependentBoundary)
+	})
+
+	t.Run("unbraced parens path is an error", func(t *testing.T) {
+		t.Parallel()
+
+		// Without braces the parens are read as delimiters, so a path with
+		// literal parens must be braced to disambiguate it.
+		_, err := filter.NewParser(filter.NewLexer("./weird(name)")).ParseExpression()
+		require.Error(t, err)
+	})
+}
+
 func TestParser_GraphBoundaryErrors(t *testing.T) {
 	t.Parallel()
 

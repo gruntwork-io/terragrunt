@@ -183,3 +183,71 @@ func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
 		})
 	}
 }
+
+// Test that a unit whose directory name contains literal parentheses can be
+// targeted by wrapping the path in braces, including alongside a parenthesized
+// boundary in the same expression. The braces keep the parens as part of the
+// path; the boundary parens stay a delimiter.
+func TestDiscoveryGraphBoundary_PathWithLiteralParens(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	cmd := exec.CommandContext(t.Context(), "git", "init")
+	cmd.Dir = tmpDir
+	cmd.Env = os.Environ()
+	require.NoError(t, cmd.Run())
+
+	// vpc(prod) has literal parentheses in its directory name; app depends on it.
+	vpcDir := filepath.Join(tmpDir, "vpc(prod)")
+	appDir := filepath.Join(tmpDir, "app")
+
+	require.NoError(t, os.MkdirAll(vpcDir, 0o755))
+	require.NoError(t, os.MkdirAll(appDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+dependency "vpc" {
+  config_path = "../vpc(prod)"
+}
+`), 0o644))
+
+	discover := func(query string) component.Components {
+		t.Helper()
+
+		opts := options.NewTerragruntOptions()
+		opts.WorkingDir = tmpDir
+		opts.RootWorkingDir = tmpDir
+
+		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{query})
+		require.NoError(t, err)
+
+		configs, err := discovery.NewDiscovery(tmpDir).
+			WithFilters(filters).
+			Discover(t.Context(), logger.CreateLogger(), opts)
+		require.NoError(t, err)
+
+		return configs
+	}
+
+	t.Run("braced path matches the parens-named unit", func(t *testing.T) {
+		t.Parallel()
+
+		configs := discover("{" + vpcDir + "}")
+		assert.ElementsMatch(t, []string{vpcDir}, configs.Filter(component.UnitKind).Paths())
+	})
+
+	t.Run("braced parens path as a graph target", func(t *testing.T) {
+		t.Parallel()
+
+		configs := discover("...{" + vpcDir + "}")
+		assert.ElementsMatch(t, []string{vpcDir, appDir}, configs.Filter(component.UnitKind).Paths())
+	})
+
+	t.Run("parens boundary alongside a braced parens target", func(t *testing.T) {
+		t.Parallel()
+
+		// Boundary parens are a delimiter; the braced target parens are literal.
+		configs := discover("(" + tmpDir + ")...{" + vpcDir + "}")
+		assert.ElementsMatch(t, []string{vpcDir, appDir}, configs.Filter(component.UnitKind).Paths())
+	})
+}

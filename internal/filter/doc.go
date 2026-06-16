@@ -65,10 +65,12 @@
 // Use braces to explicitly mark a path expression. This is useful when:
 // - The path doesn't start with ./ or /
 // - You want to be explicit that something is a path, not an identifier
+// - The path contains characters that are otherwise operators, such as parentheses
 //
 //	{./apps/*}              # Explicitly a path
 //	{my path/file}          # Path without ./ prefix
 //	{apps}                  # Treat "apps" as a path, not a name filter
+//	{./weird(name)}         # Path containing literal parentheses (which delimit a boundary unbraced)
 //
 // ## Graph Traversal Operators (...)
 //
