@@ -35,7 +35,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		Include:           opts.Include,
 		Reading:           opts.Reading,
 		Filters:           opts.Filters,
-		Experiments:       opts.Experiments,
 	})
 	if err != nil {
 		return err

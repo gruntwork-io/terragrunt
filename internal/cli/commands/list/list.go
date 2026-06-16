@@ -36,7 +36,6 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		WithRequiresParse: opts.Dependencies || opts.Mode == ModeDAG,
 		WithRelationships: opts.Dependencies || opts.Mode == ModeDAG,
 		Filters:           opts.Filters,
-		Experiments:       opts.Experiments,
 	})
 	if err != nil {
 		return err

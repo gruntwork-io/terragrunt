@@ -367,9 +367,8 @@ func ListStackFiles(
 
 	if !cfg.worktreeOnly {
 		d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-			WorkingDir:  opts.WorkingDir,
-			Filters:     opts.Filters,
-			Experiments: opts.Experiments,
+			WorkingDir: opts.WorkingDir,
+			Filters:    opts.Filters,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
@@ -424,9 +423,8 @@ func ListStackFilesWithExcludes(
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
 	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-		WorkingDir:  opts.WorkingDir,
-		Filters:     opts.Filters,
-		Experiments: opts.Experiments,
+		WorkingDir: opts.WorkingDir,
+		Filters:    opts.Filters,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
