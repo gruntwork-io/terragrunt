@@ -152,11 +152,13 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		strictControls:  pctx.StrictControls,
 	}
 
-	if err := generateUnits(ctx, l, &genOpts, pool, stackFile.Units); err != nil {
+	fs := pctx.Venv.FS
+
+	if err := generateUnits(ctx, l, fs, &genOpts, pool, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, l, &genOpts, pool, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, l, fs, &genOpts, pool, stackFile.Stacks); err != nil {
 		return err
 	}
 
@@ -275,6 +277,39 @@ func validateUpdateSourceWithCAS(stackFile *StackConfig, stackFilePath string, c
 	return nil
 }
 
+// rejectTerraformUpdateSourceWithoutCAS rejects a generated unit whose terraform block sets
+// update_source_with_cas = true when CAS is disabled. validateUpdateSourceWithCAS only sees the
+// unit/stack blocks declared in the stack file; the terraform-block attribute lives in the unit's
+// own terragrunt.hcl, which is only available once the source is materialized. Without this check
+// the relative source would be copied verbatim and silently fail to resolve from the generated
+// location, since the cas:: rewrite that gives it meaning never runs.
+func rejectTerraformUpdateSourceWithoutCAS(fs vfs.FS, dest string) error {
+	unitFile := filepath.Join(dest, DefaultTerragruntConfigPath)
+
+	content, err := vfs.ReadFile(fs, unitFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+
+		return fmt.Errorf("failed to read generated unit file %s: %w", unitFile, err)
+	}
+
+	_, updateWithCAS, err := cas.ReadTerraformSourceInfo(content)
+	if err != nil {
+		return fmt.Errorf("failed to inspect terraform source in %s: %w", unitFile, err)
+	}
+
+	if !updateWithCAS {
+		return nil
+	}
+
+	return &cas.UpdateSourceWithCASRequiresCASError{
+		BlockType: "terraform",
+		Path:      unitFile,
+	}
+}
+
 // casSetup is the result of setupCAS: the CAS instance and Venv that
 // stack/unit generation threads through every CAS call, plus the
 // Enabled flag callers gate CAS features on. Enabled is false either
@@ -336,7 +371,7 @@ type generateOpts struct {
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the generating progress and returns any errors encountered during the operation.
-func generateUnits(ctx context.Context, l log.Logger, opts *generateOpts, pool *worker.Pool, units []*Unit) error {
+func generateUnits(ctx context.Context, l log.Logger, fs vfs.FS, opts *generateOpts, pool *worker.Pool, units []*Unit) error {
 	for _, unit := range units {
 		pool.Submit(func() error {
 			item := componentToGenerate{
@@ -360,7 +395,7 @@ func generateUnits(ctx context.Context, l log.Logger, opts *generateOpts, pool *
 				"unit_source": unit.Source,
 				"unit_path":   unit.Path,
 			}, func(ctx context.Context) error {
-				return generateComponent(ctx, l, opts, &item)
+				return generateComponent(ctx, l, fs, opts, &item)
 			})
 		})
 	}
@@ -370,7 +405,7 @@ func generateUnits(ctx context.Context, l log.Logger, opts *generateOpts, pool *
 
 // generateStacks generates each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, l log.Logger, opts *generateOpts, pool *worker.Pool, stacks []*Stack) error {
+func generateStacks(ctx context.Context, l log.Logger, fs vfs.FS, opts *generateOpts, pool *worker.Pool, stacks []*Stack) error {
 	for _, stack := range stacks {
 		pool.Submit(func() error {
 			item := componentToGenerate{
@@ -394,7 +429,7 @@ func generateStacks(ctx context.Context, l log.Logger, opts *generateOpts, pool 
 				"stack_source": stack.Source,
 				"stack_path":   stack.Path,
 			}, func(ctx context.Context) error {
-				return generateComponent(ctx, l, opts, &item)
+				return generateComponent(ctx, l, fs, opts, &item)
 			})
 		})
 	}
@@ -489,7 +524,7 @@ func validateGeneratedComponent(l log.Logger, cmp *componentToGenerate, opts *ge
 }
 
 // generateAutoInclude writes the autoinclude file for a component if one was resolved.
-func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGenerate, dest string) error {
+func generateAutoInclude(l log.Logger, fs vfs.FS, opts *generateOpts, cmp *componentToGenerate, dest string) error {
 	if opts.autoIncludes == nil {
 		return nil
 	}
@@ -509,7 +544,7 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 	// The autoinclude resolves entirely in the stack file context, so the resolution-time eval context (functions
 	// scoped to the stack file, like the discovery path) is reused as-is: every expression except dependency.* is
 	// already a literal, and directory-context functions resolve where the autoinclude was authored.
-	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, resolved.SourceBytes, resolved.EvalCtx); err != nil {
+	if err := inthclparse.GenerateAutoIncludeFile(fs, resolved, dest, resolved.SourceBytes, resolved.EvalCtx); err != nil {
 		return fmt.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
 	}
 
@@ -517,7 +552,7 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 }
 
 // generateComponent copies files from the source directory to the target destination and generates a corresponding values file.
-func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cmp *componentToGenerate) error {
+func generateComponent(ctx context.Context, l log.Logger, fs vfs.FS, opts *generateOpts, cmp *componentToGenerate) error {
 	source := cmp.source
 	// Adjust source path using the provided source mapping configuration if available
 	source, err := adjustSourceWithMap(opts.sourceMap, source, opts.stackConfigPath)
@@ -541,6 +576,12 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		return err
 	}
 
+	if !opts.casEnabled && cmp.kind == unitKind {
+		if err := rejectTerraformUpdateSourceWithoutCAS(fs, dest); err != nil {
+			return err
+		}
+	}
+
 	if err := validateGeneratedComponent(l, cmp, opts, dest); err != nil {
 		return err
 	}
@@ -549,7 +590,7 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		return fmt.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
-	return generateAutoInclude(l, opts, cmp, dest)
+	return generateAutoInclude(l, fs, opts, cmp, dest)
 }
 
 // fetchComponentSource handles the paths for fetching a component's source:
