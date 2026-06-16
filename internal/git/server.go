@@ -452,7 +452,7 @@ func (s *Server) appendGitmodules(ctx context.Context, path, url string) error {
 	gmPath := filepath.Join(s.workDir, ".gitmodules")
 
 	existing, err := os.ReadFile(gmPath)
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("read .gitmodules: %w", err)
 	}
 

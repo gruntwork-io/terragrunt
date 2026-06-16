@@ -431,7 +431,7 @@ func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.R
 func RemoveStaleSymlink(fs vfs.FS, path string) error {
 	info, err := vfs.Lstat(fs, path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 

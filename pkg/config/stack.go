@@ -712,7 +712,7 @@ func fetchViaCAS(
 	if copyErr := util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
 		return true
 	}); copyErr != nil {
-		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !errors.Is(cleanupErr, os.ErrNotExist) {
 			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
 		}
 

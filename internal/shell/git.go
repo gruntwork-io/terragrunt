@@ -3,17 +3,19 @@ package shell
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-version"
+
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-version"
 )
 
 const (
@@ -133,7 +135,7 @@ func hasNestedGit(path, root string) (bool, error) {
 			return true, nil
 		}
 
-		if !os.IsNotExist(err) {
+		if !errors.Is(err, os.ErrNotExist) {
 			return false, err
 		}
 
