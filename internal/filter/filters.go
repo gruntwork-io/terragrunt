@@ -17,6 +17,13 @@ import (
 // within one filter string separated by |, which are intersected).
 type Filters []*Filter
 
+// ErrBoundaryRequiresExperiment is returned when a filter expression uses the
+// inline "(dir)" graph boundary operand without the bounded-filter experiment
+// enabled.
+var ErrBoundaryRequiresExperiment = errors.New(
+	"the inline '(dir)' graph boundary requires the 'bounded-filter' experiment to be enabled (e.g., --experiment=bounded-filter)",
+)
+
 // ParseFilterQueries parses multiple filter strings and returns a Filters object.
 // Collects all parse errors and returns them as a joined error if any occur.
 // Returns an empty Filters if filterStrings is empty.
@@ -65,6 +72,18 @@ func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 func (f Filters) HasPositiveFilter() bool {
 	for _, filter := range f {
 		if !IsNegated(filter.expr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// HasGraphBoundary reports whether any filter carries an inline "(dir)"
+// graph boundary operand.
+func (f Filters) HasGraphBoundary() bool {
+	for _, filter := range f {
+		if filter.HasGraphBoundary() {
 			return true
 		}
 	}
