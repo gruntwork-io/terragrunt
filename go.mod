@@ -5,7 +5,6 @@ go 1.26
 require (
 	cloud.google.com/go/storage v1.62.3
 	dario.cat/mergo v1.0.2
-	github.com/NYTimes/gziphandler v1.1.1
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/creack/pty v1.1.24
