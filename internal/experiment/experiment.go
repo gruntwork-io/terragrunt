@@ -51,7 +51,9 @@ const (
 	// dependency relationships and arbitrary configuration overrides during
 	// stack generation. See RFC #5663.
 	StackDependencies = "stack-dependencies"
-	// CatalogRedesign is the experiment that enables the redesigned catalog experience.
+	// CatalogRedesign names the now-default catalog experience: whole-repository
+	// discovery, tabbed browsing, and an interactive scaffolding form. It is no
+	// longer gated and the flag is retained only for backwards compatibility.
 	CatalogRedesign = "catalog-redesign"
 	// MarkManyAsRead names the now-stable behaviors that mark many files as
 	// read in one step: automatic marking of files inside a local terraform
