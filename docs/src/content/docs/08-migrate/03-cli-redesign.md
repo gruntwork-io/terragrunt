@@ -29,7 +29,7 @@ All of the changes you need to make to adopt to this new CLI design involve chan
 
 If you are currently using flags that are prefixed with `terragrunt-`, you will need to stop using that flag, and use a differently named one instead (usually the same exact flag with `terragrunt-` removed from the beginning, but not always).
 
-For example, if you are using the `--terragrunt-non-interactive` flag, you will need to switch to the [`--non-interactive`](/reference/cli/global-flags/#non-interactive) flag instead.
+For example, if you are using the `--terragrunt-non-interactive` flag, you will need to switch to the [`--non-interactive`](/reference/cli/global-flags/#--non-interactive) flag instead.
 
 Before:
 
@@ -129,7 +129,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 
 If you are currently using environment variables to configure Terragrunt, you will need to stop using that environment variable, and use a differently named one instead (usually the same exact environment variable with `TERRAGRUNT_` replaced with `TG_`, but not always).
 
-For example, if you are using the `TERRAGRUNT_NON_INTERACTIVE` environment variable, you will need to switch to the [`TG_NON_INTERACTIVE`](/reference/cli/global-flags/#non-interactive) environment variable instead.
+For example, if you are using the `TERRAGRUNT_NON_INTERACTIVE` environment variable, you will need to switch to the [`TG_NON_INTERACTIVE`](/reference/cli/global-flags/#--non-interactive) environment variable instead.
 
 Before:
 
