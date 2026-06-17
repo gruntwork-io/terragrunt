@@ -188,7 +188,11 @@ type fakeS3Head struct {
 	gotInput *s3.HeadObjectInput
 }
 
-func (f *fakeS3Head) HeadObject(_ context.Context, in *s3.HeadObjectInput, _ ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+func (f *fakeS3Head) HeadObject(
+	_ context.Context,
+	in *s3.HeadObjectInput,
+	_ ...func(*s3.Options),
+) (*s3.HeadObjectOutput, error) {
 	f.gotInput = in
 
 	if f.err != nil {
@@ -270,7 +274,11 @@ type assertingS3Head struct {
 	t *testing.T
 }
 
-func (f *assertingS3Head) HeadObject(_ context.Context, _ *s3.HeadObjectInput, _ ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+func (f *assertingS3Head) HeadObject(
+	_ context.Context,
+	_ *s3.HeadObjectInput,
+	_ ...func(*s3.Options),
+) (*s3.HeadObjectOutput, error) {
 	f.t.Fatalf("HeadObject must not be reached for an unsupported S3 URL form")
 	return nil, nil
 }
