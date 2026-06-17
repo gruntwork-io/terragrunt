@@ -1,0 +1,8 @@
+---
+version: "v1.1.0"
+category: "process-updates"
+---
+
+#### Install script verifies release attestations
+
+The install script now checks downloaded release assets against the release attestation that ships with [immutable releases](/process/releases#immutable-releases). For releases starting with `v1.1.0`, when an authenticated [GitHub CLI](https://cli.github.com/) (v2.81.0 or later) is available, the script verifies the checksums file and the binary against the attestation before installing, and aborts if either does not match the published release. The check is skipped with a warning when `gh` is unavailable, too old, or unauthenticated. Use `--no-verify-attestation` to opt out.
