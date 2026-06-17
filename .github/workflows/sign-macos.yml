@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
         with:
           version: 2026.5.12
         env:
@@ -121,7 +121,7 @@ jobs:
         run: .github/scripts/release/prepare-macos-artifacts.sh artifacts bin
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
         with:
           version: 2026.5.12
         env:
