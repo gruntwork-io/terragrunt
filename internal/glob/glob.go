@@ -218,14 +218,22 @@ func (o expandOptions) checkBoundary(fs vfs.FS, root string) error {
 	return nil
 }
 
-// resolvePath returns the symlink-resolved form of p, falling back to the
-// cleaned path when resolution fails, for example when p does not exist.
+// resolvePath returns the symlink-resolved form of p. EvalSymlinks resolves
+// only paths that exist, so resolving the longest existing ancestor and
+// rejoining the remaining components keeps an absent path comparable with a
+// resolved one instead of leaving it merely cleaned.
 func resolvePath(fs vfs.FS, p string) string {
+	p = filepath.Clean(p)
+
 	if resolved, err := vfs.EvalSymlinks(fs, p); err == nil {
 		return resolved
 	}
 
-	return filepath.Clean(p)
+	if parent := filepath.Dir(p); parent != p {
+		return filepath.Join(resolvePath(fs, parent), filepath.Base(p))
+	}
+
+	return p
 }
 
 // withinBoundary reports whether p is boundary or a descendant of it. Both
