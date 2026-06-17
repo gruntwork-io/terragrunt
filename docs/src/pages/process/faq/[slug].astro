@@ -1,0 +1,51 @@
+export const prerender = true;
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { getCollection, render } from 'astro:content';
+import { sortFaqEntries, type FaqEntry } from '@lib/faq';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('faq');
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+interface Props {
+  entry: FaqEntry;
+}
+
+const { entry } = Astro.props;
+
+// Order all questions the same way the index table does, so prev/next walk the
+// list in the order a reader sees it.
+const ordered = sortFaqEntries(await getCollection('faq'));
+const currentIndex = ordered.findIndex((e) => e.id === entry.id);
+const prevEntry = currentIndex > 0 ? ordered[currentIndex - 1] : null;
+const nextEntry =
+  currentIndex >= 0 && currentIndex < ordered.length - 1
+    ? ordered[currentIndex + 1]
+    : null;
+
+const { Content } = await render(entry);
+---
+
+<StarlightPage
+  frontmatter={{
+    title: entry.data.question,
+    description: entry.data.description,
+    tableOfContents: false,
+    prev: prevEntry
+      ? { label: prevEntry.data.question, link: `/process/faq/${prevEntry.id}` }
+      : { label: 'All FAQs', link: '/process/faq' },
+    next: nextEntry
+      ? { label: nextEntry.data.question, link: `/process/faq/${nextEntry.id}` }
+      : false,
+  }}
+>
+  <Content />
+
+  <hr />
+  <p><a href="/process/faq">← Back to all frequently asked questions</a></p>
+</StarlightPage>

@@ -1,0 +1,37 @@
+---
+title: Terragrunt Frequently Asked Questions
+description: We know there's a lot to learn about Terragrunt. Here are the frequently asked questions that users have asked and that you might find helpful!
+slug: process/faq
+sidebar:
+  order: 5
+pagefind: false
+---
+
+{/* FAQ entries are managed in docs/src/data/faq/ as one Markdown/MDX file per
+question. Add new entries there, not here.
+
+This file is an intentionally-empty placeholder. Its visible content is rendered
+by docs/src/pages/process/faq.astro (the Question/Answer index table) and
+docs/src/pages/process/faq/[slug].astro (each question's own answer page). The
+placeholder must stay in place so the sidebar resolves the /process/faq route
+and so contributors can discover where FAQ content lives.
+
+To add a question, create a file in docs/src/data/faq/, e.g.
+`docs/src/data/faq/how-do-i-do-x.mdx`. The file name (without extension) becomes
+the URL slug under /process/faq/. Each file has frontmatter followed by the full
+answer in Markdown:
+
+---
+question: "How do I do X?"        # the question (shown + linked in the table)
+description: "A short, 1-2 line answer."  # preview shown in the Answer column
+order: 3                          # optional; lower numbers sort first
+---
+
+The full answer goes here, in normal Markdown. This becomes the question's own
+page at /process/faq/how-do-i-do-x, which the index table links to.
+
+The table, ordering, two-line answer preview, and per-question pages are handled
+by the routes above and docs/src/lib/faq.ts — no edits there are needed to add a
+question.
+
+*/}
