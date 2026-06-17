@@ -1,0 +1,51 @@
+---
+title: "Keep your backend configuration DRY"
+description: "Define your remote state backend once in the root configuration and have every unit inherit it, instead of repeating backend blocks in each unit."
+author: "The Gruntwork Team"
+order: 1
+---
+
+A common source of duplication in OpenTofu/Terraform codebases is the remote
+state backend block, which has to be repeated in every module. Terragrunt lets
+you define it once and generate it into every unit.
+
+## The pattern
+
+In your root `terragrunt.hcl`, configure the backend and have Terragrunt
+generate it for each unit:
+
+```hcl
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    bucket         = "my-terraform-state"
+    key            = "${path_relative_to_include()}/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+```
+
+Each child unit then includes the root configuration:
+
+```hcl
+include "root" {
+  path = find_in_parent_folders()
+}
+```
+
+Now every unit writes its state to a unique key derived from its path, and you
+never repeat the backend configuration.
+
+## Why it works
+
+- `path_relative_to_include()` gives each unit a distinct state key.
+- `generate` writes the backend block into the unit at runtime, so OpenTofu/Terraform
+  sees a normal backend configuration.
+
+See [State Backend](/features/units/state-backend/) for the full reference.

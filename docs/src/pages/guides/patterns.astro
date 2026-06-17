@@ -1,0 +1,98 @@
+export const prerender = true;
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { getCollection } from 'astro:content';
+import { sortPatternEntries } from '@lib/patterns';
+
+const patterns = sortPatternEntries(await getCollection('patterns'));
+---
+
+<StarlightPage
+  frontmatter={{
+    title: 'Terragrunt Patterns',
+    description: 'Real-world patterns and examples for building with Terragrunt, contributed by the community.',
+    tableOfContents: false,
+  }}
+>
+  <p>Real-world patterns and examples for building with Terragrunt, contributed by the community.</p>
+
+  {patterns.length === 0 ? (
+    <p><em>No patterns have been added yet.</em></p>
+  ) : (
+    <ul class="pattern-grid">
+      {patterns.map((entry) => (
+        <li class="pattern-card">
+          <a href={`/guides/patterns/${entry.id}`}>
+            <span class="pattern-title">{entry.data.title}</span>
+            <span class="pattern-description">{entry.data.description}</span>
+            <span class="pattern-author">{entry.data.author}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+</StarlightPage>
+
+<style>
+  .pattern-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    list-style: none;
+    padding: 0;
+    margin: 1.5rem 0 0;
+  }
+
+  .pattern-card {
+    margin: 0;
+  }
+
+  .pattern-card a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    height: 100%;
+    padding: 1.25rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    background: var(--sl-color-black);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .pattern-card a:hover,
+  .pattern-card a:focus-visible {
+    border-color: var(--sl-color-accent);
+    background: var(--sl-color-gray-6);
+  }
+
+  .pattern-title {
+    font-size: var(--sl-text-h4);
+    font-weight: 600;
+    color: var(--sl-color-white);
+    line-height: 1.3;
+  }
+
+  .pattern-description {
+    color: var(--sl-color-gray-2);
+    line-height: 1.5;
+  }
+
+  /* Push the author to the bottom of the card so cards in a row align. */
+  .pattern-author {
+    margin-top: auto;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+
+  .pattern-author::before {
+    content: 'By ';
+  }
+
+  @media (max-width: 50rem) {
+    .pattern-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

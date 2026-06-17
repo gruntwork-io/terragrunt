@@ -18,6 +18,7 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
         collapsed: true,
         items: [{ autogenerate: { directory: "02-guides/02-continuous-integration-with-terragrunt", collapsed: true } }],
       },
+      { label: "Patterns", link: "/guides/patterns" },
     ],
     collapsed: true,
   },
