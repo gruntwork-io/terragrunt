@@ -12,8 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-const InvalidHandleErrorMessage = "The handle is invalid"
-
 // PrepareConsole enables support for escape sequences on Windows.
 // Returns true if virtual terminal processing was successfully enabled on at least one output handle.
 // https://stackoverflow.com/questions/56460651/golang-fmt-print-033c-and-fmt-print-x1bc-are-not-clearing-screenansi-es
@@ -94,11 +92,7 @@ func enableVirtualTerminalProcessing(logger log.Logger, file *os.File) bool {
 
 	handle := windows.Handle(file.Fd())
 	if err := windows.GetConsoleMode(handle, &mode); err != nil {
-		if strings.Contains(err.Error(), InvalidHandleErrorMessage) {
-			logger.Debugf("failed to get console mode: %v", err)
-		} else {
-			logger.Errorf("failed to get console mode: %v", err)
-		}
+		logger.Debugf("failed to get console mode: %v", err)
 
 		return false
 	}
