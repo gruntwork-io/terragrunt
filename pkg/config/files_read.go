@@ -1,6 +1,7 @@
 package config
 
 import (
+	"maps"
 	"slices"
 	"sync"
 )
@@ -10,8 +11,9 @@ import (
 // and returns zero values from accessors, so call sites that don't need to
 // track reads can pass nil.
 type FilesRead struct {
-	paths []string
-	mu    sync.RWMutex
+	seen     map[string]struct{}
+	seenDirs map[string]struct{}
+	mu       sync.Mutex
 }
 
 // NewFilesRead returns an empty FilesRead ready for concurrent use.
@@ -28,23 +30,23 @@ func (f *FilesRead) Add(path string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if slices.Contains(f.paths, path) {
-		return
+	if f.seen == nil {
+		f.seen = make(map[string]struct{})
 	}
 
-	f.paths = append(f.paths, path)
+	f.seen[path] = struct{}{}
 }
 
-// Paths returns a snapshot copy of the recorded paths in insertion order.
+// Paths returns the recorded paths in lexical order.
 func (f *FilesRead) Paths() []string {
 	if f == nil {
 		return nil
 	}
 
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
-	return slices.Clone(f.paths)
+	return slices.Sorted(maps.Keys(f.seen))
 }
 
 // Len returns the number of recorded paths.
@@ -53,8 +55,33 @@ func (f *FilesRead) Len() int {
 		return 0
 	}
 
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
-	return len(f.paths)
+	return len(f.seen)
+}
+
+// MarkDirIfNew records dir as a walked module directory and returns true if dir
+// had not been visited before, false if it was already recorded. The check and
+// mark are a single atomic operation, so concurrent callers for the same dir
+// produce exactly one true result.
+func (f *FilesRead) MarkDirIfNew(dir string) bool {
+	if f == nil {
+		return true
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.seenDirs == nil {
+		f.seenDirs = make(map[string]struct{})
+	}
+
+	if _, ok := f.seenDirs[dir]; ok {
+		return false
+	}
+
+	f.seenDirs[dir] = struct{}{}
+
+	return true
 }

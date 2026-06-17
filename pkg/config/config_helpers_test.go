@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -155,116 +153,6 @@ func TestPathRelativeFromInclude(t *testing.T) {
 		actualPath, actualErr := config.PathRelativeFromInclude(ctx, pctx, l, tc.params)
 		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
 		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
-	}
-}
-
-func TestRunCommand(t *testing.T) {
-	t.Parallel()
-
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows because it doesn't support bash")
-	}
-
-	homeDir := os.Getenv("HOME")
-
-	testCases := []struct {
-		expectErr      func(t *testing.T, err error)
-		configPath     string
-		expectedOutput string
-		params         []string
-	}{
-		{
-			params:         []string{"/bin/bash", "-c", "echo -n foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "/bin/bash", "-c", "echo -n foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:     []string{"--terragrunt-no-cache", "--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath: homeDir,
-			expectErr: func(t *testing.T, err error) {
-				t.Helper()
-				require.ErrorAs(t, err, new(config.ConflictingRunCmdCacheOptionsError))
-			},
-		},
-		{
-			params:     []string{"--terragrunt-global-cache", "--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath: homeDir,
-			expectErr: func(t *testing.T, err error) {
-				t.Helper()
-				require.ErrorAs(t, err, new(config.ConflictingRunCmdCacheOptionsError))
-			},
-		},
-		{
-			configPath: homeDir,
-			expectErr: func(t *testing.T, err error) {
-				t.Helper()
-				require.ErrorAs(t, err, new(config.EmptyStringNotAllowedError))
-			},
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.configPath, func(t *testing.T) {
-			t.Parallel()
-
-			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, tc.configPath)
-
-			actualOutput, actualErr := config.RunCommand(ctx, pctx, l, vexec.NewOSExec(), tc.params)
-			if tc.expectErr != nil {
-				require.Error(t, actualErr)
-				tc.expectErr(t, actualErr)
-
-				return
-			}
-
-			require.NoError(t, actualErr)
-			assert.Equal(t, tc.expectedOutput, actualOutput)
-		})
 	}
 }
 
@@ -1711,7 +1599,7 @@ func TestRunCommandOptionsOnlyArityRegression(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, "")
 
 			require.NotPanics(t, func() {
-				_, err := config.RunCommand(ctx, pctx, l, vexec.NewOSExec(), tc.params)
+				_, err := config.RunCommand(ctx, pctx, l, tc.params)
 				require.Error(t, err, "must return error when only option flags are supplied (%v)", tc.params)
 				require.ErrorAs(t, err, new(config.EmptyStringNotAllowedError))
 			}, "run_cmd with options-only %v must not panic", tc.params)

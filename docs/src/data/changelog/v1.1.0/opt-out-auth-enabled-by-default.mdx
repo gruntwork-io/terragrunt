@@ -1,0 +1,26 @@
+---
+version: "v1.1.0"
+category: "new-features"
+order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+#### Skip auth during discovery with `--no-discovery-auth-provider-cmd`
+
+By default, Terragrunt runs your [`--auth-provider-cmd`](/features/units/authentication) once for every unit it discovers, so HCL functions that need credentials resolve correctly during parsing. In a large repository, that can mean hundreds of invocations before any unit runs, which can dominate wall-clock time on change-based runs.
+
+The `--no-discovery-auth-provider-cmd` flag (env: `TG_NO_DISCOVERY_AUTH_PROVIDER_CMD`) skips those invocations during the discovery phase, leaving auth to run only for the units that actually execute:
+
+```bash
+terragrunt run --all \
+  --no-discovery-auth-provider-cmd \
+  --queue-include-units-reading=./changed-file.txt \
+  -- plan
+```
+
+<Aside type="caution">
+  Use this only when you know parsing resolves without credentials. Units whose configuration depends on values from `--auth-provider-cmd` during discovery (for example, via `get_aws_account_id()`) will fail to parse when the flag is set.
+</Aside>
+
+Previously gated behind the `opt-out-auth` experiment, the flag now works without `--experiment opt-out-auth`.

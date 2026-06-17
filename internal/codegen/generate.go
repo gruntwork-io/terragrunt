@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -157,6 +158,13 @@ func WriteToFile(l log.Logger, basePath string, config *GenerateConfig) error {
 	contentsToWrite := fmt.Appendf(nil, "%s%s", prefix, config.Contents)
 	if fmtGeneratedCode {
 		contentsToWrite = hclwrite.Format(contentsToWrite)
+	}
+
+	// CAS may materialize the target as a read-only hard link, so remove it before writing
+	if targetFileExists && util.IsFile(targetPath) {
+		if err := os.Remove(targetPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
 	}
 
 	const ownerWriteGlobalReadPerms = 0644

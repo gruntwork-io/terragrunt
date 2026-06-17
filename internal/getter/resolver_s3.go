@@ -17,13 +17,8 @@ import (
 )
 
 // ErrS3UnrecognizedURL is returned when an amazonaws.com URL does not match
-// a supported S3 path-style or legacy virtual-host shape.
+// a supported S3 path-style or virtual-host shape.
 var ErrS3UnrecognizedURL = errors.New("not a recognized S3 URL")
-
-// ErrS3ModernPathStyleUnsupported is returned for `s3.<region>.amazonaws.com`
-// URLs. The upstream go-getter/s3 v2 Getter rejects them, so the resolver
-// rejects them too to keep probe success aligned with fetch success.
-var ErrS3ModernPathStyleUnsupported = errors.New("modern path-style S3 URL not supported (use s3-<region>.amazonaws.com instead)")
 
 // ErrS3CompatibleUnrecognizedURL is returned when a non-amazonaws.com URL
 // does not have the host/<bucket>/<key> path shape required for S3-compatible
@@ -35,11 +30,14 @@ var ErrS3CompatibleUnrecognizedURL = errors.New("not a recognized S3-compatible 
 const s3ResolverTimeout = 10 * time.Second
 
 // Host-part counts for AWS S3 URL forms.
-// Path style: `<region>.amazonaws.com`.
-// Virtual-host style: `<bucket>.<region>.amazonaws.com`.
+// Legacy path style: `s3[-<region>].amazonaws.com`.
+// Legacy virtual-host style: `<bucket>.s3[-<region>].amazonaws.com`.
+// Modern path style: `s3.<region>.amazonaws.com`.
+// Modern virtual-host style: `<bucket>.s3.<region>.amazonaws.com`.
 const (
-	s3HostPartsPathStyle  = 3
-	s3HostPartsVHostStyle = 4
+	s3HostPartsPathStyle        = 3
+	s3HostPartsVHostStyle       = 4
+	s3HostPartsModernVHostStyle = 5
 	// s3URLPathSegments is the count produced by splitting `/bucket/key`
 	// on "/" with limit 3: ["", "bucket", "key"]. Used as a validation
 	// gate before indexing.
@@ -55,17 +53,19 @@ type S3API interface {
 // S3Resolver is a [cas.SourceResolver] for objects in Amazon S3 and
 // S3-compatible services.
 //
-// Supported URL forms (constrained by the upstream go-getter/s3/v2
-// Getter, whose parseUrl enforces a 3-part `amazonaws.com` hostname):
+// Supported URL forms:
 //
-//	https://s3.amazonaws.com/<bucket>/<key>           (global path-style)
-//	https://s3-<region>.amazonaws.com/<bucket>/<key>  (legacy regional path-style)
-//	https://<host>/<bucket>/<key>?region=<region>     (S3-compatible service)
+//	https://s3.amazonaws.com/<bucket>/<key>                  (global path-style)
+//	https://s3-<region>.amazonaws.com/<bucket>/<key>         (legacy regional path-style)
+//	https://s3.<region>.amazonaws.com/<bucket>/<key>         (modern path-style)
+//	https://<bucket>.s3.amazonaws.com/<key>                  (global virtual-host)
+//	https://<bucket>.s3-<region>.amazonaws.com/<key>         (legacy regional virtual-host)
+//	https://<bucket>.s3.<region>.amazonaws.com/<key>         (modern virtual-host)
+//	https://<host>/<bucket>/<key>?region=<region>            (S3-compatible service)
 //
-// Modern virtual-host URLs (`<bucket>.s3.<region>.amazonaws.com`,
-// 5-part) and modern path-style URLs (`s3.<region>.amazonaws.com`,
-// 4-part) are rejected by both the bare getter and this resolver. Use
-// the legacy regional form above.
+// The upstream go-getter/s3/v2 Getter only parses the path-style forms;
+// [S3Getter] canonicalizes the rest before the fetch, so probe support
+// here stays aligned with fetch support there.
 type S3Resolver struct {
 	// NewClient builds an S3 client per request. Nil means the resolver
 	// uses the AWS SDK default config (env, profile, IMDS) with a
@@ -222,13 +222,18 @@ func parseS3URL(u *url.URL) (s3Target, error) {
 
 			return s3Target{Region: region, Bucket: pathParts[1], Key: pathParts[2], Version: version}, nil
 		case s3HostPartsVHostStyle:
-			// hostParts[0] == "s3" is the modern path-style
-			// (`s3.<region>.amazonaws.com`), which the upstream
-			// go-getter/s3 v2 Getter rejects. Reject at probe time too
-			// so the failure mode matches the fetcher's rather than
-			// silently misparsing bucket="s3".
+			// hostParts[0] == "s3" is the modern path-style form
+			// (`s3.<region>.amazonaws.com/<bucket>/<key>`); the region
+			// is the second label. An exact "s3" match keeps non-S3
+			// services (e.g. sts.us-east-1.amazonaws.com) from parsing
+			// as S3 with a bogus region.
 			if hostParts[0] == "s3" {
-				return s3Target{}, fmt.Errorf("%w: %q", ErrS3ModernPathStyleUnsupported, u.String())
+				pathParts := strings.SplitN(u.Path, "/", s3URLPathSegments)
+				if len(pathParts) != s3URLPathSegments {
+					return s3Target{}, fmt.Errorf("%w: %q", ErrS3UnrecognizedURL, u.String())
+				}
+
+				return s3Target{Region: hostParts[1], Bucket: pathParts[1], Key: pathParts[2], Version: version}, nil
 			}
 
 			// Legacy virtual-host style: <bucket>.s3[-<region>].amazonaws.com/<key>.
@@ -242,6 +247,21 @@ func parseS3URL(u *url.URL) (s3Target, error) {
 
 			return s3Target{
 				Region:  region,
+				Bucket:  hostParts[0],
+				Key:     strings.TrimPrefix(u.Path, "/"),
+				Version: version,
+			}, nil
+		case s3HostPartsModernVHostStyle:
+			// Modern virtual-host style: <bucket>.s3.<region>.amazonaws.com/<key>.
+			// The label after the bucket must be exactly "s3"; any other
+			// label means a non-S3 service or an endpoint variant
+			// (dualstack, fips, accesspoint) this parser does not claim.
+			if hostParts[1] != "s3" {
+				return s3Target{}, fmt.Errorf("%w: %q", ErrS3UnrecognizedURL, u.String())
+			}
+
+			return s3Target{
+				Region:  hostParts[2],
 				Bucket:  hostParts[0],
 				Key:     strings.TrimPrefix(u.Path, "/"),
 				Version: version,
@@ -295,13 +315,12 @@ func strPtr(p *string) string {
 // canonicalAWSS3HTTPSURL returns the path-style HTTPS URL for an AWS S3
 // URL in any supported form, preserving the user's query string. ok is
 // false when u is not http/https against an amazonaws.com host, or when
-// the host matches a form the bare go-getter v2 s3 getter rejects (modern
-// virtual-host and modern path-style).
+// the host is not a recognized S3 shape (e.g. another AWS service).
 //
-// The rewrite exists because the bare s3 getter's parseUrl only accepts
-// path-style hosts (`s3.amazonaws.com`, `s3-<region>.amazonaws.com`), so
-// routing a virtual-host URL to it without canonicalization would set up
-// a doomed inner fetch on every cache miss.
+// The rewrite exists because the bare go-getter/s3/v2 getter's parseUrl
+// only accepts legacy path-style hosts (`s3.amazonaws.com`,
+// `s3-<region>.amazonaws.com`), so routing any other S3 URL form to it
+// without canonicalization would set up a doomed fetch.
 func canonicalAWSS3HTTPSURL(u *url.URL) (string, bool) {
 	if u == nil {
 		return "", false

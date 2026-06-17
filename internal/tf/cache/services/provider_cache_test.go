@@ -5,11 +5,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 func TestRemoveStaleSymlink(t *testing.T) {
@@ -34,7 +35,7 @@ func TestRemoveStaleSymlink(t *testing.T) {
 				t.Helper()
 
 				_, err := vfs.Lstat(fs, path)
-				assert.True(t, os.IsNotExist(err), "expected NotExist, got %v", err)
+				assert.ErrorIs(t, err, os.ErrNotExist, "expected NotExist, got %v", err)
 			},
 		},
 		{
@@ -51,7 +52,7 @@ func TestRemoveStaleSymlink(t *testing.T) {
 				t.Helper()
 
 				_, err := vfs.Lstat(fs, path)
-				assert.True(t, os.IsNotExist(err), "expected NotExist after remove, got %v", err)
+				assert.ErrorIs(t, err, os.ErrNotExist, "expected NotExist after remove, got %v", err)
 			},
 		},
 		{

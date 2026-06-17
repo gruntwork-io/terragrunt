@@ -1,0 +1,8 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: component path references in `values` no longer break next to `autoinclude` blocks
+
+A `unit` or `stack` block's `values` can reference `unit.<name>.path` and `stack.<name>.path` even when another block in the same `terragrunt.stack.hcl` declares an `autoinclude`. Previously, the presence of any `autoinclude` block made `stack generate` reject those references with `Unknown variable; There is no variable named "unit"`, while the same file without an `autoinclude` generated fine.

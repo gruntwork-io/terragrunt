@@ -314,7 +314,7 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalIncludePreventDestroyDependencies)
 
 	// Populate module paths.

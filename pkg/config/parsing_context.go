@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -38,6 +39,12 @@ const (
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
 	Writers writer.Writers
+
+	// Venv is the virtualized environment used by HCL helper functions
+	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
+	// Defaults to the OS-backed environment when [NewParsingContext] is
+	// called; callers with a threaded root Venv set it before parsing.
+	Venv venv.Venv
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
@@ -112,6 +119,7 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (conte
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
 		FilesRead:        NewFilesRead(),
+		Venv:             venv.OSVenv(),
 	}
 
 	for _, opt := range opts {

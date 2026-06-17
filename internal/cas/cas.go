@@ -332,10 +332,11 @@ func (c *CAS) populateTreeFromSymbolicRef(
 
 		runner := v.Git.WithWorkDir(repo.Path)
 
-		return c.storeRootTreeFrom(ctx, l, v, runner, ref.Hash, opts)
+		return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts)
 	}
 
 	l.Warnf("central git store unavailable for %s, falling back to temporary clone: %v", ref.URL, err)
+	RecordFallback(ctx, l, FallbackReasonGitStoreUnavailable, map[string]any{"url": ref.URL})
 
 	tempDir, cleanup, err := c.makeFallbackCloneDir(l, v)
 	if err != nil {
@@ -350,7 +351,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 		return err
 	}
 
-	return c.storeRootTreeFrom(ctx, l, v, runner, ref.Hash, opts)
+	return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts)
 }
 
 // populateTreeFromCommitRef resolves ref via [GitStore.EnsureCommit]
@@ -374,7 +375,7 @@ func (c *CAS) populateTreeFromCommitRef(
 
 		runner := v.Git.WithWorkDir(repo.Path)
 
-		if err := c.storeRootTreeFrom(ctx, l, v, runner, repo.Hash, opts); err != nil {
+		if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, repo.Hash, opts); err != nil {
 			return "", err
 		}
 
@@ -386,6 +387,7 @@ func (c *CAS) populateTreeFromCommitRef(
 	}
 
 	l.Warnf("central git store unavailable for %s, falling back to temporary clone: %v", ref.URL, err)
+	RecordFallback(ctx, l, FallbackReasonGitStoreUnavailable, map[string]any{"url": ref.URL})
 
 	tempDir, cleanup, err := c.makeFallbackCloneDir(l, v)
 	if err != nil {
@@ -417,7 +419,7 @@ func (c *CAS) populateTreeFromCommitRef(
 		return canonicalHash, nil
 	}
 
-	if err := c.storeRootTreeFrom(ctx, l, v, runner, canonicalHash, opts); err != nil {
+	if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, canonicalHash, opts); err != nil {
 		return "", err
 	}
 
@@ -549,13 +551,15 @@ func looksLikeFullSHA(s string) bool {
 // storeRootTreeFrom reads the recursive tree at hash from the supplied
 // runner's working repository and stores its tree and reachable blobs in
 // the CAS. The runner must already have its WorkDir pointed at a bare repo
-// (or worktree) that contains the requested object.
+// (or worktree) that contains the requested object. url is the remote the
+// repository came from; submodule ingestion resolves relative .gitmodules
+// URLs against it.
 func (c *CAS) storeRootTreeFrom(
 	ctx context.Context,
 	l log.Logger,
 	v Venv,
 	runner *git.GitRunner,
-	hash string,
+	url, hash string,
 	opts *CloneOptions,
 ) error {
 	tree, err := runner.LsTreeRecursive(ctx, hash)
@@ -563,7 +567,7 @@ func (c *CAS) storeRootTreeFrom(
 		return err
 	}
 
-	if err = c.storeTreeRecursive(ctx, l, v, runner, hash, tree); err != nil {
+	if err = c.storeTreeRecursive(ctx, l, v, runner, url, hash, tree); err != nil {
 		return err
 	}
 
@@ -609,13 +613,15 @@ func (c *CAS) storeRootTreeFrom(
 	return treeContent.Store(l, v, hash, data)
 }
 
-// storeTreeRecursive stores a tree fetched from git ls-tree -r.
+// storeTreeRecursive stores a tree fetched from git ls-tree -r. The tree
+// object is written last so a tree-store hit implies every blob and
+// submodule tree it references is already present.
 func (c *CAS) storeTreeRecursive(
 	ctx context.Context,
 	l log.Logger,
 	v Venv,
 	runner *git.GitRunner,
-	hash string,
+	url, hash string,
 	tree *git.Tree,
 ) error {
 	if !c.treeStore.NeedsWrite(v, hash) {
@@ -623,6 +629,10 @@ func (c *CAS) storeTreeRecursive(
 	}
 
 	if err := c.storeBlobs(ctx, v, runner, tree.Entries()); err != nil {
+		return err
+	}
+
+	if err := c.storeSubmodules(ctx, l, v, runner, url, tree); err != nil {
 		return err
 	}
 
@@ -634,9 +644,16 @@ func (c *CAS) storeTreeRecursive(
 	return nil
 }
 
-// storeBlobs stores blobs in the CAS.
+// storeBlobs stores blobs in the CAS. Gitlink entries (type "commit")
+// name objects that live in another repository entirely, so only blob
+// entries are written; submodule contents arrive via
+// [CAS.storeSubmodules].
 func (c *CAS) storeBlobs(ctx context.Context, v Venv, runner *git.GitRunner, entries []git.TreeEntry) error {
 	for _, entry := range entries {
+		if entry.Type != git.EntryTypeBlob {
+			continue
+		}
+
 		if !c.blobStore.NeedsWrite(v, entry.Hash) {
 			continue
 		}
@@ -647,6 +664,72 @@ func (c *CAS) storeBlobs(ctx context.Context, v Venv, runner *git.GitRunner, ent
 	}
 
 	return nil
+}
+
+// storeSubmodules ingests the repositories behind gitlink entries so the
+// materializer can later link each submodule's tree by its pinned commit
+// hash, which is exactly the key the recursive ingest stores it under.
+// Submodule URLs come from the tree's .gitmodules blob, with relative
+// URLs resolved against url. Recursion bottoms out naturally: nested
+// gitlinks pin commits by hash, and a hash cycle cannot be constructed.
+//
+// Gitlinks without a .gitmodules entry (the shape left behind by
+// accidentally committing a nested repository) are skipped, and
+// materialization leaves an empty directory for them, matching
+// `git clone`.
+func (c *CAS) storeSubmodules(
+	ctx context.Context,
+	l log.Logger,
+	v Venv,
+	runner *git.GitRunner,
+	url string,
+	tree *git.Tree,
+) error {
+	var gitlinks []git.TreeEntry
+
+	for _, entry := range tree.Entries() {
+		if entry.Type == git.EntryTypeCommit {
+			gitlinks = append(gitlinks, entry)
+		}
+	}
+
+	if len(gitlinks) == 0 {
+		return nil
+	}
+
+	urls, err := submoduleURLs(ctx, runner, tree)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range gitlinks {
+		subURL, ok := urls[entry.Path]
+		if !ok {
+			l.Debugf("cas: gitlink %s has no .gitmodules entry, leaving an empty directory", entry.Path)
+			continue
+		}
+
+		resolvedURL := git.ResolveSubmoduleURL(url, subURL)
+
+		ref := &commitRef{URL: resolvedURL, RawRef: entry.Hash, Hash: entry.Hash}
+		if _, err := c.populateTreeFromRef(ctx, l, v, &CloneOptions{}, ref); err != nil {
+			return fmt.Errorf("fetch submodule %s from %s: %w", entry.Path, resolvedURL, err)
+		}
+	}
+
+	return nil
+}
+
+// submoduleURLs reads the submodule path → URL table from the tree's
+// .gitmodules blob. A tree without one yields an empty table.
+func submoduleURLs(ctx context.Context, runner *git.GitRunner, tree *git.Tree) (map[string]string, error) {
+	for _, entry := range tree.Entries() {
+		if entry.Path == git.GitmodulesPath && entry.Type == git.EntryTypeBlob {
+			return runner.SubmoduleURLs(ctx, entry.Hash)
+		}
+	}
+
+	return nil, nil
 }
 
 // ensureBlob ensures that a blob exists in the CAS.

@@ -4,14 +4,17 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// Build stack runner using discovery and queueing mechanisms.
+// Build stack runner using discovery and queueing mechanisms. v is the
+// virtualized environment used by the per-unit version-constraint probe.
 func Build(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	runnerOpts ...common.Option,
 ) (common.StackRunner, error) {
@@ -25,7 +28,7 @@ func Build(
 		return nil, err
 	}
 
-	if err := checkVersionConstraints(ctx, l, opts, rnr.GetStack().Units); err != nil {
+	if err := checkVersionConstraints(ctx, l, v.Exec, opts, rnr.GetStack().Units); err != nil {
 		return nil, err
 	}
 
