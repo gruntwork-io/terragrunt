@@ -219,7 +219,9 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *tes
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world"
+	srv := helpers.NewGitServer(t)
+	srv.AddFixtures("test/fixtures/download-source/hello-world")
+	canonicalURL := srv.SourceURL("test/fixtures/download-source/hello-world", "")
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
@@ -230,7 +232,9 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world"
+	srv := helpers.NewGitServer(t)
+	srv.AddFixtures("test/fixtures/download-source/hello-world")
+	canonicalURL := srv.SourceURL("test/fixtures/download-source/hello-world", "")
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
@@ -243,7 +247,9 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *te
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDifferentVersion(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world?ref=v0.83.2"
+	srv := helpers.NewGitServer(t)
+	srv.AddFixtures("test/fixtures/download-source/hello-world")
+	canonicalURL := srv.SourceURL("test/fixtures/download-source/hello-world", "v0.83.2")
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
@@ -256,8 +262,9 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDiffer
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVersion(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/" +
-		"download-source/hello-world-version-remote?ref=v0.83.2"
+	srv := helpers.NewGitServer(t)
+	srv.AddFixtures("test/fixtures/download-source/hello-world-version-remote")
+	canonicalURL := srv.SourceURL("test/fixtures/download-source/hello-world-version-remote", "v0.83.2")
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
@@ -295,7 +302,9 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world?ref=v0.83.2"
+	srv := helpers.NewGitServer(t)
+	srv.AddFixtures("test/fixtures/download-source/hello-world")
+	canonicalURL := srv.SourceURL("test/fixtures/download-source/hello-world", "v0.83.2")
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
@@ -308,7 +317,10 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T)
 func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "github.com/totallyfakedoesnotexist/notreal.git//foo?ref=v1.2.3"
+	// v1.2.3 is not among the server's seeded tags, so the clone fails
+	// offline and the download is reported as a DownloadingTerraformSourceErr.
+	srv := helpers.NewGitServer(t)
+	canonicalURL := srv.SourceURL("test/fixtures/download-source/hello-world", "v1.2.3")
 
 	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
@@ -873,14 +885,14 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
+	srv := helpers.NewGitServer(t)
+	srv.AddFixtures("test/fixtures/download/hello-world")
+
 	src := &tf.Source{
-		CanonicalSourceURL: parseURL(
-			t,
-			"github.com/gruntwork-io/terragrunt//test/fixtures/download/hello-world",
-		),
-		DownloadDir: tmpDir,
-		WorkingDir:  tmpDir,
-		VersionFile: filepath.Join(tmpDir, "version-file.txt"),
+		CanonicalSourceURL: parseURL(t, srv.SourceURL("test/fixtures/download/hello-world", "")),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
