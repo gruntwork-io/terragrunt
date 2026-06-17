@@ -127,6 +127,38 @@ url = "https://dl.google.com/go/go1.26.0.windows-amd64.zip"
 checksum = "sha256:9bbe0fc64236b2b51f6255c05c4232532b8ecc0e6d2e00950bd3021d8a4d07d4"
 url = "https://dl.google.com/go/go1.26.0.windows-amd64.zip"
 
+[[tools.go-junit-report]]
+version = "2.1.0"
+backend = "aqua:jstemmer/go-junit-report"
+
+[tools.go-junit-report."platforms.linux-x64"]
+url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-linux-amd64.tar.gz"
+
+[tools.go-junit-report."platforms.linux-x64-baseline"]
+url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-linux-amd64.tar.gz"
+
+[tools.go-junit-report."platforms.linux-x64-musl"]
+url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-linux-amd64.tar.gz"
+
+[tools.go-junit-report."platforms.linux-x64-musl-baseline"]
+url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-linux-amd64.tar.gz"
+
+[tools.go-junit-report."platforms.macos-arm64"]
+checksum = "blake3:33ef2867b00d5e2ffbdde455ba9c0472deba8cc6a8d11ff58fc657148cd5f47d"
+url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-darwin-arm64.tar.gz"
+
+[tools.go-junit-report."platforms.macos-x64"]
+url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-darwin-amd64.tar.gz"
+
+[tools.go-junit-report."platforms.macos-x64-baseline"]
+url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-darwin-amd64.tar.gz"
+
+[tools.go-junit-report."platforms.windows-x64"]
+url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-windows-amd64.zip"
+
+[tools.go-junit-report."platforms.windows-x64-baseline"]
+url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-windows-amd64.zip"
+
 [[tools."go:github.com/goph/licensei/cmd/licensei"]]
 version = "0.9.0"
 backend = "go:github.com/goph/licensei/cmd/licensei"
@@ -134,6 +166,10 @@ backend = "go:github.com/goph/licensei/cmd/licensei"
 [[tools."go:go.uber.org/mock/mockgen"]]
 version = "0.6.0"
 backend = "go:go.uber.org/mock/mockgen"
+
+[[tools."go:golang.org/x/tools/cmd/goimports"]]
+version = "0.38.0"
+backend = "go:golang.org/x/tools/cmd/goimports"
 
 [[tools."go:golang.org/x/tools/gopls"]]
 version = "0.20.0"
@@ -304,6 +340,90 @@ url = "https://github.com/opentofu/opentofu/releases/download/v1.12.2/tofu_1.12.
 [tools.opentofu."platforms.windows-x64-baseline"]
 checksum = "sha256:3498d3a5180e50e4a9d364520295a33c862fae96258abbe5f38fc536ce55bcc5"
 url = "https://github.com/opentofu/opentofu/releases/download/v1.12.2/tofu_1.12.2_windows_amd64.tar.gz"
+
+[[tools.pipx]]
+version = "1.8.0"
+backend = "aqua:pypa/pipx"
+
+[tools.pipx."platforms.linux-arm64"]
+checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601"
+url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"
+
+[tools.pipx."platforms.linux-arm64-musl"]
+checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601"
+url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"
+
+[tools.pipx."platforms.linux-x64"]
+checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601"
+url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"
+
+[tools.pipx."platforms.linux-x64-baseline"]
+checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601"
+url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"
+
+[tools.pipx."platforms.linux-x64-musl"]
+checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601"
+url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"
+
+[tools.pipx."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601"
+url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"
+
+[tools.pipx."platforms.macos-arm64"]
+checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601"
+url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"
+
+[tools.pipx."platforms.macos-x64"]
+checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601"
+url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"
+
+[tools.pipx."platforms.macos-x64-baseline"]
+checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601"
+url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"
+
+[[tools."pipx:codespell"]]
+version = "2.4.1"
+backend = "pipx:codespell"
+
+[[tools.pre-commit]]
+version = "4.2.0"
+backend = "aqua:pre-commit/pre-commit"
+
+[tools.pre-commit."platforms.linux-arm64"]
+checksum = "sha256:0d4d80fd598dd1f7c268569de49e7c7a692a3de6f7a97cf14ad4e6cce993bbdf"
+url = "https://github.com/pre-commit/pre-commit/releases/download/v4.2.0/pre-commit-4.2.0.pyz"
+
+[tools.pre-commit."platforms.linux-arm64-musl"]
+checksum = "sha256:0d4d80fd598dd1f7c268569de49e7c7a692a3de6f7a97cf14ad4e6cce993bbdf"
+url = "https://github.com/pre-commit/pre-commit/releases/download/v4.2.0/pre-commit-4.2.0.pyz"
+
+[tools.pre-commit."platforms.linux-x64"]
+checksum = "sha256:0d4d80fd598dd1f7c268569de49e7c7a692a3de6f7a97cf14ad4e6cce993bbdf"
+url = "https://github.com/pre-commit/pre-commit/releases/download/v4.2.0/pre-commit-4.2.0.pyz"
+
+[tools.pre-commit."platforms.linux-x64-baseline"]
+checksum = "sha256:0d4d80fd598dd1f7c268569de49e7c7a692a3de6f7a97cf14ad4e6cce993bbdf"
+url = "https://github.com/pre-commit/pre-commit/releases/download/v4.2.0/pre-commit-4.2.0.pyz"
+
+[tools.pre-commit."platforms.linux-x64-musl"]
+checksum = "sha256:0d4d80fd598dd1f7c268569de49e7c7a692a3de6f7a97cf14ad4e6cce993bbdf"
+url = "https://github.com/pre-commit/pre-commit/releases/download/v4.2.0/pre-commit-4.2.0.pyz"
+
+[tools.pre-commit."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:0d4d80fd598dd1f7c268569de49e7c7a692a3de6f7a97cf14ad4e6cce993bbdf"
+url = "https://github.com/pre-commit/pre-commit/releases/download/v4.2.0/pre-commit-4.2.0.pyz"
+
+[tools.pre-commit."platforms.macos-arm64"]
+checksum = "sha256:0d4d80fd598dd1f7c268569de49e7c7a692a3de6f7a97cf14ad4e6cce993bbdf"
+url = "https://github.com/pre-commit/pre-commit/releases/download/v4.2.0/pre-commit-4.2.0.pyz"
+
+[tools.pre-commit."platforms.macos-x64"]
+checksum = "sha256:0d4d80fd598dd1f7c268569de49e7c7a692a3de6f7a97cf14ad4e6cce993bbdf"
+url = "https://github.com/pre-commit/pre-commit/releases/download/v4.2.0/pre-commit-4.2.0.pyz"
+
+[tools.pre-commit."platforms.macos-x64-baseline"]
+checksum = "sha256:0d4d80fd598dd1f7c268569de49e7c7a692a3de6f7a97cf14ad4e6cce993bbdf"
+url = "https://github.com/pre-commit/pre-commit/releases/download/v4.2.0/pre-commit-4.2.0.pyz"
 
 [[tools.shellcheck]]
 version = "0.11.0"
