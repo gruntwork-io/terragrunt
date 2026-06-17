@@ -11,3 +11,6 @@ shellcheck = "0.11.0"
 shfmt = "3.13.1"
 jq = "1.8.1"
 bun = "1.2.2"
+
+[settings]
+lockfile = true
