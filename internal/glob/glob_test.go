@@ -321,6 +321,22 @@ func TestExpandBoundary(t *testing.T) {
 	}
 }
 
+// TestExpandBoundaryResolvesSymlinksConsistently pins that the boundary check
+// treats a walk root the same whether or not it exists on disk. The boundary
+// crosses a symlink, so an absent root that cannot be symlink-resolved on its
+// own must still be recognized as inside it rather than wrongly refused.
+func TestExpandBoundaryResolvesSymlinksConsistently(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/real", 0o755))
+	require.NoError(t, vfs.Symlink(fs, "/real", "/link"))
+
+	got, err := glob.Expand(fs, "/link/absent/*.yaml", glob.WithBoundary("/link"))
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
 // TestLegacyExpandCollapsesGlobstar documents the reason LegacyExpand exists:
 // zglob collapses the separators flanking `**`, whereas Expand (gobwas) does
 // not. Switching the include_in_copy / exclude_from_copy call site from
