@@ -35,7 +35,7 @@ Each child unit then includes the root configuration:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 ```
 
