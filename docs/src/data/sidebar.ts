@@ -138,6 +138,7 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
       { label: "CLI Rules", slug: "process/cli-rules" },
       { label: "Releases", slug: "process/releases" },
       { label: "Changelog", link: "/process/changelog" },
+      { label: "FAQ", link: "/process/faq" },
     ],
   },
   {
