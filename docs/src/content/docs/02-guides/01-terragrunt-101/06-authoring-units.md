@@ -249,7 +249,7 @@ live/
 | :-------------- | :--------------- | :----------------------------------------- |
 | **Environment** | `dev`            | Which deployment environment               |
 | **Region**      | `us-east-1`      | Which AWS region                           |
-| **Category**   | `network`        | Logical grouping of related infrastructure |
+| **Category**    | `network`        | Logical grouping of related infrastructure |
 | **Unit**        | `vpc`, `subnets` | Individual deployable pieces               |
 
 ---
