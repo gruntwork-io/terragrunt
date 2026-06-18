@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "prebuild": "cd .. && codespell",
+    "prebuild": "if command -v codespell >/dev/null 2>&1; then cd .. && codespell; else echo 'codespell not found on PATH; skipping spellcheck (run `mise install` to enable it locally)'; fi",
     "build": "astro build && bun scripts/indexnow-ping.js",
     "preview": "astro preview",
     "astro": "astro",
