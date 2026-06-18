@@ -368,3 +368,165 @@ func TestStorageAccount_EnableSoftDelete_ClampsOutOfRange(t *testing.T) {
 		t.Fatalf("EnableSoftDelete in-range: %v", err)
 	}
 }
+
+// captureTransport records every request and replays getBody for GET and
+// putBody for PUT, so tests can assert what the SDK wrote on the wire.
+type captureTransport struct {
+	getBody []byte
+	putBody []byte
+	puts    []map[string]any
+	gets    int
+}
+
+func (c *captureTransport) Do(req *http.Request) (*http.Response, error) {
+	body := c.getBody
+
+	if req.Method == http.MethodPut {
+		raw, _ := io.ReadAll(req.Body)
+		_ = req.Body.Close()
+
+		var decoded map[string]any
+
+		_ = json.Unmarshal(raw, &decoded)
+
+		c.puts = append(c.puts, decoded)
+		body = c.putBody
+	} else {
+		c.gets++
+	}
+
+	return &http.Response{
+		Request:    req,
+		StatusCode: http.StatusOK,
+		Status:     http.StatusText(http.StatusOK),
+		Body:       io.NopCloser(strings.NewReader(string(body))),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+	}, nil
+}
+
+// TestStorageAccount_EnableVersioning_SkipsPutWhenAlreadyEnabled proves
+// the idempotent short-circuit: when GetServiceProperties reports versioning
+// already enabled, EnableVersioning must NOT issue a PUT (avoids ARM audit
+// log noise on re-runs and keeps the operation a true no-op).
+func TestStorageAccount_EnableVersioning_SkipsPutWhenAlreadyEnabled(t *testing.T) {
+	t.Parallel()
+
+	tr := &captureTransport{
+		getBody: jsonBody(map[string]any{
+			"properties": map[string]any{"isVersioningEnabled": true},
+		}),
+		putBody: jsonBody(map[string]any{}),
+	}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	if err := sc.EnableVersioning(context.Background(), log.New()); err != nil {
+		t.Fatalf("EnableVersioning: %v", err)
+	}
+
+	if tr.gets == 0 {
+		t.Error("expected at least one GET")
+	}
+
+	if len(tr.puts) != 0 {
+		t.Errorf("expected 0 PUTs when versioning already enabled, got %d", len(tr.puts))
+	}
+}
+
+// TestStorageAccount_EnableSoftDelete_SkipsPutWhenAlreadyConfigured mirrors
+// the versioning short-circuit for soft-delete: when both the blob and
+// container retention policies are already enabled with the same Days
+// value, no PUT is issued.
+func TestStorageAccount_EnableSoftDelete_SkipsPutWhenAlreadyConfigured(t *testing.T) {
+	t.Parallel()
+
+	tr := &captureTransport{
+		getBody: jsonBody(map[string]any{
+			"properties": map[string]any{
+				"deleteRetentionPolicy":          map[string]any{"enabled": true, "days": float64(30)},
+				"containerDeleteRetentionPolicy": map[string]any{"enabled": true, "days": float64(30)},
+			},
+		}),
+		putBody: jsonBody(map[string]any{}),
+	}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	if err := sc.EnableSoftDelete(context.Background(), log.New(), 30); err != nil {
+		t.Fatalf("EnableSoftDelete: %v", err)
+	}
+
+	if len(tr.puts) != 0 {
+		t.Errorf("expected 0 PUTs when soft delete already configured, got %d", len(tr.puts))
+	}
+}
+
+// TestStorageAccount_EnableVersioning_PreservesOtherFields proves that the
+// read-modify-write cycle in EnableVersioning sends pre-existing fields
+// (e.g. CORS rules, change feed) back to ARM untouched instead of clobbering
+// them with the empty defaults of a fresh BlobServiceProperties struct.
+func TestStorageAccount_EnableVersioning_PreservesOtherFields(t *testing.T) {
+	t.Parallel()
+
+	tr := &captureTransport{
+		// GET returns properties with CORS + change-feed configured by some
+		// other tool. We want both to come back on the PUT.
+		getBody: jsonBody(map[string]any{
+			"properties": map[string]any{
+				"cors": map[string]any{
+					"corsRules": []any{
+						map[string]any{
+							"allowedOrigins":  []any{"https://example.com"},
+							"allowedMethods":  []any{"GET"},
+							"allowedHeaders":  []any{"*"},
+							"exposedHeaders":  []any{"*"},
+							"maxAgeInSeconds": float64(3600),
+						},
+					},
+				},
+				"changeFeed": map[string]any{"enabled": true},
+			},
+		}),
+		putBody: jsonBody(map[string]any{}),
+	}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	if err := sc.EnableVersioning(context.Background(), log.New()); err != nil {
+		t.Fatalf("EnableVersioning: %v", err)
+	}
+
+	if tr.gets == 0 {
+		t.Fatal("expected at least one GET before the PUT")
+	}
+
+	if len(tr.puts) != 1 {
+		t.Fatalf("expected exactly one PUT, got %d", len(tr.puts))
+	}
+
+	props, _ := tr.puts[0]["properties"].(map[string]any)
+	if props == nil {
+		t.Fatalf("PUT body missing properties: %v", tr.puts[0])
+	}
+
+	if got, _ := props["isVersioningEnabled"].(bool); !got {
+		t.Errorf("PUT did not enable versioning: %v", props)
+	}
+
+	if _, ok := props["cors"]; !ok {
+		t.Errorf("PUT clobbered the pre-existing CORS rules: %v", props)
+	}
+
+	if _, ok := props["changeFeed"]; !ok {
+		t.Errorf("PUT clobbered the pre-existing change feed setting: %v", props)
+	}
+}

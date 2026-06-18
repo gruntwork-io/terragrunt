@@ -14,9 +14,9 @@ import (
 	"io"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	azblobcontainer "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
@@ -37,8 +37,11 @@ import (
 // fanning out.
 type BlobClient struct {
 	client         *azblob.Client
+	credential     azcore.TokenCredential
+	method         AuthMethod
 	accountName    string
 	endpointSuffix string
+	sasToken       string
 	container      string
 }
 
@@ -66,8 +69,11 @@ func NewBlobClient(cfg *AzureConfig) (*BlobClient, error) {
 
 	return &BlobClient{
 		client:         client,
+		credential:     cfg.Credential,
+		method:         cfg.Method,
 		accountName:    cfg.AccountName,
 		endpointSuffix: suffix,
+		sasToken:       cfg.SasToken,
 	}, nil
 }
 
@@ -338,7 +344,7 @@ func (c *BlobClient) ListBlobs(ctx context.Context, container string, opts ...Li
 }
 
 // CopyBlob copies srcKey from srcContainer to dstKey in dstContainer using
-// the server-side StartCopyFromURL API. Both blobs must live in the same
+// the synchronous Put Blob From URL API. Both blobs must live in the same
 // storage account that this client is bound to.
 //
 // Container and key arguments are the unescaped logical names; CopyBlob
@@ -346,96 +352,94 @@ func (c *BlobClient) ListBlobs(ctx context.Context, container string, opts ...Li
 // Callers must not pre-encode (e.g. pass "folder%2Fkey") — the resulting
 // URL would double-encode.
 //
-// StartCopyFromURL accepts the request synchronously but Azure may complete
-// the data movement asynchronously for large blobs. CopyBlob polls the
-// destination blob's CopyStatus until it is no longer "pending" so callers
-// can rely on a nil return meaning the copy is committed. The poll honours
-// ctx; pass a context with a deadline to bound the wait.
+// Source authorization is chosen by the client's auth method:
+//   - SAS token: the SAS query string is appended to the source URL.
+//   - Access key: same-account copy is authorized by the request's shared-
+//     key signature; no extra auth is added to the source URL.
+//   - Token credential (service principal / OIDC / MSI / Azure AD): a
+//     bearer token is acquired for storage.azure.com and sent as the
+//     x-ms-copy-source-authorization header so private containers work.
+//
+// CopyFromURL is synchronous and either succeeds or fails on the request —
+// there is no async polling. The Azure REST limit for this API is 256 MiB
+// per source blob (see azblob SDK doc on (*blob.Client).CopyFromURL); state
+// files are several orders of magnitude smaller. If you ever need to copy
+// larger blobs, fall back to StartCopyFromURL with its own polling logic.
 func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstContainer, dstKey string) error {
 	if srcContainer == "" || srcKey == "" || dstContainer == "" || dstKey == "" {
 		return ErrCopyBlobArgsRequired
 	}
 
-	srcURL := (&url.URL{
-		Scheme: "https",
-		Host:   fmt.Sprintf("%s.blob.%s", c.accountName, c.endpointSuffix),
-		Path:   "/" + srcContainer + "/" + srcKey,
-	}).String()
+	srcURL, copyOpts, err := c.copySourceAuth(ctx, srcContainer, srcKey)
+	if err != nil {
+		return fmt.Errorf("preparing copy source for %s/%s: %w", srcContainer, srcKey, err)
+	}
 
 	dst := c.client.ServiceClient().NewContainerClient(dstContainer).NewBlobClient(dstKey)
 
-	resp, err := dst.StartCopyFromURL(ctx, srcURL, nil)
-	if err != nil {
+	if _, err := dst.CopyFromURL(ctx, srcURL, copyOpts); err != nil {
 		return fmt.Errorf("copying blob %s/%s to %s/%s: %w", srcContainer, srcKey, dstContainer, dstKey, err)
 	}
 
-	status := derefCopyStatus(resp.CopyStatus)
-	if status != blob.CopyStatusTypePending {
-		return checkCopyStatus(srcContainer, srcKey, dstContainer, dstKey, status, nil)
-	}
-
-	return c.waitForCopy(ctx, dst, srcContainer, srcKey, dstContainer, dstKey)
+	return nil
 }
 
-// copyPollInterval is how often CopyBlob polls the destination blob's
-// CopyStatus while the copy is pending.
-const copyPollInterval = 1 * time.Second
+// copySourceAuth returns a fully-qualified source URL and the
+// CopyFromURLOptions appropriate to the client's auth method. For
+// token-credential auth the returned options carry a bearer token in
+// CopySourceAuthorization so server-side copy can read blobs from private
+// containers.
+func (c *BlobClient) copySourceAuth(ctx context.Context, srcContainer, srcKey string) (string, *blob.CopyFromURLOptions, error) {
+	host := fmt.Sprintf("%s.blob.%s", c.accountName, c.endpointSuffix)
 
-// waitForCopy polls dst.GetProperties until CopyStatus is no longer pending
-// or ctx is cancelled.
-func (c *BlobClient) waitForCopy(ctx context.Context, dst *blob.Client, srcContainer, srcKey, dstContainer, dstKey string) error {
-	ticker := time.NewTicker(copyPollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("waiting for copy of %s/%s to %s/%s: %w", srcContainer, srcKey, dstContainer, dstKey, ctx.Err())
-		case <-ticker.C:
-			props, err := dst.GetProperties(ctx, nil)
-			if err != nil {
-				return fmt.Errorf("polling copy status for %s/%s: %w", dstContainer, dstKey, err)
-			}
-
-			status := derefCopyStatus(props.CopyStatus)
-			if status == blob.CopyStatusTypePending {
-				continue
-			}
-
-			return checkCopyStatus(srcContainer, srcKey, dstContainer, dstKey, status, props.CopyStatusDescription)
-		}
-	}
-}
-
-// derefCopyStatus returns the value of a *CopyStatusType, or the empty
-// string when nil. The Azure SDK returns *CopyStatusType so a nil pointer
-// means the header was absent (no copy in progress, or already gone).
-func derefCopyStatus(s *blob.CopyStatusType) blob.CopyStatusType {
-	if s == nil {
-		return ""
+	srcURL := url.URL{
+		Scheme: "https",
+		Host:   host,
+		Path:   "/" + srcContainer + "/" + srcKey,
 	}
 
-	return *s
-}
-
-// checkCopyStatus turns a terminal CopyStatus into nil (success) or an
-// error describing the failure. An empty status is treated as success
-// because the StartCopyFromURL response may omit the header when the copy
-// completes inline.
-func checkCopyStatus(srcContainer, srcKey, dstContainer, dstKey string, status blob.CopyStatusType, description *string) error {
-	switch status {
-	case blob.CopyStatusTypeSuccess, "":
-		return nil
-	case blob.CopyStatusTypeFailed, blob.CopyStatusTypeAborted:
-		desc := ""
-		if description != nil {
-			desc = ": " + *description
+	switch c.method {
+	case AuthMethodSasToken:
+		srcURL.RawQuery = strings.TrimPrefix(c.sasToken, "?")
+		return srcURL.String(), nil, nil
+	case AuthMethodAccessKey:
+		// Same-account copy is authorized by the destination request's
+		// shared-key signature; the source URL needs no additional auth.
+		return srcURL.String(), nil, nil
+	case AuthMethodServicePrincipal, AuthMethodOIDC, AuthMethodMSI, AuthMethodAzureAD:
+		if c.credential == nil {
+			return "", nil, &CredentialMissingError{Method: c.method}
 		}
 
-		return fmt.Errorf("copying blob %s/%s to %s/%s: status=%s%s", srcContainer, srcKey, dstContainer, dstKey, status, desc)
+		tok, err := c.credential.GetToken(ctx, policy.TokenRequestOptions{
+			Scopes: []string{storageTokenScopeForSuffix(c.endpointSuffix)},
+		})
+		if err != nil {
+			return "", nil, fmt.Errorf("acquiring source-authorization token: %w", err)
+		}
+
+		bearer := "Bearer " + tok.Token
+
+		return srcURL.String(), &blob.CopyFromURLOptions{
+			CopySourceAuthorization: &bearer,
+		}, nil
 	default:
-		return fmt.Errorf("copying blob %s/%s to %s/%s: unexpected status=%s", srcContainer, srcKey, dstContainer, dstKey, status)
+		return "", nil, &UnsupportedAuthMethodError{Method: c.method}
 	}
+}
+
+// storageTokenScopeForSuffix returns the OAuth audience scope a token must
+// carry to authenticate against the blob endpoint identified by suffix.
+// Mirrors endpointSuffixForCloud so OAuth-authenticated CopyBlob works in
+// every supported sovereign cloud. The azblob SDK normally hides this via a
+// 401-challenge handshake; CopyBlob acquires its source-authorization token
+// outside the SDK pipeline, so the audience must be set up-front.
+func storageTokenScopeForSuffix(suffix string) string {
+	if suffix == "core.chinacloudapi.cn" {
+		return "https://storage.chinacloudapi.cn/.default"
+	}
+
+	return "https://storage.azure.com/.default"
 }
 
 // endpointSuffixForCloud returns the blob endpoint host suffix for the cloud

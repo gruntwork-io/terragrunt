@@ -107,6 +107,10 @@ type AzureConfig struct {
 	AccountName string
 	// ResourceGroup is the resource group containing the storage account.
 	ResourceGroup string
+	// Location is the Azure region the storage account lives in (e.g.
+	// "westeurope"). Populated from the session config or from the
+	// ARM_LOCATION / AZURE_LOCATION environment variables.
+	Location string
 	// CloudConfig is the Azure cloud (public, government, china).
 	CloudConfig cloud.Configuration
 	// Method records which authentication method was selected by Build.
@@ -151,6 +155,7 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 		TenantID:       resolved.TenantID,
 		AccountName:    resolved.StorageAccountName,
 		ResourceGroup:  resolved.ResourceGroupName,
+		Location:       resolved.Location,
 		CloudConfig:    cloudCfg,
 		ClientOptions:  clientOpts,
 	}
@@ -309,6 +314,14 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 
 	if cfg.ResourceGroupName == "" {
 		cfg.ResourceGroupName = b.firstEnv("ARM_RESOURCE_GROUP_NAME", "AZURE_RESOURCE_GROUP_NAME")
+	}
+
+	if cfg.StorageAccountName == "" {
+		cfg.StorageAccountName = b.firstEnv("ARM_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT")
+	}
+
+	if cfg.Location == "" {
+		cfg.Location = b.firstEnv("ARM_LOCATION", "AZURE_LOCATION")
 	}
 
 	if cfg.TenantID == "" {
