@@ -50,7 +50,7 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 	if IsPure(expr, args.Deferred) {
 		val, diags := expr.Value(args.EvalCtx)
 		// hclwrite.TokensForValue panics on unknown values; resolve only wholly-known values here.
-		if !diags.HasErrors() && val.IsWhollyKnown() {
+		if !diags.HasErrors() && val.IsWhollyKnown() && valueRendersAsHCLLiteral(val, 0) {
 			return valueToHCLBytes(val), nil
 		}
 
@@ -120,11 +120,13 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]by
 	}
 
 	val, diags := e.Value(args.EvalCtx)
-	if !diags.HasErrors() && val.IsWhollyKnown() {
+	// A non-finite number (e.g. a local resolving to 1/0 -> Inf) renders as an invalid bare "Inf", so it is treated as
+	// unresolved and kept verbatim, mirroring the whole-expression guard in PartialEval.
+	if !diags.HasErrors() && val.IsWhollyKnown() && valueRendersAsHCLLiteral(val, 0) {
 		return valueToHCLBytes(val), nil
 	}
 
-	return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "traversal value is null or unknown at generation time", Err: diags}
+	return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "traversal value is null, unknown, or non-finite at generation time", Err: diags}
 }
 
 // partialEvalChildren rebuilds parent source bytes with each child replaced by its PartialEval output; gaps stay verbatim.
@@ -377,4 +379,35 @@ func valueToHCLBytes(val cty.Value) []byte {
 	tokens := hclwrite.TokensForValue(val)
 
 	return tokens.Bytes()
+}
+
+// maxCtyRenderWalkDepth bounds the valueRendersAsHCLLiteral walk to prevent stack overflow on pathological values.
+const maxCtyRenderWalkDepth = maxPartialEvalDepth
+
+// valueRendersAsHCLLiteral reports whether val and its nested elements contain no non-finite number (which hclwrite emits as an invalid bare "Inf").
+func valueRendersAsHCLLiteral(val cty.Value, depth int) bool {
+	if depth > maxCtyRenderWalkDepth {
+		return false
+	}
+
+	if val.IsNull() || !val.IsKnown() {
+		return true
+	}
+
+	valType := val.Type()
+
+	if valType == cty.Number {
+		return !val.AsBigFloat().IsInf()
+	}
+
+	if valType.IsListType() || valType.IsSetType() || valType.IsTupleType() || valType.IsMapType() || valType.IsObjectType() {
+		for it := val.ElementIterator(); it.Next(); {
+			_, elem := it.Element()
+			if !valueRendersAsHCLLiteral(elem, depth+1) {
+				return false
+			}
+		}
+	}
+
+	return true
 }

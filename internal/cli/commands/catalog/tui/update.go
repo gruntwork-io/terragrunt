@@ -623,7 +623,7 @@ func enterFormState(m Model, c *Component, priorState sessionState) (tea.Model, 
 	m.valuesRefs = nil
 	m.selectedComponent = c
 
-	return m, discoverFormCmd(m.ctx, m.logger, m.terragruntOptions, c)
+	return m, discoverFormCmd(m.ctx, m.logger, m.venv, m.terragruntOptions, c)
 }
 
 // discoverFormCmd runs the kind-appropriate variable discovery off the UI
@@ -632,13 +632,13 @@ func enterFormState(m Model, c *Component, priorState sessionState) (tea.Model, 
 // the source HCL and walking it via CollectValuesReferences. ctx is the
 // model's cancellable context so a Ctrl+C during discovery aborts the
 // download instead of running it to completion.
-func discoverFormCmd(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, c *Component) tea.Cmd {
+func discoverFormCmd(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, c *Component) tea.Cmd {
 	return func() tea.Msg {
 		if c.Kind.IsCopyable() {
 			return discoverValuesFields(c)
 		}
 
-		return discoverModuleFields(ctx, l, opts, c)
+		return discoverModuleFields(ctx, l, v, opts, c)
 	}
 }
 
@@ -652,10 +652,10 @@ func discoverFormCmd(ctx context.Context, l log.Logger, opts *options.Terragrunt
 // is discarded. Real failures still surface: they come back as errors and
 // turn into a formDiscoveryErrMsg, which the outer Update renders as a
 // styled exit message after tea tears down.
-func discoverModuleFields(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, c *Component) tea.Msg {
+func discoverModuleFields(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, c *Component) tea.Msg {
 	quiet := l.WithOptions(log.WithOutput(io.Discard))
 
-	plan, err := scaffold.Prepare(ctx, quiet, venv.OSVenv(), opts, c.TerraformSourcePath(), "")
+	plan, err := scaffold.Prepare(ctx, quiet, v, opts, c.TerraformSourcePath(), "")
 	if err != nil {
 		return formDiscoveryErrMsg{err: err}
 	}
@@ -742,7 +742,7 @@ func (m *Model) abandonForm() {
 // generation (which formats HCL and writes files) runs outside the
 // bubbletea event loop.
 func scaffoldComponentWithPlanCmd(l log.Logger, m Model, c *Component, plan *scaffold.Plan, values map[string]string) tea.Cmd {
-	cmd := newScaffoldCmd(l, m.terragruntOptions, c).WithPlan(plan, values)
+	cmd := newScaffoldCmd(l, m.venv, m.terragruntOptions, c).WithPlan(plan, values)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
 		return ScaffoldFinishedMsg{Err: err, Interactive: true}

@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -72,7 +73,7 @@ func TestModelStreamingInsertsSortedWithRacing(t *testing.T) {
 		require.GreaterOrEqual(t, len(components), 2, "need at least 2 components")
 
 		componentCh := make(chan *tui.ComponentEntry, len(components))
-		m := tui.NewModelStreaming(t.Context(), l, opts, components[len(components)-1], componentCh, nil)
+		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[len(components)-1], componentCh, nil)
 		close(componentCh)
 
 		msgs := make([]tea.Msg, 0, len(components))
@@ -130,7 +131,7 @@ func TestModelTabsFilterByKindWithRacing(t *testing.T) {
 		components := makeMixedComponents(t)
 
 		componentCh := make(chan *tui.ComponentEntry, len(components))
-		m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 		close(componentCh)
 
 		// Cycle: All -> Templates (first tab after All in the current order).
@@ -163,7 +164,7 @@ func TestModelTabShiftTabCyclesWithRacing(t *testing.T) {
 		components := makeMixedComponents(t)
 
 		componentCh := make(chan *tui.ComponentEntry, len(components))
-		m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 		close(componentCh)
 
 		// Starts on All. Shift+Tab wraps to the last tab (Stacks).
@@ -215,7 +216,7 @@ func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) 
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), logger.CreateLogger(), opts, entry, componentCh, nil)
+		m := tui.NewModelStreaming(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, entry, componentCh, nil)
 
 		// Lowercase s = interactive scaffold flow.
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 's', Text: "s"}}
@@ -262,7 +263,7 @@ func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), logger.CreateLogger(), opts, entry, componentCh, nil)
+		m := tui.NewModelStreaming(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, entry, componentCh, nil)
 
 		// First enter: list → pager (opens the README).
 		// Second enter: pager → form (the new behavior).
@@ -292,7 +293,7 @@ func TestModelStreamingDeduplicatesWithRacing(t *testing.T) {
 		require.NotEmpty(t, components)
 
 		componentCh := make(chan *tui.ComponentEntry, len(components))
-		m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 		close(componentCh)
 
 		msgs := []tea.Msg{
@@ -327,7 +328,7 @@ func TestModelCopyFinishedWritesValuesExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	// Copy-written: 2 required TODOs (exercises the plural "entries" branch)
 	// and 1 optional (exercises the singular "default" branch).
@@ -366,7 +367,7 @@ func TestModelCopyFinishedSkippedValuesExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	msg := copyFinishedFromNames(workingDir,
 		[]string{"zeta"},
@@ -405,7 +406,7 @@ func TestModelCopyFinishedEmptyReferencesLeavesNoExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	msg := copyFinishedFromNames(opts.WorkingDir, nil, nil, false, false)
 
@@ -433,7 +434,7 @@ func TestModelScaffoldFinishedSetsExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(tui.ScaffoldFinishedMsg{})
 	finalModel := updated.(tui.Model)
@@ -460,7 +461,7 @@ func TestModelScaffoldFinishedEmptyOutputDirHasNoExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	updated, _ := m.Update(tui.ScaffoldFinishedMsg{})
 	finalModel := updated.(tui.Model)
@@ -500,7 +501,7 @@ func TestModelCopyFinishedDisplayPathEscapesBaseDir(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	msg := copyFinishedFromNames(baseTmp, []string{"a"}, nil, true, false)
 
@@ -531,7 +532,7 @@ func TestModelScaffoldFailureQuitsWithError(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	scaffoldErr := errors.New("generate failed")
 
@@ -564,7 +565,7 @@ func TestModelCopyFailureQuitsWithError(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	copyErr := errors.New("destination exists")
 
@@ -593,7 +594,7 @@ func TestModelCleanQuitHasNoErrorWithRacing(t *testing.T) {
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
@@ -618,7 +619,7 @@ func TestModelRendererErrMsgSetsViewportAndPagerState(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, components[0], componentCh, nil)
 
 	// Seed the viewport with a WindowSizeMsg so it has a positive size,
 	// otherwise the pager view will produce a degenerate string.
@@ -664,7 +665,7 @@ func TestModelPagerViewRendersAfterEnterWithRacing(t *testing.T) {
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), l, opts, entry, componentCh, nil)
+		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, entry, componentCh, nil)
 
 		msgs := []tea.Msg{
 			tea.KeyPressMsg{Code: tea.KeyEnter},
@@ -707,7 +708,7 @@ func TestModelPagerWToggleFlipsSoftWrapWithRacing(t *testing.T) {
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), l, opts, entry, componentCh, nil)
+		m := tui.NewModelStreaming(t.Context(), l, venv.OSVenv(), opts, entry, componentCh, nil)
 
 		// Enter pager, then toggle `w` twice. driveModel runs the
 		// messages through Update in order and returns the final model.

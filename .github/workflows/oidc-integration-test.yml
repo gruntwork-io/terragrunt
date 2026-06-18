@@ -15,8 +15,6 @@ jobs:
       checks: write
     name: Test OIDC (${{ matrix.integration.name }})
     runs-on: ${{ matrix.integration.os }}-latest
-    env:
-      MISE_PROFILE: cicd
     strategy:
       fail-fast: false
       matrix:
