@@ -35,6 +35,9 @@ LINT_TAGS := $(shell grep -rh --include='*.go' 'go:build' . | \
 	sort -u | \
 	paste -sd, -)
 
+print-lint-tags:
+	@echo '$(LINT_TAGS)'
+
 run-lint:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
 	GOFLAGS="-tags=$(LINT_TAGS)" mise x golangci-lint -- golangci-lint run -v --timeout=30m ./...
@@ -64,4 +67,4 @@ fuzz:
 		done; \
 	done
 
-.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix fuzz
+.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix fuzz print-lint-tags
