@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
@@ -31,11 +31,9 @@ type ParsedVariable struct {
 }
 
 // ParseVariables - parse variables from tf files.
-func ParseVariables(l log.Logger, experiments experiment.Experiments, strictControls strict.Controls, directoryPath string) ([]*ParsedVariable, error) {
-	walkWithSymlinks := experiments.Evaluate(experiment.Symlinks)
-
+func ParseVariables(l log.Logger, fsys vfs.FS, strictControls strict.Controls, directoryPath string) ([]*ParsedVariable, error) {
 	// list all tf files
-	tfFiles, err := util.ListTfFiles(directoryPath, walkWithSymlinks)
+	tfFiles, err := util.ListTfFiles(fsys, directoryPath)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +44,12 @@ func ParseVariables(l log.Logger, experiments experiment.Experiments, strictCont
 	var parsedInputs []*ParsedVariable
 
 	for _, tfFile := range tfFiles {
-		if _, err := parser.ParseFromFile(tfFile); err != nil {
+		content, err := vfs.ReadFile(fsys, tfFile)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := parser.ParseFromBytes(content, tfFile); err != nil {
 			return nil, err
 		}
 	}
