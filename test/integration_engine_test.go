@@ -379,7 +379,7 @@ func TestEngineTelemetry(t *testing.T) {
 }
 
 //nolint:paralleltest
-func TestNoEngineFlagDisablesEngine(t *testing.T) {
+func TestEngineDisabledByNoEngineFlag(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 
 	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuEngine)
@@ -409,7 +409,7 @@ func TestNoEngineFlagDisablesEngine(t *testing.T) {
 }
 
 //nolint:paralleltest
-func TestNoEngineFlagWithExperimentFlag(t *testing.T) {
+func TestEngineDisabledByNoEngineFlagWithExperiment(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuEngine)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuEngine)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuEngine)
@@ -437,7 +437,7 @@ func TestNoEngineFlagWithExperimentFlag(t *testing.T) {
 }
 
 //nolint:paralleltest
-func TestNoEngineFlagWithRunAll(t *testing.T) {
+func TestEngineDisabledByNoEngineFlagWithRunAll(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 
 	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuRunAll)

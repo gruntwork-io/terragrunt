@@ -2056,7 +2056,7 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	assert.True(t, util.FileNotExists(filepath.Join(rootPath, identityArn+".txt")))
 }
 
-func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
+func TestAwsTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, includeFixturePath)
@@ -2073,7 +2073,7 @@ func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeShallowFixturePath, tmpTerragruntConfigPath, childPath)
 }
 
-func TestTerragruntWorksWithIncludeNoMerge(t *testing.T) {
+func TestAwsTerragruntWorksWithIncludeNoMerge(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, includeFixturePath)
@@ -2090,7 +2090,7 @@ func TestTerragruntWorksWithIncludeNoMerge(t *testing.T) {
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeNoMergeFixturePath, tmpTerragruntConfigPath, childPath)
 }
 
-func TestErrorExplaining(t *testing.T) {
+func TestAwsErrorExplaining(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
@@ -2109,7 +2109,7 @@ func TestErrorExplaining(t *testing.T) {
 	assert.Contains(t, explanation, "Check your credentials and permissions")
 }
 
-func TestTerragruntInvokeTerraformTests(t *testing.T) {
+func TestAwsTerragruntInvokeTerraformTests(t *testing.T) {
 	t.Parallel()
 
 	if isTerraform(t.Context()) {

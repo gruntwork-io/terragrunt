@@ -1,5 +1,3 @@
-//go:build tofu
-
 package awsproviderpatch_test
 
 import (

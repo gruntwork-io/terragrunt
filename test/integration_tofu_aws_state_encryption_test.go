@@ -24,7 +24,7 @@ const (
 	awsKMSKeyRegion                      = "us-east-1"
 )
 
-func TestTofuStateEncryptionPBKDF2(t *testing.T) {
+func TestAwsTofuStateEncryptionPBKDF2(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTofuStateEncryptionPBKDF2)
@@ -35,7 +35,7 @@ func TestTofuStateEncryptionPBKDF2(t *testing.T) {
 	validateStateIsEncrypted(t, stateFile, workDir)
 }
 
-func TestTofuStateEncryptionGCPKMS(t *testing.T) {
+func TestAwsTofuStateEncryptionGCPKMS(t *testing.T) {
 	t.Skip("Skipping test as the GCP KMS key is not available. You have to setup your own GCP KMS key to run this test.")
 	t.Parallel()
 
@@ -52,7 +52,7 @@ func TestTofuStateEncryptionGCPKMS(t *testing.T) {
 	validateStateIsEncrypted(t, stateFile, workDir)
 }
 
-func TestTofuStateEncryptionAWSKMS(t *testing.T) {
+func TestAwsTofuStateEncryptionAWSKMS(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTofuStateEncryptionAWSKMS)
@@ -69,7 +69,7 @@ func TestTofuStateEncryptionAWSKMS(t *testing.T) {
 	validateStateIsEncrypted(t, stateFile, workDir)
 }
 
-func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
+func TestAwsTofuRenderJSONConfigWithEncryption(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONWithEncryption)
@@ -183,7 +183,7 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 }
 
 // This will eventually be the only test for rendering JSON config with encryption
-func TestTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
+func TestAwsTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONWithEncryption)

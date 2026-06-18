@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
+func TestGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -33,7 +33,7 @@ func TestCreateGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
 	assert.NotEmpty(t, clientOpts)
 }
 
-func TestCreateGcpConfigWithOAuthAccessTokenEnv(t *testing.T) {
+func TestGcpConfigWithOAuthAccessTokenEnv(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -47,7 +47,7 @@ func TestCreateGcpConfigWithOAuthAccessTokenEnv(t *testing.T) {
 	assert.NotEmpty(t, clientOpts)
 }
 
-func TestCreateGcpConfigWithGoogleCredentialsEnv(t *testing.T) {
+func TestGcpConfigWithGoogleCredentialsEnv(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -73,7 +73,7 @@ func TestCreateGcpConfigWithGoogleCredentialsEnv(t *testing.T) {
 	assert.NotEmpty(t, clientOpts)
 }
 
-func TestCreateGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
+func TestGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -95,7 +95,7 @@ func TestCreateGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
 	assert.NotEmpty(t, clientOpts)
 }
 
-func TestCreateGcpConfigWithAccessTokenFromConfig(t *testing.T) {
+func TestGcpConfigWithAccessTokenFromConfig(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -145,7 +145,7 @@ func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 	// The if-else chain in CreateGcpConfig checks env vars first
 }
 
-func TestCreateGcpConfigWithImpersonation(t *testing.T) {
+func TestGcpConfigWithImpersonation(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -166,7 +166,7 @@ func TestCreateGcpConfigWithImpersonation(t *testing.T) {
 	assert.Contains(t, err.Error(), "impersonation")
 }
 
-func TestCreateGcpConfigWithNoCredentials(t *testing.T) {
+func TestGcpConfigWithNoCredentials(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -181,7 +181,7 @@ func TestCreateGcpConfigWithNoCredentials(t *testing.T) {
 	assert.Empty(t, clientOpts)
 }
 
-func TestCreateGcpConfigWithGoogleCredentialsFile(t *testing.T) {
+func TestGcpConfigWithGoogleCredentialsFile(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()

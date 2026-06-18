@@ -1,5 +1,3 @@
-//go:build tofu
-
 package run_test
 
 import (

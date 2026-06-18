@@ -1,0 +1,15 @@
+# Allowlist for check-test-tags.
+#
+# Entries excuse a test or build tag from the reachability check.
+#   tag:NAME              a build tag deliberately enabled by no CI job (manual
+#                         or local-only suite); the gated tests run only when a
+#                         developer opts in with -tags NAME and the required setup.
+#   <pkg-dir>:<TestName>  a single test, keyed by package directory and function
+#                         name, for example internal/foo:TestBar.
+#
+# Keep this list short and justified; prefer fixing the tag or test name.
+
+# Private registry tests need a real Terraform registry URL and token
+# (PRIVATE_REGISTRY_URL / PRIVATE_REGISTRY_TOKEN) that CI does not provide, so
+# they are gated behind a tag that no job enables and skip without those vars.
+tag:private_registry
