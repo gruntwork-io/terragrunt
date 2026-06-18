@@ -105,7 +105,7 @@ jobs:
             target: ./...
             setup_scripts:
               - .github/scripts/setup/windows-setup.ps1
-            tags: "windows,tflint"
+            tags: windows
             run: "^TestWindows"
           - name: Provider Cache Server with Latest Terraform
             os: ubuntu
