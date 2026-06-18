@@ -26,15 +26,17 @@ Throughout this course, you've been working with **implicit stacks**.
 
 When you organize units in a directory structure and run `terragrunt run --all`, Terragrunt treats that directory as a stack. It discovers units by walking the filesystem and builds a dependency graph from your `dependency` blocks.
 
-```text
-dev/
-├── vpc/
-│   └── terragrunt.hcl
-├── security-group/
-│   └── terragrunt.hcl
-└── web-server/
-    └── terragrunt.hcl
-```
+<FileTree>
+
+- dev/
+  - vpc/
+    - terragrunt.hcl
+  - security-group/
+    - terragrunt.hcl
+  - web-server/
+    - terragrunt.hcl
+
+</FileTree>
 
 ---
 
@@ -264,7 +266,9 @@ stack "logging" {
 }
 ```
 
-> The `stack` block works similarly to `unit`, but references another `terragrunt.stack.hcl` file instead of a `terragrunt.hcl` file.
+<Aside>
+The `stack` block works similarly to `unit`, but references another `terragrunt.stack.hcl` file instead of a `terragrunt.hcl` file.
+</Aside>
 
 ---
 

@@ -6,6 +6,8 @@ sidebar:
   order: 6
 ---
 
+import { FileTree, Steps } from '@astrojs/starlight/components';
+
 ## Learning Objectives
 
 Upon completing this module, you will be able to:
@@ -223,23 +225,25 @@ The directory structure ***is*** the stack—Terragrunt discovers units by walki
 
 A typical implicit stack follows an environment-based hierarchy:
 
-```text
-live/
-├── dev/
-│   └── us-east-1/
-│       └── network/
-│           ├── vpc/
-│           │   └── terragrunt.hcl
-│           ├── subnets/
-│           │   └── terragrunt.hcl
-│           ├── routes-public/
-│           │   └── terragrunt.hcl
-│           ├── routes-private-az1/
-│           │   └── terragrunt.hcl
-│           └── routes-private-az2/
-│               └── terragrunt.hcl
-└── root.hcl
-```
+<FileTree>
+
+- live/
+  - dev/
+    - us-east-1/
+      - network/
+        - vpc/
+          - terragrunt.hcl
+        - subnets/
+          - terragrunt.hcl
+        - routes-public/
+          - terragrunt.hcl
+        - routes-private-az1/
+          - terragrunt.hcl
+        - routes-private-az2/
+          - terragrunt.hcl
+  - root.hcl
+
+</FileTree>
 
 ---
 
@@ -266,11 +270,15 @@ terragrunt run --all apply   # Apply all units in dependency order
 
 Terragrunt automatically:
 
-| Step  | Action                                                                 |
-| :---: | :--------------------------------------------------------------------- |
-| **1** | Discovers all `terragrunt.hcl` files in the directory tree             |
-| **2** | Builds a dependency graph from `dependency` blocks                     |
-| **3** | Executes operations in the correct order *(or in parallel where safe)* |
+<Steps>
+
+1. Discovers all `terragrunt.hcl` files in the directory tree
+
+2. Builds a dependency graph from `dependency` blocks
+
+3. Executes operations in the correct order *(or in parallel where safe)*
+
+</Steps>
 
 ---
 

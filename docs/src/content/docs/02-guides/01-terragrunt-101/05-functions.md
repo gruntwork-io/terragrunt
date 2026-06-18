@@ -69,9 +69,11 @@ These functions figure out **where things are** so you don't have to hardcode pa
 
 ### find_in_parent_folders()
 
-**Walks up** the directory tree looking for a file. Returns the absolute path to the first match.
+The [`find_in_parent_folders()`](/link/to/find_in_parent_folders) function **walks up** the directory tree looking for a file. Returns the absolute path to the first match.
 
 ```hcl
+# terragrunt.hcl
+
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -80,6 +82,8 @@ include "root" {
 Pass a **second argument** as a fallback if the file might not exist:
 
 ```hcl
+# terragrunt.hcl
+
 include "env" {
   path = find_in_parent_folders("env.hcl", "default-env.hcl")
 }
@@ -89,12 +93,13 @@ include "env" {
 
 ### path_relative_to_include()
 
-Returns the path from the current unit to the included file.
+[`path_relative_to_include()`](/reference/hcl/functions/#path_relative_to_include) returns the path from the current unit to the included file.
 
 This is how you generate **unique state keys automatically**.
 
 ```hcl
-# In root.hcl
+# root.hcl
+
 remote_state {
   backend = "s3"
   config = {
@@ -113,9 +118,11 @@ remote_state {
 
 ### get_terragrunt_dir()
 
-Returns the **absolute path** to the directory containing the current `terragrunt.hcl`.
+[`get_terragrunt_dir()`](/reference/hcl/functions/#get_terragrunt_dir) returns the **absolute path** to the directory containing the current `terragrunt.hcl`.
 
 ```hcl
+# terragrunt.hcl
+
 terraform {
   source = "${get_terragrunt_dir()}/../../../modules/vpc"
 }
@@ -129,9 +136,11 @@ inputs = {
 
 ### get_repo_root()
 
-Returns the **absolute path** to the Git repository root.
+[`get_repo_root()`](/reference/hcl/functions/#get_repo_root) returns the **absolute path** to the Git repository root.
 
 ```hcl
+# terragrunt.hcl
+
 locals {
   common_vars = yamldecode(file("${get_repo_root()}/common-vars.yaml"))
 }
@@ -145,12 +154,13 @@ terraform {
 
 ### get_path_from_repo_root()
 
-Returns your location **relative to the repo root**.
+[`get_path_from_repo_root()`](/reference/hcl/functions/#get_path_from_repo_root) returns your location **relative to the repo root**.
 
 Handy for extracting context from your directory structure.
 
 ```hcl
-# For a unit at prod/us-east-1/vpc/terragrunt.hcl
+# prod/us-east-1/vpc/terragrunt.hcl
+
 locals {
   path_parts = split("/", get_path_from_repo_root())
   # path_parts = ["prod", "us-east-1", "vpc"]
@@ -167,13 +177,13 @@ inputs = {
 
 ### Quick Reference
 
-| Function                         | Returns                                             |
-| :------------------------------- | :-------------------------------------------------- |
-| **`find_in_parent_folders()`**   | Absolute path to first matching file upward         |
-| **`path_relative_to_include()`** | Relative path from included file to current         |
-| **`get_terragrunt_dir()`**       | Absolute path to current `terragrunt.hcl` directory |
-| **`get_repo_root()`**            | Absolute path to Git repository root                |
-| **`get_path_from_repo_root()`**  | Relative path from repo root to current directory   |
+| Function                                                                               | Returns                                             |
+| :------------------------------------------------------------------------------------- | :-------------------------------------------------- |
+| [**`find_in_parent_folders()`**](/reference/hcl/functions/#find_in_parent_folders)     | Absolute path to first matching file upward         |
+| [**`path_relative_to_include()`**](/reference/hcl/functions/#path_relative_to_include) | Relative path from included file to current         |
+| [**`get_terragrunt_dir()`**](/reference/hcl/functions/#get_terragrunt_dir)             | Absolute path to current `terragrunt.hcl` directory |
+| [**`get_repo_root()`**](/reference/hcl/functions/#get_repo_root)                       | Absolute path to Git repository root                |
+| [**`get_path_from_repo_root()`**](/reference/hcl/functions/#get_path_from_repo_root)   | Relative path from repo root to current directory   |
 
 > See the [official documentation](/reference/hcl/functions/) for the complete list of path functions.
 
@@ -181,9 +191,11 @@ inputs = {
 
 ### get_env()
 
-Reads **environment variables**. The second argument is a default if the variable isn't set.
+[`get_env()`](/reference/hcl/functions/#get_env) reads **environment variables**. The second argument is a default if the variable isn't set.
 
 ```hcl
+# terragrunt.hcl
+
 locals {
   region      = get_env("AWS_REGION", "us-east-1")
   environment = get_env("ENVIRONMENT", "dev")
@@ -194,9 +206,11 @@ locals {
 
 ### read_terragrunt_config()
 
-Parses another Terragrunt file and returns its contents as a **map**.
+[`read_terragrunt_config()`](/reference/hcl/functions/#read_terragrunt_config) parses another Terragrunt file and returns its contents as a **map**.
 
 ```hcl
+# terragrunt.hcl
+
 locals {
   account_vars = read_terragrunt_config(find_in_parent_folders("account.hcl"))
   region_vars  = read_terragrunt_config(find_in_parent_folders("region.hcl"))
@@ -212,7 +226,7 @@ locals {
 
 ### sops_decrypt_file()
 
-Decrypts **SOPS-encrypted files** (YAML, JSON, or binary).
+[`sops_decrypt_file()`](/reference/hcl/functions/#sops_decrypt_file) decrypts **SOPS-encrypted files** (YAML, JSON, or binary).
 
 ```hcl
 # terragrunt.hcl
@@ -231,17 +245,17 @@ inputs = {
 
 ### Quick Reference
 
-| Function                       | Purpose                                          |
-| :----------------------------- | :----------------------------------------------- |
-| **`get_env()`**                | Read environment variables with optional default |
-| **`read_terragrunt_config()`** | Parse another Terragrunt file                    |
-| **`sops_decrypt_file()`**      | Decrypt SOPS-encrypted secrets                   |
+| Function                                                                           | Purpose                                          |
+| :--------------------------------------------------------------------------------- | :----------------------------------------------- |
+| [**`get_env()`**](/reference/hcl/functions/#get_env)                               | Read environment variables with optional default |
+| [**`read_terragrunt_config()`**](/reference/hcl/functions/#read_terragrunt_config) | Parse another Terragrunt file                    |
+| [**`sops_decrypt_file()`**](/reference/hcl/functions/#sops_decrypt_file)           | Decrypt SOPS-encrypted secrets                   |
 
 ## Shell Execution
 
 ### run_cmd()
 
-Runs a shell command and **captures the output**.
+[`run_cmd()`](/reference/hcl/functions/#run_cmd) runs a shell command and **captures the output**.
 
 A common use case is fetching secrets from AWS Secrets Manager:
 
@@ -316,17 +330,17 @@ terraform {
 
 ### Available Helper Functions
 
-| Function                                             | Returns Commands That...            |
-| :--------------------------------------------------- | :---------------------------------- |
-| **`get_terraform_commands_that_need_vars()`**        | Accept `-var` and `-var-file` flags |
-| **`get_terraform_commands_that_need_locking()`**     | Use state locking                   |
-| **`get_terraform_commands_that_need_parallelism()`** | Support the `-parallelism` flag     |
+| Function                                                                                                                       | Returns Commands That...            |
+| :----------------------------------------------------------------------------------------------------------------------------- | :---------------------------------- |
+| [**`get_terraform_commands_that_need_vars()`**](/reference/hcl/functions/#get_terraform_commands_that_need_vars)               | Accept `-var` and `-var-file` flags |
+| [**`get_terraform_commands_that_need_locking()`**](/reference/hcl/functions/#get_terraform_commands_that_need_locking)         | Use state locking                   |
+| [**`get_terraform_commands_that_need_parallelism()`**](/reference/hcl/functions/#get_terraform_commands_that_need_parallelism) | Support the `-parallelism` flag     |
 
 ## Locals and mark_as_read()
 
 ### Locals
 
-The `locals` block defines values you can **reuse** throughout your configuration.
+The [`locals`](/reference/hcl/blocks/#locals) block defines values you can **reuse** throughout your configuration.
 
 Access them with `local.<name>`.
 
@@ -357,13 +371,13 @@ locals {
 
 ### mark_as_read()
 
-When you read files with `file()`, Terragrunt **doesn't automatically track** them as dependencies.
+When you read files with [`file()`](https://opentofu.org/docs/language/functions/file/), Terragrunt **doesn't automatically track** them as dependencies.
 
 This matters when using `--filter 'reading=<file>'` to selectively run units that read specific files.
 
-The `mark_as_read()` function **registers the file** as having been read by the unit. It returns the file path, so you wrap it around the path you pass to `file()`:
+The [`mark_as_read()`](/reference/hcl/functions/#mark_as_read) function **registers the file** as having been read by the unit. It returns the file path, so you wrap it around the path you pass to `file()`:
 
-`mark_as_read()` allows you to signal to Terragrunt internals that a file is used for driving configuration of units/stacks, even if the way in which they are read is opaque to Terragrunt.
+[`mark_as_read()`](/reference/hcl/functions/#mark_as_read) allows you to signal to Terragrunt internals that a file is used for driving configuration of units/stacks, even if the way in which they are read is opaque to Terragrunt.
 
 ```hcl
 # terragrunt.hcl
@@ -382,11 +396,11 @@ locals {
 
 #### Key Points
 
-| Requirement           | Why                                                                   |
-| :-------------------- | :-------------------------------------------------------------------- |
-| Use `mark_as_read()`  | Enables tracking non-HCL files                                        |
-| Must be in `locals`   | For filter tracking to work                                           |
-| Works with `--filter` | `--filter 'reading=<file>'` to include units that read specific files |
+| Requirement                                                    | Why                                                                   |
+| :------------------------------------------------------------- | :-------------------------------------------------------------------- |
+| Use [`mark_as_read()`](/reference/hcl/functions/#mark_as_read) | Enables tracking non-HCL files                                        |
+| Must be in [`locals`](/reference/hcl/blocks/#locals)           | For filter tracking to work                                           |
+| Works with `--filter`                                          | `--filter 'reading=<file>'` to include units that read specific files |
 
 ---
 
@@ -397,4 +411,4 @@ locals {
 | Reading non-HCL files | JSON, YAML, or other files loaded with `file()` that affect your infrastructure      |
 | Filter detection      | When you need `--filter 'reading=<file>'` to scope `run` commands by file dependency |
 
-> Terragrunt Functions like `read_terragrunt_config()`, `read_tfvars_file()`, and `sops_decrypt_file()` **automatically track** their files — you don't need `mark_as_read()` for those.
+> Terragrunt Functions like [`read_terragrunt_config()`](/reference/hcl/functions/#read_terragrunt_config), [`read_tfvars_file()`](/reference/hcl/functions/#read_tfvars_file), and [`sops_decrypt_file()`](/reference/hcl/functions/#sops_decrypt_file) **automatically track** their files — you don't need [`mark_as_read()`](/reference/hcl/functions/#mark_as_read) for those.

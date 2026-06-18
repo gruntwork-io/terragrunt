@@ -27,6 +27,8 @@ The [`terraform` block](/reference/hcl/blocks/#terraform) points Terragrunt to y
 **Every unit needs one.**
 
 ```hcl
+# terragrunt.hcl
+
 terraform {
   source = "git::git@github.com:gruntwork-io/modules.git//vpc?ref=v0.1.0"
 }
@@ -50,9 +52,11 @@ You can pull modules from various sources. Terragrunt uses the same [source synt
 
 ### extra_arguments
 
-Need to pass flags to specific commands? Use **`extra_arguments`**:
+Need to consistently pass additional arguments in certain units? Use **`extra_arguments`**:
 
 ```hcl
+# terragrunt.hcl
+
 terraform {
   source = "git::git@github.com:gruntwork-io/modules.git//vpc?ref=v0.1.0"
 
@@ -75,6 +79,8 @@ terraform {
 Run scripts **before** or **after** commands with `before_hook` and `after_hook`:
 
 ```hcl
+# terragrunt.hcl
+
 terraform {
   source = "../../../modules/vpc"
 
@@ -100,11 +106,15 @@ terraform {
 
 The [`include` block](/reference/hcl/blocks/#include) is one of Terragrunt's **most powerful features**.
 
-It pulls in configuration from parent files, letting you **define settings once** and **inherit them everywhere**.
+It pulls in partial configuration from parent files, letting you **define settings once** and **include them everywhere**.
 
-> Instead of copying remote state configuration, provider settings, or common tags into every `terragrunt.hcl` file, you define them once at the top and include them everywhere. It's the foundation of keeping your configurations **DRY**.
+:::tip
+Instead of copying remote state configuration, provider settings, or common tags into every `terragrunt.hcl` file, you define them as partial configuration once at the top and include them everywhere. It's the foundation of keeping your configurations **DRY**.
+:::
 
 ```hcl
+# terragrunt.hcl
+
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
