@@ -7,8 +7,6 @@ jobs:
   test:
     name: Test (${{ matrix.integration.name }})
     runs-on: ${{ matrix.integration.os }}-latest
-    env:
-      MISE_PROFILE: cicd
     strategy:
       fail-fast: false
       matrix:
@@ -41,6 +39,8 @@ jobs:
             tags: tflint
             run: "^TestTflint"
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            setup_scripts:
+              - .github/scripts/setup/tflint.sh
           - name: GCP
             os: ubuntu
             target: ./...

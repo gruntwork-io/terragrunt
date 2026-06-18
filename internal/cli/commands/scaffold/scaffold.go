@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -262,7 +263,7 @@ func Prepare(
 	}
 
 	// extract variables from downloaded module
-	requiredVariables, optionalVariables, err := parseVariables(l, opts, tempDir)
+	requiredVariables, optionalVariables, err := parseVariables(l, v.FS, opts, tempDir)
 	if err != nil {
 		return nil, err
 	}
@@ -643,10 +644,11 @@ func prepareBoilerplateFiles(
 // parseVariables - parse variables from tf files.
 func parseVariables(
 	l log.Logger,
+	fsys vfs.FS,
 	opts *options.TerragruntOptions,
 	moduleDir string,
 ) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
-	inputs, err := config.ParseVariables(l, opts.Experiments, opts.StrictControls, moduleDir)
+	inputs, err := config.ParseVariables(l, fsys, opts.StrictControls, moduleDir)
 	if err != nil {
 		return nil, nil, err
 	}

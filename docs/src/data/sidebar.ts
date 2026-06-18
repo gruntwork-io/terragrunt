@@ -23,6 +23,7 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
         collapsed: true,
         items: [{ autogenerate: { directory: "02-guides/03-terralith-to-terragrunt", collapsed: true } }],
       },
+      { label: "Patterns", link: "/guides/patterns" },
     ],
     collapsed: true,
   },

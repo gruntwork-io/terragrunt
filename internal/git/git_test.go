@@ -369,3 +369,39 @@ func TestGitRunner_WithWorkDirGetRepoRootWithRacing(t *testing.T) {
 
 	require.NoError(t, g.Wait())
 }
+
+// TestGitRunner_AddCommitCheckoutConfig drives the local-mutation wrappers
+// (ConfigSet, Add, Commit, Checkout) through a stage -> commit -> branch flow
+// against a fresh repository, and checks the state via the read helpers
+// (HasUncommittedChanges, GetCurrentBranch, Config) at each step.
+func TestGitRunner_AddCommitCheckoutConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	dir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(dir)
+	require.NoError(t, runner.Init(ctx))
+
+	require.NoError(t, runner.ConfigSet(ctx, "user.email", "test@example.com"))
+	require.NoError(t, runner.ConfigSet(ctx, "user.name", "Terragrunt Test"))
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("hello"), 0o600))
+
+	require.NoError(t, runner.Add(ctx, "hello.txt"))
+	assert.True(t, runner.HasUncommittedChanges(ctx))
+
+	require.NoError(t, runner.Commit(ctx, "initial commit"))
+	assert.False(t, runner.HasUncommittedChanges(ctx))
+
+	require.NoError(t, runner.Checkout(ctx, "feature", true))
+	assert.Equal(t, "feature", runner.GetCurrentBranch(ctx))
+
+	email, err := runner.Config(ctx, "user.email")
+	require.NoError(t, err)
+	assert.Equal(t, "test@example.com", email)
+}

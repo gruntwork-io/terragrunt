@@ -210,7 +210,7 @@ const htmlToMarkdownPipeline = unified()
 
 /** A content-collection entry that can be rendered to HTML via `render()`. */
 type RenderableEntry = CollectionEntry<
-	'docs' | 'commands' | 'experiments' | 'strictControls' | 'changelog' | 'flags'
+	'docs' | 'commands' | 'experiments' | 'strictControls' | 'changelog' | 'patterns' | 'flags'
 >;
 
 /**

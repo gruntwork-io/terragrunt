@@ -60,6 +60,21 @@ const flags = defineCollection({
 	}),
 });
 
+const patterns = defineCollection({
+	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/patterns" }),
+	schema: z.object({
+		// The pattern's title, shown on its card and as the page heading.
+		title: z.string(),
+		// A short description shown on the card beneath the title.
+		description: z.string(),
+		// The author's name, shown on the card and the pattern's page.
+		author: z.string(),
+		// Optional: controls ordering on the index. Lower numbers sort first;
+		// entries without an order fall back to alphabetical by title.
+		order: z.number().optional(),
+	}),
+});
+
 const changelog = defineCollection({
 	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/changelog" }),
 	schema: z.object({
@@ -105,4 +120,4 @@ const strictControls = defineCollection({
 	}),
 });
 
-export const collections = { changelog, commands, compatibility, docs, experiments, flags, strictControls };
+export const collections = { changelog, commands, compatibility, docs, experiments, flags, patterns, strictControls };
