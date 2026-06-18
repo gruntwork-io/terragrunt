@@ -69,19 +69,48 @@ type Model struct {
 	// work (e.g. scaffold.Prepare downloading sources) propagates the
 	// user's Ctrl+C through this context, so the call returns instead of
 	// blocking on an abandoned download.
-	ctx               context.Context
-	lists             [numTabs]list.Model
-	logger            log.Logger
+	ctx context.Context
+	// lists holds one list per tab; activeTab indexes it. A component is
+	// inserted into every list whose tab filter accepts it, so the same
+	// entry can appear under All and its kind-specific tab at once.
+	lists [numTabs]list.Model
+	// logger surfaces non-fatal diagnostics (e.g. an unknown button press)
+	// and is handed down to the scaffold/copy/form-discovery leaves.
+	logger log.Logger
+	// terragruntOptions carries the resolved CLI options that drive
+	// discovery and scaffolding; it is threaded into every leaf operation.
 	terragruntOptions *options.TerragruntOptions
+	// selectedComponent is the entry the user acted on. It is carried into
+	// the pager and form so scaffold and "view source" know their target
+	// even after the list selection moves on.
 	selectedComponent *Component
-	delegateKeys      *DelegateKeyMap
-	buttonBar         *buttonbar.ButtonBar
-	componentCh       chan *ComponentEntry
-	errCh             chan error
-	mdRenderer        *glamour.TermRenderer
-	form              *FormModel
-	scaffoldPlan      *scaffold.Plan
-	valuesRefs        *ValuesReferences
+	// delegateKeys are the list-row keybindings (choose, interactive
+	// scaffold) matched while in the list view.
+	delegateKeys *DelegateKeyMap
+	// buttonBar is the pager's action strip (Scaffold / View Source). It is
+	// rebuilt per component because the available actions depend on kind.
+	buttonBar *buttonbar.ButtonBar
+	// componentCh streams discovered components from the background loader.
+	// A nil channel disables the listener (used by the non-streaming test
+	// constructor).
+	componentCh chan *ComponentEntry
+	// errCh carries the loader's final result, drained after componentCh
+	// closes so completion is observed only after every component.
+	errCh chan error
+	// mdRenderer is the cached glamour renderer for README markdown. It is
+	// reused while mdRendererWidth and mdRendererDark still match the
+	// current width and background, and rebuilt otherwise.
+	mdRenderer *glamour.TermRenderer
+	// form is the variable-entry form, nil until a formReadyMsg arrives
+	// from scaffold-variable discovery.
+	form *FormModel
+	// scaffoldPlan is the prepared plan backing the active form. Its
+	// temporary source download is cleaned up when the form is abandoned
+	// or the scaffold is consumed.
+	scaffoldPlan *scaffold.Plan
+	// valuesRefs holds the `values.*` references collected from a copyable
+	// unit/stack, used to build that component's values form.
+	valuesRefs *ValuesReferences
 	// terminalErr is the failure that ended the session (a scaffold, copy,
 	// or form-discovery error). Run returns it so the catalog command exits
 	// nonzero; a deliberate quit leaves it nil.
@@ -89,25 +118,61 @@ type Model struct {
 	// loadErr is a non-fatal discovery failure (some catalog sources failed
 	// to load while others produced components). It renders as a notice in
 	// the list view rather than ending the session.
-	loadErr             error
-	pagerKeys           PagerKeyMap
-	listKeys            list.KeyMap
+	loadErr error
+	// venv is the root virtualized environment threaded from the CLI
+	// entrypoint, so scaffold and form-discovery leaves run against the
+	// same filesystem and exec handles as the rest of Terragrunt.
+	venv venv.Venv
+	// pagerKeys are the keybindings handled while reading a README in the
+	// pager view.
+	pagerKeys PagerKeyMap
+	// listKeys are the list-view keybindings, including quit.
+	listKeys list.KeyMap
+	// currentPagerButtons are the actions offered for the component in the
+	// pager; activeButton indexes into it.
 	currentPagerButtons []button
-	exitMessage         string
-	viewport            viewport.Model
-	venv                venv.Venv
-	activeButton        button
-	State               sessionState
-	priorState          sessionState
-	activeTab           TabKind
-	height              int
-	width               int
-	mdRendererWidth     int
-	ready               bool
-	loading             bool
-	userNavigated       bool
-	hasDarkBG           bool
-	mdRendererDark      bool
+	// exitMessage is the styled message stashed for printing after the alt
+	// screen tears down (a success callout or a failure notice), since
+	// writes during the alt screen are discarded.
+	exitMessage string
+	// viewport is the scrollable pager that renders README content.
+	viewport viewport.Model
+	// activeButton is the focused entry in currentPagerButtons.
+	activeButton button
+	// State is the current view (list, pager, form, or scaffold).
+	State sessionState
+	// priorState is the view to return to when a form is cancelled,
+	// recorded when the form is entered.
+	priorState sessionState
+	// activeTab is the focused tab (All / Modules / Templates / Stacks);
+	// it indexes lists.
+	activeTab TabKind
+	// height is the last terminal height, refreshed on each WindowSizeMsg
+	// and used to size the viewport and form.
+	height int
+	// width is the last terminal width, refreshed on each WindowSizeMsg and
+	// used to size the viewport, form, and markdown renderer.
+	width int
+	// mdRendererWidth is the width the cached mdRenderer was built for; a
+	// change invalidates it.
+	mdRendererWidth int
+	// ready reports whether the first WindowSizeMsg has sized the viewport,
+	// gating its one-time creation.
+	ready bool
+	// loading reports whether discovery is still streaming components; it
+	// drives the "(loading...)" suffix on the tab bar.
+	loading bool
+	// userNavigated reports whether the user has moved the list cursor.
+	// Until they do, newly streamed components keep the selection pinned to
+	// the top instead of shifting it.
+	userNavigated bool
+	// hasDarkBG is the detected terminal background brightness. It selects
+	// the markdown style and, when it changes, invalidates the cached
+	// renderer.
+	hasDarkBG bool
+	// mdRendererDark is the background brightness the cached mdRenderer was
+	// built for; a change invalidates it.
+	mdRendererDark bool
 	// softWrap toggles glamour's word-wrap in the pager view. Default true
 	// matches the prior behavior; the `w` key flips it so users reading a
 	// README with intentionally long lines (ascii diagrams, wide tables)
