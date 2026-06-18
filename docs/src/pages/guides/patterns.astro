@@ -11,89 +11,29 @@ const patterns = sortPatternEntries(await getCollection('patterns'));
 <StarlightPage
   frontmatter={{
     title: 'Terragrunt Patterns',
-    description: 'Real-world patterns and examples for building with Terragrunt, contributed by the community.',
+    description: 'Real-world patterns and examples for building with Terragrunt.',
     tableOfContents: false,
   }}
 >
-  <p>Real-world patterns and examples for building with Terragrunt, contributed by the community.</p>
+  <p>Real-world patterns and examples for building with Terragrunt.</p>
 
   {patterns.length === 0 ? (
     <p><em>No patterns have been added yet.</em></p>
   ) : (
-    <ul class="pattern-grid">
+    <ul class="grid grid-cols-1 min-[50rem]:grid-cols-2 gap-4 list-none p-0 mt-6 mx-0 mb-0">
       {patterns.map((entry) => (
-        <li class="pattern-card">
-          <a href={`/guides/patterns/${entry.id}`}>
-            <span class="pattern-title">{entry.data.title}</span>
-            <span class="pattern-description">{entry.data.description}</span>
-            <span class="pattern-author">{entry.data.author}</span>
+        <li class="m-0">
+          <a
+            href={`/guides/patterns/${entry.id}`}
+            class="flex flex-col gap-2 h-full p-5 rounded-lg border border-(--sl-color-gray-5) bg-(--sl-color-black) text-inherit no-underline transition-colors duration-150 hover:border-(--sl-color-accent) hover:bg-(--sl-color-gray-6) focus-visible:border-(--sl-color-accent) focus-visible:bg-(--sl-color-gray-6)"
+          >
+            <span class="text-(length:--sl-text-h4) font-semibold leading-[1.3] text-(--sl-color-white)">{entry.data.title}</span>
+            <span class="leading-normal text-(--sl-color-gray-2)">{entry.data.description}</span>
+            {/* `mt-auto` pushes the author to the bottom so cards in a row align. */}
+            <span class="mt-auto text-(length:--sl-text-sm) text-(--sl-color-gray-3) before:content-['By_']">{entry.data.author}</span>
           </a>
         </li>
       ))}
     </ul>
   )}
 </StarlightPage>
-
-<style>
-  .pattern-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-    list-style: none;
-    padding: 0;
-    margin: 1.5rem 0 0;
-  }
-
-  .pattern-card {
-    margin: 0;
-  }
-
-  .pattern-card a {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    height: 100%;
-    padding: 1.25rem;
-    border: 1px solid var(--sl-color-gray-5);
-    border-radius: 0.5rem;
-    background: var(--sl-color-black);
-    color: inherit;
-    text-decoration: none;
-    transition: border-color 0.15s ease, background 0.15s ease;
-  }
-
-  .pattern-card a:hover,
-  .pattern-card a:focus-visible {
-    border-color: var(--sl-color-accent);
-    background: var(--sl-color-gray-6);
-  }
-
-  .pattern-title {
-    font-size: var(--sl-text-h4);
-    font-weight: 600;
-    color: var(--sl-color-white);
-    line-height: 1.3;
-  }
-
-  .pattern-description {
-    color: var(--sl-color-gray-2);
-    line-height: 1.5;
-  }
-
-  /* Push the author to the bottom of the card so cards in a row align. */
-  .pattern-author {
-    margin-top: auto;
-    font-size: var(--sl-text-sm);
-    color: var(--sl-color-gray-3);
-  }
-
-  .pattern-author::before {
-    content: 'By ';
-  }
-
-  @media (max-width: 50rem) {
-    .pattern-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>

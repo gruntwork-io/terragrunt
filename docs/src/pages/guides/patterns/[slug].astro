@@ -43,18 +43,10 @@ const { Content } = await render(entry);
       : false,
   }}
 >
-  <p class="pattern-byline">By {entry.data.author}</p>
+  <p class="-mt-2 text-(length:--sl-text-sm) text-(--sl-color-gray-3)">By {entry.data.author}</p>
 
   <Content />
 
   <hr />
   <p><a href="/guides/patterns">← Back to all patterns</a></p>
 </StarlightPage>
-
-<style>
-  .pattern-byline {
-    margin-top: -0.5rem;
-    color: var(--sl-color-gray-3);
-    font-size: var(--sl-text-sm);
-  }
-</style>

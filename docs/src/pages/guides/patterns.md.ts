@@ -9,9 +9,7 @@ import { markdownDocument } from '@lib/page-to-markdown';
 
 export const prerender = true;
 
-const SUBHEAD =
-  'Real-world patterns and examples for building with Terragrunt, ' +
-  'contributed by the community.';
+const SUBHEAD = 'Real-world patterns and examples for building with Terragrunt.';
 
 export const GET: APIRoute = async () => {
   const patterns = sortPatternEntries(await getCollection('patterns'));
