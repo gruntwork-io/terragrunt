@@ -159,6 +159,10 @@ url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-j
 [tools.go-junit-report."platforms.windows-x64-baseline"]
 url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-windows-amd64.zip"
 
+[[tools."go:github.com/golangci/golines"]]
+version = "0.15.0"
+backend = "go:github.com/golangci/golines"
+
 [[tools."go:github.com/goph/licensei/cmd/licensei"]]
 version = "0.9.0"
 backend = "go:github.com/goph/licensei/cmd/licensei"
