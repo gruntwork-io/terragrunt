@@ -5,7 +5,7 @@
 // imports the configured logos from `virtual:starlight/user-images`. That module's types live in
 // Starlight's internal `virtual-internal.d.ts`, which isn't exposed to consumer projects, so
 // `astro check` can't resolve the import (it resolves fine at build time via Starlight's Vite
-// plugin). Re-declare it here to close the type gap.
+// plugin). Redeclare it here to close the type gap.
 declare module 'virtual:starlight/user-images' {
 	type ImageMetadata = import('astro').ImageMetadata;
 	export const logos: {
