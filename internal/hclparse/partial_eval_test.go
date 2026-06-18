@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"math/big"
 	"strings"
 	"testing"
 
@@ -257,6 +258,51 @@ func TestPartialEval_NonFiniteNumberFallsBackToSource(t *testing.T) {
 			result := string(resultBytes)
 
 			assert.NotContains(t, result, "Inf", "non-finite number must not render as an Inf identifier, got %q", result)
+			assert.Contains(t, result, tc.contains, "expected verbatim source fallback, got %q", result)
+
+			_, diags := hclsyntax.ParseExpression(resultBytes, "result.hcl", hcl.Pos{Line: 1, Column: 1})
+			assert.False(t, diags.HasErrors(), "partial-eval result must be valid HCL, got %q: %s", result, diags.Error())
+		})
+	}
+}
+
+// TestPartialEval_NonFiniteTraversalFallsBackToSource checks a non-finite value reached through a traversal
+// (e.g. a local resolving to 1 / 0 -> +Inf) is kept verbatim rather than rendered as an invalid bare "Inf".
+func TestPartialEval_NonFiniteTraversalFallsBackToSource(t *testing.T) {
+	t.Parallel()
+
+	infCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"local": cty.ObjectVal(map[string]cty.Value{
+				"bad": cty.NumberVal(new(big.Float).SetInf(false)),
+			}),
+		},
+	}
+
+	tests := []struct {
+		name     string
+		hcl      string
+		contains string
+	}{
+		{name: "bare traversal", hcl: `val = local.bad`, contains: "local.bad"},
+		{name: "traversal nested in object", hcl: `val = { v = local.bad }`, contains: "local.bad"},
+		{name: "traversal nested in tuple", hcl: `val = [local.bad]`, contains: "local.bad"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
+
+			resultBytes, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: infCtx, Deferred: testDeferred})
+
+			var unresolved hclparse.PartialEvalUnresolvedError
+			require.ErrorAs(t, err, &unresolved, "non-finite traversal must surface a typed unresolved error")
+
+			result := string(resultBytes)
+
+			assert.NotContains(t, result, "Inf", "non-finite traversal must not render as an Inf identifier, got %q", result)
 			assert.Contains(t, result, tc.contains, "expected verbatim source fallback, got %q", result)
 
 			_, diags := hclsyntax.ParseExpression(resultBytes, "result.hcl", hcl.Pos{Line: 1, Column: 1})

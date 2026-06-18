@@ -120,11 +120,13 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]by
 	}
 
 	val, diags := e.Value(args.EvalCtx)
-	if !diags.HasErrors() && val.IsWhollyKnown() {
+	// A non-finite number (e.g. a local resolving to 1/0 -> Inf) renders as an invalid bare "Inf", so it is treated as
+	// unresolved and kept verbatim, mirroring the whole-expression guard in PartialEval.
+	if !diags.HasErrors() && val.IsWhollyKnown() && valueRendersAsHCLLiteral(val, 0) {
 		return valueToHCLBytes(val), nil
 	}
 
-	return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "traversal value is null or unknown at generation time", Err: diags}
+	return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "traversal value is null, unknown, or non-finite at generation time", Err: diags}
 }
 
 // partialEvalChildren rebuilds parent source bytes with each child replaced by its PartialEval output; gaps stay verbatim.
