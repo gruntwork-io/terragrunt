@@ -67,6 +67,17 @@ func (e *InvalidPrincipalIDError) Error() string {
 	return fmt.Sprintf("principal_id must be a UUID, got %q", e.PrincipalID)
 }
 
+// InvalidRoleDefinitionIDError is returned when an RBAC role_definition_id is
+// not a UUID. Built-in and custom Azure role definitions are identified by
+// GUIDs; the full definition ID is composed by the client.
+type InvalidRoleDefinitionIDError struct {
+	RoleDefinitionID string
+}
+
+func (e *InvalidRoleDefinitionIDError) Error() string {
+	return fmt.Sprintf("role_definition_id must be a UUID, got %q", e.RoleDefinitionID)
+}
+
 // UnknownCloudEnvironmentError is returned for an unrecognised CloudEnvironment string.
 type UnknownCloudEnvironmentError struct {
 	Name string

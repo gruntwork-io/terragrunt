@@ -32,6 +32,10 @@ func isolatedEnv(pairs ...string) map[string]string {
 		"AZURE_SUBSCRIPTION_ID":      "",
 		"ARM_RESOURCE_GROUP_NAME":    "",
 		"AZURE_RESOURCE_GROUP_NAME":  "",
+		"ARM_STORAGE_ACCOUNT_NAME":   "",
+		"AZURE_STORAGE_ACCOUNT":      "",
+		"ARM_LOCATION":               "",
+		"AZURE_LOCATION":             "",
 		"ARM_TENANT_ID":              "",
 		"AZURE_TENANT_ID":            "",
 		"ARM_CLIENT_ID":              "",
@@ -186,6 +190,93 @@ func TestBuild_EnvFallbacks(t *testing.T) {
 
 	if cfg.SasToken != "sv=test" {
 		t.Errorf("SasToken = %q, want %q", cfg.SasToken, "sv=test")
+	}
+}
+
+func TestBuild_StorageAccountNameFromEnv(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		envKey string
+	}{
+		{"ARM_STORAGE_ACCOUNT_NAME", "ARM_STORAGE_ACCOUNT_NAME"},
+		{"AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_ACCOUNT"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg, err := azurehelper.NewAzureConfigBuilder().
+				WithSessionConfig(&azurehelper.AzureSessionConfig{
+					SasToken: "sv=test",
+				}).
+				WithEnv(isolatedEnv(tc.envKey, "acct-from-env")).
+				Build(context.Background(), log.New())
+			if err != nil {
+				t.Fatalf("Build() error = %v", err)
+			}
+
+			if cfg.AccountName != "acct-from-env" {
+				t.Errorf("AccountName = %q, want %q", cfg.AccountName, "acct-from-env")
+			}
+		})
+	}
+}
+
+func TestBuild_StorageAccountNamePrecedence(t *testing.T) {
+	t.Parallel()
+	// ARM_STORAGE_ACCOUNT_NAME wins over AZURE_STORAGE_ACCOUNT
+	// (ARM_* listed first in firstEnv).
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			SasToken: "sv=test",
+		}).
+		WithEnv(isolatedEnv(
+			"ARM_STORAGE_ACCOUNT_NAME", "arm-wins",
+			"AZURE_STORAGE_ACCOUNT", "azure-loses",
+		)).
+		Build(context.Background(), log.New())
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	if cfg.AccountName != "arm-wins" {
+		t.Errorf("AccountName = %q, want %q", cfg.AccountName, "arm-wins")
+	}
+}
+
+func TestBuild_LocationFromEnv(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		envKey string
+	}{
+		{"ARM_LOCATION", "ARM_LOCATION"},
+		{"AZURE_LOCATION", "AZURE_LOCATION"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg, err := azurehelper.NewAzureConfigBuilder().
+				WithSessionConfig(&azurehelper.AzureSessionConfig{
+					StorageAccountName: testAccount,
+					SasToken:           "sv=test",
+				}).
+				WithEnv(isolatedEnv(tc.envKey, "westeurope")).
+				Build(context.Background(), log.New())
+			if err != nil {
+				t.Fatalf("Build() error = %v", err)
+			}
+
+			if cfg.Location != "westeurope" {
+				t.Errorf("Location = %q, want %q", cfg.Location, "westeurope")
+			}
+		})
 	}
 }
 

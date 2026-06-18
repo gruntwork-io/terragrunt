@@ -96,6 +96,10 @@ func (c *RBACClient) AssignRole(ctx context.Context, l log.Logger, in AssignRole
 		return &InvalidPrincipalIDError{PrincipalID: in.PrincipalID}
 	}
 
+	if _, err := uuid.Parse(in.RoleDefinitionID); err != nil {
+		return &InvalidRoleDefinitionIDError{RoleDefinitionID: in.RoleDefinitionID}
+	}
+
 	principalType := in.PrincipalType
 	if principalType == "" {
 		principalType = "ServicePrincipal"
@@ -140,6 +144,10 @@ func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, 
 		return false, &InvalidPrincipalIDError{PrincipalID: principalID}
 	}
 
+	if _, err := uuid.Parse(roleDefinitionID); err != nil {
+		return false, &InvalidRoleDefinitionIDError{RoleDefinitionID: roleDefinitionID}
+	}
+
 	roleDefSuffix := roleDefinitionsPath + roleDefinitionID
 
 	pager := c.client.NewListForScopePager(scope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
@@ -179,6 +187,10 @@ func (c *RBACClient) AssignRoleIfMissing(ctx context.Context, l log.Logger, in A
 		return &InvalidPrincipalIDError{PrincipalID: in.PrincipalID}
 	}
 
+	if _, err := uuid.Parse(in.RoleDefinitionID); err != nil {
+		return &InvalidRoleDefinitionIDError{RoleDefinitionID: in.RoleDefinitionID}
+	}
+
 	has, err := c.HasRoleAssignment(ctx, in.Scope, in.PrincipalID, in.RoleDefinitionID)
 	if err != nil {
 		return err
@@ -206,6 +218,10 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 
 	if _, err := uuid.Parse(principalID); err != nil {
 		return &InvalidPrincipalIDError{PrincipalID: principalID}
+	}
+
+	if _, err := uuid.Parse(roleDefinitionID); err != nil {
+		return &InvalidRoleDefinitionIDError{RoleDefinitionID: roleDefinitionID}
 	}
 
 	roleDefSuffix := roleDefinitionsPath + roleDefinitionID

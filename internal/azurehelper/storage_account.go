@@ -232,22 +232,26 @@ func (c *StorageAccountClient) Delete(ctx context.Context, l log.Logger) error {
 }
 
 // EnableVersioning turns on blob versioning for the account's default
-// blob service. Calling on an account that already has versioning
-// enabled is a no-op from the caller's perspective.
+// blob service. Idempotent: when versioning is already enabled, no PUT
+// is issued.
+//
+// Uses a read-modify-write cycle on BlobServiceProperties so that fields
+// not owned by this call (CORS rules, change feed, soft delete configured
+// elsewhere, …) are preserved. The ARM Blob Service SetServiceProperties
+// endpoint is documented to leave omitted fields with "unexpected
+// behavior"; reading first avoids clobbering them.
 func (c *StorageAccountClient) EnableVersioning(ctx context.Context, l log.Logger) error {
 	l.Debugf("azurehelper: enabling blob versioning on %q", c.accountName)
 
-	props := armstorage.BlobServiceProperties{
-		BlobServiceProperties: &armstorage.BlobServicePropertiesProperties{
-			IsVersioningEnabled: to.Ptr(true),
-		},
-	}
+	return c.updateBlobServiceProperties(ctx, "enable versioning", func(p *armstorage.BlobServicePropertiesProperties) bool {
+		if p.IsVersioningEnabled != nil && *p.IsVersioningEnabled {
+			return false
+		}
 
-	if _, err := c.blobServices.SetServiceProperties(ctx, c.resourceGroup, c.accountName, props, nil); err != nil {
-		return fmt.Errorf("enable versioning on %q: %w", c.accountName, err)
-	}
+		p.IsVersioningEnabled = to.Ptr(true)
 
-	return nil
+		return true
+	})
 }
 
 // IsVersioningEnabled returns true if blob versioning is on.
@@ -270,6 +274,9 @@ func (c *StorageAccountClient) IsVersioningEnabled(ctx context.Context) (bool, e
 // supplied retention. retentionDays must be 1-365; values outside that
 // range are clamped to defaultSoftDeleteDays and the clamping is logged
 // at WARN so the caller can spot a typo.
+//
+// Uses a read-modify-write cycle on BlobServiceProperties; see
+// EnableVersioning for the rationale.
 func (c *StorageAccountClient) EnableSoftDelete(ctx context.Context, l log.Logger, retentionDays int) error {
 	if retentionDays < 1 || retentionDays > 365 {
 		l.Warnf("azurehelper: soft-delete retention %d out of range [1,365] for %q; clamping to %d",
@@ -282,21 +289,66 @@ func (c *StorageAccountClient) EnableSoftDelete(ctx context.Context, l log.Logge
 
 	days := int32(retentionDays) // bounded to [1,365] above
 
-	props := armstorage.BlobServiceProperties{
-		BlobServiceProperties: &armstorage.BlobServicePropertiesProperties{
-			DeleteRetentionPolicy: &armstorage.DeleteRetentionPolicy{
-				Enabled: to.Ptr(true),
-				Days:    &days,
-			},
-			ContainerDeleteRetentionPolicy: &armstorage.DeleteRetentionPolicy{
-				Enabled: to.Ptr(true),
-				Days:    &days,
-			},
-		},
+	return c.updateBlobServiceProperties(ctx, "enable soft delete", func(p *armstorage.BlobServicePropertiesProperties) bool {
+		if softDeleteAlreadyConfigured(p.DeleteRetentionPolicy, days) &&
+			softDeleteAlreadyConfigured(p.ContainerDeleteRetentionPolicy, days) {
+			return false
+		}
+
+		p.DeleteRetentionPolicy = &armstorage.DeleteRetentionPolicy{
+			Enabled: to.Ptr(true),
+			Days:    &days,
+		}
+		p.ContainerDeleteRetentionPolicy = &armstorage.DeleteRetentionPolicy{
+			Enabled: to.Ptr(true),
+			Days:    &days,
+		}
+
+		return true
+	})
+}
+
+// softDeleteAlreadyConfigured reports whether p already has soft-delete
+// enabled with the same retention. Used so EnableSoftDelete can skip the
+// PUT when the account is already in the desired state.
+func softDeleteAlreadyConfigured(p *armstorage.DeleteRetentionPolicy, wantDays int32) bool {
+	return p != nil &&
+		p.Enabled != nil && *p.Enabled &&
+		p.Days != nil && *p.Days == wantDays
+}
+
+// updateBlobServiceProperties applies mutate to the account's current blob
+// service properties and writes the result back. The current properties are
+// fetched via GetServiceProperties so that fields not touched by mutate are
+// preserved across the PUT. mutate returns false when no change is needed,
+// in which case the PUT is skipped — useful for idempotent enablers that
+// should not re-write state already in the desired shape. opLabel is used
+// to build a descriptive error message when either the read or the write
+// fails.
+//
+// Only the writable inner properties are sent back: ARM populates read-only
+// fields (ID, Name, Type, SKU) on the GET response, and forwarding them on
+// the PUT broadens the request body unnecessarily and could trip a stricter
+// API-version validator.
+func (c *StorageAccountClient) updateBlobServiceProperties(ctx context.Context, opLabel string, mutate func(*armstorage.BlobServicePropertiesProperties) bool) error {
+	current, err := c.blobServices.GetServiceProperties(ctx, c.resourceGroup, c.accountName, nil)
+	if err != nil {
+		return fmt.Errorf("%s on %q (get current properties): %w", opLabel, c.accountName, err)
 	}
 
+	inner := current.BlobServiceProperties.BlobServiceProperties
+	if inner == nil {
+		inner = &armstorage.BlobServicePropertiesProperties{}
+	}
+
+	if !mutate(inner) {
+		return nil
+	}
+
+	props := armstorage.BlobServiceProperties{BlobServiceProperties: inner}
+
 	if _, err := c.blobServices.SetServiceProperties(ctx, c.resourceGroup, c.accountName, props, nil); err != nil {
-		return fmt.Errorf("enable soft delete on %q: %w", c.accountName, err)
+		return fmt.Errorf("%s on %q: %w", opLabel, c.accountName, err)
 	}
 
 	return nil
