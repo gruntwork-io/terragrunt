@@ -2,17 +2,9 @@
 
 set -euo pipefail
 
-# Script to detect tests that are defined in the code base but never executed by
-# any CI job. It diffs the tests recorded in the collected CI test outputs (JUnit
-# result.xml and `go test -json` events) against the tests `go test -list` reports,
-# and fails if any defined test was run by no job.
-#
-# Usage: check-tests-ran.sh <outputs-dir> [packages...]
-#   <outputs-dir>  directory holding the downloaded test-result artifacts
-#   [packages...]  packages to enumerate; defaults to ./...
+# Fail if any test defined in the code base is never executed by a CI job.
 
-# collect_executed_tests prints the top-level name of every test recorded as run
-# in the JUnit and go-test-json outputs under the given directory.
+# Print the top-level name of every test recorded as run in the CI outputs.
 function collect_executed_tests {
 	local -r outputs_dir="$1"
 	local file
@@ -26,8 +18,7 @@ function collect_executed_tests {
 	} | sed -E 's#/.*##' | { grep -E '^Test' || true; } | sort -u
 }
 
-# list_defined_tests prints every Test function the given packages compile under
-# the feature build tags the linter uses.
+# Print every test the packages define under the linter's feature build tags.
 function list_defined_tests {
 	local -r tags="$1"
 	shift
