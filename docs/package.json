@@ -5,10 +5,13 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
+    "prebuild": "cd .. && codespell",
     "build": "astro build && bun scripts/indexnow-ping.js",
     "preview": "astro preview",
     "astro": "astro",
-    "test": "bun test"
+    "test": "bun test",
+    "spell": "cd .. && codespell",
+    "spell:fix": "cd .. && codespell -w"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.2.0",
