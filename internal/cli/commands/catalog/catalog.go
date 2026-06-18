@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -29,7 +30,7 @@ const urlChannelBufferSize = 10
 // loaded; otherwise source discovery walks the configuration to find catalog
 // and source URLs. As components are found, the TUI transitions to the
 // component list, or shows a welcome screen when nothing is discovered.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, repoURL string) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, repoURL string) error {
 	// Fail fast with a clear error when there is no terminal to attach the
 	// TUI to, instead of surfacing bubbletea's raw TTY failure.
 	if err := tui.EnsureOSTTY(l); err != nil {
@@ -37,24 +38,24 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, rep
 	}
 
 	return tui.Run(
-		ctx, l, opts, opts.Writers.ErrWriter,
+		ctx, l, v, opts, opts.Writers.ErrWriter,
 		func(
 			ctx context.Context, status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 		) error {
 			if repoURL != "" {
 				status("Loading " + repoURL + "...")
 
-				return tui.LoadURL(ctx, l, opts, repoURL, componentCh)
+				return tui.LoadURL(ctx, l, v, opts, repoURL, componentCh)
 			}
 
-			return discoverAndLoad(ctx, l, opts, status, componentCh)
+			return discoverAndLoad(ctx, l, v, opts, status, componentCh)
 		})
 }
 
 // discoverAndLoad runs the two concurrent URL discoverers and loads each
 // distinct repo URL they surface into componentCh, bounded by parallelism.
 func discoverAndLoad(
-	ctx context.Context, l log.Logger, opts *options.TerragruntOptions,
+	ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions,
 	status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 ) error {
 	urlCh := make(chan string, urlChannelBufferSize)
@@ -103,7 +104,7 @@ func discoverAndLoad(
 		seen[repoURL] = struct{}{}
 
 		loaders.Go(func() error {
-			err := tui.LoadURL(loadCtx, l, opts, repoURL, componentCh)
+			err := tui.LoadURL(loadCtx, l, v, opts, repoURL, componentCh)
 			if err == nil {
 				return nil
 			}

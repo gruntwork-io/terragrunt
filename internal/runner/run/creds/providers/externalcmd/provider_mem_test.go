@@ -16,11 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newRunOpts() *shell.ShellOptions {
-	return shell.NewShellOptions().
-		WithWriters(writer.Writers{Writer: io.Discard, ErrWriter: io.Discard})
-}
-
 // TestProviderEmptyAuthProviderCmdIsNoop pins the contract that an unset
 // auth-provider command short-circuits without dispatching anything to
 // vexec. The previous OS implementation would have constructed
@@ -151,4 +146,9 @@ func TestProviderCommandShellwordsParsing(t *testing.T) {
 
 	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), exec)
 	require.NoError(t, err)
+}
+
+func newRunOpts() *shell.ShellOptions {
+	return shell.NewShellOptions().
+		WithWriters(writer.Writers{Writer: io.Discard, ErrWriter: io.Discard})
 }
