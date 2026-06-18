@@ -69,7 +69,7 @@ These functions figure out **where things are** so you don't have to hardcode pa
 
 ### find_in_parent_folders()
 
-The [`find_in_parent_folders()`](/link/to/find_in_parent_folders) function **walks up** the directory tree looking for a file. Returns the absolute path to the first match.
+The [`find_in_parent_folders()`](/reference/hcl/functions/#find_in_parent_folders) function **walks up** the directory tree looking for a file. Returns the absolute path to the first match.
 
 ```hcl
 # terragrunt.hcl
