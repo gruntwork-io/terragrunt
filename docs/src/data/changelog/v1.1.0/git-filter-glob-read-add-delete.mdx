@@ -1,0 +1,12 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Select units reading added or deleted glob files in Git-based filters
+
+Git-based filters (for example `terragrunt run --all --filter '[HEAD^1...HEAD]' -- plan`) now select units
+that read an added or deleted file through `mark_glob_as_read`, even when that file lives outside the unit's
+own directory. Previously only modified files outside a unit reached those units; adding or deleting a file
+the glob matched left the reading unit out of the run, so its real config change was skipped. Added files are
+matched against the newer reference, and deleted files against the older one where the file still exists.

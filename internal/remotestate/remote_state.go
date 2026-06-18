@@ -3,6 +3,7 @@ package remotestate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -106,7 +107,7 @@ func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, exec vexec
 	}
 
 	defer func() {
-		if err := os.Remove(stateFile); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(stateFile); err != nil && !errors.Is(err, os.ErrNotExist) {
 			l.Warnf("Failed to remove temporary state file %s: %v", stateFile, err)
 		}
 	}()

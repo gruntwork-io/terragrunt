@@ -1123,6 +1123,34 @@ A typical use case is a unit that consumes a directory of configuration files in
 
 If the pattern matches nothing, the function returns an empty list without error.
 
+### Boundary
+
+`mark_glob_as_read` confines glob expansion to a boundary directory. By default the boundary is the enclosing Git repository root; outside a Git repository, no boundary applies. A pattern whose walk would begin outside the boundary returns an error rather than expanding.
+
+This keeps a pattern that resolves higher than intended from walking a large portion of the filesystem. A pattern interpolated from an empty value is the common case: `"${local.dir}/{*.yaml}"` becomes `/{*.yaml}` when `local.dir` is `""`.
+
+Pass a leading `--terragrunt-boundary` argument to set the boundary explicitly. Use it to scope the walk to a subdirectory, or to widen it when a scan outside the repository root is intended. A relative value resolves against the working directory.
+
+```hcl
+locals {
+  # Restrict the walk to a subdirectory.
+  scoped = mark_glob_as_read("--terragrunt-boundary=/etc/terragrunt", "/etc/terragrunt/{*.yaml}")
+
+  # Remove the boundary entirely.
+  everything = mark_glob_as_read("--terragrunt-boundary=/", "/{*.yaml}")
+}
+```
+
+<Aside type="caution">
+A `? :` conditional does not skip the call. HCL evaluates both branches of a conditional before selecting one, so a guard such as `local.dir != "" ? mark_glob_as_read(...) : []` still expands the glob. Wrap the call in [`try`](https://opentofu.org/docs/language/functions/try/) so a boundary error recovers to a fallback:
+
+```hcl
+locals {
+  files = sort(try(mark_glob_as_read("${local.dir}/{*.yaml,*.yml,*.json}"), []))
+}
+```
+</Aside>
+
 ## constraint_check
 
 `constraint_check(version, constraint)` checks if a given version satisfies a given constraint.

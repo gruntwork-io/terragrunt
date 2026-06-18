@@ -2620,6 +2620,52 @@ func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
 	}
 }
 
+// TestCASInStacksRejectsTerraformUpdateSourceWithCASWithNoCAS verifies that stack
+// generation errors when a unit's terraform block declares update_source_with_cas = true
+// while --no-cas is set. Unlike the unit/stack-block attribute (validated up front from the
+// stack file), the terraform-block attribute lives in the unit's own terragrunt.hcl and is
+// only visible once the source is materialized, so it is checked during generation. Without
+// the check the relative source would be copied verbatim and silently fail to resolve.
+func TestCASInStacksRejectsTerraformUpdateSourceWithCASWithNoCAS(t *testing.T) {
+	t.Parallel()
+
+	catalog := helpers.TmpDirWOSymlinks(t)
+	liveDir := helpers.TmpDirWOSymlinks(t)
+
+	writeFile := func(rel, body string) {
+		full := filepath.Join(catalog, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0644))
+	}
+
+	writeFile("modules/baz/main.tf", ``)
+	writeFile("units/bar/terragrunt.hcl", `terraform {
+  source = "../..//modules/baz"
+
+  update_source_with_cas = true
+}
+`)
+
+	// The unit block itself does NOT set update_source_with_cas, so the only opt-in is the
+	// terraform block inside the materialized unit.
+	liveStack := fmt.Sprintf(`unit "bar" {
+  source = %s
+  path   = "bar"
+}
+`, strconv.Quote(filepath.ToSlash(catalog)+"//units/bar"))
+	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --no-cas --non-interactive --working-dir "+liveDir,
+	)
+	require.Error(t, err)
+
+	combined := stderr + err.Error()
+	assert.Contains(t, combined, "update_source_with_cas")
+	assert.Contains(t, combined, "terraform")
+}
+
 // TestCASInStacksLocalSource verifies that CAS processing works end-to-end
 // when the top-level stack source is a local filesystem path rather than a
 // remote git URL. The catalog-like tree lives on disk, the live stack points
