@@ -74,8 +74,6 @@ func BackendOptsFromOpts(v venv.Venv, opts *options.TerragruntOptions) *backend.
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		NonInteractive:               opts.NonInteractive,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
-		LogShowAbsPaths:              opts.LogShowAbsPaths,
-		LogDisableErrorSummary:       opts.LogDisableErrorSummary,
 	}
 }
 

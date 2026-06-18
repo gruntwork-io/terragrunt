@@ -19,8 +19,6 @@ type Options struct {
 	IAMRoleOptions               iam.RoleOptions
 	NonInteractive               bool
 	FailIfBucketCreationRequired bool
-	LogShowAbsPaths              bool
-	LogDisableErrorSummary       bool
 }
 
 type Backends []Backend
