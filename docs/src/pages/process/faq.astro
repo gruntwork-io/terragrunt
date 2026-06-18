@@ -12,6 +12,10 @@ const questions = sortFaqEntries(await getCollection('faq'));
     title: 'Terragrunt Frequently Asked Questions',
     description: "We know there's a lot to learn about Terragrunt. Here are the frequently asked questions that users have asked and that you might find helpful!",
     tableOfContents: false,
+    // FAQ is the last item in the "Process" sidebar group, so Starlight's
+    // auto-pagination would point "Next" into the following section (Migrate).
+    // Suppress it; this overview isn't part of a sequential reading flow.
+    next: false,
   }}
 >
   <p>We know there's a lot to learn about Terragrunt. Here are the frequently asked questions that users have asked and that you might find helpful!</p>
@@ -19,21 +23,24 @@ const questions = sortFaqEntries(await getCollection('faq'));
   {questions.length === 0 ? (
     <p><em>No frequently asked questions have been added yet.</em></p>
   ) : (
-    <table class="faq-table">
+    <table class="w-full table-fixed">
       <thead>
         <tr>
-          <th scope="col" class="faq-col-question">Question</th>
-          <th scope="col" class="faq-col-answer">Answer</th>
+          {/* On narrow viewports the answer preview adds little but horizontal
+              crowding, so collapse to a single full-width Question column. */}
+          <th scope="col" class="w-full min-[50rem]:w-2/5">Question</th>
+          <th scope="col" class="hidden w-3/5 min-[50rem]:table-cell">Answer</th>
         </tr>
       </thead>
       <tbody>
         {questions.map((entry) => (
           <tr>
-            <td class="faq-question">
-              <a href={`/process/faq/${entry.id}`}>{entry.data.question}</a>
-            </td>
             <td>
-              <span class="faq-answer-preview">{entry.data.description}</span>
+              <a href={`/process/faq/${entry.id}`} class="font-semibold">{entry.data.question}</a>
+            </td>
+            <td class="hidden min-[50rem]:table-cell">
+              {/* `line-clamp-2` shows only the first two lines, with a trailing ellipsis on overflow. */}
+              <span class="line-clamp-2 text-(--sl-color-gray-2)">{entry.data.description}</span>
             </td>
           </tr>
         ))}
@@ -41,46 +48,3 @@ const questions = sortFaqEntries(await getCollection('faq'));
     </table>
   )}
 </StarlightPage>
-
-<style>
-  .faq-table {
-    width: 100%;
-    table-layout: fixed;
-  }
-
-  .faq-col-question {
-    width: 40%;
-  }
-
-  .faq-col-answer {
-    width: 60%;
-  }
-
-  .faq-question a {
-    font-weight: 600;
-  }
-
-  /* Show only the first two lines of the answer preview, with a trailing
-     ellipsis when the text overflows. */
-  .faq-answer-preview {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    color: var(--sl-color-gray-2);
-  }
-
-  /* On narrow viewports the answer preview adds little but horizontal
-     crowding, so collapse to a single readable Question column. */
-  @media (max-width: 50rem) {
-    .faq-col-answer,
-    .faq-table td:nth-child(2) {
-      display: none;
-    }
-    .faq-col-question,
-    .faq-table td:first-child {
-      width: 100%;
-    }
-  }
-</style>
