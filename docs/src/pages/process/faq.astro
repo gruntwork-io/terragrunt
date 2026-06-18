@@ -1,0 +1,50 @@
+---
+export const prerender = true;
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { getCollection } from 'astro:content';
+import { sortFaqEntries } from '@lib/faq';
+
+const questions = sortFaqEntries(await getCollection('faq'));
+---
+
+<StarlightPage
+  frontmatter={{
+    title: 'Terragrunt Frequently Asked Questions',
+    description: "We know there's a lot to learn about Terragrunt. Here are the frequently asked questions that users have asked and that you might find helpful!",
+    tableOfContents: false,
+    // FAQ is the last item in the "Process" sidebar group, so Starlight's
+    // auto-pagination would point "Next" into the following section (Migrate).
+    // Suppress it; this overview isn't part of a sequential reading flow.
+    next: false,
+  }}
+>
+  <p>We know there's a lot to learn about Terragrunt. Here are the frequently asked questions that users have asked and that you might find helpful!</p>
+
+  {questions.length === 0 ? (
+    <p><em>No frequently asked questions have been added yet.</em></p>
+  ) : (
+    <table class="w-full table-fixed">
+      <thead>
+        <tr>
+          {/* On narrow viewports the answer preview adds little but horizontal
+              crowding, so collapse to a single full-width Question column. */}
+          <th scope="col" class="w-full min-[50rem]:w-2/5">Question</th>
+          <th scope="col" class="hidden w-3/5 min-[50rem]:table-cell">Answer</th>
+        </tr>
+      </thead>
+      <tbody>
+        {questions.map((entry) => (
+          <tr>
+            <td>
+              <a href={`/process/faq/${entry.id}`} class="font-semibold">{entry.data.question}</a>
+            </td>
+            <td class="hidden min-[50rem]:table-cell">
+              {/* `line-clamp-2` shows only the first two lines, with a trailing ellipsis on overflow. */}
+              <span class="line-clamp-2 text-(--sl-color-gray-2)">{entry.data.description}</span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )}
+</StarlightPage>
