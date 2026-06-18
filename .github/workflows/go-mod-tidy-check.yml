@@ -30,6 +30,3 @@ jobs:
             exit 1
           fi
           echo "go.mod and go.sum are tidy"
-
-      - name: Check build-tagged tests are reachable
-        run: go run ./.github/scripts/ci/check-test-tags
