@@ -104,7 +104,6 @@ jobs:
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: macos-latest
     env:
-      MISE_PROFILE: cicd
       GON_VERSION: v0.0.37
 
     steps:

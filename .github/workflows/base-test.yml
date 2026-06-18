@@ -12,7 +12,6 @@ jobs:
       matrix:
         os: [ubuntu, macos]
     env:
-      MISE_PROFILE: cicd
       # Reduce GC frequency (default 100) to speed up builds/tests at cost of higher memory
       GOGC: "400"
 

@@ -7,8 +7,6 @@ jobs:
   fuzz:
     name: Fuzz Tests
     runs-on: ubuntu-latest
-    env:
-      MISE_PROFILE: cicd
 
     steps:
       - name: Checkout code

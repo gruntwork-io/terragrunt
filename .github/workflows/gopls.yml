@@ -26,7 +26,6 @@ jobs:
           version: 2026.5.12
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MISE_PROFILE: cicd
 
       - name: Find Go files
         id: gofiles

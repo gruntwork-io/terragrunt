@@ -23,3 +23,6 @@ jobs:
 
       - name: Run install script tests
         run: ./docs/tests/install_test.sh
+        env:
+          # Release attestation verification requires an authenticated GitHub CLI
+          GH_TOKEN: ${{ github.token }}

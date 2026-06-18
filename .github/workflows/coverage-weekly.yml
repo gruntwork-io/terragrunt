@@ -18,7 +18,6 @@ jobs:
     name: Weekly Coverage Diff
     runs-on: ubuntu-latest
     env:
-      MISE_PROFILE: cicd
       GOGC: "400"
       WINDOW_DAYS: "7"
       WEEKLY_PKGS: ${{ vars.WEEKLY_PKGS || '' }}

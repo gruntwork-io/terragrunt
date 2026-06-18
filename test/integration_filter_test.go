@@ -2256,3 +2256,63 @@ func TestFilterFlagWithMarkAsRead(t *testing.T) {
 		})
 	}
 }
+
+// TestFilterFlagWithGitFilterMarkGlobAsRead reproduces https://github.com/gruntwork-io/terragrunt/issues/6348:
+// when a file matched by mark_glob_as_read is added or deleted across a Git diff, the unit that reads
+// it via the glob must still be selected by a Git-based filter, even though the file lives outside the
+// unit's own directory. Added files are matched against the "to" worktree; deleted files are matched
+// against the "from" worktree, where the file still exists.
+func TestFilterFlagWithGitFilterMarkGlobAsRead(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	// Three units, each reading a sibling config directory via a glob. None of the watched files live
+	// in the unit's own directory, so only the reading filter can connect a config change to its unit.
+	units := map[string]string{
+		"unit-reads-added":     `locals { config = mark_glob_as_read("../shared-added/*.yml") }`,
+		"unit-reads-removed":   `locals { config = mark_glob_as_read("../shared-removed/*.yml") }`,
+		"unit-reads-untouched": `locals { config = mark_glob_as_read("../shared-untouched/*.yml") }`,
+	}
+
+	for name, contents := range units {
+		dir := filepath.Join(tmpDir, name)
+		require.NoError(t, os.MkdirAll(dir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(contents), 0644))
+	}
+
+	// Baseline config files. shared-added is intentionally empty so the file lands as an addition later.
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "shared-removed"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "shared-removed", "old.yml"), []byte("a: 1\n"), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "shared-untouched"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "shared-untouched", "keep.yml"), []byte("b: 2\n"), 0644))
+
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
+
+	if b, err := runner.Config(t.Context(), "init.defaultBranch"); err != nil || b != "main" {
+		require.NoError(t, runner.Checkout(t.Context(), "main", true))
+	}
+
+	require.NoError(t, runner.Checkout(t.Context(), "glob-read-test", true))
+
+	// Add a file the glob matches, and delete an existing one the glob matched.
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "shared-added"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "shared-added", "new.yml"), []byte("c: 3\n"), 0644))
+	require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "shared-removed")))
+
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Add and remove glob-read config files"))
+
+	helpers.CleanupTerraformFolder(t, tmpDir)
+
+	cmd := "terragrunt find --no-color --working-dir " + tmpDir + " --filter '[HEAD~1...HEAD]'"
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err, "stderr: %s", stderr)
+
+	results := strings.Fields(stdout)
+	assert.ElementsMatch(t, []string{"unit-reads-added", "unit-reads-removed"}, results,
+		"units reading added or removed glob files should be selected; untouched unit should not")
+}

@@ -21,9 +21,6 @@ jobs:
             count: 3
             timeout: 45m
 
-    env:
-      MISE_PROFILE: cicd
-
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6

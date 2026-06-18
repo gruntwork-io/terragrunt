@@ -21,7 +21,6 @@ jobs:
     name: Coverage (${{ inputs.base_ref }})
     runs-on: ubuntu-latest
     env:
-      MISE_PROFILE: cicd
       GOGC: "400"
     steps:
       - name: Fetch coverage scripts
@@ -87,7 +86,6 @@ jobs:
     name: Coverage (${{ inputs.head_ref }})
     runs-on: ubuntu-latest
     env:
-      MISE_PROFILE: cicd
       GOGC: "400"
     steps:
       - name: Fetch coverage scripts

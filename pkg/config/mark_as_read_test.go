@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,6 +78,86 @@ func TestMarkGlobAsReadEscapesMetacharacter(t *testing.T) {
 	read := pctx.FilesRead.Paths()
 	assert.Contains(t, read, filepath.Join(dir, "a*b.tf"))
 	assert.NotContains(t, read, filepath.Join(dir, "acb.tf"))
+}
+
+// TestMarkGlobAsReadBoundaryFlag verifies that a leading --terragrunt-boundary
+// argument is stripped from the call and constrains the walk to the named
+// directory, leaving the remaining argument as the glob pattern. A relative
+// boundary resolves against the working directory.
+func TestMarkGlobAsReadBoundaryFlag(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	writeFile(t, filepath.Join(dir, "a.yaml"), "")
+	writeFile(t, filepath.Join(dir, "b.yaml"), "")
+	writeFile(t, filepath.Join(dir, "README.md"), "")
+
+	l := logger.CreateLogger()
+	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, configPath)
+	pctx.WorkingDir = dir
+
+	hcl := `locals { matched = mark_glob_as_read("--terragrunt-boundary=.", "{*.yaml}") }`
+
+	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+
+	read := pctx.FilesRead.Paths()
+	assert.Contains(t, read, filepath.Join(dir, "a.yaml"))
+	assert.Contains(t, read, filepath.Join(dir, "b.yaml"))
+	assert.NotContains(t, read, filepath.Join(dir, "README.md"))
+}
+
+// TestMarkGlobAsReadGitRootBoundary verifies the default boundary: inside a Git
+// repository, a pattern whose walk would start above the repository root is
+// rejected rather than expanded across the whole filesystem. A conditional does
+// not prevent this on its own, because HCL evaluates both branches of a `? :`
+// expression; try() is what turns the rejection into a recoverable empty list.
+func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
+	t.Parallel()
+
+	// git rev-parse reports the symlink-resolved root, so resolve the temp dir
+	// to keep the working directory and the discovered boundary comparable.
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	helpers.CreateGitRepo(t, root)
+
+	unitDir := filepath.Join(root, "unit")
+	require.NoError(t, os.MkdirAll(unitDir, 0o755))
+
+	l := logger.CreateLogger()
+	configPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+
+	t.Run("pattern above the repository root errors", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, pctx := newTestParsingContext(t, configPath)
+		pctx.WorkingDir = unitDir
+
+		hcl := `locals { matched = mark_glob_as_read("/{*.yaml}") }`
+
+		_, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("try wrapper recovers to empty", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, pctx := newTestParsingContext(t, configPath)
+		pctx.WorkingDir = unitDir
+
+		hcl := `locals {
+  d       = ""
+  matched = local.d != "" ? sort(try(mark_glob_as_read("${local.d}/{*.yaml}"), [])) : []
+}`
+
+		out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+		require.NoError(t, err)
+		require.NotNil(t, out)
+		assert.Empty(t, pctx.FilesRead.Paths())
+	})
 }
 
 // TestMarkManyAsReadMarksModuleSourceFilesByDefault pins the default behavior:

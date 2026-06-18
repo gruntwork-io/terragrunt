@@ -11,8 +11,6 @@ jobs:
     name: License Check
     runs-on: ubuntu-slim
     timeout-minutes: 15
-    env:
-      MISE_PROFILE: cicd
 
     steps:
       - name: Checkout code
@@ -23,7 +21,7 @@ jobs:
         with:
           version: 2026.5.12
         env:
-          # Required for GitHub-hosted tool downloads defined in mise.cicd.toml and mise.toml.
+          # Required for GitHub-hosted tool downloads defined in mise.toml.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - id: go-cache-paths

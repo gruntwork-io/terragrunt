@@ -159,7 +159,10 @@ func TestGetLatestModuleVersion(t *testing.T) {
 func TestGetLatestModuleVersionSkipsPrereleases(t *testing.T) {
 	t.Parallel()
 
-	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"3.3.0"},{"version":"4.0.0-rc1"},{"version":"2.0.0"}]}]}`)
+	server := newVersionsTestServer(
+		t,
+		`{"modules":[{"versions":[{"version":"3.3.0"},{"version":"4.0.0-rc1"},{"version":"2.0.0"}]}]}`,
+	)
 
 	latest, err := getter.GetLatestModuleVersion(
 		t.Context(), logger.CreateLogger(), server.Client(),
@@ -227,12 +230,15 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 		assert.NoError(t, err)
 	})
 
-	mux.HandleFunc("/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download", func(w http.ResponseWriter, r *http.Request) {
-		// Resolve against the request host so the downloader hits the same
-		// test server we are about to shut down at end-of-test.
-		w.Header().Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip")
-		w.WriteHeader(http.StatusNoContent)
-	})
+	mux.HandleFunc(
+		"/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
+		func(w http.ResponseWriter, r *http.Request) {
+			// Resolve against the request host so the downloader hits the same
+			// test server we are about to shut down at end-of-test.
+			w.Header().Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip")
+			w.WriteHeader(http.StatusNoContent)
+		},
+	)
 
 	mux.HandleFunc("/download/terraform-aws-vpc.zip", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
