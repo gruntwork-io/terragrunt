@@ -10,7 +10,8 @@ function collect_executed_tests {
 	local file
 
 	{
-		grep -rhoE '<testcase[^>]*name="[^"]+"' "$outputs_dir" 2>/dev/null | sed -E 's/.*name="([^"]+)".*/\1/' || true
+		# Match the name attribute, not classname (go-junit-report emits name="Test" classname="pkg").
+		grep -rhoE '<testcase[^>]*>' "$outputs_dir" 2>/dev/null | grep -oE '[[:space:]]name="[^"]+"' | sed -E 's/.*name="([^"]+)".*/\1/' || true
 
 		while IFS= read -r file; do
 			jq -r 'select(.Action == "run") | .Test // empty' "$file" 2>/dev/null || true
@@ -68,6 +69,7 @@ function main {
 
 	local never_run
 	never_run="$(comm -23 "$TMP_DIR/defined" "$TMP_DIR/executed")"
+
 	if [[ -n "$never_run" ]]; then
 		echo "::error::test(s) defined in the code base but never executed by any CI job:" >&2
 		printf '%s\n' "$never_run" | sed 's/^/  /' >&2
