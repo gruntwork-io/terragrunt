@@ -1,3 +1,5 @@
+//go:build tofu
+
 package awsproviderpatch_test
 
 import (
@@ -110,7 +112,7 @@ provider "aws" {
 }
 `
 
-func TestPatchAwsProviderInTofuCode(t *testing.T) {
+func TestTofuPatchAwsProvider(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -175,7 +177,7 @@ func TestPatchAwsProviderInTofuCode(t *testing.T) {
 	}
 }
 
-func TestFindAllTerraformFilesIncludesTofuFiles(t *testing.T) {
+func TestTofuFindAllTerraformFiles(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -254,7 +256,7 @@ func TestFindAllTerraformFilesIncludesTofuFiles(t *testing.T) {
 	}
 }
 
-func TestAwsProviderPatchWithMixedFileTypes(t *testing.T) {
+func TestTofuAwsProviderPatchWithMixedFileTypes(t *testing.T) {
 	t.Parallel()
 
 	tfContent := `terraform {
