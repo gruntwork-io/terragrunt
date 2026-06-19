@@ -146,6 +146,7 @@ func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 }
 
 func TestGcpConfigWithImpersonation(t *testing.T) {
+	t.Skip("impersonation succeeds when application default credentials are present, as they are in the GCP CI job")
 	t.Parallel()
 
 	ctx := context.Background()

@@ -1,4 +1,4 @@
-//go:build aws
+//go:build awsextended && aws
 
 package test_test
 

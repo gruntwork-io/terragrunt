@@ -2057,6 +2057,7 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 }
 
 func TestAwsTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
+	t.Skip("requires an AWS backend not provisioned in the CI account")
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, includeFixturePath)

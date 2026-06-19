@@ -164,6 +164,6 @@ jobs:
           path: test-outputs
 
       - name: Detect tests that never ran
-        run: ./.github/scripts/ci/check-tests-ran.sh test-outputs
+        run: ./.github/scripts/ci/check-tests-ran.sh test-outputs ./internal/... ./pkg/...
 
 
