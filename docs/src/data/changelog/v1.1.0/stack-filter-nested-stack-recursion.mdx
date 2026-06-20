@@ -1,0 +1,12 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Filtering a stack that calls another stack now generates and runs the whole subtree
+
+When a stack sourced another stack (a stack of stacks), filtering the parent stopped one level early.
+
+`terragrunt stack generate --filter './my-stack | type=stack'` generated the parent's immediate children but never recursed into them, because the generated nested paths cannot be named by a filter before generation runs. `terragrunt stack run --filter './my-stack | type=stack' -- apply` then reported "No units discovered", since a stack-restricted filter matched only stack components and the runner executes units.
+
+Generation now expands the full subtree of a selected stack while still honoring selective filters (naming a specific nested stack keeps excluding its unnamed siblings) and negated filters. `stack run` and `run --all` with a stack-restricted filter now execute every unit inside the selected stacks instead of finding none.
