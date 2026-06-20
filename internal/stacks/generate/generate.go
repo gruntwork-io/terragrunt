@@ -191,14 +191,55 @@ func discoverAndAddNewNodes(
 	generatedFiles map[string]bool,
 	minLevel int,
 ) error {
-	newFiles, listErr := ListStackFiles(ctx, l, opts, worktrees)
+	// Every stack file on disk; nested stacks under a selected parent cannot be named ahead of generation.
+	allFiles, listErr := listStackFiles(ctx, l, opts, worktrees, filter.Filters{})
 	if listErr != nil {
 		return fmt.Errorf("failed to list stack files after level %d: %w", minLevel-1, listErr)
 	}
 
-	addNewNodesToGraph(l, dependencyGraph, newFiles, generatedFiles, workingDir)
+	// Stack files matching the filter, keeping selective generation when nested siblings are named.
+	matchedFiles := allFiles
+
+	// Stack files excluded by a negated stack filter; never re-added during full recursion.
+	var excludedFiles []string
+
+	if len(opts.Filters) > 0 {
+		matchedFiles, listErr = listStackFiles(ctx, l, opts, worktrees, opts.Filters)
+		if listErr != nil {
+			return fmt.Errorf("failed to list filtered stack files after level %d: %w", minLevel-1, listErr)
+		}
+
+		if negatives := stackRestrictedNegatives(opts.Filters); len(negatives) > 0 {
+			excludedFiles, listErr = listStackFiles(ctx, l, opts, worktrees, negatives)
+			if listErr != nil {
+				return fmt.Errorf("failed to list excluded stack files after level %d: %w", minLevel-1, listErr)
+			}
+		}
+	}
+
+	addNewNodesToGraph(l, dependencyGraph, allFiles, matchedFiles, excludedFiles, generatedFiles, workingDir)
 
 	return nil
+}
+
+// stackRestrictedNegatives returns the un-negated negated stack filters whose un-negation stays stack-restricted.
+func stackRestrictedNegatives(filters filter.Filters) filter.Filters {
+	negatives := make(filter.Filters, 0)
+
+	for _, f := range filters.RestrictToStacks() {
+		if !filter.IsNegated(f.Expression()) {
+			continue
+		}
+
+		unnegated := f.Negated()
+		if !unnegated.Expression().IsRestrictedToStacks() {
+			continue
+		}
+
+		negatives = append(negatives, unnegated)
+	}
+
+	return negatives
 }
 
 // BuildStackTopology creates a topological tree based on directory hierarchy.
@@ -291,22 +332,32 @@ func getNodesAtLevel(nodes map[string]*StackNode, level int) []*StackNode {
 	return levelNodes
 }
 
-// addNewNodesToGraph adds newly discovered stack files to the dependency graph.
+// addNewNodesToGraph adds newly discovered stack files to the dependency graph per selectDescendantNodes rules.
 func addNewNodesToGraph(
 	l log.Logger,
 	existingNodes map[string]*StackNode,
 	allFiles []string,
+	matchedFiles []string,
+	excludedFiles []string,
 	generatedFiles map[string]bool,
 	workingDir string,
 ) {
-	newFiles := make([]string, 0)
+	matched := toSet(matchedFiles)
+	excluded := toSet(excludedFiles)
+
+	candidates := make([]string, 0)
 
 	for _, file := range allFiles {
 		if _, exists := existingNodes[file]; !exists && !generatedFiles[file] {
-			newFiles = append(newFiles, file)
+			candidates = append(candidates, file)
 		}
 	}
 
+	if len(candidates) == 0 {
+		return
+	}
+
+	newFiles := selectDescendantNodes(candidates, existingNodes, matched, excluded, workingDir)
 	if len(newFiles) == 0 {
 		return
 	}
@@ -323,16 +374,118 @@ func addNewNodesToGraph(
 	}
 }
 
-// ListStackFiles returns canonical, symlink-resolved stack-file paths under the absolute opts.WorkingDir.
+// selectDescendantNodes chooses which freshly discovered stack files to add under each already-generated parent.
+func selectDescendantNodes(
+	candidates []string,
+	existingNodes map[string]*StackNode,
+	matched map[string]struct{},
+	excluded map[string]struct{},
+	workingDir string,
+) []string {
+	byParent := make(map[string][]string)
+	orphans := make([]string, 0)
+
+	for _, file := range candidates {
+		parent := findParentStackFile(filepath.Dir(file), existingNodes, workingDir)
+		if parent == "" {
+			orphans = append(orphans, file)
+
+			continue
+		}
+
+		byParent[parent] = append(byParent[parent], file)
+	}
+
+	selected := make([]string, 0, len(candidates))
+
+	for _, file := range orphans {
+		if _, isExcluded := excluded[file]; isExcluded {
+			continue
+		}
+
+		if _, ok := matched[file]; ok {
+			selected = append(selected, file)
+		}
+	}
+
+	for parent, children := range byParent {
+		selective := parentIsSelective(parent, children, existingNodes, matched)
+
+		for _, child := range children {
+			if _, isExcluded := excluded[child]; isExcluded {
+				continue
+			}
+
+			if _, ok := matched[child]; selective && !ok {
+				continue
+			}
+
+			selected = append(selected, child)
+		}
+	}
+
+	return selected
+}
+
+// parentIsSelective reports whether a matched parent has a matched child, so unnamed siblings are pruned.
+func parentIsSelective(
+	parent string,
+	children []string,
+	existingNodes map[string]*StackNode,
+	matched map[string]struct{},
+) bool {
+	if _, ok := matched[parent]; !ok {
+		return false
+	}
+
+	for _, child := range children {
+		if _, ok := matched[child]; ok {
+			return true
+		}
+	}
+
+	if node := existingNodes[parent]; node != nil {
+		for _, child := range node.Children {
+			if _, ok := matched[child.FilePath]; ok {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// toSet builds a set from a slice of file paths.
+func toSet(files []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		set[file] = struct{}{}
+	}
+
+	return set
+}
+
+// ListStackFiles returns canonical stack-file paths under opts.WorkingDir for the filter restricted to stacks.
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
+	return listStackFiles(ctx, l, opts, worktrees, opts.Filters)
+}
+
+// listStackFiles returns canonical stack-file paths for the supplied filters; an empty set returns every stack.
+func listStackFiles(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	worktrees *worktrees.Worktrees,
+	filters filter.Filters,
+) ([]string, error) {
 	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 		WorkingDir:  opts.WorkingDir,
-		Filters:     opts.Filters,
+		Filters:     filters,
 		Experiments: opts.Experiments,
 	})
 	if err != nil {

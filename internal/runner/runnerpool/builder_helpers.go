@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -146,6 +147,110 @@ func discoverWithRetry(
 	}
 
 	return discovered, nil
+}
+
+// expandStackTargetsToUnits re-discovers the units beneath matched stacks when discovery returned stacks but no units, skipping git filters and carrying negations through.
+func expandStackTargetsToUnits(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	discovered component.Components,
+	runnerOpts ...common.Option,
+) (component.Components, error) {
+	if len(opts.Filters.UniqueGitFilters()) > 0 {
+		return discovered, nil
+	}
+
+	stackDirs := make([]string, 0)
+
+	for _, c := range discovered {
+		if _, ok := c.(*component.Unit); ok {
+			// Discovery already returned units; nothing to expand.
+			return discovered, nil
+		}
+
+		if _, ok := c.(*component.Stack); ok {
+			stackDirs = append(stackDirs, c.Path())
+		}
+	}
+
+	if len(stackDirs) == 0 {
+		return discovered, nil
+	}
+
+	filters, err := unitFiltersForStackDirs(opts.WorkingDir, stackDirs)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(filters) == 0 {
+		return discovered, nil
+	}
+
+	filters = append(filters, negatedFilters(opts.Filters)...)
+
+	l.Debugf("Expanding %d stack target(s) to their units for the run", len(stackDirs))
+
+	d := prepareDiscovery(opts, runnerOpts...).WithFilters(filters)
+
+	var units component.Components
+
+	err = doWithTelemetry(ctx, telemetryDiscovery, map[string]any{
+		"working_dir":       opts.WorkingDir,
+		"terraform_command": opts.TerraformCommand,
+	}, func(childCtx context.Context) error {
+		var discoveryErr error
+
+		units, discoveryErr = d.Discover(childCtx, l, opts)
+
+		return discoveryErr
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return units, nil
+}
+
+// unitFiltersForStackDirs builds working-dir-relative path filters matching every descendant of each stack directory.
+func unitFiltersForStackDirs(workingDir string, stackDirs []string) (filter.Filters, error) {
+	filters := make(filter.Filters, 0, len(stackDirs))
+
+	for _, dir := range stackDirs {
+		rel, err := filepath.Rel(workingDir, dir)
+		if err != nil {
+			return nil, err
+		}
+
+		rel = filepath.ToSlash(rel)
+
+		pattern := rel + "/**"
+		if rel == "." {
+			pattern = "**"
+		}
+
+		expr, err := filter.NewPathFilter(pattern)
+		if err != nil {
+			return nil, err
+		}
+
+		filters = append(filters, filter.NewFilter(expr, pattern))
+	}
+
+	return filters, nil
+}
+
+// negatedFilters returns the user's negated filters so explicit exclusions survive the stack-to-unit expansion.
+func negatedFilters(filters filter.Filters) filter.Filters {
+	negated := make(filter.Filters, 0)
+
+	for _, f := range filters {
+		if filter.IsNegated(f.Expression()) {
+			negated = append(negated, f)
+		}
+	}
+
+	return negated
 }
 
 // createRunner wraps runner creation with telemetry and returns the stack runner.
