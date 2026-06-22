@@ -814,9 +814,7 @@ func TestStackDepsE2ECrossStack(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
 }
 
-// TestStackDepsTransitiveStackDirDependency covers a dependency on a stack directory reached
-// transitively: dependent depends on intermediate, and intermediate depends on the upstream stack
-// directory, so resolving dependent must handle the stack directory instead of parsing it as a unit.
+// TestStackDepsTransitiveStackDirDependency checks that a transitive dependency on a stack directory resolves.
 func TestStackDepsTransitiveStackDirDependency(t *testing.T) {
 	t.Parallel()
 
@@ -824,7 +822,6 @@ func TestStackDepsTransitiveStackDirDependency(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsTransitiveStackDir)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsTransitiveStackDir)
 
-	// The nested stack uses get_repo_root() for its unit source, so the fixture copy must be a git repo.
 	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
