@@ -18,7 +18,6 @@ import {
   uniqueVersions,
   type PullRequestGroup,
 } from '@lib/changelog';
-import { sidebar } from '../../../data/sidebar';
 
 export async function getStaticPaths() {
   const showUnreleased = import.meta.env.DEV;
@@ -105,12 +104,10 @@ const headings = [
   frontmatter={{
     title: version,
     description: `Notable changes in Terragrunt ${version}.`,
-    pagination: true,
     prev: older ? { label: older, link: `/process/changelog/${older}` } : false,
     next: newer ? { label: newer, link: `/process/changelog/${newer}` } : false,
   }}
   headings={headings}
-  sidebar={sidebar}
 >
   <div data-pagefind-ignore>
     <ReleaseEntries entries={entries} />

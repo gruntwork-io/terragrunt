@@ -7,7 +7,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
@@ -126,9 +128,10 @@ func FuzzHCLRunCommand(f *testing.F) {
 		ctx, pctx := newTestParsingContext(t, "")
 		pctx.Writers.Writer = io.Discard
 		pctx.Writers.ErrWriter = io.Discard
+		pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: memExec}
 
 		l := logger.CreateLogger()
-		out, err := config.RunCommand(ctx, pctx, l, memExec, argsForCall)
+		out, err := config.RunCommand(ctx, pctx, l, argsForCall)
 
 		stripped, conflict := strippedRunCmdArgs(original)
 

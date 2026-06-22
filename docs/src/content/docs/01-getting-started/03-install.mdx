@@ -7,6 +7,7 @@ sidebar:
 ---
 
 import InstallTabs from '@components/InstallTabs.astro'
+import Before from '@components/Before.astro'
 import { Aside, Code, Tabs, TabItem } from '@astrojs/starlight/components'
 import { getLatestRelease } from '@lib/github';
 export const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
@@ -86,6 +87,34 @@ cosign verify-blob SHA256SUMS \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp "github.com/gruntwork-io/terragrunt"
 ```
+
+### Verifying releases with the GitHub CLI
+
+<Before version="1.1.0">
+<Aside type="note" title="Coming in v1.1.0">
+  Terragrunt adopts immutable releases starting with `v1.1.0`. The verification below will be supported once `v1.1.0` is published.
+</Aside>
+</Before>
+
+Terragrunt releases starting with `v1.1.0` are published as [immutable releases](/process/releases#immutable-releases), and each one includes a release attestation: a signed record binding the release tag, commit SHA, and asset digests. The [GitHub CLI](https://cli.github.com/) (version 2.81.0 or later) can check a release and your downloaded files against that attestation.
+
+To confirm a release exists and is immutable:
+
+```bash
+gh release verify v1.1.0 --repo gruntwork-io/terragrunt
+```
+
+To confirm a downloaded file exactly matches the published release asset:
+
+```bash
+gh release verify-asset v1.1.0 terragrunt_darwin_arm64.tar.gz --repo gruntwork-io/terragrunt
+```
+
+This complements the checksum and signature checks above: the attestation proves your download matches what was published on GitHub and that the release cannot have been replaced after publishing, while the GPG signature proves Gruntwork produced it.
+
+<Aside type="note">
+  `gh release verify-asset` cannot verify the auto-generated source code zip or tarball, since GitHub creates those on download. Releases before `v1.1.0` predate immutability and cannot be verified this way; use the checksum and signature checks instead.
+</Aside>
 
 ### Convenience Scripts
 

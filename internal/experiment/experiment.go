@@ -20,8 +20,10 @@ const (
 	CLIRedesign = "cli-redesign"
 	// Stacks is the experiment that allows stacks to be used in Terragrunt.
 	Stacks = "stacks"
-	// CAS is the experiment that enables using the CAS package for git operations
-	// in the catalog command, which provides better performance through content-addressable storage.
+	// CAS names the now-stable content-addressable storage behavior. CAS speeds up
+	// catalog cloning, OpenTofu/Terraform source cloning, and stack generation by
+	// avoiding redundant downloads of Git repositories. It is enabled by default and
+	// can be disabled with the --no-cas flag.
 	CAS = "cas"
 	// Report is the experiment that enables the new run report.
 	Report = "report"
@@ -49,12 +51,15 @@ const (
 	// dependency relationships and arbitrary configuration overrides during
 	// stack generation. See RFC #5663.
 	StackDependencies = "stack-dependencies"
-	// CatalogRedesign is the experiment that enables the redesigned catalog experience.
+	// CatalogRedesign names the now-default catalog experience: whole-repository
+	// discovery, tabbed browsing, and an interactive scaffolding form. It is no
+	// longer gated and the flag is retained only for backwards compatibility.
 	CatalogRedesign = "catalog-redesign"
-	// MarkManyAsRead enables behaviors that mark many files as read in one
-	// step: automatic marking of files inside a local terraform module source
-	// (so reading-based filter expressions detect changes to the module) and
-	// the mark_glob_as_read HCL function.
+	// MarkManyAsRead names the now-stable behaviors that mark many files as
+	// read in one step: automatic marking of files inside a local terraform
+	// module source (so reading-based filter expressions detect changes to
+	// the module) and the mark_glob_as_read HCL function. Both are enabled
+	// by default.
 	MarkManyAsRead = "mark-many-as-read"
 	// AzureBackend reserves the experiment flag for native Azure Storage (azurerm)
 	// remote state support. The backend is stubbed out for now; full Azure helper
@@ -63,12 +68,15 @@ const (
 	AzureBackend = "azure-backend"
 	// DeepMerge enables the deep_merge HCL function.
 	DeepMerge = "deep-merge"
-	// OptOutAuth gates flags that opt out of running --auth-provider-cmd in
-	// specific phases (currently --no-discovery-auth-provider-cmd).
+	// OptOutAuth names the now-stable flags that opt out of running
+	// --auth-provider-cmd in specific phases. The
+	// --no-discovery-auth-provider-cmd flag is enabled by default.
 	OptOutAuth = "opt-out-auth"
 	// HookContextEnv exposes additional TG_CTX_* environment variables to hook
 	// scripts: TG_CTX_HOOK_TYPE, TG_CTX_SOURCE, and TG_CTX_TERRAGRUNT_DIR.
 	HookContextEnv = "hook-context-env"
+	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
+	OptionalHooks = "optional-hooks"
 )
 
 const (
@@ -97,7 +105,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: CAS,
+			Name:   CAS,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   Report,
@@ -125,16 +134,20 @@ func NewExperiments() Experiments {
 			Name: SlowTaskReporting,
 		},
 		{
-			Name: DAGQueueDisplay,
+			Name:   DAGQueueDisplay,
+			Status: StatusCompleted,
 		},
 		{
-			Name: StackDependencies,
+			Name:   StackDependencies,
+			Status: StatusCompleted,
 		},
 		{
-			Name: CatalogRedesign,
+			Name:   CatalogRedesign,
+			Status: StatusCompleted,
 		},
 		{
-			Name: MarkManyAsRead,
+			Name:   MarkManyAsRead,
+			Status: StatusCompleted,
 		},
 		{
 			Name: AzureBackend,
@@ -143,10 +156,14 @@ func NewExperiments() Experiments {
 			Name: DeepMerge,
 		},
 		{
-			Name: OptOutAuth,
+			Name:   OptOutAuth,
+			Status: StatusCompleted,
 		},
 		{
 			Name: HookContextEnv,
+		},
+		{
+			Name: OptionalHooks,
 		},
 	}
 }
@@ -226,9 +243,11 @@ func (exps Experiments) NotifyCompletedExperiments(logger log.Logger) {
 	logger.Warnf("%s", NewCompletedExperimentsWarning(completed.Names()).String())
 }
 
-// Evaluate returns true if the experiment is found and enabled otherwise returns false.
+// Evaluate returns true if the experiment is found and evaluates to true, otherwise returns false.
+//
+// Completed experiments evaluate to true, per [Experiment.Evaluate].
 func (exps Experiments) Evaluate(name string) bool {
-	if experiment := exps.FilterByStatus(StatusOngoing).Find(name); experiment != nil {
+	if experiment := exps.Find(name); experiment != nil {
 		return experiment.Evaluate()
 	}
 

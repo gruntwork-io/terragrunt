@@ -3,7 +3,7 @@ import type { StarlightUserConfig } from "@astrojs/starlight/types";
 export const sidebar: StarlightUserConfig["sidebar"] = [
   {
     label: "Getting Started",
-    autogenerate: { directory: "01-getting-started" },
+    items: [{ autogenerate: { directory: "01-getting-started" } }],
   },
   {
     label: "Guides",
@@ -11,13 +11,14 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
       {
         label: "Terralith to Terragrunt",
         collapsed: true,
-        autogenerate: { directory: "02-guides/01-terralith-to-terragrunt", collapsed: true },
+        items: [{ autogenerate: { directory: "02-guides/01-terralith-to-terragrunt", collapsed: true } }],
       },
       {
         label: "Continuous Integration with Terragrunt",
         collapsed: true,
-        autogenerate: { directory: "02-guides/02-continuous-integration-with-terragrunt", collapsed: true },
+        items: [{ autogenerate: { directory: "02-guides/02-continuous-integration-with-terragrunt", collapsed: true } }],
       },
+      { label: "Patterns", link: "/guides/patterns" },
     ],
     collapsed: true,
   },
@@ -28,17 +29,17 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
       {
         label: "Units",
         collapsed: true,
-        autogenerate: { directory: "03-features/01-units", collapsed: true },
+        items: [{ autogenerate: { directory: "03-features/01-units", collapsed: true } }],
       },
       {
         label: "Stacks",
         collapsed: true,
-        autogenerate: { directory: "03-features/02-stacks", collapsed: true },
+        items: [{ autogenerate: { directory: "03-features/02-stacks", collapsed: true } }],
       },
       {
         label: "Catalog",
         collapsed: true,
-        autogenerate: { directory: "03-features/06-catalog", collapsed: true },
+        items: [{ autogenerate: { directory: "03-features/06-catalog", collapsed: true } }],
       },
       {
         label: "Caching",
@@ -50,14 +51,14 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
           {
             label: "Content Addressable Store (CAS)",
             collapsed: true,
-            autogenerate: { directory: "03-features/07-caching/04-cas", collapsed: true },
+            items: [{ autogenerate: { directory: "03-features/07-caching/04-cas", collapsed: true } }],
           },
         ],
       },
       {
         label: "Filters",
         collapsed: true,
-        autogenerate: { directory: "03-features/08-filter", collapsed: true },
+        items: [{ autogenerate: { directory: "03-features/08-filter", collapsed: true } }],
       },
     ],
   },
@@ -68,7 +69,7 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
       {
         label: "HCL",
         collapsed: true,
-        autogenerate: { directory: "04-reference/01-hcl", collapsed: true },
+        items: [{ autogenerate: { directory: "04-reference/01-hcl", collapsed: true } }],
       },
       {
         label: "CLI",
@@ -78,10 +79,7 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
           {
             label: "Commands",
             collapsed: true,
-            autogenerate: {
-              directory: "04-reference/02-cli/02-commands",
-              collapsed: true,
-            },
+            items: [{ autogenerate: { directory: "04-reference/02-cli/02-commands", collapsed: true } }],
           },
           { label: "Global Flags", slug: "reference/cli/global-flags" },
         ],
@@ -112,7 +110,7 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
       {
         label: "Logging",
         collapsed: true,
-        autogenerate: { directory: "04-reference/07-logging", collapsed: true },
+        items: [{ autogenerate: { directory: "04-reference/07-logging", collapsed: true } }],
       },
       { label: "Terragrunt Cache", slug: "reference/terragrunt-cache" },
     ],
@@ -120,12 +118,12 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
   {
     label: "Community",
     collapsed: true,
-    autogenerate: { directory: "05-community", collapsed: true },
+    items: [{ autogenerate: { directory: "05-community", collapsed: true } }],
   },
   {
     label: "Troubleshooting",
     collapsed: true,
-    autogenerate: { directory: "06-troubleshooting", collapsed: true },
+    items: [{ autogenerate: { directory: "06-troubleshooting", collapsed: true } }],
   },
   {
     label: "Process",
@@ -135,16 +133,17 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
       { label: "CLI Rules", slug: "process/cli-rules" },
       { label: "Releases", slug: "process/releases" },
       { label: "Changelog", link: "/process/changelog" },
+      { label: "FAQ", link: "/process/faq" },
     ],
   },
   {
     label: "Migrate",
     collapsed: true,
-    autogenerate: { directory: "08-migrate", collapsed: true },
+    items: [{ autogenerate: { directory: "08-migrate", collapsed: true } }],
   },
   {
     label: "Terragrunt Scale",
     collapsed: true,
-    autogenerate: { directory: "09-terragrunt-scale", collapsed: true },
+    items: [{ autogenerate: { directory: "09-terragrunt-scale", collapsed: true } }],
   },
 ];

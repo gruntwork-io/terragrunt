@@ -1,0 +1,38 @@
+---
+title: Terragrunt Patterns
+description: Real-world patterns and examples for building with Terragrunt, contributed by the community.
+slug: guides/patterns
+sidebar:
+  order: 3
+pagefind: false
+---
+
+{/* Patterns are managed in docs/src/data/patterns/ as one Markdown/MDX file per
+pattern. Add new patterns there, not here.
+
+This file is an intentionally-empty placeholder. Its visible content is rendered
+by docs/src/pages/guides/patterns.astro (the card grid) and
+docs/src/pages/guides/patterns/[slug].astro (each pattern's own page). The
+placeholder must stay in place so the sidebar resolves the /guides/patterns route
+and so contributors can discover where pattern content lives.
+
+To add a pattern, create a file in docs/src/data/patterns/, e.g.
+`docs/src/data/patterns/my-pattern.mdx`. The file name (without extension)
+becomes the URL slug under /guides/patterns/. Each file has frontmatter followed
+by the full pattern in Markdown:
+
+---
+title: "My pattern"                # shown on the card and as the page heading
+description: "A short description." # shown on the card beneath the title
+author: "Your Name"                # shown on the card and the pattern page
+order: 3                           # optional; lower numbers sort first
+---
+
+The full pattern goes here, in normal Markdown. This becomes the pattern's own
+page at /guides/patterns/my-pattern, which the card links to.
+
+The card grid (two per row), ordering, and per-pattern pages are handled by the
+routes above and docs/src/lib/patterns.ts — no edits there are needed to add a
+pattern.
+
+*/}

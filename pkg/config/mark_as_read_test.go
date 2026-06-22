@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,6 @@ func TestMarkGlobAsRead(t *testing.T) {
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
 	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx.WorkingDir = dir
-	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MarkManyAsRead))
 
 	// Drive the HCL function via a locals block so we exercise the registered cty wrapper.
 	// Brace alternation covers files at the current depth AND deeper, since gobwas's
@@ -66,7 +65,6 @@ func TestMarkGlobAsReadEscapesMetacharacter(t *testing.T) {
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
 	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx.WorkingDir = dir
-	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MarkManyAsRead))
 
 	// The HCL string literal '"a\\*b.tf"' decodes to 'a\*b.tf', which the glob
 	// engine reads as a literal 'a*b.tf'.
@@ -82,29 +80,90 @@ func TestMarkGlobAsReadEscapesMetacharacter(t *testing.T) {
 	assert.NotContains(t, read, filepath.Join(dir, "acb.tf"))
 }
 
-func TestMarkGlobAsReadRequiresExperiment(t *testing.T) {
+// TestMarkGlobAsReadBoundaryFlag verifies that a leading --terragrunt-boundary
+// argument is stripped from the call and constrains the walk to the named
+// directory, leaving the remaining argument as the glob pattern. A relative
+// boundary resolves against the working directory.
+func TestMarkGlobAsReadBoundaryFlag(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "a.tf"), "")
+
+	writeFile(t, filepath.Join(dir, "a.yaml"), "")
+	writeFile(t, filepath.Join(dir, "b.yaml"), "")
+	writeFile(t, filepath.Join(dir, "README.md"), "")
 
 	l := logger.CreateLogger()
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
 	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx.WorkingDir = dir
 
-	hcl := `locals { matched = mark_glob_as_read("**/*.tf") }`
+	hcl := `locals { matched = mark_glob_as_read("--terragrunt-boundary=.", "{*.yaml}") }`
 
-	_, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "mark-many-as-read")
+	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	require.NoError(t, err)
+	require.NotNil(t, out)
 
-	if pctx.FilesRead != nil {
-		assert.NotContains(t, pctx.FilesRead.Paths(), filepath.Join(dir, "a.tf"))
-	}
+	read := pctx.FilesRead.Paths()
+	assert.Contains(t, read, filepath.Join(dir, "a.yaml"))
+	assert.Contains(t, read, filepath.Join(dir, "b.yaml"))
+	assert.NotContains(t, read, filepath.Join(dir, "README.md"))
 }
 
-func TestMarkManyAsReadExperiment(t *testing.T) {
+// TestMarkGlobAsReadGitRootBoundary verifies the default boundary: inside a Git
+// repository, a pattern whose walk would start above the repository root is
+// rejected rather than expanded across the whole filesystem. A conditional does
+// not prevent this on its own, because HCL evaluates both branches of a `? :`
+// expression; try() is what turns the rejection into a recoverable empty list.
+func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
+	t.Parallel()
+
+	// git rev-parse reports the symlink-resolved root, so resolve the temp dir
+	// to keep the working directory and the discovered boundary comparable.
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	helpers.CreateGitRepo(t, root)
+
+	unitDir := filepath.Join(root, "unit")
+	require.NoError(t, os.MkdirAll(unitDir, 0o755))
+
+	l := logger.CreateLogger()
+	configPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+
+	t.Run("pattern above the repository root errors", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, pctx := newTestParsingContext(t, configPath)
+		pctx.WorkingDir = unitDir
+
+		hcl := `locals { matched = mark_glob_as_read("/{*.yaml}") }`
+
+		_, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("try wrapper recovers to empty", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, pctx := newTestParsingContext(t, configPath)
+		pctx.WorkingDir = unitDir
+
+		hcl := `locals {
+  d       = ""
+  matched = local.d != "" ? sort(try(mark_glob_as_read("${local.d}/{*.yaml}"), [])) : []
+}`
+
+		out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+		require.NoError(t, err)
+		require.NotNil(t, out)
+		assert.Empty(t, pctx.FilesRead.Paths())
+	})
+}
+
+// TestMarkManyAsReadMarksModuleSourceFilesByDefault pins the default behavior:
+// a full parse of a config with a local terraform source marks the module's
+// configuration files as read, with no experiment flag required.
+func TestMarkManyAsReadMarksModuleSourceFilesByDefault(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -123,45 +182,52 @@ func TestMarkManyAsReadExperiment(t *testing.T) {
 
 	hcl := `terraform { source = "../../modules/foo" }`
 
-	t.Run("off by default", func(t *testing.T) {
-		t.Parallel()
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, configPath)
+	pctx.WorkingDir = unitDir
 
-		l := logger.CreateLogger()
-		ctx, pctx := newTestParsingContext(t, configPath)
-		pctx.WorkingDir = unitDir
+	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.NotNil(t, pctx.FilesRead)
 
-		out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
-		require.NoError(t, err)
-		require.NotNil(t, out)
+	read := pctx.FilesRead.Paths()
+	assert.Contains(t, read, filepath.Join(moduleDir, "main.tf"))
+	assert.Contains(t, read, filepath.Join(moduleDir, "variables.tf.json"))
+	assert.Contains(t, read, filepath.Join(moduleDir, "helpers.hcl"))
+	assert.Contains(t, read, filepath.Join(moduleDir, "sub", "nested.tf"))
+	assert.Contains(t, read, filepath.Join(moduleDir, ".terraform.lock.hcl"))
+	assert.NotContains(t, read, filepath.Join(moduleDir, "README.md"))
+}
 
-		if pctx.FilesRead != nil {
-			for _, f := range pctx.FilesRead.Paths() {
-				assert.NotContains(t, f, moduleDir, "module files should not be marked when experiment is off")
-			}
-		}
-	})
+// TestMarkManyAsReadRelativeConfigPathAnchorsToWorkingDir pins that a relative
+// config path resolves against the parsing context's working directory before
+// the module walk. The file detector roots relative paths at "/", so without
+// anchoring, a relative config path would send the walk to the filesystem root.
+func TestMarkManyAsReadRelativeConfigPathAnchorsToWorkingDir(t *testing.T) {
+	t.Parallel()
 
-	t.Run("on marks source files", func(t *testing.T) {
-		t.Parallel()
+	root := t.TempDir()
+	moduleDir := filepath.Join(root, "modules", "foo")
+	unitDir := filepath.Join(root, "units", "bar")
 
-		l := logger.CreateLogger()
-		ctx, pctx := newTestParsingContext(t, configPath)
-		pctx.WorkingDir = unitDir
-		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MarkManyAsRead))
+	writeFile(t, filepath.Join(moduleDir, "main.tf"), "")
 
-		out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
-		require.NoError(t, err)
-		require.NotNil(t, out)
-		require.NotNil(t, pctx.FilesRead)
+	configPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	writeFile(t, configPath, "")
 
-		read := pctx.FilesRead.Paths()
-		assert.Contains(t, read, filepath.Join(moduleDir, "main.tf"))
-		assert.Contains(t, read, filepath.Join(moduleDir, "variables.tf.json"))
-		assert.Contains(t, read, filepath.Join(moduleDir, "helpers.hcl"))
-		assert.Contains(t, read, filepath.Join(moduleDir, "sub", "nested.tf"))
-		assert.Contains(t, read, filepath.Join(moduleDir, ".terraform.lock.hcl"))
-		assert.NotContains(t, read, filepath.Join(moduleDir, "README.md"))
-	})
+	hcl := `terraform { source = "../../modules/foo" }`
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, configPath)
+	pctx.WorkingDir = unitDir
+
+	out, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, hcl, nil)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.NotNil(t, pctx.FilesRead)
+
+	assert.Contains(t, pctx.FilesRead.Paths(), filepath.Join(moduleDir, "main.tf"))
 }
 
 func TestMarkManyAsReadPartialParseSource(t *testing.T) {
@@ -187,7 +253,6 @@ func TestMarkManyAsReadPartialParseSource(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, configPath)
 			pctx.WorkingDir = unitDir
 			pctx = pctx.WithDecodeList(decode)
-			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MarkManyAsRead))
 
 			out, err := config.PartialParseConfigString(ctx, pctx, l, configPath, hcl, nil)
 			require.NoError(t, err)
@@ -202,10 +267,10 @@ func TestMarkManyAsReadPartialParseSource(t *testing.T) {
 	}
 }
 
-// TestMarkManyAsReadPartialParseIncludedSource pins that the experiment hook still
-// fires when the terraform source comes from an included parent rather than the
-// leaf unit itself. The check runs after handleInclude, so output.Terraform is
-// populated from the merged parent at the time the experiment is evaluated.
+// TestMarkManyAsReadPartialParseIncludedSource pins that the partial-parse hook
+// still fires when the terraform source comes from an included parent rather
+// than the leaf unit itself. The check runs after handleInclude, so
+// output.Terraform is populated from the merged parent by the time the hook runs.
 func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
 	t.Parallel()
 
@@ -233,7 +298,6 @@ func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, childPath)
 			pctx.WorkingDir = unitDir
 			pctx = pctx.WithDecodeList(decode)
-			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MarkManyAsRead))
 
 			out, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
 			require.NoError(t, err)

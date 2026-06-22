@@ -73,7 +73,12 @@ func (e RegistryAPIErr) Error() string {
 // under which modules are hosted.
 //
 // See https://www.terraform.io/docs/internals/remote-service-discovery.html.
-func GetModuleRegistryURLBasePath(ctx context.Context, l log.Logger, httpClient *http.Client, domain string) (string, error) {
+func GetModuleRegistryURLBasePath(
+	ctx context.Context,
+	l log.Logger,
+	httpClient *http.Client,
+	domain string,
+) (string, error) {
 	sdURL := url.URL{
 		Scheme: "https",
 		Host:   domain,
@@ -132,7 +137,8 @@ func GetTerraformGetHeader(ctx context.Context, l log.Logger, httpClient *http.C
 // GetDownloadURLFromHeader resolves a relative X-Terraform-Get value
 // against the module URL.
 func GetDownloadURLFromHeader(moduleURL *url.URL, terraformGet string) (string, error) {
-	if strings.HasPrefix(terraformGet, "/") || strings.HasPrefix(terraformGet, "./") || strings.HasPrefix(terraformGet, "../") {
+	if strings.HasPrefix(terraformGet, "/") || strings.HasPrefix(terraformGet, "./") ||
+		strings.HasPrefix(terraformGet, "../") {
 		relativePathURL, err := url.Parse(terraformGet)
 		if err != nil {
 			return "", fmt.Errorf("parsing X-Terraform-Get value %q: %w", terraformGet, err)
@@ -172,7 +178,12 @@ func BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, version
 // `?version=`. This implements the "List Available Versions for a Specific
 // Module" endpoint of the Terraform Module Registry Protocol.
 // See: https://developer.hashicorp.com/terraform/registry/api-docs#list-available-versions-for-a-specific-module
-func GetLatestModuleVersion(ctx context.Context, l log.Logger, httpClient *http.Client, registryDomain, moduleRegistryBasePath, modulePath string) (string, error) {
+func GetLatestModuleVersion(
+	ctx context.Context,
+	l log.Logger,
+	httpClient *http.Client,
+	registryDomain, moduleRegistryBasePath, modulePath string,
+) (string, error) {
 	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
 	modulePath = strings.TrimSuffix(modulePath, "/")
 	modulePath = strings.TrimPrefix(modulePath, "/")
@@ -227,7 +238,11 @@ func GetLatestModuleVersion(ctx context.Context, l log.Logger, httpClient *http.
 	}
 
 	if len(parsed) == 0 {
-		return "", fmt.Errorf("no stable versions found for module %s on registry %s; pin a version explicitly with ?version=", modulePath, registryDomain)
+		return "", fmt.Errorf(
+			"no stable versions found for module %s on registry %s; pin a version explicitly with ?version=",
+			modulePath,
+			registryDomain,
+		)
 	}
 
 	latest := slices.MaxFunc(parsed, func(a, b *goversion.Version) int { return a.Compare(b) })
@@ -271,7 +286,12 @@ func applyHostToken(req *http.Request) (*http.Request, error) {
 }
 
 // httpGETAndGetResponse performs a GET against getURL and returns its body and headers.
-func httpGETAndGetResponse(ctx context.Context, l log.Logger, httpClient *http.Client, getURL *url.URL) ([]byte, *http.Header, error) {
+func httpGETAndGetResponse(
+	ctx context.Context,
+	l log.Logger,
+	httpClient *http.Client,
+	getURL *url.URL,
+) ([]byte, *http.Header, error) {
 	if httpClient == nil {
 		httpClient = cleanhttp.DefaultClient()
 	}

@@ -157,7 +157,10 @@ func NewClassifier(filters Filters) *Classifier {
 //  6. Check if dependent filters exist and parse data unavailable -> CANDIDATE (PotentialDependent)
 //  7. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
 //  8. If no positive filters exist -> DISCOVERED (include-by-default)
-func (c *Classifier) Classify(comp component.Component, classCtx ClassificationContext) (ClassificationStatus, CandidacyReason, int) {
+func (c *Classifier) Classify(
+	comp component.Component,
+	classCtx ClassificationContext,
+) (ClassificationStatus, CandidacyReason, int) {
 	hasNegativeMatch := c.matchesAnyNegated(comp)
 	hasPositiveMatch := c.matchesAnyPositive(comp)
 

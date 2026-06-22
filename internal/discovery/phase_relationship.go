@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -168,11 +167,9 @@ func (p *RelationshipPhase) discoverRelationships(
 		return err
 	}
 
-	if state.opts.Experiments.Evaluate(experiment.StackDependencies) {
-		paths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, paths)
-		if err != nil {
-			return err
-		}
+	paths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, paths)
+	if err != nil {
+		return err
 	}
 
 	if len(paths) == 0 {

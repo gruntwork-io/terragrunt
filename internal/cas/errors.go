@@ -32,12 +32,18 @@ const (
 	ErrCASRefMissingPrefix Error = "CAS reference missing expected hash algorithm prefix"
 	// ErrCASRefEmptyHash is returned when a CAS reference has an empty hash
 	ErrCASRefEmptyHash Error = "CAS reference has empty hash"
+	// ErrCASRefInvalidHash is returned when a CAS reference hash is not lowercase
+	// hex of the digest length for its algorithm (40 characters for sha1, 64 for sha256)
+	ErrCASRefInvalidHash Error = "CAS reference hash must be lowercase hex (40 characters for sha1, 64 for sha256)"
 	// ErrTreeNotFound is returned when a tree hash is not found in any CAS store
 	ErrTreeNotFound Error = "tree not found in CAS store"
 	// ErrAbsoluteSource is returned when an update_source_with_cas source is an absolute path
 	ErrAbsoluteSource Error = "update_source_with_cas does not support absolute sources"
 	// ErrSourceEscapesRepo is returned when an update_source_with_cas source resolves outside the cloned repository
 	ErrSourceEscapesRepo Error = "update_source_with_cas source escapes repository root"
+	// ErrSourceNotLiteral is returned when an update_source_with_cas source is not a
+	// literal string, such as one using interpolation, a function call, or a reference
+	ErrSourceNotLiteral Error = "update_source_with_cas requires a literal source string"
 	// ErrNotADirectory is returned when a path expected to be a directory is not.
 	ErrNotADirectory Error = "not a directory"
 )
@@ -113,7 +119,7 @@ func (e *UpdateSourceWithCASRequiresCASError) Error() string {
 
 	return fmt.Sprintf(
 		"%s in %s sets update_source_with_cas = true, which requires "+
-			"the 'cas' experiment to be enabled and the --no-cas flag to be unset",
+			"the --no-cas flag to be unset",
 		subject, e.Path,
 	)
 }

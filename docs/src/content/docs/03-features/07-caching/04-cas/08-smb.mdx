@@ -7,11 +7,14 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
 
+<Before version="1.1.0">
 <Aside type="tip" title="Experimental">
 CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
 </Aside>
 
+</Before>
 ## Overview
 
 An SMB source is identified by a share path. SMB exposes no low-cost way to resolve a version without reading the content, so Terragrunt always downloads the source and then keys the result by its content hash. The CAS still deduplicates the bytes once they are in the store.

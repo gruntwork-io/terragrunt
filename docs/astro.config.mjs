@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig } from "astro/config";
+import { unified } from "@astrojs/markdown-remark";
 
 import starlight from "@astrojs/starlight";
 import sitemap from "@astrojs/sitemap";
@@ -17,6 +18,47 @@ import { rehypeChangelogAnchors } from "./src/lib/rehype-changelog-anchors.ts";
 
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
+
+/**
+ * Wraps the `starlight-llms-txt` plugin so it still generates `/llms-full.txt`
+ * and `/llms-small.txt`, but does NOT inject its own `/llms.txt` route. That
+ * frees `/llms.txt` for our hand-curated index at `public/llms.txt`, which the
+ * plugin's generated entrypoint can't reproduce (its body is a fixed template).
+ *
+ * The plugin (node_modules/starlight-llms-txt/index.ts) injects its routes from
+ * inside an Astro integration's `astro:config:setup` hook. We intercept the
+ * `addIntegration` call, then wrap that integration's `injectRoute` to drop the
+ * single `/llms.txt` pattern and pass every other route through untouched.
+ */
+function starlightLlmsTxtWithoutIndex(opts) {
+  const plugin = starlightLlmsTxt(opts);
+  const originalSetup = plugin.hooks.setup;
+  return {
+    ...plugin,
+    hooks: {
+      ...plugin.hooks,
+      setup(setupContext) {
+        return originalSetup({
+          ...setupContext,
+          addIntegration(integration) {
+            const configSetup = integration.hooks?.["astro:config:setup"];
+            if (configSetup) {
+              integration.hooks["astro:config:setup"] = (configContext) =>
+                configSetup({
+                  ...configContext,
+                  injectRoute(route) {
+                    if (route.pattern === "/llms.txt") return;
+                    return configContext.injectRoute(route);
+                  },
+                });
+            }
+            return setupContext.addIntegration(integration);
+          },
+        });
+      },
+    },
+  };
+}
 
 // https://astro.build/config
 export default defineConfig({
@@ -124,7 +166,7 @@ export default defineConfig({
             "/tgs-discord",
           ],
         }),
-        starlightLlmsTxt()
+        starlightLlmsTxtWithoutIndex()
       ],
     }),
     d2({
@@ -157,7 +199,9 @@ export default defineConfig({
     }),
   ],
   markdown: {
-    rehypePlugins: [rehypeChangelogAnchors],
+    // A custom `processor` still receives the integration-injected plugins (Starlight's syntax
+    // highlighting, etc.) merged in automatically, so we only register our own rehype plugin here.
+    processor: unified({ rehypePlugins: [rehypeChangelogAnchors] }),
   },
   // Note that some redirects are handled in vercel.json instead.
   //

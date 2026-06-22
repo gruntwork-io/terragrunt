@@ -249,9 +249,9 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 func TestRunnerPoolRemoteSource(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
 	helpers.CleanupTerraformFolder(t, testFixtureRunnerPoolRemoteSource)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureRunnerPoolRemoteSource)
+	tmpEnvPath := mirror.RenderFixture(testFixtureRunnerPoolRemoteSource)
 	testPath := filepath.Join(tmpEnvPath, testFixtureRunnerPoolRemoteSource)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+"  -- apply")
@@ -263,7 +263,11 @@ func TestRunnerPoolRemoteSource(t *testing.T) {
 func TestRunnerPoolSourceMap(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
+	mirror := helpers.NewGitServer(t)
+	// The fixture's source is redirected to the server via --source-map
+	// (not a placeholder), so name the fixture it ends up cloning.
+	mirror.AddFixtures("test/fixtures/download/hello-world-no-remote")
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureSourceMapSlashes)

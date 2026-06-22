@@ -16,6 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -173,9 +175,12 @@ func (p *Plan) Cleanup() {
 // variable blocks, and returns a Plan ready for rendering. The caller is
 // responsible for invoking Plan.Cleanup() (typically via defer) once it has
 // either rendered the result via Generate or decided to abandon the work.
+// v is the virtualized environment threaded through the module download and
+// boilerplate preparation.
 func Prepare(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleURL, templateURL string,
 ) (*Plan, error) {
@@ -236,7 +241,7 @@ func Prepare(
 	plan.originalModuleURL = moduleURL
 
 	// parse module url (transforms for go-getter download)
-	resolvedURL, err := parseModuleURL(ctx, l, opts, vars, moduleURL)
+	resolvedURL, err := parseModuleURL(ctx, l, v, opts, vars, moduleURL)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +263,7 @@ func Prepare(
 	}
 
 	// extract variables from downloaded module
-	requiredVariables, optionalVariables, err := parseVariables(l, opts, tempDir)
+	requiredVariables, optionalVariables, err := parseVariables(l, v.FS, opts, tempDir)
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +274,7 @@ func Prepare(
 	l.Debugf("Parsed %d required variables and %d optional variables", len(requiredVariables), len(optionalVariables))
 
 	// prepare boilerplate files to render Terragrunt files
-	boilerplateDir, err := prepareBoilerplateFiles(ctx, l, opts, templateURL, tempDir)
+	boilerplateDir, err := prepareBoilerplateFiles(ctx, l, v, opts, templateURL, tempDir)
 	if err != nil {
 		return nil, err
 	}
@@ -380,8 +385,14 @@ func applyUserValues(vars []*config.ParsedVariable, values map[string]string) {
 // terragrunt.hcl with `# TODO: fill in value` placeholders for every input.
 // It is the non-interactive entry point used by the CLI scaffold command and
 // the catalog TUI's `S` (placeholder) keybind.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, moduleURL, templateURL string) error {
-	plan, err := Prepare(ctx, l, opts, moduleURL, templateURL)
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	moduleURL, templateURL string,
+) error {
+	plan, err := Prepare(ctx, l, v, opts, moduleURL, templateURL)
 	if err != nil {
 		return err
 	}
@@ -509,6 +520,7 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 func downloadTemplate(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	templateURL,
 	tempDir string,
@@ -529,7 +541,7 @@ func downloadTemplate(
 		baseURL.Path = filepath.ToSlash(strings.TrimSuffix(baseURL.Path, "/")) + "//."
 	}
 
-	baseURL, err = rewriteTemplateURL(ctx, l, opts, baseURL)
+	baseURL, err = rewriteTemplateURL(ctx, l, v, opts, baseURL)
 	if err != nil {
 		return "", err
 	}
@@ -575,6 +587,7 @@ func downloadTemplate(
 func prepareBoilerplateFiles(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	templateURL,
 	tempDir string,
@@ -584,7 +597,7 @@ func prepareBoilerplateFiles(
 	// process template url if it was passed. This overrides the .boilerplate folder in the OpenTofu/Terraform module
 	if templateURL != "" {
 		// process template url if it was passed
-		tempTemplateDir, err := downloadTemplate(ctx, l, opts, templateURL, tempDir)
+		tempTemplateDir, err := downloadTemplate(ctx, l, v, opts, templateURL, tempDir)
 		if err != nil {
 			return "", err
 		}
@@ -604,7 +617,7 @@ func prepareBoilerplateFiles(
 		// use defaultTemplateURL if defined in config, otherwise use basic default template
 		if config != nil && config.DefaultTemplate != "" {
 			// process template url if available
-			tempTemplateDir, err := downloadTemplate(ctx, l, opts, config.DefaultTemplate, tempDir)
+			tempTemplateDir, err := downloadTemplate(ctx, l, v, opts, config.DefaultTemplate, tempDir)
 			if err != nil {
 				return "", err
 			}
@@ -631,10 +644,11 @@ func prepareBoilerplateFiles(
 // parseVariables - parse variables from tf files.
 func parseVariables(
 	l log.Logger,
+	fsys vfs.FS,
 	opts *options.TerragruntOptions,
 	moduleDir string,
 ) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
-	inputs, err := config.ParseVariables(l, opts.Experiments, opts.StrictControls, moduleDir)
+	inputs, err := config.ParseVariables(l, fsys, opts.StrictControls, moduleDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -660,6 +674,7 @@ func parseVariables(
 func parseModuleURL(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	vars map[string]any,
 	moduleURL string,
@@ -678,7 +693,7 @@ func parseModuleURL(
 	}
 
 	// add ref to module url, if required
-	parsedModuleURL, err = addRefToModuleURL(ctx, l, opts, parsedModuleURL, vars)
+	parsedModuleURL, err = addRefToModuleURL(ctx, l, v, opts, parsedModuleURL, vars)
 	if err != nil {
 		return "", err
 	}
@@ -743,6 +758,7 @@ func rewriteModuleURL(
 func rewriteTemplateURL(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	parsedTemplateURL *url.URL,
 ) (*url.URL, error) {
@@ -763,7 +779,7 @@ func rewriteTemplateURL(
 			return updatedTemplateURL, nil
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, v.Exec, opts.Env, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for URL %s, so will not add a ref param to the URL", rootSourceURL)
 		} else {
@@ -779,6 +795,7 @@ func rewriteTemplateURL(
 func addRefToModuleURL(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	parsedModuleURL *url.URL,
 	vars map[string]any,
@@ -803,7 +820,7 @@ func addRefToModuleURL(
 			return nil, err
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, v.Exec, opts.Env, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for %s", rootSourceURL)
 		} else {

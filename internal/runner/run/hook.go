@@ -70,6 +70,11 @@ func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParam
 		return nil
 	}
 
+	if p.Opts != nil && p.Opts.NoHooks {
+		l.Debugf("Skipping hooks because --no-hooks is set.")
+		return nil
+	}
+
 	l.Debugf("Detected %d Hooks", len(p.Hooks))
 
 	// Seed with the errors from earlier stages and append as hooks fail, so each
@@ -113,6 +118,11 @@ func ProcessErrorHooks(
 	previousExecErrors []error,
 ) error {
 	if len(hooks) == 0 || len(previousExecErrors) == 0 {
+		return nil
+	}
+
+	if opts != nil && opts.NoHooks {
+		l.Debugf("Skipping error hooks because --no-hooks is set.")
 		return nil
 	}
 

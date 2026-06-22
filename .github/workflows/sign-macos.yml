@@ -93,7 +93,7 @@ jobs:
           .github/scripts/release/verify-static-binary.sh "${OUTPUT}" "${GOOS}" "${GOARCH}"
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: terragrunt_darwin_${{ matrix.arch }}
           path: bin/terragrunt_darwin_${{ matrix.arch }}*
@@ -104,7 +104,6 @@ jobs:
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: macos-latest
     env:
-      MISE_PROFILE: cicd
       GON_VERSION: v0.0.37
 
     steps:
@@ -163,7 +162,7 @@ jobs:
           done
 
       - name: Upload Signed MacOS Binaries
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.upload-artifact-name }}
           path: bin/terragrunt_darwin_*

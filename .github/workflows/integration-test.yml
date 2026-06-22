@@ -7,8 +7,6 @@ jobs:
   test:
     name: Test (${{ matrix.integration.name }})
     runs-on: ${{ matrix.integration.os }}-latest
-    env:
-      MISE_PROFILE: cicd
     strategy:
       fail-fast: false
       matrix:
@@ -41,6 +39,8 @@ jobs:
             tags: tflint
             run: "^TestTflint"
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            setup_scripts:
+              - .github/scripts/setup/tflint.sh
           - name: GCP
             os: ubuntu
             target: ./...
@@ -152,7 +152,7 @@ jobs:
       - name: "Setup Docker"
         if: runner.os == 'Linux'
         id: set-up-docker
-        uses: docker/setup-docker-action@b2189fbf2a6592b51fee7cdd93ee2bfaeba733db # v5
+        uses: docker/setup-docker-action@0234bb73ccb40f0c430b795634f9247e2b5c2d23 # v5
 
       - name: "Save space on node"
         if: runner.os != 'Windows'
@@ -259,7 +259,7 @@ jobs:
           HAS_DOCKER: ${{ runner.os == 'Linux' }}
 
       - name: Upload Test Results (${{ matrix.integration.name }})
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-results-${{ matrix.integration.name }}
           path: |

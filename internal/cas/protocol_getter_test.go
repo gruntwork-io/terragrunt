@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,36 +13,71 @@ import (
 func TestParseCASRef(t *testing.T) {
 	t.Parallel()
 
+	const (
+		sha1Hash   = "f39ea0ebf891c9954c89d07b73b487ff938ef08b"
+		sha256Hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	)
+
 	tests := []struct {
+		wantErr error
 		name    string
 		ref     string
 		want    string
-		wantErr bool
 	}{
 		{
 			name: "valid sha1 ref",
-			ref:  "sha1:abc123def456",
-			want: "abc123def456",
+			ref:  "sha1:" + sha1Hash,
+			want: sha1Hash,
 		},
 		{
 			name:    "missing sha1 prefix",
-			ref:     "abc123def456",
-			wantErr: true,
+			ref:     sha1Hash,
+			wantErr: cas.ErrCASRefMissingPrefix,
 		},
 		{
 			name:    "empty hash",
 			ref:     "sha1:",
-			wantErr: true,
+			wantErr: cas.ErrCASRefEmptyHash,
 		},
 		{
 			name: "valid sha256 ref",
-			ref:  "sha256:abc123def456",
-			want: "abc123def456",
+			ref:  "sha256:" + sha256Hash,
+			want: sha256Hash,
 		},
 		{
 			name:    "unknown algorithm",
 			ref:     "md5:abc123",
-			wantErr: true,
+			wantErr: cas.ErrCASRefMissingPrefix,
+		},
+		{
+			name:    "single character sha1 hash",
+			ref:     "sha1:a",
+			wantErr: cas.ErrCASRefInvalidHash,
+		},
+		{
+			name:    "sha1 hash too short",
+			ref:     "sha1:abc123def456",
+			wantErr: cas.ErrCASRefInvalidHash,
+		},
+		{
+			name:    "sha1 hash with non-hex characters",
+			ref:     "sha1:zz9ea0ebf891c9954c89d07b73b487ff938ef08b",
+			wantErr: cas.ErrCASRefInvalidHash,
+		},
+		{
+			name:    "sha1 hash with uppercase hex",
+			ref:     "sha1:F39EA0EBF891C9954C89D07B73B487FF938EF08B",
+			wantErr: cas.ErrCASRefInvalidHash,
+		},
+		{
+			name:    "sha256 hash too short",
+			ref:     "sha256:" + sha1Hash,
+			wantErr: cas.ErrCASRefInvalidHash,
+		},
+		{
+			name:    "sha1 hash with subdir tail",
+			ref:     "sha1:" + sha1Hash + "//modules/vpc",
+			wantErr: cas.ErrCASRefInvalidHash,
 		},
 	}
 
@@ -50,14 +86,64 @@ func TestParseCASRef(t *testing.T) {
 			t.Parallel()
 
 			got, err := cas.ParseCASRef(tt.ref)
-			if tt.wantErr {
-				require.Error(t, err)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+
+				var wrapped *cas.WrappedError
+
+				require.ErrorAs(t, err, &wrapped)
+				assert.Equal(t, tt.ref, wrapped.Context)
 
 				return
 			}
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestCASProtocolGetterGet_MalformedHash is a regression test: a malformed
+// hash in a cas:: source used to reach the store's partitioning logic and
+// panic with a slice-bounds error. It must instead fail cleanly with
+// [cas.ErrCASRefInvalidHash].
+func TestCASProtocolGetterGet_MalformedHash(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "single character hash",
+			src:  "cas::sha1:a",
+		},
+		{
+			name: "non-hex hash",
+			src:  "cas::sha1:zz9ea0ebf891c9954c89d07b73b487ff938ef08b",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c, err := cas.New(cas.WithStorePath(t.TempDir()))
+			require.NoError(t, err)
+
+			v, err := cas.OSVenv()
+			require.NoError(t, err)
+
+			l := logger.CreateLogger()
+			g := getter.NewCASProtocolGetter(l, c, v)
+
+			req := &getter.Request{
+				Src: tt.src,
+				Dst: t.TempDir(),
+			}
+
+			err = g.Get(t.Context(), req)
+			require.ErrorIs(t, err, cas.ErrCASRefInvalidHash)
 		})
 	}
 }

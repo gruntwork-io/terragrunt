@@ -27,14 +27,92 @@ func newTestLogger() (log.Logger, *bytes.Buffer) {
 	return logger, output
 }
 
-func TestOptOutAuthIsOngoing(t *testing.T) {
+func TestOptOutAuthIsCompleted(t *testing.T) {
 	t.Parallel()
 
 	exps := experiment.NewExperiments()
 	got := exps.Find(experiment.OptOutAuth)
 	require.NotNil(t, got, "opt-out-auth experiment must be registered in NewExperiments()")
-	assert.Equal(t, experiment.StatusOngoing, got.Status, "opt-out-auth must be ongoing")
-	assert.False(t, got.Evaluate(), "opt-out-auth must be disabled by default")
+	assert.Equal(t, experiment.StatusCompleted, got.Status, "opt-out-auth must be completed")
+	assert.True(t, got.Evaluate(), "opt-out-auth must be enabled by default")
+}
+
+func TestOptionalHooksIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.OptionalHooks)
+	require.NotNil(t, got, "optional-hooks experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "optional-hooks must be ongoing")
+	assert.False(t, got.Evaluate(), "optional-hooks must be disabled by default")
+}
+
+func TestEvaluate(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		experiment  string
+		experiments experiment.Experiments
+		want        bool
+	}{
+		{
+			name: "ongoing disabled",
+			experiments: experiment.Experiments{
+				{
+					Name: testOngoingA,
+				},
+			},
+			experiment: testOngoingA,
+			want:       false,
+		},
+		{
+			name: "ongoing enabled",
+			experiments: experiment.Experiments{
+				{
+					Name:    testOngoingA,
+					Enabled: true,
+				},
+			},
+			experiment: testOngoingA,
+			want:       true,
+		},
+		{
+			name: "completed evaluates as permanently enabled",
+			experiments: experiment.Experiments{
+				{
+					Name:   testCompletedA,
+					Status: experiment.StatusCompleted,
+				},
+			},
+			experiment: testCompletedA,
+			want:       true,
+		},
+		{
+			name: "unknown experiment",
+			experiments: experiment.Experiments{
+				{
+					Name: testOngoingA,
+				},
+			},
+			experiment: "unknown",
+			want:       false,
+		},
+		{
+			name:        "promoted filter-flag experiment",
+			experiments: experiment.NewExperiments(),
+			experiment:  experiment.FilterFlag,
+			want:        true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, tc.experiments.Evaluate(tc.experiment))
+		})
+	}
 }
 
 func TestValidateExperiments(t *testing.T) {

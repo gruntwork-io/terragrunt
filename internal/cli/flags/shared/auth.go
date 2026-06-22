@@ -1,11 +1,8 @@
 package shared
 
 import (
-	"context"
-
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -31,8 +28,7 @@ func NewAuthProviderCmdFlag(opts *options.TerragruntOptions, prefix flags.Prefix
 }
 
 // NewNoDiscoveryAuthProviderCmdFlag opts out of running --auth-provider-cmd
-// during the discovery parse phase. Setting it without the opt-out-auth
-// experiment returns ErrNoDiscoveryAuthProviderCmdRequiresExperiment.
+// during the discovery parse phase.
 func NewNoDiscoveryAuthProviderCmdFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
@@ -40,18 +36,7 @@ func NewNoDiscoveryAuthProviderCmdFlag(opts *options.TerragruntOptions, prefix f
 		Name:        NoDiscoveryAuthProviderCmdFlagName,
 		EnvVars:     tgPrefix.EnvVars(NoDiscoveryAuthProviderCmdFlagName),
 		Destination: &opts.DiscoveryAuthProviderCmd,
-		Usage:       "Skip running --auth-provider-cmd during the discovery phase. Requires the 'opt-out-auth' experiment.",
+		Usage:       "Skip running --auth-provider-cmd during the discovery phase.",
 		Negative:    true,
-		Action: func(_ context.Context, _ *clihelper.Context, runDiscoveryAuth bool) error {
-			if runDiscoveryAuth {
-				return nil
-			}
-
-			if opts.Experiments.Evaluate(experiment.OptOutAuth) {
-				return nil
-			}
-
-			return ErrNoDiscoveryAuthProviderCmdRequiresExperiment
-		},
 	})
 }
