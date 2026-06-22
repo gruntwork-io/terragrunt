@@ -511,7 +511,7 @@ func selectDescendantNodes(
 	}
 
 	for parent, children := range byParent {
-		selective := parentIsSelective(parent, children, existingNodes, matched)
+		selective := parentIsSelective(existingNodes[parent], children, matched)
 
 		for _, child := range children {
 			if _, isExcluded := excluded[child]; isExcluded {
@@ -532,28 +532,26 @@ func selectDescendantNodes(
 	return selected
 }
 
-// parentIsSelective reports whether a matched parent has a matched child, so unnamed siblings are pruned.
-func parentIsSelective(
-	parent string,
-	children []string,
-	existingNodes map[string]*StackNode,
-	matched map[string]struct{},
-) bool {
-	if _, ok := matched[parent]; !ok {
+// parentIsSelective reports whether a matched parent has a matched child (a fresh
+// candidate or one already in the graph), so unnamed siblings are pruned.
+func parentIsSelective(parent *StackNode, candidates []string, matched map[string]struct{}) bool {
+	if parent == nil {
 		return false
 	}
 
-	for _, child := range children {
+	if _, ok := matched[parent.FilePath]; !ok {
+		return false
+	}
+
+	for _, child := range candidates {
 		if _, ok := matched[child]; ok {
 			return true
 		}
 	}
 
-	if node := existingNodes[parent]; node != nil {
-		for _, child := range node.Children {
-			if _, ok := matched[child.FilePath]; ok {
-				return true
-			}
+	for _, child := range parent.Children {
+		if _, ok := matched[child.FilePath]; ok {
+			return true
 		}
 	}
 
