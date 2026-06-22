@@ -136,7 +136,14 @@ func TestSelectDescendantNodes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := selectDescendantNodes(tc.candidates, tc.nodes, tc.matched, tc.excluded, wd)
+			graph := &stackGraph{
+				nodes:      tc.nodes,
+				matched:    tc.matched,
+				excluded:   tc.excluded,
+				workingDir: wd,
+			}
+
+			got := graph.descendants(tc.candidates)
 
 			assert.ElementsMatch(t, tc.want, got)
 		})

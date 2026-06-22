@@ -201,7 +201,14 @@ func discoverAndAddNewNodes(
 		return fmt.Errorf("failed to list excluded stack files after level %d: %w", minLevel-1, err)
 	}
 
-	addNewNodesToGraph(l, dependencyGraph, allFiles, matchedFiles, excludedFiles, generatedFiles, workingDir)
+	graph := &stackGraph{
+		nodes:          dependencyGraph,
+		generatedFiles: generatedFiles,
+		matched:        toSet(matchedFiles),
+		excluded:       toSet(excludedFiles),
+		workingDir:     workingDir,
+	}
+	graph.addNew(l, allFiles)
 
 	return nil
 }
@@ -434,23 +441,23 @@ func getNodesAtLevel(nodes map[string]*StackNode, level int) []*StackNode {
 	return levelNodes
 }
 
-// addNewNodesToGraph adds newly discovered stack files to the dependency graph per selectDescendantNodes rules.
-func addNewNodesToGraph(
-	l log.Logger,
-	existingNodes map[string]*StackNode,
-	allFiles []string,
-	matchedFiles []string,
-	excludedFiles []string,
-	generatedFiles map[string]bool,
-	workingDir string,
-) {
-	matched := toSet(matchedFiles)
-	excluded := toSet(excludedFiles)
+// stackGraph holds the topology being built and the per-level selection sets that
+// decide which discovered stack files to add. It carries only data; the logger is
+// threaded as an explicit argument.
+type stackGraph struct {
+	nodes          map[string]*StackNode
+	generatedFiles map[string]bool
+	matched        map[string]struct{}
+	excluded       map[string]struct{}
+	workingDir     string
+}
 
+// addNew adds the newly discovered stack files to the graph per the rules in descendants.
+func (g *stackGraph) addNew(l log.Logger, allFiles []string) {
 	candidates := make([]string, 0)
 
 	for _, file := range allFiles {
-		if _, exists := existingNodes[file]; !exists && !generatedFiles[file] {
+		if _, exists := g.nodes[file]; !exists && !g.generatedFiles[file] {
 			candidates = append(candidates, file)
 		}
 	}
@@ -459,7 +466,7 @@ func addNewNodesToGraph(
 		return
 	}
 
-	newFiles := selectDescendantNodes(candidates, existingNodes, matched, excluded, workingDir)
+	newFiles := g.descendants(candidates)
 	if len(newFiles) == 0 {
 		return
 	}
@@ -467,28 +474,21 @@ func addNewNodesToGraph(
 	l.Debugf("Adding %d new stack files to topology graph", len(newFiles))
 
 	for _, file := range newFiles {
-		existingNodes[file] = NewStackNode(file)
+		g.nodes[file] = NewStackNode(file)
 	}
 
 	for _, file := range newFiles {
-		node := existingNodes[file]
-		assignNodeLevel(l, node, existingNodes, workingDir)
+		assignNodeLevel(l, g.nodes[file], g.nodes, g.workingDir)
 	}
 }
 
-// selectDescendantNodes chooses which freshly discovered stack files to add under each already-generated parent.
-func selectDescendantNodes(
-	candidates []string,
-	existingNodes map[string]*StackNode,
-	matched map[string]struct{},
-	excluded map[string]struct{},
-	workingDir string,
-) []string {
+// descendants chooses which freshly discovered stack files to add under each already-generated parent.
+func (g *stackGraph) descendants(candidates []string) []string {
 	byParent := make(map[string][]string)
 	orphans := make([]string, 0)
 
 	for _, file := range candidates {
-		parent := findParentStackFile(filepath.Dir(file), existingNodes, workingDir)
+		parent := findParentStackFile(filepath.Dir(file), g.nodes, g.workingDir)
 		if parent == "" {
 			orphans = append(orphans, file)
 
@@ -501,24 +501,24 @@ func selectDescendantNodes(
 	selected := make([]string, 0, len(candidates))
 
 	for _, file := range orphans {
-		if _, isExcluded := excluded[file]; isExcluded {
+		if _, isExcluded := g.excluded[file]; isExcluded {
 			continue
 		}
 
-		if _, ok := matched[file]; ok {
+		if _, ok := g.matched[file]; ok {
 			selected = append(selected, file)
 		}
 	}
 
 	for parent, children := range byParent {
-		selective := parentIsSelective(existingNodes[parent], children, matched)
+		selective := g.parentIsSelective(g.nodes[parent], children)
 
 		for _, child := range children {
-			if _, isExcluded := excluded[child]; isExcluded {
+			if _, isExcluded := g.excluded[child]; isExcluded {
 				continue
 			}
 
-			if _, ok := matched[child]; selective && !ok {
+			if _, ok := g.matched[child]; selective && !ok {
 				continue
 			}
 
@@ -534,23 +534,23 @@ func selectDescendantNodes(
 
 // parentIsSelective reports whether a matched parent has a matched child (a fresh
 // candidate or one already in the graph), so unnamed siblings are pruned.
-func parentIsSelective(parent *StackNode, candidates []string, matched map[string]struct{}) bool {
+func (g *stackGraph) parentIsSelective(parent *StackNode, candidates []string) bool {
 	if parent == nil {
 		return false
 	}
 
-	if _, ok := matched[parent.FilePath]; !ok {
+	if _, ok := g.matched[parent.FilePath]; !ok {
 		return false
 	}
 
 	for _, child := range candidates {
-		if _, ok := matched[child]; ok {
+		if _, ok := g.matched[child]; ok {
 			return true
 		}
 	}
 
 	for _, child := range parent.Children {
-		if _, ok := matched[child.FilePath]; ok {
+		if _, ok := g.matched[child.FilePath]; ok {
 			return true
 		}
 	}
