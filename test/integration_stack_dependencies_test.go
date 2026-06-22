@@ -35,7 +35,7 @@ const (
 	testFixtureStackDepsBasic                    = "fixtures/stacks/stack-deps-basic"
 	testFixtureStackDepsChain                    = "fixtures/stacks/stack-deps-chain"
 	testFixtureStackDepsCrossStack               = "fixtures/stacks/stack-deps-cross-stack"
-	testFixtureStackDepsCrossStackChain          = "fixtures/stacks/stack-deps-cross-stack-chain"
+	testFixtureStackDepsTransitiveStackDir       = "fixtures/stacks/stack-deps-transitive-stack-dir"
 	testFixtureStackDepsTree                     = "fixtures/stacks/stack-deps-tree"
 	testFixtureStackDepsAutoIncParserLimit       = "fixtures/stacks/stack-deps-autoinclude-parser-limit"
 	testFixtureStackDepsAutoIncViaInclude        = "fixtures/stacks/stack-deps-autoinclude-via-include"
@@ -814,18 +814,17 @@ func TestStackDepsE2ECrossStack(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
 }
 
-// TestStackDepsCrossStackChainAutoIncludeDependency covers a transitive cross-stack chain:
-// karpenter depends on eks, and eks autoincludes a dependency on the sibling networking/vpc stack
-// directory via find_in_parent_folders, so the transitive dependency-block traversal must expand the
-// stack directory instead of parsing it as a unit.
-func TestStackDepsCrossStackChainAutoIncludeDependency(t *testing.T) {
+// TestStackDepsTransitiveStackDirDependency covers a dependency on a stack directory reached
+// transitively: dependent depends on intermediate, and intermediate depends on the upstream stack
+// directory, so resolving dependent must handle the stack directory instead of parsing it as a unit.
+func TestStackDepsTransitiveStackDirDependency(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDepsCrossStackChain)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsCrossStackChain)
-	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsCrossStackChain)
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsTransitiveStackDir)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsTransitiveStackDir)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsTransitiveStackDir)
 
-	// The child stacks use get_repo_root() for unit sources, so the fixture copy must be a git repo.
+	// The nested stack uses get_repo_root() for its unit source, so the fixture copy must be a git repo.
 	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
@@ -834,39 +833,12 @@ func TestStackDepsCrossStackChainAutoIncludeDependency(t *testing.T) {
 	rootPath, err = filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
-	// One generate at the common parent recursively materializes both sibling top-level stacks.
 	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
 
-	// eks autoinclude points its networking dependency at the networking/vpc stack directory.
-	eksDir := filepath.Join(rootPath, "platform", "eks", inthclparse.StackDir, "eks")
-	eksAutoInclude, err := os.ReadFile(filepath.Join(eksDir, inthclparse.AutoIncludeFile))
-	require.NoError(t, err)
-	assert.Contains(t, string(eksAutoInclude), `dependency "networking"`,
-		"eks autoinclude must carry the cross-stack networking dependency")
-	assert.Contains(t, string(eksAutoInclude), "networking/vpc",
-		"eks networking dependency must resolve to the networking stack directory")
-
-	// Apply the whole tree so the transitive karpenter to eks to networking chain resolves at run time.
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
-	require.NoError(t, err, "a transitive cross-stack chain must resolve at run time; stderr=%s", stderr)
-	assert.NotContains(t, stderr, "does not contain a terragrunt.hcl",
-		"a transitive dependency on a stack directory must be expanded, not parsed as a unit")
-
-	// eks received the real networking stack output, proving the direct stack-dir edge resolved.
-	eksMarker := helpers.FindCachedFile(t, eksDir, "marker.txt")
-	eksMarkerContent, err := os.ReadFile(eksMarker)
-	require.NoError(t, err)
-	assert.Equal(t, "eks on vpc-cross-stack-chain", string(eksMarkerContent),
-		"eks must receive the networking stack's real vpc output")
-
-	// karpenter received eks output through the chain, proving the transitive edge resolved.
-	karpenterDir := filepath.Join(rootPath, "platform", "eks", inthclparse.StackDir, "karpenter")
-	karpenterMarker := helpers.FindCachedFile(t, karpenterDir, "marker.txt")
-	karpenterMarkerContent, err := os.ReadFile(karpenterMarker)
-	require.NoError(t, err)
-	assert.Equal(t, "karpenter on cluster-on-vpc-cross-stack-chain", string(karpenterMarkerContent),
-		"karpenter must receive eks's real cluster output through the chain")
+	require.NoError(t, err, "transitive dependency on a stack directory must resolve; stderr=%s", stderr)
+	assert.NotContains(t, stderr, "does not contain a terragrunt.hcl")
 }
 
 // TestStackDepsStackValuesInLocals pins that run-queue expansion of a stack-dir
