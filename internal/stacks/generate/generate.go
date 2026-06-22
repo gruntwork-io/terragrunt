@@ -191,30 +191,14 @@ func discoverAndAddNewNodes(
 	generatedFiles map[string]bool,
 	minLevel int,
 ) error {
-	// Every stack file on disk; nested stacks under a selected parent cannot be named ahead of generation.
-	allFiles, listErr := listStackFiles(ctx, l, opts, worktrees, filter.Filters{})
-	if listErr != nil {
-		return fmt.Errorf("failed to list stack files after level %d: %w", minLevel-1, listErr)
+	allFiles, matchedFiles, err := allAndMatchedStackFiles(ctx, l, opts, worktrees)
+	if err != nil {
+		return fmt.Errorf("failed to list stack files after level %d: %w", minLevel-1, err)
 	}
 
-	// Stack files matching the filter, keeping selective generation when nested siblings are named.
-	matchedFiles := allFiles
-
-	// Stack files excluded by a negated stack filter; never re-added during full recursion.
-	var excludedFiles []string
-
-	if len(opts.Filters) > 0 {
-		matchedFiles, listErr = listStackFiles(ctx, l, opts, worktrees, opts.Filters)
-		if listErr != nil {
-			return fmt.Errorf("failed to list filtered stack files after level %d: %w", minLevel-1, listErr)
-		}
-
-		if negatives := stackRestrictedNegatives(opts.Filters); len(negatives) > 0 {
-			excludedFiles, listErr = listStackFiles(ctx, l, opts, worktrees, negatives)
-			if listErr != nil {
-				return fmt.Errorf("failed to list excluded stack files after level %d: %w", minLevel-1, listErr)
-			}
-		}
+	excludedFiles, err := excludedStackFiles(ctx, l, opts)
+	if err != nil {
+		return fmt.Errorf("failed to list excluded stack files after level %d: %w", minLevel-1, err)
 	}
 
 	addNewNodesToGraph(l, dependencyGraph, allFiles, matchedFiles, excludedFiles, generatedFiles, workingDir)
@@ -222,24 +206,142 @@ func discoverAndAddNewNodes(
 	return nil
 }
 
-// stackRestrictedNegatives returns the un-negated negated stack filters whose un-negation stays stack-restricted.
-func stackRestrictedNegatives(filters filter.Filters) filter.Filters {
-	negatives := make(filter.Filters, 0)
-
-	for _, f := range filters.RestrictToStacks() {
-		if !filter.IsNegated(f.Expression()) {
-			continue
+// allAndMatchedStackFiles returns every stack on disk and those matching the filter.
+func allAndMatchedStackFiles(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	worktrees *worktrees.Worktrees,
+) ([]string, []string, error) {
+	// reading=/source= filters need the discovery parse phase, so use filtered discovery exactly like the initial level.
+	if _, requiresParse := opts.Filters.RequiresParse(); requiresParse {
+		allFiles, err := listStackFiles(ctx, l, opts, worktrees, filter.Filters{})
+		if err != nil {
+			return nil, nil, err
 		}
 
-		unnegated := f.Negated()
-		if !unnegated.Expression().IsRestrictedToStacks() {
-			continue
+		matchedFiles, err := listStackFiles(ctx, l, opts, worktrees, opts.Filters)
+		if err != nil {
+			return nil, nil, err
 		}
 
-		negatives = append(negatives, unnegated)
+		return allFiles, matchedFiles, nil
 	}
 
-	return negatives
+	// Fast path: one discovery walk, with matched derived in memory for path/name/type filters.
+	fsStacks, worktreeStacks, err := listStackComponents(ctx, l, opts, worktrees)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	allFiles, err := canonicalStackPaths(append(slices.Clone(fsStacks), worktreeStacks...), opts.WorkingDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	matchedStacks := fsStacks
+	if len(opts.Filters) > 0 {
+		matchedStacks, err = opts.Filters.RestrictToStacks().Evaluate(l, fsStacks)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	matchedFiles, err := canonicalStackPaths(append(slices.Clone(matchedStacks), worktreeStacks...), opts.WorkingDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return allFiles, matchedFiles, nil
+}
+
+// excludedStackFiles returns stacks removed by negated filters, via discovery of the un-negated targets.
+func excludedStackFiles(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) ([]string, error) {
+	targets := negatedTargets(opts.Filters)
+	if len(targets) == 0 {
+		return nil, nil
+	}
+
+	discoveredComponents, err := discovery.NewDiscovery(opts.WorkingDir).WithFilters(targets).Discover(ctx, l, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover excluded stack files: %w", err)
+	}
+
+	stacks := make(component.Components, 0, len(discoveredComponents))
+
+	for _, c := range discoveredComponents {
+		if _, ok := c.(*component.Stack); ok {
+			stacks = append(stacks, c)
+		}
+	}
+
+	return canonicalStackPaths(stacks, opts.WorkingDir)
+}
+
+// negatedTargets returns the un-negated form of every negated filter, so its targets can be excluded from generation.
+func negatedTargets(filters filter.Filters) filter.Filters {
+	targets := make(filter.Filters, 0)
+
+	for _, f := range filters {
+		if filter.IsNegated(f.Expression()) {
+			targets = append(targets, f.Negated())
+		}
+	}
+
+	return targets
+}
+
+// listStackComponents runs one unfiltered discovery, returning on-disk stacks and the worktree stacks to generate.
+func listStackComponents(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	worktrees *worktrees.Worktrees,
+) (component.Components, component.Components, error) {
+	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
+		WorkingDir:  opts.WorkingDir,
+		Filters:     filter.Filters{},
+		Experiments: opts.Experiments,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
+	}
+
+	discoveredComponents, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to discover stack files: %w", err)
+	}
+
+	fsStacks := make(component.Components, 0, len(discoveredComponents))
+
+	for _, c := range discoveredComponents {
+		if _, ok := c.(*component.Stack); ok {
+			fsStacks = append(fsStacks, c)
+		}
+	}
+
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get worktree stacks to generate: %w", err)
+	}
+
+	return fsStacks, worktreeStacks, nil
+}
+
+// canonicalStackPaths maps stack components to their canonical, symlink-resolved stack-file paths.
+func canonicalStackPaths(comps component.Components, workingDir string) ([]string, error) {
+	paths := make([]string, 0, len(comps))
+
+	for _, c := range comps {
+		canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), workingDir)
+		if err != nil {
+			return nil, err
+		}
+
+		paths = append(paths, canonical)
+	}
+
+	return paths, nil
 }
 
 // BuildStackTopology creates a topological tree based on directory hierarchy.
@@ -423,6 +525,9 @@ func selectDescendantNodes(
 			selected = append(selected, child)
 		}
 	}
+
+	// Stable order keeps generation logs and node insertion deterministic across map iterations.
+	slices.Sort(selected)
 
 	return selected
 }

@@ -143,8 +143,8 @@ func TestSelectDescendantNodes(t *testing.T) {
 	}
 }
 
-// TestStackRestrictedNegatives verifies only negated filters whose un-negated form stays stack-restricted are returned.
-func TestStackRestrictedNegatives(t *testing.T) {
+// TestNegatedTargets verifies every negated filter is returned in un-negated form and positives are skipped.
+func TestNegatedTargets(t *testing.T) {
 	t.Parallel()
 
 	parse := func(query string) *filter.Filter {
@@ -165,19 +165,19 @@ func TestStackRestrictedNegatives(t *testing.T) {
 			wantCount: 0,
 		},
 		{
-			name:      "negated path with type=stack is un-negated and kept",
+			name:      "negated path with type=stack is un-negated",
 			input:     filter.Filters{parse("./live | type=stack"), parse("!./**/a | type=stack")},
 			wantCount: 1,
 		},
 		{
-			name:      "bare negated non-stack type is dropped",
-			input:     filter.Filters{parse("./live | type=stack"), parse("!type=unit")},
-			wantCount: 0,
+			name:      "path-only negation is un-negated",
+			input:     filter.Filters{parse("./live | type=stack"), parse("!./**/a")},
+			wantCount: 1,
 		},
 		{
-			name:      "negated type=stack is not stack-restricted and dropped",
-			input:     filter.Filters{parse("!type=stack")},
-			wantCount: 0,
+			name:      "bare negated non-stack type is un-negated",
+			input:     filter.Filters{parse("!type=unit")},
+			wantCount: 1,
 		},
 	}
 
@@ -185,14 +185,13 @@ func TestStackRestrictedNegatives(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := stackRestrictedNegatives(tc.input)
+			got := negatedTargets(tc.input)
 
 			assert.Len(t, got, tc.wantCount)
 
-			// Each returned filter must be un-negated and stack-restricted, else everything matches as excluded.
+			// Returned filters are evaluated as positives against stacks, so none may stay negated.
 			for _, f := range got {
 				assert.False(t, filter.IsNegated(f.Expression()))
-				assert.True(t, f.Expression().IsRestrictedToStacks())
 			}
 		})
 	}

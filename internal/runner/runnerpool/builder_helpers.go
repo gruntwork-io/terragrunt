@@ -161,15 +161,15 @@ func expandStackTargetsToUnits(
 		return discovered, nil
 	}
 
+	// Split discovery so directly matched units survive alongside the expanded ones (filters are unioned, so a query can select both).
+	matchedUnits := make(component.Components, 0, len(discovered))
 	stackDirs := make([]string, 0)
 
 	for _, c := range discovered {
-		if _, ok := c.(*component.Unit); ok {
-			// Discovery already returned units; nothing to expand.
-			return discovered, nil
-		}
-
-		if _, ok := c.(*component.Stack); ok {
+		switch c.(type) {
+		case *component.Unit:
+			matchedUnits = append(matchedUnits, c)
+		case *component.Stack:
 			stackDirs = append(stackDirs, c.Path())
 		}
 	}
@@ -178,7 +178,8 @@ func expandStackTargetsToUnits(
 		return discovered, nil
 	}
 
-	filters, err := unitFiltersForStackDirs(opts.WorkingDir, stackDirs)
+	// Discovery walks resolveWorkingDir, so build the descendant filters relative to the same root.
+	filters, err := unitFiltersForStackDirs(resolveWorkingDir(opts), stackDirs)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +194,7 @@ func expandStackTargetsToUnits(
 
 	d := prepareDiscovery(opts, runnerOpts...).WithFilters(filters)
 
-	var units component.Components
+	var expandedUnits component.Components
 
 	err = doWithTelemetry(ctx, telemetryDiscovery, map[string]any{
 		"working_dir":       opts.WorkingDir,
@@ -201,7 +202,7 @@ func expandStackTargetsToUnits(
 	}, func(childCtx context.Context) error {
 		var discoveryErr error
 
-		units, discoveryErr = d.Discover(childCtx, l, opts)
+		expandedUnits, discoveryErr = d.Discover(childCtx, l, opts)
 
 		return discoveryErr
 	})
@@ -209,7 +210,26 @@ func expandStackTargetsToUnits(
 		return nil, err
 	}
 
-	return units, nil
+	return mergeComponentsByPath(matchedUnits, expandedUnits), nil
+}
+
+// mergeComponentsByPath concatenates component sets, keeping the first occurrence of each path.
+func mergeComponentsByPath(sets ...component.Components) component.Components {
+	seen := make(map[string]struct{})
+	merged := make(component.Components, 0)
+
+	for _, set := range sets {
+		for _, c := range set {
+			if _, ok := seen[c.Path()]; ok {
+				continue
+			}
+
+			seen[c.Path()] = struct{}{}
+			merged = append(merged, c)
+		}
+	}
+
+	return merged
 }
 
 // unitFiltersForStackDirs builds working-dir-relative path filters matching every descendant of each stack directory.
