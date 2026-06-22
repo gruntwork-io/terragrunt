@@ -488,6 +488,11 @@ func checkForDependencyBlockCyclesUsingDFS(
 	for _, dependency := range dependencyPaths {
 		dependencyPath := getCleanedTargetConfigPath(dependency, dependencyPath)
 
+		// Skip cycle checking for nonexistent dependency targets such as stack directories.
+		if !util.FileExists(dependencyPath) {
+			continue
+		}
+
 		l, dependencyContext, err := pctx.WithDependencyConfigPath(l, dependencyPath)
 		if err != nil {
 			return err
