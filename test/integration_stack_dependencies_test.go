@@ -822,12 +822,10 @@ func TestStackDepsTransitiveStackDirDependency(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsTransitiveStackDir)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsTransitiveStackDir)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+	helpers.CreateGitRepo(t, gitPath)
 
 	rootPath := filepath.Join(gitPath, "live")
-	rootPath, err = filepath.EvalSymlinks(rootPath)
+	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
