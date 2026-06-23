@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -61,11 +60,9 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 	return s
 }
 
-// BackendOptsFromOpts constructs backend.Options from TerragruntOptions and v.
-func BackendOptsFromOpts(v venv.Venv, opts *options.TerragruntOptions) *backend.Options {
+// BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
+func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
-		Writers:                      v.Writers,
-		Env:                          v.Env,
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		NonInteractive:               opts.NonInteractive,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
@@ -73,9 +70,9 @@ func BackendOptsFromOpts(v venv.Venv, opts *options.TerragruntOptions) *backend.
 }
 
 // RemoteStateOptsFromOpts constructs remotestate.Options from TerragruntOptions.
-func RemoteStateOptsFromOpts(v venv.Venv, opts *options.TerragruntOptions) *remotestate.Options {
+func RemoteStateOptsFromOpts(opts *options.TerragruntOptions) *remotestate.Options {
 	return &remotestate.Options{
-		Options:             *BackendOptsFromOpts(v, opts),
+		Options:             *BackendOptsFromOpts(opts),
 		DisableBucketUpdate: opts.DisableBucketUpdate,
 		TFRunOpts:           TFRunOptsFromOpts(opts),
 	}

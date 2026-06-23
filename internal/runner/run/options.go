@@ -220,14 +220,10 @@ func (o *Options) tfRunOptions() *tf.TFOptions {
 	}
 }
 
-// remoteStateOpts builds a *remotestate.Options from this Options and the
-// caller's venv, whose writers must reach the backend: bootstrap prompts and
-// logging dereference a nil writer otherwise.
-func (o *Options) remoteStateOpts(v Venv) *remotestate.Options {
+// remoteStateOpts builds a *remotestate.Options from this Options.
+func (o *Options) remoteStateOpts() *remotestate.Options {
 	return &remotestate.Options{
 		Options: backend.Options{
-			Writers:                      v.Writers,
-			Env:                          v.Env,
 			IAMRoleOptions:               o.IAMRoleOptions,
 			NonInteractive:               o.NonInteractive,
 			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,

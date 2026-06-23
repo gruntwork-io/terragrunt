@@ -103,7 +103,7 @@ func Run(
 	dstOpts.WorkingDir = dstPctx.WorkingDir
 
 	if !opts.ForceBackendMigrate {
-		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, configbridge.RemoteStateOptsFromOpts(v, srcOpts))
+		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, v, configbridge.RemoteStateOptsFromOpts(srcOpts))
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -119,8 +119,8 @@ func Run(
 	return srcRemoteState.Migrate(
 		ctx, l,
 		v,
-		configbridge.RemoteStateOptsFromOpts(v, srcOpts),
-		configbridge.RemoteStateOptsFromOpts(v, dstOpts),
+		configbridge.RemoteStateOptsFromOpts(srcOpts),
+		configbridge.RemoteStateOptsFromOpts(dstOpts),
 		dstRemoteState,
 	)
 }
