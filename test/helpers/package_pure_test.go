@@ -43,6 +43,7 @@ func TestGzipHandler(t *testing.T) {
 
 		got, err := io.ReadAll(gz)
 		require.NoError(t, err)
+		require.NoError(t, gz.Close())
 		assert.Equal(t, body, string(got))
 	})
 

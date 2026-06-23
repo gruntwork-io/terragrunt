@@ -85,6 +85,26 @@ func TestReportWriteToFile(t *testing.T) {
 		assert.Contains(t, string(raw), "json-unit")
 	})
 
+	t.Run("overwrites existing destination", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, fsys.MkdirAll(dir, 0o755))
+
+		out := filepath.Join(dir, "report.json")
+		require.NoError(t, vfs.WriteFile(fsys, out, []byte("stale\n"), 0o644))
+
+		r := report.NewReport().WithFormat(report.FormatJSON)
+		_, err := r.EnsureRun(l, filepath.Join(dir, "overwrite-unit"))
+		require.NoError(t, err)
+		require.NoError(t, r.WriteToFile(fsys, out))
+
+		raw, err := vfs.ReadFile(fsys, out)
+		require.NoError(t, err)
+		assert.Contains(t, string(raw), "overwrite-unit")
+		assert.NotContains(t, string(raw), "stale")
+	})
+
 	t.Run("unsupported format errors", func(t *testing.T) {
 		t.Parallel()
 

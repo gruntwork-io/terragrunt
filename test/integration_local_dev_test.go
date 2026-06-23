@@ -21,6 +21,10 @@ func TestTerragruntSourceMap(t *testing.T) {
 
 	fixtureSourceMapPath := filepath.Join("fixtures", "source-map")
 
+	// Clean the shared source fixture once up front; per-subtest CopyEnvironment
+	// calls then read from it concurrently without racing a parallel cleanup.
+	helpers.CleanupTerraformFolder(t, fixtureSourceMapPath)
+
 	testCases := []struct {
 		name     string
 		applyAll bool
@@ -51,7 +55,6 @@ func TestTerragruntSourceMap(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, fixtureSourceMapPath)
 			tmpEnvPath := helpers.CopyEnvironment(t, fixtureSourceMapPath)
 			rootPath := filepath.Join(tmpEnvPath, fixtureSourceMapPath)
 			sourceMapArgs := fmt.Sprintf(
