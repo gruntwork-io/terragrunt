@@ -79,6 +79,32 @@ func TestProcessHooks_SkipsHookWhenIfFalse(t *testing.T) {
 	assert.Empty(t, rec.snapshot(), "If=false should suppress dispatch")
 }
 
+func TestProcessHooks_SkipsHooksWhenNoHooksSet(t *testing.T) {
+	t.Parallel()
+
+	rec := &recorder{}
+	v := newHookVenv(rec.handler(vexec.Result{}))
+	l := logger.CreateLogger()
+	opts := newHookOpts()
+	opts.NoHooks = true
+
+	hooks := []runcfg.Hook{
+		{
+			Name:     "disabled",
+			Commands: []string{"plan"},
+			Execute:  []string{"echo", "skip-me"},
+			If:       true,
+		},
+	}
+
+	require.NoError(t, run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
+		Hooks: hooks,
+		Opts:  opts,
+		Cfg:   &runcfg.RunConfig{},
+	}))
+	assert.Empty(t, rec.snapshot(), "--no-hooks should suppress hook dispatch")
+}
+
 func TestProcessHooks_RunOnErrorGate(t *testing.T) {
 	t.Parallel()
 
@@ -250,8 +276,25 @@ func TestProcessErrorHooks_NoopWhenNoPriorErrors(t *testing.T) {
 		{Name: "on-anything", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "x"}},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, newHookOpts(), nil))
+	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), nil))
 	assert.Empty(t, rec.snapshot())
+}
+
+func TestProcessErrorHooks_SkipsHooksWhenNoHooksSet(t *testing.T) {
+	t.Parallel()
+
+	rec := &recorder{}
+	exec := vexec.NewMemExec(rec.handler(vexec.Result{}))
+	l := logger.CreateLogger()
+	opts := newHookOpts()
+	opts.NoHooks = true
+
+	hooks := []runcfg.ErrorHook{
+		{Name: "disabled", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "skip-me"}},
+	}
+
+	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, opts, []error{errors.New("boom")}))
+	assert.Empty(t, rec.snapshot(), "--no-hooks should suppress error hook dispatch")
 }
 
 func TestProcessErrorHooks_MatchesOnErrorsRegex(t *testing.T) {
@@ -284,7 +327,7 @@ func TestProcessErrorHooks_MatchesOnErrorsRegex(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, newHookOpts(), priorErrs))
+	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, exec, hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs))
 
 	calls := rec.snapshot()
 	require.Len(t, calls, 1)
@@ -297,18 +340,21 @@ type recorder struct {
 	mu    sync.Mutex
 }
 
+func (r *recorder) record(inv *vexec.Invocation) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.calls = append(r.calls, vexec.Invocation{
+		Name: inv.Name,
+		Dir:  inv.Dir,
+		Args: slices.Clone(inv.Args),
+		Env:  slices.Clone(inv.Env),
+	})
+}
+
 func (r *recorder) handler(result vexec.Result) vexec.Handler {
 	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-
-		r.calls = append(r.calls, vexec.Invocation{
-			Name: inv.Name,
-			Dir:  inv.Dir,
-			Args: slices.Clone(inv.Args),
-			Env:  slices.Clone(inv.Env),
-		})
-
+		r.record(&inv)
 		return result
 	}
 }

@@ -7,8 +7,8 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
 import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 Launch the user interface for searching and managing your module catalog.
 
@@ -47,9 +47,17 @@ This will recursively search for OpenTofu/Terraform modules in the root of the r
 1. Read the docs for a selected module: `ENTER`.
 1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` for using the module with an interactive form: `s`. Inside the form, `ctrl+d` writes the file even when required fields are still unset, leaving them as `# TODO` placeholders for you to fill in by hand.
 
+<Before version="1.1.0">
 <Aside type="tip" title="Catalog Redesign Experiment">
-The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Without the experiment, `s` produces a placeholder-style file with every input marked `# TODO`.
+The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Without the experiment, `s` produces a placeholder-style file with every input marked `# TODO`. Enable it with `--experiment catalog-redesign` to opt in before it becomes the default in 1.1.
 </Aside>
+</Before>
+
+<Since version="1.1.0">
+<Aside type="note">
+The interactive form is enabled by default as of 1.1. The earlier placeholder-style scaffolding, where every input was marked `# TODO`, is no longer the default.
+</Aside>
+</Since>
 
 ## Scaffolding Flags
 
@@ -60,9 +68,17 @@ The following `catalog` flags control behavior of the underlying `scaffold` comm
 
 ## Excluding paths from discovery
 
+<Before version="1.1.0">
 <Aside type="tip" title="Catalog Redesign Experiment">
-This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Enable it with `--experiment catalog-redesign` to opt in before it becomes the default in 1.1.
 </Aside>
+</Before>
+
+<Since version="1.1.0">
+<Aside type="note">
+This behavior is available by default as of 1.1, with no experiment required.
+</Aside>
+</Since>
 
 Catalog authors can keep directories out of discovery by committing a `.terragrunt-catalog-ignore` file at the root of the repository. Typical uses are skipping `examples/`, `test/`, or integration fixtures that aren't intended to be scaffolded as modules or templates.
 
@@ -100,20 +116,60 @@ terragrunt catalog --ignore-file ./my-ignore-rules
 
 This is useful when you don't control the upstream repository, or when you want to temporarily scope discovery without editing files under version control. It can also be set via the `TG_IGNORE_FILE` environment variable. The path must exist; a missing file is an error.
 
+## Component kinds
+
+<Before version="1.1.0">
+<Aside type="tip" title="Catalog Redesign Experiment">
+This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Enable it with `--experiment catalog-redesign` to opt in before it becomes the default in 1.1.
+</Aside>
+</Before>
+
+<Since version="1.1.0">
+<Aside type="note">
+This behavior is available by default as of 1.1, with no experiment required.
+</Aside>
+</Since>
+
+Discovery classifies every directory it finds into one of four kinds, shown as a colored pill next to each entry and used to populate the [browse tabs](#browse-tabs):
+
+- **Module**: a directory of OpenTofu/Terraform `.tf` files.
+- **Template**: a directory holding a `.boilerplate/` subdirectory or a top-level `boilerplate.yml`.
+- **Unit**: a directory containing a `terragrunt.hcl`.
+- **Stack**: a directory containing a `terragrunt.stack.hcl`.
+
+Pressing `s` scaffolds the selected component through the [interactive form](#interactive-scaffold-form), and the kind decides what that produces. For modules and templates, Terragrunt generates fresh configuration from the form values. For units and stacks, it copies the component's existing files into your working directory so you can edit them in place, alongside a `terragrunt.values.hcl` carrying any `values.*` references the form collected. Scaffolding a unit or stack refuses to overwrite an existing file, so a name collision in the destination aborts the action.
+
 ## Browse tabs
 
-
+<Before version="1.1.0">
 <Aside type="tip" title="Catalog Redesign Experiment">
-This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Enable it with `--experiment catalog-redesign` to opt in before it becomes the default in 1.1.
 </Aside>
+</Before>
 
-The list view is split into three tabs: `All`, `Modules`, and `Templates`. `All` is selected when the TUI launches. Press `tab` to move to the next tab and `shift+tab` to move to the previous; cycling wraps at either end. The active tab filters the list down to components of that kind, and each tab keeps its own cursor position and search filter, so switching back preserves where you were.
+<Since version="1.1.0">
+<Aside type="note">
+This behavior is available by default as of 1.1, with no experiment required.
+</Aside>
+</Since>
+
+The list view is split into five tabs: `All`, `Templates`, `Stacks`, `Units`, and `Modules`. `All` is selected when the TUI launches and lists every discovered component; the other four each filter the list down to a single [component kind](#component-kinds). Press `tab` to move to the next tab and `shift+tab` to move to the previous; cycling wraps at either end. Each tab keeps its own cursor position and search filter, so switching back preserves where you were.
+
+A component can show up under more than one kind-specific tab when its front-matter tags name another kind. See [Component tags](#component-tags).
 
 ## README front-matter
 
+<Before version="1.1.0">
 <Aside type="tip" title="Catalog Redesign Experiment">
-This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Enable it with `--experiment catalog-redesign` to opt in before it becomes the default in 1.1.
 </Aside>
+</Before>
+
+<Since version="1.1.0">
+<Aside type="note">
+This behavior is available by default as of 1.1, with no experiment required.
+</Aside>
+</Since>
 
 Component authors can override the catalog UI's default title and description by adding a YAML block at the top of the component's `README.md`. Two forms are accepted.
 
@@ -154,17 +210,25 @@ A third key, `tags`, controls the colored pills shown next to each component; se
 
 ## Component tags
 
+<Before version="1.1.0">
 <Aside type="tip" title="Catalog Redesign Experiment">
-This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Enable it with `--experiment catalog-redesign` to opt in before it becomes the default in 1.1.
 </Aside>
+</Before>
 
-<Before version="1.0.4">
+<Since version="1.1.0">
+<Aside type="note">
+This behavior is available by default as of 1.1, with no experiment required.
+</Aside>
+</Since>
+
+<Before version="1.0.5">
 
 In a future release, the catalog UI will read tag information from the front-matter of component `README.md` files.
 
 </Before>
 
-<Since version="1.0.4">
+<Since version="1.0.5">
 
 Catalog authors can attach tags to a component by adding a `tags` key to the component's `README.md` front-matter. Tags appear as colored pills next to the component in the list view, and as a row above the rendered README in the detail view.
 
@@ -209,9 +273,9 @@ The default view, shown after discovery completes.
 | `home`, `ctrl+a` | Jump to first row |
 | `end`, `ctrl+e` | Jump to last row |
 | `enter` | View the selected component's README |
-| `s` | Scaffold the selected component (interactive form) |
-| `tab` | Next tab (redesign experiment) |
-| `shift+tab` | Previous tab (redesign experiment) |
+| `s` | Scaffold the selected component (interactive form); see [Component kinds](#component-kinds) |
+| `tab` | Next tab<Before version="1.1.0"> (redesign experiment)</Before> |
+| `shift+tab` | Previous tab<Before version="1.1.0"> (redesign experiment)</Before> |
 | `/` | Search and filter the visible list |
 | `?` | Toggle the expanded help view |
 | `q`, `esc` | Quit |
@@ -230,7 +294,7 @@ Active after pressing `enter` on a component.
 | `tab` | Focus the next button in the footer |
 | `shift+tab` | Focus the previous button in the footer |
 | `enter` | Activate the focused button |
-| `s` | Scaffold (interactive form) |
+| `s` | Scaffold the selected component (interactive form) |
 | `w` | Toggle soft-wrapping of long README lines |
 | `?` | Toggle the expanded help view |
 | `q`, `esc` | Back to the list |
@@ -238,9 +302,17 @@ Active after pressing `enter` on a component.
 
 ### Interactive scaffold form
 
+<Before version="1.1.0">
 <Aside type="tip" title="Catalog Redesign Experiment">
-The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+The interactive form is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Enable it with `--experiment catalog-redesign` to opt in before it becomes the default in 1.1.
 </Aside>
+</Before>
+
+<Since version="1.1.0">
+<Aside type="note">
+The interactive form is available by default as of 1.1, with no experiment required.
+</Aside>
+</Since>
 
 The form opens in *navigate* mode. Pressing `enter` on a text field switches to *edit* mode, where most keys are forwarded to the underlying text input; press `esc` to return to navigate mode.
 
@@ -276,9 +348,17 @@ Active while typing into a text field. Keys not listed here are forwarded to the
 
 ### Welcome screen
 
+<Before version="1.1.0">
 <Aside type="tip" title="Catalog Redesign Experiment">
-The welcome and loading screens are only shown when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+The welcome and loading screens are only shown when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled. Enable it with `--experiment catalog-redesign` to opt in before it becomes the default in 1.1.
 </Aside>
+</Before>
+
+<Since version="1.1.0">
+<Aside type="note">
+The welcome and loading screens are shown by default as of 1.1, with no experiment required.
+</Aside>
+</Since>
 
 Shown briefly during initial discovery and, if no catalog sources are configured, as a persistent help screen.
 

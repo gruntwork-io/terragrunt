@@ -1,0 +1,16 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `catalog-redesign` — Scaffolding a component no longer fails with a path-traversal error
+
+Scaffolding a component from the catalog (pressing `s`) could fail on macOS while downloading the source:
+
+```text
+subdirectory component contain path traversal out of the repository
+```
+
+The catalog caches each repository under the system temporary directory, which macOS reports through a symlink (`/var/folders/...` pointing at `/private/var/folders/...`). The source location Terragrunt handed to the downloader was built against the unresolved path, so it pointed outside the cached repository and was rejected.
+
+Terragrunt now resolves the temporary directory before discovering components, so the source stays inside the repository and scaffolding proceeds.

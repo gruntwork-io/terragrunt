@@ -60,8 +60,38 @@ const flags = defineCollection({
 	}),
 });
 
+const faq = defineCollection({
+	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/faq" }),
+	schema: z.object({
+		// The question, shown as the row title on the index and as the page
+		// heading on the question's own page.
+		question: z.string(),
+		// A short, ~1-2 line answer shown (truncated to two lines) in the
+		// "Answer" column of the index table.
+		description: z.string(),
+		// Optional: controls ordering on the index. Lower numbers sort first;
+		// entries without an order fall back to alphabetical by question.
+		order: z.number().optional(),
+	}),
+});
+
+const patterns = defineCollection({
+	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/patterns" }),
+	schema: z.object({
+		// The pattern's title, shown on its card and as the page heading.
+		title: z.string(),
+		// A short description shown on the card beneath the title.
+		description: z.string(),
+		// The author's name, shown on the card and the pattern's page.
+		author: z.string(),
+		// Optional: controls ordering on the index. Lower numbers sort first;
+		// entries without an order fall back to alphabetical by title.
+		order: z.number().optional(),
+	}),
+});
+
 const changelog = defineCollection({
-	loader: glob({ pattern: "**/*.mdx", base: "src/data/changelog" }),
+	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/changelog" }),
 	schema: z.object({
 		version: z.string(),
 		category: z.enum(CHANGELOG_CATEGORY_SLUGS),
@@ -85,8 +115,14 @@ const experiments = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/experiments" }),
 	schema: z.object({
 		name: z.string(),
-		status: z.enum(["active", "completed"]),
+		// `since` is the release an experiment became available for opt-in.
+		// `completedSince` is the release in which the experiment concluded,
+		// whether it graduated to a default feature or was retired; once that
+		// release ships, the experiment is treated as completed. An
+		// experiment's active/completed status is derived from these versions
+		// rather than a separate `status` field.
 		since: z.string().optional(),
+		completedSince: z.string().optional(),
 	}),
 });
 
@@ -99,4 +135,4 @@ const strictControls = defineCollection({
 	}),
 });
 
-export const collections = { changelog, commands, compatibility, docs, experiments, flags, strictControls };
+export const collections = { changelog, commands, compatibility, docs, experiments, faq, flags, patterns, strictControls };

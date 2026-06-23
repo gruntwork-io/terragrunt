@@ -9,13 +9,11 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -37,13 +35,11 @@ import (
 
 const (
 	// StackDir aliases inthclparse.StackDir so external callers (internal/stacks/output, etc.) keep their existing import path without a second source of truth.
-	StackDir = inthclparse.StackDir
-	// stackOriginFile is the sidecar recording the catalog source dir of a copied stack file.
-	stackOriginFile = ".terragrunt-stack-origin"
-	valuesFile      = "terragrunt.values.hcl"
-	manifestName    = ".terragrunt-stack-manifest"
-	unitDirPerm     = 0755
-	valueFilePerm   = 0644
+	StackDir      = inthclparse.StackDir
+	valuesFile    = "terragrunt.values.hcl"
+	manifestName  = ".terragrunt-stack-manifest"
+	unitDirPerm   = 0755
+	valueFilePerm = 0644
 )
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
@@ -80,6 +76,11 @@ type Unit struct {
 	Path                string     `hcl:"path,attr"`
 }
 
+// GeneratedPath returns the on-disk path this unit generates to under stackDir.
+func (u *Unit) GeneratedPath(stackDir string) string {
+	return inthclparse.GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
+}
+
 // Stack represents the stack block in the configuration.
 type Stack struct {
 	Remain              hcl.Body   `hcl:",remain"`
@@ -93,20 +94,16 @@ type Stack struct {
 	Path                string     `hcl:"path,attr"`
 }
 
+// GeneratedPath returns the on-disk path this stack generates to under stackDir.
+func (s *Stack) GeneratedPath(stackDir string) string {
+	return inthclparse.GeneratedComponentPath(stackDir, s.Path, s.NoStack != nil && *s.NoStack)
+}
+
 // GenerateStackFile generates the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
 func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, pool *worker.Pool, stackFilePath string) error {
-	// resolveDir anchors relative source paths; falls back to stackSourceDir unless a .terragrunt-stack-origin sidecar redirects it.
 	stackSourceDir := filepath.Dir(stackFilePath)
-	resolveDir := stackSourceDir
-	stackDepsEnabled := pctx.Experiments.Evaluate(experiment.StackDependencies)
-
-	if stackDepsEnabled {
-		if origin := ReadStackOrigin(vfs.NewOSFS(), stackSourceDir); origin != "" {
-			resolveDir = origin
-		}
-	}
 
 	values, err := ReadValues(ctx, pctx, l, stackSourceDir)
 	if err != nil {
@@ -120,58 +117,14 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	stackTargetDir := filepath.Join(stackSourceDir, StackDir)
 
-	// When the stack-dependencies experiment is enabled, perform a two-pass
-	// parse to resolve autoinclude blocks and generate terragrunt.autoinclude.hcl files.
-	var autoIncludes map[string]*inthclparse.AutoIncludeResolved
-
-	var stackSrcBytes []byte
-
-	if pctx.Experiments.Evaluate(experiment.StackDependencies) && stackConfigHasAutoInclude(stackFile) {
-		// The autoinclude phase uses the internal HCL parser, which currently expects
-		// hclsyntax input (not JSON bodies). Preserve explicit failure behavior for JSON
-		// stack files that still declare autoinclude.
-		if !stackConfigHasAutoIncludeHCL(stackFile) {
-			return AutoIncludeParserStageError{
-				Stage: "autoinclude-parser",
-				File:  stackFilePath,
-				Err:   fmt.Errorf("stack autoinclude is only supported for HCL stack files, not JSON: %s", stackFilePath),
-			}
-		}
-
-		// stackSrcBytes is read separately for the autoinclude parser, which slices expression byte ranges from the original file when generating terragrunt.autoinclude.hcl.
-		stackSrcBytes, err = os.ReadFile(stackFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
-		}
-
-		// Rescope the parsing context to the stack file so terragrunt functions resolve paths relative to it instead of the root caller.
-		scopedLogger, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
-		if scopedErr != nil {
-			return AutoIncludeParserStageError{Stage: "rescope", File: stackFilePath, Err: scopedErr}
-		}
-
-		// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
-		prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, scopedLogger, vexec.NewOSExec(), stackFilePath)
-		if evalCtxErr != nil {
-			return AutoIncludeParserStageError{Stage: "eval-context", File: stackFilePath, Err: evalCtxErr}
-		}
-
-		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
-			Src:       stackSrcBytes,
-			Filename:  filepath.Base(stackFilePath),
-			StackDir:  resolveDir,
-			Values:    values,
-			Variables: prodEvalCtx.Variables,
-			Functions: prodEvalCtx.Functions,
-		})
-		if parseErr != nil {
-			return AutoIncludeParserStageError{Stage: "parse", File: stackFilePath, Err: parseErr}
-		}
-
-		autoIncludes = parseResult.AutoIncludes
+	// Perform a two-pass parse to resolve autoinclude blocks and generate
+	// terragrunt.autoinclude.hcl files.
+	autoIncludes, stackSrcBytes, err := resolveStackAutoIncludes(ctx, l, pctx, stackFilePath, stackFile, values)
+	if err != nil {
+		return err
 	}
 
-	casEnabled := pctx.Experiments.Evaluate(experiment.CAS) && !pctx.NoCAS
+	casEnabled := !pctx.NoCAS
 
 	if err := validateUpdateSourceWithCAS(stackFile, stackFilePath, casEnabled); err != nil {
 		return err
@@ -183,32 +136,113 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	}
 
 	genOpts := generateOpts{
-		rootWorkingDir:   pctx.RootWorkingDir,
-		logShowAbsPaths:  pctx.Writers.LogShowAbsPaths,
-		sourceMap:        pctx.SourceMap,
-		noStackValidate:  pctx.NoStackValidate,
-		stackConfigPath:  pctx.TerragruntStackConfigPath,
-		sourceFile:       stackFilePath,
-		sourceDir:        resolveDir,
-		targetDir:        stackTargetDir,
-		autoIncludes:     autoIncludes,
-		stackSrcBytes:    stackSrcBytes,
-		casEnabled:       cs.Enabled,
-		casInstance:      cs.Instance,
-		casVenv:          cs.Venv,
-		strictControls:   pctx.StrictControls,
-		stackDepsEnabled: stackDepsEnabled,
+		rootWorkingDir:  pctx.RootWorkingDir,
+		logShowAbsPaths: pctx.Writers.LogShowAbsPaths,
+		sourceMap:       pctx.SourceMap,
+		noStackValidate: pctx.NoStackValidate,
+		stackConfigPath: pctx.TerragruntStackConfigPath,
+		sourceFile:      stackFilePath,
+		sourceDir:       stackSourceDir,
+		targetDir:       stackTargetDir,
+		autoIncludes:    autoIncludes,
+		stackSrcBytes:   stackSrcBytes,
+		casEnabled:      cs.Enabled,
+		casInstance:     cs.Instance,
+		casVenv:         cs.Venv,
+		strictControls:  pctx.StrictControls,
 	}
 
-	if err := generateUnits(ctx, l, &genOpts, pool, stackFile.Units); err != nil {
+	fs := pctx.Venv.FS
+
+	if err := generateUnits(ctx, l, fs, &genOpts, pool, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, l, &genOpts, pool, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, l, fs, &genOpts, pool, stackFile.Stacks); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// ValidateStackAutoIncludes runs the strict autoinclude parse over the stack file at
+// stackFilePath without generating anything, so tooling such as `hcl validate` reports
+// the same autoinclude errors [GenerateStackFile] would raise. stackFile is the config
+// already parsed from stackFilePath via [ParseStackConfig]. It is a no-op when no unit
+// or stack declares autoinclude.
+func ValidateStackAutoIncludes(ctx context.Context, l log.Logger, pctx *ParsingContext, stackFilePath string, stackFile *StackConfig, values *cty.Value) error {
+	_, _, err := resolveStackAutoIncludes(ctx, l, pctx, stackFilePath, stackFile, values)
+
+	return err
+}
+
+// resolveStackAutoIncludes runs the strict phased autoinclude parse over the stack file at
+// stackFilePath and returns the resolved autoincludes keyed by [inthclparse.AutoIncludeKey],
+// plus the raw stack file bytes the generator slices expression ranges from. It returns nil
+// results when stackFile declares no autoinclude blocks.
+func resolveStackAutoIncludes(ctx context.Context, l log.Logger, pctx *ParsingContext, stackFilePath string, stackFile *StackConfig, values *cty.Value) (map[string]*inthclparse.AutoIncludeResolved, []byte, error) {
+	if !stackConfigHasAutoInclude(stackFile) {
+		return nil, nil, nil
+	}
+
+	stackSourceDir := filepath.Dir(stackFilePath)
+
+	// The autoinclude phase uses the internal HCL parser, which currently expects
+	// hclsyntax input (not JSON bodies). Preserve explicit failure behavior for JSON
+	// stack files that still declare autoinclude.
+	if !stackConfigHasAutoIncludeHCL(stackFile) {
+		return nil, nil, AutoIncludeParserStageError{
+			Stage: "autoinclude-parser",
+			File:  stackFilePath,
+			Err:   fmt.Errorf("stack autoinclude is only supported for HCL stack files, not JSON: %s", stackFilePath),
+		}
+	}
+
+	// stackSrcBytes is read separately for the autoinclude parser, which slices expression byte ranges from the original file when generating terragrunt.autoinclude.hcl.
+	stackSrcBytes, err := os.ReadFile(stackFilePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
+	}
+
+	// Rescope the parsing context to the stack file so terragrunt functions resolve paths relative to it instead of the root caller.
+	scopedLogger, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
+	if scopedErr != nil {
+		return nil, nil, AutoIncludeParserStageError{Stage: "rescope", File: stackFilePath, Err: scopedErr}
+	}
+
+	// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
+	prodEvalCtx, evalCtxErr := createTerragruntEvalContext(ctx, scopedPctx, scopedLogger, stackFilePath)
+	if evalCtxErr != nil {
+		return nil, nil, AutoIncludeParserStageError{Stage: "eval-context", File: stackFilePath, Err: evalCtxErr}
+	}
+
+	// Evaluate the autoinclude with the stack-file function set (derived from the eval context already built
+	// above) so directory-context functions like get_working_dir resolve against the stack file instead of
+	// re-parsing it as a regular config.
+	earlyFuncs := StackParseFunctionsFrom(prodEvalCtx.Functions, stackSourceDir)
+
+	parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
+		Src:       stackSrcBytes,
+		Filename:  filepath.Base(stackFilePath),
+		StackDir:  stackSourceDir,
+		Values:    values,
+		Variables: prodEvalCtx.Variables,
+		Functions: earlyFuncs,
+	})
+	if parseErr != nil {
+		return nil, nil, AutoIncludeParserStageError{Stage: "parse", File: stackFilePath, Err: parseErr}
+	}
+
+	autoIncludes := parseResult.AutoIncludes
+
+	// The phased parser resolves autoincludes from the base stack file only. A sibling
+	// terragrunt.autoinclude.stack.hcl overrides same-name components wholesale, so an overridden
+	// component must not inherit the base block's resolved unit-level autoinclude.
+	if pruneErr := pruneOverriddenStackAutoIncludes(autoIncludes, stackSourceDir, prodEvalCtx, scopedPctx.ParserOptions); pruneErr != nil {
+		return nil, nil, AutoIncludeParserStageError{Stage: "autoinclude-override-prune", File: stackFilePath, Err: pruneErr}
+	}
+
+	return autoIncludes, stackSrcBytes, nil
 }
 
 // validateUpdateSourceWithCAS rejects stack files that declare update_source_with_cas = true
@@ -241,6 +275,39 @@ func validateUpdateSourceWithCAS(stackFile *StackConfig, stackFilePath string, c
 	}
 
 	return nil
+}
+
+// rejectTerraformUpdateSourceWithoutCAS rejects a generated unit whose terraform block sets
+// update_source_with_cas = true when CAS is disabled. validateUpdateSourceWithCAS only sees the
+// unit/stack blocks declared in the stack file; the terraform-block attribute lives in the unit's
+// own terragrunt.hcl, which is only available once the source is materialized. Without this check
+// the relative source would be copied verbatim and silently fail to resolve from the generated
+// location, since the cas:: rewrite that gives it meaning never runs.
+func rejectTerraformUpdateSourceWithoutCAS(fs vfs.FS, dest string) error {
+	unitFile := filepath.Join(dest, DefaultTerragruntConfigPath)
+
+	content, err := vfs.ReadFile(fs, unitFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+
+		return fmt.Errorf("failed to read generated unit file %s: %w", unitFile, err)
+	}
+
+	_, updateWithCAS, err := cas.ReadTerraformSourceInfo(content)
+	if err != nil {
+		return fmt.Errorf("failed to inspect terraform source in %s: %w", unitFile, err)
+	}
+
+	if !updateWithCAS {
+		return nil
+	}
+
+	return &cas.UpdateSourceWithCASRequiresCASError{
+		BlockType: "terraform",
+		Path:      unitFile,
+	}
 }
 
 // casSetup is the result of setupCAS: the CAS instance and Venv that
@@ -285,27 +352,26 @@ func setupCAS(l log.Logger, enabled bool, cloneDepth int) (casSetup, error) {
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
-	autoIncludes     map[string]*inthclparse.AutoIncludeResolved
-	casInstance      *cas.CAS
-	casVenv          cas.Venv
-	sourceMap        map[string]string
-	strictControls   strict.Controls
-	rootWorkingDir   string
-	stackConfigPath  string
-	sourceFile       string
-	sourceDir        string
-	targetDir        string
-	stackSrcBytes    []byte
-	logShowAbsPaths  bool
-	noStackValidate  bool
-	casEnabled       bool
-	stackDepsEnabled bool
+	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
+	casInstance     *cas.CAS
+	casVenv         cas.Venv
+	sourceMap       map[string]string
+	strictControls  strict.Controls
+	rootWorkingDir  string
+	stackConfigPath string
+	sourceFile      string
+	sourceDir       string
+	targetDir       string
+	stackSrcBytes   []byte
+	logShowAbsPaths bool
+	noStackValidate bool
+	casEnabled      bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the generating progress and returns any errors encountered during the operation.
-func generateUnits(ctx context.Context, l log.Logger, opts *generateOpts, pool *worker.Pool, units []*Unit) error {
+func generateUnits(ctx context.Context, l log.Logger, fs vfs.FS, opts *generateOpts, pool *worker.Pool, units []*Unit) error {
 	for _, unit := range units {
 		pool.Submit(func() error {
 			item := componentToGenerate{
@@ -329,7 +395,7 @@ func generateUnits(ctx context.Context, l log.Logger, opts *generateOpts, pool *
 				"unit_source": unit.Source,
 				"unit_path":   unit.Path,
 			}, func(ctx context.Context) error {
-				return generateComponent(ctx, l, opts, &item)
+				return generateComponent(ctx, l, fs, opts, &item)
 			})
 		})
 	}
@@ -339,7 +405,7 @@ func generateUnits(ctx context.Context, l log.Logger, opts *generateOpts, pool *
 
 // generateStacks generates each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, l log.Logger, opts *generateOpts, pool *worker.Pool, stacks []*Stack) error {
+func generateStacks(ctx context.Context, l log.Logger, fs vfs.FS, opts *generateOpts, pool *worker.Pool, stacks []*Stack) error {
 	for _, stack := range stacks {
 		pool.Submit(func() error {
 			item := componentToGenerate{
@@ -363,7 +429,7 @@ func generateStacks(ctx context.Context, l log.Logger, opts *generateOpts, pool 
 				"stack_source": stack.Source,
 				"stack_path":   stack.Path,
 			}, func(ctx context.Context) error {
-				return generateComponent(ctx, l, opts, &item)
+				return generateComponent(ctx, l, fs, opts, &item)
 			})
 		})
 	}
@@ -447,16 +513,18 @@ func validateGeneratedComponent(l log.Logger, cmp *componentToGenerate, opts *ge
 	if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
 		if opts.noStackValidate {
 			l.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
-		} else {
-			return fmt.Errorf("validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
+
+			return nil
 		}
+
+		return fmt.Errorf("validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
 	}
 
 	return nil
 }
 
 // generateAutoInclude writes the autoinclude file for a component if one was resolved.
-func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGenerate, dest string) error {
+func generateAutoInclude(l log.Logger, fs vfs.FS, opts *generateOpts, cmp *componentToGenerate, dest string) error {
 	if opts.autoIncludes == nil {
 		return nil
 	}
@@ -473,7 +541,10 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 
 	l.Infof("Generating %s for %s %s in %s", inthclparse.AutoIncludeFileNameForKind(kind), kind, cmp.name, util.RelPathForLog(opts.rootWorkingDir, dest, opts.logShowAbsPaths))
 
-	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, resolved.SourceBytes, resolved.EvalCtx); err != nil {
+	// The autoinclude resolves entirely in the stack file context, so the resolution-time eval context (functions
+	// scoped to the stack file, like the discovery path) is reused as-is: every expression except dependency.* is
+	// already a literal, and directory-context functions resolve where the autoinclude was authored.
+	if err := inthclparse.GenerateAutoIncludeFile(fs, resolved, dest, resolved.SourceBytes, resolved.EvalCtx); err != nil {
 		return fmt.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
 	}
 
@@ -481,7 +552,7 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 }
 
 // generateComponent copies files from the source directory to the target destination and generates a corresponding values file.
-func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cmp *componentToGenerate) error {
+func generateComponent(ctx context.Context, l log.Logger, fs vfs.FS, opts *generateOpts, cmp *componentToGenerate) error {
 	source := cmp.source
 	// Adjust source path using the provided source mapping configuration if available
 	source, err := adjustSourceWithMap(opts.sourceMap, source, opts.stackConfigPath)
@@ -505,20 +576,21 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		return err
 	}
 
-	if err := validateGeneratedComponent(l, cmp, opts, dest); err != nil {
-		return err
+	if !opts.casEnabled && cmp.kind == unitKind {
+		if err := rejectTerraformUpdateSourceWithoutCAS(fs, dest); err != nil {
+			return err
+		}
 	}
 
-	// Record the catalog source dir as a sidecar so nested recursion resolves relative paths against the original catalog.
-	if cmp.kind == stackKind && opts.stackDepsEnabled {
-		writeStackOrigin(l, cmp.sourceDir, source, dest)
+	if err := validateGeneratedComponent(l, cmp, opts, dest); err != nil {
+		return err
 	}
 
 	if err := writeValues(l, cmp.values, dest); err != nil {
 		return fmt.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
-	return generateAutoInclude(l, opts, cmp, dest)
+	return generateAutoInclude(l, fs, opts, cmp, dest)
 }
 
 // fetchComponentSource handles the paths for fetching a component's source:
@@ -526,9 +598,11 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 //     branch so nested components already rewritten to cas:: are not re-fetched.
 //  2. Source with CAS enabled: attempt a CAS-backed fetch (remote clone or local copy into a
 //     temp overlay) and copy from its content dir. This fires automatically whenever the cas
-//     experiment is on, so catalog authors don't need consumers to opt in per-block. On any CAS
-//     failure (for example, CAS can't handle a go-getter query param like depth=1), we fall
-//     through to the standard getter.
+//     experiment is on, so catalog authors don't need consumers to opt in per-block. On most CAS
+//     failures (for example, CAS can't handle a go-getter query param like depth=1), we fall
+//     through to the standard getter. Configuration errors that can never succeed via CAS, such
+//     as an interpolated source on a block with update_source_with_cas = true, fail generation
+//     instead of falling through.
 //  3. Standard: local copy or remote getter.
 //
 // The update_source_with_cas attribute on a consumer block is a no-op under path 2. It only
@@ -545,7 +619,7 @@ func fetchComponentSource(
 
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
-			return fmt.Errorf("cas:: source on %s %q requires the 'cas' experiment to be enabled", kindStr, cmp.name)
+			return fmt.Errorf("cas:: source on %s %q requires the --no-cas flag to be unset", kindStr, cmp.name)
 		}
 
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
@@ -578,7 +652,19 @@ func fetchComponentSource(
 			return nil
 		}
 
+		// A non-literal source on an update_source_with_cas block can never
+		// be rewritten by CAS, so falling back would silently skip the rewrite
+		// the configuration asked for. Surface the error instead.
+		if errors.Is(casErr, cas.ErrSourceNotLiteral) {
+			return fmt.Errorf("failed to fetch %s %q via CAS: %w", kindStr, cmp.name, casErr)
+		}
+
 		l.Warnf("CAS processing failed for %s %q: %v. Falling back to standard getter.", kindStr, cmp.name, casErr)
+		cas.RecordFallback(ctx, l, cas.FallbackReasonStackGenerationError, map[string]any{
+			"kind":   kindStr,
+			"name":   cmp.name,
+			"source": source,
+		})
 	}
 
 	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
@@ -626,7 +712,7 @@ func fetchViaCAS(
 	if copyErr := util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
 		return true
 	}); copyErr != nil {
-		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !errors.Is(cleanupErr, os.ErrNotExist) {
 			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
 		}
 
@@ -674,24 +760,7 @@ func isCASProtocol(source string) bool {
 // contents of the source directory to the destination. If remote, it fetches the
 // source and stores it in the destination directory.
 func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, dest string) error {
-	if isLocal(l, sourceDir, src) {
-		// check if src is absolute path, if not, join with sourceDir
-		var localSrc string
-
-		if filepath.IsAbs(src) {
-			localSrc = src
-		} else {
-			localSrc = filepath.Join(sourceDir, src)
-		}
-
-		localSrc = filepath.Clean(localSrc)
-
-		if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
-			return true
-		}); err != nil {
-			return fmt.Errorf("failed to copy %s to %s %w", localSrc, dest, err)
-		}
-	} else {
+	if !isLocal(l, sourceDir, src) {
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
 			return fmt.Errorf("failed to create directory %s for %s %w", dest, identifier, err)
 		}
@@ -699,55 +768,25 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 		if _, err := getter.GetAny(ctx, dest, src); err != nil {
 			return fmt.Errorf("failed to fetch %s %s for %s %w", src, dest, identifier, err)
 		}
+
+		return nil
+	}
+
+	localSrc := src
+
+	if !filepath.IsAbs(src) {
+		localSrc = filepath.Join(sourceDir, src)
+	}
+
+	localSrc = filepath.Clean(localSrc)
+
+	if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
+		return true
+	}); err != nil {
+		return fmt.Errorf("failed to copy %s to %s %w", localSrc, dest, err)
 	}
 
 	return nil
-}
-
-// ReadStackOrigin returns the absolute catalog source dir from the .terragrunt-stack-origin sidecar, or "" if missing/malformed.
-func ReadStackOrigin(fsys vfs.FS, stackDir string) string {
-	data, err := vfs.ReadFile(fsys, filepath.Join(stackDir, stackOriginFile))
-	if err != nil {
-		return ""
-	}
-
-	origin := strings.TrimSpace(string(data))
-	if origin == "" {
-		return ""
-	}
-
-	origin = filepath.Clean(origin)
-	if !filepath.IsAbs(origin) {
-		return ""
-	}
-
-	info, err := fsys.Stat(origin)
-	if err != nil || !info.IsDir() {
-		return ""
-	}
-
-	return origin
-}
-
-// writeStackOrigin records the catalog source dir in a sidecar so nested recursion resolves relative paths against the original catalog.
-func writeStackOrigin(l log.Logger, sourceDir, source, dest string) {
-	if !isLocal(l, sourceDir, source) {
-		return
-	}
-
-	localSrc := source
-	if !filepath.IsAbs(localSrc) {
-		localSrc = filepath.Join(sourceDir, localSrc)
-	}
-
-	absOrigin, err := filepath.Abs(localSrc)
-	if err != nil {
-		return
-	}
-
-	if err := os.WriteFile(filepath.Join(dest, stackOriginFile), []byte(absOrigin), valueFilePerm); err != nil {
-		l.Debugf("failed to write %s in %s: %v", stackOriginFile, dest, err)
-	}
 }
 
 // isLocal determines if a given source path is local or remote.
@@ -837,8 +876,15 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, err
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, vexec.NewOSExec(), file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
 	if err != nil {
+		return nil, err
+	}
+
+	// Expose unit.<name>.path / stack.<name>.path so a unit or stack block's values
+	// can reference where sibling components generate to (e.g. to pass a unit path
+	// down to a child stack).
+	if err := injectStackComponentRefs(file, evalParsingContext, filepath.Dir(file.ConfigPath), parser.ParserOptions); err != nil {
 		return nil, err
 	}
 
@@ -847,11 +893,15 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, decodeErr
 	}
 
-	// Process include blocks when the stack-dependencies experiment is enabled.
-	if parser.Experiments.Evaluate(experiment.StackDependencies) {
-		if err := processStackConfigIncludes(config, filepath.Dir(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
-			return nil, err
-		}
+	// Process include blocks and merge any generated stack-level autoinclude file.
+	stackDir := filepath.Dir(file.ConfigPath)
+
+	if err := processStackConfigIncludes(config, stackDir, evalParsingContext, parser.ParserOptions); err != nil {
+		return nil, err
+	}
+
+	if err := mergeStackAutoIncludeFile(l, config, stackDir, filepath.Base(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
+		return nil, err
 	}
 
 	localsParsed := map[string]any{}
@@ -871,11 +921,198 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		Units:  config.Units,
 	}
 
-	if err := ValidateStackConfig(config); err != nil {
+	if err := ValidateStackConfig(config, filepath.Dir(file.ConfigPath)); err != nil {
 		return nil, err
 	}
 
 	return stackConfig, nil
+}
+
+// stackComponentHeaders captures only the label and path of each unit/stack block
+// so component paths can be resolved before the full decode evaluates values.
+// source, values, and every other attribute are left in the block body, unevaluated.
+type stackComponentHeaders struct {
+	Remain hcl.Body                `hcl:",remain"`
+	Stacks []*stackComponentHeader `hcl:"stack,block"`
+	Units  []*stackComponentHeader `hcl:"unit,block"`
+}
+
+// stackComponentHeader is the path-only shape of a unit or stack block.
+type stackComponentHeader struct {
+	Remain  hcl.Body `hcl:",remain"`
+	NoStack *bool    `hcl:"no_dot_terragrunt_stack,optional"`
+	Path    string   `hcl:"path,attr"`
+	Name    string   `hcl:",label"`
+}
+
+// GeneratedPath returns the on-disk path this component generates to under stackDir.
+func (h *stackComponentHeader) GeneratedPath(stackDir string) string {
+	return inthclparse.GeneratedComponentPath(stackDir, h.Path, h.NoStack != nil && *h.NoStack)
+}
+
+// injectStackComponentRefs adds the unit.<name> and stack.<name> path variables to
+// evalCtx so a unit/stack block's values can reference where sibling components
+// generate to. It decodes only block labels and paths first, leaving source and
+// values unevaluated, so it can run before the value that depends on these refs is
+// evaluated. A sibling terragrunt.autoinclude.stack.hcl is folded by name so an
+// overridden component's path reflects the override, not the stale base path.
+// stackDir is the directory containing the stack file.
+func injectStackComponentRefs(file *hclparse.File, evalCtx *hcl.EvalContext, stackDir string, parserOpts []hclparse.Option) error {
+	headers := &stackComponentHeaders{}
+	if err := file.Decode(headers, evalCtx); err != nil {
+		return err
+	}
+
+	// Publish the base refs first so a sibling autoinclude block whose path references unit.<name>.path /
+	// stack.<name>.path can resolve against the base components, matching how the full decode resolves them.
+	setStackComponentRefVars(evalCtx, stackDir, headers.Units, headers.Stacks)
+
+	autoUnits, autoStacks, err := stackAutoIncludeComponentHeaders(stackDir, evalCtx, parserOpts)
+	if err != nil {
+		return err
+	}
+
+	// Republish so an overridden component's path reflects the override, not the base path it replaced.
+	units := util.MergeNamed(headers.Units, autoUnits, componentHeaderName)
+	stacks := util.MergeNamed(headers.Stacks, autoStacks, componentHeaderName)
+	setStackComponentRefVars(evalCtx, stackDir, units, stacks)
+
+	return nil
+}
+
+// setStackComponentRefVars publishes the unit.<name> and stack.<name> path variables into evalCtx.
+func setStackComponentRefVars(evalCtx *hcl.EvalContext, stackDir string, units, stacks []*stackComponentHeader) {
+	unitRefs := make([]inthclparse.ComponentRef, 0, len(units))
+
+	for _, u := range units {
+		if u == nil {
+			continue
+		}
+
+		unitRefs = append(unitRefs, inthclparse.ComponentRef{Name: u.Name, Path: u.GeneratedPath(stackDir)})
+	}
+
+	stackRefs := make([]inthclparse.ComponentRef, 0, len(stacks))
+
+	for _, s := range stacks {
+		if s == nil {
+			continue
+		}
+
+		stackRefs = append(stackRefs, inthclparse.ComponentRef{Name: s.Name, Path: s.GeneratedPath(stackDir)})
+	}
+
+	evalCtx.Variables[inthclparse.VarUnit] = inthclparse.BuildComponentRefMap(unitRefs)
+	evalCtx.Variables[inthclparse.VarStack] = inthclparse.BuildComponentRefMap(stackRefs)
+}
+
+// stackAutoIncludeComponentHeaders decodes the unit and stack block headers (name and path only) declared
+// by a sibling terragrunt.autoinclude.stack.hcl. It returns nil slices when no autoinclude file exists.
+func stackAutoIncludeComponentHeaders(stackDir string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) ([]*stackComponentHeader, []*stackComponentHeader, error) {
+	autoIncludePath := filepath.Join(stackDir, inthclparse.AutoIncludeStackFile)
+	if !util.FileExists(autoIncludePath) {
+		return nil, nil, nil
+	}
+
+	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(autoIncludePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
+	}
+
+	headers := &stackComponentHeaders{}
+	if decodeErr := incFile.Decode(headers, evalCtx); decodeErr != nil {
+		return nil, nil, fmt.Errorf("failed to decode stack autoinclude headers %q: %w", autoIncludePath, decodeErr)
+	}
+
+	return headers.Units, headers.Stacks, nil
+}
+
+// componentHeaderName returns a header's block name, or an empty string for a nil entry so MergeNamed leaves it untouched.
+func componentHeaderName(h *stackComponentHeader) string {
+	if h == nil {
+		return ""
+	}
+
+	return h.Name
+}
+
+// stackComponentLabel captures only a unit or stack block label, leaving every attribute (including path)
+// in Remain so the block name can be read without evaluating any expression.
+type stackComponentLabel struct {
+	Remain hcl.Body `hcl:",remain"`
+	Name   string   `hcl:",label"`
+}
+
+// stackComponentLabels is the label-only shape of a stack file's unit and stack blocks.
+type stackComponentLabels struct {
+	Remain hcl.Body               `hcl:",remain"`
+	Stacks []*stackComponentLabel `hcl:"stack,block"`
+	Units  []*stackComponentLabel `hcl:"unit,block"`
+}
+
+// stackAutoIncludeComponentNames returns the unit and stack block names declared by a sibling
+// terragrunt.autoinclude.stack.hcl without evaluating their path expressions, so callers that only need
+// names do not depend on local.*/unit.*/stack.* being populated in the eval context. It returns nil slices
+// when no autoinclude file exists.
+func stackAutoIncludeComponentNames(stackDir string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) (unitNames, stackNames []string, err error) {
+	autoIncludePath := filepath.Join(stackDir, inthclparse.AutoIncludeStackFile)
+	if !util.FileExists(autoIncludePath) {
+		return nil, nil, nil
+	}
+
+	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(autoIncludePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
+	}
+
+	labels := &stackComponentLabels{}
+	if decodeErr := incFile.Decode(labels, evalCtx); decodeErr != nil {
+		return nil, nil, fmt.Errorf("failed to decode stack autoinclude labels %q: %w", autoIncludePath, decodeErr)
+	}
+
+	for _, u := range labels.Units {
+		if u == nil {
+			continue
+		}
+
+		unitNames = append(unitNames, u.Name)
+	}
+
+	for _, s := range labels.Stacks {
+		if s == nil {
+			continue
+		}
+
+		stackNames = append(stackNames, s.Name)
+	}
+
+	return unitNames, stackNames, nil
+}
+
+// pruneOverriddenStackAutoIncludes drops the base-resolved unit-level autoinclude for any component the
+// sibling terragrunt.autoinclude.stack.hcl overrides by name, so an overridden component does not inherit
+// the base block's autoinclude (the override is wholesale). A newly injected name has no base entry, so
+// pruning it is a no-op. It reads only block names so it never evaluates an injected path expression that
+// the generate-path eval context cannot resolve.
+func pruneOverriddenStackAutoIncludes(autoIncludes map[string]*inthclparse.AutoIncludeResolved, stackDir string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
+	if len(autoIncludes) == 0 {
+		return nil
+	}
+
+	unitNames, stackNames, err := stackAutoIncludeComponentNames(stackDir, evalCtx, parserOpts)
+	if err != nil {
+		return err
+	}
+
+	for _, name := range unitNames {
+		delete(autoIncludes, inthclparse.AutoIncludeKey(inthclparse.KindUnit, name))
+	}
+
+	for _, name := range stackNames {
+		delete(autoIncludes, inthclparse.AutoIncludeKey(inthclparse.KindStack, name))
+	}
+
+	return nil
 }
 
 // processStackConfigIncludes resolves include blocks during stack file parsing.
@@ -936,6 +1173,117 @@ func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCt
 	return nil
 }
 
+// mergeStackAutoIncludeFile merges a generated terragrunt.autoinclude.stack.hcl, if present
+// beside the stack file, into the stack config. Units and stacks injected by a parent stack's
+// autoinclude block materialize in the nested stack the same way a unit's
+// terragrunt.autoinclude.hcl merges into its terragrunt.hcl via [mergeAutoIncludeIfPresent].
+func mergeStackAutoIncludeFile(l log.Logger, config *StackConfigFile, stackDir, stackFileName string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
+	// Never merge the autoinclude file into itself.
+	if stackFileName == inthclparse.AutoIncludeStackFile {
+		return nil
+	}
+
+	autoIncludePath := filepath.Join(stackDir, inthclparse.AutoIncludeStackFile)
+	if !util.FileExists(autoIncludePath) {
+		return nil
+	}
+
+	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(autoIncludePath)
+	if err != nil {
+		return fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
+	}
+
+	// In production the file is parsed with hclsyntax, so the body is always *hclsyntax.Body; surface the impossible-state assertion rather than silently skipping the backstop.
+	syntaxBody, ok := incFile.Body.(*hclsyntax.Body)
+	if !ok {
+		return inthclparse.UnexpectedBodyTypeError{FilePath: autoIncludePath}
+	}
+
+	// Backstop the fail-fast generation check for stale or hand-written files using the shared scan.
+	if typed := inthclparse.StackAutoIncludeDepValuesError(syntaxBody, filepath.Base(stackDir)); typed != nil {
+		return *typed
+	}
+
+	included := &StackConfigFile{}
+	if decodeErr := incFile.Decode(included, evalCtx); decodeErr != nil {
+		return fmt.Errorf("failed to decode stack autoinclude %q: %w", autoIncludePath, decodeErr)
+	}
+
+	if included.Locals != nil {
+		return fmt.Errorf("stack autoinclude %q must not define locals", autoIncludePath)
+	}
+
+	if len(included.Includes) > 0 {
+		return fmt.Errorf("stack autoinclude %q must not define include blocks", autoIncludePath)
+	}
+
+	// Reject duplicate names within the autoinclude file itself, mirroring the base-file rejection, so a
+	// stale or hand-edited autoinclude cannot silently collapse two same-name blocks into one.
+	if err := validateUniqueComponentNames(included.Units, included.Stacks); err != nil {
+		return err
+	}
+
+	logStackAutoIncludeMergeNotes(l, config, included)
+
+	// A same-name injected unit/stack overrides the base block wholesale, matching unit autoinclude override semantics.
+	config.Units = util.MergeNamed(config.Units, included.Units, unitName)
+	config.Stacks = util.MergeNamed(config.Stacks, included.Stacks, stackName)
+
+	return nil
+}
+
+// validateUniqueComponentNames reports the first duplicate unit or stack name in the given slices as the
+// same typed error the base stack file raises, so an autoinclude file cannot silently collapse same-name blocks.
+func validateUniqueComponentNames(units []*Unit, stacks []*Stack) error {
+	seenUnits := make(map[string]struct{}, len(units))
+
+	for _, u := range units {
+		if u == nil {
+			continue
+		}
+
+		if _, dup := seenUnits[u.Name]; dup {
+			return inthclparse.DuplicateUnitNameError{Name: u.Name}
+		}
+
+		seenUnits[u.Name] = struct{}{}
+	}
+
+	seenStacks := make(map[string]struct{}, len(stacks))
+
+	for _, s := range stacks {
+		if s == nil {
+			continue
+		}
+
+		if _, dup := seenStacks[s.Name]; dup {
+			return inthclparse.DuplicateStackNameError{Name: s.Name}
+		}
+
+		seenStacks[s.Name] = struct{}{}
+	}
+
+	return nil
+}
+
+// unitName returns a unit's block name, or an empty string for a nil entry so MergeNamed leaves it untouched.
+func unitName(u *Unit) string {
+	if u == nil {
+		return ""
+	}
+
+	return u.Name
+}
+
+// stackName returns a stack's block name, or an empty string for a nil entry so MergeNamed leaves it untouched.
+func stackName(s *Stack) string {
+	if s == nil {
+		return ""
+	}
+
+	return s.Name
+}
+
 // writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
 func writeValues(l log.Logger, values *cty.Value, directory string) error {
 	if values == nil {
@@ -994,6 +1342,13 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 		body.SetAttributeValue(key, valueMap[key])
 	}
 
+	// CAS may materialize the target as a read-only hard link, so remove it before writing
+	if util.IsFile(filePath) {
+		if err := os.Remove(filePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to remove values file %s before writing: %w", filePath, err)
+		}
+	}
+
 	if err := os.WriteFile(filePath, file.Bytes(), valueFilePerm); err != nil {
 		return fmt.Errorf("failed to write values file %s: %w", filePath, err)
 	}
@@ -1020,7 +1375,7 @@ func ReadValues(ctx context.Context, pctx *ParsingContext, l log.Logger, directo
 		return nil, err
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1109,15 +1464,6 @@ func validateTargetDir(kind, name, destDir, expectedFile string) error {
 	return nil
 }
 
-// GetUnitDir returns the directory path for a unit based on its no_dot_terragrunt_stack setting.
-func GetUnitDir(dir string, unit *Unit) string {
-	if unit.NoStack != nil && *unit.NoStack {
-		return filepath.Join(dir, unit.Path)
-	}
-
-	return filepath.Join(dir, StackDir, unit.Path)
-}
-
 // stackConfigHasAutoInclude reports whether any unit or stack in the include-merged stack config declares an autoinclude block.
 func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
 	if stackFile == nil {
@@ -1194,4 +1540,68 @@ func bodyHasBlock(body hcl.Body) bool {
 	}
 
 	return len(content.Blocks) > 0
+}
+
+// logStackAutoIncludeMergeNotes records when an injected unit/stack name overrides an existing one and when a nested autoinclude block is dropped. A same-name injected block replaces the base block wholesale, matching unit autoinclude override semantics.
+func logStackAutoIncludeMergeNotes(l log.Logger, config, included *StackConfigFile) {
+	existingUnits := unitNameSet(config.Units)
+	existingStacks := stackNameSet(config.Stacks)
+
+	for _, unit := range included.Units {
+		if unit == nil {
+			continue
+		}
+
+		if _, clash := existingUnits[unit.Name]; clash {
+			l.Debugf("Stack autoinclude unit %q overrides the same-name unit in the target stack config", unit.Name)
+		}
+
+		if bodyHasBlock(unit.Remain) {
+			l.Debugf("Stack autoinclude unit %q declares a nested autoinclude block; nested autoinclude is not propagated into the injected component", unit.Name)
+		}
+	}
+
+	for _, stack := range included.Stacks {
+		if stack == nil {
+			continue
+		}
+
+		if _, clash := existingStacks[stack.Name]; clash {
+			l.Debugf("Stack autoinclude stack %q overrides the same-name stack in the target stack config", stack.Name)
+		}
+
+		if bodyHasBlock(stack.Remain) {
+			l.Debugf("Stack autoinclude stack %q declares a nested autoinclude block; nested autoinclude is not propagated into the injected component", stack.Name)
+		}
+	}
+}
+
+// unitNameSet returns the set of unit names.
+func unitNameSet(units []*Unit) map[string]struct{} {
+	names := make(map[string]struct{}, len(units))
+
+	for _, unit := range units {
+		if unit == nil {
+			continue
+		}
+
+		names[unit.Name] = struct{}{}
+	}
+
+	return names
+}
+
+// stackNameSet returns the set of stack names.
+func stackNameSet(stacks []*Stack) map[string]struct{} {
+	names := make(map[string]struct{}, len(stacks))
+
+	for _, stack := range stacks {
+		if stack == nil {
+			continue
+		}
+
+		names[stack.Name] = struct{}{}
+	}
+
+	return names
 }

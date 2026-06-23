@@ -18,7 +18,7 @@ import revertPr from '../../../../assets/img/guides/continuous-integration-with-
 import cleanupPlan from '../../../../assets/img/guides/continuous-integration-with-terragrunt/cleanup-plan-destroy.png';
 import cleanupApply from '../../../../assets/img/guides/continuous-integration-with-terragrunt/cleanup-apply-destroy.png';
 
-Now that we've explored what onboarding produced, we can drive Pipelines directly from the repo without the Gruntwork developer portal.
+Onboarding already walked you through adding, modifying, and destroying a single unit. Now that we've explored what it produced, we can drive Pipelines directly from the repo without the Gruntwork developer portal, this time to deploy a real, multi-unit application.
 
 We're going to introduce a [Terragrunt Stack](/features/stacks/), open a pull request, let the Pipelines workflow trigger a plan, then merge it to deploy our infrastructure update.
 

@@ -1,7 +1,10 @@
 ---
 name: cas
-status: active
+completedSince: "1.1.0"
 ---
+
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Support for Terragrunt Content Addressable Storage (CAS).
 
@@ -10,15 +13,26 @@ Allow Terragrunt to store and retrieve Git repositories from a Content Addressab
 
 The CAS is used to speed up catalog cloning, OpenTofu/Terraform source cloning, and stack generation by avoiding redundant downloads of Git repositories. When used with stacks, it also allows catalog authors to use relative paths in `source` attributes via the `update_source_with_cas` attribute.
 
+<Since version="1.1.0">
+This experiment flag is no longer needed, as the CAS is now enabled by default. Disable it with the `--no-cas` flag.
+</Since>
+
 ### `cas` - How to provide feedback
+
+<Before version="1.1.0">
 Share your experience with this feature in the [CAS](https://github.com/gruntwork-io/terragrunt/discussions/3939) Feedback GitHub Discussion.
 Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
 
 - Any bugs or issues encountered (including logs or stack traces if possible).
 - Suggestions for additional improvements or enhancements.
+</Before>
+
+<Since version="1.1.0">
+Now that the `cas` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+</Since>
 
 ### `cas` - Criteria for stabilization
-To transition the `cas` feature to a stable release, the following must be addressed:
+To transition the `cas` feature to a stable release, the following were completed:
 
 - [x] Add support for storing and retrieving catalog repositories from the CAS.
 - [x] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.

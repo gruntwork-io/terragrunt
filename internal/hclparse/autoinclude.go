@@ -38,9 +38,9 @@ type AutoIncludeHCL struct {
 //
 // After the first parse extracts unit/stack names and paths, the autoinclude
 // body is partially evaluated:
-//   - dependency.config_path is resolved (references unit.*.path)
-//   - dependency remain (mock_outputs etc) is preserved for generation
-//   - inputs and other blocks are partially evaluated (local.* resolved, dependency.* preserved)
+//   - dependency.config_path is resolved (references unit.*.path / values.*)
+//   - mock_outputs, inputs, and other content are partially evaluated the same way: stack-level local.* / values.* / unit.* / stack.* and function calls resolve, dependency.*.outputs.* is preserved
+//   - a locals block is rejected at generate time (stack-level locals belong in terragrunt.stack.hcl)
 //
 // The RawBody is preserved for serializing the generated
 // terragrunt.autoinclude.hcl file.
@@ -86,6 +86,13 @@ type AutoIncludeDependency struct {
 //     They contain dependency.*.outputs.* which is runtime-only.
 //     The RawBody is preserved so the generator can copy these from the AST.
 func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved, hcl.Diagnostics) {
+	return a.ResolveForKind(evalCtx, KindUnit, "")
+}
+
+// ResolveForKind is Resolve with the component kind and parent name known, so a
+// stack-level autoinclude can be validated against the unsupported pattern where
+// an injected unit/stack consumes a sibling dependency's outputs through values.
+func (a *AutoIncludeHCL) ResolveForKind(evalCtx *hcl.EvalContext, kind AutoIncludeKind, name string) (*AutoIncludeResolved, hcl.Diagnostics) {
 	if a == nil || a.Remain == nil {
 		return nil, nil
 	}
@@ -96,13 +103,27 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 		return &AutoIncludeResolved{EvalCtx: evalCtx, RawBody: a.Remain}, nil
 	}
 
-	if valuesAttr, hasValues := body.Attributes["values"]; hasValues {
-		return nil, hcl.Diagnostics{{
-			Severity: hcl.DiagError,
-			Summary:  "values is not allowed inside autoinclude",
-			Detail:   "Did you mean to declare values = {...} on the parent unit/stack block (next to source/path) instead of inside the autoinclude block?",
-			Subject:  valuesAttr.Range().Ptr(),
-		}}
+	if kind == KindStack {
+		// An injected unit/stack whose values reference dependency.* outputs is unsupported: those outputs are
+		// runtime-only, so values cannot be a generate-time literal. Reject it with a precise cross-level error.
+		if diags := validateStackAutoIncludeDepValues(body, name); diags.HasErrors() {
+			return nil, diags
+		}
+
+		// A stack autoinclude injects only unit and stack blocks into the generated stack file, so a top-level dependency block is rejected here at generate time instead of producing a file the strict discovery decode later rejects.
+		if diags := rejectStackAutoIncludeDependencyBlocks(body, name); diags.HasErrors() {
+			return nil, diags
+		}
+	}
+
+	// Reject a locals block; stack-level locals belong in terragrunt.stack.hcl.
+	if diags := rejectAutoIncludeLocalsBlock(body, kind, name); diags.HasErrors() {
+		return nil, diags
+	}
+
+	// Reject a nested autoinclude block; an autoinclude must not contain another autoinclude.
+	if diags := rejectAutoIncludeNestedAutoInclude(body, kind, name); diags.HasErrors() {
+		return nil, diags
 	}
 
 	deps := make([]AutoIncludeDependency, 0, len(body.Blocks))
@@ -162,7 +183,15 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 
 	val, diags := configPathAttr.Expr.Value(evalCtx)
 	if diags.HasErrors() {
-		return AutoIncludeDependency{}, diags
+		// Surface one clear error anchored at config_path; the raw diagnostics can carry a function-internal
+		// subject (e.g. a function that re-parses the stack file) that otherwise renders as a misleading
+		// top-level error pointing at an unrelated unit or stack block.
+		return AutoIncludeDependency{}, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid config_path",
+			Detail:   fmt.Sprintf("dependency %q config_path could not be evaluated at stack generate time: %s", name, configPathEvalReason(diags)),
+			Subject:  pathRange,
+		}}
 	}
 
 	// Null/unknown evaluate without HCL diagnostics; surface them as typed diags with source position so callers can detect the failure and editors can underline the offending expression.
@@ -197,7 +226,19 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 	}, nil
 }
 
+// configPathEvalReason returns a one-line reason from config_path evaluation diagnostics for the wrapped error.
+func configPathEvalReason(diags hcl.Diagnostics) string {
+	for _, d := range diags {
+		if d.Detail != "" {
+			return d.Detail
+		}
+	}
+
+	return diags.Error()
+}
+
 // AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values. Returns EmptyArgError when unitDir is empty so callers can distinguish bad input from a missing file.
+// It is off the production parse path (the partial-parse merge folds autoinclude dependencies into the config); it is retained for test-time introspection of generated autoinclude files.
 func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fs is nil (unitDir=%q)", unitDir))
@@ -316,4 +357,169 @@ func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (st
 	}
 
 	return util.ResolvePath(depPath), nil
+}
+
+// StackAutoIncludeDepValuesError scans a stack autoinclude body for the unsupported cross-level pattern: an injected unit/stack whose values reference dependency outputs, which are not available at stack generate time. Returns the populated typed error, or nil when absent. Shared by the fail-fast generation check and the pkg/config backstop so the two cannot drift.
+func StackAutoIncludeDepValuesError(body *hclsyntax.Body, stackName string) *StackAutoIncludeDependencyValuesError {
+	for _, block := range body.Blocks {
+		if block.Type != VarUnit && block.Type != VarStack {
+			continue
+		}
+
+		valuesAttr, hasValues := block.Body.Attributes[varValues]
+		if !hasValues {
+			continue
+		}
+
+		if !valuesReferenceDependency(valuesAttr.Expr) {
+			continue
+		}
+
+		return &StackAutoIncludeDependencyValuesError{
+			StackName: stackName,
+			UnitName:  blockLabelsString(block),
+			Subject:   valuesAttr.Expr.Range().Ptr(),
+		}
+	}
+
+	return nil
+}
+
+// validateStackAutoIncludeDepValues rejects a stack-level autoinclude whose injected unit/stack values reference dependency.* outputs, which are unavailable at stack generate time, whether or not that dependency is declared.
+func validateStackAutoIncludeDepValues(body *hclsyntax.Body, stackName string) hcl.Diagnostics {
+	typed := StackAutoIncludeDepValuesError(body, stackName)
+	if typed == nil {
+		return nil
+	}
+
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "stack autoinclude dependency outputs referenced by injected values",
+		Detail:   typed.Error(),
+		Subject:  typed.Subject,
+		Extra:    *typed,
+	}}
+}
+
+// rejectStackAutoIncludeDependencyBlocks rejects a top-level dependency block in a stack autoinclude, which is unsupported because a stack autoinclude injects only unit and stack blocks into the generated stack file.
+func rejectStackAutoIncludeDependencyBlocks(body *hclsyntax.Body, stackName string) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	for _, block := range body.Blocks {
+		if block.Type != blockDependency {
+			continue
+		}
+
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "dependency block is not allowed in a stack autoinclude",
+			Detail:   fmt.Sprintf("stack %q autoinclude declares dependency %q, but a stack autoinclude may inject only unit and stack blocks; declare the dependency inside the target unit's own autoinclude instead", stackName, blockLabelsString(block)),
+			Subject:  block.DefRange().Ptr(),
+		})
+	}
+
+	return diags
+}
+
+// valuesReferenceDependency reports whether expr references the dependency namespace in any form.
+// RootName matches every traversal uniformly: dependency.foo, dependency["foo"], and the dynamic
+// dependency[values.x] all report "dependency" as the root, so no per-form handling is needed.
+func valuesReferenceDependency(expr hclsyntax.Expression) bool {
+	return referencesRoot(expr, varDependency)
+}
+
+// referencesRoot reports whether expr contains any traversal whose root name equals root.
+func referencesRoot(expr hclsyntax.Expression, root string) bool {
+	for _, traversal := range expr.Variables() {
+		if traversal.RootName() == root {
+			return true
+		}
+	}
+
+	return false
+}
+
+// rejectAutoIncludeLocalsBlock rejects a locals block defined anywhere in the autoinclude body for both kinds.
+func rejectAutoIncludeLocalsBlock(body *hclsyntax.Body, kind AutoIncludeKind, name string) hcl.Diagnostics {
+	block, err := findNestedBlock(body, blockLocals, 0)
+	if err != nil {
+		return blockDepthDiags(body, err)
+	}
+
+	if block == nil {
+		return nil
+	}
+
+	typed := AutoIncludeLocalsBlockError{Subject: block.DefRange().Ptr(), Kind: string(kind), Component: name}
+
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "locals block is not allowed inside autoinclude",
+		Detail:   typed.Error(),
+		Subject:  typed.Subject,
+		Extra:    typed,
+	}}
+}
+
+// rejectAutoIncludeNestedAutoInclude rejects an autoinclude block nested inside the autoinclude body, which would
+// otherwise recurse. An injected unit or stack legitimately carries its own autoinclude for the next generate pass,
+// so those subtrees are skipped.
+func rejectAutoIncludeNestedAutoInclude(body *hclsyntax.Body, kind AutoIncludeKind, name string) hcl.Diagnostics {
+	block, err := findNestedBlock(body, blockAutoInclude, 0)
+	if err != nil {
+		return blockDepthDiags(body, err)
+	}
+
+	if block == nil {
+		return nil
+	}
+
+	typed := AutoIncludeNestedError{Subject: block.DefRange().Ptr(), Kind: string(kind), Component: name}
+
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "autoinclude block is not allowed inside autoinclude",
+		Detail:   typed.Error(),
+		Subject:  typed.Subject,
+		Extra:    typed,
+	}}
+}
+
+// findNestedBlock returns the first block of blockType anywhere in body, bounded by maxBlockDepth; injected unit and
+// stack subtrees are skipped because they are separate components generated in their own pass.
+func findNestedBlock(body *hclsyntax.Body, blockType string, depth int) (*hclsyntax.Block, error) {
+	if depth > maxBlockDepth {
+		return nil, BlockDepthExceededError{MaxDepth: maxBlockDepth}
+	}
+
+	for _, block := range body.Blocks {
+		if block.Type == blockType {
+			return block, nil
+		}
+
+		if block.Type == VarUnit || block.Type == VarStack {
+			continue
+		}
+
+		nested, err := findNestedBlock(block.Body, blockType, depth+1)
+		if err != nil {
+			return nil, err
+		}
+
+		if nested != nil {
+			return nested, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// blockDepthDiags converts a block-nesting depth error into a diagnostic anchored at the autoinclude body.
+func blockDepthDiags(body *hclsyntax.Body, err error) hcl.Diagnostics {
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "autoinclude block nesting too deep",
+		Detail:   err.Error(),
+		Subject:  body.SrcRange.Ptr(),
+	}}
 }

@@ -21,15 +21,26 @@ const (
 	StackDir = ".terragrunt-stack"
 
 	// HCL block type and attribute names.
-	blockDependency = "dependency"
-	attrConfigPath  = "config_path"
+	blockDependency  = "dependency"
+	blockLocals      = "locals"
+	blockAutoInclude = "autoinclude"
+	attrConfigPath   = "config_path"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"
 	varValues     = "values"
-	varUnit       = "unit"
-	varStack      = "stack"
 	varDependency = blockDependency
+)
+
+const (
+	// VarUnit is the eval-context variable root name under which top-level unit path
+	// references are exposed (unit.<name>.path). Exported so pkg/config can inject the
+	// same variable when decoding terragrunt.stack.hcl values.
+	VarUnit = "unit"
+	// VarStack is the eval-context variable root name under which top-level stack path
+	// references are exposed (stack.<name>.path). Exported so pkg/config can inject the
+	// same variable when decoding terragrunt.stack.hcl values.
+	VarStack = "stack"
 )
 
 // ParseStackFileInput holds the input for ParseStackFile.
@@ -85,6 +96,11 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		return result, err
 	}
 
+	// Publish unit.<name>.path / stack.<name>.path from a path-only pre-decode so the
+	// phase-4 decode can evaluate values expressions that reference sibling component
+	// paths, matching the production parse (injectStackComponentRefs in pkg/config).
+	publishComponentRefs(mergedRemain, evalCtx, input.StackDir)
+
 	// Phase 4 decodes unit/stack blocks and resolves autoincludes.
 	decoded := &unitsAndStacksHCL{}
 	if diags := gohcl.DecodeBody(mergedRemain, evalCtx, decoded); diags.HasErrors() {
@@ -101,10 +117,6 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	if err := validateUniqueNames(decoded); err != nil {
 		return result, err
 	}
-
-	stackTargetDir := filepath.Join(input.StackDir, StackDir)
-	evalCtx.Variables[varUnit] = BuildComponentRefMap(buildUnitRefs(decoded.Units, stackTargetDir))
-	evalCtx.Variables[varStack] = BuildComponentRefMap(buildStackRefs(decoded.Stacks, stackTargetDir))
 
 	autoIncludes, err := resolveAutoIncludes(decoded.Units, decoded.Stacks, evalCtx, srcByFilename)
 	if err != nil {
@@ -163,7 +175,7 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 
 	// Strip namespaces the phased parser populates itself so unevaluated refs fail loudly instead of leaking caller values.
 	maps.DeleteFunc(evalCtx.Variables, func(name string, _ cty.Value) bool {
-		return name == varLocal || name == varUnit || name == varStack || name == varValues
+		return name == varLocal || name == VarUnit || name == VarStack || name == varValues
 	})
 
 	if input.Values != nil {
@@ -202,36 +214,22 @@ func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 	return errors.Join(errs...)
 }
 
-// buildUnitRefs builds component refs for unit blocks; no_dot_terragrunt_stack hoists the unit out of .terragrunt-stack.
-func buildUnitRefs(units []*UnitBlockHCL, stackTargetDir string) []ComponentRef {
-	refs := make([]ComponentRef, 0, len(units))
-
-	for _, u := range units {
-		unitPath := filepath.Join(stackTargetDir, u.Path)
-		if u.NoStack != nil && *u.NoStack {
-			unitPath = filepath.Join(filepath.Dir(stackTargetDir), u.Path)
-		}
-
-		refs = append(refs, ComponentRef{Name: u.Name, Path: unitPath})
+// publishComponentRefs publishes unit.<name>.path and stack.<name>.path into evalCtx
+// from a path-only decode of body (the discovery shapes), leaving source, values, and
+// autoinclude content unevaluated. Running it before the phase-4 decode lets values
+// expressions reference sibling component paths, matching the production parse
+// (injectStackComponentRefs in pkg/config). A failed path-only decode publishes
+// nothing and reports no error: the phase-4 decode evaluates a superset of the same
+// attributes against the same context, so it surfaces the identical diagnostics
+// along with partial results.
+func publishComponentRefs(body hcl.Body, evalCtx *hcl.EvalContext, stackDir string) {
+	headers := &discoveryDecode{}
+	if diags := gohcl.DecodeBody(body, evalCtx, headers); diags.HasErrors() {
+		return
 	}
 
-	return refs
-}
-
-// buildStackRefs builds top-level component refs for stack blocks.
-func buildStackRefs(stacks []*StackBlockHCL, stackTargetDir string) []ComponentRef {
-	refs := make([]ComponentRef, 0, len(stacks))
-
-	for _, s := range stacks {
-		stackGenPath := filepath.Join(stackTargetDir, s.Path)
-		if s.NoStack != nil && *s.NoStack {
-			stackGenPath = filepath.Join(filepath.Dir(stackTargetDir), s.Path)
-		}
-
-		refs = append(refs, ComponentRef{Name: s.Name, Path: stackGenPath})
-	}
-
-	return refs
+	evalCtx.Variables[VarUnit] = BuildComponentRefMap(buildDiscoveryUnitRefs(headers.Units, stackDir))
+	evalCtx.Variables[VarStack] = BuildComponentRefMap(buildDiscoveryStackRefs(headers.Stacks, stackDir))
 }
 
 // maxLocalsIterations bounds the fixed-point loop in evaluateLocals as a safeguard against pathological inputs.
@@ -476,7 +474,7 @@ func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx, KindUnit, autoIncludeSourceBytes(srcByFilename, unit.AutoInclude))
+		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx, KindUnit, unit.Name, autoIncludeSourceBytes(srcByFilename, unit.AutoInclude))
 		if err != nil {
 			return nil, err
 		}
@@ -491,7 +489,7 @@ func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx, KindStack, autoIncludeSourceBytes(srcByFilename, stack.AutoInclude))
+		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx, KindStack, stack.Name, autoIncludeSourceBytes(srcByFilename, stack.AutoInclude))
 		if err != nil {
 			return nil, err
 		}
@@ -505,9 +503,13 @@ func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx
 }
 
 // resolveAutoInclude resolves a single autoinclude block, attaches the eval context, tags it with the component kind so the generator picks the right filename, and records the originating file's bytes for include-aware expression slicing.
-func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, kind AutoIncludeKind, sourceBytes []byte) (*AutoIncludeResolved, error) {
-	resolved, diags := autoInclude.Resolve(evalCtx)
+func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, kind AutoIncludeKind, name string, sourceBytes []byte) (*AutoIncludeResolved, error) {
+	resolved, diags := autoInclude.ResolveForKind(evalCtx, kind, name)
 	if diags.HasErrors() {
+		if typed := autoIncludeTypedErr(diags); typed != nil {
+			return nil, typed
+		}
+
 		return nil, diags
 	}
 
@@ -518,4 +520,20 @@ func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, k
 	}
 
 	return resolved, nil
+}
+
+// autoIncludeTypedErr extracts the first known typed autoinclude error carried in a diagnostic's Extra field, or nil when none is present.
+func autoIncludeTypedErr(diags hcl.Diagnostics) error {
+	for _, diag := range diags {
+		switch typed := diag.Extra.(type) {
+		case StackAutoIncludeDependencyValuesError:
+			return typed
+		case AutoIncludeLocalsBlockError:
+			return typed
+		case AutoIncludeNestedError:
+			return typed
+		}
+	}
+
+	return nil
 }

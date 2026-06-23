@@ -282,10 +282,10 @@ func (c *Client) EnsureContainer(ctx context.Context, l log.Logger, opts *backen
 	return c.blob.EnsureContainer(ctx, c.RemoteStateConfigAzureRM.ContainerName)
 }
 
-// MoveBlob copies srcContainer/srcKey to dstContainer/dstKey, waits for the
-// server-side copy to complete, and then deletes the source blob. CopyBlob
-// is server-side and may be asynchronous for large blobs; the wait avoids a
-// race where the source is deleted before the copy is fully committed.
+// MoveBlob copies srcContainer/srcKey to dstContainer/dstKey and then
+// deletes the source blob. CopyBlob uses the synchronous Put Blob From URL
+// API and returns only after the copy is committed, so the source can be
+// deleted immediately.
 //
 // The delete step is idempotent: if the source blob is already gone, the
 // move still reports success.
@@ -295,10 +295,6 @@ func (c *Client) MoveBlob(ctx context.Context, srcContainer, srcKey, dstContaine
 	}
 
 	if err := c.blob.CopyBlob(ctx, srcContainer, srcKey, dstContainer, dstKey); err != nil {
-		return err
-	}
-
-	if err := c.blob.WaitForCopy(ctx, dstContainer, dstKey); err != nil {
 		return err
 	}
 

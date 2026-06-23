@@ -42,6 +42,10 @@ const (
 	RBACPropagationTimeout = 5 * time.Minute
 )
 
+// roleDefinitionsPath is the provider path segment that, appended to a scope
+// and a role definition GUID, forms a full role definition ID.
+const roleDefinitionsPath = "/providers/Microsoft.Authorization/roleDefinitions/"
+
 // RBACClient wraps the Azure role-assignment management API.
 type RBACClient struct {
 	client         *armauthorization.RoleAssignmentsClient
@@ -86,8 +90,8 @@ type AssignRoleInput struct {
 	PrincipalID string
 	// PrincipalType: "User", "Group", "ServicePrincipal". Defaults to ServicePrincipal.
 	PrincipalType string
-	// RoleDefinitionID is the GUID portion of a role definition (e.g.
-	// RoleStorageBlobDataOwner). The full definition ID is composed for you.
+	// RoleDefinitionID is the GUID portion of a built-in or custom role
+	// definition. The full definition ID is composed for you.
 	RoleDefinitionID string
 }
 
@@ -103,6 +107,10 @@ func (c *RBACClient) AssignRole(ctx context.Context, l log.Logger, in AssignRole
 		return &InvalidPrincipalIDError{PrincipalID: in.PrincipalID}
 	}
 
+	if _, err := uuid.Parse(in.RoleDefinitionID); err != nil {
+		return &InvalidRoleDefinitionIDError{RoleDefinitionID: in.RoleDefinitionID}
+	}
+
 	principalType := in.PrincipalType
 	if principalType == "" {
 		principalType = "ServicePrincipal"
@@ -110,7 +118,7 @@ func (c *RBACClient) AssignRole(ctx context.Context, l log.Logger, in AssignRole
 
 	assignmentName := uuid.NewString()
 	roleDefID := "/subscriptions/" + c.subscriptionID +
-		"/providers/Microsoft.Authorization/roleDefinitions/" + in.RoleDefinitionID
+		roleDefinitionsPath + in.RoleDefinitionID
 
 	params := armauthorization.RoleAssignmentCreateParameters{
 		Properties: &armauthorization.RoleAssignmentProperties{
@@ -147,7 +155,11 @@ func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, 
 		return false, &InvalidPrincipalIDError{PrincipalID: principalID}
 	}
 
-	roleDefSuffix := "/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionID
+	if _, err := uuid.Parse(roleDefinitionID); err != nil {
+		return false, &InvalidRoleDefinitionIDError{RoleDefinitionID: roleDefinitionID}
+	}
+
+	roleDefSuffix := roleDefinitionsPath + roleDefinitionID
 
 	// Azure's roleAssignments List for Scope API only supports the
 	// `principalId eq '<id>'` filter at subscription scope. At resource
@@ -192,6 +204,10 @@ func (c *RBACClient) AssignRoleIfMissing(ctx context.Context, l log.Logger, in A
 		return &InvalidPrincipalIDError{PrincipalID: in.PrincipalID}
 	}
 
+	if _, err := uuid.Parse(in.RoleDefinitionID); err != nil {
+		return &InvalidRoleDefinitionIDError{RoleDefinitionID: in.RoleDefinitionID}
+	}
+
 	has, err := c.HasRoleAssignment(ctx, in.Scope, in.PrincipalID, in.RoleDefinitionID)
 	if err != nil {
 		return err
@@ -211,7 +227,7 @@ func (c *RBACClient) AssignRoleIfMissing(ctx context.Context, l log.Logger, in A
 // scope. If no such assignment exists this is a no-op (returns nil).
 //
 // When multiple matching assignments exist (uncommon but possible), all of
-// them are deleted; the first delete error encountered is returned.
+// them are deleted; any delete errors are aggregated via errors.Join.
 func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, principalID, roleDefinitionID string) error {
 	if scope == "" || principalID == "" || roleDefinitionID == "" {
 		return ErrScopePrincipalRoleArgs
@@ -221,7 +237,11 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 		return &InvalidPrincipalIDError{PrincipalID: principalID}
 	}
 
-	roleDefSuffix := "/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionID
+	if _, err := uuid.Parse(roleDefinitionID); err != nil {
+		return &InvalidRoleDefinitionIDError{RoleDefinitionID: roleDefinitionID}
+	}
+
+	roleDefSuffix := roleDefinitionsPath + roleDefinitionID
 
 	// See HasRoleAssignment for why assignedTo() is used instead of
 	// `principalId eq '<id>'`: the eq filter is only accepted at
@@ -230,7 +250,7 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 		Filter: to.Ptr("assignedTo('" + principalID + "')"),
 	})
 
-	var firstErr error
+	var errs []error
 
 	removed := 0
 
@@ -240,39 +260,52 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 			return fmt.Errorf("listing role assignments for removal: %w", err)
 		}
 
-		for _, ra := range page.Value {
-			if ra == nil || ra.Properties == nil || ra.Properties.RoleDefinitionID == nil || ra.ID == nil {
-				continue
-			}
-
-			if !strings.HasSuffix(*ra.Properties.RoleDefinitionID, roleDefSuffix) {
-				continue
-			}
-
-			if _, err := c.client.DeleteByID(ctx, *ra.ID, nil); err != nil {
-				// Concurrent removal raced us to the same assignment - treat as success.
-				if IsNotFound(err) {
-					continue
-				}
-
-				if firstErr == nil {
-					firstErr = fmt.Errorf("deleting role assignment %s: %w", *ra.ID, err)
-				}
-
-				continue
-			}
-
-			removed++
-		}
+		n, pageErrs := c.deleteMatchingAssignments(ctx, page.Value, roleDefSuffix)
+		errs = append(errs, pageErrs...)
+		removed += n
 	}
 
-	if firstErr != nil {
-		return firstErr
+	if err := errors.Join(errs...); err != nil {
+		return err
 	}
 
 	l.Debugf("azurehelper: removed %d role assignment(s) for principal %s on %s", removed, principalID, scope)
 
 	return nil
+}
+
+// deleteMatchingAssignments deletes every assignment in ras whose role
+// definition ID ends with roleDefSuffix, returning how many were removed and
+// any delete errors. Assignments removed concurrently (404) count as success.
+func (c *RBACClient) deleteMatchingAssignments(ctx context.Context, ras []*armauthorization.RoleAssignment, roleDefSuffix string) (int, []error) {
+	var errs []error
+
+	removed := 0
+
+	for _, ra := range ras {
+		if ra == nil || ra.Properties == nil || ra.Properties.RoleDefinitionID == nil || ra.ID == nil {
+			continue
+		}
+
+		if !strings.HasSuffix(*ra.Properties.RoleDefinitionID, roleDefSuffix) {
+			continue
+		}
+
+		if _, err := c.client.DeleteByID(ctx, *ra.ID, nil); err != nil {
+			// Concurrent removal raced us to the same assignment - treat as success.
+			if IsNotFound(err) {
+				continue
+			}
+
+			errs = append(errs, fmt.Errorf("deleting role assignment %s: %w", *ra.ID, err))
+
+			continue
+		}
+
+		removed++
+	}
+
+	return removed, errs
 }
 
 // isAlreadyAssigned returns true for the Azure "RoleAssignmentExists"
@@ -284,8 +317,8 @@ func isAlreadyAssigned(err error) bool {
 		return false
 	}
 
-	var respErr *azcore.ResponseError
-	if !errors.As(err, &respErr) {
+	respErr, ok := errors.AsType[*azcore.ResponseError](err)
+	if !ok {
 		return false
 	}
 

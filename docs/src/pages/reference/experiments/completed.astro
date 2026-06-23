@@ -2,12 +2,16 @@
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import ExperimentEntries from '@components/ExperimentEntries.astro';
 import { getCollection } from 'astro:content';
-import { sidebar } from '../../../data/sidebar';
+import { getLatestRelease } from '@lib/github';
+import { isCompleted } from '@lib/experiments';
+
+const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
+const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
 
 const entries = await getCollection('experiments');
 
 const completed = entries
-	.filter((e) => e.data.status === 'completed')
+	.filter((e) => isCompleted(e, latestVersion))
 	.sort((a, b) => a.data.name.localeCompare(b.data.name));
 
 // Build TOC headings
@@ -35,7 +39,6 @@ for (const entry of completed) {
 		description: 'Experiments that have graduated to stable features.',
 	}}
 	headings={headings}
-	sidebar={sidebar}
 >
 	<p>
 		These experiments have been completed and their features are now available by default. The experiment flags are no longer needed.

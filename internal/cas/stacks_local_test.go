@@ -83,7 +83,10 @@ func TestProcessStackComponent_LocalSource_RewritesUnitSources(t *testing.T) {
 	contentStr := string(content)
 
 	assert.Contains(t, contentStr, "cas::sha256:", "unit terraform source should be rewritten to a SHA-256 CAS ref")
-	assert.NotContains(t, contentStr, "modules/vpc", "module path should not appear in the rewritten source")
+	// The terraform.source uses "//", so the rewritten CAS ref must preserve
+	// the "//subdir" tail. The synthetic tree is rooted at the resolved base
+	// directory so sibling files stay reachable from the materialized unit.
+	assert.Contains(t, contentStr, "//modules/vpc", "rewritten CAS ref should preserve the //subdir tail")
 }
 
 func TestProcessStackComponent_LocalSource_DoesNotMutateInput(t *testing.T) {
@@ -292,6 +295,37 @@ func TestProcessStackComponent_EmptySourceFails(t *testing.T) {
 
 	_, err := c.ProcessStackComponent(t.Context(), l, v, "", "stack")
 	require.Error(t, err, "empty source must be rejected")
+}
+
+// TestProcessStackComponent_LocalSource_NonLiteralSourceFails pins the
+// end-to-end behavior for a unit block whose source is a bare reference. The
+// raw-token reader used to extract an empty string from such an expression,
+// which resolved to the block's own directory and silently packaged it.
+// Processing must fail with ErrSourceNotLiteral instead.
+func TestProcessStackComponent_LocalSource_NonLiteralSourceFails(t *testing.T) {
+	t.Parallel()
+
+	c, v := newCAS(t)
+	l := logger.CreateLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	stackDir := filepath.Join(root, "stacks", "my-stack")
+	require.NoError(t, os.MkdirAll(stackDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "terragrunt.stack.hcl"),
+		[]byte(`unit "service" {
+  source = local.foo
+
+  update_source_with_cas = true
+
+  path = "service"
+}
+`),
+		0o644,
+	))
+
+	_, err := c.ProcessStackComponent(t.Context(), l, v, root+"//stacks/my-stack", "stack")
+	require.ErrorIs(t, err, cas.ErrSourceNotLiteral)
 }
 
 // TestProcessStackComponent_GitForcerRoutesRemote confirms that a source with

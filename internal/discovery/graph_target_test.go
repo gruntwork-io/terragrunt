@@ -1,8 +1,8 @@
 package discovery_test
 
 import (
+	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -22,12 +23,6 @@ func TestDiscoveryWithGraphTarget_RetainsTargetAndDependents(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	// Initialize a git repository in the temp directory so dependent discovery bounds traversal to the repo root.
-	cmd := exec.CommandContext(t.Context(), "git", "init")
-	cmd.Dir = tmpDir
-	cmd.Env = os.Environ()
-	require.NoError(t, cmd.Run())
 
 	// Create dependency chain: vpc -> db -> app
 	vpcDir := filepath.Join(tmpDir, "vpc")
@@ -58,6 +53,7 @@ dependency "db" {
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
+		WithExec(memGitTopLevelExec(t, tmpDir)).
 		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir)
 
@@ -73,12 +69,6 @@ func TestDiscoveryGraphTarget_ParityWithFilterQueries(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	// Initialize a git repository in the temp directory so dependent discovery bounds traversal to the repo root.
-	cmd := exec.CommandContext(t.Context(), "git", "init")
-	cmd.Dir = tmpDir
-	cmd.Env = os.Environ()
-	require.NoError(t, cmd.Run())
 
 	// Create dependency chain: vpc -> db -> app
 	vpcDir := filepath.Join(tmpDir, "vpc")
@@ -113,6 +103,7 @@ dependency "db" {
 	require.NoError(t, err)
 
 	configsA, err := discovery.NewDiscovery(tmpDir).
+		WithExec(memGitTopLevelExec(t, tmpDir)).
 		WithFilters(depsFilters).
 		WithFilters(filters).
 		Discover(t.Context(), logger.CreateLogger(), opts)
@@ -120,6 +111,7 @@ dependency "db" {
 
 	// Path B: graph target marker
 	configsB, err := discovery.NewDiscovery(tmpDir).
+		WithExec(memGitTopLevelExec(t, tmpDir)).
 		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir).
 		Discover(t.Context(), logger.CreateLogger(), opts)
@@ -133,12 +125,6 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	// Initialize a git repository
-	cmd := exec.CommandContext(t.Context(), "git", "init")
-	cmd.Dir = tmpDir
-	cmd.Env = os.Environ()
-	require.NoError(t, cmd.Run())
 
 	// Create standalone units (no dependencies between them)
 	vpcDir := filepath.Join(tmpDir, "vpc")
@@ -158,6 +144,7 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 	opts.RootWorkingDir = tmpDir
 
 	d := discovery.NewDiscovery(tmpDir).
+		WithExec(memGitTopLevelExec(t, tmpDir)).
 		WithRelationships().
 		WithGraphTarget(vpcDir)
 
@@ -174,12 +161,6 @@ func TestDiscoveryWithOptions_GraphTarget(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	// Initialize a git repository
-	cmd := exec.CommandContext(t.Context(), "git", "init")
-	cmd.Dir = tmpDir
-	cmd.Env = os.Environ()
-	require.NoError(t, cmd.Run())
 
 	// Create dependency chain: vpc -> db
 	vpcDir := filepath.Join(tmpDir, "vpc")
@@ -203,6 +184,7 @@ dependency "vpc" {
 	graphTargetOpt := &mockGraphTargetOption{target: vpcDir}
 
 	d := discovery.NewDiscovery(tmpDir).
+		WithExec(memGitTopLevelExec(t, tmpDir)).
 		WithRelationships().
 		WithOptions(graphTargetOpt)
 
@@ -211,6 +193,23 @@ dependency "vpc" {
 
 	paths := configs.Filter(component.UnitKind).Paths()
 	assert.ElementsMatch(t, []string{vpcDir, dbDir}, paths)
+}
+
+// memGitTopLevelExec returns a vexec.Exec whose `git rev-parse --show-toplevel`
+// response is the supplied repoRoot. Any other invocation fails the test so
+// a regression that fires unexpected git subcommands is caught here.
+func memGitTopLevelExec(t *testing.T, repoRoot string) vexec.Exec {
+	t.Helper()
+
+	return vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if inv.Name == "git" && len(inv.Args) == 2 && inv.Args[0] == "rev-parse" && inv.Args[1] == "--show-toplevel" {
+			return vexec.Result{Stdout: []byte(repoRoot + "\n")}
+		}
+
+		assert.Fail(t, "unexpected git invocation", "name=%q args=%v", inv.Name, inv.Args)
+
+		return vexec.Result{ExitCode: 1}
+	})
 }
 
 // mockGraphTargetOption implements the GraphTarget() interface for testing.

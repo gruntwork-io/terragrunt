@@ -5,5 +5,5 @@ inputs = {
 
 # the existence of a `source` directive manifests the bug in https://github.com/gruntwork-io/terragrunt/issues/1793
 terraform {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/download/hello-world?ref=v0.83.2"
+  source = "git::__MIRROR_URL__//test/fixtures/download/hello-world?ref=v0.83.2"
 }

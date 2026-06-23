@@ -10,7 +10,6 @@ import {
   isReleased,
   uniqueVersions,
 } from '@lib/changelog';
-import { sidebar } from '../../data/sidebar';
 
 const showUnreleased = import.meta.env.DEV;
 
@@ -44,7 +43,6 @@ const headings = [
     description: 'A log of notable changes to Terragrunt.',
   }}
   headings={headings}
-  sidebar={sidebar}
 >
   <div data-pagefind-ignore>
     <p>This page tracks notable changes to Terragrunt. For the full list of releases and their assets, see the <a href="https://github.com/gruntwork-io/terragrunt/releases">GitHub Releases Page</a>.</p>
@@ -74,34 +72,33 @@ const headings = [
     margin-bottom: 2rem;
   }
   .category-list {
-    list-style: none;
-    padding: 0;
-    margin: 0.5rem 0;
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+    list-style: none;
+    margin: 0.5rem 0;
+    padding: 0;
   }
   .category-list li {
     font-size: 0.8125rem;
   }
   .category-list a {
-    display: inline-flex;
     align-items: center;
-    gap: 0.375rem;
-    padding: 0.25rem 0.625rem;
     border: 1px solid var(--sl-color-docs-stroke);
     border-radius: 999px;
-    background: var(--sl-color-bg-nav);
     color: inherit;
+    display: inline-flex;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
     text-decoration: none;
   }
   .category-list a:hover,
   .category-list a:focus-visible {
-    border-color: var(--sl-color-accent);
     background: var(--sl-color-bg);
+    border-color: var(--sl-color-accent);
   }
   .category-count {
-    font-weight: 600;
     color: var(--sl-color-white);
+    font-weight: 600;
   }
 </style>

@@ -5,7 +5,7 @@ import ReleaseEntries from '@components/ReleaseEntries.astro';
 import PullRequests from '@components/PullRequests.astro';
 import CopyReleaseNotes from '@components/CopyReleaseNotes.astro';
 import { getCollection } from 'astro:content';
-import { getLatestRelease, getReleaseByTag } from '@lib/github';
+import { compareCommits, getLatestRelease, getReleaseByTag } from '@lib/github';
 import {
   compareVersionsDesc,
   entriesForVersion,
@@ -13,10 +13,11 @@ import {
   isReleased,
   parsePullRequests,
   prepareForGitHub,
+  pullRequestsFromCommits,
   pullRequestsToMarkdown,
   uniqueVersions,
+  type PullRequestGroup,
 } from '@lib/changelog';
-import { sidebar } from '../../../data/sidebar';
 
 export async function getStaticPaths() {
   const showUnreleased = import.meta.env.DEV;
@@ -60,8 +61,17 @@ const older =
     : null;
 
 const tagName = version.startsWith('v') ? version : `v${version}`;
-const versionRelease = await getReleaseByTag('gruntwork-io', 'terragrunt', tagName);
-const pullRequestGroups = parsePullRequests(versionRelease?.body);
+// Published releases carry an auto-generated "What's Changed" body. An
+// unreleased version has no release yet, so list the pull requests merged into
+// main since the latest release instead.
+let pullRequestGroups: PullRequestGroup[] = [];
+if (isReleased(version, latestVersion)) {
+  const versionRelease = await getReleaseByTag('gruntwork-io', 'terragrunt', tagName);
+  pullRequestGroups = parsePullRequests(versionRelease?.body);
+} else if (releaseData?.tag_name) {
+  const commits = await compareCommits('gruntwork-io', 'terragrunt', releaseData.tag_name, 'main');
+  pullRequestGroups = pullRequestsFromCommits(commits ?? [], 'gruntwork-io', 'terragrunt');
+}
 
 const siteUrl = Astro.site?.origin ?? 'https://docs.terragrunt.com';
 const isSemver = version.startsWith('v');
@@ -94,12 +104,10 @@ const headings = [
   frontmatter={{
     title: version,
     description: `Notable changes in Terragrunt ${version}.`,
-    pagination: true,
     prev: older ? { label: older, link: `/process/changelog/${older}` } : false,
     next: newer ? { label: newer, link: `/process/changelog/${newer}` } : false,
   }}
   headings={headings}
-  sidebar={sidebar}
 >
   <div data-pagefind-ignore>
     <ReleaseEntries entries={entries} />

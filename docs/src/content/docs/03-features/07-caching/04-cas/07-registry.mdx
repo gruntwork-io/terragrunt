@@ -1,0 +1,43 @@
+---
+title: OpenTofu/Terraform Registry
+description: How the CAS probes and deduplicates module registry (tfr) sources.
+slug: features/caching/cas/registry
+sidebar:
+  order: 7
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+
+<Before version="1.1.0">
+<Aside type="tip" title="Experimental">
+CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
+</Aside>
+
+</Before>
+## Overview
+
+A registry address is an indirection: the registry resolves a module and version to an underlying archive, such as a versioned tarball or a Git commit. The CAS keys that resolved archive, so caching tracks the immutable artifact rather than the registry address.
+
+## The cheap probe
+
+The probe Terragrunt uses to attempt to avoid fetching tfr sources is the registry's service-discovery and module-download protocol against the registry host. When the URL omits a host (the `tfr:///` form), the default registry is used. The probe requires an explicit `version` in the URL.
+
+It resolves the module to the download location the registry returns and uses that location as the cache key. A `//subdir` selector is stripped before the probe, so two requests that differ only by subdirectory share one key; the download still extracts the requested subdirectory.
+
+## Cache key & deduplication
+
+The resolved archive location is content-addressed, so two `tfr://` requests that resolve to the same archive share one CAS entry. Because the key tracks the underlying archive rather than the version string, republishing a different artifact under the same version resolves to a new key instead of serving stale content. File blobs are content-addressed.
+
+## Cache miss
+
+When the resolved archive location is not yet in the store, Terragrunt downloads the archive, ingests it, and links it into the target.
+
+## Cache hit
+
+When the resolved location is already present, Terragrunt links the cached tree without downloading.
+
+## Fallback behavior
+
+A malformed URL, a missing `version`, or any registry error makes the probe yield no key, and Terragrunt falls back to downloading and content-hashing the result. If the download itself fails, that underlying error surfaces on the real fetch attempt.
+

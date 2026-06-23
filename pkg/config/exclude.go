@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
@@ -79,7 +78,7 @@ func evaluateExcludeBlocks(ctx context.Context, pctx *ParsingContext, l log.Logg
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		l.Errorf("Failed to create eval context %s", file.ConfigPath)
 		return nil, err

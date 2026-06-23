@@ -7,20 +7,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	gogit "github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
 func TestNewWorktrees(t *testing.T) {
@@ -28,43 +23,9 @@ func TestNewWorktrees(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
-
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Second commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
+	require.NoError(t, runner.Commit(t.Context(), "Second commit", "--allow-empty"))
 
 	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
@@ -90,33 +51,8 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize Git repository
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
-
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
@@ -239,33 +175,8 @@ func TestExpressionExpansion(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner(vexec.NewOSExec())
-			require.NoError(t, err)
-
-			runner = runner.WithWorkDir(tmpDir)
-
-			err = runner.Init(t.Context())
-			require.NoError(t, err)
-
-			err = runner.GoOpenRepo()
-			require.NoError(t, err)
-
-			t.Cleanup(func() {
-				err = runner.GoCloseStorage()
-				if err != nil {
-					t.Logf("Error closing storage: %s", err)
-				}
-			})
-
-			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-				AllowEmptyCommits: true,
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
+			runner := helpers.InitTestGitRunner(t, tmpDir)
+			require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
 			wp := &worktrees.WorktreePair{
 				Diffs: tt.diffs,
@@ -297,7 +208,7 @@ func TestExpressionExpansion(t *testing.T) {
 				case *filter.PathExpression:
 					toPaths = append(toPaths, expr.Value)
 				case *filter.AttributeExpression:
-					if expr.Key == "reading" {
+					if expr.Key == filter.AttributeReading {
 						toReadings = append(toReadings, expr.Value)
 					}
 				}
@@ -386,33 +297,8 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner(vexec.NewOSExec())
-			require.NoError(t, err)
-
-			runner = runner.WithWorkDir(tmpDir)
-
-			err = runner.Init(t.Context())
-			require.NoError(t, err)
-
-			err = runner.GoOpenRepo()
-			require.NoError(t, err)
-
-			t.Cleanup(func() {
-				err = runner.GoCloseStorage()
-				if err != nil {
-					t.Logf("Error closing storage: %s", err)
-				}
-			})
-
-			err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-				AllowEmptyCommits: true,
-				Author: &object.Signature{
-					Name:  "Test User",
-					Email: "test@example.com",
-					When:  time.Now(),
-				},
-			})
-			require.NoError(t, err)
+			runner := helpers.InitTestGitRunner(t, tmpDir)
+			require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
 			wp := &worktrees.WorktreePair{
 				Diffs: tt.diffs,
@@ -426,7 +312,7 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 
 			for _, f := range toFilters {
 				if attrExpr, ok := f.Expression().(*filter.AttributeExpression); ok {
-					if attrExpr.Key == "reading" {
+					if attrExpr.Key == filter.AttributeReading {
 						readings = append(readings, attrExpr.Value)
 					}
 				}
@@ -441,7 +327,7 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 
 				for _, f := range toFilters {
 					if attrExpr, ok := f.Expression().(*filter.AttributeExpression); ok {
-						if attrExpr.Key == "reading" && attrExpr.Value == expectedReading {
+						if attrExpr.Key == filter.AttributeReading && attrExpr.Value == expectedReading {
 							found = true
 
 							assert.Equal(t, "reading", attrExpr.Key, "Filter should have reading key")
@@ -462,12 +348,13 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name               string
-		setupFilesystem    func(tmpDir string) error
-		diffs              *git.Diffs
-		expectedToPaths    []string
-		expectedToReadings []string
-		expectedFrom       int
+		name                 string
+		setupFilesystem      func(tmpDir string) error
+		diffs                *git.Diffs
+		expectedToPaths      []string
+		expectedToReadings   []string
+		expectedFromReadings []string
+		expectedFrom         int
 	}{
 		{
 			name: "removed file in unit directory creates path filter",
@@ -492,7 +379,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			expectedFrom:       0,
 		},
 		{
-			name: "removed file in non-unit directory creates no filter",
+			name: "removed file in non-unit directory creates reading filter against from worktree",
 			setupFilesystem: func(tmpDir string) error {
 				// Create non-unit directory (no terragrunt.hcl)
 				nonUnitDir := filepath.Join(tmpDir, "non-unit")
@@ -503,9 +390,10 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 					"non-unit/some-file.tf",
 				},
 			},
-			expectedToPaths:    []string{},
-			expectedToReadings: []string{},
-			expectedFrom:       0,
+			expectedToPaths:      []string{},
+			expectedToReadings:   []string{},
+			expectedFromReadings: []string{"non-unit/some-file.tf"},
+			expectedFrom:         1,
 		},
 		{
 			name: "added file in unit directory creates path filter",
@@ -530,7 +418,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			expectedFrom:       0,
 		},
 		{
-			name: "added file in non-unit directory creates no filter",
+			name: "added file in non-unit directory creates reading filter against to worktree",
 			setupFilesystem: func(tmpDir string) error {
 				// Create non-unit directory (no terragrunt.hcl)
 				nonUnitDir := filepath.Join(tmpDir, "non-unit")
@@ -542,7 +430,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				},
 			},
 			expectedToPaths:    []string{},
-			expectedToReadings: []string{},
+			expectedToReadings: []string{"non-unit/new-file.tf"},
 			expectedFrom:       0,
 		},
 		{
@@ -654,6 +542,17 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			// Verify from filters count
 			assert.Len(t, fromFilters, tt.expectedFrom, "From filters count should match")
 
+			// Extract reading filters from fromFilters
+			fromReadings := []string{}
+
+			for _, f := range fromFilters {
+				if expr, ok := f.Expression().(*filter.AttributeExpression); ok && expr.Key == filter.AttributeReading {
+					fromReadings = append(fromReadings, expr.Value)
+				}
+			}
+
+			assert.ElementsMatch(t, tt.expectedFromReadings, fromReadings, "From reading filters should match")
+
 			// Extract path and reading filters from toFilters
 			toPathsMap := make(map[string]bool)
 			toReadings := []string{}
@@ -663,7 +562,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				case *filter.PathExpression:
 					toPathsMap[expr.Value] = true
 				case *filter.AttributeExpression:
-					if expr.Key == "reading" {
+					if expr.Key == filter.AttributeReading {
 						toReadings = append(toReadings, expr.Value)
 					}
 				}
@@ -692,34 +591,10 @@ func TestWorktreeCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize Git repository
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
+	runner := helpers.InitTestGitRunner(t, tmpDir)
 
 	for i := range 3 {
-		err = runner.GoCommit(fmt.Sprintf("Commit %d", i), &gogit.CommitOptions{
-			AllowEmptyCommits: true,
-			Author: &object.Signature{
-				Name:  "Test User",
-				Email: "test@example.com",
-				When:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Commit(t.Context(), fmt.Sprintf("Commit %d", i), "--allow-empty"))
 	}
 
 	opts := options.NewTerragruntOptions()

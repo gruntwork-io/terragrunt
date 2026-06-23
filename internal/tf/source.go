@@ -325,7 +325,23 @@ func IsLocalSource(sourceURL *url.URL) bool {
 // (//), which typically represents the root of a modules repo (e.g. github.com/foo/infrastructure-modules) and the
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
 // sourceUrl and the path is an empty string.
+//
+// A cas:: reference parses as an opaque URL (scheme "cas::sha1", opaque
+// "<hash>//modules/foo"), so the "//" is split out of the opaque component
+// rather than the path.
 func SplitSourceURL(l log.Logger, sourceURL *url.URL) (*url.URL, string, error) {
+	if sourceURL.Opaque != "" {
+		opaqueSplitOnDoubleSlash := strings.SplitN(sourceURL.Opaque, "//", 2) //nolint:mnd
+		if len(opaqueSplitOnDoubleSlash) > 1 {
+			rootSourceURL := *sourceURL
+			rootSourceURL.Opaque = opaqueSplitOnDoubleSlash[0]
+
+			return &rootSourceURL, opaqueSplitOnDoubleSlash[1], nil
+		}
+
+		return sourceURL, "", nil
+	}
+
 	pathSplitOnDoubleSlash := strings.SplitN(sourceURL.Path, "//", 2) //nolint:mnd
 
 	if len(pathSplitOnDoubleSlash) > 1 {

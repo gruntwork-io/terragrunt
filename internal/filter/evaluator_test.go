@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -298,14 +297,14 @@ func TestEvaluate_AttributeFilter_Source(t *testing.T) {
 		component.NewUnit("./apps/app1").WithConfig(
 			&config.TerragruntConfig{
 				Terraform: &config.TerraformConfig{
-					Source: helpers.PointerTo("github.com/acme/foo"),
+					Source: new("github.com/acme/foo"),
 				},
 			},
 		),
 		component.NewUnit("./apps/app2").WithConfig(
 			&config.TerragruntConfig{
 				Terraform: &config.TerraformConfig{
-					Source: helpers.PointerTo("git::git@github.com:acme/bar?ref=v1.0.0"),
+					Source: new("git::git@github.com:acme/bar?ref=v1.0.0"),
 				},
 			},
 		),
@@ -1244,7 +1243,8 @@ func TestEvaluate_GraphExpression_DepthLimited_MultipleTargets(t *testing.T) {
 		result, err := filter.Evaluate(l, expr, components)
 		require.NoError(t, err)
 
-		// Should include: targetA, targetB, intermediate (1 hop from A), shared (2 hops from A, 1 from B), deep1 (2 hops from B)
+		// Should include: targetA, targetB, intermediate (1 hop from A),
+		// shared (2 hops from A, 1 from B), deep1 (2 hops from B)
 		// Should NOT include: deep2 (3 hops from B, too deep)
 		assert.ElementsMatch(t, []component.Component{targetA, targetB, intermediate, shared, deep1}, result)
 	})

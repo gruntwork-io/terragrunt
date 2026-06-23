@@ -229,7 +229,7 @@ func TestExternalTerraformOutputJSONToCtyValueMap(t *testing.T) {
 	assert.Equal(t, "vpc-abc123", vpcID.AsString())
 }
 
-func TestExternalGetUnitDir(t *testing.T) {
+func TestExternalUnitGeneratedPath(t *testing.T) {
 	t.Parallel()
 
 	t.Run("with stack dir", func(t *testing.T) {
@@ -240,7 +240,7 @@ func TestExternalGetUnitDir(t *testing.T) {
 			Source: "./modules/app",
 			Path:   "app",
 		}
-		dir := config.GetUnitDir("/project", unit)
+		dir := unit.GeneratedPath("/project")
 		assert.Equal(t, filepath.Join("/project", config.StackDir, "app"), dir)
 	})
 
@@ -254,7 +254,7 @@ func TestExternalGetUnitDir(t *testing.T) {
 			Path:    "app",
 			NoStack: &noStack,
 		}
-		dir := config.GetUnitDir("/project", unit)
+		dir := unit.GeneratedPath("/project")
 		assert.Equal(t, filepath.Join("/project", "app"), dir)
 	})
 }

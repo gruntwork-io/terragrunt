@@ -93,7 +93,7 @@ jobs:
           .github/scripts/release/verify-static-binary.sh "${OUTPUT}" "${GOOS}" "${GOARCH}"
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: terragrunt_windows_${{ matrix.arch }}
           path: bin/terragrunt_windows_${{ matrix.arch }}.exe
@@ -137,11 +137,11 @@ jobs:
         shell: pwsh
         run: .github/scripts/release/install-go-winres.ps1
 
-      # Install DigiCert smtools (smctl)
-      - name: Install DigiCert smtools
-        uses: digicert/ssm-code-signing@1d820463733701cf1484c7eb5d7d24a15ca2c454 # v1.2.1
+      # Install DigiCert smctl
+      - name: Install DigiCert smctl
+        uses: digicert/code-signing-software-trust-action@fae23a455ba4bde62b64fd7cb2f81ade788f5a95 # v1.2.1
         with:
-          force-download-tools: 'true'
+          simple-signing-mode: 'true'
 
       # Verify smctl is available
       - name: Verify smctl installation
@@ -160,7 +160,7 @@ jobs:
 
       # Upload Windows binaries (signed amd64 + unsigned 386)
       - name: Upload Windows Binaries
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.upload_artifact_name }}
           path: |

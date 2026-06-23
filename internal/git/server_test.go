@@ -22,7 +22,7 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = srv.Close() })
 
-		require.NoError(t, srv.CommitFile("README.md", []byte("# test repo"), "initial commit"))
+		require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# test repo"), "initial commit"))
 
 		url, err := srv.Start(t.Context())
 		require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = srv.Close() })
 
-		require.NoError(t, srv.CommitFile("file.txt", []byte("content"), "commit"))
+		require.NoError(t, srv.CommitFile(t.Context(), "file.txt", []byte("content"), "commit"))
 
 		url, err := srv.Start(t.Context())
 		require.NoError(t, err)
@@ -69,8 +69,8 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = srv.Close() })
 
-		require.NoError(t, srv.CommitFile("a.txt", []byte("aaa"), "add a"))
-		require.NoError(t, srv.CommitFile("dir/b.txt", []byte("bbb"), "add b"))
+		require.NoError(t, srv.CommitFile(t.Context(), "a.txt", []byte("aaa"), "add a"))
+		require.NoError(t, srv.CommitFile(t.Context(), "dir/b.txt", []byte("bbb"), "add b"))
 
 		url, err := srv.Start(t.Context())
 		require.NoError(t, err)
@@ -100,7 +100,7 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = srv.Close() })
 
-		require.NoError(t, srv.CommitFile("file.txt", []byte("content"), "commit"))
+		require.NoError(t, srv.CommitFile(t.Context(), "file.txt", []byte("content"), "commit"))
 
 		url, err := srv.Start(t.Context())
 		require.NoError(t, err)

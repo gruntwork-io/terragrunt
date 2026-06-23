@@ -4,6 +4,7 @@ package helpers
 import (
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -39,7 +40,6 @@ import (
 
 	"errors"
 
-	"github.com/NYTimes/gziphandler"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -48,6 +48,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -586,7 +587,7 @@ func RunNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, provid
 
 	fs := http.FileServer(http.Dir(providerDir))
 
-	withGz := gziphandler.GzipHandler(http.StripPrefix(urlPrefix, fs))
+	withGz := GzipHandler(http.StripPrefix(urlPrefix, fs))
 
 	mux.HandleFunc(urlPrefix, func(resp http.ResponseWriter, req *http.Request) {
 		if token != "" {
@@ -1126,7 +1127,7 @@ func RunTerragruntCommandWithContext(
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
 
-	app := cli.NewApp(l, opts)
+	app := cli.NewApp(l, opts, venv.OSVenv())
 
 	ctx = log.ContextWithLogger(ctx, l)
 
@@ -1362,4 +1363,47 @@ func isAWSResourceNotFoundError(err error) bool {
 	return errors.As(err, &apiErr) && (apiErr.ErrorCode() == "NoSuchBucket" ||
 		apiErr.ErrorCode() == "NotFound" ||
 		apiErr.ErrorCode() == "ResourceNotFoundException")
+}
+
+// GzipHandler gzip-compresses responses when the client accepts gzip encoding.
+func GzipHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		if !strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
+			h.ServeHTTP(resp, req)
+			return
+		}
+
+		gz := gzip.NewWriter(resp)
+
+		defer func() { _ = gz.Close() }()
+
+		h.ServeHTTP(&gzipResponseWriter{ResponseWriter: resp, gz: gz}, req)
+	})
+}
+
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	gz          *gzip.Writer
+	wroteHeader bool
+}
+
+func (w *gzipResponseWriter) WriteHeader(status int) {
+	if w.wroteHeader {
+		return
+	}
+
+	w.wroteHeader = true
+
+	// length no longer matches once the body is compressed
+	w.Header().Del("Content-Length")
+	w.Header().Set("Content-Encoding", "gzip")
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	return w.gz.Write(b)
 }

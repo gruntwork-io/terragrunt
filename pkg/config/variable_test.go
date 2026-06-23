@@ -1,10 +1,11 @@
 package config_test
 
 import (
+	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,7 @@ import (
 func TestScanVariables(t *testing.T) {
 	t.Parallel()
 
-	inputs, err := config.ParseVariables(logger.CreateLogger(), experiment.NewExperiments(), controls.New(), "../../test/fixtures/inputs")
+	inputs, err := config.ParseVariables(logger.CreateLogger(), vfs.NewOSFS(), controls.New(), "../../test/fixtures/inputs")
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 
@@ -42,10 +43,27 @@ func TestScanVariables(t *testing.T) {
 	assert.Equal(t, "[]", varByName["list_bool"].DefaultValuePlaceholder)
 }
 
+func TestParseVariablesIgnoresSubdirectories(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	moduleDir := "/module"
+
+	require.NoError(t, fsys.MkdirAll(filepath.Join(moduleDir, "sub"), 0755))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(moduleDir, "main.tf"), []byte(`variable "root" {}`), 0644))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(moduleDir, "sub", "main.tf"), []byte(`variable "nested" {}`), 0644))
+
+	inputs, err := config.ParseVariables(logger.CreateLogger(), fsys, controls.New(), moduleDir)
+	require.NoError(t, err)
+
+	require.Len(t, inputs, 1)
+	assert.Equal(t, "root", inputs[0].Name)
+}
+
 func TestScanDefaultVariables(t *testing.T) {
 	t.Parallel()
 
-	inputs, err := config.ParseVariables(logger.CreateLogger(), experiment.NewExperiments(), controls.New(), "../../test/fixtures/inputs-defaults")
+	inputs, err := config.ParseVariables(logger.CreateLogger(), vfs.NewOSFS(), controls.New(), "../../test/fixtures/inputs-defaults")
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 

@@ -132,12 +132,12 @@ func TestCASClone_E2E_RemainsOfflineAfterFirstClone(t *testing.T) {
 	// fail-fast against a dead listener) any path that still reaches
 	// it would surface here.
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("hi"), "init"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	headHash, err := srv.Head()
+	headHash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
 	tempDir := helpers.TmpDirWOSymlinks(t)

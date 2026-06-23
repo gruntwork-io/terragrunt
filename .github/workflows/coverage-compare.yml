@@ -21,7 +21,6 @@ jobs:
     name: Coverage (${{ inputs.base_ref }})
     runs-on: ubuntu-latest
     env:
-      MISE_PROFILE: cicd
       GOGC: "400"
     steps:
       - name: Fetch coverage scripts
@@ -78,7 +77,7 @@ jobs:
         run: ./_coverage-scripts/.github/scripts/coverage/generate-summary.sh
 
       - name: Upload Coverage
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-base
           path: coverage-summary.json
@@ -87,7 +86,6 @@ jobs:
     name: Coverage (${{ inputs.head_ref }})
     runs-on: ubuntu-latest
     env:
-      MISE_PROFILE: cicd
       GOGC: "400"
     steps:
       - name: Fetch coverage scripts
@@ -144,7 +142,7 @@ jobs:
         run: ./_coverage-scripts/.github/scripts/coverage/generate-summary.sh
 
       - name: Upload Coverage
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-head
           path: coverage-summary.json
@@ -186,7 +184,7 @@ jobs:
 
       - name: Upload comparison-report.json
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: comparison-report.json
           path: comparison-report.json
@@ -194,7 +192,7 @@ jobs:
 
       - name: Upload comparison-report.html
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: comparison-report.html
           path: comparison-report.html

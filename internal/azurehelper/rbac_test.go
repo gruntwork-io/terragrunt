@@ -4,6 +4,7 @@ package azurehelper_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -150,8 +151,68 @@ func TestRBAC_RemoveRole_RejectsNonUUIDPrincipal(t *testing.T) {
 
 	c := newTestRBACClient(t)
 
-	if err := c.RemoveRole(context.Background(), log.New(), "/subscriptions/x", "not-a-uuid", "rdid"); err == nil {
+	if err := c.RemoveRole(context.Background(), log.New(), "/subscriptions/x", "not-a-uuid", "ba92f5b4-2d11-453d-a403-e96b0029c9fe"); err == nil {
 		t.Fatal("expected error for non-UUID principal_id")
+	}
+}
+
+func TestRBAC_AssignRole_RejectsNonUUIDRoleDefinition(t *testing.T) {
+	t.Parallel()
+
+	c := newTestRBACClient(t)
+
+	err := c.AssignRole(context.Background(), log.New(), azurehelper.AssignRoleInput{
+		Scope:            "/subscriptions/x",
+		PrincipalID:      "11111111-1111-1111-1111-111111111111",
+		RoleDefinitionID: "not-a-uuid",
+	})
+
+	var typedErr *azurehelper.InvalidRoleDefinitionIDError
+	if !errors.As(err, &typedErr) {
+		t.Fatalf("expected InvalidRoleDefinitionIDError, got %v", err)
+	}
+}
+
+func TestRBAC_AssignRoleIfMissing_RejectsNonUUIDRoleDefinition(t *testing.T) {
+	t.Parallel()
+
+	c := newTestRBACClient(t)
+
+	err := c.AssignRoleIfMissing(context.Background(), log.New(), azurehelper.AssignRoleInput{
+		Scope:            "/subscriptions/x",
+		PrincipalID:      "11111111-1111-1111-1111-111111111111",
+		RoleDefinitionID: "not-a-uuid",
+	})
+
+	var typedErr *azurehelper.InvalidRoleDefinitionIDError
+	if !errors.As(err, &typedErr) {
+		t.Fatalf("expected InvalidRoleDefinitionIDError, got %v", err)
+	}
+}
+
+func TestRBAC_HasRoleAssignment_RejectsNonUUIDRoleDefinition(t *testing.T) {
+	t.Parallel()
+
+	c := newTestRBACClient(t)
+
+	_, err := c.HasRoleAssignment(context.Background(), "/subscriptions/x", "11111111-1111-1111-1111-111111111111", "not-a-uuid")
+
+	var typedErr *azurehelper.InvalidRoleDefinitionIDError
+	if !errors.As(err, &typedErr) {
+		t.Fatalf("expected InvalidRoleDefinitionIDError, got %v", err)
+	}
+}
+
+func TestRBAC_RemoveRole_RejectsNonUUIDRoleDefinition(t *testing.T) {
+	t.Parallel()
+
+	c := newTestRBACClient(t)
+
+	err := c.RemoveRole(context.Background(), log.New(), "/subscriptions/x", "11111111-1111-1111-1111-111111111111", "not-a-uuid")
+
+	var typedErr *azurehelper.InvalidRoleDefinitionIDError
+	if !errors.As(err, &typedErr) {
+		t.Fatalf("expected InvalidRoleDefinitionIDError, got %v", err)
 	}
 }
 

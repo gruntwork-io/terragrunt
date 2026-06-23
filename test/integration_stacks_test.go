@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -259,8 +260,9 @@ func TestStacksRunParseErrorNotSilentlySkipped(t *testing.T) {
 func TestStacksGenerateRemote(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.NewGitServer(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
@@ -371,15 +373,16 @@ func TestStacksApply(t *testing.T) {
 func TestStacksApplyRemote(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.NewGitServer(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
-	assert.Contains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+	assert.Contains(t, stderr, "app1 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
+	assert.Contains(t, stderr, "app2 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
 	assert.Contains(t, stdout, "local_file.file: Creation complete")
 
@@ -1151,6 +1154,8 @@ func TestStackApplyStrictIncludeWithFilter(t *testing.T) {
 func TestStacksSourceMap(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.NewGitServer(t)
+
 	// prepare local path to do override of source url
 	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	localTmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
@@ -1168,11 +1173,11 @@ func TestStacksSourceMap(t *testing.T) {
 
 	// prepare local environment with remote to use source map to replace
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	tmpEnvPath := mirror.RenderFixture(testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
 	// generate path with replacement of local source with local path
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --source-map git::"+mirror.URL+"="+localTmpEnvPath+" --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Generating unit app1")
@@ -1181,12 +1186,12 @@ func TestStacksSourceMap(t *testing.T) {
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --non-interactive --working-dir "+rootPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::"+mirror.URL+"="+localTmpEnvPath+" --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	// validate that the source map was used to replace the source
-	assert.NotContains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
-	assert.NotContains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+	assert.NotContains(t, stderr, "app1 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
+	assert.NotContains(t, stderr, "app2 (git::"+mirror.URL+"//test/fixtures/stacks/basic/units/chick?ref=main)")
 
 	assert.Contains(t, stderr, "Running ./.terragrunt-stack/app1")
 	assert.Contains(t, stderr, "Running ./.terragrunt-stack/app2")
@@ -1630,8 +1635,9 @@ func validateNoStackDirs(t *testing.T, rootPath string) {
 func TestStacksSelfInclude(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.NewGitServer(t)
 	helpers.CleanupTerraformFolder(t, testFixtureStackSelfInclude)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackSelfInclude)
+	tmpEnvPath := mirror.RenderFixture(testFixtureStackSelfInclude)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackSelfInclude, "live")
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
@@ -2366,18 +2372,14 @@ func TestStackOutputWithExclude(t *testing.T) {
 func TestCASInStacks(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Experiment mode is not enabled")
-	}
-
 	srv, err := git.NewServer()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
 
 	bazModule := ``
-	require.NoError(t, srv.CommitFile("modules/baz/main.tf", []byte(bazModule), "commit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "modules/baz/main.tf", []byte(bazModule), "commit"))
 
-	require.NoError(t, srv.CommitFile("units/bar/terragrunt.hcl", []byte(`terraform {
+	require.NoError(t, srv.CommitFile(t.Context(), "units/bar/terragrunt.hcl", []byte(`terraform {
   source = "../..//modules/baz"
 
   update_source_with_cas = true
@@ -2394,7 +2396,7 @@ func TestCASInStacks(t *testing.T) {
   update_source_with_cas = true
 }
 `
-	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit"))
 
 	tmp := helpers.TmpDirWOSymlinks(t)
 
@@ -2457,11 +2459,14 @@ func TestCASInStacks(t *testing.T) {
 	unitStr := string(unitConfigContent)
 
 	// CAS digests depend on the resolved git ref and repo paths; assert exact file shape using the emitted hashes.
+	// Stack blocks always materialize the leaf directory directly, so the rewritten ref has no "//subdir" tail.
+	// Only the terraform.source inside the unit preserves the "//" tail so sibling files in the synthetic tree remain reachable.
 	casSHA1Quoted := regexp.MustCompile(`"cas::sha1:([a-f0-9]{40})"`)
 	stackMatch := casSHA1Quoted.FindStringSubmatch(stackStr)
 	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha1 reference in a quoted source attribute")
 
-	unitMatch := casSHA1Quoted.FindStringSubmatch(unitStr)
+	casSHA1QuotedUnit := regexp.MustCompile(`"cas::sha1:([a-f0-9]{40})//modules/baz"`)
+	unitMatch := casSHA1QuotedUnit.FindStringSubmatch(unitStr)
 	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha1 reference in a quoted source attribute")
 
 	wantStack := fmt.Sprintf(`unit "bar" {
@@ -2473,7 +2478,7 @@ func TestCASInStacks(t *testing.T) {
 `, stackMatch[1])
 
 	wantUnit := fmt.Sprintf(`terraform {
-  source = "cas::sha1:%s"
+  source = "cas::sha1:%s//modules/baz"
 
   update_source_with_cas = true
 }
@@ -2483,18 +2488,86 @@ func TestCASInStacks(t *testing.T) {
 	assert.Equal(t, wantUnit, unitStr)
 }
 
-// TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS verifies that stack generation
-// errors when a unit or stack block declares update_source_with_cas = true while
-// --no-cas is set. The "experiment off" branch is covered by the unit tests in
-// internal/runner/run/download_source_test.go; integration-mode here always has the
-// cas experiment enabled via TG_EXPERIMENT_MODE, so --no-cas is the only way to
-// disable CAS for this scenario.
-func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
+// TestCASInStacksUnitSourceSubdirSiblingsResolve is a regression test for a
+// unit whose terraform.source uses the "//" subdir convention with
+// update_source_with_cas. Generation rewrites the source to
+// cas::sha1:<hash>//modules/vpc. At runtime the full tree must materialize with
+// the working directory at the subdir, or a module that references a sibling
+// via a relative path (modules/vpc -> ../sibling) cannot resolve.
+func TestCASInStacksUnitSourceSubdirSiblingsResolve(t *testing.T) {
 	t.Parallel()
 
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Experiment mode is not enabled")
-	}
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	// modules/vpc references a sibling module via a relative path. This only
+	// resolves if the materialized working directory keeps the surrounding tree
+	// (modules/sibling) reachable from modules/vpc.
+	require.NoError(t, srv.CommitFile(t.Context(), "modules/vpc/main.tf", []byte(`module "sibling" {
+  source = "../sibling"
+}
+`), "commit vpc module"))
+
+	require.NoError(t, srv.CommitFile(t.Context(), "modules/sibling/main.tf", []byte(`output "name" {
+  value = "sibling"
+}
+`), "commit sibling module"))
+
+	require.NoError(t, srv.CommitFile(t.Context(), "units/bar/terragrunt.hcl", []byte(`terraform {
+  source = "../..//modules/vpc"
+
+  update_source_with_cas = true
+}
+`), "commit unit"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	remoteStack := `unit "bar" {
+  source = "../..//units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`
+	require.NoError(t, srv.CommitFile(t.Context(), "stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit stack"))
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "live", "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	// Running the unit forces the runtime materialization path. The unit's
+	// source resolves to cas::sha1:<hash>//modules/vpc; if the subdir handling
+	// drops the surrounding tree, "../sibling" is unreachable and the run fails.
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "stack run plan failed; the sibling module referenced via ../sibling was likely unreachable:\n%s", stdout+stderr)
+}
+
+// TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS verifies that stack generation
+// errors when a unit or stack block declares update_source_with_cas = true while
+// --no-cas is set. CAS is enabled by default, so --no-cas is the way to disable it
+// for this scenario.
+func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
+	t.Parallel()
 
 	testCases := []struct {
 		name        string
@@ -2547,6 +2620,52 @@ func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
 	}
 }
 
+// TestCASInStacksRejectsTerraformUpdateSourceWithCASWithNoCAS verifies that stack
+// generation errors when a unit's terraform block declares update_source_with_cas = true
+// while --no-cas is set. Unlike the unit/stack-block attribute (validated up front from the
+// stack file), the terraform-block attribute lives in the unit's own terragrunt.hcl and is
+// only visible once the source is materialized, so it is checked during generation. Without
+// the check the relative source would be copied verbatim and silently fail to resolve.
+func TestCASInStacksRejectsTerraformUpdateSourceWithCASWithNoCAS(t *testing.T) {
+	t.Parallel()
+
+	catalog := helpers.TmpDirWOSymlinks(t)
+	liveDir := helpers.TmpDirWOSymlinks(t)
+
+	writeFile := func(rel, body string) {
+		full := filepath.Join(catalog, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0644))
+	}
+
+	writeFile("modules/baz/main.tf", ``)
+	writeFile("units/bar/terragrunt.hcl", `terraform {
+  source = "../..//modules/baz"
+
+  update_source_with_cas = true
+}
+`)
+
+	// The unit block itself does NOT set update_source_with_cas, so the only opt-in is the
+	// terraform block inside the materialized unit.
+	liveStack := fmt.Sprintf(`unit "bar" {
+  source = %s
+  path   = "bar"
+}
+`, strconv.Quote(filepath.ToSlash(catalog)+"//units/bar"))
+	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --no-cas --non-interactive --working-dir "+liveDir,
+	)
+	require.Error(t, err)
+
+	combined := stderr + err.Error()
+	assert.Contains(t, combined, "update_source_with_cas")
+	assert.Contains(t, combined, "terraform")
+}
+
 // TestCASInStacksLocalSource verifies that CAS processing works end-to-end
 // when the top-level stack source is a local filesystem path rather than a
 // remote git URL. The catalog-like tree lives on disk, the live stack points
@@ -2554,10 +2673,6 @@ func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
 // rewritten to cas::sha256 references that materialize correctly at run time.
 func TestCASInStacksLocalSource(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Experiment mode is not enabled")
-	}
 
 	// Keep the catalog on a sibling path outside the live working directory so
 	// terragrunt stack generate doesn't discover the catalog's stack file as a
@@ -2636,12 +2751,14 @@ func TestCASInStacksLocalSource(t *testing.T) {
 	unitStr := string(unitConfigContent)
 
 	// Local sources are content-addressed with SHA-256.
-	casSHA256Quoted := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})"`)
-
-	stackMatch := casSHA256Quoted.FindStringSubmatch(stackStr)
+	// Stack blocks always materialize the leaf directory directly, so the rewritten ref has no "//subdir" tail.
+	// Only the terraform.source inside the unit preserves the "//" tail so sibling files in the synthetic tree remain reachable.
+	casSHA256QuotedStack := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})"`)
+	stackMatch := casSHA256QuotedStack.FindStringSubmatch(stackStr)
 	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha256 reference")
 
-	unitMatch := casSHA256Quoted.FindStringSubmatch(unitStr)
+	casSHA256QuotedUnit := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})//modules/baz"`)
+	unitMatch := casSHA256QuotedUnit.FindStringSubmatch(unitStr)
 	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha256 reference")
 
 	wantStack := fmt.Sprintf(`unit "bar" {
@@ -2653,7 +2770,7 @@ func TestCASInStacksLocalSource(t *testing.T) {
 `, stackMatch[1])
 
 	wantUnit := fmt.Sprintf(`terraform {
-  source = "cas::sha256:%s"
+  source = "cas::sha256:%s//modules/baz"
 
   update_source_with_cas = true
 }
@@ -2661,4 +2778,455 @@ func TestCASInStacksLocalSource(t *testing.T) {
 
 	assert.Equal(t, wantStack, stackStr)
 	assert.Equal(t, wantUnit, unitStr)
+}
+
+// TestCASInStacksGenerateBlockOverwritesModuleVersionsFile verifies a generate
+// block with if_exists = "overwrite" replaces a read-only CAS-materialized
+// versions.tf shipped by the module source instead of failing with a
+// permission error.
+func TestCASInStacksGenerateBlockOverwritesModuleVersionsFile(t *testing.T) {
+	t.Parallel()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	writeFile := func(rel, body string) {
+		full := filepath.Join(tmp, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0644))
+	}
+
+	writeFile("catalog/modules/app/main.tf", `output "app" {
+  value = "app"
+}
+`)
+
+	writeFile("catalog/modules/app/versions.tf", `terraform {
+  required_version = ">= 1.0.0"
+}
+`)
+
+	writeFile("catalog/units/app/terragrunt.hcl", `include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "../..//modules/app"
+
+  update_source_with_cas = true
+}
+`)
+
+	writeFile("catalog/stacks/app/terragrunt.stack.hcl", `unit "app" {
+  source = "../..//units/app"
+  path   = "app"
+
+  update_source_with_cas = true
+}
+`)
+
+	writeFile("live/root.hcl", `generate "versions" {
+  path      = "versions.tf"
+  if_exists = "overwrite"
+  contents  = <<EOF
+terraform {
+  required_version = ">= 1.3.0"
+}
+EOF
+}
+`)
+
+	writeFile("live/dev/terragrunt.stack.hcl", `stack "app" {
+  source = "../../catalog//stacks/app"
+  path   = "app"
+
+  update_source_with_cas = true
+}
+`)
+
+	devDir := filepath.Join(tmp, "live", "dev")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --working-dir "+devDir,
+	)
+	require.NoError(t, err)
+
+	// The second run covers the cache-reuse path that overwrites the previously generated file.
+	for range 2 {
+		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all plan --no-stack-generate --non-interactive --working-dir "+devDir,
+		)
+		require.NoError(t, err, "run --all plan failed; the generate block likely could not overwrite the read-only versions.tf:\n%s", stdout+stderr)
+	}
+
+	generatedVersions := readCachedFiles(t, devDir, "versions.tf")
+	require.NotEmpty(t, generatedVersions, "expected a versions.tf in the CAS-materialized working directory")
+
+	for _, content := range generatedVersions {
+		assert.Contains(t, content, "Generated by Terragrunt")
+		assert.Contains(t, content, `required_version = ">= 1.3.0"`)
+		assert.NotContains(t, content, ">= 1.0.0")
+	}
+
+	moduleVersions, err := os.ReadFile(filepath.Join(tmp, "catalog", "modules", "app", "versions.tf"))
+	require.NoError(t, err)
+	assert.Contains(t, string(moduleVersions), ">= 1.0.0", "module source of truth must stay untouched")
+}
+
+// TestCASInStacksGenerateBlockOverwritesUnitVersionsFile verifies a generate
+// overwrite replaces a unit-shipped versions.tf that arrives read-only in
+// .terragrunt-cache because the source-less unit copy preserves the
+// CAS-materialized permissions.
+func TestCASInStacksGenerateBlockOverwritesUnitVersionsFile(t *testing.T) {
+	t.Parallel()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	writeFile := func(rel, body string) {
+		full := filepath.Join(tmp, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0644))
+	}
+
+	writeFile("catalog/units/app/terragrunt.hcl", `include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`)
+
+	writeFile("catalog/units/app/main.tf", `output "app" {
+  value = "app"
+}
+`)
+
+	writeFile("catalog/units/app/versions.tf", `terraform {
+  required_version = ">= 1.0.0"
+}
+`)
+
+	writeFile("catalog/stacks/app/terragrunt.stack.hcl", `unit "app" {
+  source = "../..//units/app"
+  path   = "app"
+
+  update_source_with_cas = true
+}
+`)
+
+	writeFile("live/root.hcl", `generate "versions" {
+  path      = "versions.tf"
+  if_exists = "overwrite"
+  contents  = <<EOF
+terraform {
+  required_version = ">= 1.3.0"
+}
+EOF
+}
+`)
+
+	writeFile("live/dev/terragrunt.stack.hcl", `stack "app" {
+  source = "../../catalog//stacks/app"
+  path   = "app"
+
+  update_source_with_cas = true
+}
+`)
+
+	devDir := filepath.Join(tmp, "live", "dev")
+	unitVersions := filepath.Join(devDir, ".terragrunt-stack", "app", ".terragrunt-stack", "app", "versions.tf")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --working-dir "+devDir,
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --no-stack-generate --non-interactive --working-dir "+devDir,
+	)
+	require.NoError(t, err, "run --all plan failed; the generate block likely could not overwrite the read-only versions.tf:\n%s", stdout+stderr)
+
+	generatedVersions := readCachedFiles(t, devDir, "versions.tf")
+	require.NotEmpty(t, generatedVersions, "expected a versions.tf in the unit's working directory copy")
+
+	for _, content := range generatedVersions {
+		assert.Contains(t, content, "Generated by Terragrunt")
+		assert.Contains(t, content, `required_version = ">= 1.3.0"`)
+	}
+
+	materialized, err := os.ReadFile(unitVersions)
+	require.NoError(t, err)
+	assert.Contains(t, string(materialized), `required_version = ">= 1.0.0"`, "generate must write to the cache copy, not the materialized unit")
+	assert.NotContains(t, string(materialized), "Generated by Terragrunt")
+
+	catalogVersions, err := os.ReadFile(filepath.Join(tmp, "catalog", "units", "app", "versions.tf"))
+	require.NoError(t, err)
+	assert.Contains(t, string(catalogVersions), ">= 1.0.0", "catalog source of truth must stay untouched")
+}
+
+// TestCASInStacksCommittedLockFileUpdatedOnInit verifies that committed
+// .terraform.lock.hcl files cloned through CAS as read-only files survive the
+// auto-init lock file rewrite and the copy back into the generated unit.
+func TestCASInStacksCommittedLockFileUpdatedOnInit(t *testing.T) {
+	t.Parallel()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	staleLock := `# committed stale lock file
+provider "registry.opentofu.org/hashicorp/null" {
+  version = "3.2.1"
+}
+`
+
+	require.NoError(t, srv.CommitFile(t.Context(), "modules/app/main.tf", []byte(`output "app" {
+  value = "app"
+}
+`), "commit module"))
+	require.NoError(t, srv.CommitFile(t.Context(), "modules/app/.terraform.lock.hcl", []byte(staleLock), "commit module lock"))
+
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/terragrunt.hcl", []byte(`terraform {
+  source = "../..//modules/app"
+
+  update_source_with_cas = true
+}
+`), "commit unit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/.terraform.lock.hcl", []byte(staleLock), "commit unit lock"))
+
+	require.NoError(t, srv.CommitFile(t.Context(), "stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
+  source = "../..//units/app"
+  path   = "app"
+
+  update_source_with_cas = true
+}
+`), "commit stack"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "live", "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --no-stack-generate --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "run --all plan failed; init likely could not update the read-only committed lock file:\n%s", stdout+stderr)
+
+	unitDir := filepath.Join(tmp, "live", ".terragrunt-stack", "foo", ".terragrunt-stack", "app")
+
+	workingLocks, err := filepath.Glob(filepath.Join(unitDir, ".terragrunt-cache", "*", "*", "modules", "app", ".terraform.lock.hcl"))
+	require.NoError(t, err)
+	require.Len(t, workingLocks, 1, "expected the lock file in the unit's working directory")
+
+	workingLock, err := os.ReadFile(workingLocks[0])
+	require.NoError(t, err)
+	assert.NotContains(t, string(workingLock), "3.2.1", "init must prune the stale provider from the working directory lock file")
+	assert.Contains(t, string(workingLock), "maintained automatically")
+
+	// The materialized tree copy outside the working directory must stay pristine.
+	treeLocks, err := filepath.Glob(filepath.Join(unitDir, ".terragrunt-cache", "*", "*", "units", "app", ".terraform.lock.hcl"))
+	require.NoError(t, err)
+
+	for _, treeLock := range treeLocks {
+		content, readErr := os.ReadFile(treeLock)
+		require.NoError(t, readErr)
+		assert.Contains(t, string(content), "3.2.1", "materialized tree lock file must stay untouched")
+	}
+
+	copiedBack, err := os.ReadFile(filepath.Join(unitDir, ".terraform.lock.hcl"))
+	require.NoError(t, err, "init must copy the updated lock file back into the generated unit")
+	assert.NotContains(t, string(copiedBack), "3.2.1")
+	assert.Contains(t, string(copiedBack), "maintained automatically")
+}
+
+// TestCASInStacksCommittedValuesFileOverwritten verifies that stack generation
+// replaces a committed terragrunt.values.hcl cloned through CAS as a read-only
+// file instead of failing with a permission error.
+func TestCASInStacksCommittedValuesFileOverwritten(t *testing.T) {
+	t.Parallel()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/terragrunt.hcl", []byte(``), "commit unit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/main.tf", []byte(`output "app" {
+  value = "app"
+}
+`), "commit unit module"))
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/terragrunt.values.hcl", []byte(`# committed stale values
+project = "stale"
+`), "commit unit values"))
+
+	require.NoError(t, srv.CommitFile(t.Context(), "stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
+  source = "../..//units/app"
+  path   = "app"
+
+  update_source_with_cas = true
+
+  values = {
+    project = "demo"
+  }
+}
+`), "commit stack"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "live", "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "stack generate failed; the values file likely could not overwrite the read-only committed one:\n%s", stdout+stderr)
+
+	valuesPath := filepath.Join(tmp, "live", ".terragrunt-stack", "foo", ".terragrunt-stack", "app", "terragrunt.values.hcl")
+	values, err := os.ReadFile(valuesPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(values), `project = "demo"`)
+	assert.Contains(t, string(values), "Auto-generated")
+	assert.NotContains(t, string(values), "stale")
+
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --no-stack-generate --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "run --all plan failed:\n%s", stdout+stderr)
+}
+
+// TestCASInStacksCommittedAutoincludeFileOverwritten verifies that stack
+// generation replaces a committed terragrunt.autoinclude.hcl cloned through
+// CAS as a read-only file instead of failing with a permission error.
+func TestCASInStacksCommittedAutoincludeFileOverwritten(t *testing.T) {
+	t.Parallel()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/terragrunt.hcl", []byte(``), "commit unit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/main.tf", []byte(`output "app" {
+  value = "app"
+}
+`), "commit unit module"))
+	require.NoError(t, srv.CommitFile(t.Context(), "units/app/terragrunt.autoinclude.hcl", []byte(`# committed stale autoinclude
+inputs = {
+  stale = true
+}
+`), "commit unit autoinclude"))
+
+	require.NoError(t, srv.CommitFile(t.Context(), "stacks/foo/terragrunt.stack.hcl", []byte(`unit "app" {
+  source = "../..//units/app"
+  path   = "app"
+
+  update_source_with_cas = true
+
+  autoinclude {
+    generate "injected" {
+      path      = "injected.tf"
+      if_exists = "overwrite"
+      contents  = <<-TF
+        output "injected" {
+          value = "injected"
+        }
+      TF
+    }
+  }
+}
+`), "commit stack"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "live", "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "stack generate failed; the autoinclude file likely could not overwrite the read-only committed one:\n%s", stdout+stderr)
+
+	autoincludePath := filepath.Join(tmp, "live", ".terragrunt-stack", "foo", ".terragrunt-stack", "app", "terragrunt.autoinclude.hcl")
+	autoinclude, err := os.ReadFile(autoincludePath)
+	require.NoError(t, err)
+	assert.Contains(t, string(autoinclude), "injected.tf")
+	assert.Contains(t, string(autoinclude), "Generated by Terragrunt from autoinclude block")
+	assert.NotContains(t, string(autoinclude), "stale")
+
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --no-stack-generate --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err, "run --all plan failed:\n%s", stdout+stderr)
+}
+
+// readCachedFiles returns the contents of every file with the given name
+// found inside a .terragrunt-cache directory under root.
+func readCachedFiles(t *testing.T, root, fileName string) []string {
+	t.Helper()
+
+	var contents []string
+
+	require.NoError(t, filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() || d.Name() != fileName {
+			return nil
+		}
+
+		if !strings.Contains(path, ".terragrunt-cache") {
+			return nil
+		}
+
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+
+		contents = append(contents, string(content))
+
+		return nil
+	}))
+
+	return contents
 }

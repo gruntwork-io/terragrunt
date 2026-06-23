@@ -1,6 +1,13 @@
 package hclparse
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/hashicorp/hcl/v2"
+)
+
+// unknownPlaceholder is the fallback shown in error messages when an optional name field is empty.
+const unknownPlaceholder = "(unknown)"
 
 // UnexpectedBodyTypeError indicates that an HCL file body was not the expected
 // *hclsyntax.Body type. This typically occurs with JSON-format HCL files.
@@ -171,6 +178,76 @@ func (e MalformedDependencyError) Unwrap() error {
 	return e.Err
 }
 
+// StackAutoIncludeDependencyValuesError indicates that a stack-level autoinclude
+// injects a unit or stack whose values reference dependency outputs. Dependency
+// outputs are not available at stack generate time (they resolve at unit run time),
+// so this pattern cannot be generated.
+type StackAutoIncludeDependencyValuesError struct {
+	Subject   *hcl.Range
+	StackName string
+	UnitName  string
+}
+
+func (e StackAutoIncludeDependencyValuesError) Error() string {
+	stack := e.StackName
+	if stack == "" {
+		stack = unknownPlaceholder
+	}
+
+	target := e.UnitName
+	if target == "" {
+		target = unknownPlaceholder
+	}
+
+	return fmt.Sprintf(
+		"stack %q autoinclude injects unit/stack %q whose values reference dependency outputs, "+
+			"which are not available at stack generate time. "+
+			"Use the supported cross-level pattern instead: "+
+			"pass only unit.X.path through values on the child stack block, and declare the dependency inside the nested unit's own autoinclude so it resolves at the unit run.",
+		stack, target,
+	)
+}
+
+// AutoIncludeNestedError indicates an autoinclude block is nested inside another autoinclude block, which is disallowed.
+type AutoIncludeNestedError struct {
+	Subject   *hcl.Range
+	Kind      string
+	Component string
+}
+
+func (e AutoIncludeNestedError) Error() string {
+	component := e.Component
+	if component == "" {
+		component = unknownPlaceholder
+	}
+
+	return fmt.Sprintf(
+		"autoinclude for %s %q nests an autoinclude block, which is not allowed; "+
+			"an autoinclude block must not contain another autoinclude block",
+		e.Kind, component,
+	)
+}
+
+// AutoIncludeLocalsBlockError indicates an autoinclude body defines a locals block, which is disallowed in favor of stack-level locals.
+type AutoIncludeLocalsBlockError struct {
+	Subject   *hcl.Range
+	Kind      string
+	Component string
+}
+
+func (e AutoIncludeLocalsBlockError) Error() string {
+	component := e.Component
+	if component == "" {
+		component = unknownPlaceholder
+	}
+
+	return fmt.Sprintf(
+		"autoinclude for %s %q defines a locals block, which is not allowed; "+
+			"declare locals at the stack level in terragrunt.stack.hcl so they resolve uniformly at generate time",
+		e.Kind, component,
+	)
+}
+
 // EmptyArgError indicates that a required string argument was empty.
 type EmptyArgError struct {
 	Func string
@@ -188,6 +265,25 @@ type PartialEvalDepthExceededError struct {
 
 func (e PartialEvalDepthExceededError) Error() string {
 	return fmt.Sprintf("partial evaluation exceeded maximum recursion depth %d", e.MaxDepth)
+}
+
+// BlockDepthExceededError indicates that nested-block traversal of an autoinclude body hit its recursion guard.
+type BlockDepthExceededError struct {
+	MaxDepth int
+}
+
+func (e BlockDepthExceededError) Error() string {
+	return fmt.Sprintf("autoinclude block nesting exceeded maximum recursion depth %d", e.MaxDepth)
+}
+
+// StackRecursionDepthExceededError indicates that nested-stack unit-path expansion hit its recursion guard.
+type StackRecursionDepthExceededError struct {
+	StackDir string
+	MaxDepth int
+}
+
+func (e StackRecursionDepthExceededError) Error() string {
+	return fmt.Sprintf("nested stack expansion exceeded maximum recursion depth %d at %q", e.MaxDepth, e.StackDir)
 }
 
 // PartialEvalUnresolvedError indicates that partial evaluation could not produce a final cty value.

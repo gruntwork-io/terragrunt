@@ -251,7 +251,7 @@ terraform {
 	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
 	// Generate independent units with random 100-300ms waits
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		unitDir := filepath.Join(tmpDir, fmt.Sprintf("unit-%d", i))
 		require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 
@@ -317,7 +317,7 @@ terraform {
 	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
 	// Create units
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		unitDir := filepath.Join(tmpDir, fmt.Sprintf("unit-%d", i))
 		require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 
@@ -414,7 +414,7 @@ terraform {
 			rnd := rand.New(rand.NewSource(int64(n)))
 
 			// Generate units where every odd depends on every even
-			for i := 0; i < n; i++ {
+			for i := range n {
 				unitDir := filepath.Join(dir, fmt.Sprintf("unit-%d", i))
 				require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
 

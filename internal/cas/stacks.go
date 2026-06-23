@@ -2,6 +2,7 @@ package cas
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -10,10 +11,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-getter/v2"
+
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-getter/v2"
 )
 
 // RemoteSourceDetectors is the go-getter detector chain CAS applies to
@@ -317,7 +319,7 @@ func (c *CAS) processStackFile(
 	// The file may be a read-only hard link from the CAS store, so remove it
 	// before writing the rewritten content to avoid permission errors and to
 	// avoid mutating the stored blob.
-	if err := v.FS.Remove(stackFile); err != nil && !os.IsNotExist(err) {
+	if err := v.FS.Remove(stackFile); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to remove stack file before rewrite %s: %w", stackFile, err)
 	}
 
@@ -326,6 +328,14 @@ func (c *CAS) processStackFile(
 
 // processUnitFile processes a terragrunt.hcl file, rewriting the
 // terraform.source if update_source_with_cas is set.
+//
+// When the source uses the "//" subdir convention (e.g. "../..//modules/foo"),
+// the synthetic tree is built from the resolved base path (everything before
+// "//") and the rewritten CAS reference preserves the "//subdir" tail. This
+// keeps sibling files reachable from the materialized working directory, so
+// OpenTofu/Terraform modules that reference each other via relative paths
+// (e.g. source = "../bar") resolve correctly. Sources without "//" produce a
+// shallow tree of just the leaf module and a CAS reference with no subdir.
 func (c *CAS) processUnitFile(
 	l log.Logger,
 	v Venv,
@@ -352,17 +362,35 @@ func (c *CAS) processUnitFile(
 
 	l.Debugf("Processing CAS source rewrite for terraform source %q in %s", source, unitFile)
 
-	moduleDir, err := ResolveInRepoSource(repoRoot, dirPath, source)
+	basePath, subdir := SplitSourceDoubleSlash(source)
+
+	treeDir, err := ResolveInRepoSource(repoRoot, dirPath, basePath)
 	if err != nil {
 		return fmt.Errorf("failed to resolve terraform source %q: %w", source, err)
 	}
 
-	synthHash, err := c.buildSyntheticTree(l, v, moduleDir, refHash, repoRoot, hashAlg)
+	if subdir != "" {
+		moduleDir := filepath.Clean(filepath.Join(treeDir, subdir))
+
+		rel, relErr := filepath.Rel(treeDir, moduleDir)
+		if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("%w: %q", ErrSourceEscapesRepo, source)
+		}
+
+		if _, err := v.FS.Stat(moduleDir); err != nil {
+			return fmt.Errorf("subdir %q not found under %s: %w", subdir, treeDir, err)
+		}
+	}
+
+	synthHash, err := c.buildSyntheticTree(l, v, treeDir, refHash, repoRoot, hashAlg)
 	if err != nil {
 		return fmt.Errorf("failed to build synthetic tree for terraform source %q: %w", source, err)
 	}
 
 	newSource := FormatCASRef(synthHash)
+	if subdir != "" {
+		newSource = FormatCASRefWithSubdir(synthHash, subdir)
+	}
 
 	content, err = RewriteTerraformSource(content, newSource)
 	if err != nil {
@@ -374,7 +402,7 @@ func (c *CAS) processUnitFile(
 	// The file may be a read-only hard link from the CAS store, so remove it
 	// before writing the rewritten content to avoid permission errors and to
 	// avoid mutating the stored blob.
-	if err := v.FS.Remove(unitFile); err != nil && !os.IsNotExist(err) {
+	if err := v.FS.Remove(unitFile); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to remove unit file before rewrite %s: %w", unitFile, err)
 	}
 

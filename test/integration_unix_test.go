@@ -1,5 +1,4 @@
 //go:build linux || darwin
-// +build linux darwin
 
 package test_test
 
@@ -23,7 +22,7 @@ const (
 func TestLocalWithRelativeExtraArgsUnix(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownloadPath)
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture(testFixtureDownloadPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureLocalRelativeArgsUnixDownloadPath)
 
 	testPath, err := filepath.EvalSymlinks(testPath)

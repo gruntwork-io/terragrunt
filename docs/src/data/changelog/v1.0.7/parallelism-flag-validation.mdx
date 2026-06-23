@@ -1,0 +1,12 @@
+---
+version: "v1.0.7"
+category: "bug-fixes"
+---
+
+#### the `--parallelism` flag no longer accepts non-positive numbers
+
+Previously, terragrunt commands that accept the --parallelism flag (or equivalently the `$TG_PARALLELISM` environment variable) used to hang indefinitely when invoked with `--parallelism=0`.
+
+Terragrunt now validates that the value is positive and exits with an error otherwise.
+
+Reported in [#6211](https://github.com/gruntwork-io/terragrunt/issues/6211)

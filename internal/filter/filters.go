@@ -296,7 +296,11 @@ func containsGitExpression(expr Expression) bool {
 	return found
 }
 
-func initialComponents(l log.Logger, positiveFilters []*Filter, components component.Components) (component.Components, error) {
+func initialComponents(
+	l log.Logger,
+	positiveFilters []*Filter,
+	components component.Components,
+) (component.Components, error) {
 	if len(positiveFilters) == 0 {
 		return components, nil
 	}

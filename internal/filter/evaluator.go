@@ -69,7 +69,11 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 }
 
 // evaluatePathFilter evaluates a path filter using glob matching.
-func evaluatePathFilter(l log.Logger, filter *PathExpression, components component.Components) (component.Components, error) {
+func evaluatePathFilter(
+	l log.Logger,
+	filter *PathExpression,
+	components component.Components,
+) (component.Components, error) {
 	result := make(component.Components, 0, len(components))
 
 	for _, c := range components {
@@ -86,7 +90,11 @@ func evaluatePathFilter(l log.Logger, filter *PathExpression, components compone
 }
 
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(l log.Logger, filter *AttributeExpression, components []component.Component) ([]component.Component, error) {
+func evaluateAttributeFilter(
+	l log.Logger,
+	filter *AttributeExpression,
+	components []component.Component,
+) ([]component.Component, error) {
 	var result []component.Component
 
 	switch filter.Key {
@@ -157,7 +165,10 @@ func evaluateAttributeFilter(l log.Logger, filter *AttributeExpression, componen
 		g := filter.Glob()
 
 		for _, c := range components {
-			if slices.ContainsFunc(c.Reading(), g.Match) {
+			// Read paths are OS-native; the glob is '/'-separated, so normalize first.
+			if slices.ContainsFunc(c.Reading(), func(reading string) bool {
+				return g.Match(filepath.ToSlash(reading))
+			}) {
 				result = append(result, c)
 
 				continue
@@ -174,7 +185,10 @@ func evaluateAttributeFilter(l log.Logger, filter *AttributeExpression, componen
 			for _, reading := range c.Reading() {
 				rel, err := filepath.Rel(c.DiscoveryContext().WorkingDir, reading)
 				if err != nil {
-					return nil, NewEvaluationErrorWithCause(fmt.Sprintf("failed to get relative path for component %s reading: %s", c.Path(), reading), err)
+					return nil, NewEvaluationErrorWithCause(
+						fmt.Sprintf("failed to get relative path for component %s reading: %s", c.Path(), reading),
+						err,
+					)
 				}
 
 				relReading = append(relReading, filepath.ToSlash(rel))
@@ -192,7 +206,11 @@ func evaluateAttributeFilter(l log.Logger, filter *AttributeExpression, componen
 		g := filter.Glob()
 
 		for _, c := range components {
-			if slices.ContainsFunc(c.Sources(), g.Match) {
+			// terraform.source can carry native or mixed separators on Windows, so
+			// normalize before matching the '/'-separated glob.
+			if slices.ContainsFunc(c.Sources(), func(source string) bool {
+				return g.Match(filepath.ToSlash(source))
+			}) {
 				result = append(result, c)
 
 				continue
@@ -213,7 +231,11 @@ func traceFilterMiss(l log.Logger, expr Expression, c component.Component) {
 }
 
 // evaluatePrefixExpression evaluates a prefix expression (negation).
-func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components component.Components) (component.Components, error) {
+func evaluatePrefixExpression(
+	l log.Logger,
+	expr *PrefixExpression,
+	components component.Components,
+) (component.Components, error) {
 	if expr.Operator != "!" {
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
@@ -252,7 +274,11 @@ func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components c
 }
 
 // evaluateInfixExpression evaluates an infix expression (intersection).
-func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components component.Components) (component.Components, error) {
+func evaluateInfixExpression(
+	l log.Logger,
+	expr *InfixExpression,
+	components component.Components,
+) (component.Components, error) {
 	if expr.Operator != "|" {
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}
@@ -271,7 +297,11 @@ func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components com
 }
 
 // evaluateGraphExpression evaluates a graph expression by traversing dependency/dependent graphs.
-func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components component.Components) (component.Components, error) {
+func evaluateGraphExpression(
+	l log.Logger,
+	expr *GraphExpression,
+	components component.Components,
+) (component.Components, error) {
 	targetMatches, err := Evaluate(l, expr.Target, components)
 	if err != nil {
 		return nil, err
@@ -380,7 +410,8 @@ func traverseGraph(
 			directionName := params.direction.String()
 
 			l.Warnf(
-				"Maximum %s traversal depth (%d) reached for component %s during filtering. Some %s may have been excluded from results.",
+				"Maximum %s traversal depth (%d) reached for component %s during filtering. "+
+					"Some %s may have been excluded from results.",
 				directionName,
 				MaxTraversalDepth,
 				c.Path(),

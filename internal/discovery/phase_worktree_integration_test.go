@@ -7,17 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	gogit "github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -283,19 +279,11 @@ func TestWorktreePhase_Integration_EmptyFilters(t *testing.T) {
 	tmpDir, runner := setupGitRepo(t)
 
 	// Create initial empty commit
-	err := runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
 	// Create a second commit with only non-terragrunt files
 	readmePath := filepath.Join(tmpDir, "README.md")
-	err = os.WriteFile(readmePath, []byte("# Test"), 0o644)
+	err := os.WriteFile(readmePath, []byte("# Test"), 0o644)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Update README")
@@ -316,26 +304,10 @@ func TestWorktreePhase_Integration_EmptyDiffs(t *testing.T) {
 	tmpDir, runner := setupGitRepo(t)
 
 	// Create initial empty commit
-	err := runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
 	// Create a second empty commit
-	err = runner.GoCommit("Empty commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Commit(t.Context(), "Empty commit", "--allow-empty"))
 
 	// Run worktree discovery
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
@@ -1338,23 +1310,7 @@ func setupGitRepo(t *testing.T) (string, *git.GitRunner) {
 	t.Helper()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		if err := runner.GoCloseStorage(); err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
+	runner := helpers.InitTestGitRunner(t, tmpDir)
 
 	return tmpDir, runner
 }
@@ -1363,17 +1319,8 @@ func setupGitRepo(t *testing.T) (string, *git.GitRunner) {
 func commitChanges(t *testing.T, runner *git.GitRunner, message string) {
 	t.Helper()
 
-	err := runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit(message, &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), message))
 }
 
 // createUnit creates a unit directory with terragrunt.hcl.

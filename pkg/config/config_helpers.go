@@ -44,7 +44,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -168,6 +167,8 @@ type TrackInclude struct {
 	// Original is used to track the original included config, and is used for resolving the include related
 	// functions.
 	Original *IncludeConfig
+	// AutoIncludeOverride is the sibling terragrunt.autoinclude.hcl registered as a high-priority override that is merged on top and wins, kept off CurrentList/CurrentMap so include-identity readers never see it.
+	AutoIncludeOverride *IncludeConfig
 	// CurrentList is used to track the list of configs that should be imported and merged before the final
 	// TerragruntConfig is returned. This preserves the order of the blocks as they appear in the config, so that we can
 	// merge the included config in the right order.
@@ -177,24 +178,21 @@ type TrackInclude struct {
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this ctx that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
 //
-// The vexec.Exec parameter is captured by the run_cmd HCL function closure so
-// that subprocess execution flows through the caller-supplied backend (real
-// os/exec in production, in-memory mock in tests). It is not used by any
-// other HCL function.
-func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l log.Logger, e vexec.Exec, configPath string) (*hcl.EvalContext, error) {
+// The subprocess backend for run_cmd is taken from pctx.Venv.Exec so that
+// execution flows through the threaded virtualized environment (real os/exec
+// in production, in-memory mock in tests). It is not used by any other HCL
+// function.
+func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l log.Logger, configPath string) (*hcl.EvalContext, error) {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(configPath),
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		FuncNameFindInParentFolders:     wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, FindInParentFolders),
-		FuncNamePathRelativeToInclude:   wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeToInclude),
-		FuncNamePathRelativeFromInclude: wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeFromInclude),
-		FuncNameGetEnv:                  wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, getEnvironmentVariable),
-		FuncNameRunCmd: wrapStringSliceToStringAsFuncImpl(ctx, pctx, l,
-			func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
-				return RunCommand(ctx, pctx, l, e, params)
-			}),
+		FuncNameFindInParentFolders:                     wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, FindInParentFolders),
+		FuncNamePathRelativeToInclude:                   wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeToInclude),
+		FuncNamePathRelativeFromInclude:                 wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, PathRelativeFromInclude),
+		FuncNameGetEnv:                                  wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, getEnvironmentVariable),
+		FuncNameRunCmd:                                  wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, RunCommand),
 		FuncNameReadTerragruntConfig:                    readTerragruntConfigAsFuncImpl(ctx, pctx, l),
 		FuncNameGetPlatform:                             wrapVoidToStringAsFuncImpl(ctx, pctx, l, getPlatform),
 		FuncNameGetRepoRoot:                             wrapVoidToStringAsFuncImpl(ctx, pctx, l, getRepoRoot),
@@ -289,12 +287,12 @@ func getPlatform(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 
 // Return the repository root as an absolute path
 func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	return shell.GitTopLevelDir(ctx, l, pctx.Env, pctx.WorkingDir)
+	return shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
 }
 
 // Return the path from the repository root
 func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Env, pctx.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -309,7 +307,7 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 // Return the path to the repository root
 func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Env, pctx.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -371,15 +369,16 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 // RunCommand is a helper function that runs a command and returns the stdout as the interpolation
 // for each `run_cmd` in locals section, function is called twice result.
 //
-// The vexec.Exec parameter selects the subprocess backend. Production callers
-// pass vexec.NewOSExec() (or the value threaded through createTerragruntEvalContext);
-// tests can pass a vexec.NewMemExec mock to intercept subprocess invocations.
-func RunCommand(ctx context.Context, pctx *ParsingContext, l log.Logger, e vexec.Exec, args []string) (string, error) {
-	return runCommandImpl(ctx, pctx, l, e, args)
+// The subprocess backend is taken from pctx.Venv.Exec so execution flows
+// through the threaded virtualized environment. Production callers see the
+// real os/exec backend; tests can inject vexec.NewMemExec via the parsing
+// context to intercept subprocess invocations.
+func RunCommand(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) (string, error) {
+	return runCommandImpl(ctx, pctx, l, args)
 }
 
 // runCommandImpl contains the actual implementation of RunCommand
-func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, e vexec.Exec, args []string) (string, error) {
+func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) (string, error) {
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	runCommandCache := cache.ContextCache[*RunCmdCacheEntry](ctx, RunCmdCacheContextKey)
@@ -387,6 +386,12 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, e v
 	if len(args) == 0 {
 		return "", EmptyStringNotAllowedError("parameter to the run_cmd function")
 	}
+
+	// Clone the caller's slice before flag stripping. slices.Delete
+	// reuses the backing array, so without this the caller's args would
+	// be mutated in place and subsequent calls (or shared state in the
+	// HCL evaluator) would see post-strip residue.
+	args = slices.Clone(args)
 
 	suppressOutput := false
 	disableCache := false
@@ -465,7 +470,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, e v
 	cmdOutput, err := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		e,
+		pctx.Venv.Exec,
 		shellRunOptsFromPctx(pctx),
 		currentPath,
 		true,
@@ -819,7 +824,14 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	pctx.SkipOutputsResolution = false
 
 	// check if file is stack file, decode as stack file
-	if filepath.Base(targetConfig) == DefaultStackFile {
+	//
+	// A stack-level autoinclude file (terragrunt.autoinclude.stack.hcl) is a stack-file
+	// fragment holding unit and stack blocks, so it decodes through the same stack parsing
+	// path; the strict unit decode below would reject those blocks.
+	targetBase := filepath.Base(targetConfig)
+	isStackAutoIncludeFile := targetBase == DefaultAutoIncludeStackFile
+
+	if targetBase == DefaultStackFile || isStackAutoIncludeFile {
 		stackSourceDir := filepath.Dir(targetConfig)
 
 		values, readErr := ReadValues(ctx, pctx, l, stackSourceDir)
@@ -1291,6 +1303,13 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 	return file, nil
 }
 
+// markGlobBoundaryFlag, when passed as a leading argument to mark_glob_as_read,
+// overrides the default Git-root boundary on the directory the glob may walk.
+// It accepts an inline value ("--terragrunt-boundary=/path") or the value as
+// the next argument ("--terragrunt-boundary", "/path"). Setting it to a
+// filesystem root effectively removes the boundary, permitting a full scan.
+const markGlobBoundaryFlag = "--terragrunt-boundary"
+
 // markGlobAsRead expands the given glob pattern and marks each matched file as
 // read. Pattern syntax follows the internal/glob package: '/' is the
 // separator, `**` matches any sequence of characters, `*` matches within a
@@ -1298,21 +1317,30 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 // collapses the flanking separators when the adjacent segments are literals,
 // so "a/**/*.tf" will not match "a/b.tf"; use "a/{*.tf,**/*.tf}" to cover
 // both depths. Returns the list of absolute file paths that were marked.
+//
+// The walk is constrained to a boundary directory so that a pattern built from
+// an empty string, such as the "/{*.yaml}" produced by "${dir}/{*.yaml}" when
+// dir is "", does not scan the whole filesystem. A leading
+// [markGlobBoundaryFlag] argument sets the boundary explicitly; otherwise it
+// defaults to the enclosing Git repository root. Outside a Git repository and
+// without the flag, no boundary applies.
 func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) ([]string, error) {
-	if !pctx.Experiments.Evaluate(experiment.MarkManyAsRead) {
-		pattern := ""
-		if len(args) > 0 {
-			pattern = args[0]
-		}
-
-		return nil, MarkGlobAsReadRequiresExperimentError{
-			ConfigPath: pctx.TerragruntConfigPath,
-			Pattern:    pattern,
-		}
+	boundary, args, err := parseMarkGlobBoundary(pctx, args)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(args) != 1 {
 		return nil, WrongNumberOfParamsError{Func: FuncNameMarkGlobAsRead, Expected: "1", Actual: len(args)}
+	}
+
+	if boundary == "" {
+		// Default to the enclosing Git repository root. GitTopLevelDir errors
+		// when the working directory is not inside a repository (or git is
+		// unavailable); treat that as "no boundary" rather than a failure.
+		if repoRoot, repoErr := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir); repoErr == nil {
+			boundary = repoRoot
+		}
 	}
 
 	raw := args[0]
@@ -1328,8 +1356,21 @@ func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		pattern = path.Clean(filepath.ToSlash(pctx.WorkingDir) + "/" + raw)
 	}
 
-	matches, err := glob.Expand(vfs.NewOSFS(), pattern, glob.WithFilesOnly())
+	opts := []glob.ExpandOption{glob.WithFilesOnly()}
+	if boundary != "" {
+		opts = append(opts, glob.WithBoundary(boundary))
+	}
+
+	matches, err := glob.Expand(vfs.NewOSFS(), pattern, opts...)
 	if err != nil {
+		if errors.Is(err, glob.ErrOutsideBoundary) {
+			return nil, fmt.Errorf(
+				"mark_glob_as_read pattern %q resolves outside the boundary %q; "+
+					"widen the boundary by passing %s as the first argument, "+
+					"for example mark_glob_as_read(%q, %q): %w",
+				raw, boundary, markGlobBoundaryFlag, markGlobBoundaryFlag+"=/", raw, err)
+		}
+
 		return nil, fmt.Errorf("could not expand glob %q: %w", raw, err)
 	}
 
@@ -1341,6 +1382,47 @@ func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	}
 
 	return result, nil
+}
+
+// parseMarkGlobBoundary strips a leading [markGlobBoundaryFlag] from args and
+// returns the resolved absolute boundary directory alongside the remaining
+// arguments. A relative boundary is resolved against the unit's working
+// directory. An empty boundary means no flag was supplied.
+func parseMarkGlobBoundary(pctx *ParsingContext, args []string) (string, []string, error) {
+	if len(args) == 0 || !strings.HasPrefix(args[0], markGlobBoundaryFlag) {
+		return "", args, nil
+	}
+
+	// Clone before deleting: slices.Delete reuses the backing array, so
+	// mutating in place would leave residue in the HCL evaluator's slice.
+	args = slices.Clone(args)
+
+	var raw string
+
+	switch {
+	case args[0] == markGlobBoundaryFlag:
+		if len(args) < 2 { //nolint:mnd
+			return "", nil, fmt.Errorf("%s requires a directory value", markGlobBoundaryFlag)
+		}
+
+		raw = args[1]
+		args = slices.Delete(args, 0, 2) //nolint:mnd
+	case strings.HasPrefix(args[0], markGlobBoundaryFlag+"="):
+		raw = strings.TrimPrefix(args[0], markGlobBoundaryFlag+"=")
+		args = slices.Delete(args, 0, 1)
+	default:
+		return "", nil, fmt.Errorf("unrecognized flag %q for %s", args[0], FuncNameMarkGlobAsRead)
+	}
+
+	if raw == "" {
+		return "", nil, fmt.Errorf("%s requires a non-empty directory value", markGlobBoundaryFlag)
+	}
+
+	if !filepath.IsAbs(raw) {
+		raw = filepath.Join(pctx.WorkingDir, raw)
+	}
+
+	return filepath.Clean(raw), args, nil
 }
 
 // warnWhenFileNotMarkedAsRead warns when a file is not being marked as read, even though a user might expect it to be.

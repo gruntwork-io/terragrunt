@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -106,6 +107,10 @@ type AzureConfig struct {
 	AccountName string
 	// ResourceGroup is the resource group containing the storage account.
 	ResourceGroup string
+	// Location is the Azure region the storage account lives in (e.g.
+	// "westeurope"). Populated from the session config or from the
+	// ARM_LOCATION / AZURE_LOCATION environment variables.
+	Location string
 	// CloudConfig is the Azure cloud (public, government, china).
 	CloudConfig cloud.Configuration
 	// Method records which authentication method was selected by Build.
@@ -150,6 +155,7 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 		TenantID:       resolved.TenantID,
 		AccountName:    resolved.StorageAccountName,
 		ResourceGroup:  resolved.ResourceGroupName,
+		Location:       resolved.Location,
 		CloudConfig:    cloudCfg,
 		ClientOptions:  clientOpts,
 	}
@@ -310,6 +316,14 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 		cfg.ResourceGroupName = b.firstEnv("ARM_RESOURCE_GROUP_NAME", "AZURE_RESOURCE_GROUP_NAME")
 	}
 
+	if cfg.StorageAccountName == "" {
+		cfg.StorageAccountName = b.firstEnv("ARM_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT")
+	}
+
+	if cfg.Location == "" {
+		cfg.Location = b.firstEnv("ARM_LOCATION", "AZURE_LOCATION")
+	}
+
 	if cfg.TenantID == "" {
 		cfg.TenantID = b.firstEnv("ARM_TENANT_ID", "AZURE_TENANT_ID")
 	}
@@ -378,13 +392,14 @@ func (b *AzureConfigBuilder) firstEnv(keys ...string) string {
 	return ""
 }
 
+// parseBool returns the boolean value of an env-var-style string using
+// strconv.ParseBool semantics ("1", "t", "T", "TRUE", "true", "True", and
+// their negations). Surrounding whitespace is tolerated. Any unrecognised
+// value yields false, matching the convention used by the Terraform azurerm
+// provider for ARM_USE_MSI / ARM_USE_OIDC.
 func parseBool(s string) bool {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "1", "true", "yes":
-		return true
-	}
-
-	return false
+	v, _ := strconv.ParseBool(strings.TrimSpace(s))
+	return v
 }
 
 // cloudConfigForEnvironment maps a cloud environment alias to an Azure SDK

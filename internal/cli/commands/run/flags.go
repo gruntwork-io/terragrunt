@@ -3,6 +3,7 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -25,6 +26,7 @@ const (
 	NoAutoProviderCacheDirFlagName           = "no-auto-provider-cache-dir"
 	NoEngineFlagName                         = "no-engine"
 	NoDependencyFetchOutputFromStateFlagName = "no-dependency-fetch-output-from-state"
+	NoHooksFlagName                          = "no-hooks"
 	TFForwardStdoutFlagName                  = "tf-forward-stdout"
 	UnitsThatIncludeFlagName                 = "units-that-include"
 	DependencyFetchOutputFromStateFlagName   = "dependency-fetch-output-from-state"
@@ -82,6 +84,10 @@ const (
 	IAMAssumeRoleDurationFlagName         = shared.IAMAssumeRoleDurationFlagName
 	IAMAssumeRoleSessionNameFlagName      = shared.IAMAssumeRoleSessionNameFlagName
 	IAMAssumeRoleWebIdentityTokenFlagName = shared.IAMAssumeRoleWebIdentityTokenFlagName
+)
+
+var ErrNoHooksRequiresExperiment = errors.New(
+	"--no-hooks requires the 'optional-hooks' experiment to be enabled (e.g., --experiment=optional-hooks)",
 )
 
 // NewFlags creates and returns global flags.
@@ -170,6 +176,24 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(NoAutoProviderCacheDirFlagName),
 			Destination: &opts.NoAutoProviderCacheDir,
 			Usage:       "Disable the auto-provider-cache-dir feature even when the experiment is enabled.",
+		}),
+
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:        NoHooksFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoHooksFlagName),
+			Destination: &opts.NoRunHooks,
+			Usage:       "Disable Terragrunt hooks during run. Requires the 'optional-hooks' experiment.",
+			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
+				if !value {
+					return nil
+				}
+
+				if opts.Experiments.Evaluate(experiment.OptionalHooks) {
+					return nil
+				}
+
+				return ErrNoHooksRequiresExperiment
+			},
 		}),
 
 		shared.NewDownloadDirFlag(opts, prefix),
@@ -501,8 +525,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	cmdFlags = cmdFlags.Add(shared.NewQueueFlags(opts, prefix)...)
 	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts)...)
 	cmdFlags = cmdFlags.Add(shared.NewParallelismFlag(opts))
-	cmdFlags = cmdFlags.Add(shared.NewNoCASFlag(opts, prefix))
-	cmdFlags = cmdFlags.Add(shared.NewCASCloneDepthFlag(opts, prefix))
+	cmdFlags = cmdFlags.Add(shared.NewCASFlags(opts, prefix)...)
 
 	return cmdFlags.Sort()
 }

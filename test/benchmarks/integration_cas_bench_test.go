@@ -29,7 +29,6 @@ func BenchmarkCASInit(b *testing.B) {
 			b,
 			"terragrunt",
 			"init",
-			"--experiment", "cas",
 			"--non-interactive",
 			"--provider-cache",
 			"--working-dir",
@@ -49,6 +48,7 @@ func BenchmarkCASInit(b *testing.B) {
 				b,
 				"terragrunt",
 				"init",
+				"--no-cas",
 				"--non-interactive",
 				"--provider-cache",
 				"--source-update",
@@ -70,7 +70,6 @@ func BenchmarkCASInit(b *testing.B) {
 				b,
 				"terragrunt",
 				"init",
-				"--experiment", "cas",
 				"--non-interactive",
 				"--provider-cache",
 				"--source-update",
@@ -151,8 +150,8 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 					tmpDir,
 				}
 
-				if cas {
-					args = append(args, "--experiment", "cas")
+				if !cas {
+					args = append(args, "--no-cas")
 				}
 
 				b.ResetTimer()

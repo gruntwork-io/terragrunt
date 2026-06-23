@@ -9,7 +9,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -99,7 +98,7 @@ func (d *Discovery) Discover(
 
 	if d.classifier.HasGraphFilters() {
 		if d.classifier.HasDependentFilters() && d.gitRoot == "" {
-			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, opts.Env, d.workingDir); gitErr == nil {
+			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, d.exec, opts.Env, d.workingDir); gitErr == nil {
 				d.gitRoot = gitRootPath
 				l.Debugf("Set gitRoot for dependent discovery: %s", d.gitRoot)
 			}
@@ -530,11 +529,9 @@ func (d *Discovery) buildComponentDependencies(
 		return err
 	}
 
-	if opts.Experiments.Evaluate(experiment.StackDependencies) {
-		depPaths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), opts, depPaths, c)
-		if err != nil {
-			return err
-		}
+	depPaths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), opts, depPaths)
+	if err != nil {
+		return err
 	}
 
 	if len(depPaths) == 0 {

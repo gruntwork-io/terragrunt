@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
@@ -312,7 +313,7 @@ func filterUnitsToComponents(units []*component.Unit) component.Components {
 
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
-func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.TerragruntOptions, r *report.Report) error {
+func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
@@ -453,7 +454,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 			//
 			// The obtain_creds span is emitted by externalcmd.Provider.GetCredentials
 			// only when an auth provider is configured, so no conditional is needed here.
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, v.Exec, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
 			if err != nil {
 				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
 
@@ -468,6 +469,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 			}, func(readCtx context.Context) error {
 				parseCtx, pctx := configbridge.NewParsingContext(readCtx, unitLogger, unitOpts)
+				pctx.Venv = v.ToRoot()
 
 				var readErr error
 
@@ -496,6 +498,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 				return unitRunner.Run(
 					runCtx,
 					unitLogger,
+					v,
 					unitOpts,
 					r,
 					runCfg,
@@ -622,15 +625,10 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 	return err
 }
 
-// LogUnitDeployOrder logs the order of units to be processed.
-// When the dag-queue-display experiment is enabled, the output is rendered as a DAG tree
-// showing dependency relationships between units. Otherwise, a flat list is shown.
+// LogUnitDeployOrder logs the order of units to be processed as a DAG tree
+// showing dependency relationships between units.
 func (rnr *Runner) LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths bool, experiments experiment.Experiments) error {
-	if experiments.Evaluate(experiment.DAGQueueDisplay) {
-		return rnr.logUnitDeployOrderDAG(l, isDestroy, showAbsPaths)
-	}
-
-	return rnr.logUnitDeployOrderFlat(l, showAbsPaths)
+	return rnr.logUnitDeployOrderDAG(l, isDestroy, showAbsPaths)
 }
 
 // logUnitDeployOrderDAG renders the queue as a DAG tree showing dependency relationships.
@@ -647,24 +645,6 @@ func (rnr *Runner) logUnitDeployOrderDAG(l log.Logger, isDestroy bool, showAbsPa
 	header := deployOrderHeader(isDestroy)
 
 	l.Info(header + t.String())
-
-	return nil
-}
-
-// logUnitDeployOrderFlat renders the queue as a flat list of units.
-func (rnr *Runner) logUnitDeployOrderFlat(l log.Logger, showAbsPaths bool) error {
-	var sb strings.Builder
-
-	for _, unit := range rnr.queue.Entries {
-		unitPath := unit.Component.DisplayPath()
-		if showAbsPaths {
-			unitPath = unit.Component.Path()
-		}
-
-		fmt.Fprintf(&sb, "- Unit %s\n", unitPath)
-	}
-
-	l.Info(sb.String())
 
 	return nil
 }

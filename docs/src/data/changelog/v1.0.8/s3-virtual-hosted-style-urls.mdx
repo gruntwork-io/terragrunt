@@ -1,0 +1,23 @@
+---
+version: "v1.0.8"
+category: "bug-fixes"
+---
+
+#### `s3::` sources: support virtual-hosted-style URLs
+
+`s3::` source URLs using the virtual-hosted-style S3 endpoint format were rejected:
+
+```hcl
+terraform {
+  source = "s3::https://my-bucket.s3.us-west-2.amazonaws.com/terraform/modules/myapp.zip"
+}
+```
+
+This resulted in errors like:
+
+```text
+ERROR downloading source url s3::https://my-bucket.s3.us-west-2.amazonaws.com/...
+* URL is not a valid S3 URL
+```
+
+Terragrunt now accepts every AWS S3 endpoint form, including virtual-hosted-style URLs (`<bucket>.s3.<region>.amazonaws.com`) and modern path-style URLs (`s3.<region>.amazonaws.com`).
