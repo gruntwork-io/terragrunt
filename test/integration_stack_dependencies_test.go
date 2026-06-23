@@ -35,6 +35,7 @@ const (
 	testFixtureStackDepsBasic                    = "fixtures/stacks/stack-deps-basic"
 	testFixtureStackDepsChain                    = "fixtures/stacks/stack-deps-chain"
 	testFixtureStackDepsCrossStack               = "fixtures/stacks/stack-deps-cross-stack"
+	testFixtureStackDepsTransitiveStackDir       = "fixtures/stacks/stack-deps-transitive-stack-dir"
 	testFixtureStackDepsTree                     = "fixtures/stacks/stack-deps-tree"
 	testFixtureStackDepsAutoIncParserLimit       = "fixtures/stacks/stack-deps-autoinclude-parser-limit"
 	testFixtureStackDepsAutoIncViaInclude        = "fixtures/stacks/stack-deps-autoinclude-via-include"
@@ -811,6 +812,28 @@ func TestStackDepsE2ECrossStack(t *testing.T) {
 		"app must receive the network stack's real vpc output, not the mock")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
+}
+
+// TestStackDepsTransitiveStackDirDependency checks that a transitive dependency on a stack directory resolves.
+func TestStackDepsTransitiveStackDirDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsTransitiveStackDir)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsTransitiveStackDir)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsTransitiveStackDir)
+
+	helpers.CreateGitRepo(t, gitPath)
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
+	require.NoError(t, err, "transitive dependency on a stack directory must resolve; stderr=%s", stderr)
+	assert.NotContains(t, stderr, "does not contain a terragrunt.hcl")
 }
 
 // TestStackDepsStackValuesInLocals pins that run-queue expansion of a stack-dir
