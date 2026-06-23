@@ -59,11 +59,19 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	}
 
 	if opts.ReportSchemaFile != "" {
-		defer r.WriteSchemaToFile(v.FS, opts.ReportSchemaFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSchemaToFile(v.FS, opts.ReportSchemaFile); err != nil {
+				l.Warnf("Failed to write report schema to %s: %v", opts.ReportSchemaFile, err)
+			}
+		}()
 	}
 
 	if opts.ReportFile != "" {
-		defer r.WriteToFile(v.FS, opts.ReportFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteToFile(v.FS, opts.ReportFile); err != nil {
+				l.Warnf("Failed to write report to %s: %v", opts.ReportFile, err)
+			}
+		}()
 	}
 
 	if opts.TerraformCommand == "" {
