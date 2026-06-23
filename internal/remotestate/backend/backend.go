@@ -9,10 +9,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Options bundles the configuration the Backend interface needs at each
-// call site. Env and Writers are bundled here as the interface is invoked
-// across packages that hold their own per-call data; the configbridge
-// adapter populates them from the venv carried by the caller.
+// Options bundles the configuration the Backend interface needs at each call
+// site. It carries Env and Writers directly because the interface is invoked
+// across packages that hold their own per-call data.
 type Options struct {
 	Writers                      writer.Writers
 	Env                          map[string]string

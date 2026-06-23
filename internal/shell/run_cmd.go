@@ -35,8 +35,7 @@ import (
 const SignalForwardingDelay = time.Second * 15
 
 // ShellOptions contains the per-invocation configuration needed to run shell
-// commands. The shell environment and stdout/stderr writers travel separately
-// via the venv parameter; they are not stored here.
+// commands.
 type ShellOptions struct {
 	EngineOptions *engine.EngineOptions
 	EngineConfig  *engine.EngineConfig
@@ -148,7 +147,7 @@ func (o *ShellOptions) NoEngine() bool {
 // stdout/stderr writers come from v; tests can substitute a venv whose Exec
 // is a [vexec.NewMemExec] so external binaries are never forked.
 //
-// Requires v.Env: the traceparent is written into it before the child forks.
+// Requires a non-nil v.Env.
 func RunCommand(
 	ctx context.Context,
 	l log.Logger,
@@ -167,7 +166,7 @@ func RunCommand(
 // custom working directory by using the parameter `workingDir`; the
 // ShellOptions working directory is assumed if empty.
 //
-// Requires v.Env: the traceparent is written into it before the child forks.
+// Requires a non-nil v.Env.
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,

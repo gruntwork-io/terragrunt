@@ -21,8 +21,7 @@ import (
 )
 
 // NewParsingContext creates a config.ParsingContext populated from
-// TerragruntOptions. Shell environment and writers travel separately via
-// the venv threaded to leaf consumers; they are no longer mirrored here.
+// TerragruntOptions.
 func NewParsingContext(
 	ctx context.Context,
 	l log.Logger,
@@ -46,8 +45,6 @@ func StackFuncFactory(ctx context.Context, l log.Logger, opts *options.Terragrun
 }
 
 // ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
-// The shell-options struct no longer carries env or writers; callers pass
-// those via the venv at invocation time.
 func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 	s := shell.NewShellOptions().
 		WithWorkingDir(opts.WorkingDir).
@@ -65,8 +62,6 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 }
 
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions and v.
-// Env and Writers are populated from v so the Backend interface receives the
-// venv data it needs at each invocation.
 func BackendOptsFromOpts(v venv.Venv, opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
 		Writers:                      v.Writers,
@@ -98,10 +93,9 @@ func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
 	}
 }
 
-// NewRunOptions creates a run.Options from TerragruntOptions. Env and
-// writers are not stored on run.Options; callers pass them via the venv
-// threaded into [run.Run]. FS is the OS-backed filesystem, which
-// [run.DownloadTerraformSource] requires; see [run.Options.FS].
+// NewRunOptions creates a run.Options from TerragruntOptions. FS is the
+// OS-backed filesystem, which [run.DownloadTerraformSource] requires; see
+// [run.Options.FS].
 func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	return &run.Options{
 		FS:                           vfs.NewOSFS(),

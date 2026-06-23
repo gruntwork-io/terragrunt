@@ -45,9 +45,7 @@ func NewOptions() *Options {
 }
 
 // Options contains the configuration needed by run.Run and its helpers.
-// This is a focused subset of options.TerragruntOptions. Shell environment
-// variables and stdout/stderr writers are not stored here; callers pass
-// them via the venv threaded into [Run].
+// This is a focused subset of options.TerragruntOptions.
 type Options struct {
 	TerraformCliArgs             *iacargs.IacArgs
 	EngineConfig                 *engine.EngineConfig
@@ -193,9 +191,7 @@ func (o *Options) DataDir(env map[string]string) string {
 	return filepath.Join(o.WorkingDir, tfDataDir)
 }
 
-// shellRunOptions builds a *shell.ShellOptions from this Options. The shell
-// environment and writers travel separately via the venv passed at the
-// invocation site.
+// shellRunOptions builds a *shell.ShellOptions from this Options.
 func (o *Options) shellRunOptions() *shell.ShellOptions {
 	s := shell.NewShellOptions().
 		WithWorkingDir(o.WorkingDir).
@@ -225,9 +221,8 @@ func (o *Options) tfRunOptions() *tf.TFOptions {
 }
 
 // remoteStateOpts builds a *remotestate.Options from this Options and the
-// caller's venv. Env and Writers are populated from v so the Backend
-// interface receives the venv data it needs at each invocation; without
-// them, prompts and logging during bootstrap dereference a nil writer.
+// caller's venv, whose writers must reach the backend: bootstrap prompts and
+// logging dereference a nil writer otherwise.
 func (o *Options) remoteStateOpts(v Venv) *remotestate.Options {
 	return &remotestate.Options{
 		Options: backend.Options{
@@ -242,9 +237,7 @@ func (o *Options) remoteStateOpts(v Venv) *remotestate.Options {
 	}
 }
 
-// tflintRunOptions builds a *tflint.TFLintOptions from this Options. Shell
-// environment and writers travel separately via the venv at the invocation
-// site.
+// tflintRunOptions builds a *tflint.TFLintOptions from this Options.
 func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
 	return &tflint.TFLintOptions{
 		ShellOptions:         o.shellRunOptions(),

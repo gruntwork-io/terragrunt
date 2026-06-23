@@ -63,7 +63,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 // Use when sops_decrypt_file() or get_aws_account_id() may appear in locals.
 // See https://github.com/gruntwork-io/terragrunt/issues/5515
 //
-// Requires v.Env: obtained credentials are written into it.
+// Requires a non-nil v.Env.
 func ObtainCredsForParsing(
 	ctx context.Context,
 	l log.Logger,

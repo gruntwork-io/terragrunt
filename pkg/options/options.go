@@ -317,9 +317,7 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 }
 
 // NewTerragruntOptions creates a new TerragruntOptions object with
-// reasonable defaults for real usage. Stdout/stderr writers and the shell
-// environment live on the venv passed at call sites; they are no longer
-// fields on TerragruntOptions.
+// reasonable defaults for real usage.
 func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
 		TFPath:                   DefaultWrappedPath,

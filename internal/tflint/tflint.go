@@ -18,8 +18,6 @@ import (
 )
 
 // TFLintOptions contains the subset of configuration needed by tflint execution.
-// The shell environment and stdout/stderr writers travel separately via the
-// tflint.Venv passed to operations.
 type TFLintOptions struct {
 	ShellOptions         *shell.ShellOptions
 	WorkingDir           string

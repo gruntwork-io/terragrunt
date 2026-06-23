@@ -75,7 +75,7 @@ func (v Venv) WithExec(exec vexec.Exec) Venv {
 
 // WithHandler returns a copy of v whose executor is an in-memory exec driven
 // by h. It serves the in-memory test bundles this package is built for;
-// production code wires a real executor through OSVenv.
+// production code wires a real executor through [OSVenv].
 func (v Venv) WithHandler(h vexec.Handler) Venv {
 	v.Exec = vexec.NewMemExec(h)
 
@@ -91,7 +91,7 @@ func (v Venv) WithFS(fs vfs.FS) Venv {
 }
 
 // WithEnv returns a copy of v whose shell environment is env. A nil env is
-// replaced with an empty map so the result still satisfies RequireEnv.
+// replaced with an empty map so the result still satisfies [Venv.RequireEnv].
 func (v Venv) WithEnv(env map[string]string) Venv {
 	if env == nil {
 		env = map[string]string{}
