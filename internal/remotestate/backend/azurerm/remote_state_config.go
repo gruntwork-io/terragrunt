@@ -22,6 +22,7 @@ var terragruntOnlyConfigs = []string{
 	"access_tier",
 	"tags",
 	"assign_storage_blob_data_owner",
+	"principal_id",
 }
 
 // RemoteStateConfigAzureRM mirrors the keys that the terraform azurerm
@@ -63,12 +64,17 @@ func (cfg *RemoteStateConfigAzureRM) CacheKey() string {
 // passthrough fields plus terragrunt-only keys (resource group / storage
 // account creation policy, soft-delete, RBAC bootstrap etc.).
 type ExtendedRemoteStateConfigAzureRM struct {
-	Tags                       map[string]string        `mapstructure:"tags"`
-	AccountTier                string                   `mapstructure:"account_tier"`
-	AccountReplicationType     string                   `mapstructure:"account_replication_type"`
-	AccountKind                string                   `mapstructure:"account_kind"`
-	AccessTier                 string                   `mapstructure:"access_tier"`
-	Location                   string                   `mapstructure:"location"`
+	Tags                   map[string]string `mapstructure:"tags"`
+	AccountTier            string            `mapstructure:"account_tier"`
+	AccountReplicationType string            `mapstructure:"account_replication_type"`
+	AccountKind            string            `mapstructure:"account_kind"`
+	AccessTier             string            `mapstructure:"access_tier"`
+	Location               string            `mapstructure:"location"`
+	// PrincipalID is the AAD object ID that should receive the Storage
+	// Blob Data Owner assignment when AssignBlobDataOwner is true. Required
+	// in that case — Terragrunt does not infer the principal from the
+	// active credential.
+	PrincipalID                string                   `mapstructure:"principal_id"`
 	RemoteStateConfigAzureRM   RemoteStateConfigAzureRM `mapstructure:",squash"`
 	SoftDeleteRetentionDays    int                      `mapstructure:"soft_delete_retention_days"`
 	SkipResourceGroupCreation  bool                     `mapstructure:"skip_resource_group_creation"`
@@ -105,15 +111,18 @@ func (cfg *ExtendedRemoteStateConfigAzureRM) Validate() error {
 		return MissingRequiredAzureRMRemoteStateConfig("resource_group_name")
 	}
 
+	if cfg.AssignBlobDataOwner && cfg.PrincipalID == "" {
+		return MissingRequiredAzureRMRemoteStateConfig("principal_id")
+	}
+
 	return nil
 }
 
 // GetAzureSessionConfig converts the parsed config into an
-// azurehelper.AzureSessionConfig the builder can consume. Only the
-// subset of fields the helper currently understands is propagated;
-// terraform-only keys (endpoint / endpoint_suffix / oidc_token_file_path
-// etc.) still flow through the backend block via GetTFInitArgs but are
-// not used during terragrunt-side bootstrap.
+// azurehelper.AzureSessionConfig the builder can consume.
+// Endpoint / endpoint_suffix / oidc_token are terraform-only — terraform
+// init receives them via GetTFInitArgs but they have no representation in
+// azurehelper, so terragrunt's own bootstrap does not consume them.
 func (cfg *ExtendedRemoteStateConfigAzureRM) GetAzureSessionConfig() *azurehelper.AzureSessionConfig {
 	rsc := &cfg.RemoteStateConfigAzureRM
 
@@ -129,6 +138,7 @@ func (cfg *ExtendedRemoteStateConfigAzureRM) GetAzureSessionConfig() *azurehelpe
 		AccessKey:          rsc.AccessKey,
 		SasToken:           rsc.SasToken,
 		CloudEnvironment:   rsc.Environment,
+		OIDCTokenFilePath:  rsc.OIDCTokenPath,
 		UseMSI:             rsc.UseMSI,
 		UseOIDC:            rsc.UseOIDC,
 		UseAzureADAuth:     rsc.UseAzureADAuth,

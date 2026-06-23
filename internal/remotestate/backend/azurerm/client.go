@@ -18,22 +18,36 @@ import (
 )
 
 // Client wraps azurehelper clients bound to a single storage account /
-// container pair. Control-plane clients (storage account, resource group,
-// RBAC) are nil when the resolved auth method (SAS token, access key) does
-// not support ARM operations; callers must guard accordingly.
+// container pair. The data-plane BlobClient is always built up-front.
+// Control-plane helpers (storage account, resource group, RBAC) are
+// constructed lazily on first use: a config that opts out of every
+// control-plane operation via skip_*_creation flags never causes the
+// helpers to be built, so a data-plane-only credential (SAS / access
+// key, or a token credential with no resource_group_name) is sufficient.
 type Client struct {
 	*ExtendedRemoteStateConfigAzureRM
 
-	azCfg          *azurehelper.AzureConfig
-	blob           *azurehelper.BlobClient
-	storageAccount *azurehelper.StorageAccountClient
-	resourceGroup  *azurehelper.ResourceGroupClient
-	rbac           *azurehelper.RBACClient
+	azCfg *azurehelper.AzureConfig
+	blob  *azurehelper.BlobClient
+
+	storageAccount    *azurehelper.StorageAccountClient
+	storageAccountErr error
+
+	resourceGroup    *azurehelper.ResourceGroupClient
+	resourceGroupErr error
+
+	rbac    *azurehelper.RBACClient
+	rbacErr error
+
+	storageAccountOK bool
+	resourceGroupOK  bool
+	rbacOK           bool
 }
 
-// NewClient constructs a Client. The data-plane (blob) client is always
-// created; control-plane clients are constructed only when the resolved
-// AzureConfig carries a token credential.
+// NewClient constructs a Client. Only the data-plane (blob) client is
+// built up front; control-plane clients are deferred to first use so a
+// pure data-plane configuration (skip_* flags set) does not require ARM
+// reachability.
 func NewClient(
 	ctx context.Context,
 	l log.Logger,
@@ -61,65 +75,80 @@ func NewClient(
 		return nil, err
 	}
 
-	out := &Client{
+	return &Client{
 		ExtendedRemoteStateConfigAzureRM: cfg,
 		azCfg:                            azCfg,
-		blob:                             blob.BindContainer(cfg.RemoteStateConfigAzureRM.ContainerName),
-	}
-
-	// Control-plane clients only work with token credentials. SAS-token and
-	// access-key configs are data-plane only.
-	if azCfg.Credential != nil {
-		sa, err := azurehelper.NewStorageAccountClient(azCfg)
-		if err != nil {
-			return nil, err
-		}
-
-		out.storageAccount = sa
-
-		rg, err := azurehelper.NewResourceGroupClient(azCfg)
-		if err != nil {
-			return nil, err
-		}
-
-		out.resourceGroup = rg
-
-		rbac, err := azurehelper.NewRBACClient(azCfg)
-		if err != nil {
-			return nil, err
-		}
-
-		out.rbac = rbac
-	}
-
-	return out, nil
+		blob:                             blob,
+	}, nil
 }
 
 // Close is provided for symmetry with other backend clients. azurehelper
-// holds no resources that require explicit release; this is currently a
-// no-op but exists so callers can `defer client.Close()` without thinking
-// about the underlying SDK.
+// holds no resources that require explicit release; the method is a no-op
+// but exists so callers can `defer client.Close()` without thinking about
+// the underlying SDK.
 func (c *Client) Close() error { return nil }
 
-// requireControlPlane returns an error if the resolved credentials cannot
-// reach the ARM control plane (SAS-token / access-key). Used by methods
-// that manage storage accounts, resource groups, or RBAC.
-func (c *Client) requireControlPlane(op string) error {
-	if c.storageAccount == nil {
-		return fmt.Errorf("%s requires a token credential; auth method %q is data-plane only", op, c.azCfg.Method)
+// storageAccountClient lazily constructs the ARM storage-account helper
+// and caches it (or the construction error) for subsequent calls.
+func (c *Client) storageAccountClient(op string) (*azurehelper.StorageAccountClient, error) {
+	if c.storageAccountOK {
+		return c.storageAccount, c.storageAccountErr
 	}
 
-	return nil
+	if c.azCfg.Credential == nil {
+		c.storageAccountErr = &ControlPlaneUnavailableError{Method: c.azCfg.Method, Operation: op}
+	} else {
+		c.storageAccount, c.storageAccountErr = azurehelper.NewStorageAccountClient(c.azCfg)
+	}
+
+	c.storageAccountOK = true
+
+	return c.storageAccount, c.storageAccountErr
+}
+
+// resourceGroupClient lazily constructs the ARM resource-group helper.
+func (c *Client) resourceGroupClient(op string) (*azurehelper.ResourceGroupClient, error) {
+	if c.resourceGroupOK {
+		return c.resourceGroup, c.resourceGroupErr
+	}
+
+	if c.azCfg.Credential == nil {
+		c.resourceGroupErr = &ControlPlaneUnavailableError{Method: c.azCfg.Method, Operation: op}
+	} else {
+		c.resourceGroup, c.resourceGroupErr = azurehelper.NewResourceGroupClient(c.azCfg)
+	}
+
+	c.resourceGroupOK = true
+
+	return c.resourceGroup, c.resourceGroupErr
+}
+
+// rbacClient lazily constructs the ARM RBAC helper.
+func (c *Client) rbacClient(op string) (*azurehelper.RBACClient, error) {
+	if c.rbacOK {
+		return c.rbac, c.rbacErr
+	}
+
+	if c.azCfg.Credential == nil {
+		c.rbacErr = &ControlPlaneUnavailableError{Method: c.azCfg.Method, Operation: op}
+	} else {
+		c.rbac, c.rbacErr = azurehelper.NewRBACClient(c.azCfg)
+	}
+
+	c.rbacOK = true
+
+	return c.rbac, c.rbacErr
 }
 
 // DoesStorageAccountExist reports whether the configured storage account
 // exists in the configured resource group.
 func (c *Client) DoesStorageAccountExist(ctx context.Context) (bool, error) {
-	if err := c.requireControlPlane("checking storage account existence"); err != nil {
+	sa, err := c.storageAccountClient("checking storage account existence")
+	if err != nil {
 		return false, err
 	}
 
-	return c.storageAccount.Exists(ctx)
+	return sa.Exists(ctx)
 }
 
 // EnsureStorageAccount ensures the configured storage account exists.
@@ -134,11 +163,12 @@ func (c *Client) EnsureStorageAccount(ctx context.Context, l log.Logger, opts *b
 		return nil
 	}
 
-	if err := c.requireControlPlane("creating storage account"); err != nil {
+	sa, err := c.storageAccountClient("creating storage account")
+	if err != nil {
 		return err
 	}
 
-	exists, err := c.storageAccount.Exists(ctx)
+	exists, err := sa.Exists(ctx)
 	if err != nil {
 		return err
 	}
@@ -184,18 +214,18 @@ func (c *Client) EnsureStorageAccount(ctx context.Context, l log.Logger, opts *b
 		Tags:              c.Tags,
 	}
 
-	if err := c.storageAccount.Create(ctx, l, createCfg); err != nil {
+	if err := sa.Create(ctx, l, createCfg); err != nil {
 		return err
 	}
 
 	if !c.SkipVersioning {
-		if err := c.storageAccount.EnableVersioning(ctx, l); err != nil {
+		if err := sa.EnableVersioning(ctx, l); err != nil {
 			return err
 		}
 	}
 
 	if c.EnableSoftDelete {
-		if err := c.storageAccount.EnableSoftDelete(ctx, l, c.SoftDeleteRetentionDays); err != nil {
+		if err := sa.EnableSoftDelete(ctx, l, c.SoftDeleteRetentionDays); err != nil {
 			return err
 		}
 	}
@@ -214,18 +244,33 @@ func (c *Client) ensureResourceGroup(ctx context.Context, l log.Logger) error {
 		return MissingRequiredAzureRMRemoteStateConfig("resource_group_name")
 	}
 
-	return c.resourceGroup.EnsureResourceGroup(ctx, l, c.RemoteStateConfigAzureRM.ResourceGroupName, c.Location)
+	rg, err := c.resourceGroupClient("creating resource group")
+	if err != nil {
+		return err
+	}
+
+	return rg.EnsureResourceGroup(ctx, l, c.RemoteStateConfigAzureRM.ResourceGroupName, c.Location)
 }
 
 // IsVersioningEnabled returns true if blob versioning is enabled on the
-// underlying storage account. Returns an error if the auth method cannot
-// reach the ARM control plane.
+// underlying storage account. Returns (false, nil) with a debug log when
+// the auth method is data-plane only (SAS / access key): the framework's
+// IsVersionControlEnabled caller distinguishes only between "off" and
+// "doesn't exist", so degrading silently is preferable to crashing the
+// migrate path on otherwise-valid configurations.
 func (c *Client) IsVersioningEnabled(ctx context.Context, l log.Logger) (bool, error) {
-	if err := c.requireControlPlane("checking versioning"); err != nil {
+	sa, err := c.storageAccountClient("checking versioning")
+	if err != nil {
+		var unavailable *ControlPlaneUnavailableError
+		if errors.As(err, &unavailable) {
+			l.Debugf("azurerm: cannot check versioning with auth method %q; assuming off", c.azCfg.Method)
+			return false, nil
+		}
+
 		return false, err
 	}
 
-	enabled, err := c.storageAccount.IsVersioningEnabled(ctx)
+	enabled, err := sa.IsVersioningEnabled(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -287,8 +332,9 @@ func (c *Client) EnsureContainer(ctx context.Context, l log.Logger, opts *backen
 // API and returns only after the copy is committed, so the source can be
 // deleted immediately.
 //
-// The delete step is idempotent: if the source blob is already gone, the
-// move still reports success.
+// The delete step alone is idempotent (a missing source blob is treated
+// as success). The whole operation is not idempotent: a second call after
+// success fails inside CopyBlob with source-not-found.
 func (c *Client) MoveBlob(ctx context.Context, srcContainer, srcKey, dstContainer, dstKey string) error {
 	if srcContainer == dstContainer && srcKey == dstKey {
 		return nil
@@ -315,11 +361,12 @@ func (c *Client) EnsureContainerDeleted(ctx context.Context) error {
 // DeleteStorageAccount deletes the configured storage account. Returns an
 // error if the auth method cannot reach the ARM control plane.
 func (c *Client) DeleteStorageAccount(ctx context.Context, l log.Logger) error {
-	if err := c.requireControlPlane("deleting storage account"); err != nil {
+	sa, err := c.storageAccountClient("deleting storage account")
+	if err != nil {
 		return err
 	}
 
-	return c.storageAccount.Delete(ctx, l)
+	return sa.Delete(ctx, l)
 }
 
 // EnsureBlobDataOwner assigns the Storage Blob Data Owner role
@@ -330,7 +377,8 @@ func (c *Client) EnsureBlobDataOwner(ctx context.Context, l log.Logger, principa
 		return nil
 	}
 
-	if err := c.requireControlPlane("assigning Storage Blob Data Owner"); err != nil {
+	rbac, err := c.rbacClient("assigning Storage Blob Data Owner")
+	if err != nil {
 		return err
 	}
 
@@ -339,7 +387,7 @@ func (c *Client) EnsureBlobDataOwner(ctx context.Context, l log.Logger, principa
 		c.azCfg.SubscriptionID, c.RemoteStateConfigAzureRM.ResourceGroupName, c.RemoteStateConfigAzureRM.StorageAccountName,
 	)
 
-	return c.rbac.AssignRoleIfMissing(ctx, l, azurehelper.AssignRoleInput{
+	return rbac.AssignRoleIfMissing(ctx, l, azurehelper.AssignRoleInput{
 		Scope:            scope,
 		PrincipalID:      principalID,
 		RoleDefinitionID: azurehelper.RoleStorageBlobDataOwner,

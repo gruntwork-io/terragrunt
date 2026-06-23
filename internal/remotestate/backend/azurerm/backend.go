@@ -54,10 +54,11 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfi
 		return false, err
 	}
 
-	// Pure passthrough configs (all skip_*_creation flags set) must not
-	// resolve Azure credentials — there is nothing to check on the
-	// control plane.
-	if extCfg.SkipStorageAccountCreation && extCfg.SkipResourceGroupCreation && extCfg.SkipContainerCreation {
+	// Pure passthrough configs (both checked skip flags set) must not
+	// resolve Azure credentials — there is nothing to check. The body
+	// only inspects storage-account and container existence, so
+	// skip_resource_group_creation has no impact on the answer here.
+	if extCfg.SkipStorageAccountCreation && extCfg.SkipContainerCreation {
 		return false, nil
 	}
 
@@ -110,7 +111,7 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig bac
 		return err
 	}
 
-	mu := b.GetBucketMutex(extCfg.RemoteStateConfigAzureRM.StorageAccountName + "/" + extCfg.RemoteStateConfigAzureRM.ContainerName)
+	mu := b.GetBucketMutex(extCfg.RemoteStateConfigAzureRM.CacheKey())
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -139,7 +140,16 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig bac
 		return err
 	}
 
-	if !extCfg.SkipVersioning && !extCfg.SkipStorageAccountCreation {
+	if err := client.EnsureBlobDataOwner(ctx, l, extCfg.PrincipalID); err != nil {
+		return err
+	}
+
+	// Warn about disabled versioning only on pre-existing accounts.
+	// When EnsureStorageAccount actually created the account above it
+	// also enabled versioning (unless SkipVersioning is set), so a probe
+	// there would be redundant. The operator-managed path is where the
+	// flag is most likely misconfigured and worth a warning.
+	if !extCfg.SkipVersioning && extCfg.SkipStorageAccountCreation {
 		if _, err := client.IsVersioningEnabled(ctx, l); err != nil {
 			return err
 		}
@@ -213,6 +223,10 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, d
 			l.Warnf("Error closing Azure client: %v", err)
 		}
 	}()
+
+	l.Infof("Migrating Azure state %s/%s -> %s/%s",
+		srcCfg.RemoteStateConfigAzureRM.ContainerName, srcCfg.RemoteStateConfigAzureRM.Key,
+		dstCfg.RemoteStateConfigAzureRM.ContainerName, dstCfg.RemoteStateConfigAzureRM.Key)
 
 	return client.MoveBlob(ctx, srcCfg.RemoteStateConfigAzureRM.ContainerName, srcCfg.RemoteStateConfigAzureRM.Key, dstCfg.RemoteStateConfigAzureRM.ContainerName, dstCfg.RemoteStateConfigAzureRM.Key)
 }
@@ -295,15 +309,13 @@ func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig 
 		return nil
 	}
 
-	if err := client.EnsureContainerDeleted(ctx); err != nil {
-		return err
-	}
-
+	// When the storage account itself is going away, deleting the
+	// container first is redundant work — and a partial failure between
+	// the two calls would leave ARM with a half-cleaned account. Delete
+	// the account in one shot; otherwise delete only the container.
 	if !extCfg.SkipStorageAccountCreation {
-		if err := client.DeleteStorageAccount(ctx, l); err != nil {
-			return err
-		}
+		return client.DeleteStorageAccount(ctx, l)
 	}
 
-	return nil
+	return client.EnsureContainerDeleted(ctx)
 }

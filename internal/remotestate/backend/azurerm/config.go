@@ -43,11 +43,15 @@ func (cfg Config) FilterOutTerragruntKeys() Config {
 // IsEqual reports whether cfg and targetCfg describe the same backend
 // after normalizing string-encoded booleans and stripping terragrunt-only
 // keys, mirroring the gcs and s3 backends.
+//
+// The normalization is applied to a local clone of targetCfg so this
+// method does not mutate the caller's map.
 func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
-	for key, value := range targetCfg {
-		if util.KindOf(targetCfg[key]) == reflect.String && util.KindOf(cfg[key]) == reflect.Bool {
+	normalizedTarget := maps.Clone(targetCfg)
+	for key, value := range normalizedTarget {
+		if util.KindOf(normalizedTarget[key]) == reflect.String && util.KindOf(cfg[key]) == reflect.Bool {
 			if convertedValue, err := strconv.ParseBool(value.(string)); err == nil {
-				targetCfg[key] = convertedValue
+				normalizedTarget[key] = convertedValue
 			}
 		}
 	}
@@ -55,26 +59,18 @@ func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
 	newConfig := backend.Config{}
 	maps.Copy(newConfig, cfg.FilterOutTerragruntKeys())
 
-	return newConfig.IsEqual(backend.Config(targetCfg), BackendName, logger)
+	return newConfig.IsEqual(backend.Config(normalizedTarget), BackendName, logger)
 }
 
 // ParseExtendedAzureRMConfig decodes the raw map into the strongly-typed
-// extended config without running validation.
+// extended config without running validation. ExtendedRemoteStateConfigAzureRM
+// squash-embeds RemoteStateConfigAzureRM, so a single decode populates both.
 func (cfg Config) ParseExtendedAzureRMConfig() (*ExtendedRemoteStateConfigAzureRM, error) {
-	var (
-		azureCfg    RemoteStateConfigAzureRM
-		extendedCfg ExtendedRemoteStateConfigAzureRM
-	)
-
-	if err := mapstructure.WeakDecode(cfg, &azureCfg); err != nil {
-		return nil, err
-	}
+	var extendedCfg ExtendedRemoteStateConfigAzureRM
 
 	if err := mapstructure.WeakDecode(cfg, &extendedCfg); err != nil {
 		return nil, err
 	}
-
-	extendedCfg.RemoteStateConfigAzureRM = azureCfg
 
 	return &extendedCfg, nil
 }

@@ -1,6 +1,9 @@
 package azurerm
 
-import "fmt"
+import (
+	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+)
 
 // MissingRequiredAzureRMRemoteStateConfig is returned when a required
 // configuration field is missing from the azurerm backend block.
@@ -15,8 +18,19 @@ func (configName MissingRequiredAzureRMRemoteStateConfig) Error() string {
 type ExperimentNotEnabledError struct{}
 
 func (ExperimentNotEnabledError) Error() string {
-	return fmt.Sprintf(
-		"the azurerm backend is experimental; enable it with experiments = [%q] in your terragrunt config",
-		"azure-backend",
-	)
+	return `the azurerm backend is experimental; enable it with experiments = ["` + experiment.AzureBackend + `"] in your terragrunt config`
+}
+
+// ControlPlaneUnavailableError is returned by control-plane operations
+// (storage account, resource group, RBAC management) when the resolved
+// auth method does not carry a token credential. SAS-token and access-key
+// auth are data-plane only — they can read and write blobs but cannot
+// reach ARM. Match with errors.As.
+type ControlPlaneUnavailableError struct {
+	Method    azurehelper.AuthMethod
+	Operation string
+}
+
+func (e *ControlPlaneUnavailableError) Error() string {
+	return e.Operation + " requires a token credential; auth method " + string(e.Method) + " is data-plane only"
 }

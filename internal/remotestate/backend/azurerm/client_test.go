@@ -10,7 +10,6 @@ package azurerm_test
 
 import (
 	"encoding/base64"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -73,8 +72,10 @@ func extConfigForAuth(t *testing.T, extra map[string]any) *azurerm.ExtendedRemot
 
 // TestNewClient_SASTokenIsDataPlaneOnly verifies that constructing a
 // Client from a SAS-token config succeeds (the data-plane blob client is
-// built) but every control-plane method returns the helpful "data-plane
-// only" error from requireControlPlane.
+// built) but every control-plane operation that genuinely needs ARM
+// returns ControlPlaneUnavailableError. IsVersioningEnabled is the
+// exception: it degrades to (false, nil) so the framework's
+// IsVersionControlEnabled path stays usable on data-plane configs.
 func TestNewClient_SASTokenIsDataPlaneOnly(t *testing.T) {
 	t.Parallel()
 
@@ -94,8 +95,9 @@ func TestNewClient_SASTokenIsDataPlaneOnly(t *testing.T) {
 	_, err = c.DoesStorageAccountExist(ctx)
 	requireDataPlaneOnly(t, err)
 
-	_, err = c.IsVersioningEnabled(ctx, l)
-	requireDataPlaneOnly(t, err)
+	enabled, err := c.IsVersioningEnabled(ctx, l)
+	require.NoError(t, err)
+	assert.False(t, enabled, "data-plane auth should report versioning off")
 
 	requireDataPlaneOnly(t, c.DeleteStorageAccount(ctx, l))
 	requireDataPlaneOnly(t, c.EnsureStorageAccount(ctx, l, opts))
@@ -202,6 +204,110 @@ func TestClient_MoveBlob_NoOpWhenSrcEqualsDst(t *testing.T) {
 	t.Cleanup(func() { assert.NoError(t, c.Close()) })
 
 	require.NoError(t, c.MoveBlob(ctx, testContainer, testKey, testContainer, testKey))
+}
+
+// TestNewClient_LazyControlPlane_SkipsResourceGroup verifies that a
+// token-credential config with both skip_storage_account_creation and
+// skip_resource_group_creation set succeeds in NewClient even when
+// resource_group_name is omitted: the control-plane helpers are
+// constructed lazily, so the empty-RG validation inside
+// NewStorageAccountClient is never tripped.
+func TestNewClient_LazyControlPlane_SkipsResourceGroup(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	l := logger.CreateLogger()
+	opts := clientTestOpts(t)
+
+	// Build the extended config manually so we can leave resource_group_name
+	// empty — extConfigForAuth always sets it.
+	cfg := azurerm.Config{
+		keyStorageAccount: testStorageAccount,
+		keyContainer:      testContainer,
+		keyKey:            testKey,
+		"subscription_id": "00000000-0000-0000-0000-000000000000",
+		keyUseAzureADAuth: true,
+		keySkipSACreation: true,
+		keySkipRGCreation: true,
+	}
+
+	ext, err := cfg.ExtendedAzureRMConfig()
+	require.NoError(t, err, "Validate should tolerate empty resource_group_name when both skip flags are set")
+
+	c, err := azurerm.NewClient(ctx, l, ext, opts)
+	require.NoError(t, err, "NewClient should succeed lazily")
+
+	t.Cleanup(func() { assert.NoError(t, c.Close()) })
+
+	// EnsureStorageAccount must short-circuit on the skip flag before
+	// trying to build the (would-fail) storage-account client.
+	require.NoError(t, c.EnsureStorageAccount(ctx, l, opts))
+}
+
+// TestValidate_AssignBlobDataOwnerRequiresPrincipalID verifies that
+// asking for the Storage Blob Data Owner role without supplying the
+// principal_id fails Validate with the typed missing-config error,
+// rather than silently no-opping at Bootstrap time.
+func TestValidate_AssignBlobDataOwnerRequiresPrincipalID(t *testing.T) {
+	t.Parallel()
+
+	cfg := azurerm.Config{
+		keyStorageAccount:                testStorageAccount,
+		keyContainer:                     testContainer,
+		keyKey:                           testKey,
+		keyResourceGroup:                 testRG,
+		"assign_storage_blob_data_owner": true,
+	}
+
+	_, err := cfg.ExtendedAzureRMConfig()
+
+	var typedErr azurerm.MissingRequiredAzureRMRemoteStateConfig
+	require.ErrorAs(t, err, &typedErr)
+	assert.Equal(t, "principal_id", string(typedErr))
+}
+
+// TestValidate_AssignBlobDataOwnerWithPrincipalID is the happy path
+// counterpart to the above: principal_id present + flag on must validate.
+func TestValidate_AssignBlobDataOwnerWithPrincipalID(t *testing.T) {
+	t.Parallel()
+
+	cfg := azurerm.Config{
+		keyStorageAccount:                testStorageAccount,
+		keyContainer:                     testContainer,
+		keyKey:                           testKey,
+		keyResourceGroup:                 testRG,
+		"assign_storage_blob_data_owner": true,
+		"principal_id":                   "11111111-1111-1111-1111-111111111111",
+	}
+
+	ext, err := cfg.ExtendedAzureRMConfig()
+	require.NoError(t, err)
+	assert.True(t, ext.AssignBlobDataOwner)
+	assert.Equal(t, "11111111-1111-1111-1111-111111111111", ext.PrincipalID)
+}
+
+// TestGetAzureSessionConfig_PropagatesOIDCTokenPath verifies that an
+// oidc_token_file_path supplied in HCL reaches the session config so
+// azurehelper.Build can pick it up for workload-identity auth without
+// requiring the ARM_OIDC_TOKEN_FILE_PATH env var.
+func TestGetAzureSessionConfig_PropagatesOIDCTokenPath(t *testing.T) {
+	t.Parallel()
+
+	cfg := azurerm.Config{
+		keyStorageAccount:      testStorageAccount,
+		keyContainer:           testContainer,
+		keyKey:                 testKey,
+		keyResourceGroup:       testRG,
+		"oidc_token_file_path": "/var/run/secrets/azure/token",
+		"use_oidc":             true,
+	}
+
+	ext, err := cfg.ExtendedAzureRMConfig()
+	require.NoError(t, err)
+
+	sess := ext.GetAzureSessionConfig()
+	assert.Equal(t, "/var/run/secrets/azure/token", sess.OIDCTokenFilePath)
+	assert.True(t, sess.UseOIDC)
 }
 
 // TestClient_Close confirms the documented no-op contract: Close always
@@ -416,11 +522,11 @@ func TestBackend_Lifecycle_SurfaceConfigErrors(t *testing.T) {
 	})
 }
 
-// requireDataPlaneOnly asserts the error is the helpful surface produced
-// by Client.requireControlPlane.
+// requireDataPlaneOnly asserts the error is a ControlPlaneUnavailableError
+// surfaced when a control-plane op is invoked under a data-plane auth.
 func requireDataPlaneOnly(t *testing.T, err error) {
 	t.Helper()
 
-	require.Error(t, err)
-	assert.Contains(t, strings.ToLower(err.Error()), "data-plane only")
+	var typedErr *azurerm.ControlPlaneUnavailableError
+	require.ErrorAs(t, err, &typedErr, "expected ControlPlaneUnavailableError, got %v", err)
 }
