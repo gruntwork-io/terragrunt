@@ -44,7 +44,7 @@ func TestFormFieldsFromParsedVariables_BoolStringRawTypes(t *testing.T) {
 	assert.False(t, byName["disabled"].Bool, `default "false" seeds the checkbox off`)
 
 	assert.True(t, byName["unset_bool"].Checkbox)
-	assert.False(t, byName["unset_bool"].Bool, "an unparseable bool default falls back to false")
+	assert.False(t, byName["unset_bool"].Bool, "an unparsable bool default falls back to false")
 
 	assert.True(t, byName["tier"].Literal)
 	assert.Equal(t, "prod", byName["tier"].Initial, "JSON string default is unwrapped")
