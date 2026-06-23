@@ -147,7 +147,16 @@ func (o *ShellOptions) NoEngine() bool {
 // RunCommand runs the given shell command. The shell environment and
 // stdout/stderr writers come from v; tests can substitute a venv whose Exec
 // is a [vexec.NewMemExec] so external binaries are never forked.
-func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *ShellOptions, command string, args ...string) error {
+//
+// Requires v.Env: the traceparent is written into it before the child forks.
+func RunCommand(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	runOpts *ShellOptions,
+	command string,
+	args ...string,
+) error {
 	_, err := RunCommandWithOutput(ctx, l, v, runOpts, "", false, false, command, args...)
 
 	return err
@@ -157,6 +166,8 @@ func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *ShellOp
 // stdout/stderr in addition to streaming. The command can be executed in a
 // custom working directory by using the parameter `workingDir`; the
 // ShellOptions working directory is assumed if empty.
+//
+// Requires v.Env: the traceparent is written into it before the child forks.
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
@@ -228,6 +239,8 @@ type RunCommandOptions struct {
 
 // runCommand contains the actual subprocess execution logic, separated to keep
 // RunCommandWithOutput focused on telemetry framing.
+//
+// Requires v.Env: the traceparent is written into it before the child forks.
 func runCommand(
 	ctx context.Context,
 	l log.Logger,
@@ -235,6 +248,8 @@ func runCommand(
 	runOpts *ShellOptions,
 	cmdOpts RunCommandOptions,
 ) error {
+	v.RequireEnv()
+
 	l.Debugf("Running command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
 
 	// Default nil venv writers to io.Discard so callers that construct a
@@ -257,7 +272,11 @@ func runCommand(
 
 	// Pass the traceparent to the child process if it is available in the context.
 	if traceParent := telemetry.TraceParentFromContext(ctx, runOpts.Telemetry); traceParent != "" {
-		l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", cmdOpts.Command, cmdOpts.Args))
+		l.Debugf(
+			"Setting trace parent=%q for command %s",
+			traceParent,
+			fmt.Sprintf("%s %v", cmdOpts.Command, cmdOpts.Args),
+		)
 		v.Env[telemetry.TraceParentEnv] = traceParent
 	}
 

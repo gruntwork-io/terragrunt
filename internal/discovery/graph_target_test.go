@@ -2,7 +2,6 @@ package discovery_test
 
 import (
 	"context"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,10 +14,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // Test that WithGraphTarget retains the target and all dependents.
@@ -210,11 +209,7 @@ func memGitTopLevelVenv(t *testing.T, repoRoot string) venv.Venv {
 		return vexec.Result{ExitCode: 1}
 	})
 
-	return venv.Venv{
-		Exec:    exec,
-		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
-	}
+	return venvtest.New().WithExec(exec)
 }
 
 // mockGraphTargetOption implements the GraphTarget() interface for testing.

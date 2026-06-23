@@ -14,6 +14,7 @@
 package venv
 
 import (
+	"errors"
 	"io"
 	"os"
 	"strings"
@@ -22,6 +23,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 )
+
+// ErrVenvEnvUnset is the panic value [Venv.RequireEnv] raises when a
+// function declares it mutates v.Env and the caller hands in a Venv with
+// Env == nil. Production callers build Venv through [OSVenv], so the panic
+// surfaces a test misconfiguration rather than a runtime condition.
+var ErrVenvEnvUnset = errors.New("venv.Venv.Env is required but unset")
 
 // Venv is the root virtualized environment. It carries the filesystem,
 // process-execution, environment-variable, and writer handles that every
@@ -56,6 +63,52 @@ func (v Venv) WithErrWriter(w io.Writer) Venv {
 	v.Writers.ErrWriter = w
 
 	return v
+}
+
+// WithExec returns a copy of v whose process executor is exec. The Env map
+// and other handles are shared by reference with the receiver.
+func (v Venv) WithExec(exec vexec.Exec) Venv {
+	v.Exec = exec
+
+	return v
+}
+
+// WithHandler returns a copy of v whose executor is an in-memory exec driven
+// by h. It serves the in-memory test bundles this package is built for;
+// production code wires a real executor through OSVenv.
+func (v Venv) WithHandler(h vexec.Handler) Venv {
+	v.Exec = vexec.NewMemExec(h)
+
+	return v
+}
+
+// WithFS returns a copy of v backed by fs. The Env map and other handles are
+// shared by reference with the receiver.
+func (v Venv) WithFS(fs vfs.FS) Venv {
+	v.FS = fs
+
+	return v
+}
+
+// WithEnv returns a copy of v whose shell environment is env. A nil env is
+// replaced with an empty map so the result still satisfies RequireEnv.
+func (v Venv) WithEnv(env map[string]string) Venv {
+	if env == nil {
+		env = map[string]string{}
+	}
+
+	v.Env = env
+
+	return v
+}
+
+// RequireEnv panics with [ErrVenvEnvUnset] when v.Env is nil. Functions
+// that write into the shared environment call this as their first
+// statement so the contract sits next to the signature.
+func (v Venv) RequireEnv() {
+	if v.Env == nil {
+		panic(ErrVenvEnvUnset)
+	}
 }
 
 // OSVenv builds the production [Venv]: the real OS filesystem, the real

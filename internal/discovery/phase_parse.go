@@ -364,7 +364,7 @@ func parseComponent(
 
 		if parseOpts.DiscoveryAuthProviderCmd {
 			if _, err := creds.ObtainCredsForParsing(
-				ctx, l, parseV, parseOpts.AuthProviderCmd, parseV.Env, shellOpts,
+				ctx, l, parseV, parseOpts.AuthProviderCmd, shellOpts,
 			); err != nil {
 				return fmt.Errorf("obtaining auth provider credentials for %s: %w", parseOpts.TerragruntConfigPath, err)
 			}

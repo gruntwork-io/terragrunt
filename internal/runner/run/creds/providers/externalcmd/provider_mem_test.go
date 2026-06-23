@@ -2,16 +2,14 @@ package externalcmd_test
 
 import (
 	"context"
-	"io"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,11 +25,10 @@ func TestProviderEmptyAuthProviderCmdIsNoop(t *testing.T) {
 
 	var calls int
 
-	v := newMemVenv(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		calls++
 		return vexec.Result{}
 	})
-
 	p := externalcmd.NewProvider(logger.CreateLogger(), "", newRunOpts())
 
 	creds, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
@@ -46,7 +43,7 @@ func TestProviderEmptyAuthProviderCmdIsNoop(t *testing.T) {
 func TestProviderDirectAWSCredentials(t *testing.T) {
 	t.Parallel()
 
-	v := newMemVenv(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		assert.Equal(t, "/usr/local/bin/auth", inv.Name)
 		assert.Equal(t, []string{"--account", "prod"}, inv.Args)
 
@@ -58,7 +55,6 @@ func TestProviderDirectAWSCredentials(t *testing.T) {
             }
         }`)}
 	})
-
 	p := externalcmd.NewProvider(logger.CreateLogger(), "/usr/local/bin/auth --account prod", newRunOpts())
 
 	creds, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
@@ -77,10 +73,9 @@ func TestProviderDirectAWSCredentials(t *testing.T) {
 func TestProviderArbitraryEnvs(t *testing.T) {
 	t.Parallel()
 
-	v := newMemVenv(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte(`{"envs": {"FOO": "bar", "BAZ": "qux"}}`)}
 	})
-
 	p := externalcmd.NewProvider(logger.CreateLogger(), "auth-cmd", newRunOpts())
 
 	creds, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
@@ -93,10 +88,9 @@ func TestProviderArbitraryEnvs(t *testing.T) {
 func TestProviderEmptyResponseErrors(t *testing.T) {
 	t.Parallel()
 
-	v := newMemVenv(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte("")}
 	})
-
 	p := externalcmd.NewProvider(logger.CreateLogger(), "auth-cmd", newRunOpts())
 
 	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
@@ -107,10 +101,9 @@ func TestProviderEmptyResponseErrors(t *testing.T) {
 func TestProviderInvalidJSONErrors(t *testing.T) {
 	t.Parallel()
 
-	v := newMemVenv(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte("not json at all")}
 	})
-
 	p := externalcmd.NewProvider(logger.CreateLogger(), "auth-cmd", newRunOpts())
 
 	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
@@ -121,10 +114,9 @@ func TestProviderInvalidJSONErrors(t *testing.T) {
 func TestProviderCommandFailurePropagates(t *testing.T) {
 	t.Parallel()
 
-	v := newMemVenv(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{ExitCode: 2, Stderr: []byte("permission denied\n")}
 	})
-
 	p := externalcmd.NewProvider(logger.CreateLogger(), "auth-cmd", newRunOpts())
 
 	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
@@ -136,13 +128,12 @@ func TestProviderCommandFailurePropagates(t *testing.T) {
 func TestProviderCommandShellwordsParsing(t *testing.T) {
 	t.Parallel()
 
-	v := newMemVenv(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		assert.Equal(t, "auth", inv.Name)
 		assert.Equal(t, []string{"--profile", "with space", "--region", "us-east-1"}, inv.Args)
 
 		return vexec.Result{Stdout: []byte(`{"envs": {}}`)}
 	})
-
 	p := externalcmd.NewProvider(logger.CreateLogger(), `auth --profile "with space" --region us-east-1`, newRunOpts())
 
 	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
@@ -151,12 +142,4 @@ func TestProviderCommandShellwordsParsing(t *testing.T) {
 
 func newRunOpts() *shell.ShellOptions {
 	return shell.NewShellOptions()
-}
-
-func newMemVenv(h vexec.Handler) venv.Venv {
-	return venv.Venv{
-		Exec:    vexec.NewMemExec(h),
-		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
-	}
 }

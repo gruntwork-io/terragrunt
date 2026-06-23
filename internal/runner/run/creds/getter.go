@@ -22,14 +22,17 @@ func NewGetter() *Getter {
 	}
 }
 
-// ObtainAndUpdateEnvIfNecessary obtains credentials through different providers and sets them to the provided env map.
+// ObtainAndUpdateEnvIfNecessary obtains credentials through different providers and sets them on v.Env.
+//
+// Requires v.Env: obtained credentials are written into it.
 func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 	ctx context.Context,
 	l log.Logger,
 	v venv.Venv,
-	env map[string]string,
 	authProviders ...providers.Provider,
 ) error {
+	v.RequireEnv()
+
 	for _, provider := range authProviders {
 		creds, err := provider.GetCredentials(ctx, l, v)
 		if err != nil {
@@ -49,28 +52,29 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 
 		getter.obtainedCreds[provider.Name()] = creds
 
-		maps.Copy(env, creds.Envs)
+		maps.Copy(v.Env, creds.Envs)
 	}
 
 	return nil
 }
 
 // ObtainCredsForParsing creates a new Getter, obtains external-command
-// credentials, and populates env before HCL parsing.
+// credentials, and populates v.Env before HCL parsing.
 // Use when sops_decrypt_file() or get_aws_account_id() may appear in locals.
 // See https://github.com/gruntwork-io/terragrunt/issues/5515
+//
+// Requires v.Env: obtained credentials are written into it.
 func ObtainCredsForParsing(
 	ctx context.Context,
 	l log.Logger,
 	v venv.Venv,
 	authProviderCmd string,
-	env map[string]string,
 	shellOpts *shell.ShellOptions,
 ) (*Getter, error) {
 	g := NewGetter()
 
 	provider := externalcmd.NewProvider(l, authProviderCmd, shellOpts)
-	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, v, env, provider); err != nil {
+	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider); err != nil {
 		return nil, err
 	}
 

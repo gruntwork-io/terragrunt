@@ -2,7 +2,6 @@ package run_test
 
 import (
 	"context"
-	"io"
 	"sync/atomic"
 	"testing"
 
@@ -11,10 +10,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,12 +21,12 @@ import (
 func TestGetTFVersionOpenTofu(t *testing.T) {
 	t.Parallel()
 
-	v := newVersionVenv(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		assert.Equal(t, "tofu", inv.Name)
 		assert.Equal(t, []string{tf.FlagNameVersion}, inv.Args)
 
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\non darwin_arm64\n")}
-	}, nil)
+	})
 
 	_, ver, impl, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("tofu"))
 	require.NoError(t, err)
@@ -39,9 +37,9 @@ func TestGetTFVersionOpenTofu(t *testing.T) {
 func TestGetTFVersionTerraform(t *testing.T) {
 	t.Parallel()
 
-	v := newVersionVenv(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte("Terraform v1.5.7\non linux_amd64\n")}
-	}, nil)
+	})
 
 	_, ver, impl, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("terraform"))
 	require.NoError(t, err)
@@ -56,9 +54,9 @@ func TestGetTFVersionTerraform(t *testing.T) {
 func TestGetTFVersionUnknownImplFallsBackToTerraform(t *testing.T) {
 	t.Parallel()
 
-	v := newVersionVenv(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte("Custom-Fork v0.42.0\n")}
-	}, nil)
+	})
 
 	_, ver, impl, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("custom-fork"))
 	require.NoError(t, err)
@@ -69,9 +67,9 @@ func TestGetTFVersionUnknownImplFallsBackToTerraform(t *testing.T) {
 func TestGetTFVersionInvalidOutput(t *testing.T) {
 	t.Parallel()
 
-	v := newVersionVenv(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte("not a version line\n")}
-	}, nil)
+	})
 
 	_, _, _, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("tofu"))
 	require.Error(t, err)
@@ -80,9 +78,9 @@ func TestGetTFVersionInvalidOutput(t *testing.T) {
 func TestGetTFVersionPropagatesExecError(t *testing.T) {
 	t.Parallel()
 
-	v := newVersionVenv(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{ExitCode: 1, Stderr: []byte("binary missing\n")}
-	}, nil)
+	})
 
 	_, _, _, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("tofu"))
 	require.Error(t, err)
@@ -103,10 +101,10 @@ func TestGetTFVersionStripsTFCLIArgs(t *testing.T) {
 		"TF_CLI_ARGS_plan": "-refresh=false",
 	}
 
-	v := newVersionVenv(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		observed.Store(append([]string(nil), inv.Env...))
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
-	}, env)
+	}).WithEnv(env)
 
 	_, _, _, err := run.GetTFVersion(t.Context(), logger.CreateLogger(), v, newVersionTFOptions("tofu"))
 	require.NoError(t, err)
@@ -124,19 +122,5 @@ func newVersionTFOptions(tfPath string) *tf.TFOptions {
 	return &tf.TFOptions{
 		TerraformCliArgs: iacargs.New(),
 		ShellOptions:     shell.NewShellOptions().WithTFPath(tfPath),
-	}
-}
-
-// newVersionVenv builds a venv.Venv around a mem-backed exec for the
-// version probe; env is the shell environment exposed to the subprocess.
-func newVersionVenv(h vexec.Handler, env map[string]string) venv.Venv {
-	if env == nil {
-		env = map[string]string{}
-	}
-
-	return venv.Venv{
-		Exec:    vexec.NewMemExec(h),
-		Env:     env,
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }

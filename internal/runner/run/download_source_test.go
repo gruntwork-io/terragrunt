@@ -35,8 +35,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // findGetter scans the slice for the first Getter of type T and returns it.
@@ -574,12 +574,7 @@ func createConfig(
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
 	})
 
-	versionV := venv.Venv{
-		Exec:    versionExec,
-		Env:     venv.OSVenv().Env,
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
-	}
-
+	versionV := venvtest.New().WithExec(versionExec).WithEnv(venv.OSVenv().Env)
 	_, ver, impl, err := run.PopulateTFVersion(t.Context(), l, versionV, run.PopulateTFVersionInput{
 		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
 		WorkingDir:   opts.WorkingDir,
@@ -703,7 +698,12 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 			require.NoError(t, err)
 
-			client, err := run.BuildDownloadClient(logger.CreateLogger(), run.OSVenv(), configbridge.NewRunOptions(terragruntOptions), tc.cfg)
+			client, err := run.BuildDownloadClient(
+				logger.CreateLogger(),
+				run.OSVenv(),
+				configbridge.NewRunOptions(terragruntOptions),
+				tc.cfg,
+			)
 			require.NoError(t, err)
 
 			fileGetter, ok := findGetter[*getter.FileCopyGetter](client.Getters)
@@ -816,7 +816,15 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	r := report.NewReport()
 
 	// sourceURL "." represents the current directory (no terraform.source specified)
-	updatedOpts, err := run.DownloadTerraformSource(t.Context(), l, run.OSVenv(), ".", configbridge.NewRunOptions(opts), cfg, r)
+	updatedOpts, err := run.DownloadTerraformSource(
+		t.Context(),
+		l,
+		run.OSVenv(),
+		".",
+		configbridge.NewRunOptions(opts),
+		cfg,
+		r,
+	)
 	require.NoError(t, err)
 
 	// Verify that the working directory was changed to the cache directory (inside downloadDir)
@@ -865,7 +873,15 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	// Mock the download source function call
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		l,
+		run.OSVenv(),
+		src,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		r,
+	)
 
 	require.NoError(t, err)
 
@@ -905,7 +921,15 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		l,
+		run.OSVenv(),
+		src,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		r,
+	)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -944,7 +968,15 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		l,
+		run.OSVenv(),
+		src,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		r,
+	)
 	require.NoError(t, err)
 
 	// Verify the file was downloaded
@@ -982,7 +1014,15 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 
 	r := report.NewReport()
 
-	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		l,
+		run.OSVenv(),
+		src,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		r,
+	)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -1084,7 +1124,15 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
 			}
 
-			_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, run.OSVenv(), src, configbridge.NewRunOptions(opts), cfg, r)
+			_, err = run.DownloadTerraformSourceIfNecessary(
+				t.Context(),
+				l,
+				run.OSVenv(),
+				src,
+				configbridge.NewRunOptions(opts),
+				cfg,
+				r,
+			)
 
 			if tc.name == "Local file source" {
 				require.NoError(t, err)

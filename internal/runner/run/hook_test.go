@@ -3,7 +3,6 @@ package run_test
 import (
 	"context"
 	"errors"
-	"io"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -13,8 +12,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,7 @@ func TestProcessHooks_DispatchesCommandsForMatchingTerraformCommand(t *testing.T
 	t.Parallel()
 
 	rec := &recorder{}
-	v := newHookVenv(rec.handler(vexec.Result{}))
+	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -59,7 +58,7 @@ func TestProcessHooks_SkipsHookWhenIfFalse(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := newHookVenv(rec.handler(vexec.Result{}))
+	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -83,7 +82,7 @@ func TestProcessHooks_SkipsHooksWhenNoHooksSet(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := newHookVenv(rec.handler(vexec.Result{}))
+	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
 	l := logger.CreateLogger()
 	opts := newHookOpts()
 	opts.NoHooks = true
@@ -138,7 +137,7 @@ func TestProcessHooks_RunOnErrorGate(t *testing.T) {
 			t.Parallel()
 
 			rec := &recorder{}
-			v := newHookVenv(rec.handler(vexec.Result{}))
+			v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
 			l := logger.CreateLogger()
 
 			require.NoError(t, run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
@@ -158,7 +157,7 @@ func TestProcessHooks_InjectsHookContextEnv(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := newHookVenv(rec.handler(vexec.Result{}))
+	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
 	l := logger.CreateLogger()
 
 	opts := newHookOpts()
@@ -198,7 +197,7 @@ func TestProcessHooks_PropagatesFailures(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := newHookVenv(rec.handler(vexec.Result{ExitCode: 7, Stderr: []byte("boom")}))
+	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{ExitCode: 7, Stderr: []byte("boom")})))
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -244,7 +243,7 @@ func TestProcessHooks_TflintActionRoutesThroughTflint(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fs, "/work/.tflint.hcl", []byte("config {}"), 0o644))
 
-	v := run.Venv{Exec: vexec.NewMemExec(h), FS: fs}
+	v := run.FromRoot(venvtest.New().WithHandler(h).WithFS(fs))
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -277,7 +276,18 @@ func TestProcessErrorHooks_NoopWhenNoPriorErrors(t *testing.T) {
 		{Name: "on-anything", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "x"}},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, hookVenv(exec), hooks, &runcfg.RunConfig{}, newHookOpts(), nil))
+	require.NoError(
+		t,
+		run.ProcessErrorHooks(
+			t.Context(),
+			l,
+			run.FromRoot(venvtest.New().WithExec(exec)),
+			hooks,
+			&runcfg.RunConfig{},
+			newHookOpts(),
+			nil,
+		),
+	)
 	assert.Empty(t, rec.snapshot())
 }
 
@@ -294,7 +304,18 @@ func TestProcessErrorHooks_SkipsHooksWhenNoHooksSet(t *testing.T) {
 		{Name: "disabled", Commands: []string{"plan"}, OnErrors: []string{".*"}, Execute: []string{"echo", "skip-me"}},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, hookVenv(exec), hooks, &runcfg.RunConfig{}, opts, []error{errors.New("boom")}))
+	require.NoError(
+		t,
+		run.ProcessErrorHooks(
+			t.Context(),
+			l,
+			run.FromRoot(venvtest.New().WithExec(exec)),
+			hooks,
+			&runcfg.RunConfig{},
+			opts,
+			[]error{errors.New("boom")},
+		),
+	)
 	assert.Empty(t, rec.snapshot(), "--no-hooks should suppress error hook dispatch")
 }
 
@@ -328,7 +349,18 @@ func TestProcessErrorHooks_MatchesOnErrorsRegex(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, run.ProcessErrorHooks(t.Context(), l, hookVenv(exec), hooks, &runcfg.RunConfig{}, newHookOpts(), priorErrs))
+	require.NoError(
+		t,
+		run.ProcessErrorHooks(
+			t.Context(),
+			l,
+			run.FromRoot(venvtest.New().WithExec(exec)),
+			hooks,
+			&runcfg.RunConfig{},
+			newHookOpts(),
+			priorErrs,
+		),
+	)
 
 	calls := rec.snapshot()
 	require.Len(t, calls, 1)
@@ -374,26 +406,6 @@ func newHookOpts() *run.Options {
 		TerraformCommand:  "plan",
 		TFPath:            "/fake/tofu",
 		MaxFoldersToCheck: 5,
-	}
-}
-
-func newHookVenv(h vexec.Handler) run.Venv {
-	return run.Venv{
-		Exec:    vexec.NewMemExec(h),
-		FS:      vfs.NewMemMapFS(),
-		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
-	}
-}
-
-// hookVenv wraps an existing exec into a run.Venv for ProcessErrorHooks
-// callers that have constructed the exec independently of the venv helper.
-func hookVenv(exec vexec.Exec) run.Venv {
-	return run.Venv{
-		Exec:    exec,
-		FS:      vfs.NewMemMapFS(),
-		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }
 

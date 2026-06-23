@@ -57,6 +57,15 @@ func (v Venv) tflintVenv() tflint.Venv {
 	return tflint.Venv{Exec: v.Exec, FS: v.FS, Env: v.Env, Writers: v.Writers}
 }
 
+// RequireEnv panics with [venv.ErrVenvEnvUnset] when v.Env is nil.
+// Functions that write into the shared environment call this as their
+// first statement so the contract sits next to the signature.
+func (v Venv) RequireEnv() {
+	if v.Env == nil {
+		panic(venv.ErrVenvEnvUnset)
+	}
+}
+
 // WithWriter returns a copy of v whose primary writer is w. The Env map and
 // other handles are shared by reference with the receiver.
 func (v Venv) WithWriter(w io.Writer) Venv {

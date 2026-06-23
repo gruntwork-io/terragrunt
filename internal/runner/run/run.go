@@ -30,6 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -132,7 +133,7 @@ func Run(
 
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(
-			ctx, l, v.ToRoot(), v.Env,
+			ctx, l, v.ToRoot(),
 			amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env),
 		)
 	}); err != nil {
@@ -228,6 +229,8 @@ func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfi
 //
 // This function takes in the "original" options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" options that will contain the updated 'WorkingDir' into which the code has been downloaded
+//
+// Requires v.Env: inputs and extra-args env contributions are written into it.
 func runTerragruntWithConfig(
 	ctx context.Context,
 	l log.Logger,
@@ -237,6 +240,8 @@ func runTerragruntWithConfig(
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
+	v.RequireEnv()
+
 	if cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
 		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.WorkingDir)
 
@@ -404,7 +409,13 @@ func RunActionWithHooks(
 // SetTerragruntInputsAsEnvVars merges the inputs from Terragrunt
 // configurations into env as TF_VAR_* entries, preserving any keys
 // already present.
+//
+// Requires a non-nil env: it is the destination the entries are written into.
 func SetTerragruntInputsAsEnvVars(l log.Logger, env map[string]string, cfg *runcfg.RunConfig) error {
+	if env == nil {
+		panic(venv.ErrVenvEnvUnset)
+	}
+
 	asEnvVars, err := ToTerraformEnvVars(l, cfg.Inputs)
 	if err != nil {
 		return err
@@ -451,7 +462,9 @@ func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType stri
 		return nil
 	}
 
-	terraformJSONBackendRegexp, err := regexp.Compile(fmt.Sprintf(`(?m)"backend":[[:space:]]*{[[:space:]]*"%s"`, backendType))
+	terraformJSONBackendRegexp, err := regexp.Compile(
+		fmt.Sprintf(`(?m)"backend":[[:space:]]*{[[:space:]]*"%s"`, backendType),
+	)
 	if err != nil {
 		return err
 	}
@@ -465,7 +478,11 @@ func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType stri
 		return nil
 	}
 
-	return BackendNotDefined{ConfigPath: opts.TerragruntConfigPath, WorkingDir: opts.WorkingDir, BackendType: backendType}
+	return BackendNotDefined{
+		ConfigPath:  opts.TerragruntConfigPath,
+		WorkingDir:  opts.WorkingDir,
+		BackendType: backendType,
+	}
 }
 
 // Returns true if we need to run `terraform init` to download providers
@@ -727,7 +744,10 @@ func runTerraformInitRunCfg(
 	r *report.Report,
 ) error {
 	if opts.TerraformCliArgs.First() != tf.CommandNameInit && !opts.AutoInit {
-		l.Warnf("Detected that init is needed, but Auto-Init is disabled. Continuing with further actions, but subsequent terraform commands may fail.")
+		l.Warnf(
+			"Detected that init is needed, but Auto-Init is disabled. Continuing with further actions, but subsequent terraform commands may fail.",
+		)
+
 		return nil
 	}
 

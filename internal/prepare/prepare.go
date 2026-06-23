@@ -43,7 +43,7 @@ func PrepareConfig(ctx context.Context, l log.Logger, v run.Venv, opts *options.
 	credsGetter := creds.NewGetter()
 	provider := externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts))
 
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.ToRoot(), v.Env, provider); err != nil {
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.ToRoot(), provider); err != nil {
 		return nil, err
 	}
 
@@ -120,7 +120,7 @@ func PrepareSource(
 
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
 		provider := amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env)
-		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.ToRoot(), v.Env, provider)
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.ToRoot(), provider)
 	}); err != nil {
 		return nil, err
 	}
@@ -133,7 +133,12 @@ func PrepareSource(
 		opts.DownloadDir = runCfg.DownloadDir
 	}
 
-	sourceURL, err := runcfg.GetTerraformSourceURL(opts.Source, opts.SourceMap, opts.OriginalTerragruntConfigPath, runCfg)
+	sourceURL, err := runcfg.GetTerraformSourceURL(
+		opts.Source,
+		opts.SourceMap,
+		opts.OriginalTerragruntConfigPath,
+		runCfg,
+	)
 	if err != nil {
 		return nil, err
 	}
