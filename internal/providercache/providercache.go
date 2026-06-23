@@ -240,9 +240,9 @@ func (pc *ProviderCache) TerraformCommandHook(
 		return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
 	}
 
-	env := pc.providerCacheEnvironment(v.Env, tfOpts.TofuImplementation, cliConfigFilename)
+	v = v.WithEnv(pc.providerCacheEnvironment(v.Env, tfOpts.TofuImplementation, cliConfigFilename))
 
-	if output, err := pc.warmUpCache(ctx, l, v, tfOpts, cliConfigFilename, args, env, lockfileExists); err != nil {
+	if output, err := pc.warmUpCache(ctx, l, v, tfOpts, cliConfigFilename, args, lockfileExists); err != nil {
 		return output, err
 	}
 
@@ -250,7 +250,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 		return &util.CmdOutput{}, nil
 	}
 
-	return pc.runTerraformWithCache(ctx, l, v, tfOpts, cliConfigFilename, args, env)
+	return pc.runTerraformWithCache(ctx, l, v, tfOpts, cliConfigFilename, args)
 }
 
 func (pc *ProviderCache) warmUpCache(
@@ -260,7 +260,6 @@ func (pc *ProviderCache) warmUpCache(
 	tfOpts *tf.TFOptions,
 	cliConfigFilename string,
 	args clihelper.Args,
-	env map[string]string,
 	lockfileExists bool,
 ) (*util.CmdOutput, error) {
 	var (
@@ -279,7 +278,7 @@ func (pc *ProviderCache) warmUpCache(
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
 
 	for _, args := range commandsArgs {
-		if output, err := pc.runTerraformCommand(ctx, l, v, tfOpts, args, env); err != nil {
+		if output, err := pc.runTerraformCommand(ctx, l, v, tfOpts, args); err != nil {
 			return output, err
 		}
 	}
@@ -342,7 +341,6 @@ func (pc *ProviderCache) runTerraformWithCache(
 	tfOpts *tf.TFOptions,
 	cliConfigFilename string,
 	args clihelper.Args,
-	env map[string]string,
 ) (*util.CmdOutput, error) {
 	// Create terraform cli config file that uses provider cache dir
 	if err := pc.createLocalCLIConfig(ctx, tfOpts.TofuImplementation, cliConfigFilename, ""); err != nil {
@@ -360,10 +358,7 @@ func (pc *ProviderCache) runTerraformWithCache(
 		ShellOptions:                 &shellOpts,
 	}
 
-	cacheV := v
-	cacheV.Env = env
-
-	return tf.RunCommandWithOutput(ctx, l, cacheV, newTFOpts, args...)
+	return tf.RunCommandWithOutput(ctx, l, v, newTFOpts, args...)
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
@@ -502,7 +497,7 @@ func isRegistryTimeoutError(output []byte) bool {
 	})
 }
 
-func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, v venv.Venv, tfOpts *tf.TFOptions, args []string, envs map[string]string) (*util.CmdOutput, error) {
+func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, v venv.Venv, tfOpts *tf.TFOptions, args []string) (*util.CmdOutput, error) {
 	// add -no-color flag to args if it was set in Terragrunt arguments
 	if tfOpts.TerraformCliArgs != nil && tfOpts.TerraformCliArgs.Contains(tf.FlagNameNoColor) &&
 		!slices.Contains(args, tf.FlagNameNoColor) {
@@ -534,9 +529,7 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 		func(ctx context.Context) error {
 			errWriter := util.NewTrapWriter(v.Writers.ErrWriter)
 
-			cmdV := v
-			cmdV.Env = envs
-			cmdV = cmdV.WithWriter(io.Discard).WithErrWriter(errWriter)
+			cmdV := v.WithWriter(io.Discard).WithErrWriter(errWriter)
 
 			output, cmdErr := tf.RunCommandWithOutput(ctx, l, cmdV, newTFOpts, newCliArgs.Slice()...)
 			finalOutput = output

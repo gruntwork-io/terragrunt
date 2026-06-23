@@ -290,16 +290,15 @@ func runCommand(
 		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
 			l.Debugf("Using engine to run command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
 
-			cmdOutput, err := engine.Run(ctx, l, v.Exec, &engine.ExecutionOptions{
-				Writers: writer.Writers{
-					Writer:    writer.NewWrappedWriter(cmdStdout, v.Writers.Writer),
-					ErrWriter: writer.NewWrappedWriter(cmdStderr, v.Writers.ErrWriter),
-				},
+			engineV := v.
+				WithWriter(writer.NewWrappedWriter(cmdStdout, v.Writers.Writer)).
+				WithErrWriter(writer.NewWrappedWriter(cmdStderr, v.Writers.ErrWriter))
+
+			cmdOutput, err := engine.Run(ctx, l, engineV, &engine.ExecutionOptions{
 				LogShowAbsPaths:        runOpts.LogShowAbsPaths,
 				LogDisableErrorSummary: runOpts.LogDisableErrorSummary,
 				EngineOptions:          runOpts.EngineOptions,
 				EngineConfig:           runOpts.EngineConfig,
-				Env:                    v.Env,
 				WorkingDir:             cmdOpts.CommandDir,
 				RootWorkingDir:         runOpts.RootWorkingDir,
 				Command:                cmdOpts.Command,
