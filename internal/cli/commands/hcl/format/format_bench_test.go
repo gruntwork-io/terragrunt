@@ -10,11 +10,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	logformat "github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func BenchmarkFormat(b *testing.B) {
@@ -43,7 +42,7 @@ func BenchmarkFormat(b *testing.B) {
 
 			tgOptions.WorkingDir = tmpBase
 			tgOptions.HclExclude = excludeList
-			v := venv.Venv{Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard}}
+			v := venvtest.New()
 
 			formatter := logformat.NewFormatter(logformat.NewKeyValueFormatPlaceholders())
 			formatter.SetDisabledColors(true)

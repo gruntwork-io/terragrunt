@@ -6,11 +6,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +32,7 @@ func TestRunCommandMemExec(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = venvtest.New().WithExec(exec)
 
 	out, err := config.RunCommand(ctx, pctx, l, []string{"echoer", "hello"})
 	require.NoError(t, err)
@@ -58,7 +57,7 @@ func TestRunCommandCacheHitsCollapseSubprocessForks(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = venvtest.New().WithExec(exec)
 
 	args := []string{"expensive-cmd", "--flag"}
 
@@ -68,7 +67,12 @@ func TestRunCommandCacheHitsCollapseSubprocessForks(t *testing.T) {
 		assert.Equal(t, "computed", out)
 	}
 
-	assert.Equal(t, int32(1), calls.Load(), "run_cmd cache must collapse repeated invocations to a single subprocess fork")
+	assert.Equal(
+		t,
+		int32(1),
+		calls.Load(),
+		"run_cmd cache must collapse repeated invocations to a single subprocess fork",
+	)
 }
 
 // TestRunCommandNoCacheRefuses pins the contract that
@@ -86,7 +90,7 @@ func TestRunCommandNoCacheRefuses(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = venvtest.New().WithExec(exec)
 
 	for range 3 {
 		_, err := config.RunCommand(ctx, pctx, l, []string{"--terragrunt-no-cache", "cmd"})
@@ -108,7 +112,7 @@ func TestRunCommandSurfacesSubprocessFailure(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = venvtest.New().WithExec(exec)
 
 	_, err := config.RunCommand(ctx, pctx, l, []string{"failing-cmd"})
 	require.Error(t, err)
@@ -131,10 +135,10 @@ func TestRunCommandGlobalCacheSharesAcrossWorkingDirs(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctxA := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctxA.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctxA.Venv = venvtest.New().WithExec(exec)
 
 	_, pctxB := newTestParsingContext(t, t.TempDir())
-	pctxB.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctxB.Venv = venvtest.New().WithExec(exec)
 
 	args := []string{"--terragrunt-global-cache", "cmd"}
 
@@ -144,7 +148,12 @@ func TestRunCommandGlobalCacheSharesAcrossWorkingDirs(t *testing.T) {
 	_, err = config.RunCommand(ctx, pctxB, l, args)
 	require.NoError(t, err)
 
-	assert.Equal(t, int32(1), calls.Load(), "--terragrunt-global-cache must collapse calls across distinct working dirs")
+	assert.Equal(
+		t,
+		int32(1),
+		calls.Load(),
+		"--terragrunt-global-cache must collapse calls across distinct working dirs",
+	)
 }
 
 // TestRunCommandConflictingCacheFlags pins the validation error returned
@@ -180,7 +189,7 @@ func TestRunCommandConflictingCacheFlags(t *testing.T) {
 			l := logger.CreateLogger()
 			ctx, pctx := newTestParsingContext(t, t.TempDir())
 			ctx = config.WithConfigValues(ctx)
-			pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+			pctx.Venv = venvtest.New().WithExec(exec)
 
 			_, err := config.RunCommand(ctx, pctx, l, tc.args)
 			require.Error(t, err)
@@ -204,7 +213,7 @@ func TestRunCommandDoesNotMutateCallerArgs(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = venvtest.New().WithExec(exec)
 
 	args := []string{"--terragrunt-quiet", "--terragrunt-global-cache", "cmd", "subarg"}
 	want := slices.Clone(args)
@@ -229,7 +238,7 @@ func TestRunCommandEmptyParamsErrors(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = venvtest.New().WithExec(exec)
 
 	_, err := config.RunCommand(ctx, pctx, l, nil)
 	require.Error(t, err)
@@ -253,12 +262,17 @@ func TestRunCommandReceivesPctxEnv(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: exec}
+	pctx.Venv = venvtest.New().WithExec(exec)
 	pctx.Venv.Env = map[string]string{"TG_TEST_TOKEN": "abc123"}
 
 	_, err := config.RunCommand(ctx, pctx, l, []string{"reader"})
 	require.NoError(t, err)
 
 	env, _ := got.Load().([]string)
-	assert.Contains(t, env, "TG_TEST_TOKEN=abc123", "pctx.Venv.Env must propagate to the spawned subprocess environment")
+	assert.Contains(
+		t,
+		env,
+		"TG_TEST_TOKEN=abc123",
+		"pctx.Venv.Env must propagate to the spawned subprocess environment",
+	)
 }

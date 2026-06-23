@@ -9,8 +9,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -108,7 +108,12 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 
 			allArgs := opts.TerraformCliArgs.Slice()
 			if tc.expectBackendArgs {
-				assert.NotContains(t, allArgs, "-backend=false", "disable_init should not pass -backend=false to terraform")
+				assert.NotContains(
+					t,
+					allArgs,
+					"-backend=false",
+					"disable_init should not pass -backend=false to terraform",
+				)
 
 				hasBackendConfig := false
 
@@ -141,10 +146,10 @@ func TestRemoteStateOptsPropagatesVenv(t *testing.T) {
 		err bytes.Buffer
 	)
 
-	v := Venv{
-		Env:     map[string]string{"TF_VAR_x": "1"},
-		Writers: writer.Writers{Writer: &out, ErrWriter: &err},
-	}
+	v := FromRoot(venvtest.New().
+		WithEnv(map[string]string{"TF_VAR_x": "1"}).
+		WithWriter(&out).
+		WithErrWriter(&err))
 
 	opts := &Options{
 		TerraformCliArgs: iacargs.New(),
@@ -154,6 +159,11 @@ func TestRemoteStateOptsPropagatesVenv(t *testing.T) {
 
 	require.NotNil(t, got)
 	assert.Same(t, &out, got.Writers.Writer, "stdout writer must come from the venv")
-	assert.Same(t, &err, got.Writers.ErrWriter, "stderr writer must come from the venv; a nil ErrWriter panics in shell.PromptUserForInput")
+	assert.Same(
+		t,
+		&err,
+		got.Writers.ErrWriter,
+		"stderr writer must come from the venv; a nil ErrWriter panics in shell.PromptUserForInput",
+	)
 	assert.Equal(t, "1", got.Env["TF_VAR_x"], "env must come from the venv")
 }

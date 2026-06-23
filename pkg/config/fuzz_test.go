@@ -2,16 +2,14 @@ package config_test
 
 import (
 	"context"
-	"io"
 	"strings"
 	"sync/atomic"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -126,9 +124,7 @@ func FuzzHCLRunCommand(f *testing.F) {
 		})
 
 		ctx, pctx := newTestParsingContext(t, "")
-		pctx.Venv = venv.Venv{FS: vfs.NewMemMapFS(), Exec: memExec}.
-			WithWriter(io.Discard).
-			WithErrWriter(io.Discard)
+		pctx.Venv = venvtest.New().WithExec(memExec)
 
 		l := logger.CreateLogger()
 		out, err := config.RunCommand(ctx, pctx, l, argsForCall)

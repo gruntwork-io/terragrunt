@@ -11,10 +11,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,7 +50,12 @@ func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, st
 	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, fullOutput, stdout, stderr), withPtty)
 }
 
-func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput), allocateStdout bool) {
+func testCommandOutput(
+	t *testing.T,
+	withOptions func(*options.TerragruntOptions),
+	assertResults func(string, *util.CmdOutput),
+	allocateStdout bool,
+) {
 	t.Helper()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
@@ -67,13 +71,22 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	l := logger.CreateLogger()
 
-	v := venv.Venv{
-		Exec:    vexec.NewOSExec(),
-		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: &allOutputBuffer, ErrWriter: &allOutputBuffer},
-	}
+	v := venvtest.New().
+		WithExec(vexec.NewOSExec()).
+		WithWriter(&allOutputBuffer).
+		WithErrWriter(&allOutputBuffer)
 
-	out, err := shell.RunCommandWithOutput(t.Context(), l, v, configbridge.ShellRunOptsFromOpts(terragruntOptions), "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
+	out, err := shell.RunCommandWithOutput(
+		t.Context(),
+		l,
+		v,
+		configbridge.ShellRunOptsFromOpts(terragruntOptions),
+		"",
+		!allocateStdout,
+		false,
+		"testdata/test_outputs.sh",
+		"same",
+	)
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

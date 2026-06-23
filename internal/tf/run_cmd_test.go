@@ -13,14 +13,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +39,10 @@ func TestCommandOutputPrefix(t *testing.T) {
 
 	prefixedOutput := make([]string, 0, len(FullOutput))
 	for _, line := range FullOutput {
-		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s tf-path=%s msg=%s", prefix, filepath.Base(terraformPath), line))
+		prefixedOutput = append(
+			prefixedOutput,
+			fmt.Sprintf("prefix=%s tf-path=%s msg=%s", prefix, filepath.Base(terraformPath), line),
+		)
 	}
 
 	logFormatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
@@ -57,7 +59,12 @@ func TestCommandOutputPrefix(t *testing.T) {
 	))
 }
 
-func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), withLogger func(log.Logger) log.Logger, assertResults func(string, *util.CmdOutput)) {
+func testCommandOutput(
+	t *testing.T,
+	withOptions func(*options.TerragruntOptions),
+	withLogger func(log.Logger) log.Logger,
+	assertResults func(string, *util.CmdOutput),
+) {
 	t.Helper()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
@@ -75,11 +82,10 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	l := logger.CreateLogger()
 	l = withLogger(l)
 
-	v := venv.Venv{
-		Exec:    vexec.NewOSExec(),
-		Env:     map[string]string{},
-		Writers: writer.Writers{Writer: &allOutputBuffer, ErrWriter: &allOutputBuffer},
-	}
+	v := venvtest.New().
+		WithExec(vexec.NewOSExec()).
+		WithWriter(&allOutputBuffer).
+		WithErrWriter(&allOutputBuffer)
 
 	out, err := tf.RunCommandWithOutput(t.Context(), l, v, configbridge.TFRunOptsFromOpts(terragruntOptions), "same")
 
