@@ -23,12 +23,6 @@ func Build(
 		return nil, err
 	}
 
-	// A stack-restricted filter matches only stacks, which the runner drops, so expand to their units.
-	discovered, err = expandStackTargetsToUnits(ctx, l, opts, discovered, runnerOpts...)
-	if err != nil {
-		return nil, err
-	}
-
 	rnr, err := createRunner(ctx, l, opts, discovered, runnerOpts...)
 	if err != nil {
 		return nil, err

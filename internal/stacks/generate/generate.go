@@ -191,164 +191,14 @@ func discoverAndAddNewNodes(
 	generatedFiles map[string]bool,
 	minLevel int,
 ) error {
-	allFiles, matchedFiles, err := allAndMatchedStackFiles(ctx, l, opts, worktrees)
-	if err != nil {
-		return fmt.Errorf("failed to list stack files after level %d: %w", minLevel-1, err)
+	newFiles, listErr := ListStackFiles(ctx, l, opts, worktrees)
+	if listErr != nil {
+		return fmt.Errorf("failed to list stack files after level %d: %w", minLevel-1, listErr)
 	}
 
-	excludedFiles, err := excludedStackFiles(ctx, l, opts)
-	if err != nil {
-		return fmt.Errorf("failed to list excluded stack files after level %d: %w", minLevel-1, err)
-	}
-
-	graph := &stackGraph{
-		nodes:          dependencyGraph,
-		generatedFiles: generatedFiles,
-		matched:        toSet(matchedFiles),
-		excluded:       toSet(excludedFiles),
-		workingDir:     workingDir,
-	}
-	graph.addNew(l, allFiles)
+	addNewNodesToGraph(l, dependencyGraph, newFiles, generatedFiles, workingDir)
 
 	return nil
-}
-
-// allAndMatchedStackFiles returns every stack on disk and those matching the filter.
-func allAndMatchedStackFiles(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	worktrees *worktrees.Worktrees,
-) ([]string, []string, error) {
-	// reading=/source= filters need the discovery parse phase, so use filtered discovery exactly like the initial level.
-	if _, requiresParse := opts.Filters.RequiresParse(); requiresParse {
-		allFiles, err := listStackFiles(ctx, l, opts, worktrees, filter.Filters{})
-		if err != nil {
-			return nil, nil, err
-		}
-
-		matchedFiles, err := listStackFiles(ctx, l, opts, worktrees, opts.Filters)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return allFiles, matchedFiles, nil
-	}
-
-	// Fast path: one discovery walk, with matched derived in memory for path/name/type filters.
-	fsStacks, worktreeStacks, err := listStackComponents(ctx, l, opts, worktrees)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	allFiles, err := canonicalStackPaths(append(slices.Clone(fsStacks), worktreeStacks...), opts.WorkingDir)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	matchedStacks := fsStacks
-	if len(opts.Filters) > 0 {
-		matchedStacks, err = opts.Filters.RestrictToStacks().Evaluate(l, fsStacks)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	matchedFiles, err := canonicalStackPaths(append(slices.Clone(matchedStacks), worktreeStacks...), opts.WorkingDir)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return allFiles, matchedFiles, nil
-}
-
-// excludedStackFiles returns stacks removed by negated filters, via discovery of the un-negated targets.
-func excludedStackFiles(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) ([]string, error) {
-	targets := negatedTargets(opts.Filters)
-	if len(targets) == 0 {
-		return nil, nil
-	}
-
-	discoveredComponents, err := discovery.NewDiscovery(opts.WorkingDir).WithFilters(targets).Discover(ctx, l, opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to discover excluded stack files: %w", err)
-	}
-
-	stacks := make(component.Components, 0, len(discoveredComponents))
-
-	for _, c := range discoveredComponents {
-		if _, ok := c.(*component.Stack); ok {
-			stacks = append(stacks, c)
-		}
-	}
-
-	return canonicalStackPaths(stacks, opts.WorkingDir)
-}
-
-// negatedTargets returns the un-negated form of every negated filter, so its targets can be excluded from generation.
-func negatedTargets(filters filter.Filters) filter.Filters {
-	targets := make(filter.Filters, 0)
-
-	for _, f := range filters {
-		if filter.IsNegated(f.Expression()) {
-			targets = append(targets, f.Negated())
-		}
-	}
-
-	return targets
-}
-
-// listStackComponents runs one unfiltered discovery, returning on-disk stacks and the worktree stacks to generate.
-func listStackComponents(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	worktrees *worktrees.Worktrees,
-) (component.Components, component.Components, error) {
-	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-		WorkingDir:  opts.WorkingDir,
-		Filters:     filter.Filters{},
-		Experiments: opts.Experiments,
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
-	}
-
-	discoveredComponents, err := d.Discover(ctx, l, opts)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to discover stack files: %w", err)
-	}
-
-	fsStacks := make(component.Components, 0, len(discoveredComponents))
-
-	for _, c := range discoveredComponents {
-		if _, ok := c.(*component.Stack); ok {
-			fsStacks = append(fsStacks, c)
-		}
-	}
-
-	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get worktree stacks to generate: %w", err)
-	}
-
-	return fsStacks, worktreeStacks, nil
-}
-
-// canonicalStackPaths maps stack components to their canonical, symlink-resolved stack-file paths.
-func canonicalStackPaths(comps component.Components, workingDir string) ([]string, error) {
-	paths := make([]string, 0, len(comps))
-
-	for _, c := range comps {
-		canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), workingDir)
-		if err != nil {
-			return nil, err
-		}
-
-		paths = append(paths, canonical)
-	}
-
-	return paths, nil
 }
 
 // BuildStackTopology creates a topological tree based on directory hierarchy.
@@ -441,32 +291,22 @@ func getNodesAtLevel(nodes map[string]*StackNode, level int) []*StackNode {
 	return levelNodes
 }
 
-// stackGraph holds the topology being built and the per-level selection sets that
-// decide which discovered stack files to add. It carries only data; the logger is
-// threaded as an explicit argument.
-type stackGraph struct {
-	nodes          map[string]*StackNode
-	generatedFiles map[string]bool
-	matched        map[string]struct{}
-	excluded       map[string]struct{}
-	workingDir     string
-}
-
-// addNew adds the newly discovered stack files to the graph per the rules in descendants.
-func (g *stackGraph) addNew(l log.Logger, allFiles []string) {
-	candidates := make([]string, 0)
+// addNewNodesToGraph adds newly discovered stack files to the dependency graph.
+func addNewNodesToGraph(
+	l log.Logger,
+	existingNodes map[string]*StackNode,
+	allFiles []string,
+	generatedFiles map[string]bool,
+	workingDir string,
+) {
+	newFiles := make([]string, 0)
 
 	for _, file := range allFiles {
-		if _, exists := g.nodes[file]; !exists && !g.generatedFiles[file] {
-			candidates = append(candidates, file)
+		if _, exists := existingNodes[file]; !exists && !generatedFiles[file] {
+			newFiles = append(newFiles, file)
 		}
 	}
 
-	if len(candidates) == 0 {
-		return
-	}
-
-	newFiles := g.descendants(candidates)
 	if len(newFiles) == 0 {
 		return
 	}
@@ -474,121 +314,25 @@ func (g *stackGraph) addNew(l log.Logger, allFiles []string) {
 	l.Debugf("Adding %d new stack files to topology graph", len(newFiles))
 
 	for _, file := range newFiles {
-		g.nodes[file] = NewStackNode(file)
+		existingNodes[file] = NewStackNode(file)
 	}
 
 	for _, file := range newFiles {
-		assignNodeLevel(l, g.nodes[file], g.nodes, g.workingDir)
+		node := existingNodes[file]
+		assignNodeLevel(l, node, existingNodes, workingDir)
 	}
 }
 
-// descendants chooses which freshly discovered stack files to add under each already-generated parent.
-func (g *stackGraph) descendants(candidates []string) []string {
-	byParent := make(map[string][]string)
-	orphans := make([]string, 0)
-
-	for _, file := range candidates {
-		parent := findParentStackFile(filepath.Dir(file), g.nodes, g.workingDir)
-		if parent == "" {
-			orphans = append(orphans, file)
-
-			continue
-		}
-
-		byParent[parent] = append(byParent[parent], file)
-	}
-
-	selected := make([]string, 0, len(candidates))
-
-	for _, file := range orphans {
-		if _, isExcluded := g.excluded[file]; isExcluded {
-			continue
-		}
-
-		if _, ok := g.matched[file]; ok {
-			selected = append(selected, file)
-		}
-	}
-
-	for parent, children := range byParent {
-		selective := g.parentIsSelective(g.nodes[parent], children)
-
-		for _, child := range children {
-			if _, isExcluded := g.excluded[child]; isExcluded {
-				continue
-			}
-
-			if _, ok := g.matched[child]; selective && !ok {
-				continue
-			}
-
-			selected = append(selected, child)
-		}
-	}
-
-	// Stable order keeps generation logs and node insertion deterministic across map iterations.
-	slices.Sort(selected)
-
-	return selected
-}
-
-// parentIsSelective reports whether a matched parent has a matched child (a fresh
-// candidate or one already in the graph), so unnamed siblings are pruned.
-func (g *stackGraph) parentIsSelective(parent *StackNode, candidates []string) bool {
-	if parent == nil {
-		return false
-	}
-
-	if _, ok := g.matched[parent.FilePath]; !ok {
-		return false
-	}
-
-	for _, child := range candidates {
-		if _, ok := g.matched[child]; ok {
-			return true
-		}
-	}
-
-	for _, child := range parent.Children {
-		if _, ok := g.matched[child.FilePath]; ok {
-			return true
-		}
-	}
-
-	return false
-}
-
-// toSet builds a set from a slice of file paths.
-func toSet(files []string) map[string]struct{} {
-	set := make(map[string]struct{}, len(files))
-	for _, file := range files {
-		set[file] = struct{}{}
-	}
-
-	return set
-}
-
-// ListStackFiles returns canonical stack-file paths under opts.WorkingDir for the filter restricted to stacks.
+// ListStackFiles returns canonical, symlink-resolved stack-file paths under the absolute opts.WorkingDir.
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
-	return listStackFiles(ctx, l, opts, worktrees, opts.Filters)
-}
-
-// listStackFiles returns canonical stack-file paths for the supplied filters; an empty set returns every stack.
-func listStackFiles(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	worktrees *worktrees.Worktrees,
-	filters filter.Filters,
-) ([]string, error) {
 	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 		WorkingDir:  opts.WorkingDir,
-		Filters:     filters,
+		Filters:     opts.Filters,
 		Experiments: opts.Experiments,
 	})
 	if err != nil {

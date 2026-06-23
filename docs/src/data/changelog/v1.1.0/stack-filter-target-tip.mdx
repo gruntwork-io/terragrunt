@@ -1,0 +1,8 @@
+---
+version: "v1.1.0"
+category: "tips-added"
+---
+
+#### Tip when a stack filter matches stacks but no units to run
+
+`terragrunt stack run --filter './my-stack | type=stack'` selects stacks, which are not run directly, so the run reports "No units discovered". Terragrunt now prints a tip showing how to target the units inside the stack instead, for example `--filter './my-stack/** | type=unit'`.

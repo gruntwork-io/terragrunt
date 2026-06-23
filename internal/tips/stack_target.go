@@ -119,6 +119,46 @@ func filterTargetsStackDir(l log.Logger, f *filter.Filter, fs vfs.FS, workingDir
 	return hit
 }
 
+// GiveStackRunUnitsTip emits the StackRunFilterMatchedStacks tip when a run's
+// filter matched stacks but no units. stackDirs are the working-dir-relative,
+// forward-slashed paths of the matched stacks.
+func GiveStackRunUnitsTip(l log.Logger, allTips Tips, stackDirs []string) {
+	if len(stackDirs) == 0 || allTips == nil {
+		return
+	}
+
+	tip := allTips.Find(StackRunFilterMatchedStacks)
+	if tip == nil {
+		return
+	}
+
+	tip.EvaluateWith(l, buildStackRunUnitsMessage(stackDirs))
+}
+
+// SuggestStackUnitsFilter returns the filter that selects the units inside the
+// stack at the working-dir-relative dir.
+func SuggestStackUnitsFilter(relDir string) string {
+	pattern := "./" + relDir + "/**"
+	if relDir == "" || relDir == "." {
+		pattern = "./**"
+	}
+
+	return pattern + " | type=unit"
+}
+
+func buildStackRunUnitsMessage(stackDirs []string) string {
+	var b strings.Builder
+
+	b.WriteString(StackRunFilterMatchedStacksMessage)
+	b.WriteString(" For example:")
+
+	for _, dir := range stackDirs {
+		fmt.Fprintf(&b, "\n  --filter %q", SuggestStackUnitsFilter(dir))
+	}
+
+	return b.String()
+}
+
 func buildStackTargetMessage(offenders []string) string {
 	var b strings.Builder
 

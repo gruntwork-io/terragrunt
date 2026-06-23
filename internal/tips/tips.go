@@ -20,6 +20,16 @@ const (
 		"`stack generate` will ignore the filter and `run` will not generate just that stack. " +
 		"See https://docs.terragrunt.com/features/filter/#stack-generate"
 
+	// StackRunFilterMatchedStacks is the tip shown when a run's `--filter` matched
+	// stacks but no units, so nothing ran.
+	StackRunFilterMatchedStacks = "stack-run-filter-matched-stacks"
+
+	// StackRunFilterMatchedStacksMessage is the default message for the
+	// stack-run-filter-matched-stacks tip. The runtime message is assembled at
+	// evaluation time so it can list the suggested unit filters.
+	StackRunFilterMatchedStacksMessage = "The filter selected stacks, which are not run directly, so no units matched. " +
+		"To run the units inside a stack, target units instead."
+
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.
 	WindowsSymlinkWarningMessage = "Windows users may encounter silent fallback behavior to provider copying " +
 		"instead of symlinking in OpenTofu/Terraform. " +
@@ -55,6 +65,10 @@ func NewTips() Tips {
 		{
 			Name:    StackTargetMissingTypeStack,
 			Message: StackTargetMissingTypeStackMessage,
+		},
+		{
+			Name:    StackRunFilterMatchedStacks,
+			Message: StackRunFilterMatchedStacksMessage,
 		},
 	}
 }

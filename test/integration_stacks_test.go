@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -50,8 +51,7 @@ const (
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
 	testFixtureNestedStackFilter               = "fixtures/stacks/nested-stack-filter"
-	testFixtureNestedStackDeep                 = "fixtures/stacks/nested-stack-deep"
-	testFixtureNestedStackReading              = "fixtures/stacks/nested-stack-reading"
+	testFixtureStackRunNoUnits                 = "fixtures/stacks/stack-run-no-units"
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
 	testFixtureStackDependencies               = "fixtures/stacks/dependencies"
 	testFixtureStackSourceMap                  = "fixtures/stacks/source-map"
@@ -2100,40 +2100,8 @@ func TestStackGenerateWithFilter(t *testing.T) {
 	require.DirExists(t, prodDir)
 }
 
-// TestStackGenerateFilterRecursesNestedStack checks filtering a parent stack generates its full nested subtree without pulling in unselected siblings.
-func TestStackGenerateFilterRecursesNestedStack(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStackFilter)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackFilter)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStackFilter)
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(rootPath)
-	require.NoError(t, runner.Init(t.Context()))
-
-	helpers.RunTerragrunt(
-		t,
-		"terragrunt stack generate --working-dir "+rootPath+" --filter './stacks/first | type=stack'",
-	)
-
-	nestedStackDir := filepath.Join(rootPath, "stacks", "first", ".terragrunt-stack", "first")
-
-	// The parent's immediate child stack is generated.
-	require.FileExists(t, filepath.Join(nestedStackDir, "terragrunt.stack.hcl"))
-
-	// The nested stack's units are generated too; before the fix generation stopped here.
-	require.FileExists(t, filepath.Join(nestedStackDir, ".terragrunt-stack", "module_1", "terragrunt.hcl"))
-	require.FileExists(t, filepath.Join(nestedStackDir, ".terragrunt-stack", "module_2", "terragrunt.hcl"))
-
-	// The unselected sibling stack must not be generated.
-	require.NoDirExists(t, filepath.Join(rootPath, "stacks", "second", ".terragrunt-stack"))
-}
-
-// TestStackRunFilterRunsNestedStackUnits checks running with a filter on only the parent stack executes every unit in its subtree.
-func TestStackRunFilterRunsNestedStackUnits(t *testing.T) {
+// TestStackRunFilterStackTargetTip verifies that running a stack-restricted filter that matches stacks but no units prints a tip on how to target the units instead.
+func TestStackRunFilterStackTargetTip(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureNestedStackFilter)
@@ -2148,23 +2116,22 @@ func TestStackRunFilterRunsNestedStackUnits(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run apply --filter './stacks/first | type=stack' --non-interactive --report-file report.json --working-dir "+rootPath,
+		"terragrunt stack run apply --filter './stacks/first | type=stack' --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
-	assert.NotContains(t, stderr, "No units discovered")
 
-	runs := helpers.ReadReport(t, rootPath, "report.json")
-	assert.NotNil(t, runs.FindByName("stacks/first/.terragrunt-stack/first/.terragrunt-stack/module_1"))
-	assert.NotNil(t, runs.FindByName("stacks/first/.terragrunt-stack/first/.terragrunt-stack/module_2"))
+	assert.Contains(t, stderr, "To run the units inside a stack")
+	assert.Contains(t, stderr, "./stacks/first/** | type=unit")
 }
 
-// TestStackRunFilterHonorsNegatedNestedUnit checks an explicit "!" unit exclusion survives the stack-to-unit expansion.
-func TestStackRunFilterHonorsNegatedNestedUnit(t *testing.T) {
+// TestStackRunNoFilterDoesNotShowStackTip guards against a false positive: an empty
+// run with no filter (e.g. ungenerated stacks) must not claim a filter selected stacks.
+func TestStackRunNoFilterDoesNotShowStackTip(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStackFilter)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackFilter)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStackFilter)
+	helpers.CleanupTerraformFolder(t, testFixtureStackRunNoUnits)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackRunNoUnits)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackRunNoUnits)
 
 	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
@@ -2172,206 +2139,14 @@ func TestStackRunFilterHonorsNegatedNestedUnit(t *testing.T) {
 	runner = runner.WithWorkDir(rootPath)
 	require.NoError(t, runner.Init(t.Context()))
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run apply --filter './stacks/first | type=stack' "+
-			"--filter '!./stacks/first/.terragrunt-stack/first/.terragrunt-stack/module_2' "+
-			"--non-interactive --report-file report.json --working-dir "+rootPath,
+		"terragrunt stack run apply --no-stack-generate --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	runs := helpers.ReadReport(t, rootPath, "report.json")
-	assert.NotNil(t, runs.FindByName("stacks/first/.terragrunt-stack/first/.terragrunt-stack/module_1"))
-	assert.Nil(t, runs.FindByName("stacks/first/.terragrunt-stack/first/.terragrunt-stack/module_2"))
-}
-
-// TestStackRunFilterMixedUnitAndStack checks a union of a stack filter and a unit filter runs the stack's units plus the directly matched unit.
-func TestStackRunFilterMixedUnitAndStack(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStackFilter)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackFilter)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStackFilter)
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(rootPath)
-	require.NoError(t, runner.Init(t.Context()))
-
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt stack run apply --filter './stacks/first | type=stack' --filter './solo' "+
-			"--non-interactive --report-file report.json --working-dir "+rootPath,
-	)
-	require.NoError(t, err)
-
-	runs := helpers.ReadReport(t, rootPath, "report.json")
-	assert.NotNil(t, runs.FindByName("solo"))
-	assert.NotNil(t, runs.FindByName("stacks/first/.terragrunt-stack/first/.terragrunt-stack/module_1"))
-	assert.NotNil(t, runs.FindByName("stacks/first/.terragrunt-stack/first/.terragrunt-stack/module_2"))
-}
-
-// TestStackRunFilterSelectiveNestedStaysStable guards the double-generation pass from leaking unnamed sibling stacks into the run.
-func TestStackRunFilterSelectiveNestedStaysStable(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
-	liveDir := filepath.Join(rootPath, "live")
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(rootPath)
-	require.NoError(t, runner.Init(t.Context()))
-
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt stack run apply --filter 'live | type=stack' --filter 'dev | type=stack' "+
-			"--non-interactive --report-file report.json --working-dir "+liveDir,
-	)
-	require.NoError(t, err)
-
-	runs := helpers.ReadReport(t, liveDir, "report.json")
-	assert.NotNil(t, runs.FindByName(".terragrunt-stack/dev/.terragrunt-stack/api"))
-
-	// prod was not named, so none of its units run even though stack run generates twice.
-	assert.Nil(t, runs.FindByName(".terragrunt-stack/prod/.terragrunt-stack/api"))
-	assert.NoDirExists(t, filepath.Join(liveDir, ".terragrunt-stack", "prod", ".terragrunt-stack"))
-}
-
-// TestStackGenerateFilterDeepCompoundKeepsSibling checks a compound filter matching a deep nested stack does not prune its sibling.
-func TestStackGenerateFilterDeepCompoundKeepsSibling(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStackDeep)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackDeep)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStackDeep)
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(rootPath)
-	require.NoError(t, runner.Init(t.Context()))
-
-	helpers.RunTerragrunt(
-		t,
-		"terragrunt stack generate --working-dir "+rootPath+
-			" --filter './live | type=stack' --filter 'name=a | type=stack'",
-	)
-
-	midStack := filepath.Join(rootPath, "live", ".terragrunt-stack", "mid", ".terragrunt-stack")
-
-	// The named deep stack and its unnamed sibling under the fully recursed parent are both generated.
-	require.FileExists(t, filepath.Join(midStack, "a", ".terragrunt-stack", "unit_a", "terragrunt.hcl"))
-	require.FileExists(t, filepath.Join(midStack, "b", ".terragrunt-stack", "unit_b", "terragrunt.hcl"))
-}
-
-// TestStackGenerateFilterBareNegatedTypeKeepsSubtree checks a bare "!type=unit" (excluding zero stacks) does not suppress a selected subtree.
-func TestStackGenerateFilterBareNegatedTypeKeepsSubtree(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStackDeep)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackDeep)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStackDeep)
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(rootPath)
-	require.NoError(t, runner.Init(t.Context()))
-
-	helpers.RunTerragrunt(
-		t,
-		"terragrunt stack generate --working-dir "+rootPath+
-			" --filter './live | type=stack' --filter '!type=unit'",
-	)
-
-	midStack := filepath.Join(rootPath, "live", ".terragrunt-stack", "mid", ".terragrunt-stack")
-
-	require.FileExists(t, filepath.Join(midStack, "a", ".terragrunt-stack", "unit_a", "terragrunt.hcl"))
-	require.FileExists(t, filepath.Join(midStack, "b", ".terragrunt-stack", "unit_b", "terragrunt.hcl"))
-}
-
-// TestStackGenerateFilterPathNegationExcludesNestedStack checks a path-only negation (no type=stack) excludes a nested stack during full recursion.
-func TestStackGenerateFilterPathNegationExcludesNestedStack(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStackDeep)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackDeep)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStackDeep)
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(rootPath)
-	require.NoError(t, runner.Init(t.Context()))
-
-	helpers.RunTerragrunt(
-		t,
-		"terragrunt stack generate --working-dir "+rootPath+
-			" --filter './live | type=stack' --filter '!./**/a'",
-	)
-
-	midStack := filepath.Join(rootPath, "live", ".terragrunt-stack", "mid", ".terragrunt-stack")
-
-	require.FileExists(t, filepath.Join(midStack, "b", ".terragrunt-stack", "unit_b", "terragrunt.hcl"))
-	require.NoDirExists(t, filepath.Join(midStack, "a", ".terragrunt-stack"))
-}
-
-// TestStackGenerateFilterReadingSelectsNestedStack checks a reading= filter (needs parsing) selects a nested stack during recursion and prunes its sibling.
-func TestStackGenerateFilterReadingSelectsNestedStack(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStackReading)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackReading)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStackReading)
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(rootPath)
-	require.NoError(t, runner.Init(t.Context()))
-
-	helpers.RunTerragrunt(
-		t,
-		"terragrunt stack generate --working-dir "+rootPath+
-			" --filter './live | type=stack' --filter 'reading=marker.txt | type=stack'",
-	)
-
-	liveStack := filepath.Join(rootPath, "live", ".terragrunt-stack")
-
-	// Stack x reads marker.txt so it is selected; its unnamed sibling y is pruned.
-	require.FileExists(t, filepath.Join(liveStack, "x", ".terragrunt-stack", "ux", "terragrunt.hcl"))
-	require.NoDirExists(t, filepath.Join(liveStack, "y", ".terragrunt-stack"))
-}
-
-// TestStackGenerateFilterHonorsNegatedNestedStack checks a negated stack filter excludes a nested stack inside a fully recursed parent.
-func TestStackGenerateFilterHonorsNegatedNestedStack(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStackDeep)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackDeep)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStackDeep)
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(rootPath)
-	require.NoError(t, runner.Init(t.Context()))
-
-	helpers.RunTerragrunt(
-		t,
-		"terragrunt stack generate --working-dir "+rootPath+
-			" --filter './live | type=stack' --filter '!./**/a | type=stack'",
-	)
-
-	midStack := filepath.Join(rootPath, "live", ".terragrunt-stack", "mid", ".terragrunt-stack")
-
-	require.FileExists(t, filepath.Join(midStack, "b", ".terragrunt-stack", "unit_b", "terragrunt.hcl"))
-	require.NoDirExists(t, filepath.Join(midStack, "a", ".terragrunt-stack"))
+	assert.Contains(t, stderr, "No units discovered")
+	assert.NotContains(t, stderr, tips.StackRunFilterMatchedStacks)
 }
 
 // TestStackGenerateDedupAtDiscoveryWithRacing guards intra-invocation duplicate-dispatch under -race.

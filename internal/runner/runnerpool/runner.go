@@ -27,6 +27,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -222,6 +223,8 @@ func NewRunnerPoolStack(
 
 	if len(nonStackComponents) == 0 {
 		l.Warnf("No units discovered. Creating an empty runner.")
+
+		giveStackFilterRunTip(l, opts, discovered)
 
 		stack := component.NewStack(opts.WorkingDir)
 
@@ -1029,4 +1032,33 @@ func logTaskOutcome(ctx context.Context, l log.Logger, unitPath, command string,
 	}
 
 	l.Debugf("Runner Pool Task: finished unit=%s command=%s outcome=%s", unitPath, command, outcome)
+}
+
+// giveStackFilterRunTip helps users who filtered a stack for a run: a stack-restricted
+// filter selects stacks, which are not executed, so no units run. It surfaces the
+// stack-run-filter-matched-stacks tip showing how to target the units instead.
+func giveStackFilterRunTip(l log.Logger, opts *options.TerragruntOptions, discovered component.Components) {
+	// Only relevant when a filter is what narrowed the run to stacks. Without a
+	// filter, an empty run (e.g. ungenerated or empty stacks) is not caused by
+	// stack-targeting, so the tip would be a false positive.
+	if len(opts.Filters) == 0 {
+		return
+	}
+
+	stackDirs := make([]string, 0)
+
+	for _, c := range discovered {
+		if _, ok := c.(*component.Stack); !ok {
+			continue
+		}
+
+		rel, err := filepath.Rel(opts.WorkingDir, c.Path())
+		if err != nil {
+			rel = c.Path()
+		}
+
+		stackDirs = append(stackDirs, filepath.ToSlash(rel))
+	}
+
+	tips.GiveStackRunUnitsTip(l, opts.Tips, stackDirs)
 }
