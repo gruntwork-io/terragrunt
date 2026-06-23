@@ -297,6 +297,37 @@ func TestProcessStackComponent_EmptySourceFails(t *testing.T) {
 	require.Error(t, err, "empty source must be rejected")
 }
 
+// TestProcessStackComponent_LocalSource_NonLiteralSourceFails pins the
+// end-to-end behavior for a unit block whose source is a bare reference. The
+// raw-token reader used to extract an empty string from such an expression,
+// which resolved to the block's own directory and silently packaged it.
+// Processing must fail with ErrSourceNotLiteral instead.
+func TestProcessStackComponent_LocalSource_NonLiteralSourceFails(t *testing.T) {
+	t.Parallel()
+
+	c, v := newCAS(t)
+	l := logger.CreateLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	stackDir := filepath.Join(root, "stacks", "my-stack")
+	require.NoError(t, os.MkdirAll(stackDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "terragrunt.stack.hcl"),
+		[]byte(`unit "service" {
+  source = local.foo
+
+  update_source_with_cas = true
+
+  path = "service"
+}
+`),
+		0o644,
+	))
+
+	_, err := c.ProcessStackComponent(t.Context(), l, v, root+"//stacks/my-stack", "stack")
+	require.ErrorIs(t, err, cas.ErrSourceNotLiteral)
+}
+
 // TestProcessStackComponent_GitForcerRoutesRemote confirms that a source with
 // a "git::" forcer is treated as remote even though the rest of the string
 // could parse as a path. The in-process test server stands in for a real

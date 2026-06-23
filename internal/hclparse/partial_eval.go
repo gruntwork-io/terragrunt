@@ -50,7 +50,7 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 	if IsPure(expr, args.Deferred) {
 		val, diags := expr.Value(args.EvalCtx)
 		// hclwrite.TokensForValue panics on unknown values; resolve only wholly-known values here.
-		if !diags.HasErrors() && val.IsWhollyKnown() {
+		if !diags.HasErrors() && val.IsWhollyKnown() && valueRendersAsHCLLiteral(val, 0) {
 			return valueToHCLBytes(val), nil
 		}
 
@@ -78,6 +78,9 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 		return partialEvalFunctionCall(e, args)
 	case *hclsyntax.ObjectConsExpr:
 		return partialEvalObject(e, args)
+	// Reached only for an expression key (see objectKeyIsExpression) that defers or failed whole-key evaluation.
+	case *hclsyntax.ObjectConsKeyExpr:
+		return partialEvalObjectKey(e, args)
 	case *hclsyntax.TupleConsExpr:
 		return partialEvalTuple(e, args)
 	case *hclsyntax.ConditionalExpr:
@@ -117,11 +120,13 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]by
 	}
 
 	val, diags := e.Value(args.EvalCtx)
-	if !diags.HasErrors() && val.IsWhollyKnown() {
+	// A non-finite number (e.g. a local resolving to 1/0 -> Inf) renders as an invalid bare "Inf", so it is treated as
+	// unresolved and kept verbatim, mirroring the whole-expression guard in PartialEval.
+	if !diags.HasErrors() && val.IsWhollyKnown() && valueRendersAsHCLLiteral(val, 0) {
 		return valueToHCLBytes(val), nil
 	}
 
-	return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "traversal value is null or unknown at generation time", Err: diags}
+	return RangeBytes(args.SrcBytes, e.Range()), PartialEvalUnresolvedError{Reason: "traversal value is null, unknown, or non-finite at generation time", Err: diags}
 }
 
 // partialEvalChildren rebuilds parent source bytes with each child replaced by its PartialEval output; gaps stay verbatim.
@@ -230,7 +235,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, err
 	buf.WriteByte('"')
 
 	for _, part := range e.Parts {
-		if lit, ok := part.(*hclsyntax.LiteralValueExpr); ok {
+		if lit, ok := part.(*hclsyntax.LiteralValueExpr); ok && lit.Val.Type() == cty.String {
 			buf.Write(HCLStringContent(lit.Val.AsString()))
 
 			continue
@@ -247,6 +252,13 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, err
 					continue
 				}
 			}
+		}
+
+		// A %{ for }/%{ if } directive part spans its own markers and cannot be re-emitted inside ${...}, so it is emitted verbatim as a unit and resolves in the generated unit.
+		if directiveBytes, isDirective := templateDirectiveSource(part, args.SrcBytes); isDirective {
+			buf.Write(directiveBytes)
+
+			continue
 		}
 
 		// Deferred or eval failed: emit as interpolation.
@@ -266,6 +278,32 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, err
 	return buf.Bytes(), firstErr
 }
 
+// templateDirectiveSource returns the verbatim source of a %{ for }/%{ if } directive part, or nil and false for any other template part. hclsyntax has no directive node, so detection is per synthesized type: only those two types can ever take the verbatim path, every other part keeps its ${...} wrapping.
+func templateDirectiveSource(part hclsyntax.Expression, src []byte) ([]byte, bool) {
+	srcBytes := RangeBytes(src, part.Range())
+	if len(srcBytes) == 0 {
+		return nil, false
+	}
+
+	switch part.(type) {
+	// A TemplateJoinExpr is synthesized only by a %{ for } directive.
+	case *hclsyntax.TemplateJoinExpr:
+		return srcBytes, true
+	// A %{ if } directive desugars to a ConditionalExpr that, unlike a genuine ${cond ? a : b} interpolation, spans its own directive markers and so does not re-parse as a standalone expression.
+	case *hclsyntax.ConditionalExpr:
+		return srcBytes, !isExpressionSource(srcBytes)
+	default:
+		return nil, false
+	}
+}
+
+// isExpressionSource reports whether src parses as a standalone HCL expression; an interpolation part does (its range is exactly the inner expression) while a directive part does not (its range spans the directive markers).
+func isExpressionSource(src []byte) bool {
+	_, diags := hclsyntax.ParseExpression(src, "", hcl.Pos{Line: 1, Column: 1})
+
+	return !diags.HasErrors()
+}
+
 // HCLStringContent returns the inner content of an HCL-escaped string
 // (without surrounding quotes). Uses hclwrite.TokensForValue for correct
 // escaping of all HCL special characters.
@@ -277,13 +315,56 @@ func HCLStringContent(s string) []byte {
 }
 
 func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) ([]byte, error) {
-	// Stitch only the value expressions; keys + `=` + `,` + braces stay verbatim from the source.
-	children := make([]hclsyntax.Expression, len(e.Items))
-	for i, item := range e.Items {
-		children[i] = item.ValueExpr
+	// Stitch the value expressions plus any expression keys; a literal-name key stays verbatim from the source like the `=` + `,` + braces.
+	children := make([]hclsyntax.Expression, 0, len(e.Items))
+
+	for _, item := range e.Items {
+		if objectKeyIsExpression(item.KeyExpr) {
+			children = append(children, item.KeyExpr)
+		}
+
+		children = append(children, item.ValueExpr)
 	}
 
 	return partialEvalChildren(args, e.Range(), children)
+}
+
+// objectKeyIsExpression reports whether HCL evaluates an object key as an expression (interpolated template, function call, or parenthesized key); a naked identifier or keyword key is a literal string (mirrors ObjectConsKeyExpr's literal-name detection) and a naked multi-step traversal key keeps its source form so HCL's ambiguity error surfaces where the object is evaluated.
+func objectKeyIsExpression(keyExpr hclsyntax.Expression) bool {
+	key, ok := keyExpr.(*hclsyntax.ObjectConsKeyExpr)
+	if !ok {
+		return false
+	}
+
+	// A parenthesized key is always evaluated as an expression, even when it wraps a bare identifier.
+	if key.ForceNonLiteral {
+		return true
+	}
+
+	if hcl.ExprAsKeyword(key.Wrapped) != "" {
+		return false
+	}
+
+	if _, naked := key.Wrapped.(*hclsyntax.ScopeTraversalExpr); naked {
+		return false
+	}
+
+	return true
+}
+
+// partialEvalObjectKey renders an expression key that defers or failed whole-key evaluation; a single-interpolation key (TemplateWrapExpr) re-emits its "${...}" wrapper around the partially evaluated inner expression, because the naked inner expression changes meaning in key position (ambiguous or literal-string HCL).
+func partialEvalObjectKey(e *hclsyntax.ObjectConsKeyExpr, args *EvalArgs) ([]byte, error) {
+	wrap, ok := e.Wrapped.(*hclsyntax.TemplateWrapExpr)
+	if !ok {
+		return PartialEval(e.Wrapped, args)
+	}
+
+	inner, err := PartialEval(wrap.Wrapped, args)
+
+	out := append([]byte(`"${`), inner...)
+	out = append(out, '}', '"')
+
+	return out, err
 }
 
 func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) ([]byte, error) {
@@ -298,4 +379,35 @@ func valueToHCLBytes(val cty.Value) []byte {
 	tokens := hclwrite.TokensForValue(val)
 
 	return tokens.Bytes()
+}
+
+// maxCtyRenderWalkDepth bounds the valueRendersAsHCLLiteral walk to prevent stack overflow on pathological values.
+const maxCtyRenderWalkDepth = maxPartialEvalDepth
+
+// valueRendersAsHCLLiteral reports whether val and its nested elements contain no non-finite number (which hclwrite emits as an invalid bare "Inf").
+func valueRendersAsHCLLiteral(val cty.Value, depth int) bool {
+	if depth > maxCtyRenderWalkDepth {
+		return false
+	}
+
+	if val.IsNull() || !val.IsKnown() {
+		return true
+	}
+
+	valType := val.Type()
+
+	if valType == cty.Number {
+		return !val.AsBigFloat().IsInf()
+	}
+
+	if valType.IsListType() || valType.IsSetType() || valType.IsTupleType() || valType.IsMapType() || valType.IsObjectType() {
+		for it := val.ElementIterator(); it.Next(); {
+			_, elem := it.Element()
+			if !valueRendersAsHCLLiteral(elem, depth+1) {
+				return false
+			}
+		}
+	}
+
+	return true
 }

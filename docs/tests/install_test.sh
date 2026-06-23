@@ -86,6 +86,7 @@ test_help_output() {
 		[[ "$output" == *"--force"* ]] &&
 		[[ "$output" == *"--no-verify-sig"* ]] &&
 		[[ "$output" == *"--verify-cosign"* ]] &&
+		[[ "$output" == *"--no-verify-attestation"* ]] &&
 		[[ "$output" == *"--no-verify"* ]]
 }
 
@@ -415,6 +416,54 @@ test_gpg_is_default_signature_method() {
 		[[ "$output" == *"Signature verified"* ]]
 }
 
+test_attestation_verification() {
+	# Requires an authenticated GitHub CLI new enough for 'gh release verify-asset'
+	command -v gh &>/dev/null || {
+		echo "gh required"
+		return 1
+	}
+	gh auth status &>/dev/null || {
+		echo "authenticated gh required"
+		return 1
+	}
+
+	local tmpdir
+	tmpdir=$(mktemp -d)
+	# shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+	trap "rm -rf '$tmpdir'" RETURN
+
+	# v1.1.0-rc1 is the first release published with a release attestation
+	local output
+	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v1.1.0-rc1 --no-verify-sig 2>&1)
+	[[ "$output" == *"Verifying release attestation"* ]] &&
+		[[ "$output" == *"Release attestation verified"* ]] &&
+		[[ -f "$tmpdir/terragrunt" ]]
+}
+
+test_no_verify_attestation_skips() {
+	local tmpdir
+	tmpdir=$(mktemp -d)
+	# shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+	trap "rm -rf '$tmpdir'" RETURN
+
+	local output
+	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v1.1.0-rc1 --no-verify-sig --no-verify-attestation 2>&1)
+	[[ "$output" != *"attestation"* ]] &&
+		[[ -f "$tmpdir/terragrunt" ]]
+}
+
+test_old_version_skips_attestation() {
+	local tmpdir
+	tmpdir=$(mktemp -d)
+	# shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+	trap "rm -rf '$tmpdir'" RETURN
+
+	# v0.72.5 predates release attestations, should skip gracefully
+	local output
+	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig 2>&1)
+	[[ "$output" == *"Skipping release attestation verification: not available for versions older than"* ]]
+}
+
 # --- Platform-Specific Tests ---
 
 test_macos_shasum_fallback() {
@@ -602,6 +651,9 @@ main() {
 		skip_test "--no-verify-sig skips signature"
 		skip_test "Cosign signature verification"
 		skip_test "GPG is default signature method"
+		skip_test "Release attestation verification"
+		skip_test "--no-verify-attestation skips attestation"
+		skip_test "Old version skips attestation verification"
 		skip_test "Temp directory cleanup"
 	else
 		echo "--- Integration Tests (require network) ---"
@@ -621,6 +673,9 @@ main() {
 		run_test "--no-verify-sig skips signature" test_no_verify_sig_skips_signature
 		run_test "Cosign signature verification" test_cosign_signature_verification
 		run_test "GPG is default signature method" test_gpg_is_default_signature_method
+		run_test "Release attestation verification" test_attestation_verification
+		run_test "--no-verify-attestation skips attestation" test_no_verify_attestation_skips
+		run_test "Old version skips attestation verification" test_old_version_skips_attestation
 		run_test "Temp directory cleanup" test_temp_directory_cleanup
 	fi
 	echo ""

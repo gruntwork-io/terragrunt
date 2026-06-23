@@ -10,13 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFilesReadDeduplicates(t *testing.T) {
+func TestFilesReadDeduplicatesAndSorts(t *testing.T) {
 	t.Parallel()
 
 	f := config.NewFilesRead()
-	f.Add("a")
 	f.Add("b")
 	f.Add("a")
+	f.Add("b")
 
 	assert.Equal(t, []string{"a", "b"}, f.Paths())
 	assert.Equal(t, 2, f.Len())
@@ -33,10 +33,10 @@ func TestFilesReadNilReceiver(t *testing.T) {
 }
 
 // TestFilesReadConcurrentAddWithRacing pins the concurrency-safety of FilesRead.
-// Without the mutex, concurrent Add calls produce a slice header / backing
-// array mismatch that crashes inside slices.Contains (the original panic seen
-// in TestStackOutputsRaw). The -race suffix flags this test for CI execution
-// under `go test -race`.
+// Without the mutex, concurrent Add calls fault on concurrent map writes; the
+// pre-FilesRead version of this race crashed inside slices.Contains (the panic
+// originally seen in TestStackOutputsRaw). The -race suffix flags this test for
+// CI execution under `go test -race`.
 func TestFilesReadConcurrentAddWithRacing(t *testing.T) {
 	t.Parallel()
 

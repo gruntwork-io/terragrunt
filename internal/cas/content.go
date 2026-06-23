@@ -260,7 +260,7 @@ func (c *Content) EnsureCopy(l log.Logger, v Venv, hash, src string) (err error)
 			return
 		}
 
-		if rmErr := v.FS.Remove(tempPath); rmErr != nil && !os.IsNotExist(rmErr) {
+		if rmErr := v.FS.Remove(tempPath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
 			err = errors.Join(err, rmErr)
 		}
 	}()

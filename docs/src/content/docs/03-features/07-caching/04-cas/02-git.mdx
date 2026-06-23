@@ -7,11 +7,14 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
 
+<Before version="1.1.0">
 <Aside type="tip" title="Experimental">
 CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
 </Aside>
 
+</Before>
 Git is the most common source Terragrunt fetches and has the richest support in the CAS.
 
 ## Overview
@@ -46,6 +49,14 @@ Git is unique among the getters in that a cache miss is not always all-or-nothin
 ## Cache hit
 
 When the commit hash is already keyed in the store, Terragrunt reads the tree and hard links its blobs into the target without fetching again from the remote. For a pinned commit SHA that is already cached, even the ref-resolution step stays offline.
+
+## Submodules
+
+A submodule is recorded in the parent repository as a pointer to a commit in another repository. During a fetch, Terragrunt reads the submodule URL from `.gitmodules`, fetches the pinned commit from that URL into the same central store layout, and materializes the submodule contents in place. Nested submodules are handled the same way, and relative URLs (such as `../sibling.git`) are resolved against the parent repository URL.
+
+Each submodule tree is keyed by its pinned commit hash, so submodule contents are deduplicated like any other content: two repositories pinning the same submodule commit share one stored tree, and a submodule that does not change between parent commits is never fetched again.
+
+A committed submodule path with no `.gitmodules` entry (typically an accidentally committed nested repository) becomes an empty directory, the same result a plain `git clone` produces.
 
 ## Fallback behavior
 

@@ -1277,8 +1277,8 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 func TestInvalidSource(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureNotExistingSource)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(testFixtureNotExistingSource)
 	generateTestCase := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
@@ -3478,37 +3478,6 @@ func TestReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) {
 	}
 }
 
-func TestNoDiscoveryAuthProviderCmdRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, defeating the experiment-gate check this test pins")
-	}
-
-	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "run-all-call-count")
-
-	testCases := []struct {
-		name string
-		args string
-	}{
-		{name: "find", args: "find --no-discovery-auth-provider-cmd --working-dir " + rootPath},
-		{name: "list", args: "list --no-discovery-auth-provider-cmd --working-dir " + rootPath},
-		{name: "run", args: "run --no-discovery-auth-provider-cmd --working-dir " + rootPath + " -- plan"},
-		{name: "shortcut", args: "apply --no-discovery-auth-provider-cmd --working-dir " + rootPath},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args)
-			require.ErrorIs(t, err, shared.ErrNoDiscoveryAuthProviderCmdRequiresExperiment)
-		})
-	}
-}
-
 func TestNoDiscoveryAuthProviderCmdSkipsDiscoveryAuthWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -3525,7 +3494,7 @@ func TestNoDiscoveryAuthProviderCmdSkipsDiscoveryAuthWithRacing(t *testing.T) {
 		t,
 		fmt.Sprintf(
 			"terragrunt run --all apply --non-interactive "+
-				"--no-discovery-auth-provider-cmd --experiment opt-out-auth "+
+				"--no-discovery-auth-provider-cmd "+
 				"--working-dir %s --auth-provider-cmd %s",
 			rootPath,
 			authProviderCmd,
@@ -3703,7 +3672,7 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownload)
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture(testFixtureDownload)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureStdout)
 
@@ -3728,8 +3697,8 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureDownload)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(testFixtureDownload)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureAutoInit)
 
@@ -4378,8 +4347,8 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 func TestLogFormatJSONOutput(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureNotExistingSource)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(testFixtureNotExistingSource)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 

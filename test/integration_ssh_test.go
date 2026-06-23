@@ -12,8 +12,11 @@ import (
 )
 
 func TestSSHSourceMapWithSlashInRef(t *testing.T) {
-	mirror := helpers.StartTerragruntMirror(t)
-	mirror.RequireSSH(t)
+	mirror := helpers.NewGitServer(t)
+	// The fixture's source is redirected to the server via --source-map
+	// (not a placeholder), so name the fixture it ends up cloning.
+	mirror.AddFixtures("test/fixtures/download/hello-world-no-remote")
+	mirror.RequireSSH()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -33,10 +36,10 @@ func TestSSHSourceMapWithSlashInRef(t *testing.T) {
 }
 
 func TestSSHTerragruntNoWarningRemotePath(t *testing.T) {
-	mirror := helpers.StartTerragruntMirror(t)
-	mirror.RequireSSH(t)
+	mirror := helpers.NewGitServer(t)
+	mirror.RequireSSH()
 
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureNoSubmodules)
+	tmpEnvPath := mirror.RenderFixture(testFixtureNoSubmodules)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNoSubmodules)
 
@@ -48,10 +51,10 @@ func TestSSHTerragruntNoWarningRemotePath(t *testing.T) {
 }
 
 func TestSSHDownloadSourceWithRef(t *testing.T) {
-	mirror := helpers.StartTerragruntMirror(t)
-	mirror.RequireSSH(t)
+	mirror := helpers.NewGitServer(t)
+	mirror.RequireSSH()
 
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureRefSource)
+	tmpEnvPath := mirror.RenderFixture(testFixtureRefSource)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureRefSource)
 

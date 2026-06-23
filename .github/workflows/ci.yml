@@ -139,4 +139,32 @@ jobs:
       checks: write
     secrets: inherit
 
+  # Process the test outputs from every job above and fail if any test defined in
+  # the code base was never executed by any job (e.g. a build-tagged test whose
+  # name does not match its job's -run filter).
+  detect_never_run_tests:
+    needs: [base_tests, integration_tests, oidc_integration_tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          version: 2026.5.12
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download test outputs from all jobs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: test-outputs
+
+      - name: Detect tests that never ran
+        run: ./.github/scripts/ci/check-tests-ran.sh test-outputs ./internal/... ./pkg/...
+
 

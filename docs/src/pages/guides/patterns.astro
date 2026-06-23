@@ -1,0 +1,39 @@
+---
+export const prerender = true;
+
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { getCollection } from 'astro:content';
+import { sortPatternEntries } from '@lib/patterns';
+
+const patterns = sortPatternEntries(await getCollection('patterns'));
+---
+
+<StarlightPage
+  frontmatter={{
+    title: 'Terragrunt Patterns',
+    description: 'Real-world patterns and examples for building with Terragrunt.',
+    tableOfContents: false,
+  }}
+>
+  <p>Real-world patterns and examples for building with Terragrunt.</p>
+
+  {patterns.length === 0 ? (
+    <p><em>No patterns have been added yet.</em></p>
+  ) : (
+    <ul class="grid grid-cols-1 min-[50rem]:grid-cols-2 gap-4 list-none p-0 mt-6 mx-0 mb-0">
+      {patterns.map((entry) => (
+        <li class="m-0">
+          <a
+            href={`/guides/patterns/${entry.id}`}
+            class="flex flex-col gap-2 h-full p-5 rounded-lg border border-(--sl-color-gray-5) bg-(--sl-color-black) text-inherit no-underline transition-colors duration-150 hover:border-(--sl-color-accent) hover:bg-(--sl-color-gray-6) focus-visible:border-(--sl-color-accent) focus-visible:bg-(--sl-color-gray-6)"
+          >
+            <span class="text-(length:--sl-text-h4) font-semibold leading-[1.3] text-(--sl-color-white)">{entry.data.title}</span>
+            <span class="leading-normal text-(--sl-color-gray-2)">{entry.data.description}</span>
+            {/* `mt-auto` pushes the author to the bottom so cards in a row align. */}
+            <span class="mt-auto text-(length:--sl-text-sm) text-(--sl-color-gray-3) before:content-['By_']">{entry.data.author}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+</StarlightPage>

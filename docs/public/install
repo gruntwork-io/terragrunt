@@ -27,11 +27,18 @@
 #   --commit SHA             Specify commit SHA for --tip or --test builds
 #   --verify-cosign          Use Cosign instead of GPG for signature verification
 #   --no-verify-sig          Skip GPG/Cosign signature verification
+#   --no-verify-attestation  Skip GitHub release attestation verification
 #   --no-verify              Skip SHA256 checksum verification
 #   -h, --help               Show this help message
 #
 # Signature verification (GPG) is enabled by default for versions >= v0.98.0.
 # Use --no-verify-sig to skip, or --verify-cosign to use Cosign instead of GPG.
+#
+# Release attestation verification is enabled by default for versions >= v1.1.0,
+# which are published as immutable releases. It checks the downloaded assets
+# against the release attestation using the GitHub CLI (gh) v2.81.0+, and is
+# skipped with a warning when gh is unavailable or unauthenticated.
+# Use --no-verify-attestation to skip.
 #
 # Environment:
 #   TERRAGRUNT_VERSION       Override version (same as -v)
@@ -46,6 +53,10 @@ readonly DEFAULT_INSTALL_DIR="${HOME}/.terragrunt/bin"
 readonly BINARY_NAME="terragrunt"
 # Minimum version that has signed release assets (GPG and Cosign)
 readonly MIN_SIGNED_VERSION="0.98.0"
+# Minimum version published as an immutable release with a release attestation
+readonly MIN_ATTESTED_VERSION="1.1.0"
+# Minimum GitHub CLI version that supports 'gh release verify-asset'
+readonly MIN_GH_ATTESTATION_VERSION="2.81.0"
 # Builds API base URL for tip/test builds
 readonly BUILDS_API_BASE="https://builds.terragrunt.com"
 
@@ -100,11 +111,17 @@ Options:
   --commit SHA             Specify commit SHA for --tip or --test builds
   --verify-cosign          Use Cosign instead of GPG for signature verification
   --no-verify-sig          Skip GPG/Cosign signature verification
+  --no-verify-attestation  Skip GitHub release attestation verification
   --no-verify              Skip SHA256 checksum verification
   -h, --help               Show this help message
 
 Signature verification (GPG) is enabled by default for versions >= v0.98.0.
 Use --no-verify-sig to skip, or --verify-cosign to use Cosign instead of GPG.
+
+Release attestation verification is enabled by default for versions >= v1.1.0,
+which are published as immutable releases. It requires an authenticated
+GitHub CLI (gh) v2.81.0+ and is skipped with a warning when unavailable.
+Use --no-verify-attestation to skip.
 
 Examples:
   # Install latest version
@@ -172,6 +189,23 @@ version_gte() {
 supports_signature_verification() {
     local version=$1
     version_gte "$version" "$MIN_SIGNED_VERSION"
+}
+
+# Check if version is published as an immutable release with a release attestation
+supports_attestation_verification() {
+    local version=$1
+    version_gte "$version" "$MIN_ATTESTED_VERSION"
+}
+
+# Check if an installed GitHub CLI supports 'gh release verify-asset'
+gh_supports_attestation_verification() {
+    command -v gh &>/dev/null || return 1
+
+    local gh_version
+    gh_version=$(gh --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+    [[ -n "$gh_version" ]] || return 1
+
+    version_gte "$gh_version" "$MIN_GH_ATTESTATION_VERSION"
 }
 
 # --- OS/Arch Detection ---
@@ -510,6 +544,44 @@ verify_signature() {
     esac
 }
 
+# Verify downloaded assets against the GitHub release attestation.
+# Skips with a warning when the release predates attestations or when a
+# capable, authenticated GitHub CLI is not available.
+verify_release_attestation() {
+    local version="$1"
+    local tmpdir="$2"
+    local binary_name="$3"
+
+    if ! supports_attestation_verification "$version"; then
+        warn "Skipping release attestation verification: not available for versions older than v${MIN_ATTESTED_VERSION}"
+        return 0
+    fi
+
+    if ! gh_supports_attestation_verification; then
+        warn "Skipping release attestation verification: requires GitHub CLI (gh) v${MIN_GH_ATTESTATION_VERSION} or later"
+        return 0
+    fi
+
+    if ! gh auth status &>/dev/null; then
+        warn "Skipping release attestation verification: GitHub CLI (gh) is not authenticated"
+        return 0
+    fi
+
+    info "Verifying release attestation..."
+
+    local asset
+    for asset in "SHA256SUMS" "$binary_name"; do
+        if ! gh release verify-asset "$version" "${tmpdir}/${asset}" --repo "$GITHUB_REPO" >/dev/null 2>&1; then
+            abort "Release attestation verification failed for ${asset}!
+
+The downloaded file does not match the asset recorded in the ${version} release attestation.
+It may be corrupted or tampered with."
+        fi
+    done
+
+    success "Release attestation verified"
+}
+
 # --- Shell RC Detection ---
 detect_shell_rc() {
     local shell_name
@@ -588,8 +660,9 @@ parse_args() {
     VERSION="${TERRAGRUNT_VERSION:-}"
     INSTALL_DIR="${TERRAGRUNT_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
     VERIFY_SHA=true
-    VERIFY_SIG="gpg"      # gpg (default), cosign, or empty (via --no-verify-sig)
-    SKIP_SIG_VERIFY=false # set by --no-verify-sig to disable signature verification
+    VERIFY_SIG="gpg"         # gpg (default), cosign, or empty (via --no-verify-sig)
+    SKIP_SIG_VERIFY=false    # set by --no-verify-sig to disable signature verification
+    VERIFY_ATTESTATION=true  # set to false by --no-verify-attestation
     FORCE=false
     BUILD_CHANNEL="" # "", "tip", or "test"
     COMMIT_SHA=""    # commit SHA for --commit
@@ -631,6 +704,10 @@ parse_args() {
             ;;
         --no-verify-sig)
             SKIP_SIG_VERIFY=true
+            shift
+            ;;
+        --no-verify-attestation)
+            VERIFY_ATTESTATION=false
             shift
             ;;
         --no-verify)
@@ -779,7 +856,12 @@ install_release() {
     download_binary "$version" "$binary_name" "$tmpdir"
     download_checksums "$version" "$tmpdir"
 
-    # Verify signature first (authenticates SHA256SUMS file)
+    # Verify release attestation first (binds downloaded assets to the immutable release)
+    if [[ "$VERIFY_ATTESTATION" == true ]]; then
+        verify_release_attestation "$version" "$tmpdir" "$binary_name"
+    fi
+
+    # Verify signature (authenticates SHA256SUMS file)
     if [[ -n "$VERIFY_SIG" ]]; then
         if supports_signature_verification "$version"; then
             verify_signature "$version" "$tmpdir/SHA256SUMS" "$tmpdir" "$VERIFY_SIG"

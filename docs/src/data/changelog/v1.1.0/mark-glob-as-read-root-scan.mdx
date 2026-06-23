@@ -1,0 +1,25 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### `mark_glob_as_read` constrains its walk to a boundary
+
+`mark_glob_as_read` now confines glob expansion to a boundary directory. By default the boundary is the enclosing Git repository root; outside a Git repository it is unset. A pattern whose walk would begin outside the boundary returns an error instead of expanding.
+
+This bounds patterns that resolve higher than intended. For example, `"${local.dir}/{*.yaml}"` becomes `/{*.yaml}` when `local.dir` is empty, which previously walked the entire filesystem. A `? :` conditional does not prevent this, because HCL evaluates both branches of a conditional before selecting one. Wrapping the call in `try` lets the error fall back to a default:
+
+```hcl
+locals {
+  files = sort(try(mark_glob_as_read("${local.dir}/{*.yaml,*.yml,*.json}"), []))
+}
+```
+
+Pass a leading `--terragrunt-boundary` argument to set the boundary explicitly, for example to scope the walk to a subdirectory or to widen it to the filesystem root:
+
+```hcl
+locals {
+  scoped = mark_glob_as_read("--terragrunt-boundary=/etc/terragrunt", "/etc/terragrunt/{*.yaml}")
+  all    = mark_glob_as_read("--terragrunt-boundary=/", "/{*.yaml}")
+}
+```

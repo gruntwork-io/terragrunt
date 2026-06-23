@@ -14,6 +14,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const osWindows = "windows"
+
 func TestComputeLocalRootHash_Deterministic(t *testing.T) {
 	t.Parallel()
 
@@ -56,7 +58,7 @@ func TestComputeLocalRootHash_DiffersOnContentChange(t *testing.T) {
 func TestComputeLocalRootHash_DiffersOnModeChange(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == osWindows {
 		t.Skip("file mode changes are not meaningfully observable on Windows")
 	}
 
@@ -149,7 +151,7 @@ func TestStoreLocalDirectoryConcurrentWithRacing(t *testing.T) {
 func TestStoreLocalDirectorySymlink(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == osWindows {
 		t.Skip("os.Symlink on Windows requires special permissions; covered by Unix CI")
 	}
 
@@ -173,6 +175,42 @@ func TestStoreLocalDirectorySymlink(t *testing.T) {
 	assert.Equal(t, "main.tf", got)
 }
 
+// TestStoreLocalDirectorySymlinkRematerialize pins that materializing a
+// symlink-bearing tree into a directory that already holds a prior
+// materialization succeeds. Terragrunt reuses one download dir across versions
+// of the same source, so a version bump re-materializes in place; without
+// clearing the existing entry, os.Symlink would fail with "file exists".
+func TestStoreLocalDirectorySymlinkRematerialize(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == osWindows {
+		t.Skip("os.Symlink on Windows requires special permissions; covered by Unix CI")
+	}
+
+	c, v := newCAS(t)
+	l := logger.CreateLogger()
+
+	src := writeLocalFixture(t, map[string]string{
+		"main.tf": "ok",
+	})
+	require.NoError(t, os.Symlink("main.tf", filepath.Join(src, "alias.tf")))
+
+	dst := filepath.Join(t.TempDir(), "dst")
+	require.NoError(t, c.StoreLocalDirectory(t.Context(), l, v, src, dst))
+
+	// Second materialization into the same dst, which now holds the read-only
+	// blob and the symlink from the first pass.
+	require.NoError(t, c.StoreLocalDirectory(t.Context(), l, v, src, dst))
+
+	info, err := os.Lstat(filepath.Join(dst, "alias.tf"))
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&os.ModeSymlink, "alias.tf must remain a symlink")
+
+	got, err := os.Readlink(filepath.Join(dst, "alias.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, "main.tf", got)
+}
+
 // TestStoreLocalDirectoryRejectsEscapingSymlink pins the safety check: a
 // symlink whose target climbs above the source root is rejected at ingest
 // time rather than poisoning the CAS with content a later materialize would
@@ -180,7 +218,7 @@ func TestStoreLocalDirectorySymlink(t *testing.T) {
 func TestStoreLocalDirectoryRejectsEscapingSymlink(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == osWindows {
 		t.Skip("os.Symlink on Windows requires special permissions; covered by Unix CI")
 	}
 
@@ -205,7 +243,7 @@ func TestStoreLocalDirectoryRejectsEscapingSymlink(t *testing.T) {
 func TestComputeLocalRootHashIncludesSymlinks(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == osWindows {
 		t.Skip("os.Symlink on Windows requires special permissions; covered by Unix CI")
 	}
 

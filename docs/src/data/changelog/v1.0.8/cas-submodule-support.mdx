@@ -1,0 +1,16 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `cas` — Repositories with submodules now clone correctly
+
+Cloning a repository that contains git submodules through the Content Addressable Store failed while ingesting the repository:
+
+```text
+git_cat_file: fatal: Not a valid object name <hash>
+```
+
+A submodule appears in the repository tree as a pointer to a commit in another repository, so the object behind it cannot be read from the repository being cloned.
+
+The CAS now fetches each submodule from the URL registered in `.gitmodules` at its pinned commit and materializes its contents in place, including nested submodules. Relative submodule URLs (such as `../sibling.git`) are resolved against the parent repository URL, matching git's behavior. Submodule contents are stored and deduplicated like any other content, so repeated clones reuse the cache.

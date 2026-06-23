@@ -137,11 +137,11 @@ jobs:
         shell: pwsh
         run: .github/scripts/release/install-go-winres.ps1
 
-      # Install DigiCert smtools (smctl)
-      - name: Install DigiCert smtools
-        uses: digicert/ssm-code-signing@1d820463733701cf1484c7eb5d7d24a15ca2c454 # v1.2.1
+      # Install DigiCert smctl
+      - name: Install DigiCert smctl
+        uses: digicert/code-signing-software-trust-action@fae23a455ba4bde62b64fd7cb2f81ade788f5a95 # v1.2.1
         with:
-          force-download-tools: 'true'
+          simple-signing-mode: 'true'
 
       # Verify smctl is available
       - name: Verify smctl installation

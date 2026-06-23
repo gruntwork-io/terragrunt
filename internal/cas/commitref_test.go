@@ -162,15 +162,15 @@ func TestCASClone_NonTipCommit(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("first.txt", []byte("first"), "first commit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "first.txt", []byte("first"), "first commit"))
 
-	firstHash, err := srv.Head()
+	firstHash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
-	require.NoError(t, srv.CommitFile("second.txt", []byte("second"), "second commit"))
-	require.NoError(t, srv.CommitFile("third.txt", []byte("third"), "third commit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "second.txt", []byte("second"), "second commit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "third.txt", []byte("third"), "third commit"))
 
-	headHash, err := srv.Head()
+	headHash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 	require.NotEqual(t, firstHash, headHash, "non-tip test requires HEAD to differ from target")
 
@@ -214,15 +214,15 @@ func TestCASClone_AbbreviatedHexBranchAdvancesAcrossClones(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("v1.txt", []byte("v1"), "first"))
+	require.NoError(t, srv.CommitFile(t.Context(), "v1.txt", []byte("v1"), "first"))
 
-	firstHash, err := srv.Head()
+	firstHash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
 	// Branch name is the 8-char prefix of its own tip: the worst case
 	// for the probe's prefix check.
 	branch := firstHash[:8]
-	require.NoError(t, srv.Branch(branch))
+	require.NoError(t, srv.Branch(t.Context(), branch))
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
@@ -245,8 +245,8 @@ func TestCASClone_AbbreviatedHexBranchAdvancesAcrossClones(t *testing.T) {
 	// Advance the branch to a new commit. ls-remote must see the new
 	// tip on the second clone; the probe would otherwise serve the
 	// stale cached commit.
-	require.NoError(t, srv.CommitFile("v2.txt", []byte("v2"), "second"))
-	require.NoError(t, srv.Branch(branch))
+	require.NoError(t, srv.CommitFile(t.Context(), "v2.txt", []byte("v2"), "second"))
+	require.NoError(t, srv.Branch(t.Context(), branch))
 
 	secondDir := filepath.Join(tempDir, "second")
 	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(secondDir),
@@ -267,10 +267,10 @@ func TestCASClone_HexBranchNameResolvesViaLsRemote(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("# test"), "initial"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# test"), "initial"))
 
 	const hexBranch = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	require.NoError(t, srv.Branch(hexBranch))
+	require.NoError(t, srv.Branch(t.Context(), hexBranch))
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
@@ -299,8 +299,8 @@ func TestCASClone_TagRef(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("# tagged"), "initial"))
-	require.NoError(t, srv.Tag("v1.0.0"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# tagged"), "initial"))
+	require.NoError(t, srv.Tag(t.Context(), "v1.0.0"))
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
@@ -333,21 +333,21 @@ func TestGitStoreEnsureCommit_TagOnlyCommit(t *testing.T) {
 
 	srv := newEmptyTestServer(t)
 
-	require.NoError(t, srv.CommitFile("first.txt", []byte("first"), "first commit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "first.txt", []byte("first"), "first commit"))
 
-	firstHash, err := srv.Head()
+	firstHash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
-	require.NoError(t, srv.CommitFile("tagged.txt", []byte("tagged"), "tagged commit"))
+	require.NoError(t, srv.CommitFile(t.Context(), "tagged.txt", []byte("tagged"), "tagged commit"))
 
-	taggedHash, err := srv.Head()
+	taggedHash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 	require.NotEqual(t, firstHash, taggedHash, "tagged commit must differ from first commit")
 
-	require.NoError(t, srv.Tag("v1"))
+	require.NoError(t, srv.Tag(t.Context(), "v1"))
 
 	// Rewind main past the tagged commit so it is reachable only via the tag.
-	require.NoError(t, srv.SetBranch("main", firstHash))
+	require.NoError(t, srv.SetBranch(t.Context(), "main", firstHash))
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
@@ -385,9 +385,9 @@ func TestGitStoreEnsureCommit_OfflineWhenCached(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("# offline"), "initial"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# offline"), "initial"))
 
-	hash, err := srv.Head()
+	hash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
 	repoURL, err := srv.Start(t.Context())
@@ -418,9 +418,9 @@ func TestGitStoreEnsureCommit_KnownHashFastPath(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("# fast path"), "initial"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# fast path"), "initial"))
 
-	hash, err := srv.Head()
+	hash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
 	repoURL, err := srv.Start(t.Context())
@@ -452,9 +452,9 @@ func TestCASClone_OfflineWhenCommitCached(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("README.md", []byte("# offline cached"), "initial"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# offline cached"), "initial"))
 
-	hash, err := srv.Head()
+	hash, err := srv.Head(t.Context())
 	require.NoError(t, err)
 
 	repoURL, err := srv.Start(t.Context())

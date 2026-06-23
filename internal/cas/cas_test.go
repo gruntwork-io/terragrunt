@@ -135,8 +135,8 @@ func TestCAS_CloneRepoWithSymlink(t *testing.T) {
 	t.Parallel()
 
 	srv := newEmptyTestServer(t)
-	require.NoError(t, srv.CommitFile("real.txt", []byte("hello"), "add real.txt"))
-	require.NoError(t, srv.CommitSymlink("link.txt", "real.txt", "add symlink"))
+	require.NoError(t, srv.CommitFile(t.Context(), "real.txt", []byte("hello"), "add real.txt"))
+	require.NoError(t, srv.CommitSymlink(t.Context(), "link.txt", "real.txt", "add symlink"))
 
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)

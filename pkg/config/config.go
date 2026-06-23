@@ -445,6 +445,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			genBody.SetAttributeValue("disable", goboolToCty(gen.Disable))
 		}
 
+		if gen.HclFmt != nil {
+			genBody.SetAttributeValue("hcl_fmt", goboolToCty(*gen.HclFmt))
+		}
+
 		rootBody.AppendBlock(genBlock)
 	}
 
@@ -722,6 +726,7 @@ type terragruntGenerateBlock struct {
 	CommentPrefix    *string `hcl:"comment_prefix,attr" mapstructure:"comment_prefix"`
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
 	Disable          *bool   `hcl:"disable,attr" mapstructure:"disable"`
+	HclFmt           *bool   `hcl:"hcl_fmt,attr" mapstructure:"hcl_fmt"`
 	Name             string  `hcl:",label" mapstructure:",omitempty"`
 	Path             string  `hcl:"path,attr" mapstructure:"path"`
 	IfExists         string  `hcl:"if_exists,attr" mapstructure:"if_exists"`
@@ -1718,7 +1723,12 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	if terragruntConfig.Terraform != nil { // since Terraform is nil each time avoid saving metadata when it is nil
 		terragruntConfig.SetFieldMetadata(MetadataTerraform, defaultMetadata)
 
-		if pctx.Experiments.Evaluate(experiment.MarkManyAsRead) && terragruntConfig.Terraform.Source != nil {
+		// This full-parse hook is not redundant with the partial-parse hook in
+		// PartialParseConfig. read_terragrunt_config() runs a full ParseConfigFile
+		// even during discovery's partial parse, and ParsingContext.Clone() shares
+		// FilesRead, so this hook is how files read via read_terragrunt_config of
+		// a config with a local module source reach reading= filters.
+		if terragruntConfig.Terraform.Source != nil {
 			markLocalModuleSourceAsRead(pctx, configPath, *terragruntConfig.Terraform.Source)
 		}
 	}
@@ -1853,6 +1863,7 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 		}
 
 		genConfig := codegen.GenerateConfig{
+			HclFmt:        block.HclFmt,
 			Path:          block.Path,
 			IfExists:      ifExists,
 			IfExistsStr:   block.IfExists,
@@ -1925,6 +1936,14 @@ var moduleSourceReadExtensions = map[string]struct{}{
 func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource string) {
 	sourceWithoutSubdir, subdir := getter.SourceDirSubdir(rawSource)
 
+	// Anchor a relative config path to the working directory before deriving
+	// the detector pwd. The file detector roots relative output at "/", so a
+	// relative pwd would resolve a relative source to the filesystem root and
+	// walk all of it.
+	if !filepath.IsAbs(configPath) {
+		configPath = filepath.Join(pctx.WorkingDir, configPath)
+	}
+
 	sourceURL, err := tf.ToSourceURL(sourceWithoutSubdir, filepath.Dir(configPath))
 	if err != nil || !tf.IsLocalSource(sourceURL) {
 		return
@@ -1937,6 +1956,10 @@ func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource str
 
 	if !filepath.IsAbs(moduleDir) {
 		moduleDir = filepath.Clean(filepath.Join(pctx.WorkingDir, moduleDir))
+	}
+
+	if !pctx.FilesRead.MarkDirIfNew(moduleDir) {
+		return
 	}
 
 	walkFunc := filepath.WalkDir
@@ -2280,15 +2303,11 @@ func ParseRemoteState(ctx context.Context, l log.Logger, pctx *ParsingContext) (
 // siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside configPath
 // and whether it is in scope: the context is not already parsing a file pulled in by an autoinclude
 // merge (skipAutoIncludeMerge, which would recurse and let a pulled-in file fold its own sibling
-// autoinclude), the stack-dependencies experiment is enabled, and configPath is not itself an autoinclude
-// file. The registration that records the override on TrackInclude and the partial-parse cache key both
-// route through here. Existence is left to the caller so the cache-key path can distinguish absent from present.
+// autoinclude), and configPath is not itself an autoinclude file. The registration that records the
+// override on TrackInclude and the partial-parse cache key both route through here. Existence is left
+// to the caller so the cache-key path can distinguish absent from present.
 func siblingAutoIncludePath(pctx *ParsingContext, configPath string) (string, bool) {
 	if pctx.skipAutoIncludeMerge {
-		return "", false
-	}
-
-	if !pctx.Experiments.Evaluate(experiment.StackDependencies) {
 		return "", false
 	}
 
