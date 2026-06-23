@@ -59,11 +59,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	}
 
 	if opts.ReportSchemaFile != "" {
-		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		defer r.WriteSchemaToFile(v.FS, opts.ReportSchemaFile) //nolint:errcheck
 	}
 
 	if opts.ReportFile != "" {
-		defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
+		defer r.WriteToFile(v.FS, opts.ReportFile) //nolint:errcheck
 	}
 
 	if opts.TerraformCommand == "" {

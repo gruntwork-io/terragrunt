@@ -1,12 +1,12 @@
 package report_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,19 +65,22 @@ func TestReportWriteToFile(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	dir := t.TempDir()
+	dir := "/reports"
 
 	t.Run("json format", func(t *testing.T) {
 		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, fsys.MkdirAll(dir, 0o755))
 
 		r := report.NewReport().WithFormat(report.FormatJSON)
 		_, err := r.EnsureRun(l, filepath.Join(dir, "json-unit"))
 		require.NoError(t, err)
 
 		out := filepath.Join(dir, "report.json")
-		require.NoError(t, r.WriteToFile(out))
+		require.NoError(t, r.WriteToFile(fsys, out))
 
-		raw, err := os.ReadFile(out)
+		raw, err := vfs.ReadFile(fsys, out)
 		require.NoError(t, err)
 		assert.Contains(t, string(raw), "json-unit")
 	})
@@ -85,11 +88,13 @@ func TestReportWriteToFile(t *testing.T) {
 	t.Run("unsupported format errors", func(t *testing.T) {
 		t.Parallel()
 
+		fsys := vfs.NewMemMapFS()
+
 		r := report.NewReport()
 		_, err := r.EnsureRun(l, filepath.Join(dir, "no-format-unit"))
 		require.NoError(t, err)
 
-		require.Error(t, r.WriteToFile(filepath.Join(dir, "unused.out")),
+		require.Error(t, r.WriteToFile(fsys, filepath.Join(dir, "unused.out")),
 			"writing with no format set is rejected")
 	})
 }

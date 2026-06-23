@@ -353,16 +353,19 @@ func TestExpandBoundaryAllowsExistingSymlinkedRoot(t *testing.T) {
 }
 
 // TestExpandRelativePatternWithLeadingWildcard pins that a metacharacter with
-// no preceding directory separator walks from the current directory ("."),
-// rather than mis-splitting the root.
+// no preceding directory separator walks from the current directory rather than
+// mis-splitting the root: the root-level file matches while the nested one does
+// not, since "*" never crosses a separator.
 func TestExpandRelativePatternWithLeadingWildcard(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "a.yaml", nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, "sub/b.yaml", nil, 0o644))
 
 	got, err := glob.Expand(fs, "*.yaml")
 	require.NoError(t, err)
-	assert.Empty(t, got)
+	assert.Equal(t, []string{"a.yaml"}, got)
 }
 
 // TestLegacyExpandCollapsesGlobstar documents the reason LegacyExpand exists:

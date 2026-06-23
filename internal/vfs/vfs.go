@@ -192,6 +192,13 @@ func MkdirTemp(fs FS, dir, pattern string) (string, error) {
 	return afero.TempDir(fs, dir, pattern)
 }
 
+// CreateTemp creates a temporary file on the given filesystem. The file's name
+// is prefix followed by a random string; prefix is not a pattern, so any "*" in
+// it is taken literally.
+func CreateTemp(fs FS, dir, prefix string) (File, error) {
+	return afero.TempFile(fs, dir, prefix)
+}
+
 // Link creates a hard link. It delegates to LinkIfPossible for filesystems
 // that implement the HardLinker interface.
 func Link(fs FS, oldname, newname string) error {
