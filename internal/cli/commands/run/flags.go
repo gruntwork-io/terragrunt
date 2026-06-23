@@ -525,8 +525,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	cmdFlags = cmdFlags.Add(shared.NewQueueFlags(opts, prefix)...)
 	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts)...)
 	cmdFlags = cmdFlags.Add(shared.NewParallelismFlag(opts))
-	cmdFlags = cmdFlags.Add(shared.NewNoCASFlag(opts, prefix))
-	cmdFlags = cmdFlags.Add(shared.NewCASCloneDepthFlag(opts, prefix))
+	cmdFlags = cmdFlags.Add(shared.NewCASFlags(opts, prefix)...)
 
 	return cmdFlags.Sort()
 }

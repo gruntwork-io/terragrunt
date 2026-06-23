@@ -19,36 +19,45 @@ const (
 )
 
 // sshScaffoldModuleURL is the SSH-form source for scaffold-module
-// against the local mirror.
-func sshScaffoldModuleURL(m *helpers.TerragruntMirror) string {
+// against the local server, which it asks the server to serve.
+func sshScaffoldModuleURL(m *helpers.GitServer) string {
+	m.AddFixtures("test/fixtures/scaffold/scaffold-module")
+
 	return "git::" + m.SSHURL + "//test/fixtures/scaffold/scaffold-module"
 }
 
-// sshScaffoldTemplateModule is the SSH-form source for the
-// scaffold module-with-template fixture against the local mirror.
-func sshScaffoldTemplateModule(m *helpers.TerragruntMirror) string {
+// sshScaffoldTemplateModule is the SSH-form source for the scaffold
+// module-with-template fixture, which it asks the server to serve.
+func sshScaffoldTemplateModule(m *helpers.GitServer) string {
+	m.AddFixtures("test/fixtures/scaffold/module-with-template")
+
 	return "git::" + m.SSHURL + "//test/fixtures/scaffold/module-with-template"
 }
 
 // sshScaffoldExternalTemplateModule is the SSH-form source for the
-// scaffold external-template/template fixture against the local mirror.
-func sshScaffoldExternalTemplateModule(m *helpers.TerragruntMirror) string {
+// scaffold external-template/template fixture, which it asks the server
+// to serve.
+func sshScaffoldExternalTemplateModule(m *helpers.GitServer) string {
+	m.AddFixtures("test/fixtures/scaffold/external-template/template")
+
 	return "git::" + m.SSHURL + "//test/fixtures/scaffold/external-template/template"
 }
 
-// sshScaffoldInputsURL is the SSH-form source for the inputs fixture
-// against the local mirror.
-func sshScaffoldInputsURL(m *helpers.TerragruntMirror) string {
+// sshScaffoldInputsURL is the SSH-form source for the inputs fixture,
+// which it asks the server to serve.
+func sshScaffoldInputsURL(m *helpers.GitServer) string {
+	m.AddFixtures("test/fixtures/inputs")
+
 	return "git::" + m.SSHURL + "//test/fixtures/inputs"
 }
 
 func TestSSHScaffoldWithCustomDefaultTemplate(t *testing.T) {
-	mirror := helpers.StartTerragruntMirror(t)
-	mirror.RequireSSH(t)
+	mirror := helpers.NewGitServer(t)
+	mirror.RequireSSH()
 
 	// Render so __MIRROR_SSH_URL__ in the fixture's root.hcl
 	// (default_template) resolves to the live SSH mirror URL.
-	tmpEnvPath := mirror.RenderFixture(t, testScaffoldWithCustomDefaultTemplate)
+	tmpEnvPath := mirror.RenderFixture(testScaffoldWithCustomDefaultTemplate)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testScaffoldWithCustomDefaultTemplate)
 
@@ -64,8 +73,8 @@ func TestSSHScaffoldWithCustomDefaultTemplate(t *testing.T) {
 }
 
 func TestSSHScaffoldModuleExternalTemplate(t *testing.T) {
-	mirror := helpers.StartTerragruntMirror(t)
-	mirror.RequireSSH(t)
+	mirror := helpers.NewGitServer(t)
+	mirror.RequireSSH()
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
@@ -87,8 +96,8 @@ func TestSSHScaffoldModuleExternalTemplate(t *testing.T) {
 // integration test now just verifies that scaffold runs end-to-end
 // against an SSH source URL.
 func TestSSHScaffoldModuleDifferentRevisionAndSSH(t *testing.T) {
-	mirror := helpers.StartTerragruntMirror(t)
-	mirror.RequireSSH(t)
+	mirror := helpers.NewGitServer(t)
+	mirror.RequireSSH()
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
@@ -103,8 +112,8 @@ func TestSSHScaffoldModuleDifferentRevisionAndSSH(t *testing.T) {
 }
 
 func TestSSHScaffoldModuleSSH(t *testing.T) {
-	mirror := helpers.StartTerragruntMirror(t)
-	mirror.RequireSSH(t)
+	mirror := helpers.NewGitServer(t)
+	mirror.RequireSSH()
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
@@ -117,8 +126,8 @@ func TestSSHScaffoldModuleSSH(t *testing.T) {
 }
 
 func TestSSHScaffoldModuleTemplate(t *testing.T) {
-	mirror := helpers.StartTerragruntMirror(t)
-	mirror.RequireSSH(t)
+	mirror := helpers.NewGitServer(t)
+	mirror.RequireSSH()
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
@@ -139,8 +148,8 @@ func TestSSHScaffoldModuleTemplate(t *testing.T) {
 // var-file plumbing reaches scaffold and EnableRootInclude=false
 // suppresses find_in_parent_folders.
 func TestSSHScaffoldModuleVarFile(t *testing.T) {
-	mirror := helpers.StartTerragruntMirror(t)
-	mirror.RequireSSH(t)
+	mirror := helpers.NewGitServer(t)
+	mirror.RequireSSH()
 
 	varFileContent := `
 Ref: v0.67.4

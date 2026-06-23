@@ -1,0 +1,63 @@
+---
+version: "v1.1.0"
+category: "new-features"
+order: 1
+---
+
+#### Stack dependencies
+
+A [stack](/features/stacks) generates a tree of units from a single `terragrunt.stack.hcl` file. Wiring one of those units to another used to mean defining `dependency` blocks in your catalog and threading dependency paths through `values`. Stack dependencies let you declare those relationships up front instead.
+
+Add an `autoinclude` block inside a `unit` or `stack` block, and Terragrunt generates a partial configuration (a `terragrunt.autoinclude.hcl` file) next to the generated `terragrunt.hcl` or `terragrunt.stack.hcl` that's automatically merged into the unit or stack definition. The new `unit.<name>.path` and `stack.<name>.path` references resolve to generated paths, so you don't have to hardcode them:
+
+```hcl
+# terragrunt.stack.hcl
+unit "vpc" {
+  source = "github.com/acme/catalog//units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "github.com/acme/catalog//units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+    }
+
+    inputs = {
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+  }
+}
+```
+
+Anything that's valid in a unit configuration is valid in its `autoinclude` block, so you can also patch catalog units with configuration they don't ship with, like retry rules:
+
+```hcl
+# terragrunt.stack.hcl
+unit "app" {
+  source = "github.com/acme/catalog//units/app"
+  path   = "app"
+
+  autoinclude {
+    errors {
+      retry "transient_errors" {
+        retryable_errors   = [".*Error: transient network issue.*"]
+        max_attempts       = 3
+        sleep_interval_sec = 5
+      }
+    }
+  }
+}
+```
+
+The same works for nested stacks: an `autoinclude` block inside a `stack` block patches the generated `terragrunt.stack.hcl`, so you can, for example, add an extra unit to one environment without forking the stack in your catalog.
+
+Stack configurations also gained two capabilities along the way:
+
+- `include` blocks now work in `terragrunt.stack.hcl` files, so shared stack configuration can live in a parent folder.
+- `dependency` blocks can target stack directories, and the run queue expands them to the units inside. Note that this relationship only goes one way: units can depend on stacks, but stacks cannot depend on stacks or units.
+
+See the [stacks documentation](/features/stacks/explicit) for the full reference. Previously gated behind the `stack-dependencies` experiment, all of this is now enabled by default.

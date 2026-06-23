@@ -249,7 +249,11 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 // resolveVersion determines the module version to download. If a version is
 // specified in the URL query it is validated and returned as-is. Otherwise the
 // latest stable version is resolved from the registry's list-versions endpoint.
-func (r *RegistryGetter) resolveVersion(ctx context.Context, queryValues url.Values, registryDomain, moduleRegistryBasePath, modulePath string) (string, error) {
+func (r *RegistryGetter) resolveVersion(
+	ctx context.Context,
+	queryValues url.Values,
+	registryDomain, moduleRegistryBasePath, modulePath string,
+) (string, error) {
 	versionList, hasVersion := queryValues[versionQueryKey]
 
 	if hasVersion && len(versionList) != 1 {
@@ -264,7 +268,14 @@ func (r *RegistryGetter) resolveVersion(ctx context.Context, queryValues url.Val
 		return versionList[0], nil
 	}
 
-	latestVersion, err := GetLatestModuleVersion(ctx, r.Logger, r.HTTPClient, registryDomain, moduleRegistryBasePath, modulePath)
+	latestVersion, err := GetLatestModuleVersion(
+		ctx,
+		r.Logger,
+		r.HTTPClient,
+		registryDomain,
+		moduleRegistryBasePath,
+		modulePath,
+	)
 	if err != nil {
 		return "", err
 	}

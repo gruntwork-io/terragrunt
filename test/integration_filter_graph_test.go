@@ -5,13 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	gogit "github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing/object"
-	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -418,29 +413,13 @@ func TestFilterFlagWithFindCombinedGitAndGraphExpressions(t *testing.T) {
 
 		tmpDir := helpers.TmpDirWOSymlinks(t)
 
-		runner, err := git.NewGitRunner(vexec.NewOSExec())
-		require.NoError(t, err)
-
-		runner = runner.WithWorkDir(tmpDir)
-
-		err = runner.Init(t.Context())
-		require.NoError(t, err)
-
-		err = runner.GoOpenRepo()
-		require.NoError(t, err)
-
-		t.Cleanup(func() {
-			err = runner.GoCloseStorage()
-			if err != nil {
-				t.Logf("Error closing storage: %s", err)
-			}
-		})
+		runner := helpers.InitTestGitRunner(t, tmpDir)
 
 		// Create a dependency chain: app -> db -> vpc
 		// We'll modify 'db' and use git+graph filter to find its dependencies and dependents
 
 		vpcDir := filepath.Join(tmpDir, "vpc")
-		err = os.MkdirAll(vpcDir, 0755)
+		err := os.MkdirAll(vpcDir, 0755)
 		require.NoError(t, err)
 
 		vpcHCL := `# VPC unit - no dependencies`
@@ -471,17 +450,8 @@ dependency "db" {
 		err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(appHCL), 0644)
 		require.NoError(t, err)
 
-		err = runner.GoAdd(".")
-		require.NoError(t, err)
-
-		err = runner.GoCommit("Initial commit with vpc, db, app chain", &gogit.CommitOptions{
-			Author: &object.Signature{
-				Name:  "Test User",
-				Email: "test@example.com",
-				When:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Initial commit with vpc, db, app chain"))
 
 		modifiedDBHCL := `# DB unit - depends on vpc (MODIFIED)
 dependency "vpc" {
@@ -491,17 +461,8 @@ dependency "vpc" {
 		err = os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(modifiedDBHCL), 0644)
 		require.NoError(t, err)
 
-		err = runner.GoAdd(".")
-		require.NoError(t, err)
-
-		err = runner.GoCommit("Modify db unit", &gogit.CommitOptions{
-			Author: &object.Signature{
-				Name:  "Test User",
-				Email: "test@example.com",
-				When:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Modify db unit"))
 
 		return tmpDir
 	}
@@ -625,29 +586,13 @@ func TestFilterFlagWithRunAllCombinedGitAndGraphExpressions(t *testing.T) {
 
 		tmpDir := helpers.TmpDirWOSymlinks(t)
 
-		runner, err := git.NewGitRunner(vexec.NewOSExec())
-		require.NoError(t, err)
-
-		runner = runner.WithWorkDir(tmpDir)
-
-		err = runner.Init(t.Context())
-		require.NoError(t, err)
-
-		err = runner.GoOpenRepo()
-		require.NoError(t, err)
-
-		t.Cleanup(func() {
-			err = runner.GoCloseStorage()
-			if err != nil {
-				t.Logf("Error closing storage: %s", err)
-			}
-		})
+		runner := helpers.InitTestGitRunner(t, tmpDir)
 
 		// Create a dependency chain: service -> cache -> vpc
 		// We'll modify 'cache' and use git+graph filter
 
 		vpcDir := filepath.Join(tmpDir, "vpc")
-		err = os.MkdirAll(vpcDir, 0755)
+		err := os.MkdirAll(vpcDir, 0755)
 		require.NoError(t, err)
 
 		vpcHCL := `# VPC unit`
@@ -699,17 +644,8 @@ dependency "cache" {
 		require.NoError(t, err)
 
 		// Initial commit
-		err = runner.GoAdd(".")
-		require.NoError(t, err)
-
-		err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-			Author: &object.Signature{
-				Name:  "Test User",
-				Email: "test@example.com",
-				When:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
 		modifiedCacheHCL := `# Cache unit (MODIFIED)
 dependency "vpc" {
@@ -723,17 +659,8 @@ dependency "vpc" {
 		err = os.WriteFile(filepath.Join(cacheDir, "terragrunt.hcl"), []byte(modifiedCacheHCL), 0644)
 		require.NoError(t, err)
 
-		err = runner.GoAdd(".")
-		require.NoError(t, err)
-
-		err = runner.GoCommit("Modify cache", &gogit.CommitOptions{
-			Author: &object.Signature{
-				Name:  "Test User",
-				Email: "test@example.com",
-				When:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Modify cache"))
 
 		return tmpDir
 	}
@@ -801,27 +728,11 @@ func TestFilterFlagWithFindNoDuplicateWorktreeEntries(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
+	runner := helpers.InitTestGitRunner(t, tmpDir)
 
 	// Create unit-a (no dependencies)
 	unitADir := filepath.Join(tmpDir, "unit-a")
-	err = os.MkdirAll(unitADir, 0755)
+	err := os.MkdirAll(unitADir, 0755)
 	require.NoError(t, err)
 
 	unitAHCL := `# unit-a - no dependencies
@@ -843,17 +754,8 @@ dependency "unit-a" {
 	require.NoError(t, err)
 
 	// Initial commit
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Initial commit with unit-a and unit-b", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit with unit-a and unit-b"))
 
 	// Modify BOTH units
 	modifiedUnitAHCL := `# unit-a - no dependencies (modified)
@@ -870,17 +772,8 @@ dependency "unit-a" {
 	require.NoError(t, err)
 
 	// Second commit
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Modify both unit-a and unit-b", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Modify both unit-a and unit-b"))
 
 	// Run find with dependents filter
 	cmd := "terragrunt find --no-color --working-dir " + tmpDir + " --filter '...[HEAD~1...HEAD]'"

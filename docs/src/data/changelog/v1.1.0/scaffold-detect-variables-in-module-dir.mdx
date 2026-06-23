@@ -1,0 +1,8 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Scaffold only detects variables in the module directory
+
+`terragrunt scaffold` now reads input variables from the module directory itself, matching what OpenTofu and Terraform load for a root module. Previously it scanned subdirectories too, so `variable` blocks defined in nested modules or examples leaked into the scaffolded inputs even though the module never exposes them.

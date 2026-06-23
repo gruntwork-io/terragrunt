@@ -153,6 +153,99 @@ unit "app" {
 	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "networking"), resolved.Dependencies[0].ConfigPath)
 }
 
+// TestParseStackFile_ComponentRefInValuesWithSiblingAutoInclude reproduces the
+// regression where a stack block's values referencing unit.<name>.path failed with
+// "There is no variable named \"unit\"" whenever the same file contained an
+// autoinclude block: the phase-4 decode evaluated values before the component refs
+// were published.
+func TestParseStackFile_ComponentRefInValuesWithSiblingAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "a" {
+  source = "../catalog/units/a"
+  path   = "a"
+}
+
+stack "b" {
+  source = "../catalog/stacks/b"
+  path   = "b"
+
+  values = {
+    a_path = unit.a.path
+  }
+}
+
+unit "c" {
+  source = "../catalog/units/c"
+  path   = "c"
+
+  autoinclude {
+    dependency "a" {
+      config_path = unit.a.path
+    }
+
+    inputs = {
+      v = dependency.a.outputs.v
+    }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 2)
+	require.Len(t, result.Stacks, 1)
+
+	require.NotNil(t, result.Stacks[0].Values)
+	aPath := result.Stacks[0].Values.GetAttr("a_path")
+	assert.Equal(t, cty.StringVal(filepath.Join(testStackDir, ".terragrunt-stack", "a")), aPath,
+		"stack values must resolve unit.a.path even when a sibling autoinclude block is present")
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "c")]
+	require.True(t, ok)
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "a"), resolved.Dependencies[0].ConfigPath)
+}
+
+// TestParseStackFile_UnitValuesStackRefWithSiblingAutoInclude covers the mirrored
+// shape: a unit block's values referencing stack.<name>.path alongside an
+// autoinclude elsewhere in the file.
+func TestParseStackFile_UnitValuesStackRefWithSiblingAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	src := `
+stack "networking" {
+  source = "../stacks/networking"
+  path   = "networking"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  values = {
+    net_path = stack.networking.path
+  }
+
+  autoinclude {
+    dependency "networking" {
+      config_path = stack.networking.path
+    }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+
+	require.NotNil(t, result.Units[0].Values)
+	netPath := result.Units[0].Values.GetAttr("net_path")
+	assert.Equal(t, cty.StringVal(filepath.Join(testStackDir, ".terragrunt-stack", "networking")), netPath,
+		"unit values must resolve stack.networking.path even when an autoinclude block is present")
+}
+
 func TestParseStackFile_NoAutoInclude(t *testing.T) {
 	t.Parallel()
 

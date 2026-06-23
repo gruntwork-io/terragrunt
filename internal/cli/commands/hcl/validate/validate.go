@@ -15,7 +15,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/google/shlex"
@@ -158,7 +157,16 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 				continue
 			}
 
-			if _, err := config.ParseStackConfig(ctx, l, parser, file, values); err != nil {
+			stackCfg, err := config.ParseStackConfig(ctx, l, parser, file, values)
+			if err != nil {
+				parseErrs = append(parseErrs, err)
+				continue
+			}
+
+			// The lenient stack decode above leaves autoinclude blocks unvalidated, so run the
+			// strict autoinclude parse `stack generate` uses. It no-ops unless the
+			// stack-dependencies experiment is enabled and the config declares autoinclude.
+			if err := config.ValidateStackAutoIncludes(ctx, l, parser, stackFilePath, stackCfg, values); err != nil {
 				parseErrs = append(parseErrs, err)
 			}
 
@@ -258,23 +266,23 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 		return err
 	}
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		gitFilters := opts.Filters.UniqueGitFilters()
+	// We do worktree generation here instead of in the discovery constructor
+	// so that we can defer cleanup in the same context.
+	gitFilters := opts.Filters.UniqueGitFilters()
 
-		worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
-		if worktreeErr != nil {
-			return fmt.Errorf("failed to create worktrees: %w", worktreeErr)
-		}
-
-		defer func() {
-			cleanupErr := worktrees.Cleanup(ctx, l)
-			if cleanupErr != nil {
-				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
-			}
-		}()
-
-		d = d.WithWorktrees(worktrees)
+	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
+	if worktreeErr != nil {
+		return fmt.Errorf("failed to create worktrees: %w", worktreeErr)
 	}
+
+	defer func() {
+		cleanupErr := worktrees.Cleanup(ctx, l)
+		if cleanupErr != nil {
+			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+		}
+	}()
+
+	d = d.WithWorktrees(worktrees)
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {

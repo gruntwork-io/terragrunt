@@ -107,7 +107,7 @@ func linkTree(
 		// entry mode (120000) is the only signal that distinguishes it from a
 		// regular file, so dispatch on the mode rather than the type.
 		switch entry.Type {
-		case "blob":
+		case git.EntryTypeBlob:
 			itemType := "link"
 			if gitEntryIsSymlink(entry.Mode) {
 				itemType = "symlink"
@@ -119,9 +119,16 @@ func linkTree(
 				path:     entryPath,
 				dirPath:  dirPath,
 			})
-		case "tree":
+		case git.EntryTypeTree:
 			workItems = append(workItems, workItem{
 				itemType: "subtree",
+				entry:    entry,
+				path:     entryPath,
+				dirPath:  dirPath,
+			})
+		case git.EntryTypeCommit:
+			workItems = append(workItems, workItem{
+				itemType: "submodule",
 				entry:    entry,
 				path:     entryPath,
 				dirPath:  dirPath,
@@ -160,6 +167,10 @@ func linkTree(
 					return err
 				}
 
+				if err := v.FS.RemoveAll(work.path); err != nil {
+					return fmt.Errorf("clear existing entry before symlink %s: %w", work.path, err)
+				}
+
 				if err := vfs.Symlink(v.FS, string(target), work.path); err != nil {
 					return fmt.Errorf("symlink %s -> %s: %w", work.path, string(target), err)
 				}
@@ -177,6 +188,34 @@ func linkTree(
 				err = linkTree(ctx, v, blobStore, treeStore, subTree, rootDir, work.path, o)
 				if err != nil {
 					return fmt.Errorf("link subtree %s: %w", work.path, err)
+				}
+			case "submodule":
+				// A gitlink stands in for the submodule's whole working
+				// tree, which ingestion stored keyed by the pinned commit
+				// hash. The directory is created up front: a gitlink with
+				// no stored tree had no .gitmodules entry to fetch it by,
+				// and `git clone` leaves an empty directory there too.
+				if err := v.FS.MkdirAll(work.path, DefaultDirPerms); err != nil {
+					return fmt.Errorf("mkdir submodule %s: %w", work.path, err)
+				}
+
+				if treeStore.NeedsWrite(v, work.entry.Hash) {
+					return nil
+				}
+
+				treeData, err := treeContent.Read(v, work.entry.Hash)
+				if err != nil {
+					return fmt.Errorf("read submodule tree %s: %w", work.entry.Hash, err)
+				}
+
+				subTree, err := git.ParseTree(treeData, work.path)
+				if err != nil {
+					return fmt.Errorf("parse submodule tree %s: %w", work.entry.Hash, err)
+				}
+
+				err = linkTree(ctx, v, blobStore, treeStore, subTree, rootDir, work.path, o)
+				if err != nil {
+					return fmt.Errorf("link submodule %s: %w", work.path, err)
 				}
 			}
 
