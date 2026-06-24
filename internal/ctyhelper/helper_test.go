@@ -81,3 +81,49 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateUnknownCtyValValuesTypedLeaves(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		value    cty.Value
+		expected cty.Value
+		name     string
+	}{
+		{
+			name:     "unknown number leaf becomes zero",
+			value:    cty.ObjectVal(map[string]cty.Value{"n": cty.UnknownVal(cty.Number)}),
+			expected: cty.ObjectVal(map[string]cty.Value{"n": cty.Zero}),
+		},
+		{
+			name:     "unknown bool leaf becomes false",
+			value:    cty.ObjectVal(map[string]cty.Value{"b": cty.UnknownVal(cty.Bool)}),
+			expected: cty.ObjectVal(map[string]cty.Value{"b": cty.False}),
+		},
+		{
+			name:     "top level unknown number becomes zero",
+			value:    cty.UnknownVal(cty.Number),
+			expected: cty.Zero,
+		},
+		{
+			name:     "unknown list leaf becomes empty list",
+			value:    cty.ObjectVal(map[string]cty.Value{"items": cty.UnknownVal(cty.List(cty.String))}),
+			expected: cty.ObjectVal(map[string]cty.Value{"items": cty.ListValEmpty(cty.String)}),
+		},
+		{
+			name:     "unknown string leaf stays empty string",
+			value:    cty.ObjectVal(map[string]cty.Value{"s": cty.UnknownVal(cty.String)}),
+			expected: cty.ObjectVal(map[string]cty.Value{"s": cty.StringVal("")}),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := ctyhelper.UpdateUnknownCtyValValues(tc.value)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}

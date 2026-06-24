@@ -1,0 +1,8 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Fix `hcl validate` failing on `dependency` blocks without `mock_outputs`
+
+`terragrunt hcl validate` no longer fails with `Could not find Terragrunt configuration settings` when a `dependency` block has no `mock_outputs`. Validation skips dependency outputs, so they are treated as unknown values that now flow cleanly through `inputs` regardless of their type. The misleading error is replaced by the real underlying error when parsing genuinely fails, and the `has no outputs, but mock outputs provided` warning is no longer emitted during validation.

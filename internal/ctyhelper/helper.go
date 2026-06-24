@@ -72,7 +72,7 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 
 	switch {
 	case !value.IsKnown():
-		return cty.StringVal(""), nil
+		return zeroValueForType(value.Type()), nil
 	case value.IsNull():
 		return value, nil
 	case value.Type().IsMapType(), value.Type().IsObjectType():
@@ -116,4 +116,56 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	}
 
 	return value, nil
+}
+
+// zeroValueForType returns a known zero value of t so unknown leaves survive type-checked serialization.
+func zeroValueForType(t cty.Type) cty.Value {
+	switch {
+	case t == cty.Number:
+		return cty.Zero
+	case t == cty.Bool:
+		return cty.False
+	case t.IsListType():
+		return cty.ListValEmpty(t.ElementType())
+	case t.IsSetType():
+		return cty.SetValEmpty(t.ElementType())
+	case t.IsMapType():
+		return cty.MapValEmpty(t.ElementType())
+	case t.IsObjectType():
+		return zeroObjectForType(t)
+	case t.IsTupleType():
+		return zeroTupleForType(t)
+	default:
+		return cty.StringVal("")
+	}
+}
+
+// zeroObjectForType builds an object whose attributes hold zero values of their types.
+func zeroObjectForType(t cty.Type) cty.Value {
+	attrTypes := t.AttributeTypes()
+	if len(attrTypes) == 0 {
+		return cty.EmptyObjectVal
+	}
+
+	vals := make(map[string]cty.Value, len(attrTypes))
+	for name, attrType := range attrTypes {
+		vals[name] = zeroValueForType(attrType)
+	}
+
+	return cty.ObjectVal(vals)
+}
+
+// zeroTupleForType builds a tuple whose elements hold zero values of their types.
+func zeroTupleForType(t cty.Type) cty.Value {
+	elemTypes := t.TupleElementTypes()
+	if len(elemTypes) == 0 {
+		return cty.EmptyTupleVal
+	}
+
+	vals := make([]cty.Value, len(elemTypes))
+	for i, elemType := range elemTypes {
+		vals[i] = zeroValueForType(elemType)
+	}
+
+	return cty.TupleVal(vals)
 }

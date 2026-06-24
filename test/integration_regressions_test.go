@@ -41,6 +41,7 @@ const (
 	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
 	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
 	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
+	testFixtureHclValidateDependencyNoMocks      = "fixtures/regressions/hcl-validate-dependency-no-mocks"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -1159,6 +1160,27 @@ func findCachedFile(t *testing.T, cacheRoot, name string) string {
 	require.NoError(t, walkErr, "walking %s", cacheRoot)
 
 	return found
+}
+
+// TestHclValidateDependencyWithoutMockOutputs checks that hcl validate succeeds for a dependency without mock_outputs
+func TestHclValidateDependencyWithoutMockOutputs(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclValidateDependencyNoMocks)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHclValidateDependencyNoMocks)
+
+	// consumer-arith uses a number-typed output; consumer-whole passes the whole outputs object
+	for _, consumer := range []string{"consumer-arith", "consumer-whole"} {
+		t.Run(consumer, func(t *testing.T) {
+			t.Parallel()
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --working-dir "+filepath.Join(rootPath, consumer))
+			require.NoError(t, err)
+			assert.NotContains(t, stderr, "Could not find Terragrunt configuration settings")
+			assert.NotContains(t, stderr, "that has no outputs, but mock outputs provided")
+			assert.NotContains(t, stdout, "Could not find Terragrunt configuration settings")
+		})
+	}
 }
 
 // TestDependencyExtraArgsEnvVarsResolveOutput checks that dependency output resolution honors extra_arguments env_vars
