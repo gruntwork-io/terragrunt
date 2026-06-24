@@ -1965,7 +1965,7 @@ func TestWorktreePhase_Integration_StackReadingRespectsExclusion(t *testing.T) {
 
 	markerFile := filepath.Join(tmpDir, "land-mine-parsed.marker")
 
-	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), []byte(fmt.Sprintf(`
+	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), fmt.Appendf(nil, `
 locals {
   marker = run_cmd("--terragrunt-quiet", "bash", "-c", "touch %s")
 }
@@ -1974,7 +1974,7 @@ unit "myapp" {
   source = "${get_repo_root()}/catalog/units/myapp"
   path   = "myapp"
 }
-`, markerFile)), 0o644)
+`, markerFile), 0o644)
 	require.NoError(t, err)
 
 	// Create a normal stack that reads a config file
@@ -2075,7 +2075,7 @@ func TestWorktreePhase_Integration_StackReadingExclusionOverridesInclusion(t *te
 
 	markerFile := filepath.Join(tmpDir, "land-mine-parsed.marker")
 
-	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), []byte(fmt.Sprintf(`
+	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), fmt.Appendf(nil, `
 locals {
   marker = run_cmd("--terragrunt-quiet", "bash", "-c", "touch %s")
 }
@@ -2084,7 +2084,7 @@ unit "myapp" {
   source = "${get_repo_root()}/catalog/units/myapp"
   path   = "myapp"
 }
-`, markerFile)), 0o644)
+`, markerFile), 0o644)
 	require.NoError(t, err)
 
 	// Create a normal stack that reads a config file
