@@ -405,7 +405,7 @@ func ctyPathString(err error) string {
 			// Let go-cty's JSON encoder render the key so we don't special-case string vs number keys.
 			key, err := ctyjson.Marshal(s.Key, s.Key.Type())
 			if err != nil {
-				key = []byte(fmt.Sprintf("%v", s.Key))
+				key = fmt.Appendf(nil, "%v", s.Key)
 			}
 
 			b.WriteString("[" + string(key) + "]")

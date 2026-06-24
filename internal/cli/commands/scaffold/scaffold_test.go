@@ -282,8 +282,8 @@ catalog {
   no_shell = true
   no_hooks = true
 }`,
-			cliNoShell:  boolPtr(false),
-			cliNoHooks:  boolPtr(false),
+			cliNoShell:  new(false),
+			cliNoHooks:  new(false),
 			description: "CLI flags override catalog config (CLI false > config true)",
 		},
 		{
@@ -294,8 +294,8 @@ catalog {
   no_shell = false
   no_hooks = false
 }`,
-			cliNoShell:      boolPtr(true),
-			cliNoHooks:      boolPtr(true),
+			cliNoShell:      new(true),
+			cliNoHooks:      new(true),
 			expectedNoShell: true,
 			expectedNoHooks: true,
 			description:     "CLI flags override catalog config (CLI true > config false)",
@@ -308,7 +308,7 @@ catalog {
   no_shell = false
   no_hooks = true
 }`,
-			cliNoShell:      boolPtr(true),
+			cliNoShell:      new(true),
 			expectedNoShell: true,
 			expectedNoHooks: true,
 			description:     "CLI --no-shell overrides config, no_hooks from config",
@@ -321,7 +321,7 @@ catalog {
   no_shell = true
   no_hooks = false
 }`,
-			cliNoHooks:      boolPtr(true),
+			cliNoHooks:      new(true),
 			expectedNoShell: true,
 			expectedNoHooks: true,
 			description:     "CLI --no-hooks overrides config, no_shell from config",
@@ -341,8 +341,8 @@ catalog {
 catalog {
   urls = ["test-url"]
 }`,
-			cliNoShell:      boolPtr(true),
-			cliNoHooks:      boolPtr(true),
+			cliNoShell:      new(true),
+			cliNoHooks:      new(true),
 			expectedNoShell: true,
 			expectedNoHooks: true,
 			description:     "Config omits no_shell/no_hooks, CLI sets both true - CLI should take effect",
@@ -353,8 +353,8 @@ catalog {
 catalog {
   urls = ["test-url"]
 }`,
-			cliNoShell:  boolPtr(false),
-			cliNoHooks:  boolPtr(false),
+			cliNoShell:  new(false),
+			cliNoHooks:  new(false),
 			description: "Config omits no_shell/no_hooks, CLI sets both false - should remain false",
 		},
 		{
@@ -363,7 +363,7 @@ catalog {
 catalog {
   urls = ["test-url"]
 }`,
-			cliNoShell:      boolPtr(true),
+			cliNoShell:      new(true),
 			expectedNoShell: true,
 			description:     "Config omits attributes, only CLI --no-shell set - only no_shell should be true",
 		},
@@ -395,7 +395,7 @@ catalog {
   urls = ["test-url"]
   no_shell = false
 }`,
-			cliNoHooks:      boolPtr(true),
+			cliNoHooks:      new(true),
 			expectedNoHooks: true,
 			description:     "Config sets no_shell=false, no_hooks omitted, CLI --no-hooks - should be false/true",
 		},
@@ -472,8 +472,10 @@ catalog {
 }
 
 // Helper function to create bool pointers
+//
+//go:fix inline
 func boolPtr(b bool) *bool {
-	return &b
+	return new(b)
 }
 
 // TestCatalogConfigParsing tests that catalog config is properly parsed with new attributes

@@ -45,13 +45,13 @@ func collectCredentialsFromEnv() map[svchost.Hostname]string {
 	ret := make(map[svchost.Hostname]string)
 
 	for _, ev := range os.Environ() {
-		eqIdx := strings.Index(ev, "=")
-		if eqIdx < 0 {
+		before, after, ok := strings.Cut(ev, "=")
+		if !ok {
 			continue
 		}
 
-		name := ev[:eqIdx]
-		value := ev[eqIdx+1:]
+		name := before
+		value := after
 
 		if !strings.HasPrefix(name, prefix) {
 			continue

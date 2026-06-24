@@ -1,5 +1,4 @@
 //go:build tflint && !windows
-// +build tflint,!windows
 
 //nolint:paralleltest
 package test_test

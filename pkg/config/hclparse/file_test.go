@@ -135,10 +135,8 @@ func TestRebindWithRacing(t *testing.T) {
 	start.Add(1)
 
 	for range goroutines {
-		done.Add(1)
 
-		go func() {
-			defer done.Done()
+		done.Go(func() {
 
 			start.Wait()
 
@@ -151,7 +149,7 @@ func TestRebindWithRacing(t *testing.T) {
 			decodeErr := rebound.Decode(&out, evalContextMissingDependency())
 			assert.Error(t, decodeErr)
 			assert.Contains(t, buf.String(), `no variable named "dependency"`)
-		}()
+		})
 	}
 
 	start.Done()

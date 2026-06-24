@@ -157,16 +157,14 @@ func TestUnitStringConcurrent(t *testing.T) {
 	const goroutines = 10
 
 	for range goroutines {
-		wg.Add(1)
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			for range 100 {
 				s := unit.String()
 				assert.Contains(t, s, "/test/path")
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
