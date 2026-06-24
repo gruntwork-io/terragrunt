@@ -415,7 +415,6 @@ func structFieldNames(v any) []string {
 	names := make([]string, 0, t.NumField())
 
 	for f := range t.Fields() {
-		f := f
 		if f.IsExported() {
 			names = append(names, f.Name)
 		}

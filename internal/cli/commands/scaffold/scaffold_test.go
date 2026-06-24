@@ -471,13 +471,6 @@ catalog {
 	}
 }
 
-// Helper function to create bool pointers
-//
-//go:fix inline
-func boolPtr(b bool) *bool {
-	return new(b)
-}
-
 // TestCatalogConfigParsing tests that catalog config is properly parsed with new attributes
 func TestCatalogConfigParsing(t *testing.T) {
 	t.Parallel()

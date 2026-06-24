@@ -30,11 +30,6 @@ const (
 // PackageAuthenticationResult is returned from a PackageAuthentication implementation which implements Stringer.
 type PackageAuthenticationResult int
 
-//go:fix inline
-func NewPackageAuthenticationResult(res PackageAuthenticationResult) *PackageAuthenticationResult {
-	return new(res)
-}
-
 func (result *PackageAuthenticationResult) String() string {
 	if result == nil {
 		return "unauthenticated"
