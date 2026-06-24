@@ -124,8 +124,6 @@ func ensureParsed(
 		return nil
 	}
 
-	// Graph and relationship goroutines can reach the same unit here at once,
-	// and the nil check above is only a fast path, not atomic with the parse.
 	return unit.GuardConfigParse(func() error {
 		return parseComponent(ctx, l, c, opts, discovery)
 	})

@@ -17,37 +17,23 @@ import (
 )
 
 // TestDiscovery_GraphConcurrentConfigAccessWithRacing reproduces, through the
-// public Discover entry point, the data race that the per-Unit cfg/reading
-// locks guard against.
+// public Discover entry point, the data race the per-Unit cfg/reading locks
+// guard against: the graph phase reaches a shared unit from several goroutines
+// at once, so one goroutine's parse stores the config while others read it.
 //
-// The graph phase parses a unit lazily, via ensureParsed -> parseComponent ->
-// Unit.StoreConfig/SetReading. With a `{./**}...` filter every unit is both a
-// graph target (walked in its own goroutine) and a dependency of other targets,
-// so a shared unit is reached by several graph-phase goroutines at once.
-// GuardConfigParse serializes the parse so the config is stored a single time.
-// The goroutines that lose that race still read the unit's config concurrently
-// with the winner's store: the ensureParsed cache check and the downstream
-// dependency extraction both call Unit.Config(). Without the lock on
-// Config/StoreConfig (and Reading/SetReading), that read/write pair is a data
-// race on cfg and reading.
-//
-// The shared unit is given a deliberately large config (a big remote_state map)
-// to lengthen the parse so the reads and the store reliably overlap. The fan-in
-// of many leaves and the repeated Discover calls raise the odds of overlap
-// within a single test run.
+// The shared unit gets a large config and many dependents, repeated across
+// several Discover calls, so the read/write overlap is reliably observable; a
+// smaller config or fewer iterations make the race intermittent.
 //
 // To confirm the locks are load-bearing, drop the lock/unlock calls from Unit's
-// Config, StoreConfig, Reading, and SetReading and run this test with -race:
-// the detector reports the race between Unit.StoreConfig and Unit.Config inside
-// the graph phase. With the locks in place it passes.
+// Config, StoreConfig, Reading, and SetReading and run with -race.
 func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	// A large config lengthens the parse so the concurrent reads and the store
-	// overlap. remote_state is partially decoded during discovery, so its
-	// contents are actually walked rather than skipped.
+	// remote_state is partially decoded during discovery, so a large block is
+	// walked during parse rather than skipped, which lengthens the parse.
 	var sharedConfig strings.Builder
 
 	sharedConfig.WriteString("remote_state {\n  backend = \"local\"\n")

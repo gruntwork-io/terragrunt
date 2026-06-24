@@ -238,9 +238,8 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 	assert.Equal(t, 1, tsc.Len(), "should have exactly one component after concurrent adds")
 }
 
-// TestUnitGuardConfigParseWithRacing pins the no-double-parse guarantee: when
-// many goroutines race to parse the same unit, the parse runs exactly once and
-// the losers observe the winner's config.
+// TestUnitGuardConfigParseWithRacing verifies the parse runs exactly once when
+// many goroutines race to parse the same unit.
 func TestUnitGuardConfigParseWithRacing(t *testing.T) {
 	t.Parallel()
 
