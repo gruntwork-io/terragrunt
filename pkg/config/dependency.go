@@ -1040,10 +1040,10 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		pctx.IAMRoleOptions = iam.RoleOptions{}
 	}
 
-	// Validate and use TerragruntVersionConstraints.TerraformBinary for dependency
+	// Decode the terraform binary plus the terraform block so the dependency honors extra_arguments and source.
 	partialTerragruntConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed(l),
+		pctx.WithDecodeList(DependencyBlock, TerraformBlock).WithDiagnosticsSuppressed(l),
 		l,
 		targetConfig,
 		nil,
@@ -1057,20 +1057,8 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		pctx.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	// Parse the target config terraform block so dependency output runs honor its extra_arguments and source.
-	terraformTGConfig, err := PartialParseConfigFile(
-		ctx,
-		pctx.WithDecodeList(TerraformBlock).WithDiagnosticsSuppressed(l),
-		l,
-		targetConfig,
-		nil,
-	)
-	if err != nil {
-		return nil, "", err
-	}
-
 	// Apply extra_arguments env_vars for the output command so env dependent backends can be read.
-	applyExtraArgsEnvVarsForOutput(pctx, terraformTGConfig.Terraform)
+	applyExtraArgsEnvVarsForOutput(pctx, partialTerragruntConfig.Terraform)
 
 	// If the Source is set, then we need to recompute it in the ctx of the target config.
 	if pctx.Source != "" {
@@ -1079,7 +1067,7 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 
 		// Finally, update the source to be the combined path between the terraform source in the target config, and the
 		// value before "//" in the original terragrunt options.
-		targetSource, err := GetTerragruntSourceForModule(moduleURL, filepath.Dir(targetConfig), terraformTGConfig)
+		targetSource, err := GetTerragruntSourceForModule(moduleURL, filepath.Dir(targetConfig), partialTerragruntConfig)
 		if err != nil {
 			return nil, "", err
 		}
