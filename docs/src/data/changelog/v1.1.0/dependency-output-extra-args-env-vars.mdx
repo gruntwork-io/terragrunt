@@ -1,0 +1,8 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Apply `extra_arguments` env vars when resolving `dependency` outputs
+
+Resolving a `dependency` block's outputs now applies the `env_vars` from the unit's `terraform` `extra_arguments` blocks whose `commands` include `output`.

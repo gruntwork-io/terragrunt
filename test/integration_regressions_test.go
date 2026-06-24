@@ -40,6 +40,7 @@ const (
 	testFixtureExposedIncludePartialParseError   = "fixtures/regressions/exposed-include-partial-parse-error"
 	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
 	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
+	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -1158,4 +1159,27 @@ func findCachedFile(t *testing.T, cacheRoot, name string) string {
 	require.NoError(t, walkErr, "walking %s", cacheRoot)
 
 	return found
+}
+
+// TestDependencyExtraArgsEnvVarsResolveOutput checks that dependency output resolution honors extra_arguments env_vars
+func TestDependencyExtraArgsEnvVarsResolveOutput(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyExtraArgsEnv)
+	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyExtraArgsEnv)
+	moduleAPath := filepath.Join(testPath, "module-a")
+	moduleBPath := filepath.Join(testPath, "module-b")
+
+	// apply the dependency so its state is written under the custom workspace selected by extra_arguments
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleAPath)
+	require.NoError(t, err)
+
+	// resolving module-a outputs here must use the extra_arguments workspace to read the right state
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleBPath)
+	require.NoError(t, err)
+
+	// confirm module-a output propagated through the dependency, not just a clean exit
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw test_output --non-interactive --working-dir "+moduleBPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "hello from module-a")
 }
