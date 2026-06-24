@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -1189,12 +1190,10 @@ func applyExtraArgsEnvVarsForOutput(pctx *ParsingContext, terraformConfig *Terra
 		}
 
 		if pctx.Env == nil {
-			pctx.Env = map[string]string{}
+			pctx.Env = make(map[string]string, len(*arg.EnvVars))
 		}
 
-		for key, value := range *arg.EnvVars {
-			pctx.Env[key] = value
-		}
+		maps.Copy(pctx.Env, *arg.EnvVars)
 	}
 }
 
