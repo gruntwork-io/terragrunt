@@ -26,6 +26,7 @@ type Unit struct {
 	dependencies     Components
 	dependents       Components
 	mu               sync.Mutex
+	parseMu          sync.Mutex
 	external         bool
 	excluded         bool
 }
@@ -77,6 +78,23 @@ func (u *Unit) StoreConfig(cfg *config.TerragruntConfig) {
 	defer u.unlock()
 
 	u.cfg = cfg
+}
+
+// GuardConfigParse runs parse to populate this unit's config at most once, even
+// when called concurrently. Callers that lose the race skip parse and observe
+// the config stored by the winner.
+//
+// The guard is separate from the config mutex so a slow parse doesn't block
+// reads of an already-parsed unit.
+func (u *Unit) GuardConfigParse(parse func() error) error {
+	u.parseMu.Lock()
+	defer u.parseMu.Unlock()
+
+	if u.Config() != nil {
+		return nil
+	}
+
+	return parse()
 }
 
 // ConfigFile returns the discovered config filename for this unit.

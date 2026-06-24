@@ -16,37 +16,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDiscovery_GraphParseStoresConfigConcurrentlyWithRacing reproduces, through
-// the public Discover entry point, the data race that the per-Unit cfg/reading
+// TestDiscovery_GraphConcurrentConfigAccessWithRacing reproduces, through the
+// public Discover entry point, the data race that the per-Unit cfg/reading
 // locks guard against.
 //
-// The graph phase parses a unit lazily, the first time it is reached, via
-// ensureParsed -> parseComponent -> Unit.StoreConfig/SetReading. ensureParsed
-// guards the parse with a check-then-act on Unit.Config(): if it is nil, parse
-// and store. That check is not atomic across goroutines. With a `{./**}...`
-// filter every unit is both a graph target (whose dependencies are walked in
-// its own goroutine) and a dependency of other targets, so a shared unit is
-// reached from two graph-phase goroutines at once. When both observe a nil
-// config before either stores, both call StoreConfig/SetReading on the same
-// Unit concurrently — a data race on cfg and reading.
+// The graph phase parses a unit lazily, via ensureParsed -> parseComponent ->
+// Unit.StoreConfig/SetReading. With a `{./**}...` filter every unit is both a
+// graph target (walked in its own goroutine) and a dependency of other targets,
+// so a shared unit is reached by several graph-phase goroutines at once.
+// GuardConfigParse serializes the parse so the config is stored a single time.
+// The goroutines that lose that race still read the unit's config concurrently
+// with the winner's store: the ensureParsed cache check and the downstream
+// dependency extraction both call Unit.Config(). Without the lock on
+// Config/StoreConfig (and Reading/SetReading), that read/write pair is a data
+// race on cfg and reading.
 //
-// The window between the nil check and the store is the parse duration, so the
-// shared unit is given a deliberately large config (a big remote_state map) to
-// widen it enough that the race detector reliably observes the overlap. The
-// fan-in of many leaves and the repeated Discover calls raise the odds that the
-// two parsers overlap within a single test run.
+// The shared unit is given a deliberately large config (a big remote_state map)
+// to lengthen the parse so the reads and the store reliably overlap. The fan-in
+// of many leaves and the repeated Discover calls raise the odds of overlap
+// within a single test run.
 //
 // To confirm the locks are load-bearing, drop the lock/unlock calls from Unit's
 // Config, StoreConfig, Reading, and SetReading and run this test with -race:
-// the detector reports the race inside the graph phase
-// (parseComponent -> Unit.StoreConfig). With the locks in place it passes.
-func TestDiscovery_GraphParseStoresConfigConcurrentlyWithRacing(t *testing.T) {
+// the detector reports the race between Unit.StoreConfig and Unit.Config inside
+// the graph phase. With the locks in place it passes.
+func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	// A large config widens the parse window so the concurrent re-parse is
-	// observable. remote_state is partially decoded during discovery, so its
+	// A large config lengthens the parse so the concurrent reads and the store
+	// overlap. remote_state is partially decoded during discovery, so its
 	// contents are actually walked rather than skipped.
 	var sharedConfig strings.Builder
 

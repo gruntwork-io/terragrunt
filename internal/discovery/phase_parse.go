@@ -124,7 +124,11 @@ func ensureParsed(
 		return nil
 	}
 
-	return parseComponent(ctx, l, c, opts, discovery)
+	// Graph and relationship goroutines can reach the same unit here at once,
+	// and the nil check above is only a fast path, not atomic with the parse.
+	return unit.GuardConfigParse(func() error {
+		return parseComponent(ctx, l, c, opts, discovery)
+	})
 }
 
 // ParsePhase parses HCL configurations for filter evaluation.
