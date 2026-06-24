@@ -40,6 +40,7 @@ const (
 	testFixtureExposedIncludePartialParseError   = "fixtures/regressions/exposed-include-partial-parse-error"
 	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
 	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
+	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -1158,4 +1159,28 @@ func findCachedFile(t *testing.T, cacheRoot, name string) string {
 	require.NoError(t, walkErr, "walking %s", cacheRoot)
 
 	return found
+}
+
+// TestDependencyExtraArgsEnvVarsResolveOutput checks that dependency output resolution honors extra_arguments env_vars
+func TestDependencyExtraArgsEnvVarsResolveOutput(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyExtraArgsEnv)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyExtraArgsEnv)
+	moduleAPath := filepath.Join(rootPath, "module-a")
+	moduleBPath := filepath.Join(rootPath, "module-b")
+
+	// applying module-a first routes the later resolution through the init-folder optimized output path
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleAPath)
+	require.NoError(t, err)
+
+	// resolving module-a outputs here must decrypt module-a state using the extra_arguments passphrase
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleBPath)
+	require.NoError(t, err)
+	assert.NotContains(t, stderr, "Unable to compute static value")
+
+	// confirm module-a output propagated through the dependency, not just a clean exit
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw test_output --non-interactive --working-dir "+moduleBPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "hello from module-a")
 }

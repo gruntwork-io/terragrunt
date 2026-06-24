@@ -1057,24 +1057,29 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		pctx.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
+	// Parse the target config terraform block so dependency output runs honor its extra_arguments and source.
+	terraformTGConfig, err := PartialParseConfigFile(
+		ctx,
+		pctx.WithDecodeList(TerraformBlock).WithDiagnosticsSuppressed(l),
+		l,
+		targetConfig,
+		nil,
+	)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Apply extra_arguments env_vars for the output command so env dependent backends can be read.
+	applyExtraArgsEnvVarsForOutput(pctx, terraformTGConfig.Terraform)
+
 	// If the Source is set, then we need to recompute it in the ctx of the target config.
 	if pctx.Source != "" {
-		partialParseIncludedConfig, err := PartialParseConfigFile(
-			ctx,
-			pctx.WithDecodeList(TerraformBlock).WithDiagnosticsSuppressed(l),
-			l,
-			targetConfig,
-			nil,
-		)
-		if err != nil {
-			return nil, "", err
-		}
 		// Update the source value to be everything before "//" so that it can be recomputed
 		moduleURL, _ := getter.SourceDirSubdir(pctx.Source)
 
 		// Finally, update the source to be the combined path between the terraform source in the target config, and the
 		// value before "//" in the original terragrunt options.
-		targetSource, err := GetTerragruntSourceForModule(moduleURL, filepath.Dir(targetConfig), partialParseIncludedConfig)
+		targetSource, err := GetTerragruntSourceForModule(moduleURL, filepath.Dir(targetConfig), terraformTGConfig)
 		if err != nil {
 			return nil, "", err
 		}
@@ -1181,6 +1186,28 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 // canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled
 func canGetRemoteState(remoteState *remotestate.RemoteState) bool {
 	return remoteState != nil && !remoteState.DisableDependencyOptimization
+}
+
+// applyExtraArgsEnvVarsForOutput merges extra_arguments env_vars whose commands include output into pctx.Env
+func applyExtraArgsEnvVarsForOutput(pctx *ParsingContext, terraformConfig *TerraformConfig) {
+	if terraformConfig == nil {
+		return
+	}
+
+	for i := range terraformConfig.ExtraArgs {
+		arg := &terraformConfig.ExtraArgs[i]
+		if arg.EnvVars == nil || !slices.Contains(arg.Commands, tf.CommandNameOutput) {
+			continue
+		}
+
+		if pctx.Env == nil {
+			pctx.Env = map[string]string{}
+		}
+
+		for key, value := range *arg.EnvVars {
+			pctx.Env[key] = value
+		}
+	}
 }
 
 // terragruntAlreadyInit returns true if it detects that the module specified by the given terragrunt configuration is

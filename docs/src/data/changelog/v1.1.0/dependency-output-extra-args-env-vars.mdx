@@ -1,0 +1,8 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Apply `extra_arguments` env vars when resolving `dependency` outputs
+
+Resolving a `dependency` block's outputs now applies the `env_vars` from the unit's `terraform` `extra_arguments` blocks whose `commands` include `output`. Previously the optimized output paths ran `tofu output -json` without these variables, so a dependency whose backend relied on them (for example, OpenTofu state encryption keyed on a `TF_VAR_*` passphrase) failed with `Unable to compute static value`.
