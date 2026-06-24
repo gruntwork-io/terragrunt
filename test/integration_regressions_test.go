@@ -1166,18 +1166,17 @@ func TestDependencyExtraArgsEnvVarsResolveOutput(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyExtraArgsEnv)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyExtraArgsEnv)
-	moduleAPath := filepath.Join(rootPath, "module-a")
-	moduleBPath := filepath.Join(rootPath, "module-b")
+	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyExtraArgsEnv)
+	moduleAPath := filepath.Join(testPath, "module-a")
+	moduleBPath := filepath.Join(testPath, "module-b")
 
-	// applying module-a first routes the later resolution through the init-folder optimized output path
+	// apply the dependency so its state is written under the custom workspace selected by extra_arguments
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleAPath)
 	require.NoError(t, err)
 
-	// resolving module-a outputs here must decrypt module-a state using the extra_arguments passphrase
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleBPath)
+	// resolving module-a outputs here must use the extra_arguments workspace to read the right state
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleBPath)
 	require.NoError(t, err)
-	assert.NotContains(t, stderr, "Unable to compute static value")
 
 	// confirm module-a output propagated through the dependency, not just a clean exit
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw test_output --non-interactive --working-dir "+moduleBPath)
