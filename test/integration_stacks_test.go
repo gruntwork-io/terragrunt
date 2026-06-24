@@ -2149,6 +2149,29 @@ func TestStackRunNoFilterDoesNotShowStackTip(t *testing.T) {
 	assert.NotContains(t, stderr, tips.StackRunFilterMatchedStacks)
 }
 
+// TestStackRunNonStackFilterDoesNotShowStackTip verifies the tip is scoped to stack-restricted filters: a plain path filter (no type=stack) must not trigger it.
+func TestStackRunNonStackFilterDoesNotShowStackTip(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStackFilter)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackFilter)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStackFilter)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(rootPath)
+	require.NoError(t, runner.Init(t.Context()))
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run apply --filter './stacks/first' --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, tips.StackRunFilterMatchedStacks)
+}
+
 // TestStackGenerateDedupAtDiscoveryWithRacing guards intra-invocation duplicate-dispatch under -race.
 func TestStackGenerateDedupAtDiscoveryWithRacing(t *testing.T) {
 	t.Parallel()

@@ -1038,10 +1038,10 @@ func logTaskOutcome(ctx context.Context, l log.Logger, unitPath, command string,
 // filter selects stacks, which are not executed, so no units run. It surfaces the
 // stack-run-filter-matched-stacks tip showing how to target the units instead.
 func giveStackFilterRunTip(l log.Logger, opts *options.TerragruntOptions, discovered component.Components) {
-	// Only relevant when a filter is what narrowed the run to stacks. Without a
-	// filter, an empty run (e.g. ungenerated or empty stacks) is not caused by
-	// stack-targeting, so the tip would be a false positive.
-	if len(opts.Filters) == 0 {
+	// Only relevant when the filter is restricted to stacks (e.g. `| type=stack`):
+	// such a filter selects stacks, which are not run, so no units match. Empty runs
+	// from no filter or non-stack filters have other causes, so skip them.
+	if len(opts.Filters.RestrictToStacks()) == 0 {
 		return
 	}
 
