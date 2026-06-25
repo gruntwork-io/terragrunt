@@ -95,10 +95,6 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 		Filters:     opts.Filters,
 		Experiments: opts.Experiments,
 	})
-	if d != nil {
-		d = d.WithExec(v.Exec)
-	}
-
 	if err != nil {
 		return processDiagnostics(l, opts, diags, err)
 	}
@@ -121,7 +117,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 
 	d = d.WithWorktrees(worktrees)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, v.ToRoot(), opts)
 	if err != nil {
 		return processDiagnostics(l, opts, diags, err)
 	}
@@ -139,7 +135,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 			parseOpts.TerragruntConfigPath = stackFilePath
 
 			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parser.Venv = v.ToRoot()
+			parser = parser.WithVenv(v.ToRoot())
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
@@ -182,7 +178,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
 		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
-		pctx.Venv = v.ToRoot()
+		pctx = pctx.WithVenv(v.ToRoot())
 
 		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
 			parseErrs = append(parseErrs, err)
@@ -258,10 +254,6 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 		Filters:     opts.Filters,
 		Experiments: opts.Experiments,
 	})
-	if d != nil {
-		d = d.WithExec(v.Exec)
-	}
-
 	if err != nil {
 		return err
 	}
@@ -284,7 +276,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 
 	d = d.WithWorktrees(worktrees)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, v.ToRoot(), opts)
 	if err != nil {
 		return err
 	}
@@ -328,7 +320,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 			continue
 		}
 
-		if err := runValidateInputs(l, updatedOpts, prepared.Cfg); err != nil {
+		if err := runValidateInputs(l, v.Env, updatedOpts, prepared.Cfg); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -340,7 +332,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 	return nil
 }
 
-func runValidateInputs(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runValidateInputs(l log.Logger, env map[string]string, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err
@@ -348,7 +340,7 @@ func runValidateInputs(l log.Logger, opts *options.TerragruntOptions, cfg *confi
 
 	allVars := slices.Concat(required, optional)
 
-	allInputs, err := getDefinedTerragruntInputs(l, opts, cfg)
+	allInputs, err := getDefinedTerragruntInputs(l, env, opts, cfg)
 	if err != nil {
 		return err
 	}
@@ -418,8 +410,8 @@ func runValidateInputs(l log.Logger, opts *options.TerragruntOptions, cfg *confi
 // - env vars from the external runtime calling terragrunt.
 // - inputs blocks.
 // - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
-func getDefinedTerragruntInputs(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) ([]string, error) {
-	envVarTFVars := getTerraformInputNamesFromEnvVar(opts, cfg)
+func getDefinedTerragruntInputs(l log.Logger, env map[string]string, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) ([]string, error) {
+	envVarTFVars := getTerraformInputNamesFromEnvVar(env, cfg)
 	inputsTFVars := getTerraformInputNamesFromConfig(cfg)
 
 	varFileTFVars, err := getTerraformInputNamesFromVarFiles(l, cfg)
@@ -471,8 +463,8 @@ func getDefinedTerragruntInputs(l log.Logger, opts *options.TerragruntOptions, c
 // variables from extra_arguments blocks to see if there are any TF_VAR environment variables that set terraform
 // variables. This will return the list of names of variables that are set in this way by the given terragrunt
 // configuration.
-func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
-	envVars := opts.Env
+func getTerraformInputNamesFromEnvVar(env map[string]string, terragruntConfig *config.TerragruntConfig) []string {
+	envVars := env
 
 	// Make sure to check if there are configured env vars in the parsed terragrunt config.
 	if terragruntConfig.Terraform != nil {

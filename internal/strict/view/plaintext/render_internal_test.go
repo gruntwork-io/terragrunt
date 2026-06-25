@@ -60,8 +60,8 @@ func TestRenderFormatOutputFlushError(t *testing.T) {
 
 	t.Cleanup(func() { newTabFlusher = original })
 
-	newTabFlusher = func(out io.Writer) tabFlusher {
-		return &failingFlusher{Writer: out, err: sentinel}
+	newTabFlusher = func(w io.Writer) tabFlusher {
+		return &failingFlusher{Writer: w, err: sentinel}
 	}
 
 	r := NewRender()

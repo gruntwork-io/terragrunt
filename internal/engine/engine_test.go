@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +33,7 @@ func TestConvertMetaToProtobuf(t *testing.T) {
 func TestReadEngineOutput(t *testing.T) {
 	t.Parallel()
 
-	runOptions := &engine.ExecutionOptions{
+	runOpts := &engine.ExecutionOptions{
 		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 
@@ -50,7 +51,7 @@ func TestReadEngineOutput(t *testing.T) {
 		}, nil
 	}
 
-	err := engine.ReadEngineOutput(runOptions, false, outputFn)
+	err := engine.ReadEngineOutput(runOpts, false, outputFn)
 	assert.NoError(t, err)
 }
 
@@ -62,12 +63,7 @@ func TestRun_NonOSBackedExecReturnsSentinel(t *testing.T) {
 
 	ctx := engine.WithEngineValues(context.Background())
 
-	memExec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-		return vexec.Result{}
-	})
-
 	opts := &engine.ExecutionOptions{
-		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 		EngineOptions: &engine.EngineOptions{
 			SkipChecksumCheck: true,
 			LogLevel:          "warn",
@@ -80,7 +76,11 @@ func TestRun_NonOSBackedExecReturnsSentinel(t *testing.T) {
 		WorkingDir: t.TempDir(),
 	}
 
-	_, err := engine.Run(ctx, log.New(), memExec, opts)
+	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		return vexec.Result{}
+	})
+
+	_, err := engine.Run(ctx, log.New(), v, opts)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, vexec.ErrNotOSBacked)
 }

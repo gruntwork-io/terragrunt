@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -447,14 +448,19 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 			unitOpts.Writers.Writer = unitWriter
 			unitRunner := common.NewUnitRunner(u)
 
+			// Clone v.Env so per-unit mutations (e.g. SetTerragruntInputsAsEnvVars
+			// writing TF_VAR_* in run.go) don't leak across concurrent units.
+			unitV := v
+			unitV.Env = maps.Clone(v.Env)
+
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
 			// get_aws_account_id() in locals need auth-provider credentials
-			// available in opts.Env during HCL evaluation.
+			// available in v.Env during HCL evaluation.
 			// See https://github.com/gruntwork-io/terragrunt/issues/5515
 			//
 			// The obtain_creds span is emitted by externalcmd.Provider.GetCredentials
 			// only when an auth provider is configured, so no conditional is needed here.
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, v.Exec, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitV.ToRoot(), unitOpts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(unitOpts))
 			if err != nil {
 				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
 
@@ -469,7 +475,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 			}, func(readCtx context.Context) error {
 				parseCtx, pctx := configbridge.NewParsingContext(readCtx, unitLogger, unitOpts)
-				pctx.Venv = v.ToRoot()
+				pctx = pctx.WithVenv(unitV.ToRoot())
 
 				var readErr error
 
@@ -498,7 +504,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 				return unitRunner.Run(
 					runCtx,
 					unitLogger,
-					v,
+					unitV,
 					unitOpts,
 					r,
 					runCfg,

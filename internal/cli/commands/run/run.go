@@ -86,11 +86,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
 	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(
-		ctx,
-		l,
-		rv.Exec,
-		opts.Env,
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, rv.ToRoot(),
 		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts)),
 	); err != nil {
 		return err
@@ -102,7 +98,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	}
 
 	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx.Venv = rv.ToRoot()
+	pctx = pctx.WithVenv(rv.ToRoot())
 
 	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
 	if err != nil {
@@ -172,7 +168,7 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 	}
 
-	return tf.RunCommand(ctx, l, v.Exec, configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
+	return tf.RunCommand(ctx, l, v, configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 }
 
 func getTFPathFromConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (string, error) {
@@ -207,7 +203,7 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		opts.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	l, ver, impl, err := run.PopulateTFVersion(ctx, l, v.Exec, run.PopulateTFVersionInput{
+	l, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
 		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
 		WorkingDir:   opts.WorkingDir,
 		VersionFiles: opts.VersionManagerFileName,
@@ -258,8 +254,7 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 
 func getTerragruntConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
 	ctx, configCtx := configbridge.NewParsingContext(ctx, l, opts)
-	configCtx.Venv = v
-	configCtx = configCtx.WithDecodeList(
+	configCtx = configCtx.WithVenv(v).WithDecodeList(
 		config.TerragruntVersionConstraints,
 		config.FeatureFlagsBlock,
 	)

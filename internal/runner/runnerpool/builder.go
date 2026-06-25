@@ -18,7 +18,7 @@ func Build(
 	opts *options.TerragruntOptions,
 	runnerOpts ...common.Option,
 ) (common.StackRunner, error) {
-	discovered, err := discoverWithRetry(ctx, l, opts, runnerOpts...)
+	discovered, err := discoverWithRetry(ctx, l, v.ToRoot(), opts, runnerOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func Build(
 		return nil, err
 	}
 
-	if err := checkVersionConstraints(ctx, l, v.Exec, opts, rnr.GetStack().Units); err != nil {
+	if err := checkVersionConstraints(ctx, l, v.ToRoot(), opts, rnr.GetStack().Units); err != nil {
 		return nil, err
 	}
 

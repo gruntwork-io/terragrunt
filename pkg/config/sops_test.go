@@ -82,8 +82,8 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 		ctx := WithConfigValues(t.Context())
 		_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
 		pctx.WorkingDir = filepath.Dir(secretFile)
-		// pctx.Env has empty value for authKey (like auth-provider returning empty session token)
-		pctx.Env = map[string]string{authKey: ""}
+		// pctx.Venv.Env has empty value for authKey (like auth-provider returning empty session token)
+		pctx.Venv.Env = map[string]string{authKey: ""}
 
 		result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
 		require.NoError(t, err, "decrypt must succeed using existing process env credentials")
@@ -103,7 +103,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 		ctx := WithConfigValues(t.Context())
 		_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
 		pctx.WorkingDir = filepath.Dir(secretFile)
-		pctx.Env = map[string]string{authKey: "fresh-token"}
+		pctx.Venv.Env = map[string]string{authKey: "fresh-token"}
 
 		result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
 		require.NoError(t, err, "decrypt must succeed with fresh credentials from opts.Env")
@@ -126,7 +126,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 		_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
 		pctx.WorkingDir = filepath.Dir(secretFile)
 		// Empty env — simulates auth-provider NOT having run (the original bug)
-		pctx.Env = map[string]string{}
+		pctx.Venv.Env = map[string]string{}
 
 		_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
 		require.Error(t, err,
@@ -174,7 +174,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 				l := logger.CreateLogger()
 				_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
 				pctx.WorkingDir = filepath.Dir(filePath)
-				pctx.Env = map[string]string{authKey: expectedToken}
+				pctx.Venv.Env = map[string]string{authKey: expectedToken}
 
 				result, decryptErr := sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", tokenCheckFn)
 				if decryptErr != nil {

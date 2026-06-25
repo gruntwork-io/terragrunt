@@ -62,9 +62,9 @@ func runPrint(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terra
 }
 
 func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
-	d := discovery.NewDiscovery(opts.WorkingDir).WithExec(v.Exec)
+	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, v.ToRoot(), opts)
 	if err != nil {
 		return err
 	}
