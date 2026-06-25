@@ -146,7 +146,7 @@ func NewTreeStyler(shouldColor bool) *TreeStyler {
 
 	return &TreeStyler{
 		shouldColor: shouldColor,
-		entryStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("240")).MarginRight(1),
+		entryStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("8")).MarginRight(1),
 		rootStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("35")),
 		colorizer:   colorizer,
 	}
@@ -168,6 +168,7 @@ func (s *TreeStyler) Style(t *tree.Tree) *tree.Tree {
 
 	return t.
 		EnumeratorStyle(s.entryStyle).
+		IndenterStyle(s.entryStyle).
 		RootStyle(s.rootStyle)
 }
 
