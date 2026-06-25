@@ -91,24 +91,24 @@ func TestUpdateUnknownCtyValValuesTypedLeaves(t *testing.T) {
 		name     string
 	}{
 		{
-			name:     "unknown number leaf becomes zero",
+			name:     "unknown number leaf becomes null number",
 			value:    cty.ObjectVal(map[string]cty.Value{"n": cty.UnknownVal(cty.Number)}),
-			expected: cty.ObjectVal(map[string]cty.Value{"n": cty.Zero}),
+			expected: cty.ObjectVal(map[string]cty.Value{"n": cty.NullVal(cty.Number)}),
 		},
 		{
-			name:     "unknown bool leaf becomes false",
+			name:     "unknown bool leaf becomes null bool",
 			value:    cty.ObjectVal(map[string]cty.Value{"b": cty.UnknownVal(cty.Bool)}),
-			expected: cty.ObjectVal(map[string]cty.Value{"b": cty.False}),
+			expected: cty.ObjectVal(map[string]cty.Value{"b": cty.NullVal(cty.Bool)}),
 		},
 		{
-			name:     "top level unknown number becomes zero",
+			name:     "top level unknown number becomes null number",
 			value:    cty.UnknownVal(cty.Number),
-			expected: cty.Zero,
+			expected: cty.NullVal(cty.Number),
 		},
 		{
-			name:     "unknown list leaf becomes empty list",
+			name:     "unknown list leaf becomes null list",
 			value:    cty.ObjectVal(map[string]cty.Value{"items": cty.UnknownVal(cty.List(cty.String))}),
-			expected: cty.ObjectVal(map[string]cty.Value{"items": cty.ListValEmpty(cty.String)}),
+			expected: cty.ObjectVal(map[string]cty.Value{"items": cty.NullVal(cty.List(cty.String))}),
 		},
 		{
 			name:     "unknown string leaf stays empty string",
