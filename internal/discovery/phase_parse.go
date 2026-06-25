@@ -124,7 +124,9 @@ func ensureParsed(
 		return nil
 	}
 
-	return parseComponent(ctx, l, c, opts, discovery)
+	return unit.GuardConfigParse(func() error {
+		return parseComponent(ctx, l, c, opts, discovery)
+	})
 }
 
 // ParsePhase parses HCL configurations for filter evaluation.

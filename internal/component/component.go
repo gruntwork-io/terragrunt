@@ -43,8 +43,6 @@ type Component interface {
 
 	lock()
 	unlock()
-	rLock()
-	rUnlock()
 
 	ensureDependency(Component)
 	ensureDependent(Component)
