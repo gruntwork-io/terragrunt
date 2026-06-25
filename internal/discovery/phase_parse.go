@@ -124,7 +124,11 @@ func ensureParsed(
 		return nil
 	}
 
-	return parseComponent(ctx, l, c, opts, discovery)
+	// EnsureConfig serializes concurrent callers so the same unit is never
+	// parsed twice (e.g. multiple graph targets walking the same configs).
+	return unit.EnsureConfig(func() error {
+		return parseComponent(ctx, l, c, opts, discovery)
+	})
 }
 
 // ParsePhase parses HCL configurations for filter evaluation.

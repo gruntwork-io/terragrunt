@@ -38,54 +38,34 @@ func TestEvaluate_PathFilter(t *testing.T) {
 			name:   "exact path match",
 			filter: mustPath(t, "./apps/app1"),
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[0],
 			},
 		},
 		{
 			name:   "glob with single wildcard",
 			filter: mustPath(t, "./apps/*"),
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[0],
+				components[1],
+				components[2],
 			},
 		},
 		{
 			name:   "glob with single wildcard and partial match",
 			filter: mustPath(t, "./apps/app*"),
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[0],
+				components[1],
 			},
 		},
 		{
 			name:   "glob with recursive wildcard",
 			filter: mustPath(t, "./apps/**"),
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/subdir/nested").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[0],
+				components[1],
+				components[2],
+				components[5],
 			},
 		},
 		{
@@ -128,15 +108,15 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 			name:   "name filter single match",
 			filter: mustAttr(t, "name", "db"),
 			expected: []component.Component{
-				component.NewUnit("./libs/db"),
+				components[2],
 			},
 		},
 		{
 			name:   "name filter multiple matches",
 			filter: mustAttr(t, "name", "app"),
 			expected: []component.Component{
-				component.NewUnit("./apps/app"),
-				component.NewUnit("./libs/app"),
+				components[0],
+				components[1],
 			},
 		},
 		{
@@ -148,17 +128,17 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 			name:   "type filter unit",
 			filter: mustAttr(t, "type", "unit"),
 			expected: []component.Component{
-				component.NewUnit("./apps/app"),
-				component.NewUnit("./libs/app"),
-				component.NewUnit("./libs/db"),
-				component.NewUnit("./libs/api"),
+				components[0],
+				components[1],
+				components[2],
+				components[3],
 			},
 		},
 		{
 			name:   "type filter stack",
 			filter: mustAttr(t, "type", "stack"),
 			expected: []component.Component{
-				component.NewStack("./libs/api"),
+				components[4],
 			},
 		},
 	}
@@ -212,16 +192,16 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 			name:   "exact file path match - single match",
 			filter: mustAttr(t, "reading", "database.hcl"),
 			expected: []component.Component{
-				component.NewUnit("./libs/db").WithReading("database.hcl"),
+				components[3],
 			},
 		},
 		{
 			name:   "exact file path match - multiple matches",
 			filter: mustAttr(t, "reading", "shared.hcl"),
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
-				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
-				component.NewUnit("./apps/app4").WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
+				components[0],
+				components[1],
+				components[5],
 			},
 		},
 		{
@@ -233,26 +213,26 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 			name:   "glob pattern with single wildcard - *.hcl",
 			filter: mustAttr(t, "reading", "*.hcl"),
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
-				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
-				component.NewUnit("./libs/db").WithReading("database.hcl"),
-				component.NewUnit("./apps/app4").WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
+				components[0],
+				components[1],
+				components[3],
+				components[5],
 			},
 		},
 		{
 			name:   "glob pattern with prefix - shared*",
 			filter: mustAttr(t, "reading", "shared*"),
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
-				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
-				component.NewUnit("./apps/app4").WithReading("shared.hcl", "shared.tfvars", "extra.hcl"),
+				components[0],
+				components[1],
+				components[5],
 			},
 		},
 		{
 			name:   "glob pattern with double wildcard - **/variables.hcl",
 			filter: mustAttr(t, "reading", "**/variables.hcl"),
 			expected: []component.Component{
-				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
+				components[1],
 			},
 		},
 		{
@@ -264,7 +244,7 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 			name:   "glob pattern with question mark - config.???l",
 			filter: mustAttr(t, "reading", "config.???l"),
 			expected: []component.Component{
-				component.NewUnit("./apps/app3").WithReading("config.yaml", "settings.json"),
+				components[2],
 			},
 		},
 	}
@@ -397,15 +377,9 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 				Right:    mustAttr(t, "name", "legacy"),
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[0],
+				components[1],
+				components[3],
 			},
 		},
 		{
@@ -415,15 +389,9 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 				Right:    mustPath(t, "./apps/legacy"),
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[0],
+				components[1],
+				components[3],
 			},
 		},
 		{
@@ -433,9 +401,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 				Right:    mustPath(t, "./apps/*"),
 			},
 			expected: []component.Component{
-				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[3],
 			},
 		},
 		{
@@ -498,9 +464,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 				Right:    mustAttr(t, "name", "app1"),
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[0],
 			},
 		},
 		{
@@ -520,9 +484,7 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 				Right:    mustAttr(t, "name", "app1"),
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[0],
 			},
 		},
 		{
@@ -582,12 +544,8 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[0],
+				components[1],
 			},
 		},
 		{
@@ -601,21 +559,11 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
-				component.NewUnit("./special/unit").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[1],
+				components[2],
+				components[3],
+				components[4],
+				components[5],
 			},
 		},
 		{
@@ -630,9 +578,7 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 				Right:    mustAttr(t, "name", "app1"),
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
-					WorkingDir: ".",
-				}),
+				components[0],
 			},
 		},
 	}

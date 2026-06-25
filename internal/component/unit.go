@@ -26,8 +26,12 @@ type Unit struct {
 	dependencies     Components
 	dependents       Components
 	mu               sync.RWMutex
-	external         bool
-	excluded         bool
+	// parseMu serializes config parsing (see EnsureConfig). Lock ordering is
+	// parseMu before mu: parseMu is held while parsing, which stores the result
+	// via StoreConfig (mu). Never acquire parseMu while holding mu.
+	parseMu  sync.Mutex
+	external bool
+	excluded bool
 }
 
 // NewUnit creates a new Unit component with the given path.
@@ -51,35 +55,62 @@ func (u *Unit) WithReading(files ...string) *Unit {
 
 // WithConfig adds configuration to a Unit component.
 func (u *Unit) WithConfig(cfg *config.TerragruntConfig) *Unit {
-	u.cfg = cfg
+	u.StoreConfig(cfg)
 
 	return u
 }
 
 // WithDiscoveryContext sets the discovery context for this unit.
 func (u *Unit) WithDiscoveryContext(ctx *DiscoveryContext) *Unit {
-	u.discoveryContext = ctx
+	u.SetDiscoveryContext(ctx)
 
 	return u
 }
 
 // Config returns the parsed Terragrunt configuration for this unit.
 func (u *Unit) Config() *config.TerragruntConfig {
+	u.rLock()
+	defer u.rUnlock()
+
 	return u.cfg
 }
 
 // StoreConfig stores the parsed Terragrunt configuration for this unit.
 func (u *Unit) StoreConfig(cfg *config.TerragruntConfig) {
+	u.lock()
+	defer u.unlock()
+
 	u.cfg = cfg
+}
+
+// EnsureConfig populates the unit's config by running parse, unless a config is
+// already cached. Concurrent callers are serialized, so the config is parsed at
+// most once: callers that lose the race block until the winner finishes and then
+// observe the cached config. parse is expected to store the config on the unit.
+func (u *Unit) EnsureConfig(parse func() error) error {
+	u.parseMu.Lock()
+	defer u.parseMu.Unlock()
+
+	if u.Config() != nil {
+		return nil
+	}
+
+	return parse()
 }
 
 // ConfigFile returns the discovered config filename for this unit.
 func (u *Unit) ConfigFile() string {
+	u.rLock()
+	defer u.rUnlock()
+
 	return u.configFile
 }
 
 // SetConfigFile sets the discovered config filename for this unit.
 func (u *Unit) SetConfigFile(filename string) {
+	u.lock()
+	defer u.unlock()
+
 	u.configFile = filename
 }
 
@@ -100,60 +131,94 @@ func (u *Unit) SetPath(path string) {
 
 // External returns whether the component is external.
 func (u *Unit) External() bool {
+	u.rLock()
+	defer u.rUnlock()
+
 	return u.external
 }
 
 // SetExternal marks the component as external.
 func (u *Unit) SetExternal() {
+	u.lock()
+	defer u.unlock()
+
 	u.external = true
 }
 
 // Excluded returns whether the unit was excluded during discovery/filtering.
 func (u *Unit) Excluded() bool {
+	u.rLock()
+	defer u.rUnlock()
+
 	return u.excluded
 }
 
 // SetExcluded marks the unit as excluded during discovery/filtering.
 func (u *Unit) SetExcluded(excluded bool) {
+	u.lock()
+	defer u.unlock()
+
 	u.excluded = excluded
 }
 
 // Reading returns the list of files being read by this component.
 func (u *Unit) Reading() []string {
+	u.rLock()
+	defer u.rUnlock()
+
 	return u.reading
 }
 
 // SetReading sets the list of files being read by this component.
 func (u *Unit) SetReading(files ...string) {
+	u.lock()
+	defer u.unlock()
+
 	u.reading = files
 }
 
 // Sources returns the list of sources for this component.
 func (u *Unit) Sources() []string {
-	if u.cfg == nil || u.cfg.Terraform == nil || u.cfg.Terraform.Source == nil {
+	cfg := u.Config()
+	if cfg == nil || cfg.Terraform == nil || cfg.Terraform.Source == nil {
 		return []string{}
 	}
 
-	return []string{*u.cfg.Terraform.Source}
+	return []string{*cfg.Terraform.Source}
 }
 
 // DiscoveryContext returns the discovery context for this component.
+//
+// The returned context must be treated as read-only once the component is
+// shared across goroutines: the lock guards the pointer, not the pointed-to
+// struct. Use Copy or CopyWithNewOrigin to derive a modified context and
+// publish it via SetDiscoveryContext.
 func (u *Unit) DiscoveryContext() *DiscoveryContext {
+	u.rLock()
+	defer u.rUnlock()
+
 	return u.discoveryContext
 }
 
 // SetDiscoveryContext sets the discovery context for this component.
+//
+// The context must not be mutated after it is published here; derive a copy
+// first if changes are needed (see DiscoveryContext).
 func (u *Unit) SetDiscoveryContext(ctx *DiscoveryContext) {
+	u.lock()
+	defer u.unlock()
+
 	u.discoveryContext = ctx
 }
 
 // Origin returns the origin of the discovery context for this component.
 func (u *Unit) Origin() Origin {
-	if u.discoveryContext == nil {
+	dCtx := u.DiscoveryContext()
+	if dCtx == nil {
 		return OriginUnknown
 	}
 
-	return u.discoveryContext.Origin()
+	return dCtx.Origin()
 }
 
 // lock locks the Unit.
@@ -240,31 +305,30 @@ func (u *Unit) Dependents() Components {
 //
 //	Unit /path/to/unit (excluded: false, assume applied: false, dependencies: [/dep1, /dep2])
 func (u *Unit) String() string {
-	// Snapshot values under read lock to avoid data races
-	u.rLock()
-	defer u.rUnlock()
+	// Snapshot values via accessors (each takes the read lock) to avoid data
+	// races without holding the lock across calls into other components.
+	dependencies := u.Dependencies()
+	deps := make([]string, 0, len(dependencies))
 
-	path := u.DisplayPath()
-	deps := make([]string, 0, len(u.dependencies))
-
-	for _, dep := range u.dependencies {
+	for _, dep := range dependencies {
 		deps = append(deps, dep.DisplayPath())
 	}
 
 	return fmt.Sprintf(
 		"Unit %s (excluded: %v, dependencies: [%s])",
-		path, u.excluded, strings.Join(deps, ", "),
+		u.DisplayPath(), u.Excluded(), strings.Join(deps, ", "),
 	)
 }
 
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
 // Falls back to the original path if relative path calculation fails or WorkingDir is empty.
 func (u *Unit) DisplayPath() string {
-	if u.discoveryContext == nil || u.discoveryContext.WorkingDir == "" {
+	dCtx := u.DiscoveryContext()
+	if dCtx == nil || dCtx.WorkingDir == "" {
 		return u.path
 	}
 
-	if rel, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path); err == nil {
+	if rel, err := filepath.Rel(dCtx.WorkingDir, u.path); err == nil {
 		return rel
 	}
 
@@ -320,7 +384,7 @@ func (u *Unit) planFilePath(rootWorkingDir, outputFolder, fileName string) strin
 	// Use discoveryContext.WorkingDir as base (always populated).
 	// This is critical for git-based filters where units are discovered in temporary worktrees.
 	// Using rootWorkingDir would cause relative paths to escape the outputFolder.
-	relPath, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path)
+	relPath, err := filepath.Rel(u.DiscoveryContext().WorkingDir, u.path)
 	if err != nil {
 		relPath = u.path
 	}
