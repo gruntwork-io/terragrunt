@@ -88,6 +88,8 @@ type Options struct {
 	DisableBucketUpdate          bool
 	SourceUpdate                 bool
 	ForwardTFStdout              bool
+	LogShowAbsPaths              bool
+	LogDisableErrorSummary       bool
 }
 
 // Clone performs a deep copy of Options.
@@ -192,7 +194,7 @@ func (o *Options) DataDir() string {
 
 // shellRunOptions builds a *shell.ShellOptions from this Options.
 func (o *Options) shellRunOptions() *shell.ShellOptions {
-	return shell.NewShellOptions().
+	s := shell.NewShellOptions().
 		WithWorkingDir(o.WorkingDir).
 		WithEnv(o.Env).
 		WithWriters(o.Writers).
@@ -203,6 +205,10 @@ func (o *Options) shellRunOptions() *shell.ShellOptions {
 		WithExperiments(o.Experiments).
 		WithHeadless(o.Headless).
 		WithForwardTFStdout(o.ForwardTFStdout)
+	s.LogShowAbsPaths = o.LogShowAbsPaths
+	s.LogDisableErrorSummary = o.LogDisableErrorSummary
+
+	return s
 }
 
 // tfRunOptions builds a *tf.TFOptions from this Options.
@@ -237,6 +243,7 @@ func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
 	return &tflint.TFLintOptions{
 		ShellOptions:         o.shellRunOptions(),
 		Writers:              o.Writers,
+		LogShowAbsPaths:      o.LogShowAbsPaths,
 		WorkingDir:           o.WorkingDir,
 		RootWorkingDir:       o.RootWorkingDir,
 		TerragruntConfigPath: o.TerragruntConfigPath,

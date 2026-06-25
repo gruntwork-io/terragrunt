@@ -44,6 +44,8 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.StrictControls = opts.StrictControls
 	pctx.FeatureFlags = opts.FeatureFlags
 	pctx.Writers = opts.Writers
+	pctx.LogShowAbsPaths = opts.LogShowAbsPaths
+	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	pctx.Env = opts.Env
 	pctx.IAMRoleOptions = opts.IAMRoleOptions
 	pctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
@@ -75,7 +77,7 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 
 // ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
 func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
-	return shell.NewShellOptions().
+	s := shell.NewShellOptions().
 		WithWorkingDir(opts.WorkingDir).
 		WithEnv(opts.Env).
 		WithWriters(opts.Writers).
@@ -86,6 +88,10 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 		WithExperiments(opts.Experiments).
 		WithHeadless(opts.Headless).
 		WithForwardTFStdout(opts.ForwardTFStdout)
+	s.LogShowAbsPaths = opts.LogShowAbsPaths
+	s.LogDisableErrorSummary = opts.LogDisableErrorSummary
+
+	return s
 }
 
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
@@ -125,6 +131,8 @@ func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
 func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts := run.NewOptions()
 	runOpts.Writers = opts.Writers
+	runOpts.LogShowAbsPaths = opts.LogShowAbsPaths
+	runOpts.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	runOpts.TerragruntConfigPath = opts.TerragruntConfigPath
 	runOpts.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
 	runOpts.WorkingDir = opts.WorkingDir
