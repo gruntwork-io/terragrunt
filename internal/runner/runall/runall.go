@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -163,7 +164,8 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 		}
 
 		// After generation, hint when a literal stack filter left nested stacks ungenerated.
-		tips.GiveStackNestedGenerateTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
+		funcsFor := configbridge.StackFuncFactory(ctx, l, opts)
+		tips.GiveStackNestedGenerateTip(l, v.FS, funcsFor, opts.WorkingDir, opts.Filters, opts.Tips)
 	} else {
 		l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
 	}

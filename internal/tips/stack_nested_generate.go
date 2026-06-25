@@ -6,18 +6,24 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/glob"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // GiveStackNestedGenerateTip emits the StackNestedStacksNotGenerated tip after
 // generation when a literal (non-glob) path with `| type=stack` targets a stack
-// whose generated directory contains nested stacks.
+// whose nested stacks were not themselves recursively generated.
 // The user likely expected the whole subtree, so the tip shows how to include it.
-func GiveStackNestedGenerateTip(l log.Logger, fs vfs.FS, workingDir string, filters filter.Filters, allTips Tips) {
-	if len(filters) == 0 || allTips == nil {
+func GiveStackNestedGenerateTip(
+	l log.Logger,
+	fs vfs.FS,
+	funcsFor inthclparse.StackFuncFactory,
+	workingDir string,
+	filters filter.Filters,
+	allTips Tips,
+) {
+	if len(filters) == 0 || allTips == nil || funcsFor == nil {
 		return
 	}
 
@@ -26,7 +32,7 @@ func GiveStackNestedGenerateTip(l log.Logger, fs vfs.FS, workingDir string, filt
 		return
 	}
 
-	suggestions := make([]string, 0)
+	paths := make([]string, 0)
 
 	for _, f := range filters.RestrictToStacks() {
 		path := literalStackFilterPath(f)
@@ -39,21 +45,21 @@ func GiveStackNestedGenerateTip(l log.Logger, fs vfs.FS, workingDir string, filt
 			dir = filepath.Join(workingDir, dir)
 		}
 
-		if !generatedDirHasNestedStacks(fs, dir) {
+		if !stackHasUngeneratedNestedStacks(fs, funcsFor, dir) {
 			continue
 		}
 
-		suggestions = append(suggestions, SuggestRecursiveStackFilter(path))
+		paths = append(paths, path)
 	}
 
-	if len(suggestions) == 0 {
+	if len(paths) == 0 {
 		return
 	}
 
-	tip.EvaluateWith(l, buildStackNestedGenerateMessage(suggestions))
+	tip.EvaluateWith(l, buildStackNestedGenerateMessage(paths))
 }
 
-// SuggestRecursiveStackFilter returns a recursive stack filter that also selects
+// SuggestRecursiveStackFilter returns the recursive stack filter that also selects
 // the nested stacks beneath path.
 func SuggestRecursiveStackFilter(path string) string {
 	return path + "/** | type=stack"
@@ -82,27 +88,56 @@ func literalStackFilterPath(f *filter.Filter) string {
 	return found
 }
 
-// generatedDirHasNestedStacks reports whether dir's generated .terragrunt-stack
-// directory contains any nested stack file.
-func generatedDirHasNestedStacks(fs vfs.FS, dir string) bool {
-	pattern := filepath.ToSlash(filepath.Join(dir, config.StackDir, "**", config.DefaultStackFile))
-
-	matches, err := glob.Expand(fs, pattern, glob.WithFilesOnly())
+// stackHasUngeneratedNestedStacks reports whether the stack generated at dir has
+// nested stacks that were not themselves recursively generated. For each nested
+// stack the parent generated, it checks whether that nested stack's own components
+// exist on disk (honoring no_dot_terragrunt_stack).
+func stackHasUngeneratedNestedStacks(fs vfs.FS, funcsFor inthclparse.StackFuncFactory, dir string) bool {
+	_, nestedStackDirs, err := inthclparse.DirectComponentPaths(fs, dir, funcsFor)
 	if err != nil {
 		return false
 	}
 
-	return len(matches) > 0
+	for _, nestedDir := range nestedStackDirs {
+		if !nestedStackGenerated(fs, funcsFor, nestedDir) {
+			return true
+		}
+	}
+
+	return false
 }
 
-func buildStackNestedGenerateMessage(suggestions []string) string {
+// nestedStackGenerated reports whether every direct component of the nested stack
+// generated at nestedDir exists on disk, i.e. the nested stack was itself generated.
+func nestedStackGenerated(fs vfs.FS, funcsFor inthclparse.StackFuncFactory, nestedDir string) bool {
+	unitPaths, stackPaths, err := inthclparse.DirectComponentPaths(fs, nestedDir, funcsFor)
+	if err != nil {
+		return true
+	}
+
+	return !anyPathMissing(fs, unitPaths) && !anyPathMissing(fs, stackPaths)
+}
+
+// anyPathMissing reports whether any of paths does not exist on fs.
+func anyPathMissing(fs vfs.FS, paths []string) bool {
+	for _, p := range paths {
+		exists, err := vfs.FileExists(fs, p)
+		if err == nil && !exists {
+			return true
+		}
+	}
+
+	return false
+}
+
+func buildStackNestedGenerateMessage(paths []string) string {
 	var b strings.Builder
 
 	b.WriteString(StackNestedStacksNotGeneratedMessage)
 	b.WriteString(" For example:")
 
-	for _, s := range suggestions {
-		fmt.Fprintf(&b, "\n  --filter %q", s)
+	for _, p := range paths {
+		fmt.Fprintf(&b, "\n  --filter %q --filter %q", p+" | type=stack", SuggestRecursiveStackFilter(p))
 	}
 
 	return b.String()

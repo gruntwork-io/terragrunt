@@ -21,8 +21,8 @@ const (
 		"See https://docs.terragrunt.com/features/filter/#stack-generate"
 
 	// StackNestedStacksNotGenerated is the tip shown when a literal (non-glob) path
-	// with `| type=stack` targets a stack whose generated directory contains nested
-	// stacks.
+	// with `| type=stack` targets a stack whose nested stacks were not themselves
+	// recursively generated.
 	StackNestedStacksNotGenerated = "stack-filter-nested-not-generated"
 
 	// StackNestedStacksNotGeneratedMessage is the default message for the

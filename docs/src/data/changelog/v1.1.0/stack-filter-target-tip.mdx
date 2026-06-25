@@ -3,10 +3,10 @@ version: "v1.1.0"
 category: "tips-added"
 ---
 
-#### Tip when filtering a stack that contains nested stacks
+#### Tip when filtering a stack leaves nested stacks ungenerated
 
 `terragrunt stack generate --filter './my-stack | type=stack'` generates only the selected
 stack, not the nested stacks it contains, which can be surprising for a stack of stacks.
-When a non-glob `| type=stack` filter targets a stack whose generated directory contains
-nested stacks, Terragrunt now prints a tip showing how to generate them too, for example
-`--filter './my-stack/** | type=stack'`.
+When a non-glob `| type=stack` filter leaves a stack's nested stacks ungenerated, Terragrunt
+now prints a tip showing how to generate them too, for example
+`--filter './my-stack | type=stack' --filter './my-stack/** | type=stack'`.

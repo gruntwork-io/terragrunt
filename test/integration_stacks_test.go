@@ -2121,12 +2121,13 @@ func TestStackGenerateFilterNestedStacksTip(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, tips.StackNestedStacksNotGenerated)
+	assert.Contains(t, stderr, "./stacks/first | type=stack")
 	assert.Contains(t, stderr, "./stacks/first/** | type=stack")
 }
 
-// TestStackGenerateFilterGlobNoTip verifies a glob `| type=stack` filter (no literal
-// path) does not trigger the nested-stacks tip.
-func TestStackGenerateFilterGlobNoTip(t *testing.T) {
+// TestStackGenerateFilterRecursiveNoTip verifies the tip is not shown once the nested
+// stacks are recursively generated (here via the suggested recursive glob filter).
+func TestStackGenerateFilterRecursiveNoTip(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureNestedStackFilter)
@@ -2142,7 +2143,7 @@ func TestStackGenerateFilterGlobNoTip(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt stack generate --working-dir "+rootPath+
-			" --filter './stacks/first/** | type=stack'",
+			" --filter './stacks/first | type=stack' --filter './stacks/first/** | type=stack'",
 	)
 	require.NoError(t, err)
 

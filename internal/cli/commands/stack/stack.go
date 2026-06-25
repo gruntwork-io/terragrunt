@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/zclconf/go-cty/cty"
 
@@ -90,7 +91,8 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	}
 
 	// After generation, hint when a literal stack filter left nested stacks ungenerated.
-	tips.GiveStackNestedGenerateTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
+	funcsFor := configbridge.StackFuncFactory(ctx, l, opts)
+	tips.GiveStackNestedGenerateTip(l, vfs.NewOSFS(), funcsFor, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	return nil
 }

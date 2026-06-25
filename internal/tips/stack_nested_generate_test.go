@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 func TestSuggestRecursiveStackFilter(t *testing.T) {
@@ -18,60 +19,95 @@ func TestSuggestRecursiveStackFilter(t *testing.T) {
 	assert.Equal(t, "./my-stack/** | type=stack", tips.SuggestRecursiveStackFilter("./my-stack"))
 }
 
-func writeEmptyFile(t *testing.T, fs vfs.FS, path string) {
+func emptyStackFuncFactory() inthclparse.StackFuncFactory {
+	return func(string) (map[string]function.Function, error) {
+		return map[string]function.Function{}, nil
+	}
+}
+
+func writeFile(t *testing.T, fs vfs.FS, path, content string) {
 	t.Helper()
 
 	require.NoError(t, fs.MkdirAll(filepath.Dir(path), 0o755)) //nolint:mnd
 
 	f, err := fs.Create(path)
 	require.NoError(t, err)
+	_, err = f.Write([]byte(content))
+	require.NoError(t, err)
 	require.NoError(t, f.Close())
+}
+
+type fileSpec struct {
+	path    string
+	content string
 }
 
 func TestGiveStackNestedGenerateTip(t *testing.T) {
 	t.Parallel()
 
-	const workingDir = "/work"
+	const (
+		workingDir        = "/work"
+		stackOfStack      = "stack \"child\" {\n  source = \"x\"\n  path = \"child\"\n}\n"
+		stackOfUnit       = "unit \"u\" {\n  source = \"x\"\n  path = \"u\"\n}\n"
+		stackOfGrandchild = "stack \"grandchild\" {\n  source = \"x\"\n  path = \"grandchild\"\n}\n"
+	)
 
-	gen := filepath.Join(workingDir, "my-stack", config.StackDir)
-	nestedStack := filepath.Join(gen, "child", config.DefaultStackFile)
-	flatUnit := filepath.Join(gen, "unit", "terragrunt.hcl")
+	stackDir := filepath.Join(workingDir, "my-stack")
+	parentStack := filepath.Join(stackDir, "terragrunt.stack.hcl")
+	nestedStackDir := filepath.Join(stackDir, ".terragrunt-stack", "child")
+	nestedStack := filepath.Join(nestedStackDir, "terragrunt.stack.hcl")
+	nestedUnit := filepath.Join(nestedStackDir, ".terragrunt-stack", "u", "terragrunt.hcl")
+	flatUnit := filepath.Join(stackDir, ".terragrunt-stack", "u", "terragrunt.hcl")
+
+	nestedNotGenerated := []fileSpec{{parentStack, stackOfStack}, {nestedStack, stackOfUnit}}
 
 	tcs := []struct {
 		name        string
 		filter      string
-		files       []string
+		files       []fileSpec
 		disableTip  bool
 		expectShown bool
 	}{
 		{
-			name:        "literal filter with nested stack shows tip",
+			name:        "nested stacks not generated shows tip",
 			filter:      "./my-stack | type=stack",
-			files:       []string{nestedStack},
+			files:       nestedNotGenerated,
 			expectShown: true,
 		},
 		{
-			name:        "flat stack with no nested stacks shows no tip",
+			name:        "nested stacks recursively generated shows no tip",
 			filter:      "./my-stack | type=stack",
-			files:       []string{flatUnit},
+			files:       append([]fileSpec{{nestedUnit, ""}}, nestedNotGenerated...),
+			expectShown: false,
+		},
+		{
+			name:        "nested stack with only sub-stacks not generated shows tip",
+			filter:      "./my-stack | type=stack",
+			files:       []fileSpec{{parentStack, stackOfStack}, {nestedStack, stackOfGrandchild}},
+			expectShown: true,
+		},
+		{
+			name:        "flat stack with generated units shows no tip",
+			filter:      "./my-stack | type=stack",
+			files:       []fileSpec{{parentStack, stackOfUnit}, {flatUnit, ""}},
 			expectShown: false,
 		},
 		{
 			name:        "glob filter shows no tip",
 			filter:      "./my-stack/** | type=stack",
-			files:       []string{nestedStack},
+			files:       nestedNotGenerated,
 			expectShown: false,
 		},
 		{
 			name:        "filter not restricted to stacks shows no tip",
 			filter:      "./my-stack",
-			files:       []string{nestedStack},
+			files:       nestedNotGenerated,
 			expectShown: false,
 		},
 		{
 			name:        "tip disabled",
 			filter:      "./my-stack | type=stack",
-			files:       []string{nestedStack},
+			files:       nestedNotGenerated,
 			disableTip:  true,
 			expectShown: false,
 		},
@@ -83,7 +119,7 @@ func TestGiveStackNestedGenerateTip(t *testing.T) {
 
 			fs := vfs.NewMemMapFS()
 			for _, f := range tc.files {
-				writeEmptyFile(t, fs, f)
+				writeFile(t, fs, f.path, f.content)
 			}
 
 			parsed, err := filter.Parse(tc.filter)
@@ -96,14 +132,17 @@ func TestGiveStackNestedGenerateTip(t *testing.T) {
 
 			l, output := newTestLogger()
 
-			tips.GiveStackNestedGenerateTip(l, fs, workingDir, filter.Filters{parsed}, allTips)
+			tips.GiveStackNestedGenerateTip(l, fs, emptyStackFuncFactory(), workingDir, filter.Filters{parsed}, allTips)
 
 			if tc.expectShown {
 				assert.Contains(t, output.String(), tips.StackNestedStacksNotGenerated)
+				assert.Contains(t, output.String(), "./my-stack | type=stack")
 				assert.Contains(t, output.String(), "./my-stack/** | type=stack")
-			} else {
-				assert.NotContains(t, output.String(), tips.StackNestedStacksNotGenerated)
+
+				return
 			}
+
+			assert.NotContains(t, output.String(), tips.StackNestedStacksNotGenerated)
 		})
 	}
 }
