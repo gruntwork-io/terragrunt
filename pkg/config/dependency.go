@@ -1266,10 +1266,6 @@ func applyExtraArgsEnvVarsForOutput(pctx *ParsingContext, terraformConfig *Terra
 			continue
 		}
 
-		if pctx.Venv.Env == nil {
-			pctx.Venv.Env = make(map[string]string, len(*arg.EnvVars))
-		}
-
 		maps.Copy(pctx.Venv.Env, *arg.EnvVars)
 	}
 }
