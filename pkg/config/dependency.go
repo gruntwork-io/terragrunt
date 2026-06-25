@@ -665,8 +665,8 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), pctx.TerragruntConfigPath)
 
 	if dependencyConfig.shouldReturnMockOutputs(pctx) {
-		// During hcl validate outputs are intentionally skipped, so missing outputs are expected and not worth warning.
-		if !pctx.SkipOutput {
+		// Only warn when a fetch was attempted but empty; skipping outputs (hcl validate or skip_outputs) is expected.
+		if dependencyConfig.shouldGetOutputs(pctx) {
 			l.Warnf("Config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
 				targetConfig,
 				pctx.TerragruntConfigPath,
