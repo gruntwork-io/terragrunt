@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -49,6 +50,7 @@ const (
 	testFixtureStacksUnknownValueError         = "fixtures/stacks/errors/unknown-value"
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
+	testFixtureNestedStackFilter               = "fixtures/stacks/nested-stack-filter"
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
 	testFixtureStackDependencies               = "fixtures/stacks/dependencies"
 	testFixtureStackSourceMap                  = "fixtures/stacks/source-map"
@@ -2095,6 +2097,57 @@ func TestStackGenerateWithFilter(t *testing.T) {
 
 	prodDir = filepath.Join(stackDir, "prod", ".terragrunt-stack")
 	require.DirExists(t, prodDir)
+}
+
+// TestStackGenerateFilterNestedStacksTip verifies that a literal `<path> | type=stack`
+// filter on a stack-of-stacks prints a tip on how to also generate the nested stacks.
+func TestStackGenerateFilterNestedStacksTip(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStackFilter)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackFilter)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStackFilter)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(rootPath)
+	require.NoError(t, runner.Init(t.Context()))
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --working-dir "+rootPath+" --filter './stacks/first | type=stack'",
+	)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, tips.StackNestedStacksNotGenerated)
+	assert.Contains(t, stderr, "./stacks/first | type=stack")
+	assert.Contains(t, stderr, "./stacks/first/** | type=stack")
+}
+
+// TestStackGenerateFilterRecursiveNoTip verifies the tip is not shown once the nested
+// stacks are recursively generated (here via the suggested recursive glob filter).
+func TestStackGenerateFilterRecursiveNoTip(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStackFilter)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackFilter)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStackFilter)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(rootPath)
+	require.NoError(t, runner.Init(t.Context()))
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --working-dir "+rootPath+
+			" --filter './stacks/first | type=stack' --filter './stacks/first/** | type=stack'",
+	)
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, tips.StackNestedStacksNotGenerated)
 }
 
 // TestStackGenerateDedupAtDiscoveryWithRacing guards intra-invocation duplicate-dispatch under -race.

@@ -6,6 +6,7 @@ package configbridge
 import (
 	"context"
 
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -14,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 // NewParsingContext creates a config.ParsingContext populated from TerragruntOptions.
@@ -26,6 +28,17 @@ func NewParsingContext(
 	populateFromOpts(pctx, opts)
 
 	return ctx, pctx
+}
+
+// StackFuncFactory returns a dir-scoped HCL function factory for early stack
+// discovery parsing, built from TerragruntOptions. Each call rebuilds the
+// function map for the given stack dir so dir-sensitive functions resolve there.
+func StackFuncFactory(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) inthclparse.StackFuncFactory {
+	_, pctx := NewParsingContext(ctx, l, opts)
+
+	return func(stackDir string) (map[string]function.Function, error) {
+		return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+	}
 }
 
 // populateFromOpts copies fields from TerragruntOptions into ParsingContext flat fields.

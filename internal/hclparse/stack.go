@@ -225,6 +225,52 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory
 	return unitPathsFromStackDir(fs, stackDir, funcsFor, make(map[string]struct{}), 0)
 }
 
+// DirectComponentPaths returns the generated on-disk paths of the direct unit and
+// stack components declared in stackDir's terragrunt.stack.hcl, honoring
+// no_dot_terragrunt_stack. It does not recurse into nested stacks; an absent stack
+// file yields empty slices and a nil error. funcsFor must be non-nil and return a
+// non-nil map.
+func DirectComponentPaths(fs vfs.FS, stackDir string, funcsFor StackFuncFactory) (unitPaths, stackPaths []string, err error) {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.DirectComponentPaths: fs is nil (stackDir=%q)", stackDir))
+	}
+
+	if stackDir == "" {
+		panic("hclparse.DirectComponentPaths: stackDir is empty")
+	}
+
+	if funcsFor == nil {
+		panic(fmt.Sprintf("hclparse.DirectComponentPaths: funcsFor is nil (stackDir=%q)", stackDir))
+	}
+
+	stackDir = util.ResolvePath(stackDir)
+	stackFile := filepath.Join(stackDir, stackFileName)
+
+	funcs, err := funcsFor(stackDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if funcs == nil {
+		panic(fmt.Sprintf("hclparse.DirectComponentPaths: funcsFor returned a nil map (stackDir=%q)", stackDir))
+	}
+
+	units, stacks, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, unit := range units {
+		unitPaths = append(unitPaths, unit.GeneratedPath(stackDir))
+	}
+
+	for _, stack := range stacks {
+		stackPaths = append(stackPaths, stack.GeneratedPath(stackDir))
+	}
+
+	return unitPaths, stackPaths, nil
+}
+
 // unitPathsFromStackDir is the bounded recursive worker. Termination is guaranteed two ways:
 // visited skips any stack dir already expanded on this traversal (catches "." / ".." and
 // ancestor symlink loops), and depth caps the chain length (backstop for symlink cycles
