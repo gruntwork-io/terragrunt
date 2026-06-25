@@ -13,8 +13,8 @@ import (
 )
 
 // GiveStackNestedGenerateTip emits the StackNestedStacksNotGenerated tip after
-// generation when a literal (non-glob) path with `| type=stack` generated a stack
-// whose generated directory still contains nested stacks that were not generated.
+// generation when a literal (non-glob) path with `| type=stack` targets a stack
+// whose generated directory contains nested stacks.
 // The user likely expected the whole subtree, so the tip shows how to include it.
 func GiveStackNestedGenerateTip(l log.Logger, fs vfs.FS, workingDir string, filters filter.Filters, allTips Tips) {
 	if len(filters) == 0 || allTips == nil {
@@ -39,7 +39,7 @@ func GiveStackNestedGenerateTip(l log.Logger, fs vfs.FS, workingDir string, filt
 			dir = filepath.Join(workingDir, dir)
 		}
 
-		if !hasUngeneratedNestedStacks(fs, dir) {
+		if !generatedDirHasNestedStacks(fs, dir) {
 			continue
 		}
 
@@ -82,11 +82,9 @@ func literalStackFilterPath(f *filter.Filter) string {
 	return found
 }
 
-// hasUngeneratedNestedStacks reports whether dir's generated tree contains a
-// nested stack file that has not itself been expanded (its own .terragrunt-stack
-// directory is missing). That is exactly what a non-glob `| type=stack` filter
-// leaves behind: the nested stack file is copied in, but never generated.
-func hasUngeneratedNestedStacks(fs vfs.FS, dir string) bool {
+// generatedDirHasNestedStacks reports whether dir's generated .terragrunt-stack
+// directory contains any nested stack file.
+func generatedDirHasNestedStacks(fs vfs.FS, dir string) bool {
 	pattern := filepath.ToSlash(filepath.Join(dir, config.StackDir, "**", config.DefaultStackFile))
 
 	matches, err := glob.Expand(fs, pattern, glob.WithFilesOnly())
@@ -94,16 +92,7 @@ func hasUngeneratedNestedStacks(fs vfs.FS, dir string) bool {
 		return false
 	}
 
-	for _, m := range matches {
-		expansion := filepath.Join(filepath.Dir(m), config.StackDir)
-
-		exists, err := vfs.FileExists(fs, expansion)
-		if err == nil && !exists {
-			return true
-		}
-	}
-
-	return false
+	return len(matches) > 0
 }
 
 func buildStackNestedGenerateMessage(suggestions []string) string {

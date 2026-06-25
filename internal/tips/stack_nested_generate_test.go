@@ -35,7 +35,6 @@ func TestGiveStackNestedGenerateTip(t *testing.T) {
 
 	gen := filepath.Join(workingDir, "my-stack", config.StackDir)
 	nestedStack := filepath.Join(gen, "child", config.DefaultStackFile)
-	nestedExpansion := filepath.Join(gen, "child", config.StackDir, "unit", "terragrunt.hcl")
 	flatUnit := filepath.Join(gen, "unit", "terragrunt.hcl")
 
 	tcs := []struct {
@@ -46,16 +45,10 @@ func TestGiveStackNestedGenerateTip(t *testing.T) {
 		expectShown bool
 	}{
 		{
-			name:        "literal filter with ungenerated nested stack shows tip",
+			name:        "literal filter with nested stack shows tip",
 			filter:      "./my-stack | type=stack",
 			files:       []string{nestedStack},
 			expectShown: true,
-		},
-		{
-			name:        "nested stack already generated shows no tip",
-			filter:      "./my-stack | type=stack",
-			files:       []string{nestedStack, nestedExpansion},
-			expectShown: false,
 		},
 		{
 			name:        "flat stack with no nested stacks shows no tip",
