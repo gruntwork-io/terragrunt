@@ -51,7 +51,6 @@ const (
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
 	testFixtureNestedStackFilter               = "fixtures/stacks/nested-stack-filter"
-	testFixtureStackRunNoUnits                 = "fixtures/stacks/stack-run-no-units"
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
 	testFixtureStackDependencies               = "fixtures/stacks/dependencies"
 	testFixtureStackSourceMap                  = "fixtures/stacks/source-map"
@@ -2100,8 +2099,9 @@ func TestStackGenerateWithFilter(t *testing.T) {
 	require.DirExists(t, prodDir)
 }
 
-// TestStackRunFilterStackTargetTip verifies that running a stack-restricted filter that matches stacks but no units prints a tip on how to target the units instead.
-func TestStackRunFilterStackTargetTip(t *testing.T) {
+// TestStackGenerateFilterNestedStacksTip verifies that a literal `<path> | type=stack`
+// filter on a stack-of-stacks prints a tip on how to also generate the nested stacks.
+func TestStackGenerateFilterNestedStacksTip(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureNestedStackFilter)
@@ -2116,41 +2116,17 @@ func TestStackRunFilterStackTargetTip(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run apply --filter './stacks/first | type=stack' --non-interactive --working-dir "+rootPath,
+		"terragrunt stack generate --working-dir "+rootPath+" --filter './stacks/first | type=stack'",
 	)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "To run the units inside a stack")
-	assert.Contains(t, stderr, "./stacks/first/** | type=unit")
+	assert.Contains(t, stderr, tips.StackNestedStacksNotGenerated)
+	assert.Contains(t, stderr, "./stacks/first/** | type=stack")
 }
 
-// TestStackRunNoFilterDoesNotShowStackTip guards against a false positive: an empty
-// run with no filter (e.g. ungenerated stacks) must not claim a filter selected stacks.
-func TestStackRunNoFilterDoesNotShowStackTip(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureStackRunNoUnits)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackRunNoUnits)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureStackRunNoUnits)
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(rootPath)
-	require.NoError(t, runner.Init(t.Context()))
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt stack run apply --no-stack-generate --non-interactive --working-dir "+rootPath,
-	)
-	require.NoError(t, err)
-
-	assert.Contains(t, stderr, "No units discovered")
-	assert.NotContains(t, stderr, tips.StackRunFilterMatchedStacks)
-}
-
-// TestStackRunNonStackFilterDoesNotShowStackTip verifies the tip is scoped to stack-restricted filters: a plain path filter (no type=stack) must not trigger it.
-func TestStackRunNonStackFilterDoesNotShowStackTip(t *testing.T) {
+// TestStackGenerateFilterRecursiveNoTip verifies the tip is not shown once the nested
+// stacks are actually generated (here via the suggested recursive glob filter).
+func TestStackGenerateFilterRecursiveNoTip(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureNestedStackFilter)
@@ -2165,11 +2141,12 @@ func TestStackRunNonStackFilterDoesNotShowStackTip(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run apply --filter './stacks/first' --non-interactive --working-dir "+rootPath,
+		"terragrunt stack generate --working-dir "+rootPath+
+			" --filter './stacks/first | type=stack' --filter './stacks/first/** | type=stack'",
 	)
 	require.NoError(t, err)
 
-	assert.NotContains(t, stderr, tips.StackRunFilterMatchedStacks)
+	assert.NotContains(t, stderr, tips.StackNestedStacksNotGenerated)
 }
 
 // TestStackGenerateDedupAtDiscoveryWithRacing guards intra-invocation duplicate-dispatch under -race.

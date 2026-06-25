@@ -20,15 +20,16 @@ const (
 		"`stack generate` will ignore the filter and `run` will not generate just that stack. " +
 		"See https://docs.terragrunt.com/features/filter/#stack-generate"
 
-	// StackRunFilterMatchedStacks is the tip shown when a run's `--filter` matched
-	// stacks but no units, so nothing ran.
-	StackRunFilterMatchedStacks = "stack-run-filter-matched-stacks"
+	// StackNestedStacksNotGenerated is the tip shown when a literal (non-glob) path
+	// with `| type=stack` generated a stack whose generated directory still contains
+	// nested stacks that were not themselves generated.
+	StackNestedStacksNotGenerated = "stack-filter-nested-not-generated"
 
-	// StackRunFilterMatchedStacksMessage is the default message for the
-	// stack-run-filter-matched-stacks tip. The runtime message is assembled at
-	// evaluation time so it can list the suggested unit filters.
-	StackRunFilterMatchedStacksMessage = "The filter selected stacks, which are not run directly, so no units matched. " +
-		"To run the units inside a stack, target units instead."
+	// StackNestedStacksNotGeneratedMessage is the default message for the
+	// stack-filter-nested-not-generated tip. The runtime message is assembled at
+	// evaluation time so it can list the suggested recursive filters.
+	StackNestedStacksNotGeneratedMessage = "Filtering a stack with `| type=stack` generates only that stack, " +
+		"not the nested stacks it contains. To generate the nested stacks too, also add a recursive path filter."
 
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.
 	WindowsSymlinkWarningMessage = "Windows users may encounter silent fallback behavior to provider copying " +
@@ -67,8 +68,8 @@ func NewTips() Tips {
 			Message: StackTargetMissingTypeStackMessage,
 		},
 		{
-			Name:    StackRunFilterMatchedStacks,
-			Message: StackRunFilterMatchedStacksMessage,
+			Name:    StackNestedStacksNotGenerated,
+			Message: StackNestedStacksNotGeneratedMessage,
 		},
 	}
 }
