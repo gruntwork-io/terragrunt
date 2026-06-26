@@ -108,21 +108,52 @@ func (c *Content) Link(
 			}
 		}
 
-		tempPath := targetPath + ".tmp"
-		if err := vfs.WriteFile(v.FS, tempPath, data, desired); err != nil {
+		targetDir := filepath.Dir(targetPath)
+		if err := v.FS.MkdirAll(targetDir, DefaultDirPerms); err != nil {
 			return &WrappedError{
 				Op:   "write_target",
-				Path: tempPath,
+				Path: targetDir,
 				Err:  err,
 			}
 		}
 
-		// Reapply perms after write to override any umask masking.
+		// A unique, freshly-writable temp avoids a fixed "<target>.tmp":
+		// reopening that name fails with EACCES once a prior write (an
+		// interrupted run, or a concurrent Link to the same target) left it at
+		// the read-only `desired` mode.
+		tmp, err := vfs.CreateTemp(v.FS, targetDir, filepath.Base(targetPath)+".tmp")
+		if err != nil {
+			return &WrappedError{
+				Op:   "write_target",
+				Path: targetDir,
+				Err:  err,
+			}
+		}
+
+		tempPath := tmp.Name()
+
+		if _, err := tmp.Write(data); err != nil {
+			return &WrappedError{
+				Op:   "write_target",
+				Path: tempPath,
+				Err:  errors.Join(err, tmp.Close(), v.FS.Remove(tempPath)),
+			}
+		}
+
+		if err := tmp.Close(); err != nil {
+			return &WrappedError{
+				Op:   "write_target",
+				Path: tempPath,
+				Err:  errors.Join(err, v.FS.Remove(tempPath)),
+			}
+		}
+
+		// CreateTemp opens at 0o600, so set the requested mode before publishing.
 		if err := v.FS.Chmod(tempPath, desired); err != nil {
 			return &WrappedError{
 				Op:   "chmod_target",
 				Path: tempPath,
-				Err:  err,
+				Err:  errors.Join(err, v.FS.Remove(tempPath)),
 			}
 		}
 
@@ -130,7 +161,7 @@ func (c *Content) Link(
 			return &WrappedError{
 				Op:   "rename_target",
 				Path: tempPath,
-				Err:  err,
+				Err:  errors.Join(err, v.FS.Remove(tempPath)),
 			}
 		}
 
