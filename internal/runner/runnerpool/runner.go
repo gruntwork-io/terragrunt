@@ -442,10 +442,13 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v venv.Venv, stackOpts
 			syncUnitCliArgs(l, stackOpts, unitOpts, u)
 		}
 
-		// Wrap ErrWriter with plan error buffer for plan commands
+		// Wrap ErrWriter with plan error buffer for plan commands. The
+		// wrapped writer is materialized on the per-unit venv below.
+		var unitErrWriterWrap io.Writer
+
 		if isPlan {
 			if buf := planErrorBuffers[u.Path()]; buf != nil {
-				unitOpts.Writers.ErrWriter = io.MultiWriter(buf, unitOpts.Writers.ErrWriter)
+				unitErrWriterWrap = io.MultiWriter(buf, v.Writers.ErrWriter)
 			}
 		}
 
@@ -462,14 +465,19 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v venv.Venv, stackOpts
 		}, func(childCtx context.Context) error {
 			l.Debugf("Runner Pool Task: starting unit=%s command=%s", unitPath, unitOpts.TerraformCommand)
 
-			// Wrap the writer to buffer unit-scoped output
-			unitWriter := NewUnitWriter(unitOpts.Writers.Writer)
-			unitOpts.Writers.Writer = unitWriter
-			unitRunner := common.NewUnitRunner(u)
+			// Wrap the writer to buffer unit-scoped output. Build a per-unit
+			// venv so the wrapped writers flow through tf and shell calls.
+			unitWriter := NewUnitWriter(v.Writers.Writer)
 
 			// Per-unit mutations (e.g. SetTerragruntInputsAsEnvVars writing
 			// TF_VAR_* in run.go) must not leak across concurrent units.
-			unitV := v.WithEnvCloned()
+			unitV := v.WithEnvCloned().WithWriter(unitWriter)
+
+			if unitErrWriterWrap != nil {
+				unitV = unitV.WithErrWriter(unitErrWriterWrap)
+			}
+
+			unitRunner := common.NewUnitRunner(u)
 
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
 			// get_aws_account_id() in locals need auth-provider credentials

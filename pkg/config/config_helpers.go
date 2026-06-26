@@ -445,14 +445,14 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 			// This is needed because the command may have first run during discovery phase
 			// with io.Discard writers, so we need to replay the output during execution phase.
 			// We only call Do() when we have a real writer, so it won't fire during discovery.
-			if pctx.Writers.Writer != io.Discard {
+			if w := pctx.Venv.Writers.Writer; w != io.Discard {
 				cachedEntry.replayOnce.Do(func() {
 					if !suppressOutput && cachedEntry.Stdout != "" {
-						_, _ = pctx.Writers.Writer.Write([]byte(cachedEntry.Stdout))
+						_, _ = w.Write([]byte(cachedEntry.Stdout))
 					}
 
 					if cachedEntry.Stderr != "" {
-						_, _ = pctx.Writers.ErrWriter.Write([]byte(cachedEntry.Stderr))
+						_, _ = pctx.Venv.Writers.ErrWriter.Write([]byte(cachedEntry.Stderr))
 					}
 				})
 			}
@@ -495,14 +495,14 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		Stderr: cmdOutput.Stderr.String(),
 	}
 
-	if pctx.Writers.Writer != io.Discard {
+	if w := pctx.Venv.Writers.Writer; w != io.Discard {
 		entry.replayOnce.Do(func() {
 			if !suppressOutput && entry.Stdout != "" {
-				_, _ = pctx.Writers.Writer.Write([]byte(entry.Stdout))
+				_, _ = w.Write([]byte(entry.Stdout))
 			}
 
 			if entry.Stderr != "" {
-				_, _ = pctx.Writers.ErrWriter.Write([]byte(entry.Stderr))
+				_, _ = pctx.Venv.Writers.ErrWriter.Write([]byte(entry.Stderr))
 			}
 		})
 	}

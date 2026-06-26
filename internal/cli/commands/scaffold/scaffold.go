@@ -295,6 +295,7 @@ func Prepare(
 func (p *Plan) Generate(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	values map[string]string,
 ) error {
@@ -337,7 +338,7 @@ func (p *Plan) Generate(
 
 	l.Debugf("Running fmt on generated code %s", p.outputDir)
 
-	if err := format.RunForFiles(ctx, l, opts, p.outputDir, allFiles); err != nil {
+	if err := format.RunForFiles(ctx, l, v, opts, p.outputDir, allFiles); err != nil {
 		return err
 	}
 
@@ -399,7 +400,7 @@ func Run(
 
 	defer plan.Cleanup()
 
-	return plan.Generate(ctx, l, opts, nil)
+	return plan.Generate(ctx, l, v, opts, nil)
 }
 
 // BuildSourceURL returns the original module URL with the ref query param

@@ -744,7 +744,7 @@ func TestTerragruntVersion(t *testing.T) {
 
 		testV := venv.OSVenv()
 
-		opts.Writers = writer.Writers{Writer: output, ErrWriter: os.Stderr}
+		testV.Writers = writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
 		app := cli.NewApp(logger.CreateLogger(), opts, testV)
 		app.Version = version
@@ -804,7 +804,7 @@ func TestTerragruntHelp(t *testing.T) {
 
 			testV := venv.OSVenv()
 
-			opts.Writers = writer.Writers{Writer: output, ErrWriter: os.Stderr}
+			testV.Writers = writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
 			app := cli.NewApp(logger.CreateLogger(), opts, testV)
 			err := app.Run(tc.args)
@@ -837,7 +837,7 @@ func TestTerraformHelp(t *testing.T) {
 
 		testV := venv.OSVenv()
 
-		opts.Writers = writer.Writers{Writer: output, ErrWriter: os.Stderr}
+		testV.Writers = writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
 		app := cli.NewApp(logger.CreateLogger(), opts, testV)
 		err := app.Run(tc.args)
@@ -856,7 +856,7 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 
 	testV := venv.OSVenv()
 
-	opts.Writers = writer.Writers{Writer: output, ErrWriter: os.Stderr}
+	testV.Writers = writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
 	app := cli.NewApp(logger.CreateLogger(), opts, testV)
 
@@ -946,7 +946,7 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 
 		testV := venv.OSVenv()
 
-		opts.Writers = writer.Writers{Writer: output, ErrWriter: os.Stderr}
+		testV.Writers = writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
 		app := cli.NewApp(logger.CreateLogger(), opts, testV)
 

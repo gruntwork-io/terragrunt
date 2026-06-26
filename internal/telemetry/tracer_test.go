@@ -71,7 +71,7 @@ func TestNewTraceExporter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptionsWithWriters(io.Discard, io.Discard)
+			opts := options.NewTerragruntOptions()
 			opts.Telemetry.TraceExporter = tt.traceExporter
 			opts.Telemetry.TraceExporterHTTPEndpoint = tt.traceExporterHTTPEndpoint
 

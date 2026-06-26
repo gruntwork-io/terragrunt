@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -22,7 +21,6 @@ import (
 // TFLintOptions contains the subset of configuration needed by tflint execution.
 type TFLintOptions struct {
 	ShellOptions         *shell.ShellOptions
-	Writers              writer.Writers
 	WorkingDir           string
 	RootWorkingDir       string
 	TerragruntConfigPath string
