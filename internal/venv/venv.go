@@ -103,19 +103,29 @@ func OSVenv() Venv {
 	return Venv{
 		FS:      vfs.NewOSFS(),
 		Exec:    vexec.NewOSExec(),
-		Env:     parseEnviron(os.Environ()),
+		Env:     ParseEnviron(os.Environ()),
 		Writers: writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
 	}
 }
 
-// parseEnviron turns os.Environ-style KEY=VALUE entries into a map. An entry
-// with no "=" maps the whole string to an empty value.
-func parseEnviron(environ []string) map[string]string {
+// ParseEnviron turns os.Environ-style KEY=VALUE entries into a map, splitting
+// on the first "=" after the leading byte. That leading byte is skipped so the
+// Windows per-drive working-directory variables, whose names begin with "="
+// (e.g. "=C:"), keep their names intact. Entries without a separator are dropped.
+func ParseEnviron(environ []string) map[string]string {
 	out := make(map[string]string, len(environ))
 
 	for _, entry := range environ {
-		key, value, _ := strings.Cut(entry, "=")
-		out[key] = value
+		if entry == "" {
+			continue
+		}
+
+		i := strings.IndexByte(entry[1:], '=')
+		if i < 0 {
+			continue
+		}
+
+		out[entry[:i+1]] = entry[i+2:]
 	}
 
 	return out
