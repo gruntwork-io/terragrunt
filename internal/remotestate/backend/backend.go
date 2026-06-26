@@ -6,13 +6,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Options contains the subset of configuration needed by backend operations.
+// Options bundles the configuration the Backend interface needs at each call
+// site.
 type Options struct {
-	Writers                      writer.Writers
 	IAMRoleOptions               iam.RoleOptions
 	NonInteractive               bool
 	FailIfBucketCreationRequired bool

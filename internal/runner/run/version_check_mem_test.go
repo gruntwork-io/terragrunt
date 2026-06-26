@@ -2,7 +2,6 @@ package run_test
 
 import (
 	"context"
-	"io"
 	"sync/atomic"
 	"testing"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
@@ -123,6 +121,6 @@ func TestGetTFVersionStripsTFCLIArgs(t *testing.T) {
 func newVersionTFOptions(tfPath string) *tf.TFOptions {
 	return &tf.TFOptions{
 		TerraformCliArgs: iacargs.New(),
-		ShellOptions:     shell.NewShellOptions().WithTFPath(tfPath).WithWriters(writer.Writers{Writer: io.Discard, ErrWriter: io.Discard}),
+		ShellOptions:     shell.NewShellOptions().WithTFPath(tfPath),
 	}
 }

@@ -505,7 +505,6 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 	}
 
 	shellOpts := *tfOpts.ShellOptions // shallow copy
-	shellOpts.Writers.Writer = io.Discard
 
 	newCliArgs := iacargs.New(args...)
 
@@ -528,10 +527,11 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 		l,
 		log.DebugLevel,
 		func(ctx context.Context) error {
-			errWriter := util.NewTrapWriter(tfOpts.ShellOptions.Writers.ErrWriter)
-			shellOpts.Writers.ErrWriter = errWriter
+			errWriter := util.NewTrapWriter(v.Writers.ErrWriter)
 
-			output, cmdErr := tf.RunCommandWithOutput(ctx, l, v, newTFOpts, newCliArgs.Slice()...)
+			cmdV := v.WithWriter(io.Discard).WithErrWriter(errWriter)
+
+			output, cmdErr := tf.RunCommandWithOutput(ctx, l, cmdV, newTFOpts, newCliArgs.Slice()...)
 			finalOutput = output
 
 			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),

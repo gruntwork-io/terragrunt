@@ -1118,7 +1118,7 @@ func RunTerragruntCommandWithContext(
 	syncWriter := util.NewSyncWriter(writer)
 	syncErrWriter := util.NewSyncWriter(errwriter)
 
-	opts := options.NewTerragruntOptionsWithWriters(syncWriter, syncErrWriter)
+	opts := options.NewTerragruntOptions()
 
 	v := venv.OSVenv()
 	v.Writers = writerpkg.Writers{Writer: syncWriter, ErrWriter: syncErrWriter}
