@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,7 +50,12 @@ func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, st
 	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, fullOutput, stdout, stderr), withPtty)
 }
 
-func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput), allocateStdout bool) {
+func testCommandOutput(
+	t *testing.T,
+	withOptions func(*options.TerragruntOptions),
+	assertResults func(string, *util.CmdOutput),
+	allocateStdout bool,
+) {
 	t.Helper()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
@@ -59,16 +65,28 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// order
 	var allOutputBuffer BufferWithLocking
 
-	terragruntOptions.Writers.Writer = &allOutputBuffer
-	terragruntOptions.Writers.ErrWriter = &allOutputBuffer
-
 	terragruntOptions.TerraformCliArgs.AppendArgument("same")
 
 	withOptions(terragruntOptions)
 
 	l := logger.CreateLogger()
 
-	out, err := shell.RunCommandWithOutput(t.Context(), l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
+	v := venvtest.New().
+		WithExec(vexec.NewOSExec()).
+		WithWriter(&allOutputBuffer).
+		WithErrWriter(&allOutputBuffer)
+
+	out, err := shell.RunCommandWithOutput(
+		t.Context(),
+		l,
+		v,
+		configbridge.ShellRunOptsFromOpts(terragruntOptions),
+		"",
+		!allocateStdout,
+		false,
+		"testdata/test_outputs.sh",
+		"same",
+	)
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

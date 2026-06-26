@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -75,6 +76,7 @@ func (e UnitOutputError) Unwrap() error {
 func StackOutput(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 ) (cty.Value, error) {
 	l.Debugf("Generating output from %s", opts.WorkingDir)
@@ -94,7 +96,7 @@ func StackOutput(
 	}
 
 	// Single discovery walk returns both stack files and excluded unit paths.
-	foundFiles, excludedPaths, err := generate.ListStackFilesWithExcludes(ctx, l, opts, wts)
+	foundFiles, excludedPaths, err := generate.ListStackFilesWithExcludes(ctx, l, v, opts, wts)
 	if err != nil {
 		return cty.NilVal, fmt.Errorf("failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
@@ -132,6 +134,7 @@ func StackOutput(
 		dir := filepath.Dir(path)
 
 		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+		pctx = pctx.WithVenv(v)
 
 		values, valuesErr := config.ReadValues(ctx, pctx, l, dir)
 		if valuesErr != nil {

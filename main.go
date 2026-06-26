@@ -39,9 +39,10 @@ func run() (exitCode int) {
 	detailedExitCode := tf.NewDetailedExitCodeMap()
 
 	opts := options.NewTerragruntOptions()
+	v := venv.OSVenv()
 
 	l := log.New(
-		log.WithOutput(opts.Writers.ErrWriter),
+		log.WithOutput(v.Writers.ErrWriter),
 		log.WithLevel(options.DefaultLogLevel),
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
@@ -72,7 +73,7 @@ func run() (exitCode int) {
 		exitCode = resolveExitCode(l, detailedExitCode.GetFinalExitCode(), err)
 	}()
 
-	app := cli.NewApp(l, opts, venv.OSVenv())
+	app := cli.NewApp(l, opts, v)
 
 	ctx := setupContext(l, detailedExitCode)
 	err := app.RunContext(ctx, os.Args)

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -29,7 +28,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -79,7 +77,6 @@ type ctxKey byte
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	Writers writer.Writers
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
@@ -98,8 +95,6 @@ type TerragruntOptions struct {
 	Errors *errorconfig.Config
 	// Map to replace terraform source locations.
 	SourceMap map[string]string
-	// Environment variables at runtime
-	Env map[string]string
 	// StackAction is the action that should be performed on the stack.
 	StackAction string
 	// IAM Role options that should be used when authenticating to AWS.
@@ -187,6 +182,11 @@ type TerragruntOptions struct {
 	// repository. Defaults to 1 (see internal/cas.DefaultCASCloneDepth). Values must be
 	// positive (git rejects --depth 0) or negative (e.g. -1) for a full clone without --depth.
 	CASCloneDepth int
+	// LogShowAbsPaths disables replacing full paths in logs with short
+	// relative paths.
+	LogShowAbsPaths bool
+	// LogDisableErrorSummary suppresses the trailing error summary.
+	LogDisableErrorSummary bool
 	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 	// True if terragrunt should run in debug mode
@@ -297,11 +297,6 @@ type TerragruntOptions struct {
 	NoHooks bool
 	// If set, disable automatic reading of .terragrunt-filters file.
 	NoFiltersFile bool
-	// LogShowAbsPaths disables replacing full paths in logs with short
-	// relative paths.
-	LogShowAbsPaths bool
-	// LogDisableErrorSummary suppresses the trailing error summary.
-	LogDisableErrorSummary bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -322,21 +317,15 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 }
 
 // NewTerragruntOptions creates a new TerragruntOptions object with
-// reasonable defaults for real usage
+// reasonable defaults for real usage.
 func NewTerragruntOptions() *TerragruntOptions {
-	return NewTerragruntOptionsWithWriters(os.Stdout, os.Stderr)
-}
-
-func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		Writers:                  writer.Writers{Writer: stdout, ErrWriter: stderr},
 		TFPath:                   DefaultWrappedPath,
 		ExcludesFile:             defaultExcludesFile,
 		FiltersFile:              defaultFiltersFile,
 		AutoInit:                 true,
 		RunAllAutoApprove:        true,
 		DiscoveryAuthProviderCmd: true,
-		Env:                      map[string]string{},
 		SourceMap:                map[string]string{},
 		TerraformCliArgs:         iacargs.New(),
 		MaxFoldersToCheck:        DefaultMaxFoldersToCheck,
@@ -545,19 +534,21 @@ func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	}
 }
 
-// TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
-func (opts *TerragruntOptions) TerraformDataDir() string {
-	if tfDataDir, ok := opts.Env["TF_DATA_DIR"]; ok {
+// TerraformDataDir returns the Terraform data directory (.terraform by
+// default, overridden by the TF_DATA_DIR entry in env).
+func (opts *TerragruntOptions) TerraformDataDir(env map[string]string) string {
+	if tfDataDir, ok := env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
 
 	return DefaultTFDataDir
 }
 
-// DataDir returns the Terraform data directory prepended with the working directory path,
-// or just the Terraform data directory if it is an absolute path.
-func (opts *TerragruntOptions) DataDir() string {
-	tfDataDir := opts.TerraformDataDir()
+// DataDir returns the Terraform data directory prepended with the working
+// directory path, or just the Terraform data directory if it is an absolute
+// path.
+func (opts *TerragruntOptions) DataDir(env map[string]string) string {
+	tfDataDir := opts.TerraformDataDir(env)
 	if filepath.IsAbs(tfDataDir) {
 		return tfDataDir
 	}

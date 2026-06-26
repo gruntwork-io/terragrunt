@@ -86,11 +86,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
 	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(
-		ctx,
-		l,
-		rv.Exec,
-		opts.Env,
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, rv.ToRoot(),
 		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts)),
 	); err != nil {
 		return err
@@ -102,7 +98,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	}
 
 	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx.Venv = rv.ToRoot()
+	pctx = pctx.WithVenv(rv.ToRoot())
 
 	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
 	if err != nil {
@@ -172,10 +168,15 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 	}
 
-	return tf.RunCommand(ctx, l, v.Exec, configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
+	return tf.RunCommand(ctx, l, v, configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 }
 
-func getTFPathFromConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (string, error) {
+func getTFPathFromConfig(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) (string, error) {
 	if !util.FileExists(opts.TerragruntConfigPath) {
 		l.Debugf("Did not find the config file %s", opts.TerragruntConfigPath)
 
@@ -196,7 +197,12 @@ func getTFPathFromConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *o
 // - TerraformVersion
 // - FeatureFlags
 // TODO: Look into a way to refactor this function to avoid the side effect.
-func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) (log.Logger, error) {
+func checkVersionConstraints(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	v venv.Venv,
+) (log.Logger, error) {
 	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, v, opts)
 	if err != nil {
 		return l, err
@@ -207,7 +213,7 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		opts.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	l, ver, impl, err := run.PopulateTFVersion(ctx, l, v.Exec, run.PopulateTFVersionInput{
+	l, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
 		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
 		WorkingDir:   opts.WorkingDir,
 		VersionFiles: opts.VersionManagerFileName,
@@ -256,10 +262,14 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 	return l, nil
 }
 
-func getTerragruntConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
+func getTerragruntConfig(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) (*config.TerragruntConfig, error) {
 	ctx, configCtx := configbridge.NewParsingContext(ctx, l, opts)
-	configCtx.Venv = v
-	configCtx = configCtx.WithDecodeList(
+	configCtx = configCtx.WithVenv(v).WithDecodeList(
 		config.TerragruntVersionConstraints,
 		config.FeatureFlagsBlock,
 	)
@@ -283,13 +293,13 @@ func confirmActionWithDependentUnits(
 ) bool {
 	units := findDependentUnits(ctx, l, v, opts, cfg)
 	if len(units) != 0 {
-		if _, err := opts.Writers.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
+		if _, err := v.Writers.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
 			l.Error(err)
 			return false
 		}
 
 		for _, unit := range units {
-			if _, err := opts.Writers.ErrWriter.Write([]byte(unit + "\n")); err != nil {
+			if _, err := v.Writers.ErrWriter.Write([]byte(unit + "\n")); err != nil {
 				l.Error(err)
 				return false
 			}
@@ -297,7 +307,7 @@ func confirmActionWithDependentUnits(
 
 		prompt := "WARNING: Are you sure you want to continue?"
 
-		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
+		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, v.Writers.ErrWriter)
 		if err != nil {
 			l.Error(err)
 			return false

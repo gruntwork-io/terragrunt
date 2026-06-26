@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -62,7 +63,7 @@ func (p *GraphPhase) Kind() PhaseKind {
 }
 
 // Run executes the graph discovery phase.
-func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
+func (p *GraphPhase) Run(ctx context.Context, l log.Logger, v venv.Venv, input *PhaseInput) (*PhaseResults, error) {
 	results := NewPhaseResults()
 
 	discovery := input.Discovery
@@ -145,7 +146,7 @@ func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 
 		for _, candidate := range matchingCandidates {
 			g.Go(func() error {
-				err := p.processGraphTarget(ctx, l, state, candidate, graphExpr)
+				err := p.processGraphTarget(ctx, l, v, state, candidate, graphExpr)
 				if err != nil {
 					errMu.Lock()
 
@@ -174,6 +175,7 @@ func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 func (p *GraphPhase) processGraphTarget(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	state *graphTraversalState,
 	candidate DiscoveryResult,
 	graphExpr *filter.GraphExpressionInfo,
@@ -199,7 +201,7 @@ func (p *GraphPhase) processGraphTarget(
 			depth = graphExpr.DependencyDepth
 		}
 
-		err := p.discoverDependencies(ctx, l, state, c, depth)
+		err := p.discoverDependencies(ctx, l, v, state, c, depth)
 		if err != nil {
 			return err
 		}
@@ -211,7 +213,7 @@ func (p *GraphPhase) processGraphTarget(
 			depth = graphExpr.DependentDepth
 		}
 
-		err := p.discoverDependents(ctx, l, state, c, depth)
+		err := p.discoverDependents(ctx, l, v, state, c, depth)
 		if err != nil {
 			return err
 		}
@@ -235,7 +237,7 @@ func (p *GraphPhase) processGraphTarget(
 
 			visitedDirs := newStringSet()
 
-			err := p.discoverDependentsUpstream(ctx, l, state, c, visitedDirs, startDir, boundaryRoot, depth)
+			err := p.discoverDependentsUpstream(ctx, l, v, state, c, visitedDirs, startDir, boundaryRoot, depth)
 			if err != nil {
 				return err
 			}
@@ -249,6 +251,7 @@ func (p *GraphPhase) processGraphTarget(
 func (p *GraphPhase) discoverDependencies(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	state *graphTraversalState,
 	c component.Component,
 	depthRemaining int,
@@ -268,7 +271,7 @@ func (p *GraphPhase) discoverDependencies(
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependencies)
 
-	if err := ensureParsed(ctx, l, c, state.opts, state.discovery); err != nil {
+	if err := ensureParsed(ctx, l, v, c, state.opts, state.discovery); err != nil {
 		return err
 	}
 
@@ -279,7 +282,7 @@ func (p *GraphPhase) discoverDependencies(
 		return err
 	}
 
-	depPaths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, depPaths)
+	depPaths, err = stackDependencyPaths(ctx, l, v, vfs.NewOSFS(), state.opts, depPaths)
 	if err != nil {
 		return err
 	}
@@ -323,7 +326,7 @@ func (p *GraphPhase) discoverDependencies(
 					Phase:     PhaseGraph,
 				})
 
-				err = p.discoverDependencies(contextWithIncrementedParseDepth(ctx), l, state, depComponent, depthRemaining-1)
+				err = p.discoverDependencies(contextWithIncrementedParseDepth(ctx), l, v, state, depComponent, depthRemaining-1)
 				if err != nil {
 					errMu.Lock()
 
@@ -352,6 +355,7 @@ func (p *GraphPhase) discoverDependencies(
 func (p *GraphPhase) discoverDependents(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	state *graphTraversalState,
 	c component.Component,
 	depthRemaining int,
@@ -386,7 +390,7 @@ func (p *GraphPhase) discoverDependents(
 				Phase:     PhaseGraph,
 			})
 
-			err := p.discoverDependents(ctx, l, state, dependent, depthRemaining-1)
+			err := p.discoverDependents(ctx, l, v, state, dependent, depthRemaining-1)
 			if err != nil {
 				errMu.Lock()
 
@@ -430,6 +434,7 @@ type upstreamDiscoveryState struct {
 func (p *GraphPhase) discoverDependentsUpstream(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	state *graphTraversalState,
 	target component.Component,
 	visitedDirs *stringSet,
@@ -540,7 +545,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 
 	for _, candidate := range candidates {
 		g.Go(func() error {
-			dependent := p.processUpstreamCandidate(gCtx, l, upstreamState, candidate)
+			dependent := p.processUpstreamCandidate(gCtx, l, v, upstreamState, candidate)
 			if dependent != nil {
 				dependentsMu.Lock()
 
@@ -578,7 +583,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		l.Debugf("Recursively discovering dependents of %s from %s", dependent.Path(), filepath.Dir(dependent.Path()))
 
 		err := p.discoverDependentsUpstream(
-			contextWithIncrementedParseDepth(ctx), l, state, dependent, freshVisitedDirs,
+			contextWithIncrementedParseDepth(ctx), l, v, state, dependent, freshVisitedDirs,
 			filepath.Dir(dependent.Path()), boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
@@ -589,7 +594,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	parentDir := filepath.Dir(currentDir)
 	if parentDir != currentDir && depthRemaining > 0 {
 		err := p.discoverDependentsUpstream(
-			contextWithIncrementedParseDepth(ctx), l, state, target, visitedDirs,
+			contextWithIncrementedParseDepth(ctx), l, v, state, target, visitedDirs,
 			parentDir, boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
@@ -610,6 +615,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 func (p *GraphPhase) processUpstreamCandidate(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	state *upstreamDiscoveryState,
 	candidate component.Component,
 ) component.Component {
@@ -637,7 +643,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
 	graphState := state.graphTraversalState
 
-	if err := ensureParsed(ctx, l, candidate, graphState.opts, graphState.discovery); err != nil {
+	if err := ensureParsed(ctx, l, v, candidate, graphState.opts, graphState.discovery); err != nil {
 		if !state.graphTraversalState.discovery.suppressParseErrors {
 			state.errMu.Lock()
 
@@ -664,7 +670,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	var stackErr error
 
-	deps, stackErr = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.graphTraversalState.opts, deps)
+	deps, stackErr = stackDependencyPaths(ctx, l, v, vfs.NewOSFS(), state.graphTraversalState.opts, deps)
 	if stackErr != nil {
 		state.errMu.Lock()
 		*state.errs = append(*state.errs, stackErr)

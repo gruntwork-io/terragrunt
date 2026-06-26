@@ -59,7 +59,7 @@ func TestNewMetricsExporter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptionsWithWriters(io.Discard, io.Discard)
+			opts := options.NewTerragruntOptions()
 			opts.Telemetry.MetricExporter = tt.exporterType
 			opts.Telemetry.MetricExporterInsecureEndpoint = tt.insecure
 

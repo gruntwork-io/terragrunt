@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -23,7 +25,7 @@ import (
 )
 
 // Run runs the find command.
-func Run(ctx context.Context, l log.Logger, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
@@ -74,7 +76,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"mode":         opts.Mode,
 		"exclude":      opts.Exclude,
 	}, func(ctx context.Context) error {
-		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
+		components, discoverErr = d.Discover(ctx, l, v, opts.TerragruntOptions)
 		return discoverErr
 	})
 	if telemetryErr != nil {
@@ -123,9 +125,9 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(l, opts, foundComponents)
+		return outputText(l, v.Writers.Writer, foundComponents)
 	case FormatJSON:
-		return outputJSON(opts, foundComponents)
+		return outputJSON(v.Writers.Writer, foundComponents)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -225,13 +227,13 @@ func discoveredToFound(l log.Logger, components component.Components, opts *Opti
 }
 
 // outputJSON outputs the discovered components in JSON format.
-func outputJSON(opts *Options, components FoundComponents) error {
+func outputJSON(w io.Writer, components FoundComponents) error {
 	jsonBytes, err := json.MarshalIndent(components, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	_, err = opts.Writers.Writer.Write(append(jsonBytes, []byte("\n")...))
+	_, err = w.Write(append(jsonBytes, []byte("\n")...))
 	if err != nil {
 		return err
 	}
@@ -299,7 +301,7 @@ func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 }
 
 // outputText outputs the discovered components in text format.
-func outputText(l log.Logger, opts *Options, components FoundComponents) error {
+func outputText(l log.Logger, w io.Writer, components FoundComponents) error {
 	var buf strings.Builder
 
 	colorizer := NewColorizer(shouldColor(l))
@@ -308,7 +310,7 @@ func outputText(l log.Logger, opts *Options, components FoundComponents) error {
 		buf.WriteString(colorizer.Colorize(c) + "\n")
 	}
 
-	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
+	_, err := w.Write([]byte(buf.String()))
 
 	return err
 }

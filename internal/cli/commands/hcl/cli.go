@@ -18,7 +18,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 		Usage:       "Interact with HCL files.",
 		Description: "Interact with Terragrunt files written in HashiCorp Configuration Language (HCL).",
 		Subcommands: clihelper.Commands{
-			format.NewCommand(l, opts),
+			format.NewCommand(l, opts, v),
 			validate.NewCommand(l, opts, v),
 		},
 		Action: clihelper.ShowCommandHelp,

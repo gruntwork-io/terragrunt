@@ -15,7 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -120,6 +120,7 @@ func prepareDiscovery(
 func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	runnerOpts ...common.Option,
 ) (component.Components, error) {
@@ -134,7 +135,7 @@ func discoverWithRetry(
 	}, func(childCtx context.Context) error {
 		var discoveryErr error
 
-		discovered, discoveryErr = d.Discover(childCtx, l, opts)
+		discovered, discoveryErr = d.Discover(childCtx, l, v, opts)
 		if discoveryErr == nil {
 			l.Debugf("Runner pool discovery found %d configs", len(discovered))
 		}
@@ -180,7 +181,7 @@ func createRunner(
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
-	exec vexec.Exec,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	units []*component.Unit,
 ) error {
@@ -200,7 +201,7 @@ func checkVersionConstraints(
 			return checkUnitVersionConstraints(
 				checkCtx,
 				l,
-				exec,
+				v,
 				unitOpts,
 				unitLogger,
 				unit,
@@ -216,7 +217,7 @@ func checkVersionConstraints(
 func checkUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
-	exec vexec.Exec,
+	v venv.Venv,
 	unitOpts *options.TerragruntOptions,
 	unitLogger log.Logger,
 	unit *component.Unit,
@@ -226,7 +227,7 @@ func checkUnitVersionConstraints(
 	// This is almost definitely already parsed, but we'll check just in case.
 	if unitConfig == nil {
 		configCtx, pctx := configbridge.NewParsingContext(ctx, l, unitOpts)
-		pctx = pctx.WithDecodeList(
+		pctx = pctx.WithVenv(v).WithDecodeList(
 			config.TerragruntVersionConstraints,
 			config.FeatureFlagsBlock,
 		)
@@ -253,7 +254,7 @@ func checkUnitVersionConstraints(
 		l = unitLogger
 	}
 
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, exec, run.PopulateTFVersionInput{
+	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
 		TFOpts:       configbridge.TFRunOptsFromOpts(unitOpts),
 		WorkingDir:   unitOpts.WorkingDir,
 		VersionFiles: unitOpts.VersionManagerFileName,

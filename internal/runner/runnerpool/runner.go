@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -67,7 +68,8 @@ func CloneUnitOptions(
 	// Use a per-unit default download directory when the stack is using its own default
 	// (i.e., no custom download dir was provided). This mirrors unit resolver behaviour
 	// so each unit caches to its own .terragrunt-cache next to the config.
-	if clonedOpts.DownloadDir == "" || (stackDefaultDownloadDir != "" && clonedOpts.DownloadDir == stackDefaultDownloadDir) {
+	if clonedOpts.DownloadDir == "" ||
+		(stackDefaultDownloadDir != "" && clonedOpts.DownloadDir == stackDefaultDownloadDir) {
 		_, unitDefaultDownloadDir := util.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
 
 		clonedOpts.DownloadDir = unitDefaultDownloadDir
@@ -81,7 +83,11 @@ func CloneUnitOptions(
 // BuildUnitOpts creates per-unit opts and logger for a single unit on demand.
 // It computes the canonical config path, clones options, applies source overrides,
 // and transfers discovery context command/args.
-func BuildUnitOpts(l log.Logger, stackOpts *options.TerragruntOptions, unit *component.Unit) (*options.TerragruntOptions, log.Logger, error) {
+func BuildUnitOpts(
+	l log.Logger,
+	stackOpts *options.TerragruntOptions,
+	unit *component.Unit,
+) (*options.TerragruntOptions, log.Logger, error) {
 	var stackDefaultDownloadDir string
 	if stackOpts != nil {
 		_, stackDefaultDownloadDir = util.DefaultWorkingAndDownloadDirs(stackOpts.TerragruntConfigPath)
@@ -145,7 +151,12 @@ func BuildUnitOpts(l log.Logger, stackOpts *options.TerragruntOptions, unit *com
 
 // syncUnitCliArgs applies CLI argument synchronization for a single unit.
 // It merges/clones flags from stackOpts and computes and appends the plan file if needed.
-func syncUnitCliArgs(l log.Logger, stackOpts *options.TerragruntOptions, unitOpts *options.TerragruntOptions, unit *component.Unit) {
+func syncUnitCliArgs(
+	l log.Logger,
+	stackOpts *options.TerragruntOptions,
+	unitOpts *options.TerragruntOptions,
+	unit *component.Unit,
+) {
 	discoveryCtx := unit.DiscoveryContext()
 	if discoveryCtx != nil && len(discoveryCtx.Args) > 0 {
 		// Merge stack-level flags that aren't already present
@@ -154,7 +165,12 @@ func syncUnitCliArgs(l log.Logger, stackOpts *options.TerragruntOptions, unitOpt
 		unitOpts.TerraformCliArgs = stackOpts.TerraformCliArgs.Clone()
 	}
 
-	planFile := unit.PlanFile(stackOpts.RootWorkingDir, stackOpts.OutputFolder, unitOpts.JSONOutputFolder, unitOpts.TerraformCommand)
+	planFile := unit.PlanFile(
+		stackOpts.RootWorkingDir,
+		stackOpts.OutputFolder,
+		unitOpts.JSONOutputFolder,
+		unitOpts.TerraformCommand,
+	)
 
 	if planFile != "" {
 		l.Debugf("Using output file %s for unit %s", planFile, unitOpts.TerragruntConfigPath)
@@ -193,7 +209,8 @@ func checkLocalStateWithGitRefs(l log.Logger, units []*component.Unit) {
 			continue
 		}
 
-		if unitConfig.RemoteState == nil || (unitConfig.RemoteState.Config != nil && unitConfig.RemoteState.BackendName == "local") {
+		if unitConfig.RemoteState == nil ||
+			(unitConfig.RemoteState.Config != nil && unitConfig.RemoteState.BackendName == "local") {
 			l.Warnf(
 				"One or more units discovered using Git-based filter expressions (e.g. [HEAD~1...HEAD]) do not have a remote_state configuration. This may result in unexpected outcomes, such as outputs for dependencies returning empty. It is strongly recommended to use remote state when working with Git-based filter expressions.",
 			)
@@ -313,7 +330,13 @@ func filterUnitsToComponents(units []*component.Unit) component.Components {
 
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
-func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
+func (rnr *Runner) Run(
+	ctx context.Context,
+	l log.Logger,
+	v run.Venv,
+	stackOpts *options.TerragruntOptions,
+	r *report.Report,
+) error {
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
@@ -422,10 +445,13 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 			syncUnitCliArgs(l, stackOpts, unitOpts, u)
 		}
 
-		// Wrap ErrWriter with plan error buffer for plan commands
+		// Wrap ErrWriter with plan error buffer for plan commands. The
+		// wrapped writer is materialized on the per-unit venv below.
+		var unitErrWriterWrap io.Writer
+
 		if isPlan {
 			if buf := planErrorBuffers[u.Path()]; buf != nil {
-				unitOpts.Writers.ErrWriter = io.MultiWriter(buf, unitOpts.Writers.ErrWriter)
+				unitErrWriterWrap = io.MultiWriter(buf, v.Writers.ErrWriter)
 			}
 		}
 
@@ -442,19 +468,36 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 		}, func(childCtx context.Context) error {
 			l.Debugf("Runner Pool Task: starting unit=%s command=%s", unitPath, unitOpts.TerraformCommand)
 
-			// Wrap the writer to buffer unit-scoped output
-			unitWriter := NewUnitWriter(unitOpts.Writers.Writer)
-			unitOpts.Writers.Writer = unitWriter
+			// Wrap the writer to buffer unit-scoped output. Build a per-unit
+			// venv so the wrapped writers flow through tf and shell calls.
+			unitWriter := NewUnitWriter(v.Writers.Writer)
+
+			// Clone v.Env so per-unit mutations (e.g. SetTerragruntInputsAsEnvVars
+			// writing TF_VAR_* in run.go) don't leak across concurrent units.
+			unitV := v
+			unitV.Env = maps.Clone(v.Env)
+			unitV = unitV.WithWriter(unitWriter)
+
+			if unitErrWriterWrap != nil {
+				unitV = unitV.WithErrWriter(unitErrWriterWrap)
+			}
+
 			unitRunner := common.NewUnitRunner(u)
 
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
 			// get_aws_account_id() in locals need auth-provider credentials
-			// available in opts.Env during HCL evaluation.
+			// available in v.Env during HCL evaluation.
 			// See https://github.com/gruntwork-io/terragrunt/issues/5515
 			//
 			// The obtain_creds span is emitted by externalcmd.Provider.GetCredentials
 			// only when an auth provider is configured, so no conditional is needed here.
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, v.Exec, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
+			credsGetter, err := creds.ObtainCredsForParsing(
+				childCtx,
+				unitLogger,
+				unitV.ToRoot(),
+				unitOpts.AuthProviderCmd,
+				configbridge.ShellRunOptsFromOpts(unitOpts),
+			)
 			if err != nil {
 				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
 
@@ -469,7 +512,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 			}, func(readCtx context.Context) error {
 				parseCtx, pctx := configbridge.NewParsingContext(readCtx, unitLogger, unitOpts)
-				pctx.Venv = v.ToRoot()
+				pctx = pctx.WithVenv(unitV.ToRoot())
 
 				var readErr error
 
@@ -498,7 +541,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 				return unitRunner.Run(
 					runCtx,
 					unitLogger,
-					v,
+					unitV,
 					unitOpts,
 					r,
 					runCfg,
@@ -627,7 +670,12 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 
 // LogUnitDeployOrder logs the order of units to be processed as a DAG tree
 // showing dependency relationships between units.
-func (rnr *Runner) LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths bool, experiments experiment.Experiments) error {
+func (rnr *Runner) LogUnitDeployOrder(
+	l log.Logger,
+	isDestroy bool,
+	showAbsPaths bool,
+	experiments experiment.Experiments,
+) error {
 	return rnr.logUnitDeployOrderDAG(l, isDestroy, showAbsPaths)
 }
 
@@ -662,7 +710,11 @@ func (rnr *Runner) queueComponents() []component.Component {
 // buildListedComponents converts queue components into the format needed for tree rendering.
 // For destroy commands, the graph is inverted so units without dependents become roots.
 // For apply/plan commands, units without dependencies are roots.
-func (rnr *Runner) buildListedComponents(components []component.Component, isDestroy bool, showAbsPaths bool) dag.ListedComponents {
+func (rnr *Runner) buildListedComponents(
+	components []component.Component,
+	isDestroy bool,
+	showAbsPaths bool,
+) dag.ListedComponents {
 	useDisplayPath := !showAbsPaths
 
 	if isDestroy {
@@ -712,7 +764,9 @@ func (rnr *Runner) ListStackDependentUnits() map[string][]string {
 	for _, unit := range rnr.queue.Entries {
 		if len(unit.Component.Dependencies()) != 0 {
 			for _, dep := range unit.Component.Dependencies() {
-				dependentUnits[dep.Path()] = util.RemoveDuplicates(append(dependentUnits[dep.Path()], unit.Component.Path()))
+				dependentUnits[dep.Path()] = util.RemoveDuplicates(
+					append(dependentUnits[dep.Path()], unit.Component.Path()),
+				)
 			}
 		}
 	}
@@ -756,7 +810,8 @@ func (rnr *Runner) summarizePlanAllErrors(l log.Logger, errorStreams map[string]
 			continue
 		}
 
-		if strings.Contains(output, "Error running plan:") && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
+		if strings.Contains(output, "Error running plan:") &&
+			strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
 			var dependenciesMsg string
 
 			if len(unit.Dependencies()) > 0 {
@@ -981,7 +1036,11 @@ func applyFilterAllowDestroyExclusions(l log.Logger, opts *options.TerragruntOpt
 		if discoveryCtx.Ref != "" && iacargs.New(discoveryCtx.Args...).IsDestroyCommand(discoveryCtx.Cmd) {
 			unit.SetExcluded(true)
 
-			l.Warnf("The `%s` unit was removed in the `%s` Git reference, but the `--filter-allow-destroy` flag was not used. The unit will be excluded during applies unless --filter-allow-destroy is used.", unit.DisplayPath(), discoveryCtx.Ref)
+			l.Warnf(
+				"The `%s` unit was removed in the `%s` Git reference, but the `--filter-allow-destroy` flag was not used. The unit will be excluded during applies unless --filter-allow-destroy is used.",
+				unit.DisplayPath(),
+				discoveryCtx.Ref,
+			)
 		}
 	}
 }
