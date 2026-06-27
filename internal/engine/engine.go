@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -93,6 +94,59 @@ type engineInstance struct {
 	execOptions  *ExecutionOptions
 }
 
+// engineClients is the registry of engine plugin instances, keyed by the post-download
+// cache working dir. The lock guards only the map, never the plugin work (create,
+// shutdown RPC, kill), which the caller does outside it.
+type engineClients struct {
+	clients map[string]*engineInstance
+	mu      sync.Mutex
+}
+
+func newEngineClients() *engineClients {
+	return &engineClients{clients: make(map[string]*engineInstance)}
+}
+
+// get returns the instance registered for key.
+func (c *engineClients) get(key string) (*engineInstance, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	inst, ok := c.clients[key]
+
+	return inst, ok
+}
+
+// store registers inst under key.
+func (c *engineClients) store(key string, inst *engineInstance) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.clients[key] = inst
+}
+
+// takeMatching removes the instances whose key satisfies match and returns them, so
+// the caller can shut them down outside the lock. Removing under the lock makes a
+// per-unit ShutdownUnit and the batch Shutdown mutually exclusive: each instance is
+// returned to exactly one caller, so none is shut down twice.
+func (c *engineClients) takeMatching(match func(key string) bool) []*engineInstance {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var taken []*engineInstance
+
+	for key, inst := range c.clients {
+		if !match(key) {
+			continue
+		}
+
+		taken = append(taken, inst)
+
+		delete(c.clients, key)
+	}
+
+	return taken
+}
+
 // Run executes the given command with the experimental engine. The provided
 // vexec.Exec is used to spawn the engine plugin subprocess and must be
 // OS-backed.
@@ -108,7 +162,7 @@ func Run(
 	}
 
 	workingDir := execOptions.WorkingDir
-	instance, found := engineClients.Load(workingDir)
+	instance, found := engineClients.get(workingDir)
 
 	var output *util.CmdOutput
 
@@ -129,25 +183,19 @@ func Run(
 				return createEngineErr
 			}
 
-			engineClients.Store(workingDir, &engineInstance{
+			instance = &engineInstance{
 				engineClient: terragruntEngine,
 				client:       client,
 				execOptions:  execOptions,
-			})
-
-			instance, _ = engineClients.Load(workingDir)
+			}
+			engineClients.store(workingDir, instance)
 
 			if err = initialize(runCtx, l, execOptions, terragruntEngine); err != nil {
 				return err
 			}
 		}
 
-		engInst, ok := instance.(*engineInstance)
-		if !ok {
-			return fmt.Errorf("failed to fetch engine instance %s", workingDir)
-		}
-
-		terragruntEngine := engInst.engineClient
+		terragruntEngine := instance.engineClient
 
 		var invokeErr error
 
@@ -167,7 +215,7 @@ func Run(
 
 // WithEngineValues add to context default values for engine.
 func WithEngineValues(ctx context.Context) context.Context {
-	ctx = context.WithValue(ctx, terraformCommandContextKey, &sync.Map{})
+	ctx = context.WithValue(ctx, terraformCommandContextKey, newEngineClients())
 	ctx = context.WithValue(ctx, locksContextKey, util.NewKeyLocks())
 	ctx = context.WithValue(ctx, latestVersionsContextKey, cache.NewCache[string]("engineVersions"))
 
@@ -451,14 +499,14 @@ func isArchiveByHeader(l log.Logger, filePath string) bool {
 	return err == nil && archiveType != ""
 }
 
-// engineClientsFromContext returns the engine clients map from the context.
-func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
+// engineClientsFromContext returns the engine clients registry from the context.
+func engineClientsFromContext(ctx context.Context) (*engineClients, error) {
 	val := ctx.Value(terraformCommandContextKey)
 	if val == nil {
 		return nil, errors.New(errMsgEngineClientsFetch)
 	}
 
-	result, ok := val.(*sync.Map)
+	result, ok := val.(*engineClients)
 	if !ok {
 		return nil, errors.New(errMsgEngineClientsCast)
 	}
@@ -506,14 +554,12 @@ func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experime
 		return nil
 	}
 
-	// iterate over all engine instances and shutdown
 	engineClients, err := engineClientsFromContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	engineClients.Range(func(key, value any) bool {
-		instance := value.(*engineInstance)
+	for _, instance := range engineClients.takeMatching(func(string) bool { return true }) {
 		l.Debugf("Shutting down engine for %s", instance.execOptions.WorkingDir)
 
 		// We use without cancel here to ensure that the shutdown isn't cancelled by the main context,
@@ -535,11 +581,65 @@ func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experime
 			l.Debugf("Plugin did not exit gracefully within timeout, force killing")
 			instance.client.Kill()
 		}
-
-		return true
-	})
+	}
 
 	return nil
+}
+
+// ShutdownUnit shuts down and removes the engine bound to a single unit's cache root,
+// releasing its plugin subprocess when the unit finishes rather than at the batch
+// Shutdown. It is experiment-gated and never fails the run: shutdown-RPC errors are
+// logged, and the only returned error is a missing engine-clients context.
+//
+// The registry is keyed by the post-download cache working dir, which embeds
+// EncodeBase64Sha1(Clean(workingDir)) as a path segment. Matching on that segment
+// rather than a prefix identifies a unit's engines independently of the download dir.
+func ShutdownUnit(
+	ctx context.Context,
+	l log.Logger,
+	experiments experiment.Experiments,
+	noEngine bool,
+	workingDir string,
+) error {
+	if !experiments.Evaluate(experiment.IacEngine) || noEngine {
+		return nil
+	}
+
+	engineClients, err := engineClientsFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	hashSegment := util.EncodeBase64Sha1(filepath.Clean(workingDir))
+
+	for _, instance := range engineClients.takeMatching(func(key string) bool {
+		return PathHasSegment(key, hashSegment)
+	}) {
+		l.Debugf("Shutting down engine for %s", instance.execOptions.WorkingDir)
+
+		// Shutdown must proceed even if the parent context is already cancelled.
+		if err := shutdown(
+			context.WithoutCancel(ctx),
+			l,
+			instance.execOptions,
+			instance.engineClient,
+		); err != nil {
+			l.Errorf("Error shutting down engine: %v", err)
+		}
+
+		if !waitForPluginExit(instance.client, gracefulExitTimeout) {
+			l.Debugf("Plugin did not exit gracefully within timeout, force killing")
+			instance.client.Kill()
+		}
+	}
+
+	return nil
+}
+
+// PathHasSegment reports whether seg is one of p's path components (between
+// separators), not merely a substring of p.
+func PathHasSegment(p, seg string) bool {
+	return slices.Contains(strings.Split(p, string(os.PathSeparator)), seg)
 }
 
 // waitForPluginExit waits for the plugin process to exit, returning true if it exited
