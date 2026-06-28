@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -1030,4 +1031,16 @@ dependency "unit3" {
 `,
 		outputStr,
 	)
+}
+
+// TestDiscoveryBoundaryFlagParses asserts the shared --discovery-boundary flag is wired into
+// `list` and populates opts.DiscoveryBoundary.
+func TestDiscoveryBoundaryFlagParses(t *testing.T) {
+	t.Parallel()
+
+	tgOpts := options.NewTerragruntOptions()
+	cmdFlags := list.NewFlags(logger.CreateLogger(), list.NewOptions(tgOpts), nil)
+
+	require.NoError(t, cmdFlags.Parse(clihelper.Args{"--discovery-boundary", "/some/boundary"}))
+	assert.Equal(t, "/some/boundary", tgOpts.DiscoveryBoundary)
 }
