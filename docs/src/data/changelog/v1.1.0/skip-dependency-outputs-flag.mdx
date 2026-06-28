@@ -1,0 +1,8 @@
+---
+version: "v1.1.0"
+category: "new-features"
+---
+
+#### Add `--skip-dependency-outputs` flag to skip dependency output resolution
+
+Added a `--skip-dependency-outputs` flag that skips all dependency output resolution globally, mirroring the existing `skip_outputs = true` attribute on individual `dependency` blocks. The flag is rejected when used with `plan` or `apply` commands.

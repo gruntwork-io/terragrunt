@@ -438,6 +438,15 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	}
 
 	opts.TerraformCommand = cmdName
+
+	// Prevent --skip-dependency-outputs from being used with commands that produce output.
+	if opts.SkipOutput {
+		switch cmdName {
+		case tf.CommandNamePlan, tf.CommandNameApply:
+			return fmt.Errorf("the --skip-dependency-outputs flag cannot be used with the %q command", cmdName)
+		}
+	}
+
 	opts.TerraformCliArgs = iacargs.New(args...)
 
 	opts.Env = util.EnvironMap()
