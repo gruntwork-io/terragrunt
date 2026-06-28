@@ -85,6 +85,60 @@ func TestWorktreePhase_Integration_UnitLifecycle(t *testing.T) {
 	assert.DirExists(t, expectedUnitToBeUntouched)
 }
 
+// TestWorktreePhase_Integration_DeletedReadingUnitRediscovered verifies that when a file
+// read by a unit is deleted, the unit is re-discovered in the to-worktree rather than being
+// left on the from-worktree path and treated as a removed unit.
+func TestWorktreePhase_Integration_DeletedReadingUnitRediscovered(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	unitDir := createUnit(t, tmpDir, "unit-reads-config", `locals {
+  config_files = mark_glob_as_read("../config/{*.yaml,*.yml}")
+}`)
+
+	configDir := filepath.Join(tmpDir, "config")
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	require.NoError(t, os.Remove(filepath.Join(configDir, "item-a.yml")))
+	commitChanges(t, runner, "Delete tracked config file")
+
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+	components, w := runWorktreeDiscovery(t, tmpDir, gitExpressions, "plan", nil)
+
+	require.Contains(t, w.WorktreePairs, "[HEAD~1...HEAD]")
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+
+	fromPath := filepath.Join(pair.FromWorktree.Path, filepath.Base(unitDir))
+	toPath := filepath.Join(pair.ToWorktree.Path, filepath.Base(unitDir))
+
+	units := components.Filter(component.UnitKind)
+	unitPaths := units.Paths()
+
+	assert.Contains(t, unitPaths, toPath, "Deleted reading unit should be rediscovered in the to-worktree")
+	assert.NotContains(t, unitPaths, fromPath, "Deleted reading unit should not remain on the from-worktree path")
+
+	var found bool
+	for _, c := range units {
+		if c.Path() != toPath {
+			continue
+		}
+
+		found = true
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD", dc.Ref, "Rediscovered unit should be associated with the to-worktree ref")
+		assert.NotContains(t, dc.Args, "-destroy", "Rediscovered unit should not be treated as deleted")
+		break
+	}
+
+	assert.True(t, found, "Expected rediscovered unit to be present in worktree discovery results")
+}
+
 // TestWorktreePhase_Integration_CommandArgs tests command argument handling for worktrees.
 func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 	t.Parallel()

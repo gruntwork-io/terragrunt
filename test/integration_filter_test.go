@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -2315,4 +2316,175 @@ func TestFilterFlagWithGitFilterMarkGlobAsRead(t *testing.T) {
 	results := strings.Fields(stdout)
 	assert.ElementsMatch(t, []string{"unit-reads-added", "unit-reads-removed"}, results,
 		"units reading added or removed glob files should be selected; untouched unit should not")
+}
+
+// TestRunAllGitFilterMarkGlobAsReadDeleted verifies that `terragrunt run --all`
+// correctly selects units affected by deleted, added, or modified files tracked
+// via mark_glob_as_read. The critical scenario is deletion-only: when the ONLY
+// change in a commit is removing a config file that a unit reads via a glob, the
+// unit must still be selected for planning. This reproduces a bug where the
+// from-worktree component (discovered via reading filter) was incorrectly
+// excluded by applyFilterAllowDestroyExclusions because TranslateDiscoveryContextArgs
+// added -destroy to all from-worktree components regardless of whether the unit
+// itself was deleted or just reading-affected.
+func TestRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		unitName      string
+		configDirName string
+		setupChange   func(t *testing.T, tmpDir string)
+		expectedUnits []string
+		description   string
+	}{
+		{
+			name:          "deleted-only config file selects reading unit",
+			unitName:      "unit-reads-removed",
+			configDirName: "config-removed",
+			setupChange: func(t *testing.T, tmpDir string) {
+				t.Helper()
+				require.NoError(t, os.Remove(filepath.Join(tmpDir, "config-removed", "item-a.yml")))
+			},
+			expectedUnits: []string{"unit-reads-removed"},
+			description:   "Deleting the ONLY tracked file should still select the reading unit (the critical bug case)",
+		},
+		{
+			name:          "modified config file selects reading unit",
+			unitName:      "unit-reads-modified",
+			configDirName: "config-modified",
+			setupChange: func(t *testing.T, tmpDir string) {
+				t.Helper()
+				require.NoError(t, os.WriteFile(
+					filepath.Join(tmpDir, "config-modified", "item-a.yml"),
+					[]byte("modified: true\n"), 0644))
+			},
+			expectedUnits: []string{"unit-reads-modified"},
+			description:   "Modifying a file tracked by mark_glob_as_read should select the reading unit",
+		},
+		{
+			name:          "added config file selects reading unit",
+			unitName:      "unit-reads-added",
+			configDirName: "config-added",
+			setupChange: func(t *testing.T, tmpDir string) {
+				t.Helper()
+				require.NoError(t, os.WriteFile(
+					filepath.Join(tmpDir, "config-added", "item-new.yml"),
+					[]byte("new: true\n"), 0644))
+			},
+			expectedUnits: []string{"unit-reads-added"},
+			description:   "Adding a file tracked by mark_glob_as_read should select the reading unit",
+		},
+		{
+			name:          "deleted config file with other modification selects reading unit",
+			unitName:      "unit-reads-deleted-modified",
+			configDirName: "config-deleted-modified",
+			setupChange: func(t *testing.T, tmpDir string) {
+				t.Helper()
+				require.NoError(t, os.Remove(filepath.Join(tmpDir, "config-deleted-modified", "item-a.yml")))
+				require.NoError(t, os.WriteFile(
+					filepath.Join(tmpDir, "config-deleted-modified", "item-b.yml"),
+					[]byte("b: modified\n"), 0644))
+			},
+			expectedUnits: []string{"unit-reads-deleted-modified"},
+			description:   "Deleting a tracked file alongside another modification should select the reading unit",
+		},
+		{
+			name:          "deleted config file with other addition selects reading unit",
+			unitName:      "unit-reads-deleted-added",
+			configDirName: "config-deleted-added",
+			setupChange: func(t *testing.T, tmpDir string) {
+				t.Helper()
+				require.NoError(t, os.Remove(filepath.Join(tmpDir, "config-deleted-added", "item-a.yml")))
+				require.NoError(t, os.WriteFile(
+					filepath.Join(tmpDir, "config-deleted-added", "item-new.yml"),
+					[]byte("new: true\n"), 0644))
+			},
+			expectedUnits: []string{"unit-reads-deleted-added"},
+			description:   "Deleting a tracked file alongside another addition should select the reading unit",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+			runner := helpers.InitTestGitRunner(t, tmpDir)
+
+			unitDir := filepath.Join(tmpDir, tc.unitName)
+			require.NoError(t, os.MkdirAll(unitDir, 0755))
+
+			hclContent := `locals {
+			  config_files = mark_glob_as_read("../` + tc.configDirName + `/{*.yaml,*.yml}")
+			}`
+			require.NoError(t, os.WriteFile(
+				filepath.Join(unitDir, "terragrunt.hcl"), []byte(hclContent), 0644))
+			require.NoError(t, os.WriteFile(
+				filepath.Join(unitDir, "main.tf"), []byte("# minimal"), 0644))
+
+			configDir := filepath.Join(tmpDir, tc.configDirName)
+			require.NoError(t, os.MkdirAll(configDir, 0755))
+			require.NoError(t, os.WriteFile(
+				filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0644))
+			require.NoError(t, os.WriteFile(
+				filepath.Join(configDir, "item-b.yml"), []byte("b: 2\n"), 0644))
+
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Baseline with unit and config files"))
+
+			if b, err := runner.Config(t.Context(), "init.defaultBranch"); err != nil || b != "main" {
+				require.NoError(t, runner.Checkout(t.Context(), "main", true))
+			}
+
+			require.NoError(t, runner.Checkout(t.Context(), "test-change", true))
+
+			tc.setupChange(t, tmpDir)
+
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Apply change to tracked config files"))
+
+			helpers.CleanupTerraformFolder(t, tmpDir)
+
+			reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
+			cmd := fmt.Sprintf(
+				"terragrunt run --all --non-interactive --no-color "+
+					"--working-dir %s --filter '[HEAD~1...HEAD]' --report-file %s -- plan",
+				tmpDir, reportFilePath,
+			)
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			if err != nil && !strings.Contains(stderr, "terraform") && !strings.Contains(stderr, "tofu") {
+				require.NoError(t, err, "Unexpected error\nstdout: %s\nstderr: %s", stdout, stderr)
+			}
+
+			assert.FileExists(t, reportFilePath, "Report file should exist at %s", reportFilePath)
+
+			runs, parseErr := report.ParseJSONRunsFromFile(reportFilePath)
+			require.NoError(t, parseErr, "Should be able to parse report JSON")
+
+			runNames := make([]string, 0, len(runs))
+			for _, r := range runs {
+				runNames = append(runNames, filepath.Base(r.Name))
+			}
+
+			for _, expected := range tc.expectedUnits {
+				found := false
+
+				for _, r := range runs {
+					if filepath.Base(r.Name) != expected || r.Ref != "HEAD" {
+						continue
+					}
+
+					found = true
+					assert.NotEqual(t, "excluded", r.Result,
+						"expected HEAD-side unit %q should not be excluded. %s", expected, tc.description)
+				}
+
+				assert.True(t, found,
+					"Expected HEAD-side unit %q should be in report (got: %v). %s",
+					expected, runNames, tc.description)
+			}
+		})
+	}
 }

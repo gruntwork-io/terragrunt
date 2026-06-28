@@ -97,7 +97,16 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 						return err
 					}
 
-					for _, c := range components {
+					// For reading-affected components discovered in the from-worktree, check if the unit
+					// still exists in the to-worktree. If yes, re-discover it there to avoid the -destroy
+					// flag that would incorrectly exclude it. This handles the case where a file tracked
+					// by mark_glob_as_read is deleted but the unit itself still exists.
+					mappedComponents, err := p.mapFromWorktreeReadingAffected(fromToCtx, l, input, pair, components)
+					if err != nil {
+						return err
+					}
+
+					for _, c := range mappedComponents {
 						discoveredComponents.EnsureComponent(c)
 					}
 
@@ -224,7 +233,78 @@ func (p *WorktreePhase) discoverInWorktree(
 	return components, nil
 }
 
-// discoverChangesInWorktreeStacks discovers changes in worktree stacks.
+// mapFromWorktreeReadingAffected checks which from-worktree components are reading-affected
+// (i.e., the unit still exists in the to-worktree) and re-discovers them in the to-worktree.
+// This avoids the -destroy flag that would incorrectly exclude reading-affected units.
+// Components whose units were actually deleted remain as from-worktree components.
+func (p *WorktreePhase) mapFromWorktreeReadingAffected(
+	ctx context.Context,
+	l log.Logger,
+	input *PhaseInput,
+	pair worktrees.WorktreePair,
+	fromComponents component.Components,
+) (component.Components, error) {
+	if len(fromComponents) == 0 {
+		return fromComponents, nil
+	}
+
+	var (
+		stillExistInTo  []component.Component
+		deletedFromOnly []component.Component
+	)
+
+	for _, c := range fromComponents {
+		relPath, err := filepath.Rel(pair.FromWorktree.Path, c.Path())
+		if err != nil {
+			deletedFromOnly = append(deletedFromOnly, c)
+			continue
+		}
+
+		toPath := filepath.Join(pair.ToWorktree.Path, relPath)
+		terragruntHCL := filepath.Join(toPath, "terragrunt.hcl")
+
+		if _, err := os.Stat(terragruntHCL); err == nil {
+			stillExistInTo = append(stillExistInTo, c)
+		} else {
+			deletedFromOnly = append(deletedFromOnly, c)
+		}
+	}
+
+	if len(stillExistInTo) == 0 {
+		return deletedFromOnly, nil
+	}
+
+	pathFilters := make(filter.Filters, 0, len(stillExistInTo))
+	for _, c := range stillExistInTo {
+		relPath, err := filepath.Rel(pair.FromWorktree.Path, c.Path())
+		if err != nil {
+			continue
+		}
+
+		pathExpr, err := filter.NewPathFilter(relPath)
+		if err != nil {
+			continue
+		}
+
+		pathFilters = append(pathFilters, filter.NewFilter(pathExpr, pathExpr.String()))
+	}
+
+	if len(pathFilters) == 0 {
+		return deletedFromOnly, nil
+	}
+
+	toComponents, err := p.discoverInWorktree(ctx, l, input, pair.ToWorktree, pathFilters, ToWorktreeKind)
+	if err != nil {
+		l.Debugf("Failed to re-discover reading-affected components in to-worktree: %v", err)
+		return append(deletedFromOnly, stillExistInTo...), nil
+	}
+
+	result := make(component.Components, 0, len(deletedFromOnly)+len(toComponents))
+	result = append(result, deletedFromOnly...)
+	result = append(result, toComponents...)
+
+	return result, nil
+}
 func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	ctx context.Context,
 	l log.Logger,
