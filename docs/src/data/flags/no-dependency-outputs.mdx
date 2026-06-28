@@ -1,0 +1,18 @@
+---
+name: no-dependency-outputs
+description: Skip all dependency output resolution during a run. Requires the optional-dependency-outputs experiment.
+lookup: true
+type: boolean
+env:
+  - TG_NO_DEPENDENCY_OUTPUTS
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`optional-dependency-outputs`](/reference/experiments/active#optional-dependency-outputs) experiment. Enable it with `--experiment=optional-dependency-outputs` or `TG_EXPERIMENT=optional-dependency-outputs`; otherwise setting `--no-dependency-outputs` returns an error.
+</Aside>
+
+Skip all dependency output resolution during a run.
+
+When enabled, Terragrunt does not resolve any `dependency` block outputs and will not call `tofu`/`terraform output`. This mirrors the existing `skip_outputs = true` attribute on individual `dependency` blocks, applied globally to the run.

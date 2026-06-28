@@ -1,0 +1,35 @@
+---
+name: optional-dependency-outputs
+since: "1.2.0"
+---
+
+Support for skipping all dependency output resolution during a `run`.
+
+### `optional-dependency-outputs` - What it does
+
+When enabled, users can pass `--no-dependency-outputs` to skip all dependency output resolution globally. `dependency` blocks will not call `tofu`/`terraform output`, mirroring the existing `skip_outputs = true` attribute on individual `dependency` blocks.
+
+```bash
+terragrunt run --experiment optional-dependency-outputs --no-dependency-outputs -- init
+```
+
+This is useful when you want to run commands that do not need dependency outputs (such as `init` or `validate`) without paying the cost of resolving them, or when the dependencies have not been applied yet.
+
+### `optional-dependency-outputs` - How to enable it
+
+```bash
+# Via CLI flag
+terragrunt --experiment optional-dependency-outputs run --no-dependency-outputs -- init
+
+# Via environment variable
+export TG_EXPERIMENT=optional-dependency-outputs
+terragrunt run --no-dependency-outputs -- init
+```
+
+### `optional-dependency-outputs` - Criteria for stabilization
+
+To transition the `optional-dependency-outputs` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] Validate behavior with single-unit and queue-based runs.
+- [ ] Gather community feedback on the flag name and scope.
+- [ ] Confirm the interaction with commands that require dependency outputs (such as `plan`, `apply`, or `destroy`).

@@ -2136,6 +2136,42 @@ func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
 	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
 }
 
+func TestDependencyOutputSkipDependencyOutputsFlag(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
+	noOutputPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "integration", "skip-dependency-outputs")
+
+	t.Run("plan without flag fails", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+noOutputPath)
+		require.ErrorContains(t, err, "resolving dependency \"app1\" outputs")
+	})
+
+	t.Run("flag rejected without experiment", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
+		require.ErrorContains(t, err, "--no-dependency-outputs requires the 'optional-dependency-outputs' experiment")
+	})
+
+	for _, cmd := range []string{"init", "validate", "plan"} {
+		t.Run(cmd+" succeeds with flag", func(t *testing.T) {
+			t.Parallel()
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+cmd+" --experiment optional-dependency-outputs --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
+			require.NoError(t, err)
+		})
+	}
+
+	for _, cmd := range []string{"init", "validate", "plan"} {
+		t.Run("run --all "+cmd+" succeeds with flag", func(t *testing.T) {
+			t.Parallel()
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --experiment optional-dependency-outputs "+cmd+" --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
+			require.NoError(t, err)
+		})
+	}
+}
+
 // Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
 // of erroring out.
 func TestDependencyMockOutput(t *testing.T) {

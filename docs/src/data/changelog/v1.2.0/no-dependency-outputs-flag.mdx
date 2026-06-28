@@ -1,0 +1,16 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Add `--no-dependency-outputs` flag to skip dependency output resolution
+
+Added a `--no-dependency-outputs` flag that skips all dependency output resolution globally, mirroring the existing `skip_outputs = true` attribute on individual `dependency` blocks.
+
+The feature is gated behind the `optional-dependency-outputs` experiment:
+
+```bash
+TG_EXPERIMENT=optional-dependency-outputs terragrunt run --no-dependency-outputs -- init
+```
+
+Using `--no-dependency-outputs` without enabling the `optional-dependency-outputs` experiment will return an error.
