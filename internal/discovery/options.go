@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"path/filepath"
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -141,6 +142,28 @@ func (d *Discovery) WithRelationships() *Discovery {
 // WithGitRoot sets the git root directory for dependent discovery boundary.
 func (d *Discovery) WithGitRoot(gitRoot string) *Discovery {
 	d.gitRoot = gitRoot
+	return d
+}
+
+// WithBoundary constrains dependent discovery to the given directory subtree
+// instead of walking up to the git root. The value is resolved to an absolute,
+// symlink-evaluated path so it matches how gitRoot and worktree paths are stored.
+func (d *Discovery) WithBoundary(boundary string) *Discovery {
+	if boundary == "" {
+		return d
+	}
+
+	abs, err := filepath.Abs(boundary)
+	if err != nil {
+		abs = filepath.Clean(boundary)
+	}
+
+	if resolved, evalErr := filepath.EvalSymlinks(abs); evalErr == nil {
+		abs = resolved
+	}
+
+	d.boundary = abs
+
 	return d
 }
 

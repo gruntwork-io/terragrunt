@@ -107,6 +107,11 @@ func prepareDiscovery(
 		d = d.WithFilters(opts.Filters)
 	}
 
+	// Constrain dependent discovery to the configured boundary subtree, when set.
+	if opts.DiscoveryBoundary != "" {
+		d = d.WithBoundary(opts.DiscoveryBoundary)
+	}
+
 	// Apply worktrees for git filter expressions
 	if w := extractWorktrees(runnerOpts); w != nil {
 		d = d.WithWorktrees(w)

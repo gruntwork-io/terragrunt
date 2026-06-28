@@ -23,6 +23,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, nil)...)
 	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, nil)...)
 	sharedFlags = append(sharedFlags, shared.NewFilterFlags(l, opts)...)
+	sharedFlags = append(sharedFlags, shared.NewDiscoveryBoundaryFlag(opts))
 
 	return &clihelper.Command{
 		Name: CommandName,
