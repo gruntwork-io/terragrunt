@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
 	"errors"
@@ -81,6 +82,36 @@ type terragruntTerraformSource struct {
 type terraformConfigSourceOnly struct {
 	Source *string  `hcl:"source,attr"`
 	Remain hcl.Body `hcl:",remain"`
+}
+
+// terraformSourceReferencesDependency reports whether the terraform block's `source` attribute references the
+// `dependency` namespace. Such a reference can't be resolved during partial parsing, so callers use this to turn the
+// resulting cryptic decode error into a clear explanation. Returns false for JSON configs, whose body is not
+// hclsyntax, leaving the original error in place.
+func terraformSourceReferencesDependency(file *hclparse.File) bool {
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return false
+	}
+
+	for _, block := range body.Blocks {
+		if block.Type != MetadataTerraform {
+			continue
+		}
+
+		sourceAttr, ok := block.Body.Attributes["source"]
+		if !ok {
+			continue
+		}
+
+		for _, traversal := range sourceAttr.Expr.Variables() {
+			if traversal.RootName() == MetadataDependency {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // terragruntTerraformExtraArgs decodes only the terraform source and extra_arguments blocks.
@@ -487,6 +518,11 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			output.Terraform = decoded.Terraform
 
 		case TerraformSource:
+			// Only in the placeholder context (SkipOutputsResolution), where the source is genuinely unresolvable.
+			if pctx.SkipOutputsResolution && terraformSourceReferencesDependency(file) {
+				return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
+			}
+
 			decoded := terragruntTerraformSource{}
 
 			err := file.Decode(&decoded, evalParsingContext)

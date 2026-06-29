@@ -1024,3 +1024,27 @@ dependency "upstream" {
 	require.Len(t, terragruntConfig.TerragruntDependencies, 1)
 	assert.Equal(t, "upstream", terragruntConfig.TerragruntDependencies[0].Name)
 }
+
+func TestPartialParseTerraformSourceReferencingDependencyReturnsClearError(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = "./module-${dependency.upstream.outputs.cluster_id}"
+}
+
+dependency "upstream" {
+  config_path = "../upstream"
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	// SkipOutputsResolution mirrors discovery, where dependency outputs resolve to an unknown placeholder.
+	pctx = pctx.WithDecodeList(config.TerraformSource).WithSkipOutputsResolution()
+	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+
+	var srcErr config.TerraformSourceReferencesDependencyError
+	require.ErrorAs(t, err, &srcErr, "source referencing a dependency should return a clear typed error, not a cryptic decode error")
+}

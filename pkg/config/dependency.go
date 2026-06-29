@@ -1050,7 +1050,16 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		nil,
 	)
 	if err != nil {
-		return nil, "", err
+		// The config being parsed may reference dependency outputs that this lightweight parse can't resolve; the
+		// full output run can, so fall back instead of failing the dependent unit. That parse error is often the
+		// misleading "no variable named dependency" diagnostic, so it is logged for debugging but not returned; the
+		// full run is authoritative and reproduces any genuine error.
+		l.Debugf("Could not partially parse terraform block from target config %s: %v", pctx.TerragruntConfigPath, err)
+		l.Debugf("Falling back to terragrunt output.")
+
+		out, runErr := runTerragruntOutputJSON(ctx, pctx, l, targetConfig)
+
+		return out, "run", runErr
 	}
 
 	// Only override TFPath if it was not explicitly set by the user via CLI or environment variable
@@ -1094,9 +1103,9 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		targetConfig,
 		nil,
 	)
-	canGet := canGetRemoteState(remoteStateTGConfig.RemoteState)
-
-	if err != nil || !canGet {
+	// Check err before dereferencing the config: a remote_state block that references the dependency namespace makes
+	// this parse fail and return a nil config, so the short-circuit avoids a nil pointer panic.
+	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
 		l.Debugf("Could not parse remote_state block from target config %s", pctx.TerragruntConfigPath)
 		l.Debugf("Falling back to terragrunt output.")
 
