@@ -116,6 +116,19 @@ func logTFOutput(l log.Logger, runOpts *TFOptions, args clihelper.Args) (io.Writ
 		errWriter         io.Writer = originalErrWriter
 	)
 
+	switch {
+	case runOpts.ShellOptions.Headless:
+		syncErr := writer.NewSyncWriter(runOpts.ShellOptions.Writers.ErrWriter)
+		originalErrWriter = writer.NewOriginalWriter(syncErr)
+		errWriter = originalErrWriter
+	case runOpts.ShellOptions.Writers.Writer == runOpts.ShellOptions.Writers.ErrWriter:
+		syncShared := writer.NewSyncWriter(runOpts.ShellOptions.Writers.Writer)
+		originalOutWriter = writer.NewOriginalWriter(syncShared)
+		originalErrWriter = writer.NewOriginalWriter(syncShared)
+		outWriter = originalOutWriter
+		errWriter = originalErrWriter
+	}
+
 	logger := l.
 		WithField(placeholders.TFPathKeyName, filepath.Base(runOpts.ShellOptions.TFPath)).
 		WithField(placeholders.TFCmdArgsKeyName, args.Slice()).
