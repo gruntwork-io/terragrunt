@@ -1235,6 +1235,12 @@ func TestDependencyOutputResolutionParsesConfigOnce(t *testing.T) {
 	moduleAConfig := filepath.Join(moduleAPath, "terragrunt.hcl")
 	got := countTerraformBlockParses(t, stdout, moduleAConfig)
 
+	// A count of 0 means the parse spans were no longer observed, not that the redundant parse was removed.
+	require.Positivef(t, got,
+		"observed zero terraform-block parse spans for %q; the telemetry span format likely changed and "+
+			"countTerraformBlockParses can no longer see the parses this test relies on.",
+		moduleAConfig)
+
 	require.LessOrEqualf(t, got, maxModuleATerraformBlockParses,
 		"dependency output resolution parsed %q with the terraform block %d times (baseline %d). "+
 			"A redundant config parse was likely re-introduced in pkg/config/dependency.go resolveOutputJSON. "+
