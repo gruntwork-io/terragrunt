@@ -41,6 +41,7 @@ const (
 	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
 	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
 	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
+	testFixtureDependencyHookOutput              = "fixtures/regressions/dependency-hook-output"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -1182,4 +1183,26 @@ func TestDependencyExtraArgsEnvVarsResolveOutput(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw test_output --non-interactive --working-dir "+moduleBPath)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "hello from module-a")
+}
+
+// TestDependencyHookOutputResolution checks that a unit whose before_hook references its own
+// dependency can still have its outputs resolved by a downstream unit. Resolving a unit's outputs
+// must not evaluate that unit's hooks, whose dependency references are out of scope there.
+func TestDependencyHookOutputResolution(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyHookOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyHookOutput)
+
+	// upstream -> middle -> downstream; middle references its dependency only inside a before_hook.
+	// Before the fix this fails resolving middle's outputs for downstream with
+	// `There is no variable named "dependency"`.
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// confirm the dependency output propagated all the way through middle to downstream
+	downstreamPath := filepath.Join(rootPath, "downstream")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw echo --non-interactive --working-dir "+downstreamPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "argocd")
 }

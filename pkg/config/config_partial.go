@@ -37,6 +37,7 @@ const (
 	EngineBlock
 	ExcludeBlock
 	ErrorsBlock
+	TerraformExtraArgs
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
@@ -80,6 +81,19 @@ type terragruntTerraformSource struct {
 type terraformConfigSourceOnly struct {
 	Source *string  `hcl:"source,attr"`
 	Remain hcl.Body `hcl:",remain"`
+}
+
+// terragruntTerraformExtraArgs decodes only the source attribute and extra_arguments blocks of the terraform block.
+type terragruntTerraformExtraArgs struct {
+	Terraform *terraformConfigExtraArgs `hcl:"terraform,block"`
+	Remain    hcl.Body                  `hcl:",remain"`
+}
+
+// terraformConfigExtraArgs decodes source and extra_arguments only, leaving before_hook/after_hook/error_hook in Remain so their expressions are not evaluated.
+type terraformConfigExtraArgs struct {
+	Remain    hcl.Body                  `hcl:",remain"`
+	Source    *string                   `hcl:"source,attr"`
+	ExtraArgs []TerraformExtraArguments `hcl:"extra_arguments,block"`
 }
 
 // terragruntFlags is a struct that can be used to only decode the flag attributes (prevent_destroy)
@@ -482,6 +496,21 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 			if decoded.Terraform != nil {
 				output.Terraform = &TerraformConfig{Source: decoded.Terraform.Source}
+			}
+
+		case TerraformExtraArgs:
+			decoded := terragruntTerraformExtraArgs{}
+
+			err := file.Decode(&decoded, evalParsingContext)
+			if err != nil {
+				return nil, err
+			}
+
+			if decoded.Terraform != nil {
+				output.Terraform = &TerraformConfig{
+					Source:    decoded.Terraform.Source,
+					ExtraArgs: decoded.Terraform.ExtraArgs,
+				}
 			}
 
 		case DependencyBlock:
