@@ -1196,7 +1196,7 @@ func TestDependencyHookOutputResolution(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	// confirm module-a's output propagated through module-b to module-c
+	// confirm module-b's output propagated to module-c
 	moduleCPath := filepath.Join(rootPath, "module-c")
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw echo --non-interactive --working-dir "+moduleCPath)
 	require.NoError(t, err)
