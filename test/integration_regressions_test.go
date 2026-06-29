@@ -44,11 +44,12 @@ const (
 	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
 	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
 	testFixtureHclValidateDependencyNoMocks      = "fixtures/regressions/hcl-validate-dependency-no-mocks"
+	testFixtureDependencyHookOutput              = "fixtures/regressions/dependency-hook-output"
 
 	// maxModuleATerraformBlockParses caps how many times resolveOutputJSON decodes the dependency terraform block.
 	maxModuleATerraformBlockParses = 1
-	// terraformDecodeName is the decode list token emitted for the terraform block in parse spans.
-	terraformDecodeName = "terraform"
+	// terraformDecodeName is the decode list token emitted for resolveOutputJSON's terraform decode in parse spans.
+	terraformDecodeName = "terraform_extra_args"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -1310,4 +1311,22 @@ func countTerraformBlockParses(t *testing.T, stdout, configPath string) int {
 	}
 
 	return count
+}
+
+// TestDependencyHookOutputResolution checks a unit can resolve outputs of a dependency whose before_hook references its own dependency.
+func TestDependencyHookOutputResolution(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyHookOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyHookOutput)
+
+	// module-a <- module-b (before_hook references module-a) <- module-c
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// confirm module-b's output propagated to module-c
+	moduleCPath := filepath.Join(rootPath, "module-c")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw echo --non-interactive --working-dir "+moduleCPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "argocd")
 }

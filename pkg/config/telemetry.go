@@ -101,6 +101,8 @@ func partialDecodeSectionName(section PartialDecodeSectionType) string {
 		return "terraform"
 	case TerraformSource:
 		return "terraform_source"
+	case TerraformExtraArgs:
+		return "terraform_extra_args"
 	case TerragruntFlags:
 		return "terragrunt_flags"
 	case TerragruntVersionConstraints:

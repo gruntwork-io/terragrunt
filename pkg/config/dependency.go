@@ -1044,10 +1044,10 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		pctx.IAMRoleOptions = iam.RoleOptions{}
 	}
 
-	// Decode the terraform binary plus the terraform block so the dependency honors extra_arguments and source.
+	// Decode dependency blocks plus terraform source and extra_arguments, skipping hooks that may reference the dependency namespace.
 	partialTerragruntConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithDecodeList(DependencyBlock, TerraformBlock).WithDiagnosticsSuppressed(l),
+		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs).WithDiagnosticsSuppressed(l),
 		l,
 		targetConfig,
 		nil,

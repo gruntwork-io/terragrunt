@@ -934,3 +934,93 @@ exclude {
 		assert.True(t, terragruntConfig.Exclude.If, "exclude.if should be true when feature default is true")
 	}
 }
+
+func TestPartialParseTerraformExtraArgsDecodesSourceAndExtraArgs(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = "./module"
+
+  extra_arguments "secrets" {
+    commands = ["output", "plan"]
+    env_vars = {
+      TF_WORKSPACE = "custom"
+    }
+  }
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.TerraformExtraArgs)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+	assert.True(t, terragruntConfig.IsPartial)
+
+	require.NotNil(t, terragruntConfig.Terraform)
+	require.NotNil(t, terragruntConfig.Terraform.Source)
+	assert.Equal(t, "./module", *terragruntConfig.Terraform.Source)
+
+	require.Len(t, terragruntConfig.Terraform.ExtraArgs, 1)
+	assert.Equal(t, "secrets", terragruntConfig.Terraform.ExtraArgs[0].Name)
+	require.NotNil(t, terragruntConfig.Terraform.ExtraArgs[0].EnvVars)
+	assert.Equal(t, map[string]string{"TF_WORKSPACE": "custom"}, *terragruntConfig.Terraform.ExtraArgs[0].EnvVars)
+}
+
+func TestPartialParseTerraformExtraArgsIgnoresHooksReferencingDependency(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = "./module"
+
+  extra_arguments "secrets" {
+    commands = ["output"]
+    env_vars = {
+      TF_WORKSPACE = "custom"
+    }
+  }
+
+  before_hook "use_dep" {
+    commands = ["init", "apply", "plan"]
+    execute  = ["echo", "${dependency.upstream.outputs.cluster_id}"]
+  }
+
+  after_hook "use_dep_after" {
+    commands = ["apply"]
+    execute  = ["echo", "${dependency.upstream.outputs.cluster_id}"]
+  }
+}
+
+dependency "upstream" {
+  config_path                             = "../upstream"
+  mock_outputs                            = { cluster_id = "m" }
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "output", "state"]
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.DependencyBlock, config.TerraformExtraArgs).WithDiagnosticsSuppressed(l)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err, "hooks referencing a dependency must not be evaluated during the narrow terraform decode")
+
+	require.NotNil(t, terragruntConfig.Terraform)
+	require.NotNil(t, terragruntConfig.Terraform.Source)
+	assert.Equal(t, "./module", *terragruntConfig.Terraform.Source)
+
+	require.Len(t, terragruntConfig.Terraform.ExtraArgs, 1)
+	require.NotNil(t, terragruntConfig.Terraform.ExtraArgs[0].EnvVars)
+	assert.Equal(t, map[string]string{"TF_WORKSPACE": "custom"}, *terragruntConfig.Terraform.ExtraArgs[0].EnvVars)
+
+	// hooks are intentionally left undecoded so their dependency references are never evaluated
+	assert.Empty(t, terragruntConfig.Terraform.BeforeHooks)
+	assert.Empty(t, terragruntConfig.Terraform.AfterHooks)
+
+	// the dependency block itself is still decoded for downstream resolution
+	require.Len(t, terragruntConfig.TerragruntDependencies, 1)
+	assert.Equal(t, "upstream", terragruntConfig.TerragruntDependencies[0].Name)
+}
