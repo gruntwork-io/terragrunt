@@ -522,8 +522,8 @@ func worktreeStacksToGenerate(
 		readingAffected []worktrees.StackDiffChangedPair
 	)
 
-	// Seed with stack dirs already covered by direct changes so reading detection doesn't duplicate them.
-	// It is then reused to dedup a stack that reads more than one diffed file (e.g. a changed and a deleted one).
+	// Stacks already covered by a direct change must not be re-recorded, and a stack reading more than one
+	// diffed file must be recorded once; both are guarded by this set of stack dirs.
 	recordedDirs := make(map[string]struct{}, len(stackDiff.Changed))
 
 	for _, changed := range stackDiff.Changed {
@@ -558,35 +558,35 @@ func worktreeStacksToGenerate(
 			return nil, fmt.Errorf("failed to expand worktree pair: %w", err)
 		}
 
-		toParseExpr, toRequiresParse := toFilters.RequiresParse()
-
-		// Deleted-file reading filters live among the from filters (mixed with path filters for genuine
-		// removals), so isolate them before checking whether the from side needs parsing.
+		// Evaluate every reading filter, not just the first: a stack matches one filter per file it reads.
+		// The from filters mix deleted-file reading filters with path filters for genuine removals, so the
+		// partition isolates the reading ones.
+		toReadFilters, _ := toFilters.PartitionReadingFilters()
 		deletedReadFilters, _ := fromFilters.PartitionReadingFilters()
-		fromParseExpr, fromRequiresParse := deletedReadFilters.RequiresParse()
 
-		if !toRequiresParse && !fromRequiresParse {
+		if len(toReadFilters) == 0 && len(deletedReadFilters) == 0 {
 			continue
 		}
 
 		g.Go(func() error {
-			// Each side only needs Reading() populated when it has reading filters to match against.
-			allFromStacks, err := discoverStacks(ctx, l, opts, pair.FromWorktree, fromRequiresParse)
-			if err != nil {
+			recordErr := func(err error) {
 				mu.Lock()
 
 				errs = append(errs, err)
+
 				mu.Unlock()
+			}
+
+			allFromStacks, err := discoverStacks(ctx, l, opts, pair.FromWorktree, len(deletedReadFilters) > 0)
+			if err != nil {
+				recordErr(err)
 
 				return nil
 			}
 
-			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, toRequiresParse)
+			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, len(toReadFilters) > 0)
 			if err != nil {
-				mu.Lock()
-
-				errs = append(errs, err)
-				mu.Unlock()
+				recordErr(err)
 
 				return nil
 			}
@@ -599,68 +599,48 @@ func worktreeStacksToGenerate(
 				stacksToGenerate.EnsureComponent(c)
 			}
 
-			if toRequiresParse {
-				matched, err := filter.Evaluate(l, toParseExpr, allToStacks)
-				if err != nil {
-					mu.Lock()
+			matchedToStacks, err := stacksReadingFiles(l, toReadFilters, allToStacks)
+			if err != nil {
+				recordErr(err)
 
-					errs = append(errs, err)
-					mu.Unlock()
-
-					return nil
-				}
-
-				// A stack missing from the "from" side is a fresh addition already covered by stackDiff.Added.
-				for _, toComp := range matched {
-					toStack, ok := toComp.(*component.Stack)
-					if !ok {
-						continue
-					}
-
-					rel, err := filepath.Rel(pair.ToWorktree.Path, toStack.Path())
-					if err != nil {
-						continue
-					}
-
-					fromStack := findStackByRelPath(allFromStacks, pair.FromWorktree.Path, rel)
-					if fromStack == nil {
-						continue
-					}
-
-					recordReadingAffected(fromStack, toStack, rel)
-				}
+				return nil
 			}
 
-			if fromRequiresParse {
-				matched, err := filter.Evaluate(l, fromParseExpr, allFromStacks)
+			// A stack missing from the "from" side is a fresh addition already covered by stackDiff.Added.
+			for _, toStack := range matchedToStacks {
+				rel, err := filepath.Rel(pair.ToWorktree.Path, toStack.Path())
 				if err != nil {
-					mu.Lock()
-
-					errs = append(errs, err)
-					mu.Unlock()
-
-					return nil
+					continue
 				}
 
-				// A stack missing from the "to" side is a genuine removal already covered by stackDiff.Removed.
-				for _, fromComp := range matched {
-					fromStack, ok := fromComp.(*component.Stack)
-					if !ok {
-						continue
-					}
-
-					rel, err := filepath.Rel(pair.FromWorktree.Path, fromStack.Path())
-					if err != nil {
-						continue
-					}
-
-					toStack := findStackByRelPath(allToStacks, pair.ToWorktree.Path, rel)
-					if toStack == nil {
-						continue
-					}
-
-					recordReadingAffected(fromStack, toStack, rel)
+				fromStack := findStackByRelPath(allFromStacks, pair.FromWorktree.Path, rel)
+				if fromStack == nil {
+					continue
 				}
+
+				recordReadingAffected(fromStack, toStack, rel)
+			}
+
+			matchedFromStacks, err := stacksReadingFiles(l, deletedReadFilters, allFromStacks)
+			if err != nil {
+				recordErr(err)
+
+				return nil
+			}
+
+			// A stack missing from the "to" side is a genuine removal already covered by stackDiff.Removed.
+			for _, fromStack := range matchedFromStacks {
+				rel, err := filepath.Rel(pair.FromWorktree.Path, fromStack.Path())
+				if err != nil {
+					continue
+				}
+
+				toStack := findStackByRelPath(allToStacks, pair.ToWorktree.Path, rel)
+				if toStack == nil {
+					continue
+				}
+
+				recordReadingAffected(fromStack, toStack, rel)
 			}
 
 			return nil
@@ -741,6 +721,41 @@ func findStackByRelPath(stacks component.Components, worktreePath string, relPat
 	}
 
 	return nil
+}
+
+// stacksReadingFiles returns the stacks among components that read a file targeted by any of the given
+// reading filters, deduplicated by path. The components must have been discovered with readFiles enabled
+// so their Reading attribute is populated.
+func stacksReadingFiles(
+	l log.Logger,
+	readingFilters filter.Filters,
+	components component.Components,
+) ([]*component.Stack, error) {
+	seen := make(map[string]struct{})
+	matched := make([]*component.Stack, 0, len(readingFilters))
+
+	for _, f := range readingFilters {
+		evaluated, err := filter.Evaluate(l, f.Expression(), components)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, c := range evaluated {
+			stack, ok := c.(*component.Stack)
+			if !ok {
+				continue
+			}
+
+			if _, ok := seen[stack.Path()]; ok {
+				continue
+			}
+
+			seen[stack.Path()] = struct{}{}
+			matched = append(matched, stack)
+		}
+	}
+
+	return matched, nil
 }
 
 // stackTypeFilter returns a filter.Filters that restricts to stack components.

@@ -2561,13 +2561,11 @@ func TestWorktreePhase_Integration_DeletedReadingStackRecordedAsReadingAffected(
 
 	tmpDir, runner := setupGitRepo(t)
 
-	// Catalog unit the stacks instantiate.
 	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
 	require.NoError(t, os.MkdirAll(legacyUnitDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644))
 
-	// Stack that reads a glob of sidecar files via mark_glob_as_read.
 	stackWithRefDir := filepath.Join(tmpDir, "live", "stack-with-ref")
 	configsDir := filepath.Join(stackWithRefDir, "configs")
 	require.NoError(t, os.MkdirAll(configsDir, 0o755))
@@ -2645,6 +2643,93 @@ unit "app" {
 		"Stack reading the deleted file should be recorded as reading-affected for unit-level walking")
 	assert.NotContains(t, readingAffectedDirs, "live/stack-no-ref",
 		"Stack reading nothing should not be recorded as reading-affected")
+}
+
+// TestWorktreePhase_Integration_MultipleChangedFilesReadByDistinctStacks verifies that when several
+// files change in one diff and each is read by a different stack, every reading stack is recorded as
+// reading-affected. Matching only the first reading filter records just one of them and silently skips
+// the rest, leaving those stacks' units un-walked.
+func TestWorktreePhase_Integration_MultipleChangedFilesReadByDistinctStacks(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
+	require.NoError(t, os.MkdirAll(legacyUnitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644))
+
+	// Each stack reads its own sidecar via read_terragrunt_config, so a stack matches exactly one
+	// reading filter.
+	stackContent := `
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+
+	stackNames := []string{"stack-a", "stack-b"}
+
+	for _, name := range stackNames {
+		dir := filepath.Join(tmpDir, "live", name)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.hcl"), []byte(`inputs = { version = "v1" }`), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.stack.hcl"), []byte(stackContent), 0o644))
+	}
+
+	commitChanges(t, runner, "Create stacks")
+
+	// Change every sidecar in one commit; the stack files themselves are untouched.
+	for _, name := range stackNames {
+		dir := filepath.Join(tmpDir, "live", name)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.hcl"), []byte(`inputs = { version = "v2" }`), 0o644))
+	}
+
+	commitChanges(t, runner, "Change every sidecar")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l))
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
+
+	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w))
+
+	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
+
+	for _, pair := range w.ReadingAffectedStacks {
+		rel, relErr := filepath.Rel(pair.ToStack.DiscoveryContext().WorkingDir, pair.ToStack.Path())
+		require.NoError(t, relErr)
+
+		readingAffectedDirs = append(readingAffectedDirs, filepath.ToSlash(rel))
+	}
+
+	assert.Contains(t, readingAffectedDirs, "live/stack-a",
+		"Stack reading one changed file should be recorded as reading-affected: %v", readingAffectedDirs)
+	assert.Contains(t, readingAffectedDirs, "live/stack-b",
+		"Stack reading another changed file should also be recorded as reading-affected: %v", readingAffectedDirs)
 }
 
 // TestWorktreePhase_Integration_NegatedFiltersAppliedInWorktreeSubDiscoveries tests that
