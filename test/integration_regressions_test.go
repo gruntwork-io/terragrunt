@@ -1185,24 +1185,20 @@ func TestDependencyExtraArgsEnvVarsResolveOutput(t *testing.T) {
 	assert.Contains(t, stdout, "hello from module-a")
 }
 
-// TestDependencyHookOutputResolution checks that a unit whose before_hook references its own
-// dependency can still have its outputs resolved by a downstream unit. Resolving a unit's outputs
-// must not evaluate that unit's hooks, whose dependency references are out of scope there.
+// TestDependencyHookOutputResolution checks a unit can resolve outputs of a dependency whose before_hook references its own dependency.
 func TestDependencyHookOutputResolution(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyHookOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyHookOutput)
 
-	// upstream -> middle -> downstream; middle references its dependency only inside a before_hook.
-	// Before the fix this fails resolving middle's outputs for downstream with
-	// `There is no variable named "dependency"`.
+	// module-a <- module-b (before_hook references module-a) <- module-c
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	// confirm the dependency output propagated all the way through middle to downstream
-	downstreamPath := filepath.Join(rootPath, "downstream")
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw echo --non-interactive --working-dir "+downstreamPath)
+	// confirm module-a's output propagated through module-b to module-c
+	moduleCPath := filepath.Join(rootPath, "module-c")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw echo --non-interactive --working-dir "+moduleCPath)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "argocd")
 }

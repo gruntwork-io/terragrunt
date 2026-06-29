@@ -83,13 +83,13 @@ type terraformConfigSourceOnly struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
-// terragruntTerraformExtraArgs decodes only the source attribute and extra_arguments blocks of the terraform block.
+// terragruntTerraformExtraArgs decodes only the terraform source and extra_arguments blocks.
 type terragruntTerraformExtraArgs struct {
 	Terraform *terraformConfigExtraArgs `hcl:"terraform,block"`
 	Remain    hcl.Body                  `hcl:",remain"`
 }
 
-// terraformConfigExtraArgs decodes source and extra_arguments only, leaving before_hook/after_hook/error_hook in Remain so their expressions are not evaluated.
+// terraformConfigExtraArgs decodes source and extra_arguments only, leaving hooks unevaluated in Remain.
 type terraformConfigExtraArgs struct {
 	Remain    hcl.Body                  `hcl:",remain"`
 	Source    *string                   `hcl:"source,attr"`
