@@ -635,9 +635,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 		return dependencyConfig.MockOutputs, nil
 	}
 
-	shouldGetOutputs := dependencyConfig.shouldGetOutputs(pctx)
-
-	if shouldGetOutputs {
+	if dependencyConfig.shouldGetOutputs(pctx) {
 		outputVal, isEmpty, err := getTerragruntOutput(ctx, pctx, l, dependencyConfig)
 		if err != nil {
 			return nil, err
@@ -667,8 +665,8 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), pctx.TerragruntConfigPath)
 
 	if dependencyConfig.shouldReturnMockOutputs(pctx) {
-		// Only warn when a fetch was attempted but empty; skipping outputs (hcl validate or skip_outputs) is expected.
-		if shouldGetOutputs {
+		// Suppress this warning only when output fetching is skipped wholesale (hcl validate or discovery parse), not for an explicit skip_outputs.
+		if !pctx.SkipOutput {
 			l.Warnf("Config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
 				targetConfig,
 				pctx.TerragruntConfigPath,
