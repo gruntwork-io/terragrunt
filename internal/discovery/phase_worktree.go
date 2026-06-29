@@ -217,6 +217,10 @@ func (p *WorktreePhase) discoverInWorktree(
 		WithDiscoveryContext(discoveryContext).
 		WithNumWorkers(p.numWorkers)
 
+	if len(discovery.configFilenames) > 0 {
+		subDiscovery = subDiscovery.WithConfigFilenames(discovery.configFilenames)
+	}
+
 	if discovery.suppressParseErrors {
 		subDiscovery = subDiscovery.WithSuppressParseErrors()
 	}
@@ -261,9 +265,13 @@ func (p *WorktreePhase) mapFromWorktreeReadingAffected(
 		}
 
 		toPath := filepath.Join(pair.ToWorktree.Path, relPath)
-		terragruntHCL := filepath.Join(toPath, "terragrunt.hcl")
+		configFile := c.ConfigFile()
+		if configFile == "" {
+			configFile = "terragrunt.hcl"
+		}
+		configPath := filepath.Join(toPath, configFile)
 
-		if _, err := os.Stat(terragruntHCL); err == nil {
+		if _, err := os.Stat(configPath); err == nil {
 			stillExistInTo = append(stillExistInTo, c)
 		} else {
 			deletedFromOnly = append(deletedFromOnly, c)
@@ -295,8 +303,7 @@ func (p *WorktreePhase) mapFromWorktreeReadingAffected(
 
 	toComponents, err := p.discoverInWorktree(ctx, l, input, pair.ToWorktree, pathFilters, ToWorktreeKind)
 	if err != nil {
-		l.Debugf("Failed to re-discover reading-affected components in to-worktree: %v", err)
-		return append(deletedFromOnly, stillExistInTo...), nil
+		return nil, err
 	}
 
 	result := make(component.Components, 0, len(deletedFromOnly)+len(toComponents))
@@ -407,6 +414,10 @@ func (p *WorktreePhase) walkChangedStack(
 			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers)
 
+		if len(discovery.configFilenames) > 0 {
+			fromDiscovery = fromDiscovery.WithConfigFilenames(discovery.configFilenames)
+		}
+
 		var fromDiscoveryErr error
 
 		fromComponents, fromDiscoveryErr = fromDiscovery.Discover(discoveryCtx, l, input.Opts)
@@ -434,6 +445,10 @@ func (p *WorktreePhase) walkChangedStack(
 			WithDiscoveryContext(toDiscoveryContext).
 			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers)
+
+		if len(discovery.configFilenames) > 0 {
+			toDiscovery = toDiscovery.WithConfigFilenames(discovery.configFilenames)
+		}
 
 		var toDiscoveryErr error
 
