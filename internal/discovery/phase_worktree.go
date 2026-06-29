@@ -88,11 +88,16 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 				return err
 			}
 
+			// Expand routes reading filters for deleted files onto the from side, since a deleted file
+			// only exists in the from worktree where its read relationship can be evaluated. These need
+			// different handling from the path filters for genuinely removed components, so split them.
+			deletedReadFilters, removalFilters := fromFilters.PartitionReadingFilters()
+
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
 
-			if len(fromFilters) > 0 {
+			if len(removalFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.FromWorktree, fromFilters, FromWorktreeKind)
+					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.FromWorktree, removalFilters, FromWorktreeKind)
 					if err != nil {
 						return err
 					}
@@ -105,9 +110,24 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 				})
 			}
 
-			if len(toFilters) > 0 {
+			if len(toFilters) > 0 || len(deletedReadFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.ToWorktree, toFilters, ToWorktreeKind)
+					finalToFilters := toFilters
+
+					if len(deletedReadFilters) > 0 {
+						translated, err := p.deletedReadingComponentsToFilters(fromToCtx, l, input, pair.FromWorktree, deletedReadFilters)
+						if err != nil {
+							return err
+						}
+
+						finalToFilters = slices.Concat(toFilters, translated)
+					}
+
+					if len(finalToFilters) == 0 {
+						return nil
+					}
+
+					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.ToWorktree, finalToFilters, ToWorktreeKind)
 					if err != nil {
 						return err
 					}
@@ -222,6 +242,42 @@ func (p *WorktreePhase) discoverInWorktree(
 	}
 
 	return components, nil
+}
+
+// deletedReadingComponentsToFilters discovers, in the from worktree, the components that read files
+// deleted in the diff (those files only exist on the from side), then returns a path filter per
+// discovered component aimed at its equivalent path in the to worktree. A component that no longer
+// exists in the to worktree simply matches nothing there, which is the expected outcome for a genuine
+// removal that another filter already covers.
+func (p *WorktreePhase) deletedReadingComponentsToFilters(
+	ctx context.Context,
+	l log.Logger,
+	input *PhaseInput,
+	fromWorktree worktrees.Worktree,
+	readingFilters filter.Filters,
+) (filter.Filters, error) {
+	affected, err := p.discoverInWorktree(ctx, l, input, fromWorktree, readingFilters, FromWorktreeKind)
+	if err != nil {
+		return nil, err
+	}
+
+	toFilters := make(filter.Filters, 0, len(affected))
+
+	for _, c := range affected {
+		relPath, err := filepath.Rel(fromWorktree.Path, c.Path())
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve relative path for reading-affected component %s: %w", c.Path(), err)
+		}
+
+		expr, err := filter.NewPathFilter(relPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create path filter for reading-affected component %s: %w", relPath, err)
+		}
+
+		toFilters = append(toFilters, filter.NewFilter(expr, expr.String()))
+	}
+
+	return toFilters, nil
 }
 
 // discoverChangesInWorktreeStacks discovers changes in worktree stacks.

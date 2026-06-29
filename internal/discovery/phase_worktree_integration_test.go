@@ -85,6 +85,201 @@ func TestWorktreePhase_Integration_UnitLifecycle(t *testing.T) {
 	assert.DirExists(t, expectedUnitToBeUntouched)
 }
 
+// TestWorktreePhase_Integration_DeletedReadingUnitRediscovered verifies that when a file a unit
+// reads via mark_glob_as_read is deleted, the unit is rediscovered in the to-worktree (where it
+// still exists) rather than being left on the from-worktree path and treated as a removal. The
+// deleted file only exists on the from side, so the reading filter lands there, but the surviving
+// unit must keep its HEAD identity and avoid the -destroy treatment.
+func TestWorktreePhase_Integration_DeletedReadingUnitRediscovered(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	createUnit(t, tmpDir, "unit-reads-config", `locals {
+  config_files = mark_glob_as_read("../config/{*.yaml,*.yml}")
+}`)
+
+	configDir := filepath.Join(tmpDir, "config")
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	// Delete one of the tracked files only; the unit itself is untouched.
+	require.NoError(t, os.Remove(filepath.Join(configDir, "item-a.yml")))
+	commitChanges(t, runner, "Delete tracked config file")
+
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+	components, w := runWorktreeDiscovery(t, tmpDir, gitExpressions, "plan", nil)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	fromPath := filepath.Join(pair.FromWorktree.Path, "unit-reads-config")
+	toPath := filepath.Join(pair.ToWorktree.Path, "unit-reads-config")
+
+	units := components.Filter(component.UnitKind)
+	unitPaths := units.Paths()
+
+	assert.Contains(t, unitPaths, toPath, "Surviving reading unit should be rediscovered in the to-worktree")
+	assert.NotContains(t, unitPaths, fromPath, "Surviving reading unit should not remain on the from-worktree path")
+
+	var found bool
+
+	for _, c := range units {
+		if c.Path() != toPath {
+			continue
+		}
+
+		found = true
+
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD", dc.Ref, "Rediscovered unit should carry the to-worktree ref")
+		assert.NotContains(t, dc.Args, "-destroy", "Rediscovered unit should not be treated as a removal")
+	}
+
+	assert.True(t, found, "Expected the rediscovered unit in the worktree discovery results")
+}
+
+// TestWorktreePhase_Integration_RemovedReadingUnitStaysDestroyed verifies that a unit which both
+// reads a deleted file and is itself removed is still treated as a removal: it is discovered in the
+// from-worktree with -destroy and is not spuriously rediscovered in the to-worktree (where it no
+// longer exists).
+func TestWorktreePhase_Integration_RemovedReadingUnitStaysDestroyed(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	createUnit(t, tmpDir, "unit-removed", `locals {
+  config_files = mark_glob_as_read("../config/{*.yaml,*.yml}")
+}`)
+
+	configDir := filepath.Join(tmpDir, "config")
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	// Remove the unit and the file it read in the same diff.
+	require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "unit-removed")))
+	require.NoError(t, os.RemoveAll(configDir))
+	commitChanges(t, runner, "Remove unit and the file it read")
+
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+	components, w := runWorktreeDiscovery(t, tmpDir, gitExpressions, "plan", nil)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	fromPath := filepath.Join(pair.FromWorktree.Path, "unit-removed")
+	toPath := filepath.Join(pair.ToWorktree.Path, "unit-removed")
+
+	units := components.Filter(component.UnitKind)
+	unitPaths := units.Paths()
+
+	assert.Contains(t, unitPaths, fromPath, "Removed reading unit should be discovered in the from-worktree")
+	assert.NotContains(t, unitPaths, toPath, "Removed reading unit must not be rediscovered in the to-worktree")
+
+	for _, c := range units {
+		if c.Path() != fromPath {
+			continue
+		}
+
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD~1", dc.Ref, "Removed unit should carry the from-worktree ref")
+		assert.Contains(t, dc.Args, "-destroy", "Removed unit should retain the -destroy treatment")
+	}
+}
+
+// TestWorktreePhase_Integration_MultipleReadersOfDeletedFile exercises the fan-out when a single
+// deleted file is read by several units at once. Surviving readers must each be rediscovered in the
+// to-worktree, a reader removed in the same diff must keep its from-side -destroy and not be
+// rediscovered, and an unrelated reader of an unchanged file must not be pulled in by the translation.
+func TestWorktreePhase_Integration_MultipleReadersOfDeletedFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	readsShared := `locals {
+  config_files = mark_glob_as_read("../shared/{*.yaml,*.yml}")
+}`
+
+	createUnit(t, tmpDir, "survivor-a", readsShared)
+	createUnit(t, tmpDir, "survivor-b", readsShared)
+	createUnit(t, tmpDir, "removed", readsShared)
+	createUnit(t, tmpDir, "untouched", `locals {
+  config_files = mark_glob_as_read("../other/{*.yaml,*.yml}")
+}`)
+
+	sharedDir := filepath.Join(tmpDir, "shared")
+	require.NoError(t, os.MkdirAll(sharedDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+
+	otherDir := filepath.Join(tmpDir, "other")
+	require.NoError(t, os.MkdirAll(otherDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(otherDir, "keep.yml"), []byte("c: 3\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	// One shared file read by three units is deleted, and one of those three readers is removed.
+	require.NoError(t, os.Remove(filepath.Join(sharedDir, "item-a.yml")))
+	require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "removed")))
+	commitChanges(t, runner, "Delete a shared read file and remove one of its readers")
+
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+	components, w := runWorktreeDiscovery(t, tmpDir, gitExpressions, "plan", nil)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	from := pair.FromWorktree.Path
+	to := pair.ToWorktree.Path
+
+	units := components.Filter(component.UnitKind)
+	unitPaths := units.Paths()
+
+	byPath := make(map[string]component.Component, len(units))
+	for _, c := range units {
+		byPath[c.Path()] = c
+	}
+
+	// Each surviving reader is rediscovered on the to side, with HEAD identity and no destroy.
+	for _, name := range []string{"survivor-a", "survivor-b"} {
+		toUnit := filepath.Join(to, name)
+		assert.Contains(t, unitPaths, toUnit, "surviving reader %s should be rediscovered in to-worktree", name)
+		assert.NotContains(t, unitPaths, filepath.Join(from, name), "surviving reader %s should not stay on from side", name)
+
+		c, ok := byPath[toUnit]
+		require.True(t, ok)
+
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD", dc.Ref, "surviving reader %s should carry the to-worktree ref", name)
+		assert.NotContains(t, dc.Args, "-destroy", "surviving reader %s should not be a removal", name)
+	}
+
+	// The removed reader keeps its from-side destroy treatment and is not rediscovered in the to side.
+	removedFrom := filepath.Join(from, "removed")
+	assert.Contains(t, unitPaths, removedFrom, "removed reader should be discovered in from-worktree")
+	assert.NotContains(t, unitPaths, filepath.Join(to, "removed"), "removed reader must not reappear in to-worktree")
+
+	removed, ok := byPath[removedFrom]
+	require.True(t, ok)
+
+	removedCtx := removed.DiscoveryContext()
+	require.NotNil(t, removedCtx)
+	assert.Equal(t, "HEAD~1", removedCtx.Ref)
+	assert.Contains(t, removedCtx.Args, "-destroy")
+
+	// The unrelated reader (reads an unchanged directory) is not selected by the translated filters.
+	assert.NotContains(t, unitPaths, filepath.Join(to, "untouched"))
+	assert.NotContains(t, unitPaths, filepath.Join(from, "untouched"))
+}
+
 // TestWorktreePhase_Integration_CommandArgs tests command argument handling for worktrees.
 func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 	t.Parallel()
