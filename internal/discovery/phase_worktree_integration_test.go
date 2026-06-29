@@ -2550,6 +2550,103 @@ unit "myapp" {
 			"but got no units. All components: %v", componentPaths)
 }
 
+// TestWorktreePhase_Integration_DeletedReadingStackRecordedAsReadingAffected verifies that when a
+// file a stack reads via mark_glob_as_read is deleted, the stack is recorded in ReadingAffectedStacks
+// during generation so the worktree phase walks it for unit-level diffs. The deleted file only exists
+// on the from side, so the reading filter lands there; the symmetric "to" side detection that covers
+// changed and added files would otherwise miss it, leaving the stack to be rediscovered as a bare
+// stack file with no generated-unit discovery.
+func TestWorktreePhase_Integration_DeletedReadingStackRecordedAsReadingAffected(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Catalog unit the stacks instantiate.
+	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
+	require.NoError(t, os.MkdirAll(legacyUnitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644))
+
+	// Stack that reads a glob of sidecar files via mark_glob_as_read.
+	stackWithRefDir := filepath.Join(tmpDir, "live", "stack-with-ref")
+	configsDir := filepath.Join(stackWithRefDir, "configs")
+	require.NoError(t, os.MkdirAll(configsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(configsDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(configsDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+
+	stackWithRefContent := `
+locals {
+  config_files = mark_glob_as_read("configs/*.yml")
+}
+
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+	stackWithRefFile := filepath.Join(stackWithRefDir, "terragrunt.stack.hcl")
+	require.NoError(t, os.WriteFile(stackWithRefFile, []byte(stackWithRefContent), 0o644))
+
+	// Control stack that reads nothing; it must stay untouched.
+	stackNoRefDir := filepath.Join(tmpDir, "live", "stack-no-ref")
+	require.NoError(t, os.MkdirAll(stackNoRefDir, 0o755))
+
+	stackNoRefContent := `
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+	stackNoRefFile := filepath.Join(stackNoRefDir, "terragrunt.stack.hcl")
+	require.NoError(t, os.WriteFile(stackNoRefFile, []byte(stackNoRefContent), 0o644))
+
+	commitChanges(t, runner, "Create stacks")
+
+	// Delete one tracked sidecar file only; the stack file itself is untouched.
+	require.NoError(t, os.Remove(filepath.Join(configsDir, "item-a.yml")))
+	commitChanges(t, runner, "Delete a tracked sidecar file")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l))
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
+
+	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w))
+
+	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
+
+	for _, pair := range w.ReadingAffectedStacks {
+		rel, relErr := filepath.Rel(pair.ToStack.DiscoveryContext().WorkingDir, pair.ToStack.Path())
+		require.NoError(t, relErr)
+
+		readingAffectedDirs = append(readingAffectedDirs, filepath.ToSlash(rel))
+	}
+
+	assert.Contains(t, readingAffectedDirs, "live/stack-with-ref",
+		"Stack reading the deleted file should be recorded as reading-affected for unit-level walking")
+	assert.NotContains(t, readingAffectedDirs, "live/stack-no-ref",
+		"Stack reading nothing should not be recorded as reading-affected")
+}
+
 // TestWorktreePhase_Integration_NegatedFiltersAppliedInWorktreeSubDiscoveries tests that
 // negated path filters (e.g., from .terragrunt-filters) are applied within worktree
 // sub-discoveries, not just during the final filter evaluation.

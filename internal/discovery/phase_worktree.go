@@ -244,11 +244,13 @@ func (p *WorktreePhase) discoverInWorktree(
 	return components, nil
 }
 
-// deletedReadingComponentsToFilters discovers, in the from worktree, the components that read files
+// deletedReadingComponentsToFilters discovers, in the from worktree, the units that read files
 // deleted in the diff (those files only exist on the from side), then returns a path filter per
-// discovered component aimed at its equivalent path in the to worktree. A component that no longer
-// exists in the to worktree simply matches nothing there, which is the expected outcome for a genuine
-// removal that another filter already covers.
+// discovered unit aimed at its equivalent path in the to worktree. A unit that no longer exists in the
+// to worktree simply matches nothing there, which is the expected outcome for a genuine removal that
+// another filter already covers. Stacks are intentionally skipped: a stack reading a deleted file is
+// routed through ReadingAffectedStacks during generation so its generated units get walked, which a
+// plain path filter (matching only the stack file) would not achieve.
 func (p *WorktreePhase) deletedReadingComponentsToFilters(
 	ctx context.Context,
 	l log.Logger,
@@ -264,6 +266,10 @@ func (p *WorktreePhase) deletedReadingComponentsToFilters(
 	toFilters := make(filter.Filters, 0, len(affected))
 
 	for _, c := range affected {
+		if _, ok := c.(*component.Stack); ok {
+			continue
+		}
+
 		relPath, err := filepath.Rel(fromWorktree.Path, c.Path())
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve relative path for reading-affected component %s: %w", c.Path(), err)

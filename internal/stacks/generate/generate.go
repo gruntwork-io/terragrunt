@@ -473,9 +473,11 @@ func appendWorktreeStackPaths(
 }
 
 // worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.
-// When reading filters are present (changes to files read by a stack), it also
-// identifies which stacks are affected and records them on the Worktrees object so that the worktree
-// discovery phase can walk them for unit-level changes.
+// When reading filters are present (a stack reads a file that was added, changed, or deleted in the diff),
+// it also identifies which stacks are affected and records them on the Worktrees object so that the worktree
+// discovery phase can walk them for unit-level changes. A changed or added file is matched against the "to"
+// stacks; a deleted file is matched against the "from" stacks, since that is the only side where it still
+// exists.
 func worktreeStacksToGenerate(
 	ctx context.Context,
 	l log.Logger,
@@ -505,18 +507,6 @@ func worktreeStacksToGenerate(
 		stacksToGenerate.EnsureComponent(stack)
 	}
 
-	// Build set of stack dirs already handled by direct changes, so we don't
-	// duplicate them in ReadingAffected.
-	handledStackDirs := make(map[string]struct{}, len(stackDiff.Changed))
-
-	for _, changed := range stackDiff.Changed {
-		if dc := changed.ToStack.DiscoveryContext(); dc != nil {
-			if rel, err := filepath.Rel(dc.WorkingDir, changed.ToStack.Path()); err == nil {
-				handledStackDirs[filepath.Clean(rel)] = struct{}{}
-			}
-		}
-	}
-
 	// When the expanded filter for a given Git expression requires parsing,
 	// we need to generate all the stacks in the given worktree, as units within the generated stack might be affected.
 	// We also identify which specific stacks are affected by reading filters so that the worktree discovery phase
@@ -532,20 +522,56 @@ func worktreeStacksToGenerate(
 		readingAffected []worktrees.StackDiffChangedPair
 	)
 
+	// Seed with stack dirs already covered by direct changes so reading detection doesn't duplicate them.
+	// It is then reused to dedup a stack that reads more than one diffed file (e.g. a changed and a deleted one).
+	recordedDirs := make(map[string]struct{}, len(stackDiff.Changed))
+
+	for _, changed := range stackDiff.Changed {
+		if dc := changed.ToStack.DiscoveryContext(); dc != nil {
+			if rel, err := filepath.Rel(dc.WorkingDir, changed.ToStack.Path()); err == nil {
+				recordedDirs[filepath.Clean(rel)] = struct{}{}
+			}
+		}
+	}
+
+	recordReadingAffected := func(fromStack, toStack *component.Stack, rel string) {
+		key := filepath.Clean(rel)
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		if _, ok := recordedDirs[key]; ok {
+			return
+		}
+
+		recordedDirs[key] = struct{}{}
+
+		readingAffected = append(readingAffected, worktrees.StackDiffChangedPair{
+			FromStack: fromStack,
+			ToStack:   toStack,
+		})
+	}
+
 	for _, pair := range w.WorktreePairs {
-		_, toFilters, err := pair.Expand()
+		fromFilters, toFilters, err := pair.Expand()
 		if err != nil {
 			return nil, fmt.Errorf("failed to expand worktree pair: %w", err)
 		}
 
-		parseExpr, requiresParse := toFilters.RequiresParse()
-		if !requiresParse {
+		toParseExpr, toRequiresParse := toFilters.RequiresParse()
+
+		// Deleted-file reading filters live among the from filters (mixed with path filters for genuine
+		// removals), so isolate them before checking whether the from side needs parsing.
+		deletedReadFilters, _ := fromFilters.PartitionReadingFilters()
+		fromParseExpr, fromRequiresParse := deletedReadFilters.RequiresParse()
+
+		if !toRequiresParse && !fromRequiresParse {
 			continue
 		}
 
 		g.Go(func() error {
-			// Discover all stacks in both worktrees for generation.
-			allFromStacks, err := discoverStacks(ctx, l, opts, pair.FromWorktree, false)
+			// Each side only needs Reading() populated when it has reading filters to match against.
+			allFromStacks, err := discoverStacks(ctx, l, opts, pair.FromWorktree, fromRequiresParse)
 			if err != nil {
 				mu.Lock()
 
@@ -555,10 +581,7 @@ func worktreeStacksToGenerate(
 				return nil
 			}
 
-			// The "to" discovery uses readFiles to force all stacks through
-			// the parse phase (populating Reading()), while still returning every stack
-			// (because they all match type=stack).
-			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, true)
+			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, toRequiresParse)
 			if err != nil {
 				mu.Lock()
 
@@ -576,48 +599,68 @@ func worktreeStacksToGenerate(
 				stacksToGenerate.EnsureComponent(c)
 			}
 
-			// Identify which "to" stacks read the changed files.
-			matchedToStacks, err := filter.Evaluate(l, parseExpr, allToStacks)
-			if err != nil {
-				mu.Lock()
+			if toRequiresParse {
+				matched, err := filter.Evaluate(l, toParseExpr, allToStacks)
+				if err != nil {
+					mu.Lock()
 
-				errs = append(errs, err)
-				mu.Unlock()
+					errs = append(errs, err)
+					mu.Unlock()
 
-				return nil
+					return nil
+				}
+
+				// A stack missing from the "from" side is a fresh addition already covered by stackDiff.Added.
+				for _, toComp := range matched {
+					toStack, ok := toComp.(*component.Stack)
+					if !ok {
+						continue
+					}
+
+					rel, err := filepath.Rel(pair.ToWorktree.Path, toStack.Path())
+					if err != nil {
+						continue
+					}
+
+					fromStack := findStackByRelPath(allFromStacks, pair.FromWorktree.Path, rel)
+					if fromStack == nil {
+						continue
+					}
+
+					recordReadingAffected(fromStack, toStack, rel)
+				}
 			}
 
-			// Record reading-affected stack pairs on the Worktrees object so that
-			// discoverChangesInWorktreeStacks walks them for unit-level diffs.
-			for _, toComp := range matchedToStacks {
-				toStack, ok := toComp.(*component.Stack)
-				if !ok {
-					continue
-				}
-
-				rel, err := filepath.Rel(pair.ToWorktree.Path, toStack.Path())
+			if fromRequiresParse {
+				matched, err := filter.Evaluate(l, fromParseExpr, allFromStacks)
 				if err != nil {
-					continue
+					mu.Lock()
+
+					errs = append(errs, err)
+					mu.Unlock()
+
+					return nil
 				}
 
-				if _, handled := handledStackDirs[filepath.Clean(rel)]; handled {
-					continue
+				// A stack missing from the "to" side is a genuine removal already covered by stackDiff.Removed.
+				for _, fromComp := range matched {
+					fromStack, ok := fromComp.(*component.Stack)
+					if !ok {
+						continue
+					}
+
+					rel, err := filepath.Rel(pair.FromWorktree.Path, fromStack.Path())
+					if err != nil {
+						continue
+					}
+
+					toStack := findStackByRelPath(allToStacks, pair.ToWorktree.Path, rel)
+					if toStack == nil {
+						continue
+					}
+
+					recordReadingAffected(fromStack, toStack, rel)
 				}
-
-				// If the stack only exists in one worktree (e.g. newly added),
-				// it will be handled by stackDiff.Added/Removed instead.
-				fromStack := findStackByRelPath(allFromStacks, pair.FromWorktree.Path, rel)
-				if fromStack == nil {
-					continue
-				}
-
-				mu.Lock()
-
-				readingAffected = append(readingAffected, worktrees.StackDiffChangedPair{
-					FromStack: fromStack,
-					ToStack:   toStack,
-				})
-				mu.Unlock()
 			}
 
 			return nil
