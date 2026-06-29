@@ -42,12 +42,14 @@ type ShellOptions struct {
 	Telemetry     *telemetry.Options
 	Env           map[string]string
 
-	RootWorkingDir  string
-	WorkingDir      string
-	TFPath          string
-	Experiments     experiment.Experiments
-	Headless        bool
-	ForwardTFStdout bool
+	RootWorkingDir         string
+	WorkingDir             string
+	TFPath                 string
+	Experiments            experiment.Experiments
+	Headless               bool
+	ForwardTFStdout        bool
+	LogShowAbsPaths        bool
+	LogDisableErrorSummary bool
 }
 
 // NewShellOptions creates ShellOptions with sensible defaults:
@@ -282,22 +284,22 @@ func runCommand(
 
 			cmdOutput, err := engine.Run(ctx, l, e, &engine.ExecutionOptions{
 				Writers: writer.Writers{
-					Writer:                 writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
-					ErrWriter:              writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
-					LogShowAbsPaths:        runOpts.Writers.LogShowAbsPaths,
-					LogDisableErrorSummary: runOpts.Writers.LogDisableErrorSummary,
+					Writer:    writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
+					ErrWriter: writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
 				},
-				EngineOptions:     runOpts.EngineOptions,
-				EngineConfig:      runOpts.EngineConfig,
-				Env:               runOpts.Env,
-				WorkingDir:        cmdOpts.CommandDir,
-				RootWorkingDir:    runOpts.RootWorkingDir,
-				Command:           cmdOpts.Command,
-				Args:              cmdOpts.Args,
-				Headless:          runOpts.Headless,
-				ForwardTFStdout:   runOpts.ForwardTFStdout,
-				SuppressStdout:    cmdOpts.SuppressStdout,
-				AllocatePseudoTty: cmdOpts.NeedsPTY,
+				LogShowAbsPaths:        runOpts.LogShowAbsPaths,
+				LogDisableErrorSummary: runOpts.LogDisableErrorSummary,
+				EngineOptions:          runOpts.EngineOptions,
+				EngineConfig:           runOpts.EngineConfig,
+				Env:                    runOpts.Env,
+				WorkingDir:             cmdOpts.CommandDir,
+				RootWorkingDir:         runOpts.RootWorkingDir,
+				Command:                cmdOpts.Command,
+				Args:                   cmdOpts.Args,
+				Headless:               runOpts.Headless,
+				ForwardTFStdout:        runOpts.ForwardTFStdout,
+				SuppressStdout:         cmdOpts.SuppressStdout,
+				AllocatePseudoTty:      cmdOpts.NeedsPTY,
 			})
 			if err != nil {
 				return err
@@ -330,8 +332,8 @@ func runCommand(
 			Command:         cmdOpts.Command,
 			WorkingDir:      cmd.Dir(),
 			RootWorkingDir:  runOpts.RootWorkingDir,
-			LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
-			DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
+			LogShowAbsPaths: runOpts.LogShowAbsPaths,
+			DisableSummary:  runOpts.LogDisableErrorSummary,
 		}
 
 		return err
@@ -348,8 +350,8 @@ func runCommand(
 			Output:          *cmdOpts.Output,
 			WorkingDir:      cmd.Dir(),
 			RootWorkingDir:  runOpts.RootWorkingDir,
-			LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
-			DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
+			LogShowAbsPaths: runOpts.LogShowAbsPaths,
+			DisableSummary:  runOpts.LogDisableErrorSummary,
 		}
 
 		return err

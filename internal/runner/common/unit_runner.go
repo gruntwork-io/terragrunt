@@ -52,7 +52,7 @@ func (runner *UnitRunner) runTerragrunt(
 	cfg *runcfg.RunConfig,
 	credsGetter *creds.Getter,
 ) error {
-	l.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.Writers.LogShowAbsPaths))
+	l.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.LogShowAbsPaths))
 
 	defer func() {
 		// Flush buffered output for this unit, if the writer supports it.
