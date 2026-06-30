@@ -1243,10 +1243,13 @@ func TestDependencyRemoteStateOutputResolution(t *testing.T) {
 	assert.Contains(t, stdout, "argocd")
 }
 
-// TestDependencyGenuineErrorSurfaces checks that the output-resolution fallback does not swallow a genuine
-// (non-dependency) error in a dependency's terraform block. module-b resolves module-a's outputs while module-a is
-// unapplied; module-a's extra_arguments calls an undefined function, and that real error must surface so the user sees
-// the root cause instead of only the "no variable named dependency" diagnostic that cascades from it.
+// TestDependencyGenuineErrorSurfaces pins that the output-resolution fallback does not swallow a genuine
+// (non-dependency) error in a dependency's terraform block: the fallback's full run must reproduce it. module-b
+// resolves module-a's outputs while module-a is unapplied; module-a's extra_arguments calls an undefined function,
+// and that real error must surface so the user sees the root cause rather than a misleading cascade.
+//
+// This pins the user-visible behavior, not the internal mechanism: the genuine error happens to surface on the
+// pre-fallback code path too, so the test does not by itself isolate the fallback as the source of the message.
 func TestDependencyGenuineErrorSurfaces(t *testing.T) {
 	t.Parallel()
 
@@ -1260,9 +1263,10 @@ func TestDependencyGenuineErrorSurfaces(t *testing.T) {
 	assert.Contains(t, stdout+stderr, "nonexistent_function_xyz")
 }
 
-// TestDependencyOutputLocalOptimization exercises the dependency-output optimization path without AWS: module-a uses a
-// local-backend remote_state, so once it is applied module-b resolves its outputs directly from the init-ed working
-// directory instead of falling back to a full output run.
+// TestDependencyOutputLocalOptimization checks that a unit can resolve outputs of a dependency that manages its state
+// with a local-backend remote_state block (the dependency-output optimization path's prerequisite, exercised without
+// AWS). The assertion only confirms the resolved value; it does not distinguish the optimization path from the
+// full-run fallback.
 func TestDependencyOutputLocalOptimization(t *testing.T) {
 	t.Parallel()
 
@@ -1273,7 +1277,7 @@ func TestDependencyOutputLocalOptimization(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply")
 	require.NoError(t, err)
 
-	// confirm module-a's output resolved into module-b through the optimization path
+	// confirm module-a's output resolved into module-b
 	moduleBPath := filepath.Join(rootPath, "module-b")
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+moduleBPath+" -- output -raw echo")
 	require.NoError(t, err)

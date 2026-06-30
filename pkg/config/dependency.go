@@ -1103,8 +1103,7 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		l.Debugf("Falling back to terragrunt output.")
 
 		// A `--source` override is relative to the original unit, so the full run still has to recompute it against the
-		// target's own terraform source. The parse above failed (often an extra_arguments block referencing a
-		// dependency), so re-parse just the source attribute, which does not depend on dependency outputs.
+		// target's own terraform source.
 		if srcErr := recomputeSourceForTarget(ctx, pctx, l, targetConfig); srcErr != nil {
 			return nil, "", srcErr
 		}
