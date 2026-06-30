@@ -673,31 +673,30 @@ func shutdownInstance(ctx context.Context, l log.Logger, instance *engineInstanc
 	}
 
 	// The shutdown RPC already told the plugin to exit, so wait before force-killing it.
-	if !waitForPluginExit(instance.client, gracefulExitTimeout) {
+	if !WaitForPluginExit(instance.client.Exited, gracefulExitTimeout) {
 		l.Debugf("Plugin did not exit gracefully within timeout, force killing")
 		instance.client.Kill()
 	}
 }
 
-// waitForPluginExit waits for the plugin process to exit, returning true if it exited
-// within the timeout, false otherwise.
-func waitForPluginExit(client *plugin.Client, timeout time.Duration) bool {
-	done := make(chan struct{})
+// WaitForPluginExit reports whether the plugin exited within the timeout, polling at
+// pluginExitPollInterval.
+func WaitForPluginExit(exited func() bool, timeout time.Duration) bool {
+	deadline := time.After(timeout)
 
-	go func() {
-		// Client.Exited() returns true when the plugin process has exited
-		for !client.Exited() {
-			time.Sleep(pluginExitPollInterval)
+	ticker := time.NewTicker(pluginExitPollInterval)
+	defer ticker.Stop()
+
+	for {
+		if exited() {
+			return true
 		}
 
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		return true
-	case <-time.After(timeout):
-		return false
+		select {
+		case <-deadline:
+			return false
+		case <-ticker.C:
+		}
 	}
 }
 
