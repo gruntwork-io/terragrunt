@@ -85,9 +85,9 @@ type terraformConfigSourceOnly struct {
 }
 
 // terraformSourceReferencesDependency reports whether the terraform block's `source` attribute references the
-// `dependency` namespace. Such a reference can't be resolved during partial parsing, so callers use this to turn the
-// resulting cryptic decode error into a clear explanation. Returns false for JSON configs, whose body is not
-// hclsyntax, leaving the original error in place.
+// `dependency` namespace anywhere in its expression. A reference that is actually evaluated can't be resolved during
+// partial parsing, so callers consult this only after a decode failure to turn the resulting cryptic error into a
+// clear explanation. Returns false for JSON configs, whose body is not hclsyntax, leaving the original error in place.
 func terraformSourceReferencesDependency(file *hclparse.File) bool {
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
@@ -518,15 +518,18 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			output.Terraform = decoded.Terraform
 
 		case TerraformSource:
-			// Only in the placeholder context (SkipOutputsResolution), where the source is genuinely unresolvable.
-			if pctx.SkipOutputsResolution && terraformSourceReferencesDependency(file) {
-				return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
-			}
-
 			decoded := terragruntTerraformSource{}
 
-			err := file.Decode(&decoded, evalParsingContext)
-			if err != nil {
+			if err := file.Decode(&decoded, evalParsingContext); err != nil {
+				// A source that actually evaluates a dependency output can't be resolved before dependencies run, so
+				// the decode fails with a cryptic "value must be known". Translate that into a clear explanation, but
+				// only in the placeholder context (SkipOutputsResolution) where outputs are deliberately unresolved.
+				// A dependency reference in an untaken conditional branch decodes fine and never reaches here, so it
+				// is not falsely rejected and dependency discovery keeps working.
+				if pctx.SkipOutputsResolution && terraformSourceReferencesDependency(file) {
+					return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
+				}
+
 				return nil, err
 			}
 

@@ -1048,3 +1048,40 @@ dependency "upstream" {
 	var srcErr config.TerraformSourceReferencesDependencyError
 	require.ErrorAs(t, err, &srcErr, "source referencing a dependency should return a clear typed error, not a cryptic decode error")
 }
+
+// TestPartialParseTerraformSourceDependencyInUntakenBranch mirrors discovery (SkipOutputsResolution with the full
+// discovery decode list) over a source whose dependency reference sits in an untaken conditional branch. The source
+// evaluates to a concrete value, so the parse must succeed and still surface the dependency edge rather than aborting
+// with TerraformSourceReferencesDependencyError.
+func TestPartialParseTerraformSourceDependencyInUntakenBranch(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = true ? "./module" : dependency.upstream.outputs.source
+}
+
+dependency "upstream" {
+  config_path = "../upstream"
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(
+		config.TerraformSource,
+		config.DependenciesBlock,
+		config.DependencyBlock,
+	).WithSkipOutputsResolution()
+
+	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err, "a dependency reference in an untaken conditional branch must not be rejected")
+
+	require.NotNil(t, terragruntConfig.Terraform)
+	require.NotNil(t, terragruntConfig.Terraform.Source)
+	assert.Equal(t, "./module", *terragruntConfig.Terraform.Source)
+
+	require.Len(t, terragruntConfig.TerragruntDependencies, 1)
+	assert.Equal(t, "upstream", terragruntConfig.TerragruntDependencies[0].Name)
+}

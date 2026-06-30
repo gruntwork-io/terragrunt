@@ -1245,8 +1245,8 @@ func TestDependencyRemoteStateOutputResolution(t *testing.T) {
 
 // TestDependencyGenuineErrorSurfaces checks that the output-resolution fallback does not swallow a genuine
 // (non-dependency) error in a dependency's terraform block. module-b resolves module-a's outputs while module-a is
-// unapplied; module-a's extra_arguments calls an undefined function, and that real error must surface rather than a
-// "There is no variable named dependency" red herring.
+// unapplied; module-a's extra_arguments calls an undefined function, and that real error must surface so the user sees
+// the root cause instead of only the "no variable named dependency" diagnostic that cascades from it.
 func TestDependencyGenuineErrorSurfaces(t *testing.T) {
 	t.Parallel()
 

@@ -1014,6 +1014,51 @@ func extractFirstJSONObject(data []byte) ([]byte, error) {
 	return raw, nil
 }
 
+// adjustSourceForTargetModule rewrites a `--source` CLI override so it points at targetConfig's own module subdir
+// rather than the original unit's. The override carries only the module root ("everything before //"); the subdir
+// comes from the target's terraform source. A no-op when `--source` was not set or the target has no source.
+func adjustSourceForTargetModule(pctx *ParsingContext, targetConfig string, targetCfg *TerragruntConfig) error {
+	if pctx.Source == "" {
+		return nil
+	}
+
+	moduleURL, _ := getter.SourceDirSubdir(pctx.Source)
+
+	targetSource, err := GetTerragruntSourceForModule(moduleURL, filepath.Dir(targetConfig), targetCfg)
+	if err != nil {
+		return err
+	}
+
+	pctx.Source = targetSource
+
+	return nil
+}
+
+// recomputeSourceForTarget recomputes the `--source` override for targetConfig before the output fallback runs the
+// target in full. It is used when the lightweight parse that normally supplies the target's source failed, so it
+// re-parses just the terraform source attribute (which, unlike extra_arguments or hooks, never depends on dependency
+// outputs). A best-effort step: if even the source can't be parsed, the override is left untouched for the full run
+// to resolve.
+func recomputeSourceForTarget(ctx context.Context, pctx *ParsingContext, l log.Logger, targetConfig string) error {
+	if pctx.Source == "" {
+		return nil
+	}
+
+	sourceCfg, err := PartialParseConfigFile(
+		ctx,
+		pctx.WithDecodeList(TerraformSource).WithDiagnosticsSuppressed(l),
+		l,
+		targetConfig,
+		nil,
+	)
+	if err != nil {
+		l.Debugf("Could not parse terraform source from target config %s to recompute --source: %v", targetConfig, err)
+		return nil
+	}
+
+	return adjustSourceForTargetModule(pctx, targetConfig, sourceCfg)
+}
+
 // resolveOutputJSON retrieves the outputs from the terraform state in the target configuration. It
 // attempts to optimize retrieval if the following conditions are true:
 //   - State backends are managed with a `remote_state` block.
@@ -1057,6 +1102,13 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		l.Debugf("Could not partially parse terraform block from target config %s: %v", pctx.TerragruntConfigPath, err)
 		l.Debugf("Falling back to terragrunt output.")
 
+		// A `--source` override is relative to the original unit, so the full run still has to recompute it against the
+		// target's own terraform source. The parse above failed (often an extra_arguments block referencing a
+		// dependency), so re-parse just the source attribute, which does not depend on dependency outputs.
+		if srcErr := recomputeSourceForTarget(ctx, pctx, l, targetConfig); srcErr != nil {
+			return nil, "", srcErr
+		}
+
 		out, runErr := runTerragruntOutputJSON(ctx, pctx, l, targetConfig)
 
 		return out, "run", runErr
@@ -1071,18 +1123,8 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 	applyExtraArgsEnvVarsForOutput(pctx, partialTerragruntConfig.Terraform)
 
 	// If the Source is set, then we need to recompute it in the ctx of the target config.
-	if pctx.Source != "" {
-		// Update the source value to be everything before "//" so that it can be recomputed
-		moduleURL, _ := getter.SourceDirSubdir(pctx.Source)
-
-		// Finally, update the source to be the combined path between the terraform source in the target config, and the
-		// value before "//" in the original terragrunt options.
-		targetSource, err := GetTerragruntSourceForModule(moduleURL, filepath.Dir(targetConfig), partialTerragruntConfig)
-		if err != nil {
-			return nil, "", err
-		}
-
-		pctx.Source = targetSource
+	if err := adjustSourceForTargetModule(pctx, targetConfig, partialTerragruntConfig); err != nil {
+		return nil, "", err
 	}
 
 	// First attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is possible,
