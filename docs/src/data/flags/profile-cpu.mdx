@@ -1,0 +1,25 @@
+---
+name: profile-cpu
+description: Write a CPU profile to the given path. Requires the pprof experiment.
+type: string
+env:
+  - TG_PROFILE_CPU
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`pprof`](/reference/experiments/active#pprof) experiment. Enable it with `--experiment=pprof` or `TG_EXPERIMENT=pprof`.
+</Aside>
+
+Write a CPU profile of the Terragrunt process.
+
+The profile can be analyzed with `go tool pprof`:
+
+```shell
+go tool pprof terragrunt_cpu.prof
+```
+
+When used with `--profile-dir`, the default filename inside the directory is `terragrunt_cpu.prof`.
+
+When `TG_PROFILE_CPU` (or `--profile-cpu`) is set, Terragrunt will also propagate a CPU profile path for OpenTofu (as `TOFU_CPU_PROFILE`) unless you override it or use directory-based collection.

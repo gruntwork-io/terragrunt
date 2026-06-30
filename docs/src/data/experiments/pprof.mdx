@@ -1,0 +1,38 @@
+---
+name: pprof
+---
+
+Collect CPU profiles, memory profiles, and goroutine dumps (memory dumps) for Terragrunt.
+
+### `pprof` - What it does
+
+When enabled, Terragrunt allows collecting runtime profiles using CLI flags (or the corresponding `TG_PROFILE_*` environment variables):
+
+- `--profile-cpu` / `TG_PROFILE_CPU` — write a CPU profile
+- `--profile-mem` / `TG_PROFILE_MEM` — write a heap memory profile
+- `--profile-goroutine` / `TG_PROFILE_GOROUTINE` — write a goroutine profile (useful as a "memory dump")
+- `--profile-dir` / `TG_PROFILE_DIR` — collect all of the above into a single directory using conventional filenames
+
+Example:
+
+```bash
+terragrunt --experiment pprof --profile-dir /tmp/profiles -- run --all -- plan
+```
+
+This is primarily intended for performance investigation and debugging of Terragrunt itself.
+
+For backward compatibility, the older environment variables (`TG_CPU_PROFILE`, `TG_MEM_PROFILE`, `TG_CPU_PROFILE_DIR`, `TG_MEM_PROFILE_DIR`) continue to work without requiring the experiment.
+
+### `pprof` - How to provide feedback
+
+Provide feedback on the [Terragrunt GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions) or by opening an issue.
+
+### `pprof` - Criteria for stabilization
+
+To transition the `pprof` experiment to a stable release, the following should be addressed:
+
+- [ ] Validate that early profiling covers startup reliably across different invocation styles (direct binary, `go run`, test helpers).
+- [ ] Ensure documentation (CLI flags + env vars) is complete and accurate.
+- [ ] Gather feedback on the chosen flag names (`--profile-*`).
+- [ ] Decide whether additional profile types (block, mutex, etc.) should be exposed.
+- [ ] Confirm the interaction with `--experiment-mode` and `TG_EXPERIMENT` is ergonomic.
