@@ -98,7 +98,9 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, v venv.Venv, inpu
 
 			if len(removalFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := p.discoverInWorktree(fromToCtx, l, v, input, pair.FromWorktree, removalFilters, FromWorktreeKind)
+					components, err := p.discoverInWorktree(
+						fromToCtx, l, v, input, pair.FromWorktree, removalFilters, FromWorktreeKind,
+					)
 					if err != nil {
 						return err
 					}
@@ -116,7 +118,9 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, v venv.Venv, inpu
 					finalToFilters := toFilters
 
 					if len(deletedReadFilters) > 0 {
-						translated, err := p.deletedReadingComponentsToFilters(fromToCtx, l, v, input, pair.FromWorktree, deletedReadFilters)
+						translated, err := p.deletedReadingComponentsToFilters(
+							fromToCtx, l, v, input, pair.FromWorktree, deletedReadFilters,
+						)
 						if err != nil {
 							return err
 						}
