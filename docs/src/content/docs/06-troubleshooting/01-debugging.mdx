@@ -195,13 +195,30 @@ TG_CPU_PROFILE=terragrunt_cpu.prof terragrunt run -- plan
 TG_MEM_PROFILE=terragrunt_mem.prof terragrunt run -- plan
 ```
 
-For `run --all`, use the `_DIR` variants to collect all profiles in a structured directory:
+When using `terragrunt run --all`, never point `TG_CPU_PROFILE` or `TG_MEM_PROFILE` at a single file. All the parallel OpenTofu processes (plus Terragrunt itself) would write to the same file and corrupt the data.
+
+Instead use the `_DIR` variants. They tell Terragrunt to create a directory and automatically place profiles in a hierarchy that mirrors your units:
 
 ```bash
-TG_CPU_PROFILE_DIR=/tmp/profiles TG_MEM_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
+# Recommended for run --all
+TG_CPU_PROFILE_DIR=/tmp/profiles \
+TG_MEM_PROFILE_DIR=/tmp/profiles \
+terragrunt run --all -- plan
 ```
 
-This creates `terragrunt_cpu.prof`, `terragrunt_mem.prof`, and per-module `tofu_cpu.prof` files preserving the directory hierarchy.
+Resulting layout (example):
+
+```
+/tmp/profiles/
+├── terragrunt_cpu.prof          # Main Terragrunt process
+├── terragrunt_mem.prof
+├── modules/vpc/
+│   └── tofu_cpu.prof            # One OpenTofu process per unit
+└── live/prod/app/
+    └── tofu_cpu.prof
+```
+
+See the Performance documentation for a detailed explanation of how `_DIR` collection works.
 
 For more details on profiling and performance analysis, see the [Performance documentation](/troubleshooting/performance/#runtime-cpu-profiling-with-tg_cpu_profile).
 

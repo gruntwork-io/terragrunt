@@ -252,10 +252,11 @@ func runTerragruntWithConfig(
 		return err
 	}
 
-	// If TG_CPU_PROFILE_DIR is set, compute per-module TOFU_CPU_PROFILE path
-	// preserving directory hierarchy relative to root working dir.
-	if profileDir := opts.Env[tf.EnvNameTGCPUProfileDir]; profileDir != "" {
-		if _, set := opts.Env[tf.EnvNameTofuCPUProfile]; !set {
+	// Set TOFU_CPU_PROFILE for downstream OpenTofu when not explicitly overridden.
+	// With TG_CPU_PROFILE_DIR, use a per-module path under the profile directory;
+	// otherwise propagate TG_CPU_PROFILE directly.
+	if _, set := opts.Env[tf.EnvNameTofuCPUProfile]; !set {
+		if profileDir := opts.Env[tf.EnvNameTGCPUProfileDir]; profileDir != "" {
 			relPath, err := filepath.Rel(opts.RootWorkingDir, opts.OriginalTerragruntConfigPath)
 			if err != nil {
 				relPath = filepath.Base(opts.WorkingDir)
@@ -269,6 +270,8 @@ func runTerragruntWithConfig(
 			}
 
 			opts.Env[tf.EnvNameTofuCPUProfile] = filepath.Join(tofuProfileDir, "tofu_cpu.prof")
+		} else if cpu := opts.Env[tf.EnvNameTGCPUProfile]; cpu != "" {
+			opts.Env[tf.EnvNameTofuCPUProfile] = cpu
 		}
 	}
 
