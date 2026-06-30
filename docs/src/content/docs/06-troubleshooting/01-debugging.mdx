@@ -222,10 +222,10 @@ See the Performance documentation for a detailed explanation of how `_DIR` colle
 
 For more details on profiling and performance analysis, see the [Performance documentation](/troubleshooting/performance/#runtime-cpu-profiling-with-tg_cpu_profile).
 
-You can also use CLI flags when the `pprof` experiment is enabled:
+You can also use CLI flags when the `profiling` experiment is enabled:
 
 ```bash
-terragrunt --experiment pprof --profile-dir /tmp/profiles -- run -- plan
+terragrunt --experiment profiling --profile-dir /tmp/profiles -- run -- plan
 ```
 
 See the [Performance documentation](/troubleshooting/performance) for the full list of flags and environment variables.

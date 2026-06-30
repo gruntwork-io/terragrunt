@@ -447,18 +447,18 @@ TG_CPU_PROFILE_DIR=/tmp/profiles TG_MEM_PROFILE_DIR=/tmp/profiles terragrunt run
 
 See the "Why `_DIR` variants exist" section above for a full explanation of how directory-based collection works with `run --all`.
 
-##### CLI Flags for Profiling (requires the `pprof` experiment)
+##### CLI Flags for Profiling (requires the `profiling` experiment)
 
-You can also enable profiling using CLI flags. These are gated behind the `pprof` experiment:
+You can also enable profiling using CLI flags. These are gated behind the `profiling` experiment:
 
 ```shell
-terragrunt --experiment pprof --profile-cpu terragrunt_cpu.prof --profile-mem terragrunt_mem.prof --profile-goroutine terragrunt_goroutine.prof -- run -- plan
+terragrunt --experiment profiling --profile-cpu terragrunt_cpu.prof --profile-mem terragrunt_mem.prof --profile-goroutine terragrunt_goroutine.prof -- run -- plan
 ```
 
 Use `--profile-dir` to collect everything in one place (recommended for `run --all`):
 
 ```shell
-terragrunt --experiment pprof --profile-dir /tmp/profiles -- run --all -- plan
+terragrunt --experiment profiling --profile-dir /tmp/profiles -- run --all -- plan
 ```
 
 This is the CLI equivalent of setting both `TG_CPU_PROFILE_DIR` and `TG_MEM_PROFILE_DIR`.

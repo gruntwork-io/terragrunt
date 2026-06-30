@@ -47,14 +47,14 @@ func TestOptionalHooksIsOngoing(t *testing.T) {
 	assert.False(t, got.Evaluate(), "optional-hooks must be disabled by default")
 }
 
-func TestPprofIsOngoing(t *testing.T) {
+func TestProfilingIsOngoing(t *testing.T) {
 	t.Parallel()
 
 	exps := experiment.NewExperiments()
-	got := exps.Find(experiment.Pprof)
-	require.NotNil(t, got, "pprof experiment must be registered in NewExperiments()")
-	assert.Equal(t, experiment.StatusOngoing, got.Status, "pprof must be ongoing")
-	assert.False(t, got.Evaluate(), "pprof must be disabled by default")
+	got := exps.Find(experiment.Profiling)
+	require.NotNil(t, got, "profiling experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "profiling must be ongoing")
+	assert.False(t, got.Evaluate(), "profiling must be disabled by default")
 }
 
 func TestEvaluate(t *testing.T) {

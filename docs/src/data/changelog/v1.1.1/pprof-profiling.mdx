@@ -6,16 +6,16 @@ order: 1
 
 #### Profiling support via CLI flags (experiment)
 
-Terragrunt can now collect CPU profiles, memory (heap) profiles, and goroutine profiles (memory dumps) using CLI flags when the `pprof` experiment is enabled:
+Terragrunt can now collect CPU profiles, memory (heap) profiles, and goroutine profiles (memory dumps) using CLI flags when the `profiling` experiment is enabled:
 
 ```bash
-terragrunt --experiment pprof --profile-cpu cpu.prof --profile-mem mem.prof --profile-goroutine goroutine.prof -- run -- plan
+terragrunt --experiment profiling --profile-cpu cpu.prof --profile-mem mem.prof --profile-goroutine goroutine.prof -- run -- plan
 ```
 
 Use `--profile-dir` to collect all profiles into a single directory with conventional names (`terragrunt_cpu.prof`, `terragrunt_mem.prof`, `terragrunt_goroutine.prof`):
 
 ```bash
-terragrunt --experiment pprof --profile-dir /tmp/profiles -- run --all -- plan
+terragrunt --experiment profiling --profile-dir /tmp/profiles -- run --all -- plan
 ```
 
 The same behavior is available via environment variables (no experiment required for backward compatibility):
@@ -25,4 +25,4 @@ The same behavior is available via environment variables (no experiment required
 
 When using `--profile-cpu` (or `TG_CPU_PROFILE`), Terragrunt continues to propagate the value to `TOFU_CPU_PROFILE` for downstream OpenTofu processes (when applicable).
 
-The `pprof` experiment also enables the new `--profile-*` flags. The experiment is ongoing; feedback is welcome.
+The `profiling` experiment also enables the new `--profile-*` flags. The experiment is ongoing; feedback is welcome.

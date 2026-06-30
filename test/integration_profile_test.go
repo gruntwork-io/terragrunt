@@ -200,7 +200,7 @@ func TestProfileCPUFlagCreatesProfileFile(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "cpu_from_flag.prof")
 
-	helpers.RunTerragrunt(t, "terragrunt --experiment pprof --profile-cpu "+profilePath+" version")
+	helpers.RunTerragrunt(t, "terragrunt --experiment profiling --profile-cpu "+profilePath+" version")
 
 	info, err := os.Stat(profilePath)
 	require.NoError(t, err, "CPU profile from --profile-cpu should exist")
@@ -211,7 +211,7 @@ func TestProfileMemFlagCreatesProfileFile(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "mem_from_flag.prof")
 
-	helpers.RunTerragrunt(t, "terragrunt --experiment pprof --profile-mem "+profilePath+" version")
+	helpers.RunTerragrunt(t, "terragrunt --experiment profiling --profile-mem "+profilePath+" version")
 
 	info, err := os.Stat(profilePath)
 	require.NoError(t, err, "Memory profile from --profile-mem should exist")
@@ -222,7 +222,7 @@ func TestProfileGoroutineFlagCreatesProfileFile(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "goroutine_from_flag.prof")
 
-	helpers.RunTerragrunt(t, "terragrunt --experiment pprof --profile-goroutine "+profilePath+" version")
+	helpers.RunTerragrunt(t, "terragrunt --experiment profiling --profile-goroutine "+profilePath+" version")
 
 	info, err := os.Stat(profilePath)
 	require.NoError(t, err, "Goroutine profile from --profile-goroutine should exist")
@@ -233,7 +233,7 @@ func TestProfileDirFlagCollectsProfiles(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profileDir := filepath.Join(tmpDir, "profiles_from_flag")
 
-	helpers.RunTerragrunt(t, "terragrunt --experiment pprof --profile-dir "+profileDir+" version")
+	helpers.RunTerragrunt(t, "terragrunt --experiment profiling --profile-dir "+profileDir+" version")
 
 	cpu := filepath.Join(profileDir, "terragrunt_cpu.prof")
 	mem := filepath.Join(profileDir, "terragrunt_mem.prof")
@@ -254,7 +254,7 @@ func TestProfileFlagsRequireExperiment(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "cpu_no_exp.prof")
 
-	// Without --experiment pprof the flag should cause error.
+	// Without --experiment profiling the flag should cause error.
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --profile-cpu "+profilePath+" version")
 	require.Error(t, err)
 	assert.False(t, util.FileExists(profilePath), "profile should not be created without experiment")

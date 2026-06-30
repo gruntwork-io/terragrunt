@@ -95,7 +95,7 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 }
 
 func (app *App) RunContext(ctx context.Context, args []string) error {
-	// Bind experiment flags early (so the pprof gate below can see --experiment / TG_EXPERIMENT / --experiment-mode).
+	// Bind experiment flags early (so the profiling gate below can see --experiment / TG_EXPERIMENT / --experiment-mode).
 	if err := bindExperimentsEarly(app.opts, args); err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	}
 
 	// Legacy env fallbacks (TG_CPU_PROFILE, TG_MEM_PROFILE, and their _DIR variants).
-	// These continue to work without requiring the pprof experiment for backward compatibility.
+	// These continue to work without requiring the profiling experiment for backward compatibility.
 	if cpuProfilePath == "" {
 		cpuProfilePath = os.Getenv(tf.EnvNameTGCPUProfile)
 	}
@@ -168,7 +168,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	}
 
 	// If any profile path was provided via the new opts (CLI flags or TG_PROFILE_* envs),
-	// require the pprof experiment to be enabled.
+	// require the profiling experiment to be enabled.
 	usingNewProfileOpts := app.opts.ProfileCPU != "" || app.opts.ProfileMEM != "" || app.opts.ProfileGoroutine != "" || app.opts.ProfileDir != ""
 	// Detect from incoming cmd args and os.Args (tests pass args, real bin uses os)
 	allForScan := append([]string{}, os.Args...)
@@ -185,7 +185,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}
 
-	// Early enable pprof experiment if --experiment pprof (or terragrunt- variant) is present in args.
+	// Early enable profiling experiment if --experiment profiling (or terragrunt- variant) is present in args.
 	for i := 0; i < len(allForScan); i++ {
 		if allForScan[i] == "--"+global.ExperimentFlagName || allForScan[i] == "--terragrunt-"+global.ExperimentFlagName || allForScan[i] == "-"+global.ExperimentFlagName {
 			// next tokens may be values; scan a few
@@ -194,16 +194,16 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 				if strings.HasPrefix(v, "-") {
 					break
 				}
-				if v == experiment.Pprof || strings.Contains(v, experiment.Pprof) {
-					_ = app.opts.Experiments.EnableExperiment(experiment.Pprof)
+				if v == experiment.Profiling || strings.Contains(v, experiment.Profiling) {
+					_ = app.opts.Experiments.EnableExperiment(experiment.Profiling)
 					break
 				}
 			}
 		}
 	}
 
-	if usingNewProfileOpts && !app.opts.Experiments.Evaluate(experiment.Pprof) {
-		return fmt.Errorf("profiling flags require the 'pprof' experiment (use --experiment pprof)")
+	if usingNewProfileOpts && !app.opts.Experiments.Evaluate(experiment.Profiling) {
+		return fmt.Errorf("profiling flags require the 'profiling' experiment (use --experiment profiling)")
 	}
 
 	// Start CPU profiling if configured.
@@ -367,7 +367,7 @@ func bindProfileFlagsEarly(opts *options.TerragruntOptions, cmdArgs []string) er
 }
 
 // bindExperimentsEarly parses experiment-related flags and env vars as early as possible
-// so that features gated by experiments (such as pprof profiling) can decide correctly
+// so that features gated by experiments (such as profiling) can decide correctly
 // before the main command parsing runs.
 func bindExperimentsEarly(opts *options.TerragruntOptions, cmdArgs []string) error {
 	// We only care about the two experiment flags here.

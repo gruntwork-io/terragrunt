@@ -59,7 +59,7 @@ const (
 	TelemetryMetricExporterFlagName                 = "telemetry-metric-exporter"
 	TelemetryMetricExporterInsecureEndpointFlagName = "telemetry-metric-exporter-insecure-endpoint"
 
-	// Profiling (pprof) flags.
+	// Profiling flags.
 
 	ProfileCPUFlagName      = "profile-cpu"
 	ProfileMEMFlagName      = "profile-mem"
@@ -320,8 +320,8 @@ func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli
 	}
 }
 
-// NewProfileFlags creates profiling (pprof) related flags.
-// These populate opts.Profile* fields. The actual profiling is started if the "pprof" experiment is enabled.
+// NewProfileFlags creates profiling related flags.
+// These populate opts.Profile* fields. The actual profiling is started if the "profiling" experiment is enabled.
 func NewProfileFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
@@ -330,28 +330,28 @@ func NewProfileFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihe
 			Name:        ProfileCPUFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProfileCPUFlagName),
 			Destination: &opts.ProfileCPU,
-			Usage:       "Write a CPU profile to the given path. Requires --experiment pprof.",
+			Usage:       "Write a CPU profile to the given path. Requires --experiment profiling.",
 		}),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProfileMEMFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProfileMEMFlagName),
 			Destination: &opts.ProfileMEM,
-			Usage:       "Write a memory (heap) profile to the given path. Requires --experiment pprof.",
+			Usage:       "Write a memory (heap) profile to the given path. Requires --experiment profiling.",
 		}),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProfileGoroutineFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProfileGoroutineFlagName),
 			Destination: &opts.ProfileGoroutine,
-			Usage:       "Write a goroutine profile (memory dump) to the given path. Requires --experiment pprof.",
+			Usage:       "Write a goroutine profile (memory dump) to the given path. Requires --experiment profiling.",
 		}),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProfileDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProfileDirFlagName),
 			Destination: &opts.ProfileDir,
-			Usage:       "Directory to write profile files (cpu, mem, goroutine). Defaults are created inside this dir. Requires --experiment pprof.",
+			Usage:       "Directory to write profile files (cpu, mem, goroutine). Defaults are created inside this dir. Requires --experiment profiling.",
 		}),
 	}
 }

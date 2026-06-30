@@ -1,6 +1,6 @@
 ---
 name: profile-mem
-description: Write a memory (heap) profile to the given path. Requires the pprof experiment.
+description: Write a memory (heap) profile to the given path. Requires the profiling experiment.
 type: string
 env:
   - TG_PROFILE_MEM
@@ -9,7 +9,7 @@ env:
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside type="tip" title="Experimental">
-This flag is gated behind the [`pprof`](/reference/experiments/active#pprof) experiment. Enable it with `--experiment=pprof` or `TG_EXPERIMENT=pprof`.
+This flag is gated behind the [`profiling`](/reference/experiments/active#profiling) experiment. Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
 
 Write a memory (heap) profile of the Terragrunt process at exit (after forcing a GC).

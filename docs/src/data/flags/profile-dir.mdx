@@ -1,6 +1,6 @@
 ---
 name: profile-dir
-description: Directory to write profile files (cpu, mem, goroutine). Requires the pprof experiment.
+description: Directory to write profile files (cpu, mem, goroutine). Requires the profiling experiment.
 type: string
 env:
   - TG_PROFILE_DIR
@@ -9,7 +9,7 @@ env:
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside type="tip" title="Experimental">
-This flag is gated behind the [`pprof`](/reference/experiments/active#pprof) experiment. Enable it with `--experiment=pprof` or `TG_EXPERIMENT=pprof`.
+This flag is gated behind the [`profiling`](/reference/experiments/active#profiling) experiment. Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
 
 Collect CPU, memory, and goroutine profiles into the given directory using conventional names:
@@ -21,7 +21,7 @@ Collect CPU, memory, and goroutine profiles into the given directory using conve
 Example:
 
 ```bash
-terragrunt --experiment pprof --profile-dir /tmp/profiles -- run --all -- plan
+terragrunt --experiment profiling --profile-dir /tmp/profiles -- run --all -- plan
 ```
 
 This is the recommended way to collect profiles when using `run --all`.
