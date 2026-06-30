@@ -59,7 +59,6 @@ type ParsingContext struct {
 	Features            *cty.Value
 	Locals              *cty.Value
 
-	Env                 map[string]string
 	SourceMap           map[string]string
 	PredefinedFunctions map[string]function.Function
 
@@ -134,13 +133,13 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (conte
 }
 
 // Clone returns a copy of the ParsingContext.
-// Maps are deep-copied so that mutations (e.g. credential injection into Env)
-// on a clone do not affect the original or other clones.
+// Maps are deep-copied so that mutations (e.g. credential injection into the
+// shell environment) on a clone do not affect the original or other clones.
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
 
-	if ctx.Env != nil {
-		clone.Env = maps.Clone(ctx.Env)
+	if ctx.Venv.Env != nil {
+		clone.Venv.Env = maps.Clone(ctx.Venv.Env)
 	}
 
 	if ctx.SourceMap != nil {
@@ -160,6 +159,13 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	c := ctx.Clone()
 	c.PartialParseDecodeList = decodeList
+
+	return c
+}
+
+func (ctx *ParsingContext) WithVenv(v venv.Venv) *ParsingContext {
+	c := ctx.Clone()
+	c.Venv = v
 
 	return c
 }

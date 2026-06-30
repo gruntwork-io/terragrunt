@@ -67,7 +67,7 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) 
 			Name:       name,
 			Usage:      usage,
 			Hidden:     !visible,
-			CustomHelp: ShowTFHelp(l, opts),
+			CustomHelp: ShowTFHelp(l, opts, v),
 			Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
 				return Action(l, opts, v)(ctx, cliCtx)
 			},

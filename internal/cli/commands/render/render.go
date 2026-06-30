@@ -41,9 +41,9 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
 }
 
 func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
-	d := discovery.NewDiscovery(opts.WorkingDir).WithExec(v.Exec)
+	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, opts.TerragruntOptions)
+	components, err := d.Discover(ctx, l, v.ToRoot(), opts.TerragruntOptions)
 	if err != nil {
 		return err
 	}

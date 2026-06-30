@@ -100,13 +100,18 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 				cfg.RemoteState = *remotestate.New(tc.remoteStateCfg)
 			}
 
-			err := prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), opts, &cfg)
+			err := prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), OSVenv(), opts, &cfg)
 
 			require.NoError(t, err)
 
 			allArgs := opts.TerraformCliArgs.Slice()
 			if tc.expectBackendArgs {
-				assert.NotContains(t, allArgs, "-backend=false", "disable_init should not pass -backend=false to terraform")
+				assert.NotContains(
+					t,
+					allArgs,
+					"-backend=false",
+					"disable_init should not pass -backend=false to terraform",
+				)
 
 				hasBackendConfig := false
 

@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -38,7 +39,12 @@ func (p *FilesystemPhase) Kind() PhaseKind {
 }
 
 // Run executes the filesystem discovery phase.
-func (p *FilesystemPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
+func (p *FilesystemPhase) Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	input *PhaseInput,
+) (*PhaseResults, error) {
 	results := NewPhaseResults()
 
 	discovery := input.Discovery

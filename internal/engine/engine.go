@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/github"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 
@@ -73,7 +74,6 @@ type ExecutionOptions struct {
 	Writers           writer.Writers
 	EngineOptions     *EngineOptions
 	EngineConfig      *EngineConfig
-	Env               map[string]string
 	WorkingDir        string
 	RootWorkingDir    string
 	Command           string
@@ -91,15 +91,18 @@ type engineInstance struct {
 	engineClient *proto.EngineClient
 	client       *plugin.Client
 	execOptions  *ExecutionOptions
+	// v carries the env the plugin was started with so Shutdown can address
+	// the same environment long after Run returned.
+	v venv.Venv
 }
 
-// Run executes the given command with the experimental engine. The provided
-// vexec.Exec is used to spawn the engine plugin subprocess and must be
-// OS-backed.
+// Run executes the given command with the experimental engine. The executor
+// on v spawns the engine plugin subprocess and must be OS-backed; v's env is
+// forwarded to the plugin.
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	e vexec.Exec,
+	v venv.Venv,
 	execOptions *ExecutionOptions,
 ) (*util.CmdOutput, error) {
 	engineClients, err := engineClientsFromContext(ctx)
@@ -124,7 +127,7 @@ func Run(
 				return err
 			}
 
-			terragruntEngine, client, createEngineErr := createEngine(runCtx, l, e, execOptions)
+			terragruntEngine, client, createEngineErr := createEngine(runCtx, l, v.Exec, execOptions)
 			if createEngineErr != nil {
 				return createEngineErr
 			}
@@ -133,11 +136,12 @@ func Run(
 				engineClient: terragruntEngine,
 				client:       client,
 				execOptions:  execOptions,
+				v:            v,
 			})
 
 			instance, _ = engineClients.Load(workingDir)
 
-			if err = initialize(runCtx, l, execOptions, terragruntEngine); err != nil {
+			if err = initialize(runCtx, l, v, execOptions, terragruntEngine); err != nil {
 				return err
 			}
 		}
@@ -151,7 +155,7 @@ func Run(
 
 		var invokeErr error
 
-		output, invokeErr = invoke(runCtx, l, execOptions, terragruntEngine)
+		output, invokeErr = invoke(runCtx, l, v, execOptions, terragruntEngine)
 		if invokeErr != nil {
 			return invokeErr
 		}
@@ -522,6 +526,7 @@ func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experime
 		if err := shutdown(
 			context.WithoutCancel(ctx),
 			l,
+			instance.v,
 			instance.execOptions,
 			instance.engineClient,
 		); err != nil {
@@ -716,6 +721,7 @@ func createEngine(
 func invoke(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	runOptions *ExecutionOptions,
 	client *proto.EngineClient,
 ) (*util.CmdOutput, error) {
@@ -738,7 +744,7 @@ func invoke(
 			AllocatePseudoTty: runOptions.AllocatePseudoTty,
 			WorkingDir:        runOptions.WorkingDir,
 			Meta:              meta,
-			EnvVars:           runOptions.Env,
+			EnvVars:           v.Env,
 		})
 		if err != nil {
 			return err
@@ -886,7 +892,13 @@ func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
 var ErrEngineInitFailed = errors.New("engine init failed")
 
 // initialize engine for working directory
-func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) error {
+func initialize(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	runOptions *ExecutionOptions,
+	client *proto.EngineClient,
+) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_initialize", map[string]any{
 		"working_dir": runOptions.WorkingDir,
 	}, func(ctx context.Context) error {
@@ -898,7 +910,7 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 		l.Debugf("Running init for engine in %s", runOptions.WorkingDir)
 
 		request, err := (*client).Init(ctx, &proto.InitRequest{
-			EnvVars:    runOptions.Env,
+			EnvVars:    v.Env,
 			WorkingDir: runOptions.WorkingDir,
 			Meta:       meta,
 		})
@@ -957,6 +969,7 @@ var ErrEngineShutdownFailed = errors.New("engine shutdown failed")
 func shutdown(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	runOptions *ExecutionOptions,
 	terragruntEngine *proto.EngineClient,
 ) error {
@@ -971,7 +984,7 @@ func shutdown(
 		request, err := (*terragruntEngine).Shutdown(ctx, &proto.ShutdownRequest{
 			WorkingDir: runOptions.WorkingDir,
 			Meta:       meta,
-			EnvVars:    runOptions.Env,
+			EnvVars:    v.Env,
 		})
 		if err != nil {
 			return err

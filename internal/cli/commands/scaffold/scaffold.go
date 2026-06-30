@@ -185,7 +185,7 @@ func Prepare(
 	moduleURL, templateURL string,
 ) (*Plan, error) {
 	// Apply catalog configuration settings, with CLI flags taking precedence
-	applyCatalogConfigToScaffold(ctx, l, opts)
+	applyCatalogConfigToScaffold(ctx, l, v, opts)
 
 	outputDir := opts.ScaffoldOutputFolder
 	if outputDir == "" {
@@ -458,8 +458,9 @@ func splitURLQuery(rawURL string) (string, string) {
 
 // applyCatalogConfigToScaffold applies catalog configuration settings to scaffold options.
 // CLI flags take precedence over config file settings.
-func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) {
+func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	pctx = pctx.WithVenv(v)
 
 	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 	if err != nil {
@@ -608,6 +609,7 @@ func prepareBoilerplateFiles(
 	// if boilerplate dir is not found, create one with default template
 	if !util.IsDir(boilerplateDir) {
 		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+		pctx = pctx.WithVenv(v)
 
 		config, err := config.ReadCatalogConfig(ctx, l, pctx)
 		if err != nil {
@@ -779,7 +781,7 @@ func rewriteTemplateURL(
 			return updatedTemplateURL, nil
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, v.Exec, opts.Env, opts.WorkingDir, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for URL %s, so will not add a ref param to the URL", rootSourceURL)
 		} else {
@@ -820,7 +822,7 @@ func addRefToModuleURL(
 			return nil, err
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, v.Exec, opts.Env, opts.WorkingDir, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for %s", rootSourceURL)
 		} else {

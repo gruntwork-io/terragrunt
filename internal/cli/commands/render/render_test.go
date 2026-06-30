@@ -3,6 +3,7 @@ package render_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,11 +24,11 @@ func TestRenderJSON_Basic(t *testing.T) {
 
 	var outputBuffer bytes.Buffer
 
-	opts.Writers.Writer = &outputBuffer
 	opts.Format = render.FormatJSON
 	opts.RenderMetadata = false
 	opts.Write = false
 
+	opts.Writers.Writer = &outputBuffer
 	err := render.Run(t.Context(), logger.CreateLogger(), run.OSVenv(), opts)
 	require.NoError(t, err)
 
@@ -47,11 +48,11 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 
 	var outputBuffer bytes.Buffer
 
-	opts.Writers.Writer = &outputBuffer
 	opts.Format = render.FormatJSON
 	opts.RenderMetadata = true
 	opts.Write = false
 
+	opts.Writers.Writer = &outputBuffer
 	err := render.Run(t.Context(), logger.CreateLogger(), run.OSVenv(), opts)
 	require.NoError(t, err)
 
@@ -74,6 +75,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	opts.Write = true
 	opts.OutputPath = outputPath
 
+	opts.Writers.Writer = io.Discard
 	err := render.Run(t.Context(), logger.CreateLogger(), run.OSVenv(), opts)
 	require.NoError(t, err)
 
@@ -96,6 +98,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 	opts, _ := setupTest(t)
 	opts.Format = "invalid"
 
+	opts.Writers.Writer = io.Discard
 	err := render.Run(t.Context(), logger.CreateLogger(), run.OSVenv(), opts)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid format")
@@ -110,7 +113,6 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	var renderedBuffer bytes.Buffer
 
 	opts.Writers.Writer = &renderedBuffer
-
 	err := render.Run(t.Context(), logger.CreateLogger(), run.OSVenv(), opts)
 	require.NoError(t, err)
 

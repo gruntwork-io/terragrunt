@@ -16,9 +16,9 @@ type UnitWriter struct {
 }
 
 // NewUnitWriter returns a new UnitWriter instance.
-func NewUnitWriter(out io.Writer) *UnitWriter {
+func NewUnitWriter(w io.Writer) *UnitWriter {
 	return &UnitWriter{
-		out: out,
+		out: w,
 	}
 }
 

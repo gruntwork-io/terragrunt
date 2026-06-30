@@ -30,7 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -207,6 +207,7 @@ func InitServer(l log.Logger, pcOpts *pcoptions.ProviderCacheOptions, rootWorkin
 func (pc *ProviderCache) TerraformCommandHook(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	tfOpts *tf.TFOptions,
 	args clihelper.Args,
 ) (*util.CmdOutput, error) {
@@ -236,12 +237,12 @@ func (pc *ProviderCache) TerraformCommandHook(
 		}
 	default:
 		// skip cache creation for all other commands
-		return tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), tfOpts, args...)
+		return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
 	}
 
-	env := pc.providerCacheEnvironment(tfOpts.ShellOptions.Env, tfOpts.TofuImplementation, cliConfigFilename)
+	v = v.WithEnv(pc.providerCacheEnvironment(v.Env, tfOpts.TofuImplementation, cliConfigFilename))
 
-	if output, err := pc.warmUpCache(ctx, l, tfOpts, cliConfigFilename, args, env, lockfileExists); err != nil {
+	if output, err := pc.warmUpCache(ctx, l, v, tfOpts, cliConfigFilename, args, lockfileExists); err != nil {
 		return output, err
 	}
 
@@ -249,16 +250,16 @@ func (pc *ProviderCache) TerraformCommandHook(
 		return &util.CmdOutput{}, nil
 	}
 
-	return pc.runTerraformWithCache(ctx, l, tfOpts, cliConfigFilename, args, env)
+	return pc.runTerraformWithCache(ctx, l, v, tfOpts, cliConfigFilename, args)
 }
 
 func (pc *ProviderCache) warmUpCache(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	tfOpts *tf.TFOptions,
 	cliConfigFilename string,
 	args clihelper.Args,
-	env map[string]string,
 	lockfileExists bool,
 ) (*util.CmdOutput, error) {
 	var (
@@ -277,7 +278,7 @@ func (pc *ProviderCache) warmUpCache(
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
 
 	for _, args := range commandsArgs {
-		if output, err := pc.runTerraformCommand(ctx, l, tfOpts, args, env); err != nil {
+		if output, err := pc.runTerraformCommand(ctx, l, v, tfOpts, args); err != nil {
 			return output, err
 		}
 	}
@@ -336,10 +337,10 @@ func (pc *ProviderCache) warmUpCache(
 func (pc *ProviderCache) runTerraformWithCache(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	tfOpts *tf.TFOptions,
 	cliConfigFilename string,
 	args clihelper.Args,
-	env map[string]string,
 ) (*util.CmdOutput, error) {
 	// Create terraform cli config file that uses provider cache dir
 	if err := pc.createLocalCLIConfig(ctx, tfOpts.TofuImplementation, cliConfigFilename, ""); err != nil {
@@ -347,7 +348,6 @@ func (pc *ProviderCache) runTerraformWithCache(
 	}
 
 	shellOpts := *tfOpts.ShellOptions // shallow copy
-	shellOpts.Env = env
 
 	newTFOpts := &tf.TFOptions{
 		JSONLogFormat:                tfOpts.JSONLogFormat,
@@ -358,7 +358,7 @@ func (pc *ProviderCache) runTerraformWithCache(
 		ShellOptions:                 &shellOpts,
 	}
 
-	return tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), newTFOpts, args...)
+	return tf.RunCommandWithOutput(ctx, l, v, newTFOpts, args...)
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
@@ -497,7 +497,7 @@ func isRegistryTimeoutError(output []byte) bool {
 	})
 }
 
-func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions, args []string, envs map[string]string) (*util.CmdOutput, error) {
+func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, v venv.Venv, tfOpts *tf.TFOptions, args []string) (*util.CmdOutput, error) {
 	// add -no-color flag to args if it was set in Terragrunt arguments
 	if tfOpts.TerraformCliArgs != nil && tfOpts.TerraformCliArgs.Contains(tf.FlagNameNoColor) &&
 		!slices.Contains(args, tf.FlagNameNoColor) {
@@ -506,7 +506,6 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 
 	shellOpts := *tfOpts.ShellOptions // shallow copy
 	shellOpts.Writers.Writer = io.Discard
-	shellOpts.Env = envs
 
 	newCliArgs := iacargs.New(args...)
 
@@ -532,7 +531,7 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 			errWriter := util.NewTrapWriter(tfOpts.ShellOptions.Writers.ErrWriter)
 			shellOpts.Writers.ErrWriter = errWriter
 
-			output, cmdErr := tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), newTFOpts, newCliArgs.Slice()...)
+			output, cmdErr := tf.RunCommandWithOutput(ctx, l, v, newTFOpts, newCliArgs.Slice()...)
 			finalOutput = output
 
 			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),
