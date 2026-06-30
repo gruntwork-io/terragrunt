@@ -593,8 +593,12 @@ func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], 
 }
 
 const (
-	gracefulExitTimeout    = 5 * time.Second
+	// gracefulExitTimeout is the grace period for a plugin to exit on its own.
+	gracefulExitTimeout = 5 * time.Second
+	// pluginExitPollInterval is the cadence for polling whether the plugin has exited.
 	pluginExitPollInterval = 50 * time.Millisecond
+	// shutdownRPCTimeout bounds the Shutdown RPC stream.
+	shutdownRPCTimeout = 30 * time.Second
 )
 
 // Shutdown shuts down the experimental engine.
@@ -655,9 +659,12 @@ func drainEntry(ctx context.Context, l log.Logger, e *engineEntry) {
 
 // shutdownInstance tears down one engine, force-killing a plugin that will not exit in time.
 // Errors are logged, not returned: shutdown is best-effort and must not fail the run. The
-// context is detached from cancellation so an already-cancelled run still shuts engines down.
+// context is detached from cancellation so an already-cancelled run still shuts engines down,
+// then bounded by shutdownRPCTimeout so a hung Shutdown stream falls through to the force-kill
+// below instead of blocking the worker.
 func shutdownInstance(ctx context.Context, l log.Logger, instance *engineInstance) {
-	ctx = context.WithoutCancel(ctx)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownRPCTimeout)
+	defer cancel()
 
 	l.Debugf("Shutting down engine for %s", instance.execOptions.CacheDir)
 
