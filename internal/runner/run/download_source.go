@@ -100,8 +100,8 @@ func DownloadTerraformSource(
 	if needsModuleCopy {
 		l.Debugf(
 			"Copying files from %s into %s",
-			util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.Writers.LogShowAbsPaths),
-			util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
+			util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.LogShowAbsPaths),
+			util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.LogShowAbsPaths),
 		)
 
 		// Always include the .tflint.hcl file, if it exists
@@ -136,7 +136,7 @@ func DownloadTerraformSource(
 		util.RelPathForLog(
 			opts.RootWorkingDir,
 			terraformSource.WorkingDir,
-			opts.Writers.LogShowAbsPaths,
+			opts.LogShowAbsPaths,
 		),
 	)
 	updatedOpts.WorkingDir = terraformSource.WorkingDir
@@ -185,7 +185,7 @@ func DownloadTerraformSourceIfNecessary(
 				util.RelPathForLog(
 					opts.RootWorkingDir,
 					terraformSource.WorkingDir,
-					opts.Writers.LogShowAbsPaths,
+					opts.LogShowAbsPaths,
 				),
 			)
 
@@ -348,8 +348,8 @@ func downloadSource(
 
 	l.Infof(
 		"Downloading Terraform configurations from %s into %s",
-		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.Writers.LogShowAbsPaths),
-		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.Writers.LogShowAbsPaths))
+		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.LogShowAbsPaths),
+		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.LogShowAbsPaths))
 
 	allowCAS := !opts.NoCAS
 

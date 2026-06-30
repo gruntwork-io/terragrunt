@@ -85,6 +85,201 @@ func TestWorktreePhase_Integration_UnitLifecycle(t *testing.T) {
 	assert.DirExists(t, expectedUnitToBeUntouched)
 }
 
+// TestWorktreePhase_Integration_DeletedReadingUnitRediscovered verifies that when a file a unit
+// reads via mark_glob_as_read is deleted, the unit is rediscovered in the to-worktree (where it
+// still exists) rather than being left on the from-worktree path and treated as a removal. The
+// deleted file only exists on the from side, so the reading filter lands there, but the surviving
+// unit must keep its HEAD identity and avoid the -destroy treatment.
+func TestWorktreePhase_Integration_DeletedReadingUnitRediscovered(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	createUnit(t, tmpDir, "unit-reads-config", `locals {
+  config_files = mark_glob_as_read("../config/{*.yaml,*.yml}")
+}`)
+
+	configDir := filepath.Join(tmpDir, "config")
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	// Delete one of the tracked files only; the unit itself is untouched.
+	require.NoError(t, os.Remove(filepath.Join(configDir, "item-a.yml")))
+	commitChanges(t, runner, "Delete tracked config file")
+
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+	components, w := runWorktreeDiscovery(t, tmpDir, gitExpressions, "plan", nil)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	fromPath := filepath.Join(pair.FromWorktree.Path, "unit-reads-config")
+	toPath := filepath.Join(pair.ToWorktree.Path, "unit-reads-config")
+
+	units := components.Filter(component.UnitKind)
+	unitPaths := units.Paths()
+
+	assert.Contains(t, unitPaths, toPath, "Surviving reading unit should be rediscovered in the to-worktree")
+	assert.NotContains(t, unitPaths, fromPath, "Surviving reading unit should not remain on the from-worktree path")
+
+	var found bool
+
+	for _, c := range units {
+		if c.Path() != toPath {
+			continue
+		}
+
+		found = true
+
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD", dc.Ref, "Rediscovered unit should carry the to-worktree ref")
+		assert.NotContains(t, dc.Args, "-destroy", "Rediscovered unit should not be treated as a removal")
+	}
+
+	assert.True(t, found, "Expected the rediscovered unit in the worktree discovery results")
+}
+
+// TestWorktreePhase_Integration_RemovedReadingUnitStaysDestroyed verifies that a unit which both
+// reads a deleted file and is itself removed is still treated as a removal: it is discovered in the
+// from-worktree with -destroy and is not spuriously rediscovered in the to-worktree (where it no
+// longer exists).
+func TestWorktreePhase_Integration_RemovedReadingUnitStaysDestroyed(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	createUnit(t, tmpDir, "unit-removed", `locals {
+  config_files = mark_glob_as_read("../config/{*.yaml,*.yml}")
+}`)
+
+	configDir := filepath.Join(tmpDir, "config")
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	// Remove the unit and the file it read in the same diff.
+	require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "unit-removed")))
+	require.NoError(t, os.RemoveAll(configDir))
+	commitChanges(t, runner, "Remove unit and the file it read")
+
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+	components, w := runWorktreeDiscovery(t, tmpDir, gitExpressions, "plan", nil)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	fromPath := filepath.Join(pair.FromWorktree.Path, "unit-removed")
+	toPath := filepath.Join(pair.ToWorktree.Path, "unit-removed")
+
+	units := components.Filter(component.UnitKind)
+	unitPaths := units.Paths()
+
+	assert.Contains(t, unitPaths, fromPath, "Removed reading unit should be discovered in the from-worktree")
+	assert.NotContains(t, unitPaths, toPath, "Removed reading unit must not be rediscovered in the to-worktree")
+
+	for _, c := range units {
+		if c.Path() != fromPath {
+			continue
+		}
+
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD~1", dc.Ref, "Removed unit should carry the from-worktree ref")
+		assert.Contains(t, dc.Args, "-destroy", "Removed unit should retain the -destroy treatment")
+	}
+}
+
+// TestWorktreePhase_Integration_MultipleReadersOfDeletedFile exercises the fan-out when a single
+// deleted file is read by several units at once. Surviving readers must each be rediscovered in the
+// to-worktree, a reader removed in the same diff must keep its from-side -destroy and not be
+// rediscovered, and an unrelated reader of an unchanged file must not be pulled in by the translation.
+func TestWorktreePhase_Integration_MultipleReadersOfDeletedFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	readsShared := `locals {
+  config_files = mark_glob_as_read("../shared/{*.yaml,*.yml}")
+}`
+
+	createUnit(t, tmpDir, "survivor-a", readsShared)
+	createUnit(t, tmpDir, "survivor-b", readsShared)
+	createUnit(t, tmpDir, "removed", readsShared)
+	createUnit(t, tmpDir, "untouched", `locals {
+  config_files = mark_glob_as_read("../other/{*.yaml,*.yml}")
+}`)
+
+	sharedDir := filepath.Join(tmpDir, "shared")
+	require.NoError(t, os.MkdirAll(sharedDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+
+	otherDir := filepath.Join(tmpDir, "other")
+	require.NoError(t, os.MkdirAll(otherDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(otherDir, "keep.yml"), []byte("c: 3\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	// One shared file read by three units is deleted, and one of those three readers is removed.
+	require.NoError(t, os.Remove(filepath.Join(sharedDir, "item-a.yml")))
+	require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "removed")))
+	commitChanges(t, runner, "Delete a shared read file and remove one of its readers")
+
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+	components, w := runWorktreeDiscovery(t, tmpDir, gitExpressions, "plan", nil)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	from := pair.FromWorktree.Path
+	to := pair.ToWorktree.Path
+
+	units := components.Filter(component.UnitKind)
+	unitPaths := units.Paths()
+
+	byPath := make(map[string]component.Component, len(units))
+	for _, c := range units {
+		byPath[c.Path()] = c
+	}
+
+	// Each surviving reader is rediscovered on the to side, with HEAD identity and no destroy.
+	for _, name := range []string{"survivor-a", "survivor-b"} {
+		toUnit := filepath.Join(to, name)
+		assert.Contains(t, unitPaths, toUnit, "surviving reader %s should be rediscovered in to-worktree", name)
+		assert.NotContains(t, unitPaths, filepath.Join(from, name), "surviving reader %s should not stay on from side", name)
+
+		c, ok := byPath[toUnit]
+		require.True(t, ok)
+
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD", dc.Ref, "surviving reader %s should carry the to-worktree ref", name)
+		assert.NotContains(t, dc.Args, "-destroy", "surviving reader %s should not be a removal", name)
+	}
+
+	// The removed reader keeps its from-side destroy treatment and is not rediscovered in the to side.
+	removedFrom := filepath.Join(from, "removed")
+	assert.Contains(t, unitPaths, removedFrom, "removed reader should be discovered in from-worktree")
+	assert.NotContains(t, unitPaths, filepath.Join(to, "removed"), "removed reader must not reappear in to-worktree")
+
+	removed, ok := byPath[removedFrom]
+	require.True(t, ok)
+
+	removedCtx := removed.DiscoveryContext()
+	require.NotNil(t, removedCtx)
+	assert.Equal(t, "HEAD~1", removedCtx.Ref)
+	assert.Contains(t, removedCtx.Args, "-destroy")
+
+	// The unrelated reader (reads an unchanged directory) is not selected by the translated filters.
+	assert.NotContains(t, unitPaths, filepath.Join(to, "untouched"))
+	assert.NotContains(t, unitPaths, filepath.Join(from, "untouched"))
+}
+
 // TestWorktreePhase_Integration_CommandArgs tests command argument handling for worktrees.
 func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 	t.Parallel()
@@ -1965,7 +2160,7 @@ func TestWorktreePhase_Integration_StackReadingRespectsExclusion(t *testing.T) {
 
 	markerFile := filepath.Join(tmpDir, "land-mine-parsed.marker")
 
-	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), []byte(fmt.Sprintf(`
+	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), fmt.Appendf(nil, `
 locals {
   marker = run_cmd("--terragrunt-quiet", "bash", "-c", "touch %s")
 }
@@ -1974,7 +2169,7 @@ unit "myapp" {
   source = "${get_repo_root()}/catalog/units/myapp"
   path   = "myapp"
 }
-`, markerFile)), 0o644)
+`, markerFile), 0o644)
 	require.NoError(t, err)
 
 	// Create a normal stack that reads a config file
@@ -2075,7 +2270,7 @@ func TestWorktreePhase_Integration_StackReadingExclusionOverridesInclusion(t *te
 
 	markerFile := filepath.Join(tmpDir, "land-mine-parsed.marker")
 
-	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), []byte(fmt.Sprintf(`
+	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), fmt.Appendf(nil, `
 locals {
   marker = run_cmd("--terragrunt-quiet", "bash", "-c", "touch %s")
 }
@@ -2084,7 +2279,7 @@ unit "myapp" {
   source = "${get_repo_root()}/catalog/units/myapp"
   path   = "myapp"
 }
-`, markerFile)), 0o644)
+`, markerFile), 0o644)
 	require.NoError(t, err)
 
 	// Create a normal stack that reads a config file
@@ -2353,6 +2548,188 @@ unit "myapp" {
 	assert.NotEmpty(t, unitPaths,
 		"Expected at least one unit to be discovered when a read file changes, "+
 			"but got no units. All components: %v", componentPaths)
+}
+
+// TestWorktreePhase_Integration_DeletedReadingStackRecordedAsReadingAffected verifies that when a
+// file a stack reads via mark_glob_as_read is deleted, the stack is recorded in ReadingAffectedStacks
+// during generation so the worktree phase walks it for unit-level diffs. The deleted file only exists
+// on the from side, so the reading filter lands there; the symmetric "to" side detection that covers
+// changed and added files would otherwise miss it, leaving the stack to be rediscovered as a bare
+// stack file with no generated-unit discovery.
+func TestWorktreePhase_Integration_DeletedReadingStackRecordedAsReadingAffected(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
+	require.NoError(t, os.MkdirAll(legacyUnitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644))
+
+	stackWithRefDir := filepath.Join(tmpDir, "live", "stack-with-ref")
+	configsDir := filepath.Join(stackWithRefDir, "configs")
+	require.NoError(t, os.MkdirAll(configsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(configsDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(configsDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+
+	stackWithRefContent := `
+locals {
+  config_files = mark_glob_as_read("configs/*.yml")
+}
+
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+	stackWithRefFile := filepath.Join(stackWithRefDir, "terragrunt.stack.hcl")
+	require.NoError(t, os.WriteFile(stackWithRefFile, []byte(stackWithRefContent), 0o644))
+
+	// Control stack that reads nothing; it must stay untouched.
+	stackNoRefDir := filepath.Join(tmpDir, "live", "stack-no-ref")
+	require.NoError(t, os.MkdirAll(stackNoRefDir, 0o755))
+
+	stackNoRefContent := `
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+	stackNoRefFile := filepath.Join(stackNoRefDir, "terragrunt.stack.hcl")
+	require.NoError(t, os.WriteFile(stackNoRefFile, []byte(stackNoRefContent), 0o644))
+
+	commitChanges(t, runner, "Create stacks")
+
+	// Delete one tracked sidecar file only; the stack file itself is untouched.
+	require.NoError(t, os.Remove(filepath.Join(configsDir, "item-a.yml")))
+	commitChanges(t, runner, "Delete a tracked sidecar file")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l))
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
+
+	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w))
+
+	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
+
+	for _, pair := range w.ReadingAffectedStacks {
+		rel, relErr := filepath.Rel(pair.ToStack.DiscoveryContext().WorkingDir, pair.ToStack.Path())
+		require.NoError(t, relErr)
+
+		readingAffectedDirs = append(readingAffectedDirs, filepath.ToSlash(rel))
+	}
+
+	assert.Contains(t, readingAffectedDirs, "live/stack-with-ref",
+		"Stack reading the deleted file should be recorded as reading-affected for unit-level walking")
+	assert.NotContains(t, readingAffectedDirs, "live/stack-no-ref",
+		"Stack reading nothing should not be recorded as reading-affected")
+}
+
+// TestWorktreePhase_Integration_MultipleChangedFilesReadByDistinctStacks verifies that when several
+// files change in one diff and each is read by a different stack, every reading stack is recorded as
+// reading-affected. Matching only the first reading filter records just one of them and silently skips
+// the rest, leaving those stacks' units un-walked.
+func TestWorktreePhase_Integration_MultipleChangedFilesReadByDistinctStacks(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
+	require.NoError(t, os.MkdirAll(legacyUnitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644))
+
+	// Each stack reads its own sidecar via read_terragrunt_config, so a stack matches exactly one
+	// reading filter.
+	stackContent := `
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+
+	stackNames := []string{"stack-a", "stack-b"}
+
+	for _, name := range stackNames {
+		dir := filepath.Join(tmpDir, "live", name)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.hcl"), []byte(`inputs = { version = "v1" }`), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.stack.hcl"), []byte(stackContent), 0o644))
+	}
+
+	commitChanges(t, runner, "Create stacks")
+
+	// Change every sidecar in one commit; the stack files themselves are untouched.
+	for _, name := range stackNames {
+		dir := filepath.Join(tmpDir, "live", name)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.hcl"), []byte(`inputs = { version = "v2" }`), 0o644))
+	}
+
+	commitChanges(t, runner, "Change every sidecar")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l))
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
+
+	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w))
+
+	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
+
+	for _, pair := range w.ReadingAffectedStacks {
+		rel, relErr := filepath.Rel(pair.ToStack.DiscoveryContext().WorkingDir, pair.ToStack.Path())
+		require.NoError(t, relErr)
+
+		readingAffectedDirs = append(readingAffectedDirs, filepath.ToSlash(rel))
+	}
+
+	assert.Contains(t, readingAffectedDirs, "live/stack-a",
+		"Stack reading one changed file should be recorded as reading-affected: %v", readingAffectedDirs)
+	assert.Contains(t, readingAffectedDirs, "live/stack-b",
+		"Stack reading another changed file should also be recorded as reading-affected: %v", readingAffectedDirs)
 }
 
 // TestWorktreePhase_Integration_NegatedFiltersAppliedInWorktreeSubDiscoveries tests that

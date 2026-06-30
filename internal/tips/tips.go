@@ -20,6 +20,17 @@ const (
 		"`stack generate` will ignore the filter and `run` will not generate just that stack. " +
 		"See https://docs.terragrunt.com/features/filter/#stack-generate"
 
+	// StackNestedStacksNotGenerated is the tip shown when a literal (non-glob) path
+	// with `| type=stack` targets a stack whose nested stacks were not themselves
+	// recursively generated.
+	StackNestedStacksNotGenerated = "stack-filter-nested-not-generated"
+
+	// StackNestedStacksNotGeneratedMessage is the default message for the
+	// stack-filter-nested-not-generated tip. The runtime message is assembled at
+	// evaluation time so it can list the suggested recursive filters.
+	StackNestedStacksNotGeneratedMessage = "Filtering a stack with `| type=stack` generates only that stack, " +
+		"not the nested stacks it contains. To generate the nested stacks too, also add a recursive path filter."
+
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.
 	WindowsSymlinkWarningMessage = "Windows users may encounter silent fallback behavior to provider copying " +
 		"instead of symlinking in OpenTofu/Terraform. " +
@@ -55,6 +66,10 @@ func NewTips() Tips {
 		{
 			Name:    StackTargetMissingTypeStack,
 			Message: StackTargetMissingTypeStackMessage,
+		},
+		{
+			Name:    StackNestedStacksNotGenerated,
+			Message: StackNestedStacksNotGeneratedMessage,
 		},
 	}
 }

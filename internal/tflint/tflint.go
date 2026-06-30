@@ -26,6 +26,7 @@ type TFLintOptions struct {
 	RootWorkingDir       string
 	TerragruntConfigPath string
 	MaxFoldersToCheck    int
+	LogShowAbsPaths      bool
 }
 
 const (
@@ -57,7 +58,7 @@ func RunTflintWithOpts(
 	}
 
 	l.Debugf("Using .tflint.hcl file in %s",
-		util.RelPathForLog(opts.RootWorkingDir, configFile, opts.Writers.LogShowAbsPaths))
+		util.RelPathForLog(opts.RootWorkingDir, configFile, opts.LogShowAbsPaths))
 
 	variables, err := InputsToTflintVar(cfg.Inputs)
 	if err != nil {
@@ -71,13 +72,13 @@ func RunTflintWithOpts(
 
 	l.Debugf(
 		"Initializing tflint in directory %s",
-		util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.Writers.LogShowAbsPaths),
+		util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.LogShowAbsPaths),
 	)
 
 	tflintArgs := hookExecute[1:]
 
-	configFileRel := util.RelPathForLog(opts.WorkingDir, configFile, opts.Writers.LogShowAbsPaths)
-	chdirRel := util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.Writers.LogShowAbsPaths)
+	configFileRel := util.RelPathForLog(opts.WorkingDir, configFile, opts.LogShowAbsPaths)
+	chdirRel := util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.LogShowAbsPaths)
 
 	// tflint init
 	initArgs := []string{"tflint", "--init", "--config", configFileRel, "--chdir", chdirRel}
@@ -267,8 +268,8 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 	for range opts.MaxFoldersToCheck {
 		currentDir := filepath.Dir(previousDir)
 		l.Debugf("Finding .tflint.hcl file from %s and going to %s",
-			util.RelPathForLog(opts.RootWorkingDir, previousDir, opts.Writers.LogShowAbsPaths),
-			util.RelPathForLog(opts.RootWorkingDir, currentDir, opts.Writers.LogShowAbsPaths))
+			util.RelPathForLog(opts.RootWorkingDir, previousDir, opts.LogShowAbsPaths),
+			util.RelPathForLog(opts.RootWorkingDir, currentDir, opts.LogShowAbsPaths))
 
 		if currentDir == previousDir {
 			return "", ConfigNotFound{cause: "Traversed all the day to the root"}
@@ -283,7 +284,7 @@ func FindConfigInProject(l log.Logger, fs vfs.FS, opts *TFLintOptions) (string, 
 
 		if exists {
 			l.Debugf("Found .tflint.hcl in %s",
-				util.RelPathForLog(opts.RootWorkingDir, fileToFind, opts.Writers.LogShowAbsPaths))
+				util.RelPathForLog(opts.RootWorkingDir, fileToFind, opts.LogShowAbsPaths))
 
 			return fileToFind, nil
 		}

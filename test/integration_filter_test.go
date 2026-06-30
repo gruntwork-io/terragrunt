@@ -2316,3 +2316,132 @@ func TestFilterFlagWithGitFilterMarkGlobAsRead(t *testing.T) {
 	assert.ElementsMatch(t, []string{"unit-reads-added", "unit-reads-removed"}, results,
 		"units reading added or removed glob files should be selected; untouched unit should not")
 }
+
+// TestRunAllGitFilterMarkGlobAsReadDeleted verifies that `terragrunt run --all -- plan` selects a
+// unit reading a glob-tracked file even when the diff deletes that file, instead of excluding the
+// unit as a removal. In the deletion-only case the unit's only "change" is a file it reads
+// disappearing, so the surviving unit must be planned on the HEAD side rather than excluded by the
+// destroy-protection path. The modified/added cases and the combined cases
+// (where another change could mask the bug) are covered as regressions alongside it.
+func TestRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		setupChange func(t *testing.T, configDir string)
+		name        string
+		description string
+	}{
+		{
+			name: "deleted-only tracked file",
+			setupChange: func(t *testing.T, configDir string) {
+				t.Helper()
+				require.NoError(t, os.Remove(filepath.Join(configDir, "item-a.yml")))
+			},
+			description: "deleting the only tracked file must still select the reading unit",
+		},
+		{
+			name: "modified tracked file",
+			setupChange: func(t *testing.T, configDir string) {
+				t.Helper()
+				require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: modified\n"), 0644))
+			},
+			description: "modifying a tracked file must select the reading unit",
+		},
+		{
+			name: "added tracked file",
+			setupChange: func(t *testing.T, configDir string) {
+				t.Helper()
+				require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-c.yml"), []byte("c: 3\n"), 0644))
+			},
+			description: "adding a tracked file must select the reading unit",
+		},
+		{
+			name: "deleted tracked file alongside a modification",
+			setupChange: func(t *testing.T, configDir string) {
+				t.Helper()
+				require.NoError(t, os.Remove(filepath.Join(configDir, "item-a.yml")))
+				require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-b.yml"), []byte("b: modified\n"), 0644))
+			},
+			description: "deleting a tracked file alongside another change must still select the reading unit",
+		},
+		{
+			name: "deleted tracked file alongside an addition",
+			setupChange: func(t *testing.T, configDir string) {
+				t.Helper()
+				require.NoError(t, os.Remove(filepath.Join(configDir, "item-a.yml")))
+				require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-c.yml"), []byte("c: 3\n"), 0644))
+			},
+			description: "deleting a tracked file alongside an addition must still select the reading unit",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+			runner := helpers.InitTestGitRunner(t, tmpDir)
+
+			unitDir := filepath.Join(tmpDir, "unit-reads-config")
+			require.NoError(t, os.MkdirAll(unitDir, 0755))
+			require.NoError(t, os.WriteFile(
+				filepath.Join(unitDir, "terragrunt.hcl"),
+				[]byte(`locals {
+  config_files = mark_glob_as_read("../config/{*.yaml,*.yml}")
+}`), 0644))
+			require.NoError(t, os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte("# minimal"), 0644))
+
+			configDir := filepath.Join(tmpDir, "config")
+			require.NoError(t, os.MkdirAll(configDir, 0755))
+			require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0644))
+			require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-b.yml"), []byte("b: 2\n"), 0644))
+
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Baseline unit and tracked config files"))
+
+			tc.setupChange(t, configDir)
+
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Apply change to tracked config files"))
+
+			helpers.CleanupTerraformFolder(t, tmpDir)
+
+			reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
+			cmd := "terragrunt run --all --non-interactive --no-color --working-dir " + tmpDir +
+				" --filter '[HEAD~1...HEAD]' --report-file " + reportFilePath + " -- plan"
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			// A missing backend or IaC binary may fail the plan itself, but discovery and the report
+			// still run; only an unrelated failure is unexpected.
+			if err != nil && !strings.Contains(stderr, "terraform") && !strings.Contains(stderr, "tofu") {
+				require.NoError(t, err, "Unexpected error\nstdout: %s\nstderr: %s", stdout, stderr)
+			}
+
+			require.FileExists(t, reportFilePath, "Report file should exist at %s", reportFilePath)
+
+			runs, parseErr := report.ParseJSONRunsFromFile(reportFilePath)
+			require.NoError(t, parseErr, "Should be able to parse report JSON")
+
+			var found bool
+
+			runNames := make([]string, 0, len(runs))
+
+			for i := range runs {
+				run := &runs[i]
+				runNames = append(runNames, filepath.Base(run.Name))
+
+				if filepath.Base(run.Name) != "unit-reads-config" || run.Ref != "HEAD" {
+					continue
+				}
+
+				found = true
+
+				assert.NotEqual(t, "excluded", run.Result,
+					"HEAD-side reading unit should not be excluded: %s", tc.description)
+			}
+
+			assert.True(t, found,
+				"HEAD-side reading unit should be in the report (got: %v): %s", runNames, tc.description)
+		})
+	}
+}

@@ -30,10 +30,6 @@ const (
 // PackageAuthenticationResult is returned from a PackageAuthentication implementation which implements Stringer.
 type PackageAuthenticationResult int
 
-func NewPackageAuthenticationResult(res PackageAuthenticationResult) *PackageAuthenticationResult {
-	return &res
-}
-
 func (result *PackageAuthenticationResult) String() string {
 	if result == nil {
 		return "unauthenticated"
@@ -141,7 +137,7 @@ func (auth archiveHashAuthentication) Authenticate(path string) (*PackageAuthent
 		return nil, fmt.Errorf("archive has incorrect checksum %s (expected %s)", gotHash, wantHash)
 	}
 
-	return NewPackageAuthenticationResult(VerifiedChecksum), nil
+	return new(VerifiedChecksum), nil
 }
 
 func (auth archiveHashAuthentication) AcceptableHashes() []Hash {
@@ -216,7 +212,7 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 	}
 
 	if err := auth.checkDetachedSignature(hashicorpKeyring, bytes.NewReader(auth.Document), bytes.NewReader(auth.Signature), nil); err == nil {
-		return NewPackageAuthenticationResult(OfficialProvider), nil
+		return new(OfficialProvider), nil
 	}
 
 	// If the signing key has a trust signature, attempt to verify it with the HashiCorp partners public key.
@@ -240,11 +236,11 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 			return nil, fmt.Errorf("error verifying trust signature: %w", err)
 		}
 
-		return NewPackageAuthenticationResult(PartnerProvider), nil
+		return new(PartnerProvider), nil
 	}
 
 	// We have a valid signature, but it's not from the HashiCorp key, and it also isn't a trusted partner. This is a community provider.
-	return NewPackageAuthenticationResult(CommunityProvider), nil
+	return new(CommunityProvider), nil
 }
 
 func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRing, signed, signature io.Reader, config *packet.Config) error {

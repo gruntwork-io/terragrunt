@@ -1503,10 +1503,6 @@ func TestModuleDependenciesMerge(t *testing.T) {
 	}
 }
 
-func ptr(str string) *string {
-	return &str
-}
-
 // Run a benchmark on ReadTerragruntConfig for all fixtures possible.
 // This should reveal regressions on execution time due to new, changed or removed features.
 func BenchmarkReadTerragruntConfig(b *testing.B) {

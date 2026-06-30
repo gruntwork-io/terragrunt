@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/invopop/jsonschema"
 	"github.com/xeipuuv/gojsonschema"
 )
@@ -229,38 +230,27 @@ func validateJSONReport(data []byte) error {
 }
 
 // WriteToFile writes the report to a file.
-func (r *Report) WriteToFile(path string) error {
-	tmpFile, err := os.CreateTemp("", "terragrunt-report-*")
-	if err != nil {
-		return err
+func (r *Report) WriteToFile(fsys vfs.FS, path string) error {
+	var writeBody func(io.Writer) error
+
+	switch r.format {
+	case FormatCSV:
+		writeBody = r.WriteCSV
+	case FormatJSON:
+		writeBody = r.WriteJSON
+	default:
+		return fmt.Errorf("unsupported format: %s", r.format)
 	}
 
 	r.mu.Lock()
 	r.SortRuns()
 	r.mu.Unlock()
 
-	switch r.format {
-	case FormatCSV:
-		err = r.WriteCSV(tmpFile)
-	case FormatJSON:
-		err = r.WriteJSON(tmpFile)
-	default:
-		return fmt.Errorf("unsupported format: %s", r.format)
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to write report: %w", err)
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("failed to close report file: %w", err)
-	}
-
 	if r.workingDir != "" && !filepath.IsAbs(path) {
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	return util.MoveFile(tmpFile.Name(), path)
+	return writeFileAtomic(fsys, path, writeBody)
 }
 
 // WriteCSV writes the report to a writer in CSV format.
@@ -391,26 +381,40 @@ func formatCause(r *Run, workingDir string) string {
 	return cause
 }
 
-// WriteSchemaToFile writes a JSON schema for the report to a file.
-func (r *Report) WriteSchemaToFile(path string) error {
-	tmpFile, err := os.CreateTemp("", "terragrunt-schema-*")
-	if err != nil {
-		return err
-	}
-
-	if err := WriteSchema(tmpFile); err != nil {
-		return fmt.Errorf("failed to write schema: %w", err)
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("failed to close schema file: %w", err)
-	}
-
+// WriteSchemaToFile writes a JSON schema for the report to path on fsys.
+func (r *Report) WriteSchemaToFile(fsys vfs.FS, path string) error {
 	if r.workingDir != "" && !filepath.IsAbs(path) {
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	return util.MoveFile(tmpFile.Name(), path)
+	return writeFileAtomic(fsys, path, WriteSchema)
+}
+
+// writeFileAtomic writes content produced by write into a temporary file in
+// path's directory and then renames it onto path, so a concurrent reader never
+// observes a partially written file and a failed write leaves no truncated one.
+// The temp file shares path's directory so the rename stays on one filesystem.
+func writeFileAtomic(fsys vfs.FS, path string, write func(w io.Writer) error) error {
+	tmpFile, err := vfs.CreateTemp(fsys, filepath.Dir(path), "terragrunt-report-")
+	if err != nil {
+		return err
+	}
+
+	tmpName := tmpFile.Name()
+
+	if err := write(tmpFile); err != nil {
+		return errors.Join(fmt.Errorf("failed to write report: %w", err), tmpFile.Close(), fsys.Remove(tmpName))
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return errors.Join(fmt.Errorf("failed to close report file: %w", err), fsys.Remove(tmpName))
+	}
+
+	if err := fsys.Rename(tmpName, path); err != nil {
+		return errors.Join(err, fsys.Remove(tmpName))
+	}
+
+	return nil
 }
 
 // WriteSchema writes a JSON schema for the report to a writer.
