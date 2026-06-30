@@ -3,11 +3,13 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -24,8 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
 
-	"errors"
-
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -94,11 +95,57 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 }
 
 func (app *App) RunContext(ctx context.Context, args []string) error {
-	// Resolve profile paths: DIR variants provide defaults for the direct variants.
-	cpuProfilePath := os.Getenv(tf.EnvNameTGCPUProfile)
-	memProfilePath := os.Getenv(tf.EnvNameTGMemProfile)
+	// Bind experiment flags early (so the pprof gate below can see --experiment / TG_EXPERIMENT / --experiment-mode).
+	if err := bindExperimentsEarly(app.opts, args); err != nil {
+		return err
+	}
+
+	// Bind profile opts early from provided args / env before reading them for resolution.
+	if err := bindProfileFlagsEarly(app.opts, args); err != nil {
+		return err
+	}
+
+	// Resolve profile paths preferring CLI flags / new TG_PROFILE_* (opts), then legacy env vars.
+	// DIR variants provide defaults when direct path not specified.
+	cpuProfilePath := app.opts.ProfileCPU
+	memProfilePath := app.opts.ProfileMEM
+	goroutineProfilePath := app.opts.ProfileGoroutine
 
 	const profileDirMode = 0755
+
+	// Handle ProfileDir for opts-based (CLI or TG_PROFILE_DIR etc).
+	if app.opts.ProfileDir != "" {
+		if err := os.MkdirAll(app.opts.ProfileDir, profileDirMode); err != nil {
+			return fmt.Errorf("could not create profile directory: %w", err)
+		}
+
+		if cpuProfilePath == "" {
+			cpuProfilePath = filepath.Join(app.opts.ProfileDir, "terragrunt_cpu.prof")
+		}
+
+		if memProfilePath == "" {
+			memProfilePath = filepath.Join(app.opts.ProfileDir, "terragrunt_mem.prof")
+		}
+
+		if goroutineProfilePath == "" {
+			goroutineProfilePath = filepath.Join(app.opts.ProfileDir, "terragrunt_goroutine.prof")
+		}
+	}
+
+	// Legacy env fallbacks (TG_CPU_PROFILE, TG_MEM_PROFILE, and their _DIR variants).
+	// These continue to work without requiring the pprof experiment for backward compatibility.
+	if cpuProfilePath == "" {
+		cpuProfilePath = os.Getenv(tf.EnvNameTGCPUProfile)
+	}
+
+	if memProfilePath == "" {
+		memProfilePath = os.Getenv(tf.EnvNameTGMemProfile)
+	}
+
+	if goroutineProfilePath == "" {
+		// No dedicated legacy env for goroutine yet; support TG_GOROUTINE_PROFILE if someone used it.
+		goroutineProfilePath = os.Getenv("TG_GOROUTINE_PROFILE")
+	}
 
 	if profileDir := os.Getenv(tf.EnvNameTGCPUProfileDir); profileDir != "" {
 		if err := os.MkdirAll(profileDir, profileDirMode); err != nil {
@@ -120,6 +167,45 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}
 
+	// If any profile path was provided via the new opts (CLI flags or TG_PROFILE_* envs),
+	// require the pprof experiment to be enabled.
+	usingNewProfileOpts := app.opts.ProfileCPU != "" || app.opts.ProfileMEM != "" || app.opts.ProfileGoroutine != "" || app.opts.ProfileDir != ""
+	// Detect from incoming cmd args and os.Args (tests pass args, real bin uses os)
+	allForScan := append([]string{}, os.Args...)
+	allForScan = append(allForScan, args...)
+	if !usingNewProfileOpts {
+		for _, a := range allForScan {
+			if a == "--"+global.ProfileCPUFlagName || a == "--terragrunt-"+global.ProfileCPUFlagName ||
+				a == "--"+global.ProfileMEMFlagName || a == "--terragrunt-"+global.ProfileMEMFlagName ||
+				a == "--"+global.ProfileGoroutineFlagName || a == "--terragrunt-"+global.ProfileGoroutineFlagName ||
+				a == "--"+global.ProfileDirFlagName || a == "--terragrunt-"+global.ProfileDirFlagName {
+				usingNewProfileOpts = true
+				break
+			}
+		}
+	}
+
+	// Early enable pprof experiment if --experiment pprof (or terragrunt- variant) is present in args.
+	for i := 0; i < len(allForScan); i++ {
+		if allForScan[i] == "--"+global.ExperimentFlagName || allForScan[i] == "--terragrunt-"+global.ExperimentFlagName || allForScan[i] == "-"+global.ExperimentFlagName {
+			// next tokens may be values; scan a few
+			for j := i + 1; j < len(allForScan) && j < i+4; j++ {
+				v := allForScan[j]
+				if strings.HasPrefix(v, "-") {
+					break
+				}
+				if v == experiment.Pprof || strings.Contains(v, experiment.Pprof) {
+					_ = app.opts.Experiments.EnableExperiment(experiment.Pprof)
+					break
+				}
+			}
+		}
+	}
+
+	if usingNewProfileOpts && !app.opts.Experiments.Evaluate(experiment.Pprof) {
+		return fmt.Errorf("profiling flags require the 'pprof' experiment (use --experiment pprof)")
+	}
+
 	// Start CPU profiling if configured.
 	if cpuProfilePath != "" {
 		f, err := os.Create(cpuProfilePath)
@@ -139,7 +225,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}()
 	}
 
-	// Write memory profile at exit if configured.
+	// Write memory (heap) profile at exit if configured.
 	if memProfilePath != "" {
 		defer func() {
 			runtime.GC()
@@ -151,6 +237,21 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 			defer f.Close()
 
 			_ = pprof.WriteHeapProfile(f)
+		}()
+	}
+
+	// Write goroutine profile (memory dump) at exit if configured.
+	if goroutineProfilePath != "" {
+		defer func() {
+			f, err := os.Create(goroutineProfilePath)
+			if err != nil {
+				return
+			}
+			defer f.Close()
+
+			if p := pprof.Lookup("goroutine"); p != nil {
+				_ = p.WriteTo(f, 0)
+			}
 		}()
 	}
 
@@ -218,6 +319,133 @@ func removeNoColorFlagDuplicates(args []string) []string {
 	}
 
 	return filteredArgs
+}
+
+// bindProfileFlagsEarly constructs a minimal flagset for profile flags and parses os.Args
+// plus the command args passed to RunContext (for test helpers) and TG_PROFILE_* envs
+// to populate opts.Profile* fields before heavy initialization.
+func bindProfileFlagsEarly(opts *options.TerragruntOptions, cmdArgs []string) error {
+	profileFlags := global.NewProfileFlags(opts, nil)
+
+	fs, err := profileFlags.NewFlagSet("profile-early", func(e error) error { return e })
+	if err != nil {
+		return err
+	}
+
+	// Apply registers + reads TG_PROFILE_* envs.
+	_ = fs.Parse(os.Args)
+	if len(cmdArgs) > 0 {
+		_ = fs.Parse(cmdArgs)
+	}
+
+	// Manual scan over both os.Args and cmdArgs for --profile-* (and terragrunt- variants)
+	allArgs := append([]string{}, os.Args...)
+	allArgs = append(allArgs, cmdArgs...)
+	for i := 0; i < len(allArgs); i++ {
+		a := allArgs[i]
+		switch a {
+		case "--" + global.ProfileCPUFlagName, "--terragrunt-" + global.ProfileCPUFlagName:
+			if i+1 < len(allArgs) && opts.ProfileCPU == "" {
+				opts.ProfileCPU = allArgs[i+1]
+			}
+		case "--" + global.ProfileMEMFlagName, "--terragrunt-" + global.ProfileMEMFlagName:
+			if i+1 < len(allArgs) && opts.ProfileMEM == "" {
+				opts.ProfileMEM = allArgs[i+1]
+			}
+		case "--" + global.ProfileGoroutineFlagName, "--terragrunt-" + global.ProfileGoroutineFlagName:
+			if i+1 < len(allArgs) && opts.ProfileGoroutine == "" {
+				opts.ProfileGoroutine = allArgs[i+1]
+			}
+		case "--" + global.ProfileDirFlagName, "--terragrunt-" + global.ProfileDirFlagName:
+			if i+1 < len(allArgs) && opts.ProfileDir == "" {
+				opts.ProfileDir = allArgs[i+1]
+			}
+		}
+	}
+
+	return nil
+}
+
+// bindExperimentsEarly parses experiment-related flags and env vars as early as possible
+// so that features gated by experiments (such as pprof profiling) can decide correctly
+// before the main command parsing runs.
+func bindExperimentsEarly(opts *options.TerragruntOptions, cmdArgs []string) error {
+	// We only care about the two experiment flags here.
+	expFlags := clihelper.Flags{
+		flags.NewFlag(&clihelper.SliceFlag[string]{
+			Name:    global.ExperimentFlagName,
+			EnvVars: flags.Prefix{flags.TgPrefix}.EnvVars(global.ExperimentFlagName),
+			Setter:  opts.Experiments.EnableExperiment,
+		}),
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:    global.ExperimentModeFlagName,
+			EnvVars: flags.Prefix{flags.TgPrefix}.EnvVars(global.ExperimentModeFlagName),
+			Setter: func(_ bool) error {
+				opts.Experiments.ExperimentMode()
+				return nil
+			},
+		}),
+	}
+
+	fs, err := expFlags.NewFlagSet("exp-early", func(e error) error { return e })
+	if err != nil {
+		return err
+	}
+
+	_ = fs.Parse(os.Args)
+	if len(cmdArgs) > 0 {
+		_ = fs.Parse(cmdArgs)
+	}
+
+	// Also check common deprecated / alternate forms manually (best effort)
+	all := append([]string{}, os.Args...)
+	all = append(all, cmdArgs...)
+	for i := 0; i < len(all); i++ {
+		a := all[i]
+		if a == "--"+global.ExperimentFlagName || a == "--terragrunt-"+global.ExperimentFlagName {
+			for j := i + 1; j < len(all) && j < i+8; j++ {
+				v := all[j]
+				if strings.HasPrefix(v, "-") {
+					break
+				}
+				_ = opts.Experiments.EnableExperiment(v) // ignore unknown here; full validation happens later
+			}
+		}
+		if a == "--"+global.ExperimentModeFlagName || a == "--terragrunt-"+global.ExperimentModeFlagName {
+			opts.Experiments.ExperimentMode()
+		}
+	}
+
+	// Check raw env for TG_EXPERIMENT (comma or space separated) and TG_EXPERIMENT_MODE
+	if val := os.Getenv("TG_EXPERIMENT"); val != "" {
+		for _, e := range strings.FieldsFunc(val, func(r rune) bool { return r == ',' || r == ' ' }) {
+			e = strings.TrimSpace(e)
+			if e != "" {
+				_ = opts.Experiments.EnableExperiment(e)
+			}
+		}
+	}
+	if val := os.Getenv("TG_EXPERIMENT_MODE"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil && b {
+			opts.Experiments.ExperimentMode()
+		}
+	}
+	// Also support the old TERRAGRUNT_ variants
+	if val := os.Getenv("TERRAGRUNT_EXPERIMENT"); val != "" {
+		for _, e := range strings.FieldsFunc(val, func(r rune) bool { return r == ',' || r == ' ' }) {
+			e = strings.TrimSpace(e)
+			if e != "" {
+				_ = opts.Experiments.EnableExperiment(e)
+			}
+		}
+	}
+	if val := os.Getenv("TERRAGRUNT_EXPERIMENT_MODE"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil && b {
+			opts.Experiments.ExperimentMode()
+		}
+	}
+
+	return nil
 }
 
 func beforeAction(_ *options.TerragruntOptions) clihelper.ActionFunc {

@@ -278,6 +278,14 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
+	// ProfileDir is the directory to write profile files into when using profiling flags.
+	ProfileDir string
+	// ProfileCPU is the path for CPU profile output.
+	ProfileCPU string
+	// ProfileMEM is the path for memory (heap) profile output.
+	ProfileMEM string
+	// ProfileGoroutine is the path for goroutine profile (memory dump) output.
+	ProfileGoroutine string
 	// NoDependencyFetchOutputFromState disables the
 	// dependency-fetch-output-from-state feature even when the experiment
 	// is enabled.

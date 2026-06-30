@@ -77,6 +77,8 @@ const (
 	HookContextEnv = "hook-context-env"
 	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
 	OptionalHooks = "optional-hooks"
+	// Pprof enables collecting pprof profiles (CPU, memory/heap) and memory dumps (e.g. goroutine) via CLI flags or env vars.
+	Pprof = "pprof"
 )
 
 const (
@@ -164,6 +166,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptionalHooks,
+		},
+		{
+			Name: Pprof,
 		},
 	}
 }

@@ -205,6 +205,14 @@ This creates `terragrunt_cpu.prof`, `terragrunt_mem.prof`, and per-module `tofu_
 
 For more details on profiling and performance analysis, see the [Performance documentation](/troubleshooting/performance/#runtime-cpu-profiling-with-tg_cpu_profile).
 
+You can also use CLI flags when the `pprof` experiment is enabled:
+
+```bash
+terragrunt --experiment pprof --profile-dir /tmp/profiles -- run -- plan
+```
+
+See the [Performance documentation](/troubleshooting/performance) for the full list of flags and environment variables.
+
 ## Additional OpenTofu/Terraform Debugging
 
 If you're still having trouble, you may want to try adjusting the `TF_LOG` environment variables to instruct OpenTofu/Terraform to emit more detailed logs.

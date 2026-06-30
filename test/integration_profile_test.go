@@ -65,7 +65,7 @@ func TestTGCPUProfileDoesNotOverrideExplicitTofuCPUProfile(t *testing.T) {
 }
 
 func TestTGCPUProfileDownstreamTofuProfile(t *testing.T) {
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		t.Skip("TOFU_CPU_PROFILE is only supported by OpenTofu")
 	}
 
@@ -93,7 +93,7 @@ func TestTGCPUProfileDownstreamTofuProfile(t *testing.T) {
 }
 
 func TestTGCPUProfileDirCollectsProfiles(t *testing.T) {
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		t.Skip("TOFU_CPU_PROFILE is only supported by OpenTofu")
 	}
 
@@ -194,4 +194,68 @@ func TestTGMemAndCPUProfileDirSameDirectory(t *testing.T) {
 	memInfo, err := os.Stat(memProfile)
 	require.NoError(t, err)
 	assert.Positive(t, memInfo.Size())
+}
+
+func TestProfileCPUFlagCreatesProfileFile(t *testing.T) {
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	profilePath := filepath.Join(tmpDir, "cpu_from_flag.prof")
+
+	helpers.RunTerragrunt(t, "terragrunt --experiment pprof --profile-cpu "+profilePath+" version")
+
+	info, err := os.Stat(profilePath)
+	require.NoError(t, err, "CPU profile from --profile-cpu should exist")
+	assert.Positive(t, info.Size())
+}
+
+func TestProfileMemFlagCreatesProfileFile(t *testing.T) {
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	profilePath := filepath.Join(tmpDir, "mem_from_flag.prof")
+
+	helpers.RunTerragrunt(t, "terragrunt --experiment pprof --profile-mem "+profilePath+" version")
+
+	info, err := os.Stat(profilePath)
+	require.NoError(t, err, "Memory profile from --profile-mem should exist")
+	assert.Positive(t, info.Size())
+}
+
+func TestProfileGoroutineFlagCreatesProfileFile(t *testing.T) {
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	profilePath := filepath.Join(tmpDir, "goroutine_from_flag.prof")
+
+	helpers.RunTerragrunt(t, "terragrunt --experiment pprof --profile-goroutine "+profilePath+" version")
+
+	info, err := os.Stat(profilePath)
+	require.NoError(t, err, "Goroutine profile from --profile-goroutine should exist")
+	assert.Positive(t, info.Size())
+}
+
+func TestProfileDirFlagCollectsProfiles(t *testing.T) {
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	profileDir := filepath.Join(tmpDir, "profiles_from_flag")
+
+	helpers.RunTerragrunt(t, "terragrunt --experiment pprof --profile-dir "+profileDir+" version")
+
+	cpu := filepath.Join(profileDir, "terragrunt_cpu.prof")
+	mem := filepath.Join(profileDir, "terragrunt_mem.prof")
+	gor := filepath.Join(profileDir, "terragrunt_goroutine.prof")
+
+	require.True(t, util.FileExists(cpu), "cpu profile should exist in dir")
+	require.True(t, util.FileExists(mem), "mem profile should exist in dir")
+	require.True(t, util.FileExists(gor), "goroutine profile should exist in dir")
+
+	for _, p := range []string{cpu, mem, gor} {
+		info, err := os.Stat(p)
+		require.NoError(t, err)
+		assert.Positive(t, info.Size(), p+" should be non-empty")
+	}
+}
+
+func TestProfileFlagsRequireExperiment(t *testing.T) {
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	profilePath := filepath.Join(tmpDir, "cpu_no_exp.prof")
+
+	// Without --experiment pprof the flag should cause error.
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --profile-cpu "+profilePath+" version")
+	require.Error(t, err)
+	assert.False(t, util.FileExists(profilePath), "profile should not be created without experiment")
 }

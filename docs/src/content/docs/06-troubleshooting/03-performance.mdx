@@ -395,6 +395,42 @@ TG_CPU_PROFILE_DIR=/tmp/profiles TG_MEM_PROFILE_DIR=/tmp/profiles terragrunt run
     └── tofu_cpu.prof
 ```
 
+##### CLI Flags for Profiling (requires the `pprof` experiment)
+
+You can also enable profiling using CLI flags. These are gated behind the `pprof` experiment:
+
+```shell
+terragrunt --experiment pprof --profile-cpu terragrunt_cpu.prof --profile-mem terragrunt_mem.prof --profile-goroutine terragrunt_goroutine.prof -- run -- plan
+```
+
+Use `--profile-dir` to collect everything in one place (recommended for `run --all`):
+
+```shell
+terragrunt --experiment pprof --profile-dir /tmp/profiles -- run --all -- plan
+```
+
+This produces:
+
+```
+/tmp/profiles/
+├── terragrunt_cpu.prof
+├── terragrunt_mem.prof
+└── terragrunt_goroutine.prof
+```
+
+The new flags are:
+
+| Flag                  | Description |
+|-----------------------|-------------|
+| `--profile-cpu`       | Path for the Terragrunt CPU profile. Also sets `TOFU_CPU_PROFILE` for OpenTofu (unless a dir is used). |
+| `--profile-mem`       | Path for the Terragrunt heap memory profile. |
+| `--profile-goroutine` | Path for a goroutine profile (memory dump). |
+| `--profile-dir`       | Directory for structured collection. Defaults the files above inside this directory. |
+
+The corresponding environment variables (`TG_PROFILE_CPU`, `TG_PROFILE_MEM`, `TG_PROFILE_GOROUTINE`, `TG_PROFILE_DIR`) are also supported and require the experiment.
+
+Legacy environment variables (`TG_CPU_PROFILE`, `TG_MEM_PROFILE`, etc.) continue to work without the experiment for backward compatibility.
+
 ##### Environment Variable Reference
 
 | Variable | Description |
@@ -404,6 +440,10 @@ TG_CPU_PROFILE_DIR=/tmp/profiles TG_MEM_PROFILE_DIR=/tmp/profiles terragrunt run
 | `TG_MEM_PROFILE` | Path for the Terragrunt memory (heap) profile file. Terragrunt only — not propagated to OpenTofu. |
 | `TG_MEM_PROFILE_DIR` | Directory for memory profile collection. Defaults `TG_MEM_PROFILE` to `<dir>/terragrunt_mem.prof`. |
 | `TOFU_CPU_PROFILE` | If set explicitly, overrides the automatic `TOFU_CPU_PROFILE` propagation from `TG_CPU_PROFILE`. |
+| `TG_PROFILE_CPU` (experiment) | New-style env var equivalent of `--profile-cpu`. |
+| `TG_PROFILE_MEM` (experiment) | New-style env var equivalent of `--profile-mem`. |
+| `TG_PROFILE_GOROUTINE` (experiment) | New-style env var equivalent of `--profile-goroutine`. |
+| `TG_PROFILE_DIR` (experiment) | New-style env var equivalent of `--profile-dir`. |
 
 ###### Analyzing profiles
 
