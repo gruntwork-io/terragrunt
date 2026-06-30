@@ -62,6 +62,7 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.True(t, pctx.JSONLogFormat)
 	assert.True(t, pctx.Debug)
 	assert.True(t, pctx.AutoInit)
+	assert.True(t, pctx.AutoRetry)
 	assert.True(t, pctx.Headless)
 	assert.True(t, pctx.BackendBootstrap)
 	assert.True(t, pctx.CheckDependentUnits)
@@ -332,6 +333,7 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	opts.JSONLogFormat = true
 	opts.Debug = true
 	opts.AutoInit = true
+	opts.AutoRetry = true
 	opts.Headless = true
 	opts.BackendBootstrap = true
 	opts.CheckDependentUnits = true
