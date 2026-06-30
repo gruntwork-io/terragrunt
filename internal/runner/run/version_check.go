@@ -139,11 +139,10 @@ func GetTFVersion(
 	shellCopy := *optsCopy.ShellOptions
 	optsCopy.ShellOptions = &shellCopy
 
-	// Discard output — we only need the parsed version string.
-	optsCopy.ShellOptions.Writers.Writer = io.Discard
-	optsCopy.ShellOptions.Writers.ErrWriter = io.Discard
+	// Override venv for this call: discard output and strip TF_CLI_ARGS* so
+	// they don't interfere with "--version".
+	versionV := v.WithWriter(io.Discard).WithErrWriter(io.Discard)
 
-	// Remove TF_CLI_ARGS* so they don't interfere with "--version".
 	envCopy := make(map[string]string, len(v.Env))
 	for key, val := range v.Env {
 		if !strings.HasPrefix(key, "TF_CLI_ARGS") {
@@ -151,7 +150,7 @@ func GetTFVersion(
 		}
 	}
 
-	versionV := v.WithEnv(envCopy)
+	versionV.Env = envCopy
 
 	output, err := tf.RunCommandWithOutput(ctx, l, versionV, &optsCopy, tf.FlagNameVersion)
 	if err != nil {

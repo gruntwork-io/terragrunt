@@ -1,7 +1,6 @@
 package options_test
 
 import (
-	"io"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
@@ -79,9 +78,9 @@ func TestInsertTerraformCliArgsNilGuard(t *testing.T) {
 	assert.Equal(t, []string{"plan"}, opts.TerraformCliArgs.Slice())
 }
 
-func TestNewTerragruntOptionsWithWriters_DefaultCASCloneDepth(t *testing.T) {
+func TestNewTerragruntOptions_DefaultCASCloneDepth(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptionsWithWriters(io.Discard, io.Discard)
+	opts := options.NewTerragruntOptions()
 	assert.Equal(t, cas.DefaultCASCloneDepth, opts.CASCloneDepth)
 }

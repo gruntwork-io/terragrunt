@@ -143,17 +143,17 @@ func RunOutput(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terr
 
 	switch opts.StackOutputFormat {
 	default:
-		if err := PrintOutputs(opts.Writers.Writer, filteredOutputs); err != nil {
+		if err := PrintOutputs(v.Writers.Writer, filteredOutputs); err != nil {
 			return err
 		}
 
 	case rawOutputFormat:
-		if err := PrintRawOutputs(opts, opts.Writers.Writer, filteredOutputs); err != nil {
+		if err := PrintRawOutputs(opts, v.Writers.Writer, filteredOutputs); err != nil {
 			return err
 		}
 
 	case jsonOutputFormat:
-		if err := PrintJSONOutput(opts.Writers.Writer, filteredOutputs); err != nil {
+		if err := PrintJSONOutput(v.Writers.Writer, filteredOutputs); err != nil {
 			return err
 		}
 	}

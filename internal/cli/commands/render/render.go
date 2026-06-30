@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -37,7 +38,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
 		return err
 	}
 
-	return runRender(l, opts, prepared.Cfg)
+	return runRender(l, v.Writers.Writer, opts, prepared.Cfg)
 }
 
 func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
@@ -69,7 +70,7 @@ func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error 
 			continue
 		}
 
-		if err := runRender(l, unitOpts, prepared.Cfg); err != nil {
+		if err := runRender(l, v.Writers.Writer, unitOpts, prepared.Cfg); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -92,22 +93,22 @@ func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error 
 	return nil
 }
 
-func runRender(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
+func runRender(l log.Logger, w io.Writer, opts *Options, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
 		return errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
 	}
 
 	switch opts.Format {
 	case FormatJSON:
-		return renderJSON(l, opts, cfg)
+		return renderJSON(l, w, opts, cfg)
 	case FormatHCL:
-		return renderHCL(l, opts, cfg)
+		return renderHCL(l, w, opts, cfg)
 	default:
 		return fmt.Errorf("unsupported render format: %s", opts.Format)
 	}
 }
 
-func renderHCL(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
+func renderHCL(l log.Logger, w io.Writer, opts *Options, cfg *config.TerragruntConfig) error {
 	if opts.Write {
 		buf := new(bytes.Buffer)
 
@@ -121,7 +122,7 @@ func renderHCL(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error 
 
 	l.Infof("Rendering config %s", opts.TerragruntConfigPath)
 
-	_, err := cfg.WriteTo(opts.Writers.Writer)
+	_, err := cfg.WriteTo(w)
 	if err != nil {
 		return err
 	}
@@ -129,7 +130,7 @@ func renderHCL(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error 
 	return nil
 }
 
-func renderJSON(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
+func renderJSON(l log.Logger, w io.Writer, opts *Options, cfg *config.TerragruntConfig) error {
 	var terragruntConfigCty cty.Value
 
 	if opts.RenderMetadata {
@@ -159,7 +160,7 @@ func renderJSON(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error
 
 	l.Infof("Rendering config %s", opts.TerragruntConfigPath)
 
-	_, err = opts.Writers.Writer.Write(jsonBytes)
+	_, err = w.Write(jsonBytes)
 	if err != nil {
 		return err
 	}

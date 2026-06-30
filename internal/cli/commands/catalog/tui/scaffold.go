@@ -45,7 +45,7 @@ func (c *scaffoldCmd) Run() error {
 
 		c.logger.Debugf("Generating scaffolded component: %q", c.component.TerraformSourcePath())
 
-		return c.plan.Generate(context.Background(), c.logger, c.opts, c.values)
+		return c.plan.Generate(context.Background(), c.logger, c.venv, c.opts, c.values)
 	}
 
 	c.logger.Debugf("Scaffolding component: %q", c.component.TerraformSourcePath())

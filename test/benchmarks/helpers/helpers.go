@@ -30,14 +30,13 @@ const (
 func RunTerragruntCommand(b *testing.B, args ...string) {
 	b.Helper()
 
-	writer := io.Discard
-	errwriter := io.Discard
-
-	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
+	opts := options.NewTerragruntOptions()
 
 	l := logger.CreateLogger().WithOptions(log.WithOutput(io.Discard))
 
-	app := cli.NewApp(l, opts, venv.OSVenv())
+	v := venv.OSVenv().WithWriter(io.Discard).WithErrWriter(io.Discard)
+
+	app := cli.NewApp(l, opts, v)
 
 	ctx := log.ContextWithLogger(b.Context(), l)
 

@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -80,12 +79,13 @@ func testCommandOutput(
 
 	withOptions(terragruntOptions)
 
-	terragruntOptions.Writers = writer.Writers{Writer: &allOutputBuffer, ErrWriter: &allOutputBuffer}
-
 	l := logger.CreateLogger()
 	l = withLogger(l)
 
-	v := venvtest.New().WithExec(vexec.NewOSExec())
+	v := venvtest.New().
+		WithExec(vexec.NewOSExec()).
+		WithWriter(&allOutputBuffer).
+		WithErrWriter(&allOutputBuffer)
 
 	out, err := tf.RunCommandWithOutput(t.Context(), l, v, configbridge.TFRunOptsFromOpts(terragruntOptions), "same")
 

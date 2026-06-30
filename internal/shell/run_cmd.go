@@ -34,9 +34,9 @@ import (
 // if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `tofu`/`terraform`.
 const SignalForwardingDelay = time.Second * 15
 
-// ShellOptions contains the configuration needed to run shell commands.
+// ShellOptions contains the per-invocation configuration needed to run shell
+// commands.
 type ShellOptions struct {
-	Writers       writer.Writers
 	EngineOptions *engine.EngineOptions
 	EngineConfig  *engine.EngineConfig
 	Telemetry     *telemetry.Options
@@ -51,17 +51,11 @@ type ShellOptions struct {
 	LogDisableErrorSummary bool
 }
 
-// NewShellOptions creates ShellOptions with sensible defaults:
-//   - Writers default to os.Stdout / os.Stderr.
-//   - Telemetry is always non-nil; TRACEPARENT is read from the environment when set.
-//
-// Use the With* methods to override any of these.
+// NewShellOptions creates ShellOptions with sensible defaults. Telemetry is
+// always non-nil; TRACEPARENT is read from the environment when set. Use the
+// With* methods to override any field.
 func NewShellOptions() *ShellOptions {
 	opts := &ShellOptions{
-		Writers: writer.Writers{
-			Writer:    os.Stdout,
-			ErrWriter: os.Stderr,
-		},
 		Telemetry: &telemetry.Options{},
 	}
 
@@ -75,13 +69,6 @@ func NewShellOptions() *ShellOptions {
 // WithWorkingDir sets the working directory for command execution.
 func (o *ShellOptions) WithWorkingDir(dir string) *ShellOptions {
 	o.WorkingDir = dir
-
-	return o
-}
-
-// WithWriters sets the stdout/stderr writers.
-func (o *ShellOptions) WithWriters(w writer.Writers) *ShellOptions {
-	o.Writers = w
 
 	return o
 }
@@ -261,8 +248,8 @@ func runCommand(
 	l.Debugf("Running command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
 
 	var (
-		cmdStderr = io.MultiWriter(runOpts.Writers.ErrWriter, &cmdOpts.Output.Stderr)
-		cmdStdout = io.MultiWriter(runOpts.Writers.Writer, &cmdOpts.Output.Stdout)
+		cmdStderr = io.MultiWriter(v.Writers.ErrWriter, &cmdOpts.Output.Stderr)
+		cmdStdout = io.MultiWriter(v.Writers.Writer, &cmdOpts.Output.Stdout)
 	)
 
 	// Pass the traceparent to the child process if it is available in the context.
@@ -282,11 +269,11 @@ func runCommand(
 		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
 			l.Debugf("Using engine to run command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
 
-			cmdOutput, err := engine.Run(ctx, l, v, &engine.ExecutionOptions{
-				Writers: writer.Writers{
-					Writer:    writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
-					ErrWriter: writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
-				},
+			engineV := v.
+				WithWriter(writer.NewWrappedWriter(cmdStdout, v.Writers.Writer)).
+				WithErrWriter(writer.NewWrappedWriter(cmdStderr, v.Writers.ErrWriter))
+
+			cmdOutput, err := engine.Run(ctx, l, engineV, &engine.ExecutionOptions{
 				LogShowAbsPaths:        runOpts.LogShowAbsPaths,
 				LogDisableErrorSummary: runOpts.LogDisableErrorSummary,
 				EngineOptions:          runOpts.EngineOptions,

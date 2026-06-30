@@ -120,7 +120,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 				return
 			}
 
-			if writeErr := r.WriteSummary(opts.Writers.Writer); writeErr != nil {
+			if writeErr := r.WriteSummary(v.Writers.Writer); writeErr != nil {
 				l.Warnf("Failed to write summary: %v", writeErr)
 			}
 		}()

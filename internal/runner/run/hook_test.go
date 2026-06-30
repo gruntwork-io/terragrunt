@@ -3,7 +3,6 @@ package run_test
 import (
 	"context"
 	"errors"
-	"io"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -13,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
@@ -408,7 +406,6 @@ func newHookOpts() *run.Options {
 		TerraformCommand:  "plan",
 		TFPath:            "/fake/tofu",
 		MaxFoldersToCheck: 5,
-		Writers:           writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }
 

@@ -350,8 +350,6 @@ func parseComponent(
 		}
 
 		parseOpts.WorkingDir = workingDir
-		parseOpts.Writers.Writer = io.Discard
-		parseOpts.Writers.ErrWriter = io.Discard
 		parseOpts.SkipOutput = true
 		parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
@@ -359,7 +357,7 @@ func parseComponent(
 		// Clone v.Env so concurrent parseComponent goroutines launched by
 		// ParsePhase and RelationshipPhase don't race on the shared map when
 		// ObtainCredsForParsing writes auth-provider-cmd output into it.
-		parseV := v
+		parseV := v.WithWriter(io.Discard).WithErrWriter(io.Discard)
 		parseV.Env = maps.Clone(v.Env)
 
 		shellOpts := configbridge.ShellRunOptsFromOpts(parseOpts)

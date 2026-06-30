@@ -96,7 +96,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 		Experiments: opts.Experiments,
 	})
 	if err != nil {
-		return processDiagnostics(l, opts, diags, err)
+		return processDiagnostics(l, v, opts, diags, err)
 	}
 
 	// We do worktree generation here instead of in the discovery constructor
@@ -119,7 +119,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 
 	components, err := d.Discover(ctx, l, v.ToRoot(), opts)
 	if err != nil {
-		return processDiagnostics(l, opts, diags, err)
+		return processDiagnostics(l, v, opts, diags, err)
 	}
 
 	parseOptions := []hclparse.Option{diagnosticsHandler}
@@ -190,10 +190,10 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 		combinedErr = errors.Join(parseErrs...)
 	}
 
-	return processDiagnostics(l, opts, diags, combinedErr)
+	return processDiagnostics(l, v, opts, diags, combinedErr)
 }
 
-func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
+func processDiagnostics(l log.Logger, v run.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics, callErr error) error {
 	if len(diags) == 0 {
 		return callErr
 	}
@@ -212,7 +212,7 @@ func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags dia
 		return a < b
 	})
 
-	if err := writeDiagnostics(l, opts, diags); err != nil {
+	if err := writeDiagnostics(l, v, opts, diags); err != nil {
 		return err
 	}
 
@@ -228,13 +228,13 @@ func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags dia
 	return errors.Join(callErr, diagError)
 }
 
-func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
+func writeDiagnostics(l log.Logger, v run.Venv, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
 	render := view.NewHumanRender(l.Formatter().DisabledColors())
 	if opts.HCLValidateJSONOutput {
 		render = view.NewJSONRender()
 	}
 
-	writer := view.NewWriter(opts.Writers.Writer, render)
+	writer := view.NewWriter(v.Writers.Writer, render)
 
 	if opts.HCLValidateShowConfigPath {
 		return writer.ShowConfigPath(diags)
