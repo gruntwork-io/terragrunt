@@ -94,46 +94,76 @@ type engineInstance struct {
 	execOptions  *ExecutionOptions
 }
 
-// engineClients is the registry of engine plugin instances, keyed by the post-download
-// cache working dir. The lock guards only the map, never the plugin work (create,
-// shutdown RPC, kill), which the caller does outside it. Removing an instance under the
-// lock hands it to exactly one caller, so a batch Shutdown racing a per-unit ShutdownUnit
-// never shuts the same engine down twice.
+// engineEntry single-flights one cache dir's engine creation: the builder writes instance and
+// err, then closes ready, so every other reader must receive on ready first. That close is
+// their sole happens-before edge.
+type engineEntry struct {
+	ready       chan struct{}
+	instance    *engineInstance
+	err         error
+	execOptions *ExecutionOptions
+}
+
+// engineClients is the registry of engine instances, keyed by post-download cache working dir.
+// mu guards only map membership, never the slow create or shutdown work, so distinct cache
+// dirs proceed in parallel. Every removal is under mu, so a batch Shutdown racing a per-unit
+// ShutdownUnit never shuts an engine down twice.
 type engineClients struct {
-	clients map[string]*engineInstance
+	clients map[string]*engineEntry
 	mu      sync.Mutex
 }
 
 func newEngineClients() *engineClients {
-	return &engineClients{clients: make(map[string]*engineInstance)}
+	return &engineClients{clients: make(map[string]*engineEntry)}
 }
 
-// get returns the instance registered for key.
-func (c *engineClients) get(key string) (*engineInstance, bool) {
+// loadOrCreate returns the instance for key, or reserves the key and builds one via create.
+// Concurrent callers for one key share a single build instead of racing to register competing
+// engines. The bool reports whether an existing instance was reused.
+func (c *engineClients) loadOrCreate(
+	key string,
+	execOptions *ExecutionOptions,
+	create func() (*engineInstance, error),
+) (*engineInstance, bool, error) {
+	c.mu.Lock()
+
+	if e, found := c.clients[key]; found {
+		c.mu.Unlock()
+
+		<-e.ready
+
+		return e.instance, true, e.err
+	}
+
+	e := &engineEntry{ready: make(chan struct{}), execOptions: execOptions}
+	c.clients[key] = e
+	c.mu.Unlock()
+
+	e.instance, e.err = create()
+
+	if e.err != nil {
+		// Drop a failed build so the next Run rebuilds instead of serving the cached failure.
+		// The identity guard avoids deleting a different entry that replaced this one.
+		c.mu.Lock()
+		if c.clients[key] == e {
+			delete(c.clients, key)
+		}
+		c.mu.Unlock()
+	}
+
+	close(e.ready)
+
+	return e.instance, false, e.err
+}
+
+// takeAll removes and returns every registered entry.
+func (c *engineClients) takeAll() []*engineEntry {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	inst, ok := c.clients[key]
-
-	return inst, ok
-}
-
-// store registers inst under key.
-func (c *engineClients) store(key string, inst *engineInstance) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.clients[key] = inst
-}
-
-// takeAll removes and returns every registered instance.
-func (c *engineClients) takeAll() []*engineInstance {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	taken := make([]*engineInstance, 0, len(c.clients))
-	for _, inst := range c.clients {
-		taken = append(taken, inst)
+	taken := make([]*engineEntry, 0, len(c.clients))
+	for _, e := range c.clients {
+		taken = append(taken, e)
 	}
 
 	clear(c.clients)
@@ -141,17 +171,17 @@ func (c *engineClients) takeAll() []*engineInstance {
 	return taken
 }
 
-// takeByUnitDir removes and returns the instance belonging to the given unit, or nil if
-// none is registered.
-func (c *engineClients) takeByUnitDir(unitDir string) *engineInstance {
+// takeUnit removes and returns the entry for the given unit, or nil. It matches the
+// entry's execOptions, not the instance's, so it finds a unit whose engine is still building.
+func (c *engineClients) takeUnit(unitDir string) *engineEntry {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for key, inst := range c.clients {
-		if inst.execOptions.UnitDir == unitDir {
+	for key, e := range c.clients {
+		if e.execOptions.UnitDir == unitDir {
 			delete(c.clients, key)
 
-			return inst
+			return e
 		}
 	}
 
@@ -173,7 +203,13 @@ func Run(
 	}
 
 	cacheDir := execOptions.CacheDir
-	instance, found := engineClients.get(cacheDir)
+
+	instance, found, err := engineClients.loadOrCreate(cacheDir, execOptions, func() (*engineInstance, error) {
+		return createInstance(ctx, l, e, execOptions)
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	var output *util.CmdOutput
 
@@ -182,46 +218,48 @@ func Run(
 		"cache_dir":          cacheDir,
 		"engine_initialized": found,
 	}, func(runCtx context.Context) error {
-		// initialize engine for working directory
-		if !found {
-			// download engine if not available
-			if err = downloadEngine(runCtx, l, execOptions); err != nil {
-				return err
-			}
-
-			terragruntEngine, client, createEngineErr := createEngine(runCtx, l, e, execOptions)
-			if createEngineErr != nil {
-				return createEngineErr
-			}
-
-			instance = &engineInstance{
-				engineClient: terragruntEngine,
-				client:       client,
-				execOptions:  execOptions,
-			}
-			engineClients.store(cacheDir, instance)
-
-			if err = initialize(runCtx, l, execOptions, terragruntEngine); err != nil {
-				return err
-			}
-		}
-
-		terragruntEngine := instance.engineClient
-
 		var invokeErr error
 
-		output, invokeErr = invoke(runCtx, l, execOptions, terragruntEngine)
-		if invokeErr != nil {
-			return invokeErr
-		}
+		output, invokeErr = invoke(runCtx, l, execOptions, instance.engineClient)
 
-		return nil
+		return invokeErr
 	})
 	if runErr != nil {
 		return nil, runErr
 	}
 
 	return output, nil
+}
+
+// createInstance downloads, starts, and initializes an engine for execOptions. A plugin
+// that starts but fails to initialize is killed rather than leaked, since it is never
+// registered for a later Shutdown to reach.
+func createInstance(
+	ctx context.Context,
+	l log.Logger,
+	e vexec.Exec,
+	execOptions *ExecutionOptions,
+) (*engineInstance, error) {
+	if err := downloadEngine(ctx, l, execOptions); err != nil {
+		return nil, err
+	}
+
+	terragruntEngine, client, err := createEngine(ctx, l, e, execOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := initialize(ctx, l, execOptions, terragruntEngine); err != nil {
+		client.Kill()
+
+		return nil, err
+	}
+
+	return &engineInstance{
+		engineClient: terragruntEngine,
+		client:       client,
+		execOptions:  execOptions,
+	}, nil
 }
 
 // WithEngineValues add to context default values for engine.
@@ -570,8 +608,8 @@ func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experime
 		return err
 	}
 
-	for _, instance := range engineClients.takeAll() {
-		shutdownInstance(ctx, l, instance)
+	for _, entry := range engineClients.takeAll() {
+		drainEntry(ctx, l, entry)
 	}
 
 	return nil
@@ -596,18 +634,28 @@ func ShutdownUnit(
 		return err
 	}
 
-	if instance := engineClients.takeByUnitDir(filepath.Clean(unitDir)); instance != nil {
-		shutdownInstance(ctx, l, instance)
+	if entry := engineClients.takeUnit(filepath.Clean(unitDir)); entry != nil {
+		drainEntry(ctx, l, entry)
 	}
 
 	return nil
 }
 
-// shutdownInstance shuts down the instance's engine and releases its plugin subprocess,
-// force-killing it if it does not exit gracefully within the timeout. Failures are
-// logged, never returned: engine shutdown is best-effort and must not fail the run. The
-// context is detached from cancellation so an already-cancelled run still tears the
-// engine down.
+// drainEntry shuts down the entry's engine after its build settles. A failed build leaves a
+// nil instance and nothing to release: createInstance already killed any half-built plugin.
+func drainEntry(ctx context.Context, l log.Logger, e *engineEntry) {
+	<-e.ready
+
+	if e.instance == nil {
+		return
+	}
+
+	shutdownInstance(ctx, l, e.instance)
+}
+
+// shutdownInstance tears down one engine, force-killing a plugin that will not exit in time.
+// Errors are logged, not returned: shutdown is best-effort and must not fail the run. The
+// context is detached from cancellation so an already-cancelled run still shuts engines down.
 func shutdownInstance(ctx context.Context, l log.Logger, instance *engineInstance) {
 	ctx = context.WithoutCancel(ctx)
 
@@ -781,7 +829,11 @@ func createEngine(
 			return err
 		}
 
-		terragruntEngine := rawClient.(proto.EngineClient)
+		terragruntEngine, ok := rawClient.(proto.EngineClient)
+		if !ok {
+			return fmt.Errorf("engine plugin returned unexpected client type %T", rawClient)
+		}
+
 		engineClient = &terragruntEngine
 		pluginClient = client
 

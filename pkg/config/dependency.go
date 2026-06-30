@@ -1528,6 +1528,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	runOpts.LogDisableErrorSummary = pctx.LogDisableErrorSummary
 	runOpts.TerragruntConfigPath = pctx.TerragruntConfigPath
 	runOpts.OriginalTerragruntConfigPath = pctx.OriginalTerragruntConfigPath
+	runOpts.UnitDir = pctx.WorkingDir
 	runOpts.CacheDir = pctx.WorkingDir
 	runOpts.RootWorkingDir = pctx.RootWorkingDir
 	runOpts.DownloadDir = pctx.DownloadDir
