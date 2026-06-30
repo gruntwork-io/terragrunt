@@ -1517,10 +1517,31 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		return nil, err
 	}
 
-	// Build run.Options directly from ParsingContext fields.
-	// Override Writers.Writer to capture stdout, and force ForwardTFStdout/JSONLogFormat off.
+	runOpts := runOptionsFromPctx(pctx, stdoutBufferWriter)
+
+	err = run.Run(ctx, l, run.FromRoot(pctx.Venv), runOpts, report.NewReport(), runCfg, credsGetter)
+	if err != nil {
+		return nil, err
+	}
+
+	err = stdoutBufferWriter.Flush()
+	if err != nil {
+		return nil, err
+	}
+
+	jsonString := strings.TrimSpace(stdoutBuffer.String())
+	jsonBytes := []byte(jsonString)
+
+	l.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)
+
+	return jsonBytes, nil
+}
+
+// runOptionsFromPctx builds run.Options directly from ParsingContext fields.
+// Override Writers.Writer to capture stdout, and force ForwardTFStdout/JSONLogFormat off.
+func runOptionsFromPctx(pctx *ParsingContext, stdoutWriter io.Writer) *run.Options {
 	runWriters := pctx.Writers
-	runWriters.Writer = stdoutBufferWriter
+	runWriters.Writer = stdoutWriter
 
 	runOpts := run.NewOptions()
 	runOpts.Writers = runWriters
@@ -1549,27 +1570,15 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	runOpts.Headless = pctx.Headless
 	runOpts.Debug = pctx.Debug
 	runOpts.AutoInit = pctx.AutoInit
+	runOpts.AutoRetry = pctx.AutoRetry
 	runOpts.BackendBootstrap = pctx.BackendBootstrap
 	runOpts.Telemetry = pctx.Telemetry
 	runOpts.AuthProviderCmd = pctx.AuthProviderCmd
+	runOpts.MaxFoldersToCheck = pctx.MaxFoldersToCheck
 	runOpts.CASCloneDepth = pctx.CASCloneDepth
+	runOpts.NoCAS = pctx.NoCAS
 
-	err = run.Run(ctx, l, run.FromRoot(pctx.Venv), runOpts, report.NewReport(), runCfg, credsGetter)
-	if err != nil {
-		return nil, err
-	}
-
-	err = stdoutBufferWriter.Flush()
-	if err != nil {
-		return nil, err
-	}
-
-	jsonString := strings.TrimSpace(stdoutBuffer.String())
-	jsonBytes := []byte(jsonString)
-
-	l.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)
-
-	return jsonBytes, nil
+	return runOpts
 }
 
 // shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.

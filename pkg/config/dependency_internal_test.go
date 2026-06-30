@@ -1,6 +1,7 @@
 package config
 
 import (
+	"io"
 	"path/filepath"
 	"testing"
 
@@ -88,6 +89,38 @@ func TestExtractFirstJSONObject(t *testing.T) {
 			}
 
 			assert.JSONEq(t, tc.want, string(got))
+		})
+	}
+}
+
+func TestRunOptionsFromPctxCopiesExecutionFlags(t *testing.T) {
+	t.Parallel()
+
+	tcs := []struct {
+		name              string
+		autoRetry         bool
+		noCAS             bool
+		maxFoldersToCheck int
+	}{
+		{name: "enabled", autoRetry: true, noCAS: true, maxFoldersToCheck: 5},
+		{name: "disabled", autoRetry: false, noCAS: false, maxFoldersToCheck: 0},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			pctx := &ParsingContext{
+				AutoRetry:         tc.autoRetry,
+				NoCAS:             tc.noCAS,
+				MaxFoldersToCheck: tc.maxFoldersToCheck,
+			}
+
+			runOpts := runOptionsFromPctx(pctx, io.Discard)
+
+			assert.Equal(t, tc.autoRetry, runOpts.AutoRetry)
+			assert.Equal(t, tc.noCAS, runOpts.NoCAS)
+			assert.Equal(t, tc.maxFoldersToCheck, runOpts.MaxFoldersToCheck)
 		})
 	}
 }
