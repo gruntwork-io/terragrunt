@@ -12,13 +12,12 @@ jobs:
       matrix:
         os: [ubuntu, macos]
     env:
-      MISE_PROFILE: cicd
       # Reduce GC frequency (default 100) to speed up builds/tests at cost of higher memory
       GOGC: "400"
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           fetch-depth: 1
 

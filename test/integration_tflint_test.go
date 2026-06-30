@@ -1,5 +1,4 @@
-//go:build tflint
-// +build tflint
+//go:build tflint && !windows
 
 //nolint:paralleltest
 package test_test
@@ -99,8 +98,9 @@ func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 }
 
 func TestTflintInitSameModule(t *testing.T) {
-	mirror := helpers.StartTerragruntMirror(t)
-	rootPath := mirror.RenderFixture(t, testFixtureParallelRun, ".tflint.hcl")
+	mirror := helpers.NewGitServer(t)
+	rootPath := mirror.RenderFixture(testFixtureParallelRun, ".tflint.hcl")
+
 	t.Cleanup(func() {
 		helpers.RemoveFolder(t, rootPath)
 	})

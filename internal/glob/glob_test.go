@@ -3,7 +3,6 @@ package glob_test
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/glob"
@@ -249,14 +248,9 @@ func TestExpand(t *testing.T) {
 			got, err := glob.Expand(fs, tc.pattern, tc.opts...)
 			require.NoError(t, err)
 
-			// Sort both sides so the assertion is robust to walker ordering
-			// changes without asserting a specific traversal order.
-			slices.Sort(got)
-
-			want := slices.Clone(tc.want)
-			slices.Sort(want)
-
-			assert.Equal(t, want, got, "pattern %q", tc.pattern)
+			// ElementsMatch ignores order, so the assertion is robust to walker
+			// ordering changes without asserting a specific traversal order.
+			assert.ElementsMatch(t, tc.want, got, "pattern %q", tc.pattern)
 		})
 	}
 }
@@ -269,6 +263,109 @@ func TestExpandRejectsInvalidPattern(t *testing.T) {
 
 	_, err := glob.Expand(fs, "/mod/[unterminated")
 	require.Error(t, err)
+}
+
+func TestExpandBoundary(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		wantErr error
+		name    string
+		pattern string
+		opts    []glob.ExpandOption
+		want    []string
+	}{
+		{
+			name:    "no boundary imposes no constraint",
+			pattern: "/{*.yaml}",
+			want:    []string{"/a.yaml"},
+		},
+		{
+			name:    "boundary at filesystem root permits a root walk",
+			pattern: "/{*.yaml}",
+			opts:    []glob.ExpandOption{glob.WithBoundary("/")},
+			want:    []string{"/a.yaml"},
+		},
+		{
+			name:    "walk root inside the boundary is allowed",
+			pattern: "/mod/*.yaml",
+			opts:    []glob.ExpandOption{glob.WithBoundary("/mod")},
+			want:    []string{"/mod/keep.yaml"},
+		},
+		{
+			name:    "walk root outside the boundary is refused",
+			pattern: "/other/*.yaml",
+			opts:    []glob.ExpandOption{glob.WithBoundary("/mod")},
+			wantErr: glob.ErrOutsideBoundary,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := vfs.NewMemMapFS()
+			require.NoError(t, vfs.WriteFile(fs, "/a.yaml", []byte{}, 0o644))
+			require.NoError(t, vfs.WriteFile(fs, "/mod/keep.yaml", []byte{}, 0o644))
+			require.NoError(t, vfs.WriteFile(fs, "/other/skip.yaml", []byte{}, 0o644))
+
+			got, err := glob.Expand(fs, tc.pattern, tc.opts...)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tc.want, got, "pattern %q", tc.pattern)
+		})
+	}
+}
+
+// TestExpandBoundaryResolvesSymlinksConsistently pins that the boundary check
+// treats a walk root the same whether or not it exists on disk. The boundary
+// crosses a symlink, so an absent root that cannot be symlink-resolved on its
+// own must still be recognized as inside it rather than wrongly refused.
+func TestExpandBoundaryResolvesSymlinksConsistently(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/real", 0o755))
+	require.NoError(t, vfs.Symlink(fs, "/real", "/link"))
+
+	got, err := glob.Expand(fs, "/link/absent/*.yaml", glob.WithBoundary("/link"))
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+// TestExpandBoundaryAllowsExistingSymlinkedRoot is the happy-path counterpart:
+// when the walk root itself exists behind the boundary's symlink, the resolved
+// comparison recognizes it as inside the boundary rather than refusing it.
+func TestExpandBoundaryAllowsExistingSymlinkedRoot(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/real/sub", 0o755))
+	require.NoError(t, vfs.WriteFile(fs, "/real/sub/a.yaml", nil, 0o644))
+	require.NoError(t, vfs.Symlink(fs, "/real", "/link"))
+
+	_, err := glob.Expand(fs, "/link/sub/*.yaml", glob.WithBoundary("/link"))
+	require.NoError(t, err, "an existing root behind the boundary symlink must be allowed")
+}
+
+// TestExpandRelativePatternWithLeadingWildcard pins that a metacharacter with
+// no preceding directory separator walks from the current directory rather than
+// mis-splitting the root: the root-level file matches while the nested one does
+// not, since "*" never crosses a separator.
+func TestExpandRelativePatternWithLeadingWildcard(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "a.yaml", nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, "sub/b.yaml", nil, 0o644))
+
+	got, err := glob.Expand(fs, "*.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a.yaml"}, got)
 }
 
 // TestLegacyExpandCollapsesGlobstar documents the reason LegacyExpand exists:
@@ -292,15 +389,12 @@ func TestLegacyExpandCollapsesGlobstar(t *testing.T) {
 	got, err := glob.LegacyExpand(pattern)
 	require.NoError(t, err)
 
-	slices.Sort(got)
-
 	want := []string{
 		filepath.Join(root, "root.tf"),
 		filepath.Join(root, "sub", "nested.tf"),
 	}
-	slices.Sort(want)
 
-	assert.Equal(t, want, got,
+	assert.ElementsMatch(t, want, got,
 		"zglob collapses `**` so root.tf matches even though it sits alongside sub/")
 }
 

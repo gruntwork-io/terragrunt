@@ -40,6 +40,8 @@ const (
 	testFixtureExposedIncludePartialParseError   = "fixtures/regressions/exposed-include-partial-parse-error"
 	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
 	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
+	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
+	testFixtureDependencyHookOutput              = "fixtures/regressions/dependency-hook-output"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -282,7 +284,7 @@ func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureParsingDeprecated)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureParsingDeprecated)
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture(testFixtureParsingDeprecated)
 	childPath := filepath.Join(tmpEnvPath, testFixtureParsingDeprecated, "child")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
@@ -896,15 +898,11 @@ func TestExposedIncludeErrorIdentifiesIncludeBlock(t *testing.T) {
 	assert.Contains(t, stderr, "root.hcl", "error should name the included (parent) file")
 }
 
-// TestQueueDisplayOrder verifies that the flat queue display lists units in
+// TestQueueDisplayOrder verifies that the DAG queue display lists units in
 // dependency order: dependencies before dependents.
 // Regression test for https://github.com/gruntwork-io/terragrunt/issues/5035
 func TestQueueDisplayOrder(t *testing.T) {
 	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping: experiment mode enables dag-queue-display which changes queue output format")
-	}
 
 	// The fixture has the chain: vpc -> database -> backend-app -> frontend-app
 	// plus monitoring (independent).
@@ -995,7 +993,7 @@ func TestDAGQueueDisplay(t *testing.T) {
 		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
 
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-			t, "terragrunt run --all --non-interactive --no-color --experiment dag-queue-display --working-dir "+rootPath+" -- plan",
+			t, "terragrunt run --all --non-interactive --no-color --working-dir "+rootPath+" -- plan",
 		)
 		require.NoError(t, err)
 
@@ -1011,7 +1009,7 @@ func TestDAGQueueDisplay(t *testing.T) {
 		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
 
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-			t, "terragrunt run --all --non-interactive --no-color --experiment dag-queue-display --working-dir "+rootPath+" -- plan -destroy",
+			t, "terragrunt run --all --non-interactive --no-color --working-dir "+rootPath+" -- plan -destroy",
 		)
 		require.NoError(t, err)
 
@@ -1032,8 +1030,8 @@ func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
 
-	require.NoError(t, srv.CommitFile("main.tf", []byte("# benign\n"), "module"))
-	require.NoError(t, srv.CommitFile(".terragrunt-module-manifest", encodeForgedManifest(t, forgedFile(sentinel)), "forged manifest"))
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# benign\n"), "module"))
+	require.NoError(t, srv.CommitFile(t.Context(), ".terragrunt-module-manifest", encodeForgedManifest(t, forgedFile(sentinel)), "forged manifest"))
 
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
@@ -1162,4 +1160,45 @@ func findCachedFile(t *testing.T, cacheRoot, name string) string {
 	require.NoError(t, walkErr, "walking %s", cacheRoot)
 
 	return found
+}
+
+// TestDependencyExtraArgsEnvVarsResolveOutput checks that dependency output resolution honors extra_arguments env_vars
+func TestDependencyExtraArgsEnvVarsResolveOutput(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyExtraArgsEnv)
+	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyExtraArgsEnv)
+	moduleAPath := filepath.Join(testPath, "module-a")
+	moduleBPath := filepath.Join(testPath, "module-b")
+
+	// apply the dependency so its state is written under the custom workspace selected by extra_arguments
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleAPath)
+	require.NoError(t, err)
+
+	// resolving module-a outputs here must use the extra_arguments workspace to read the right state
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleBPath)
+	require.NoError(t, err)
+
+	// confirm module-a output propagated through the dependency, not just a clean exit
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw test_output --non-interactive --working-dir "+moduleBPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "hello from module-a")
+}
+
+// TestDependencyHookOutputResolution checks a unit can resolve outputs of a dependency whose before_hook references its own dependency.
+func TestDependencyHookOutputResolution(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyHookOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyHookOutput)
+
+	// module-a <- module-b (before_hook references module-a) <- module-c
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// confirm module-b's output propagated to module-c
+	moduleCPath := filepath.Join(rootPath, "module-c")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw echo --non-interactive --working-dir "+moduleCPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "argocd")
 }

@@ -1,0 +1,56 @@
+---
+version: "v1.1.0"
+category: "new-features"
+order: 2
+---
+
+#### Content Addressable Store (CAS)
+
+The [Content Addressable Store (CAS)](/features/caching/cas) deduplicates source downloads across configurations. It addresses repositories and modules by their content, stores them locally, and serves later requests from that local store instead of repeating the fetch. This speeds up catalog cloning, OpenTofu/Terraform source fetching, and stack generation, and identical files occupy disk space once regardless of how many configurations use them.
+
+The CAS is no longer limited to Git. It also deduplicates HTTP, Amazon S3, Google Cloud Storage, Mercurial, and SMB sources, along with OpenTofu/Terraform registry sources fetched via `tfr://`. See [supported sources](/features/caching/cas#supported-sources) for how each one resolves and deduplicates content.
+
+CAS is enabled by default. Use the `--no-cas` flag (or `TG_NO_CAS=true`) to opt out of it for a run:
+
+```bash
+terragrunt run --all --no-cas -- plan
+```
+
+Two new attributes give you finer control, and both default to off:
+
+- `update_source_with_cas` makes a generated stack self-contained. Set it on a `unit`, `stack`, or `terraform` block with a relative `source`, and `terragrunt stack generate` rewrites that source into a content-addressed `cas::` reference, so the generated tree no longer depends on the surrounding repository layout. Catalog authors can keep relative paths in their sources and still ship a portable, reproducible stack:
+
+  ```hcl
+  # stacks/networking/terragrunt.stack.hcl
+  unit "vpc" {
+    source = "../..//units/vpc"
+    path   = "vpc"
+
+    update_source_with_cas = true
+  }
+  ```
+
+  After `terragrunt stack generate`, the relative path is replaced by a reference to the exact tree the CAS stored:
+
+  ```hcl
+  # Generated output
+  unit "vpc" {
+    source = "cas::sha1:f39ea0ebf891c9954c89d07b73b487ff938ef08b"
+    path   = "vpc"
+
+    update_source_with_cas = true
+  }
+  ```
+
+- `mutable` controls how the CAS places fetched content on disk. By default, the CAS hard links files from its shared store into `.terragrunt-cache` and marks them read-only, which is fast and uses no extra space, but means the files can't be edited in place. Set `mutable = true` on a `terraform` block to copy the content instead, making the working tree safe to edit at the cost of extra I/O and disk space:
+
+  ```hcl
+  # units/vpc/terragrunt.hcl
+  terraform {
+    source = "github.com/acme/catalog//modules/vpc"
+
+    mutable = true
+  }
+  ```
+
+Previously gated behind the `cas` experiment, the CAS no longer requires `--experiment cas`.

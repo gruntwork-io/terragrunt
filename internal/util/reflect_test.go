@@ -24,7 +24,7 @@ func TestKindOf(t *testing.T) {
 		{true, reflect.Bool},
 		{nil, reflect.Invalid},
 		{"Hello World!", reflect.String},
-		{new(string), reflect.Ptr},
+		{new(string), reflect.Pointer},
 		{"", reflect.String},
 		{any(false), reflect.Bool},
 	}

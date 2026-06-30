@@ -10,7 +10,6 @@ import {
   isReleased,
   uniqueVersions,
 } from '@lib/changelog';
-import { sidebar } from '../../data/sidebar';
 
 const showUnreleased = import.meta.env.DEV;
 
@@ -44,7 +43,6 @@ const headings = [
     description: 'A log of notable changes to Terragrunt.',
   }}
   headings={headings}
-  sidebar={sidebar}
 >
   <div data-pagefind-ignore>
     <p>This page tracks notable changes to Terragrunt. For the full list of releases and their assets, see the <a href="https://github.com/gruntwork-io/terragrunt/releases">GitHub Releases Page</a>.</p>

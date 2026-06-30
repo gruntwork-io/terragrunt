@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -45,5 +46,5 @@ func run() (code int) {
 		return 1
 	}
 
-	return cli.NewApp(l, opts).RunWithExitCode(os.Args, tf.NewDetailedExitCodeMap(), reporter)
+	return cli.NewApp(l, opts, venv.OSVenv()).RunWithExitCode(os.Args, tf.NewDetailedExitCodeMap(), reporter)
 }

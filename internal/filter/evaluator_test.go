@@ -1243,7 +1243,8 @@ func TestEvaluate_GraphExpression_DepthLimited_MultipleTargets(t *testing.T) {
 		result, err := filter.Evaluate(l, expr, components)
 		require.NoError(t, err)
 
-		// Should include: targetA, targetB, intermediate (1 hop from A), shared (2 hops from A, 1 from B), deep1 (2 hops from B)
+		// Should include: targetA, targetB, intermediate (1 hop from A),
+		// shared (2 hops from A, 1 from B), deep1 (2 hops from B)
 		// Should NOT include: deep2 (3 hops from B, too deep)
 		assert.ElementsMatch(t, []component.Component{targetA, targetB, intermediate, shared, deep1}, result)
 	})

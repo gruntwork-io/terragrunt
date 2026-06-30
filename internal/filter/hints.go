@@ -47,7 +47,8 @@ func getUnexpectedTokenHint(token, query string, position int) string {
 	case "}":
 		return "Unexpected '}' without matching '{'. Explicit path expressions use braces. e.g. '{./my path}'"
 	case "...":
-		return "The '...' operator must be used in either a graph-based or Git-based expression. e.g. '...foo...' or '[main...HEAD]'"
+		return "The '...' operator must be used in either a graph-based or Git-based expression. " +
+			"e.g. '...foo...' or '[main...HEAD]'"
 	}
 
 	// Generic unexpected token hints
@@ -62,7 +63,8 @@ func getUnexpectedTokenHint(token, query string, position int) string {
 func getCaretHint(query string, position int) string {
 	// Check if caret is at start - suggests graph exclusion usage
 	if position == 0 {
-		return "The '^' operator excludes the target from graph results. e.g. '^foo...' selects foo's dependents but not foo itself."
+		return "The '^' operator excludes the target from graph results. " +
+			"e.g. '^foo...' selects foo's dependents but not foo itself."
 	}
 
 	// Check if caret follows text (e.g., "HEAD^")
@@ -72,7 +74,11 @@ func getCaretHint(query string, position int) string {
 		// Check if it follows an ellipsis - suggest moving caret to left side
 		if targetPart, found := strings.CutSuffix(beforeCaret, "..."); found {
 			// Extract the target before the ellipsis for a dynamic suggestion
-			return fmt.Sprintf("The '^' operator excludes the target from graph results when used on the left side of the expression. Did you mean '^%s...'?", targetPart)
+			return fmt.Sprintf(
+				"The '^' operator excludes the target from graph results when used on the left side "+
+					"of the expression. Did you mean '^%s...'?",
+				targetPart,
+			)
 		}
 
 		// Find the immediate identifier before caret (split by operators/whitespace)
@@ -83,7 +89,10 @@ func getCaretHint(query string, position int) string {
 		if len(parts) > 0 {
 			lastIdent := parts[len(parts)-1]
 			if lastIdent != "" {
-				return fmt.Sprintf("Git-based expressions require surrounding references with '[]'. Did you mean '[%s^]'?", lastIdent)
+				return fmt.Sprintf(
+					"Git-based expressions require surrounding references with '[]'. Did you mean '[%s^]'?",
+					lastIdent,
+				)
 			}
 		}
 	}
@@ -97,7 +106,8 @@ func getUnexpectedEOFHint(query string) string {
 	trimmed := strings.TrimSpace(query)
 
 	if strings.HasSuffix(trimmed, "...") {
-		return "The '...' operator must be used in either a graph-based or Git-based expression. e.g. '...foo...' or '[main...HEAD]'"
+		return "The '...' operator must be used in either a graph-based or Git-based expression. " +
+			"e.g. '...foo...' or '[main...HEAD]'"
 	}
 
 	if strings.HasSuffix(trimmed, "^") {

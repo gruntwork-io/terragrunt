@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -25,11 +26,12 @@ func NewGetter() *Getter {
 func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 	ctx context.Context,
 	l log.Logger,
+	exec vexec.Exec,
 	env map[string]string,
 	authProviders ...providers.Provider,
 ) error {
 	for _, provider := range authProviders {
-		creds, err := provider.GetCredentials(ctx, l)
+		creds, err := provider.GetCredentials(ctx, l, exec)
 		if err != nil {
 			return err
 		}
@@ -60,6 +62,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 func ObtainCredsForParsing(
 	ctx context.Context,
 	l log.Logger,
+	exec vexec.Exec,
 	authProviderCmd string,
 	env map[string]string,
 	shellOpts *shell.ShellOptions,
@@ -67,7 +70,7 @@ func ObtainCredsForParsing(
 	g := NewGetter()
 
 	provider := externalcmd.NewProvider(l, authProviderCmd, shellOpts)
-	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, env, provider); err != nil {
+	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, exec, env, provider); err != nil {
 		return nil, err
 	}
 

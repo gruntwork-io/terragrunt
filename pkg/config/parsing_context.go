@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -38,6 +39,12 @@ const (
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
 	Writers writer.Writers
+
+	// Venv is the virtualized environment used by HCL helper functions
+	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
+	// Defaults to the OS-backed environment when [NewParsingContext] is
+	// called; callers with a threaded root Venv set it before parsing.
+	Venv venv.Venv
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
@@ -101,6 +108,8 @@ type ParsingContext struct {
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
 	NoCAS                            bool
+	LogShowAbsPaths                  bool
+	LogDisableErrorSummary           bool
 
 	// skipAutoIncludeMerge is set on contexts that parse the files an autoinclude pulls in through its
 	// own include blocks, so those files do not re-merge a sibling autoinclude. This bounds the merge to
@@ -112,6 +121,7 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (conte
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
 		FilesRead:        NewFilesRead(),
+		Venv:             venv.OSVenv(),
 	}
 
 	for _, opt := range opts {

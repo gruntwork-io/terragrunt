@@ -6,11 +6,68 @@ sidebar:
   order: 3
 ---
 
+import { Aside, Card } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+
 ## Easy Wins
 
 Normally, it's best practice to start by measuring performance before making any changes. This allows you to understand the impact of your changes, and to identify areas for improvement.
 
 However, given the nature of the problems that Terragrunt solves, there are some obvious wins that you can make without measuring performance, if you're aware of the tradeoffs.
+
+### Running Fewer Units
+
+The fastest run is the one that doesn't happen. Before tuning how quickly units run, make sure you aren't running units that don't need to run at all.
+
+The [`--filter`](/features/filter) flag selects the units a command operates on using a flexible query language. The simplest form is a [path expression](/features/filter/path), which is also the easiest way to control which units are discovered and run:
+
+```bash
+terragrunt run --all --filter './prod/**' -- plan
+```
+
+The biggest win is usually in CI: instead of planning every unit in the repository on every change, use a [Git expression](/features/filter/git) to target only the units affected by a change:
+
+```bash
+terragrunt run --all --filter '[main...HEAD]' -- plan
+```
+
+The [`--filter-affected`](/reference/cli/commands/run#filter-affected) flag is a shorthand for exactly this, comparing your repository's default branch to `HEAD`:
+
+```bash
+terragrunt run --all --filter-affected -- plan
+```
+
+Filters can also select by [name](/features/filter/name), [path](/features/filter/path), [attribute](/features/filter/attributes), and [graph relationship](/features/filter/graph) (a unit plus everything that depends on it, say), and they can be [combined](/features/filter/combining). The older `--queue-include-dir`, `--queue-include-units-reading`, and related `--queue-*` flags still work as aliases for equivalent filter expressions.
+
+#### Running Fewer Units - Gotchas
+
+<Card title="Filtering doesn't always reduce discovery" icon="magnifier">
+
+Filtering reduces how many units run, but not always how many are discovered. Depending on the expression, Terragrunt may still need to parse configurations beyond the filtered set to evaluate the filter and build the dependency graph, so discovery-phase costs can remain. The [Skipping Auth During Discovery](#skipping-auth-during-discovery) and [Reducing Parse Overhead](#reducing-parse-overhead) sections below address those.
+
+</Card>
+
+<Card title="Filter expression costs vary" icon="random">
+
+Expressions differ in how much discovery work they cause:
+
+| Expression | Example | Discovery work |
+| ---------- | ------- | -------------- |
+| [Name](/features/filter/name), [path](/features/filter/path), and attributes like `type=` | `./prod/**` | Walks the directory tree; no parsing |
+| `reading=` | `reading=common.yaml` | Parses candidate units to determine which files each one reads |
+| [Git](/features/filter/git#how-it-works) | `[main...HEAD]` | Generates a temporary Git worktree for each reference being compared |
+| [Graph](/features/filter/graph), dependencies | `vpc...` | Follows the dependencies declared by the target |
+| [Graph](/features/filter/graph), dependents | `...vpc` | Searches from the target's directory up to the repository root, parsing configurations along the way |
+
+Dependent discovery is the most expensive of these, and it can parse directories well outside your working directory.
+
+</Card>
+
+<Card title="Uncommitted changes aren't affected" icon="seti:git">
+
+The `--filter-affected` flag compares committed changes. Uncommitted local modifications may not be included, and Terragrunt logs a warning when it detects them.
+
+</Card>
 
 ### Provider Cache Dir
 
@@ -22,11 +79,19 @@ This feature automatically configures OpenTofu to use its built-in provider cach
 
 For most users at sensible scales, this is an automatic performance win that you don't need to do anything to enable.
 
-### Provider Cache Dir - Gotchas
+#### Provider Cache Dir - Gotchas
 
-At very large scales, you might find that the filesystem lock contention between OpenTofu processes to synchronize access to the provider cache directory is a bottleneck. You might also find that you can't use the provider cache directory because you are storing your provider cache in a shared NFS mount or are using Terraform or an older version of OpenTofu.
+<Card title="Lock contention at very large scales" icon="warning">
 
-In these scenarios, you can use the [Provider Cache Server](/features/caching/provider-cache-server) feature to improve performance.
+At very large scales, you might find that the filesystem lock contention between OpenTofu processes to synchronize access to the provider cache directory is a bottleneck. The [Provider Cache Server](/features/caching/provider-cache-server) avoids this contention.
+
+</Card>
+
+<Card title="Not available in every setup" icon="error">
+
+You can't use the provider cache directory if you store your provider cache in a shared NFS mount, use Terraform, or use an older version of OpenTofu. In these scenarios, the [Provider Cache Server](/features/caching/provider-cache-server) can improve performance instead.
+
+</Card>
 
 ### Provider Cache Server
 
@@ -38,11 +103,19 @@ terragrunt run --all plan --provider-cache
 
 #### Provider Cache - Gotchas
 
+<Card title="Built for many runs at once" icon="rocket">
+
 The provider cache server is a single server that is used by all Terragrunt runs being performed in a given Terragrunt invocation. You will see the most benefit if you are using it in a command that will perform many OpenTofu/Terraform operations, like with the `--all` flag and the `--graph` flag.
+
+</Card>
+
+<Card title="Can be a net negative for single runs" icon="warning">
 
 When performing individual runs, like `terragrunt plan`, the provider cache server can be a net negative to performance, because starting and stopping the server might add more overhead than just downloading the providers (or using the [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir) feature). Whether this is the case depends on many factors, including network speed, the number of providers being downloaded, and whether or not the providers are already cached in the Terragrunt provider cache.
 
 When in doubt, [measure the performance](#measuring-performance) before and after enabling the provider cache server to see if it's a net win for your use case.
+
+</Card>
 
 ### Fetching Output From State
 
@@ -60,15 +133,127 @@ terragrunt run --all plan --experiment=dependency-fetch-output-from-state
 
 #### Fetching Output From State - Gotchas
 
-The first thing you need to be aware of when considering usage of the `dependency-fetch-output-from-state` experiment is that it only works for S3 backends. If you are using a different backend, this experiment won't do anything.
+<Card title="S3 backends only" icon="information">
 
-Next, you should be aware that there is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform.
+The `dependency-fetch-output-from-state` experiment only works for S3 backends. If you are using a different backend, this experiment won't do anything.
 
-We are coordinating with the OpenTofu team to improve the performance of the `output` command, and we hope that this flag will be unnecessary for most users in the future.
+</Card>
 
-Additionally, this experiment is **not compatible with OpenTofu state encryption**. When client-side state encryption is enabled, the state file in S3 is encrypted before upload and cannot be parsed directly by Terragrunt, resulting in a hard failure. If you encounter JSON parsing errors when using this experiment, check whether you have OpenTofu state encryption enabled and disable the experiment with `--no-dependency-fetch-output-from-state` if so.
+<Card title="State file schemas may change" icon="warning">
 
-See [#1549](https://github.com/opentofu/opentofu/issues/1549) for more details.
+There is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform.
+
+</Card>
+
+<Card title="Incompatible with OpenTofu state encryption" icon="error">
+
+When client-side state encryption is enabled, the state file in S3 is encrypted before upload and cannot be parsed directly by Terragrunt, resulting in a hard failure. If you encounter JSON parsing errors when using this experiment, check whether you have OpenTofu state encryption enabled and disable the experiment with `--no-dependency-fetch-output-from-state` if so.
+
+</Card>
+
+### Skipping Auth During Discovery
+
+<Before version="1.1.0">
+<Aside type="tip" title="Experimental">
+The `--no-discovery-auth-provider-cmd` flag is gated behind the [`opt-out-auth`](/reference/experiments/active#opt-out-auth) experiment. Enable it with `--experiment=opt-out-auth` (or `TG_EXPERIMENT=opt-out-auth`); otherwise setting the flag returns an error.
+</Aside>
+</Before>
+
+If you use the [`--auth-provider-cmd`](/reference/cli/commands/run#auth-provider-cmd) flag to fetch credentials at runtime, Terragrunt runs that command once per parsed component during the discovery phase, so that configuration parsing can reliably resolve HCL functions like `get_aws_account_id` and `run_cmd`.
+
+On large repositories, this can dominate wall-clock time, because the auth command runs for every discovered unit, not just the subset that will actually run. This is especially noticeable when using reading-based filters like `--queue-include-units-reading`, where discovery has to parse the whole tree to select a small number of units.
+
+The [`--no-discovery-auth-provider-cmd`](/reference/cli/commands/run#no-discovery-auth-provider-cmd) flag (env: `TG_NO_DISCOVERY_AUTH_PROVIDER_CMD`) skips those discovery-time invocations. The auth provider command still runs normally for the units that actually execute.
+
+```bash
+terragrunt run --all \
+  --auth-provider-cmd /path/to/auth-script.sh \
+  --no-discovery-auth-provider-cmd \
+  --queue-include-units-reading=./changed-file.txt \
+  plan
+```
+
+#### Skipping Auth During Discovery - Gotchas
+
+<Card title="Parsing that needs credentials will fail" icon="error">
+
+Discovery-time authentication exists for a reason: any configuration that needs credentials just to parse will fail without it. If a unit's `source` URL, dependency paths, or other discovery-relevant blocks depend on values produced by `--auth-provider-cmd` (an account ID fetched via `get_aws_account_id`, or a `run_cmd` call that hits an authenticated API), parsing that unit will fail with the flag set.
+
+Use the flag when you know your configurations parse successfully without any prior authentication, and credentials are only needed at run time.
+
+</Card>
+
+## Reducing Parse Overhead
+
+Commands that operate on multiple units, like `run --all`, parse the configuration of every discovered unit before anything runs. Included files don't get parsed once and shared: they are evaluated again in the context of each unit that includes them. Anything expensive in a root configuration is paid once per unit, not once per invocation, so small per-parse costs add up quickly on large repositories.
+
+### External Commands During Parsing
+
+The [`run_cmd`](/reference/hcl/functions/#run_cmd) HCL function executes during parsing, and its results are cached per directory. A `run_cmd` call in a root configuration included by a hundred units runs a hundred times, once per unit, even when it produces the same output every time.
+
+When the output doesn't depend on the directory it runs in (resolving the current git commit for tagging resources, say), pass `--terragrunt-global-cache` so the command runs once per invocation and every other unit reuses the result:
+
+```hcl
+locals {
+  commit = run_cmd("--terragrunt-global-cache", "git", "rev-parse", "--short", "HEAD")
+}
+```
+
+### Static Configuration as JSON or YAML
+
+The [`read_terragrunt_config`](/reference/hcl/functions/#read_terragrunt_config) HCL function evaluates the target file as HCL each time it's called, including any function calls the file makes. When that file is included by many units, the whole evaluation repeats for each one.
+
+That cost buys you dynamic behavior, and shared configuration often doesn't need any: region names, tag maps, account IDs, and similar values are just static data. Storing static data as JSON or YAML and decoding it is cheaper than evaluating it as HCL:
+
+```hcl
+locals {
+  common = yamldecode(file(find_in_parent_folders("common.yaml")))
+}
+```
+
+This also makes the shared file easier to reason about, since a `.yaml` or `.json` file can't run commands or depend on parsing context.
+
+## Tuning Parallelism
+
+When you use commands with the `--all` or `--graph` flags, Terragrunt queues up a run for every unit involved. The [`--parallelism`](/reference/cli/commands/run#parallelism) flag (or the `TG_PARALLELISM` environment variable) caps how many of those runs are allowed to execute at the same time.
+
+### How Runs Are Scheduled
+
+Before running anything, Terragrunt builds a graph of the dependencies between units. A unit becomes eligible to run once every unit it depends on has finished successfully. Eligible units start immediately as long as the number of runs already in flight is below the parallelism limit. Otherwise, they wait for a running unit to finish and free up a slot.
+
+Each run is a separate OpenTofu/Terraform process, scheduled by the operating system like any other, and the parallelism limit caps how many of them run at once.
+
+By default, there is no limit. Every eligible unit starts right away, no matter how many cores the machine has. This is usually fine, because OpenTofu/Terraform runs spend most of their time waiting on network requests to provider APIs rather than using the CPU, so a machine can typically make progress on many more runs than it has cores. It also means you can see far more OpenTofu/Terraform processes than you might expect, and that an update to a file shared by every unit in a large tree (a root configuration, say) can start every one of those units at once.
+
+### Picking a Value
+
+There is no universally correct setting for `--parallelism`. The right value depends on how much memory, CPU, and network I/O your units consume, so treat tuning as an exercise in [measurement](#measuring-performance).
+
+Two trends are worth knowing before you start measuring:
+
+- Peak memory usage grows roughly in proportion to parallelism. Every concurrent run is its own OpenTofu/Terraform process, loading its own provider plugins and its own copy of state.
+- Speed improvements reach a diminishing return with increasing parallelism. Once there are enough runs in flight to keep the machine and network busy, additional concurrent runs just queue up, bottlenecked by the same resources.
+
+Once speed gains level off, higher parallelism costs you memory (and pressure on provider API rate limits) without making anything faster.
+
+A reasonable procedure is to start with parallelism set to the number of CPU cores on your machine, then double or halve it while measuring wall clock time and peak memory usage until you stop seeing improvements.
+
+If your runs happen on shared infrastructure, like CI runners used by other jobs, consider setting a value below the optimum you measure in isolation. Even when day-to-day runs never come close to the limit, a cap bounds the worst-case resource usage of a run that touches every unit at once. An out-of-memory kill from an unbounded full-tree run is a worse outcome than a slower, bounded one.
+
+### Parallelism Within a Single Run
+
+OpenTofu/Terraform has its own `-parallelism` flag, which limits how many resource operations a single run performs concurrently (10 by default). Terragrunt's `--parallelism` flag doesn't touch this setting. The two multiply: total concurrent operations against your cloud provider scale with both the number of units in flight and the parallelism within each of them.
+
+If you need to adjust within-run parallelism across units, use an [`extra_arguments`](/features/units/extra-arguments) block with the [`get_terraform_commands_that_need_parallelism`](/reference/hcl/functions/#get_terraform_commands_that_need_parallelism) function:
+
+```hcl
+terraform {
+  extra_arguments "parallelism" {
+    commands  = get_terraform_commands_that_need_parallelism()
+    arguments = ["-parallelism=5"]
+  }
+}
+```
 
 ## Measuring Performance
 

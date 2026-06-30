@@ -1,0 +1,10 @@
+---
+version: "v1.0.8"
+category: "bug-fixes"
+---
+
+#### Completed experiments now evaluate as permanently enabled
+
+Features gated behind a completed experiment were treated as disabled instead of permanently enabled, so functionality that graduated out of experiment status could silently stop working.
+
+The one affected code path was `hcl validate --inputs` with a git filter expression such as `--filter '[HEAD~1...HEAD]'`: after the `filter-flag` experiment completed, the command stopped preparing git worktrees for the filter. Git filter expressions now work with `hcl validate --inputs` again, matching `find`, `list`, and the other commands that accept filters.

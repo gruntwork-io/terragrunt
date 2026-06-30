@@ -297,6 +297,11 @@ type TerragruntOptions struct {
 	NoHooks bool
 	// If set, disable automatic reading of .terragrunt-filters file.
 	NoFiltersFile bool
+	// LogShowAbsPaths disables replacing full paths in logs with short
+	// relative paths.
+	LogShowAbsPaths bool
+	// LogDisableErrorSummary suppresses the trailing error summary.
+	LogDisableErrorSummary bool
 }
 
 // VersionString returns the configured Terragrunt version, or "" if unset or receiver is nil.

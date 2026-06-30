@@ -169,6 +169,21 @@ func TestCASGetterDetect_AWSS3HTTPSRoutesToS3Fetcher(t *testing.T) {
 			wantSrc: "https://s3-us-west-2.amazonaws.com/my-bucket/path.zip",
 		},
 		{
+			name:    "modern virtual-host rewritten to regional path-style",
+			src:     "https://my-bucket.s3.us-west-2.amazonaws.com/path.zip",
+			wantSrc: "https://s3-us-west-2.amazonaws.com/my-bucket/path.zip",
+		},
+		{
+			name:    "modern us-east-1 virtual-host rewritten to global path-style",
+			src:     "https://my-bucket.s3.us-east-1.amazonaws.com/path.zip",
+			wantSrc: "https://s3.amazonaws.com/my-bucket/path.zip",
+		},
+		{
+			name:    "modern path-style rewritten to legacy regional path-style",
+			src:     "https://s3.us-west-2.amazonaws.com/my-bucket/path.zip",
+			wantSrc: "https://s3-us-west-2.amazonaws.com/my-bucket/path.zip",
+		},
+		{
 			name:    "global path-style claimed unchanged",
 			src:     "https://s3.amazonaws.com/my-bucket/path.zip",
 			wantSrc: "https://s3.amazonaws.com/my-bucket/path.zip",

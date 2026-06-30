@@ -12,6 +12,7 @@ import (
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
@@ -35,7 +36,7 @@ func TestCASGetter_TFRRoutesThroughCAS(t *testing.T) {
 	l := logger.CreateLogger()
 	httpClient := server.Client()
 
-	tfr := getter.NewRegistryGetter(l).
+	tfr := getter.NewRegistryGetter(l, vfs.NewOSFS()).
 		WithHTTPClient(httpClient).
 		WithTofuImplementation(tfimpl.Terraform)
 
@@ -179,10 +180,13 @@ func newCountingRegistryTestServer(t *testing.T, archiveGets *atomic.Int32) *htt
 		assert.NoError(t, err)
 	})
 
-	mux.HandleFunc("/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip")
-		w.WriteHeader(http.StatusNoContent)
-	})
+	mux.HandleFunc(
+		"/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip")
+			w.WriteHeader(http.StatusNoContent)
+		},
+	)
 
 	mux.HandleFunc("/download/terraform-aws-vpc.zip", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")

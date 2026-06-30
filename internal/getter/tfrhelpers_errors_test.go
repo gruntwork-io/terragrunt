@@ -103,7 +103,12 @@ func TestGetModuleRegistryURLBasePathMissingModulesV1(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := getter.GetModuleRegistryURLBasePath(t.Context(), logger.CreateLogger(), server.Client(), addrFromURL(t, server.URL))
+	_, err := getter.GetModuleRegistryURLBasePath(
+		t.Context(),
+		logger.CreateLogger(),
+		server.Client(),
+		addrFromURL(t, server.URL),
+	)
 	require.Error(t, err)
 
 	var typed getter.ServiceDiscoveryErr
@@ -121,7 +126,12 @@ func TestHTTPGETAndGetResponseNonOK(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := getter.GetModuleRegistryURLBasePath(t.Context(), logger.CreateLogger(), server.Client(), addrFromURL(t, server.URL))
+	_, err := getter.GetModuleRegistryURLBasePath(
+		t.Context(),
+		logger.CreateLogger(),
+		server.Client(),
+		addrFromURL(t, server.URL),
+	)
 	require.Error(t, err)
 
 	var typed getter.RegistryAPIErr
@@ -149,7 +159,12 @@ func TestApplyHostTokenViaEnv(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := getter.GetModuleRegistryURLBasePath(t.Context(), logger.CreateLogger(), server.Client(), addrFromURL(t, server.URL))
+	_, err := getter.GetModuleRegistryURLBasePath(
+		t.Context(),
+		logger.CreateLogger(),
+		server.Client(),
+		addrFromURL(t, server.URL),
+	)
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 }

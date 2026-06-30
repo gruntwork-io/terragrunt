@@ -1430,28 +1430,27 @@ func (err PathIsNotFile) Error() string {
 	return err.path + " is not a file"
 }
 
-// ListTfFiles returns a list of all TF files in the specified directory.
-func ListTfFiles(directoryPath string, walkWithSymlinks bool) ([]string, error) {
-	var tfFiles []string
-
-	walkFunc := filepath.WalkDir
-	if walkWithSymlinks {
-		walkFunc = WalkDirWithSymlinks
+// ListTfFiles returns the OpenTofu/Terraform files in the given directory.
+func ListTfFiles(fsys vfs.FS, directoryPath string) ([]string, error) {
+	entries, err := vfs.ReadDirEntries(fsys, directoryPath)
+	if err != nil {
+		return nil, err
 	}
 
-	err := walkFunc(directoryPath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+	var tfFiles []string
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
 		}
 
-		if !d.IsDir() && IsTFFile(path) {
+		path := filepath.Join(directoryPath, entry.Name())
+		if IsTFFile(path) {
 			tfFiles = append(tfFiles, path)
 		}
+	}
 
-		return nil
-	})
-
-	return tfFiles, err
+	return tfFiles, nil
 }
 
 // IsDirectoryEmpty - returns true if the given path exists and is a empty directory.

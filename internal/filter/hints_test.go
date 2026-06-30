@@ -155,8 +155,8 @@ func TestHints_Golden(t *testing.T) {
      ...
         ^ Expression is incomplete
 
-  hint: The '...' operator must be used in either a graph-based or Git-based expression. e.g. '...foo...' or '[main...HEAD]'
-`,
+  hint: ` + "The '...' operator must be used in either a graph-based or Git-based expression. " +
+				"e.g. '...foo...' or '[main...HEAD]'\n",
 		},
 		{
 			name:  "missing git ref after ellipsis",
@@ -191,8 +191,8 @@ func TestHints_Golden(t *testing.T) {
      ./foo...^
              ^ Unexpected '^' after expression
 
-  hint: The '^' operator excludes the target from graph results when used on the left side of the expression. Did you mean '^./foo...'?
-`,
+  hint: ` + "The '^' operator excludes the target from graph results when used on the left side " +
+				"of the expression. Did you mean '^./foo...'?\n",
 		},
 	}
 

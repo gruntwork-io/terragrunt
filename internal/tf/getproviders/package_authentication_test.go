@@ -26,19 +26,19 @@ func TestPackageAuthenticationResult(t *testing.T) {
 			"unauthenticated",
 		},
 		{
-			getproviders.NewPackageAuthenticationResult(getproviders.VerifiedChecksum),
+			new(getproviders.VerifiedChecksum),
 			"verified checksum",
 		},
 		{
-			getproviders.NewPackageAuthenticationResult(getproviders.OfficialProvider),
+			new(getproviders.OfficialProvider),
 			"signed by HashiCorp",
 		},
 		{
-			getproviders.NewPackageAuthenticationResult(getproviders.PartnerProvider),
+			new(getproviders.PartnerProvider),
 			"signed by a HashiCorp partner",
 		},
 		{
-			getproviders.NewPackageAuthenticationResult(getproviders.CommunityProvider),
+			new(getproviders.CommunityProvider),
 			"self-signed",
 		},
 	}
@@ -88,7 +88,7 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 		{
 			path:           "testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_2.1.0_linux_amd64.zip",
 			wantSHA256Sum:  expectedHash,
-			expectedResult: getproviders.NewPackageAuthenticationResult(getproviders.VerifiedChecksum),
+			expectedResult: new(getproviders.VerifiedChecksum),
 		},
 		{
 			path:          "testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_invalid.zip",
@@ -275,7 +275,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			document:       []byte(testProviderShaSums),
 			signature:      testHashicorpSignatureGoodBase64,
 			keys:           map[string]string{getproviders.HashicorpPublicKey: ""},
-			expectedResult: getproviders.NewPackageAuthenticationResult(getproviders.OfficialProvider),
+			expectedResult: new(getproviders.OfficialProvider),
 		},
 		{
 			path:        "testdata/my-package.zip",

@@ -33,8 +33,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/NYTimes/gziphandler"
 )
 
 func createLogger() log.Logger {
@@ -70,7 +68,7 @@ func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, provid
 
 	fs := http.FileServer(http.Dir(providerDir))
 
-	withGz := gziphandler.GzipHandler(http.StripPrefix(urlPrefix, fs))
+	withGz := helpers.GzipHandler(http.StripPrefix(urlPrefix, fs))
 
 	mux.HandleFunc(urlPrefix, func(resp http.ResponseWriter, req *http.Request) {
 		if token != "" {
