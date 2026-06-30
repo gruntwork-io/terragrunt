@@ -1,9 +1,18 @@
 package config
 
 import (
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -257,5 +266,107 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 			applyExtraArgsEnvVarsForOutput(pctx, tc.terraform)
 			assert.Equal(t, tc.want, pctx.Env)
 		})
+	}
+}
+
+// TestGetTerragruntOutputJSONFromRemoteStateS3UsesDependencyIAMRole is a regression test for
+// https://github.com/gruntwork-io/terragrunt/issues/4979.
+//
+// When the dependency-fetch-output-from-state experiment is enabled and a dependency lives in an
+// AWS account that requires its own IAM role to read state, getTerragruntOutputJSONFromRemoteStateS3
+// must assume the dependency's own role (passed explicitly as iamRoleOpts) rather than whatever role
+// happens to be left on pctx.IAMRoleOptions (which resolveOutputJSON clears to the zero value whenever
+// it differs from the original). Before the fix, the function read pctx.IAMRoleOptions directly, so a
+// cross-account dependency would be fetched with no role assumption at all -- and an unrelated role left
+// on pctx.IAMRoleOptions would also be used incorrectly when present.
+//
+// This test does not talk to real AWS: it points the AWS SDK's STS endpoint resolution
+// (AWS_ENDPOINT_URL_STS) at a local httptest server and inspects which RoleArn was actually requested.
+func TestGetTerragruntOutputJSONFromRemoteStateS3UsesDependencyIAMRole(t *testing.T) {
+	// Not parallel: mutates process-wide AWS_ENDPOINT_URL_STS / AWS_ENDPOINT_URL_S3 env vars.
+
+	var (
+		gotRoleArnsMu sync.Mutex
+		gotRoleArns   []string
+	)
+
+	stsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		values, _ := url.ParseQuery(string(body))
+
+		gotRoleArnsMu.Lock()
+		gotRoleArns = append(gotRoleArns, values.Get("RoleArn"))
+		gotRoleArnsMu.Unlock()
+
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`<AssumeRoleResponse><AssumeRoleResult><Credentials>` +
+			`<AccessKeyId>fake-access-key</AccessKeyId>` +
+			`<SecretAccessKey>fake-secret-key</SecretAccessKey>` +
+			`<SessionToken>fake-session-token</SessionToken>` +
+			`<Expiration>2999-01-01T00:00:00Z</Expiration>` +
+			`</Credentials></AssumeRoleResult></AssumeRoleResponse>`))
+	}))
+	defer stsServer.Close()
+
+	// A fake S3 endpoint is also required so BuildS3Client's GetObject call fails fast against a
+	// known server instead of reaching out to real AWS; the role-assumption check above already
+	// happens before this point, so its response content doesn't matter for this test.
+	s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer s3Server.Close()
+
+	t.Setenv("AWS_ENDPOINT_URL_STS", stsServer.URL)
+	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
+	t.Setenv("AWS_REGION", "us-east-1")
+
+	const (
+		callingUnitRoleARN = "arn:aws:iam::111111111111:role/calling-unit-role"
+		dependencyRoleARN  = "arn:aws:iam::222222222222:role/dependency-role"
+	)
+
+	l := logger.CreateLogger()
+
+	// Simulate resolveOutputJSON having cleared pctx.IAMRoleOptions to the zero value (as it does
+	// whenever it differs from the original), while an unrelated role is still floating around to
+	// prove the fetch does not fall back to it.
+	pctx := &ParsingContext{
+		Env:            map[string]string{},
+		IAMRoleOptions: iam.RoleOptions{RoleARN: callingUnitRoleARN},
+	}
+
+	remoteState := remotestate.New(&remotestate.Config{
+		BackendName: "s3",
+		BackendConfig: map[string]any{
+			"bucket": "dependency-bucket",
+			"key":    "terraform.tfstate",
+			"region": "us-east-1",
+			"endpoints": map[string]any{
+				"s3": s3Server.URL,
+			},
+			"s3_force_path_style":         true,
+			"skip_credentials_validation": true,
+		},
+	})
+
+	// This is the dependency's own merged IAM role options, as computed by
+	// getTerragruntOutputJSONFromRemoteState via iam.MergeRoleOptions(iamRoleOpts, pctx.OriginalIAMRoleOptions).
+	dependencyMergedIAM := iam.RoleOptions{RoleARN: dependencyRoleARN}
+
+	_, err := getTerragruntOutputJSONFromRemoteStateS3(t.Context(), l, pctx, remoteState, dependencyMergedIAM)
+	// The S3 fetch itself is expected to fail (fake server returns 404 with no valid S3 error body) --
+	// only the role used for credential resolution is under test here.
+	require.Error(t, err)
+
+	gotRoleArnsMu.Lock()
+	defer gotRoleArnsMu.Unlock()
+
+	require.NotEmpty(t, gotRoleArns, "expected the S3 client build to assume a role via STS")
+	for _, roleArn := range gotRoleArns {
+		assert.Equal(t, dependencyRoleARN, roleArn,
+			"S3 client must assume the dependency's own IAM role, not the calling unit's role")
+		assert.NotContains(t, strings.ToLower(roleArn), strings.ToLower(callingUnitRoleARN))
 	}
 }

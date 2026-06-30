@@ -1344,6 +1344,7 @@ func getTerragruntOutputJSONFromRemoteState(
 				l,
 				pctx,
 				remoteState,
+				mergedIAM,
 			)
 			if s3GetErr != nil {
 				return nil, s3GetErr
@@ -1402,8 +1403,12 @@ func getTerragruntOutputJSONFromRemoteState(
 	return jsonBytes, nil
 }
 
-// getTerragruntOutputJSONFromRemoteStateS3 pulls the output directly from an S3 bucket without calling Terraform
-func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger, pctx *ParsingContext, remoteState *remotestate.RemoteState) ([]byte, error) {
+// getTerragruntOutputJSONFromRemoteStateS3 pulls the output directly from an S3 bucket without calling Terraform.
+// iamRoleOpts must be the dependency's own merged IAM role options (the dependency's remote_state IAM role
+// options merged with the calling unit's original IAM role options), not the calling unit's possibly-cleared
+// pctx.IAMRoleOptions, so that reading state for a dependency in another AWS account assumes the dependency's
+// role rather than the caller's.
+func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger, pctx *ParsingContext, remoteState *remotestate.RemoteState, iamRoleOpts iam.RoleOptions) ([]byte, error) {
 	bucket := fmt.Sprintf("%s", remoteState.BackendConfig["bucket"])
 	key := fmt.Sprintf("%s", remoteState.BackendConfig["key"])
 
@@ -1425,7 +1430,7 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 		s3Client, err := awshelper.NewAWSConfigBuilder().
 			WithSessionConfig(sessionConfig).
 			WithEnv(pctx.Env).
-			WithIAMRoleOptions(pctx.IAMRoleOptions).
+			WithIAMRoleOptions(iamRoleOpts).
 			BuildS3Client(ctx, l)
 		if err != nil {
 			return fmt.Errorf("building s3 client for s3://%s/%s: %w", bucket, key, err)
