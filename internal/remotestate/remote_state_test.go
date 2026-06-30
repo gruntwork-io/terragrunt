@@ -220,6 +220,53 @@ func TestGetTFInitArgs_StringBoolCoercion(t *testing.T) {
 	}
 }
 
+// TestGetTFInitArgs_SharedCredentialsFiles is a regression test for the bug fixed
+// in PR #5886: list-valued backend config (e.g. S3's shared_credentials_files) used
+// to be serialized via fmt.Sprintf("%v", value) producing invalid HCL like "[/a /b]".
+// The s4 unknown-backend fixture is used so terragrunt-specific key filtering does
+// not strip the config before assertions.
+func TestGetTFInitArgs_SharedCredentialsFiles(t *testing.T) {
+	t.Parallel()
+
+	cfg := &remotestate.Config{
+		BackendName: "s4",
+		BackendConfig: map[string]any{
+			"bucket":                   "my-bucket",
+			"shared_credentials_files": []any{"/a/creds", "/b/creds"},
+		},
+	}
+	args := remotestate.New(cfg).GetTFInitArgs()
+
+	assert.ElementsMatch(t, []string{
+		"-backend-config=bucket=my-bucket",
+		`-backend-config=shared_credentials_files=["/a/creds","/b/creds"]`,
+	}, args)
+}
+
+// TestGetTFInitArgs_MapAndListSerialization covers the map, list, and string-escape
+// branches of the GetTFInitArgs value switch added in PR #5886.
+func TestGetTFInitArgs_MapAndListSerialization(t *testing.T) {
+	t.Parallel()
+
+	cfg := &remotestate.Config{
+		BackendName: "s4",
+		BackendConfig: map[string]any{
+			"bucket":      "my-bucket",
+			"assume_role": map[string]any{"role_arn": "arn:aws:iam::123:role/r"},
+			"files":       []any{"/a", "/b"},
+			"note":        "he said \"hi\"\nline2",
+		},
+	}
+	args := remotestate.New(cfg).GetTFInitArgs()
+
+	assert.ElementsMatch(t, []string{
+		"-backend-config=bucket=my-bucket",
+		`-backend-config=assume_role={role_arn="arn:aws:iam::123:role/r"}`,
+		`-backend-config=files=["/a","/b"]`,
+		`-backend-config=note=he said "hi"` + "\nline2",
+	}, args)
+}
+
 func TestNeedsBootstrapDisableInit(t *testing.T) {
 	t.Parallel()
 

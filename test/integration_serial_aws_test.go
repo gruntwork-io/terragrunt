@@ -1,4 +1,4 @@
-//go:build aws
+//go:build awsextended && aws
 
 package test_test
 
@@ -23,7 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
-func TestTerragruntParallelism(t *testing.T) {
+func TestAwsTerragruntParallelism(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -46,7 +46,7 @@ func TestTerragruntParallelism(t *testing.T) {
 }
 
 //nolint:paralleltest
-func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
+func TestAwsReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
@@ -89,7 +89,7 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt plan --non-interactive --working-dir %s --auth-provider-cmd %s", rootPath, mockAuthCmd))
 }
 
-func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
+func TestAwsReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
@@ -185,7 +185,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	// copy the template `numberOfModules` times into the app
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	for i := range numberOfModules {
-		err := util.CopyFolderContents(createLogger(), testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil, nil)
+		err := util.CopyFolderContents(createLogger(), helpers.MustAbs(t, testFixtureParallelism), tmpEnvPath, ".terragrunt-test")
 		if err != nil {
 			return "", 0, err
 		}

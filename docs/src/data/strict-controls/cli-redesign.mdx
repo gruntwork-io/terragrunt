@@ -1,0 +1,25 @@
+---
+name: cli-redesign
+status: active
+---
+
+Throw an error when using commands that were deprecated as part of the CLI redesign.
+
+### `cli-redesign` - Commands
+
+- `run-all`
+- `graph`
+- `graph-dependencies`
+- `hclfmt`
+- `hclvalidate`
+- `output-module-groups`
+- `render-json`
+- `terragrunt-info`
+- `validate-inputs`
+- `aws-provider-patch`
+
+### `cli-redesign` - Reason
+
+These commands have been deprecated in favor of more consistent and intuitive commands as part of the CLI redesign. For more information, see the [CLI Redesign Migration Guide](/migrate/cli-redesign/).
+
+The `aws-provider-patch` command was a workaround for a legacy Terraform bug where dynamic values in nested provider blocks were not handled correctly during `terraform import`. This workaround is no longer needed and the command has been deprecated. Remove it from any scripts or CI/CD pipelines.

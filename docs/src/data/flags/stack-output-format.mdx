@@ -12,6 +12,12 @@ Specifies the output format for stack outputs. Available formats are:
 - `json` - Format output as JSON for machine readability
 - `raw` - Format output as raw string for shell script integration
 
+| Format    | Description                                                                     |
+|-----------|---------------------------------------------------------------------------------|
+| `default` | Format output as HCL.                                                           |
+| `json`    | Format output as JSON. This can be useful for integrations with other tools.    |
+| `raw`     | Format output as a simple raw string. Useful for integration into bash scripts. |
+
 Example:
 
 ```bash
@@ -22,4 +28,60 @@ terragrunt stack output --format json
 terragrunt stack output --format raw project1_app1.custom_value1
 ```
 
-{/* TODO: Port over the better docs from the old docs */}
+### json format
+
+To retrieve outputs in structured JSON format:
+
+```bash
+$ terragrunt stack output --format json project1_app2
+{
+  "project1_app2": {
+    "complex": {
+      "delta": 0.02,
+      "id": 2,
+      "name": "name2",
+      "timestamp": "2025-02-07T21:05:51Z"
+    },
+    "custom_value2": "value2",
+    "data": "app2",
+    "list": [
+      "a",
+      "b",
+      "c"
+    ]
+  }
+}
+```
+
+Accessing a specific list inside JSON format:
+
+```bash
+$ terragrunt stack output --format json project1_app2.complex_list
+{
+  "project1_app2.complex_list": [
+    {
+      "delta": 0.02,
+      "id": 2,
+      "name": "name2",
+      "timestamp": "2025-02-07T21:05:51Z"
+    },
+    {
+      "delta": 0.03,
+      "id": 2,
+      "name": "name3",
+      "timestamp": "2025-02-07T21:05:51Z"
+    }
+  ]
+}
+```
+
+### raw format
+
+The `raw` format returns outputs as plain values without additional structure. When accessing lists or structured outputs, indexes are required to extract values.
+
+Retrieving a simple value:
+
+```bash
+$ terragrunt stack output --format raw project1_app2.data
+app2
+```

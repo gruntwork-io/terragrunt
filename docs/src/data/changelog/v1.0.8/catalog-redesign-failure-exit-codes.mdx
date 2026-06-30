@@ -1,0 +1,18 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `catalog-redesign` — Failures now exit nonzero and name the sources that failed
+
+The redesigned catalog exited with code 0 even when it failed: a session that ended on an unreachable repository, a failed scaffold, or a failed copy reported success in its exit code. Repositories that failed to load during discovery were dropped too: the warning logged for each one was drawn over by the full-screen interface, so a run where every source failed showed the same "No catalog sources were discovered" screen as a run that genuinely found nothing.
+
+The catalog now exits nonzero when the session ends on a failure: a discovery failure that leaves nothing to browse, a failed scaffold, or a failed copy. Quitting a working session still exits 0. When some sources fail to load while others succeed, the catalog stays usable and a clean quit still exits 0; the component list shows how many sources failed, and the failed repositories are printed with their causes after the catalog closes. When every source fails, the error screen lists each failed repository instead of claiming nothing was found, and dismissing it exits nonzero.
+
+Running `terragrunt catalog` without an interactive terminal, such as in CI, used to fail with a raw error from the underlying TUI library:
+
+```text
+bubbletea: error opening TTY: bubbletea: could not open TTY: open /dev/tty: no such device or address
+```
+
+It now fails immediately with an error stating that the catalog command requires an interactive terminal.

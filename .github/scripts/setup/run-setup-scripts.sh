@@ -14,7 +14,7 @@ source "${ENV_FILE}"
 
 # Loop through setup scripts and execute them
 for SCRIPT in $SETUP_SCRIPTS; do
-    echo "Running setup script: $SCRIPT"
-    "$SCRIPT"
-    echo "Setup script $SCRIPT completed"
+	echo "Running setup script: $SCRIPT"
+	"$SCRIPT"
+	echo "Setup script $SCRIPT completed"
 done

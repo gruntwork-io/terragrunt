@@ -1,0 +1,12 @@
+---
+version: "v1.0.0"
+category: "performance-improvements"
+---
+
+#### Discovery performance improved
+
+The way in which Terragrunt discovers and filters units and stacks for runs has improved significantly.
+
+Terragrunt is now better at avoiding parsing units/stacks unnecessarily, based on the [filter](/features/filter/) you use. Previously, the logic used was more coarse, and could result in a requirement to parse *some* configurations (e.g. presence of a [dependency graph expression](/features/filter/graph/#include-dependencies)) to result in parsing *all* configurations. Discovery has been refactored to allow for much more careful opt-in parsing based on the need to support the filter used by users (or lack thereof).
+
+This will also result in improvements to Terragrunt's ability to ignore broken parts of infrastructure estates when Terragrunt can predictably determine that it won't impact a run.

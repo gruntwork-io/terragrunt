@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 )
@@ -212,7 +211,7 @@ func ModuleVariables(modulePath string) ([]string, []string, error) {
 	}
 
 	if allDiags.HasErrors() {
-		return nil, nil, errors.New(allDiags)
+		return nil, nil, allDiags
 	}
 
 	return required, optional, nil

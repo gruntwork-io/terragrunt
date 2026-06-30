@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -11,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	openpgpArmor "github.com/ProtonMail/go-crypto/openpgp/armor"
@@ -28,10 +29,6 @@ const (
 
 // PackageAuthenticationResult is returned from a PackageAuthentication implementation which implements Stringer.
 type PackageAuthenticationResult int
-
-func NewPackageAuthenticationResult(res PackageAuthenticationResult) *PackageAuthenticationResult {
-	return &res
-}
 
 func (result *PackageAuthenticationResult) String() string {
 	if result == nil {
@@ -125,22 +122,22 @@ func NewArchiveChecksumAuthentication(wantSHA256Sum [sha256.Size]byte) PackageAu
 
 func (auth archiveHashAuthentication) Authenticate(path string) (*PackageAuthenticationResult, error) {
 	if fileInfo, err := os.Stat(path); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	} else if fileInfo.IsDir() {
-		return nil, errors.Errorf("cannot check archive hash for non-archive location %s", path)
+		return nil, fmt.Errorf("cannot check archive hash for non-archive location %s", path)
 	}
 
 	gotHash, err := PackageHashLegacyZipSHA(path)
 	if err != nil {
-		return nil, errors.Errorf("failed to compute checksum for %s: %s", path, err)
+		return nil, fmt.Errorf("failed to compute checksum for %s: %w", path, err)
 	}
 
 	wantHash := HashLegacyZipSHAFromSHA(auth.WantSHA256Sum)
 	if gotHash != wantHash {
-		return nil, errors.Errorf("archive has incorrect checksum %s (expected %s)", gotHash, wantHash)
+		return nil, fmt.Errorf("archive has incorrect checksum %s (expected %s)", gotHash, wantHash)
 	}
 
-	return NewPackageAuthenticationResult(VerifiedChecksum), nil
+	return new(VerifiedChecksum), nil
 }
 
 func (auth archiveHashAuthentication) AcceptableHashes() []Hash {
@@ -169,18 +166,18 @@ func (auth matchingChecksumAuthentication) Authenticate(location string) (*Packa
 
 	checksum := util.MatchSha256Checksum(auth.Document, filename)
 	if checksum == nil {
-		return nil, errors.Errorf("checksum list has no SHA-256 hash for %q", auth.Filename)
+		return nil, fmt.Errorf("checksum list has no SHA-256 hash for %q", auth.Filename)
 	}
 
 	// Decode the ASCII checksum into a byte array for comparison.
 	var gotSHA256Sum [sha256.Size]byte
 	if _, err := hex.Decode(gotSHA256Sum[:], checksum); err != nil {
-		return nil, errors.Errorf("checksum list has invalid SHA256 hash %q: %s", string(checksum), err)
+		return nil, fmt.Errorf("checksum list has invalid SHA256 hash %q: %w", string(checksum), err)
 	}
 
 	// If the checksums don't match, authentication fails.
 	if !bytes.Equal(gotSHA256Sum[:], auth.WantSHA256Sum[:]) {
-		return nil, errors.Errorf("checksum list has unexpected SHA-256 hash %x (expected %x)", gotSHA256Sum, auth.WantSHA256Sum[:])
+		return nil, fmt.Errorf("checksum list has unexpected SHA-256 hash %x (expected %x)", gotSHA256Sum, auth.WantSHA256Sum[:])
 	}
 
 	return nil, nil
@@ -211,39 +208,39 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 	// Verify the signature using the HashiCorp public key. If this succeeds, this is an official provider.
 	hashicorpKeyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(HashicorpPublicKey))
 	if err != nil {
-		return nil, errors.Errorf("error creating HashiCorp keyring: %s", err)
+		return nil, fmt.Errorf("error creating HashiCorp keyring: %w", err)
 	}
 
 	if err := auth.checkDetachedSignature(hashicorpKeyring, bytes.NewReader(auth.Document), bytes.NewReader(auth.Signature), nil); err == nil {
-		return NewPackageAuthenticationResult(OfficialProvider), nil
+		return new(OfficialProvider), nil
 	}
 
 	// If the signing key has a trust signature, attempt to verify it with the HashiCorp partners public key.
 	if trustSignature != "" {
 		hashicorpPartnersKeyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(HashicorpPartnersKey))
 		if err != nil {
-			return nil, errors.Errorf("error creating HashiCorp Partners keyring: %s", err)
+			return nil, fmt.Errorf("error creating HashiCorp Partners keyring: %w", err)
 		}
 
 		authorKey, err := openpgpArmor.Decode(strings.NewReader(asciiArmor))
 		if err != nil {
-			return nil, errors.Errorf("error decoding signing key: %s", err)
+			return nil, fmt.Errorf("error decoding signing key: %w", err)
 		}
 
 		trustSignature, err := openpgpArmor.Decode(strings.NewReader(trustSignature))
 		if err != nil {
-			return nil, errors.Errorf("error decoding trust signature: %s", err)
+			return nil, fmt.Errorf("error decoding trust signature: %w", err)
 		}
 
 		if err := auth.checkDetachedSignature(hashicorpPartnersKeyring, authorKey.Body, trustSignature.Body, nil); err != nil {
-			return nil, errors.Errorf("error verifying trust signature: %s", err)
+			return nil, fmt.Errorf("error verifying trust signature: %w", err)
 		}
 
-		return NewPackageAuthenticationResult(PartnerProvider), nil
+		return new(PartnerProvider), nil
 	}
 
 	// We have a valid signature, but it's not from the HashiCorp key, and it also isn't a trusted partner. This is a community provider.
-	return NewPackageAuthenticationResult(CommunityProvider), nil
+	return new(CommunityProvider), nil
 }
 
 func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRing, signed, signature io.Reader, config *packet.Config) error {
@@ -269,7 +266,7 @@ func (auth signatureAuthentication) findSigningKey() (string, string, error) {
 	for asciiArmor, trustSignature := range auth.Keys {
 		keyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(asciiArmor))
 		if err != nil {
-			return "", "", errors.Errorf("error decoding signing key: %s", err)
+			return "", "", fmt.Errorf("error decoding signing key: %w", err)
 		}
 
 		if err := auth.checkDetachedSignature(keyring, bytes.NewReader(auth.Document), bytes.NewReader(auth.Signature), nil); err != nil {
@@ -279,12 +276,12 @@ func (auth signatureAuthentication) findSigningKey() (string, string, error) {
 			}
 
 			// Any other signature error is terminal.
-			return "", "", errors.Errorf("error checking signature: %s", err)
+			return "", "", fmt.Errorf("error checking signature: %w", err)
 		}
 
 		return asciiArmor, trustSignature, nil
 	}
 
 	// If none of the provided keys issued the signature, this package is unsigned. This is currently a terminal authentication error.
-	return "", "", errors.Errorf("authentication signature from unknown issuer")
+	return "", "", errors.New("authentication signature from unknown issuer")
 }

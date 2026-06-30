@@ -8,7 +8,6 @@ import (
 
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -106,7 +105,8 @@ func (opts Options) Format(data *Data, str any) (string, error) {
 
 // Configure parsers the given `str` to configure the `opts` and returns the rest of the given `str`.
 //
-// e.g. (color=green, case=upper) some-text" sets `color` option to `green`, `case` option to `upper` and returns " some-text".
+// e.g. (color=green, case=upper) some-text" sets `color` option to `green`,
+// `case` option to `upper` and returns " some-text".
 func (opts Options) Configure(str string) (string, error) {
 	if len(str) == 0 || !strings.HasPrefix(str, OptStartSign) {
 		return str, nil
@@ -126,18 +126,18 @@ func (opts Options) Configure(str string) (string, error) {
 
 		parts := strings.SplitN(str, OptNameValueSep, splitIntoNameAndValue)
 		if len(parts) != splitIntoNameAndValue {
-			return "", errors.New(NewInvalidOptionError(str))
+			return "", NewInvalidOptionError(str)
 		}
 
 		name := strings.TrimSpace(parts[0])
 
 		if name == "" {
-			return "", errors.New(NewEmptyOptionNameError(str))
+			return "", NewEmptyOptionNameError(str)
 		}
 
 		opt := opts.Get(name)
 		if opt == nil {
-			return "", errors.New(NewInvalidOptionNameError(name, opts))
+			return "", NewInvalidOptionNameError(name, opts)
 		}
 
 		if str, err = setOptionValue(opt, parts[1]); err != nil {
@@ -168,7 +168,7 @@ func setOptionValue(opt Option, str string) (string, error) {
 		val = strings.Trim(val, "\"")
 
 		if err := opt.ParseValue(val); err != nil {
-			return "", errors.New(NewInvalidOptionValueError(opt, val, err))
+			return "", NewInvalidOptionValueError(opt, val, err)
 		}
 
 		return str[index:], nil

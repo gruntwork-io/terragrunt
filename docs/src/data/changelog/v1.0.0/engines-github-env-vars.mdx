@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "experiments-updated"
+---
+
+#### Engines now use GitHub environment variables for downloads
+
+When downloading engines using the engine experiment, Terragrunt will detect and leverage the `GH_TOKEN` and `GITHUB_TOKEN` environment variables if present to authenticate with the GitHub API while performing release discovery and download of engines.

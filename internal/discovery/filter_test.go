@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -23,7 +24,7 @@ func TestDiscovery_GraphExpressionFilters(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -114,7 +115,7 @@ func TestDiscovery_GraphExpressionFilters_ComplexGraph(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1024,7 +1025,7 @@ func TestDiscovery_DependentDiscovery_Standalone(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1084,7 +1085,9 @@ dependency "vpc" {
 
 	// Should include vpc (target) and db (direct dependent) and app (transitive dependent)
 	units := components.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{vpcDir, dbDir, appDir}, units, "...vpc should find vpc and all its dependents (db, app)")
+	assert.ElementsMatch(t,
+		[]string{vpcDir, dbDir, appDir}, units,
+		"...vpc should find vpc and all its dependents (db, app)")
 }
 
 // TestDiscovery_DependentDiscovery_ExcludeTarget tests dependent discovery with target exclusion (^...vpc).
@@ -1094,7 +1097,7 @@ func TestDiscovery_DependentDiscovery_ExcludeTarget(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1160,7 +1163,7 @@ func TestDiscovery_DependencyDiscovery_ExcludeTarget(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1230,7 +1233,7 @@ func TestDiscovery_DependentDiscovery_Bidirectional(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1289,7 +1292,9 @@ dependency "vpc" {
 
 	// Should include: app (dependent), db (target), vpc (dependency)
 	units := components.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{appDir, dbDir, vpcDir}, units, "...db... should find dependents, target, and dependencies")
+	assert.ElementsMatch(t,
+		[]string{appDir, dbDir, vpcDir}, units,
+		"...db... should find dependents, target, and dependencies")
 }
 
 // TestDiscovery_DependentDiscovery_OutsideWorkingDir tests that dependent discovery
@@ -1301,7 +1306,7 @@ func TestDiscovery_DependentDiscovery_OutsideWorkingDir(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize git repository at the root
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1369,7 +1374,9 @@ dependency "vpc" {
 	units := components.Filter(component.UnitKind).Paths()
 	assert.Contains(t, units, vpcDir, "vpc should be discovered as the target")
 	assert.Contains(t, units, consumerDir, "consumer should be discovered even though it's outside working dir")
-	assert.ElementsMatch(t, []string{vpcDir, consumerDir}, units, "...vpc should find vpc and consumer (outside working dir)")
+	assert.ElementsMatch(t,
+		[]string{vpcDir, consumerDir}, units,
+		"...vpc should find vpc and consumer (outside working dir)")
 }
 
 // TestDiscovery_DependentDiscovery_OutsideWorkingDir_MultipleLevels tests that dependent discovery
@@ -1380,7 +1387,7 @@ func TestDiscovery_DependentDiscovery_OutsideWorkingDir_MultipleLevels(t *testin
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize git repository at the root
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1469,7 +1476,7 @@ func TestDiscovery_DependentDiscovery_DirectDependentOnly(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1583,7 +1590,7 @@ func TestDiscovery_NegatedGraphFilters(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)

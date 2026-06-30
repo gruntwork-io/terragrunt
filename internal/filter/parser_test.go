@@ -37,6 +37,11 @@ func TestParser_SimpleExpressions(t *testing.T) {
 			expected: mustPath(t, "./apps/foo"),
 		},
 		{
+			name:     "bare dot is working directory path",
+			input:    ".",
+			expected: mustPath(t, "."),
+		},
+		{
 			name:     "path filter absolute",
 			input:    "/absolute/path",
 			expected: mustPath(t, "/absolute/path"),
@@ -82,6 +87,14 @@ func TestParser_SimpleExpressions(t *testing.T) {
 	}
 }
 
+func TestParser_BareDotRestrictedToStacks(t *testing.T) {
+	t.Parallel()
+
+	f, err := filter.Parse(". | type=stack")
+	require.NoError(t, err)
+	assert.True(t, f.Expression().IsRestrictedToStacks())
+}
+
 func TestParser_PrefixExpressions(t *testing.T) {
 	t.Parallel()
 
@@ -112,6 +125,14 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			expected: &filter.PrefixExpression{
 				Operator: "!",
 				Right:    mustPath(t, "./apps/legacy"),
+			},
+		},
+		{
+			name:  "negated bare dot",
+			input: "!.",
+			expected: &filter.PrefixExpression{
+				Operator: "!",
+				Right:    mustPath(t, "."),
 			},
 		},
 		{
@@ -207,6 +228,15 @@ func TestParser_InfixExpressions(t *testing.T) {
 				Left:     mustPath(t, "./apps/*"),
 				Operator: "|",
 				Right:    mustAttr(t, "name", "bar"),
+			},
+		},
+		{
+			name:  "bare dot restricted to stacks",
+			input: ". | type=stack",
+			expected: &filter.InfixExpression{
+				Left:     mustPath(t, "."),
+				Operator: "|",
+				Right:    mustAttr(t, "type", "stack"),
 			},
 		},
 		{

@@ -2,17 +2,15 @@ package config_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -22,26 +20,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
-
-// assertErrorType checks that the error chain contains an error of the same type as expectedErr.
-func assertErrorType(t *testing.T, expectedErr, actualErr error) bool {
-	t.Helper()
-
-	expectedType := reflect.TypeOf(expectedErr)
-
-	for err := actualErr; err != nil; err = errors.Unwrap(err) {
-		if reflect.TypeOf(err) == expectedType {
-			return true
-		}
-	}
-
-	return assert.Fail(t, "error type mismatch", "expected error of type %T in chain, but got %T", expectedErr, actualErr)
-}
 
 func TestPathRelativeToInclude(t *testing.T) {
 	t.Parallel()
@@ -98,7 +81,7 @@ func TestPathRelativeToInclude(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params)
+		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params, tc.configPath)
 		l := logger.CreateLogger()
 		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
@@ -163,113 +146,13 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params)
+		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params, tc.configPath)
 		l := logger.CreateLogger()
 		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeFromInclude(ctx, pctx, l, tc.params)
 		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
 		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
-	}
-}
-
-func TestRunCommand(t *testing.T) {
-	t.Parallel()
-
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows because it doesn't support bash")
-	}
-
-	homeDir := os.Getenv("HOME")
-
-	testCases := []struct {
-		expectedErr    error
-		configPath     string
-		expectedOutput string
-		params         []string
-	}{
-		{
-			params:         []string{"/bin/bash", "-c", "echo -n foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "/bin/bash", "-c", "echo -n foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:         []string{"--terragrunt-quiet", "--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
-			configPath:     homeDir,
-			expectedOutput: "foo",
-		},
-		{
-			params:      []string{"--terragrunt-no-cache", "--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:  homeDir,
-			expectedErr: config.ConflictingRunCmdCacheOptionsError{},
-		},
-		{
-			params:      []string{"--terragrunt-global-cache", "--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			configPath:  homeDir,
-			expectedErr: config.ConflictingRunCmdCacheOptionsError{},
-		},
-		{
-			configPath:  homeDir,
-			expectedErr: config.EmptyStringNotAllowedError("{run_cmd()}"),
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.configPath, func(t *testing.T) {
-			t.Parallel()
-
-			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, tc.configPath)
-
-			actualOutput, actualErr := config.RunCommand(ctx, pctx, l, tc.params)
-			if tc.expectedErr != nil {
-				if assert.Error(t, actualErr) {
-					assertErrorType(t, tc.expectedErr, actualErr)
-				}
-			} else {
-				require.NoError(t, actualErr)
-				assert.Equal(t, tc.expectedOutput, actualOutput)
-			}
-		})
 	}
 }
 
@@ -289,8 +172,13 @@ func absPath(t *testing.T, path string) string {
 func TestFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
+	expectParentFileNotFound := func(t *testing.T, err error) {
+		t.Helper()
+		require.ErrorAs(t, err, new(config.ParentFileNotFoundError))
+	}
+
 	testCases := []struct {
-		expectedErr       error
+		expectErr         func(t *testing.T, err error)
 		configPath        string
 		name              string
 		expectedPath      string
@@ -314,7 +202,7 @@ func TestFindInParentFolders(t *testing.T) {
 			params:            []string{"root.hcl"},
 			configPath:        absPath(t, filepath.Join("../..", "test", "fixtures", "parent-folders", "no-terragrunt-in-root", "child", "sub-child", config.DefaultTerragruntConfigPath)),
 			maxFoldersToCheck: 3,
-			expectedErr:       config.ParentFileNotFoundError{},
+			expectErr:         expectParentFileNotFound,
 		},
 		{
 			name:         "multiple-terragrunt-in-parents",
@@ -353,14 +241,14 @@ func TestFindInParentFolders(t *testing.T) {
 			expectedPath: absPath(t, "../../test/fixtures/parent-folders/with-params/tfwork"),
 		},
 		{
-			name:        "not-found",
-			configPath:  "/",
-			expectedErr: config.ParentFileNotFoundError{},
+			name:       "not-found",
+			configPath: "/",
+			expectErr:  expectParentFileNotFound,
 		},
 		{
-			name:        "not-found-with-path",
-			configPath:  "/fake/path",
-			expectedErr: config.ParentFileNotFoundError{},
+			name:       "not-found-with-path",
+			configPath: "/fake/path",
+			expectErr:  expectParentFileNotFound,
 		},
 		{
 			name:         "fallback",
@@ -382,14 +270,15 @@ func TestFindInParentFolders(t *testing.T) {
 			}
 
 			actualPath, actualErr := config.FindInParentFolders(ctx, pctx, l, tc.params)
-			if tc.expectedErr != nil {
-				if assert.Error(t, actualErr) {
-					assertErrorType(t, tc.expectedErr, actualErr)
-				}
-			} else {
-				require.NoError(t, actualErr)
-				assert.Equal(t, tc.expectedPath, actualPath)
+			if tc.expectErr != nil {
+				require.Error(t, actualErr)
+				tc.expectErr(t, actualErr)
+
+				return
 			}
+
+			require.NoError(t, actualErr)
+			assert.Equal(t, tc.expectedPath, actualPath)
 		})
 	}
 }
@@ -757,7 +646,7 @@ func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *
 	pctx.Experiments = experiment.NewExperiments()
 	pctx.Telemetry = new(telemetry.Options)
 	pctx.EngineOptions = new(engine.EngineOptions)
-	pctx.FeatureFlags = xsync.NewMapOf[string, string]()
+	pctx.FeatureFlags = xsync.NewMap[string, string]()
 
 	return ctx, pctx
 }
@@ -822,7 +711,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params)
+		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params, tc.configPath)
 		l := logger.CreateLogger()
 		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
@@ -841,7 +730,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 	}{
 		{
 			input:    "abs(-1)",
-			expected: 1.,
+			expected: json.Number("1"),
 		},
 		{
 			input:    `element(["one", "two", "three"], 1)`,
@@ -869,7 +758,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		},
 		{
 			input:    `zipmap(["one", "two", "three"], [1, 2, 3])`,
-			expected: map[string]any{"one": 1., "two": 2., "three": 3.},
+			expected: map[string]any{"one": json.Number("1"), "two": json.Number("2"), "three": json.Number("3")},
 		},
 	}
 
@@ -895,6 +784,200 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 			assert.Equal(t, tc.expected, test, "For hcl '%s'", tc.input)
 		})
 	}
+}
+
+func TestTerragruntDeepMergeFunction(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		expected map[string]any
+		input    string
+	}{
+		{
+			input:    `deep_merge()`,
+			expected: map[string]any{},
+		},
+		{
+			input: `deep_merge(
+				{ service = { retries = 1, mode = "safe" } },
+				{ service = { retries = 3 } }
+			)`,
+			expected: map[string]any{
+				"service": map[string]any{
+					"retries": json.Number("3"),
+					"mode":    "safe",
+				},
+			},
+		},
+		{
+			input: `deep_merge(
+				{ base = { enabled = true } },
+				null,
+				{ extra = { enabled = false } }
+			)`,
+			expected: map[string]any{
+				"base": map[string]any{
+					"enabled": true,
+				},
+				"extra": map[string]any{
+					"enabled": false,
+				},
+			},
+		},
+		{
+			input: `deep_merge(
+				jsondecode("{\"env\":{\"region\":\"us-east-1\",\"tags\":{\"owner\":\"platform\"}},\"allow\":[1]}"),
+				jsondecode("{\"env\":{\"tags\":{\"app\":\"api\"}},\"allow\":[2]}")
+			)`,
+			expected: map[string]any{
+				"env": map[string]any{
+					"region": "us-east-1",
+					"tags": map[string]any{
+						"owner": "platform",
+						"app":   "api",
+					},
+				},
+				"allow": []any{json.Number("1"), json.Number("2")},
+			},
+		},
+		{
+			input: `deep_merge(
+				{
+					config = {
+						retries = 1
+						flags   = { enabled = true }
+					}
+				},
+				jsondecode("{\"config\":{\"timeout\":30,\"flags\":{\"debug\":false}}}")
+			)`,
+			expected: map[string]any{
+				"config": map[string]any{
+					"retries": json.Number("1"),
+					"timeout": json.Number("30"),
+					"flags": map[string]any{
+						"enabled": true,
+						"debug":   false,
+					},
+				},
+			},
+		},
+		{
+			input: `deep_merge(
+				{
+					env = {
+						region = "us-east-1"
+						tags   = { owner = "platform" }
+					}
+					allow = [1]
+				},
+				{
+					env = {
+						tags = { app = "api" }
+					}
+					allow = [2]
+				},
+				{
+					env = {
+						region = "us-west-2"
+					}
+				}
+			)`,
+			expected: map[string]any{
+				"env": map[string]any{
+					"region": "us-west-2",
+					"tags": map[string]any{
+						"owner": "platform",
+						"app":   "api",
+					},
+				},
+				"allow": []any{json.Number("1"), json.Number("2")},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+
+			cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
+			configString := fmt.Sprintf("inputs = { test = %s }", tc.input)
+			l := logger.CreateLogger()
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
+			actual, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
+			require.NoError(t, err)
+			require.NotNil(t, actual)
+
+			test, containsTest := actual.Inputs["test"]
+			require.True(t, containsTest)
+
+			assert.Equal(t, tc.expected, test)
+		})
+	}
+}
+
+func TestTerragruntDeepMergeFunctionRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
+	configString := `inputs = { test = deep_merge({ a = 1 }, { b = 2 }) }`
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	_, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "deep-merge")
+}
+
+func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
+	configString := `inputs = { test = deep_merge({ a = 1 }, "invalid") }`
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
+	_, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, `Call to function "deep_merge" failed: Expected param of type map or object but got string.`)
+}
+
+func TestTerragruntDeepMergeFunctionFilesetJSONEndToEnd(t *testing.T) {
+	t.Parallel()
+
+	cfgPath, err := filepath.Abs("../../test/fixtures/deep-merge-fileset/" + config.DefaultTerragruntConfigPath)
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
+
+	cfg, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.Inputs)
+
+	expected := map[string]any{
+		"app": map[string]any{
+			"name": "svc-prod",
+			"settings": map[string]any{
+				"retries": json.Number("2"),
+				"timeout": json.Number("30"),
+				"tags": map[string]any{
+					"owner": "platform",
+					"team":  "core",
+				},
+			},
+		},
+		"ports": []any{json.Number("80"), json.Number("443")},
+		"env":   "prod",
+		"extra": map[string]any{
+			"enabled": true,
+		},
+	}
+
+	assert.Equal(t, expected, cfg.Inputs)
 }
 
 func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
@@ -977,21 +1060,21 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 	inputsMap := tgConfigMap["inputs"].(map[string]any)
 
 	assert.Equal(t, "string", inputsMap["string"].(string))
-	assert.InEpsilon(t, float64(42), inputsMap["number"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("42"), inputsMap["number"].(json.Number))
 	assert.True(t, inputsMap["bool"].(bool))
 	assert.Equal(t, []any{"a", "b", "c"}, inputsMap["list_string"].([]any))
-	assert.Equal(t, []any{float64(1), float64(2), float64(3)}, inputsMap["list_number"].([]any))
+	assert.Equal(t, []any{json.Number("1"), json.Number("2"), json.Number("3")}, inputsMap["list_number"].([]any))
 	assert.Equal(t, []any{true, false}, inputsMap["list_bool"].([]any))
 	assert.Equal(t, map[string]any{"foo": "bar"}, inputsMap["map_string"].(map[string]any))
-	assert.Equal(t, map[string]any{"foo": float64(42), "bar": float64(12345)}, inputsMap["map_number"].(map[string]any))
+	assert.Equal(t, map[string]any{"foo": json.Number("42"), "bar": json.Number("12345")}, inputsMap["map_number"].(map[string]any))
 	assert.Equal(t, map[string]any{"foo": true, "bar": false, "baz": true}, inputsMap["map_bool"].(map[string]any))
 
 	assert.Equal(
 		t,
 		map[string]any{
 			"str":  "string",
-			"num":  float64(42),
-			"list": []any{float64(1), float64(2), float64(3)},
+			"num":  json.Number("42"),
+			"list": []any{json.Number("1"), json.Number("2"), json.Number("3")},
 			"map":  map[string]any{"foo": "bar"},
 		},
 		inputsMap["object"].(map[string]any),
@@ -1089,9 +1172,9 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 	require.NoError(t, err)
 
 	localsMap := tgConfigMap["locals"].(map[string]any)
-	assert.InEpsilon(t, float64(2), localsMap["x"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("2"), localsMap["x"].(json.Number))
 	assert.Equal(t, "Hello world", strings.TrimSpace(localsMap["file_contents"].(string)))
-	assert.InEpsilon(t, float64(42), localsMap["number_expression"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("42"), localsMap["number_expression"].(json.Number))
 }
 
 func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
@@ -1301,11 +1384,11 @@ func TestReadTFVarsFiles(t *testing.T) {
 	locals := tgConfigMap["locals"].(map[string]any)
 
 	assert.Equal(t, "string", locals["string_var"].(string))
-	assert.InEpsilon(t, float64(42), locals["number_var"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("42"), locals["number_var"].(json.Number))
 	assert.True(t, locals["bool_var"].(bool))
 	assert.Equal(t, []any{"hello", "world"}, locals["list_var"].([]any))
 
-	assert.InEpsilon(t, float64(24), locals["json_number_var"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("24"), locals["json_number_var"].(json.Number))
 	assert.Equal(t, "another string", locals["json_string_var"].(string))
 	assert.False(t, locals["json_bool_var"].(bool))
 }
@@ -1327,22 +1410,29 @@ func getKeys(valueMap map[string]cty.Value) map[string]bool {
 	return keys
 }
 
-func getTrackIncludeFromTestData(includeMap map[string]config.IncludeConfig, params []string) *config.TrackInclude {
+// getTrackIncludeFromTestData mirrors getTrackInclude: include paths are resolved to absolute against the directory of
+// configPath so production callers can rely on IncludeConfig.Path being absolute.
+func getTrackIncludeFromTestData(includeMap map[string]config.IncludeConfig, params []string, configPath string) *config.TrackInclude {
 	if len(includeMap) == 0 {
 		return nil
 	}
 
-	currentList := make([]config.IncludeConfig, len(includeMap))
+	configDir := filepath.Dir(configPath)
+	normalizedMap := make(map[string]config.IncludeConfig, len(includeMap))
+	currentList := make([]config.IncludeConfig, 0, len(includeMap))
 
-	i := 0
-	for _, val := range includeMap {
-		currentList[i] = val
-		i++
+	for name, val := range includeMap {
+		if val.Path != "" && !filepath.IsAbs(val.Path) {
+			val.Path = filepath.Clean(filepath.Join(configDir, val.Path))
+		}
+
+		normalizedMap[name] = val
+		currentList = append(currentList, val)
 	}
 
 	trackInclude := &config.TrackInclude{
 		CurrentList: currentList,
-		CurrentMap:  includeMap,
+		CurrentMap:  normalizedMap,
 	}
 	if len(params) == 0 {
 		trackInclude.Original = &currentList[0]
@@ -1397,6 +1487,122 @@ func TestConstraintCheck(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.value, actual)
+		})
+	}
+}
+
+// TestStartsWithArityRegression: startswith with wrong arity must return WrongNumberOfParamsError, not panic.
+func TestStartsWithArityRegression(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "no args", args: []string{}},
+		{name: "one arg (the bug trigger)", args: []string{"foo"}},
+		{name: "three args", args: []string{"foo", "bar", "baz"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, pctx := newTestParsingContext(t, "")
+
+			require.NotPanics(t, func() {
+				_, err := config.StartsWith(ctx, pctx, tc.args)
+				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
+				require.ErrorAs(t, err, new(config.WrongNumberOfParamsError))
+			}, "startswith with %d args must not panic", len(tc.args))
+		})
+	}
+}
+
+// TestEndsWithArityRegression: endswith with wrong arity must return WrongNumberOfParamsError, not panic.
+func TestEndsWithArityRegression(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "no args", args: []string{}},
+		{name: "one arg (the bug trigger)", args: []string{"foo"}},
+		{name: "three args", args: []string{"foo", "bar", "baz"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, pctx := newTestParsingContext(t, "")
+
+			require.NotPanics(t, func() {
+				_, err := config.EndsWith(ctx, pctx, tc.args)
+				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
+				require.ErrorAs(t, err, new(config.WrongNumberOfParamsError))
+			}, "endswith with %d args must not panic", len(tc.args))
+		})
+	}
+}
+
+// TestStrContainsArityRegression: strcontains with wrong arity must return WrongNumberOfParamsError, not panic.
+func TestStrContainsArityRegression(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "no args", args: []string{}},
+		{name: "one arg (the bug trigger)", args: []string{"hello"}},
+		{name: "three args", args: []string{"hello", "world", "extra"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, pctx := newTestParsingContext(t, "")
+
+			require.NotPanics(t, func() {
+				_, err := config.StrContains(ctx, pctx, tc.args)
+				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
+				require.ErrorAs(t, err, new(config.WrongNumberOfParamsError))
+			}, "strcontains with %d args must not panic", len(tc.args))
+		})
+	}
+}
+
+// TestRunCommandOptionsOnlyArityRegression: run_cmd with only option flags must return EmptyStringNotAllowedError, not panic.
+func TestRunCommandOptionsOnlyArityRegression(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		params []string
+	}{
+		{name: "single quiet flag", params: []string{"--terragrunt-quiet"}},
+		{name: "single no-cache flag", params: []string{"--terragrunt-no-cache"}},
+		{name: "single global-cache flag", params: []string{"--terragrunt-global-cache"}},
+		{name: "two compatible flags", params: []string{"--terragrunt-quiet", "--terragrunt-no-cache"}},
+		{name: "two compatible flags reversed", params: []string{"--terragrunt-no-cache", "--terragrunt-quiet"}},
+		{name: "duplicate quiet", params: []string{"--terragrunt-quiet", "--terragrunt-quiet"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+			ctx, pctx := newTestParsingContext(t, "")
+
+			require.NotPanics(t, func() {
+				_, err := config.RunCommand(ctx, pctx, l, tc.params)
+				require.Error(t, err, "must return error when only option flags are supplied (%v)", tc.params)
+				require.ErrorAs(t, err, new(config.EmptyStringNotAllowedError))
+			}, "run_cmd with options-only %v must not panic", tc.params)
 		})
 	}
 }

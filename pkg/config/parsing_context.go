@@ -8,12 +8,11 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
@@ -21,6 +20,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -39,12 +40,18 @@ const (
 type ParsingContext struct {
 	Writers writer.Writers
 
+	// Venv is the virtualized environment used by HCL helper functions
+	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
+	// Defaults to the OS-backed environment when [NewParsingContext] is
+	// called; callers with a threaded root Venv set it before parsing.
+	Venv venv.Venv
+
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
 	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
-	FeatureFlags     *xsync.MapOf[string, string]
-	FilesRead        *[]string
+	FeatureFlags     *xsync.Map[string, string]
+	FilesRead        *FilesRead
 	Telemetry        *telemetry.Options
 
 	DecodedDependencies *cty.Value
@@ -84,6 +91,7 @@ type ParsingContext struct {
 
 	MaxFoldersToCheck int
 	ParseDepth        int
+	CASCloneDepth     int
 
 	TFPathExplicitlySet bool
 	SkipOutput          bool
@@ -99,14 +107,21 @@ type ParsingContext struct {
 	UsePartialParseConfigCache       bool
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
+	NoCAS                            bool
+	LogShowAbsPaths                  bool
+	LogDisableErrorSummary           bool
+
+	// skipAutoIncludeMerge is set on contexts that parse the files an autoinclude pulls in through its
+	// own include blocks, so those files do not re-merge a sibling autoinclude. This bounds the merge to
+	// the unit being parsed and prevents an autoinclude that includes another file from recursing.
+	skipAutoIncludeMerge bool
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {
-	filesRead := make([]string, 0)
-
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
-		FilesRead:        &filesRead,
+		FilesRead:        NewFilesRead(),
+		Venv:             venv.OSVenv(),
 	}
 
 	for _, opt := range opts {
@@ -212,10 +227,10 @@ func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 // Returns an error if the maximum depth would be exceeded.
 func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 	if ctx.ParseDepth > MaxParseDepth {
-		return nil, errors.New(MaxParseDepthError{
+		return nil, MaxParseDepthError{
 			Depth: ctx.ParseDepth,
 			Max:   MaxParseDepth,
-		})
+		}
 	}
 
 	c := ctx.Clone()
@@ -224,9 +239,16 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 	return c, nil
 }
 
-// WithConfigPath returns a new ParsingContext with the config path updated.
-// It normalizes the path to an absolute path, updates WorkingDir to the directory
-// containing the config, and adjusts the logger's working directory field if it changed.
+// WithConfigPath returns a new ParsingContext targeting a different config file.
+//
+// It normalizes configPath to an absolute path, sets TerragruntConfigPath and
+// WorkingDir accordingly, and updates the logger when the working directory changes.
+//
+// OriginalTerragruntConfigPath is preserved so that get_original_terragrunt_dir()
+// continues to resolve to the caller. This is the correct behavior when one config
+// reads another via read_terragrunt_config.
+//
+// To parse a dependency as an independent unit, use [ParsingContext.WithDependencyConfigPath].
 func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
 	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
@@ -240,8 +262,38 @@ func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.
 	}
 
 	c := ctx.Clone()
+
+	// Keep DownloadDir in sync with TerragruntConfigPath: if the current context was
+	// using the default download dir for the old config, update it to the default for
+	// the new config. This ensures that when read_terragrunt_config() or dependency
+	// processing switches to a different module, DownloadDir reflects the new module's
+	// default rather than an inherited stale default from an ancestor. User-set custom
+	// dirs (which won't match any module's default) are preserved unchanged.
+	_, defaultDir := util.DefaultWorkingAndDownloadDirs(ctx.TerragruntConfigPath)
+	if filepath.Clean(c.DownloadDir) == filepath.Clean(defaultDir) {
+		_, c.DownloadDir = util.DefaultWorkingAndDownloadDirs(configPath)
+	}
+
 	c.TerragruntConfigPath = configPath
 	c.WorkingDir = workingDir
+
+	return l, c, nil
+}
+
+// WithDependencyConfigPath returns a new ParsingContext for parsing a dependency
+// as an independent unit.
+//
+// It performs the same path and logger updates as [ParsingContext.WithConfigPath],
+// and additionally resets OriginalTerragruntConfigPath to the dependency's path.
+// This ensures that get_original_terragrunt_dir() resolves to the dependency's
+// own directory rather than the caller's.
+func (ctx *ParsingContext) WithDependencyConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
+	l, c, err := ctx.WithConfigPath(l, configPath)
+	if err != nil {
+		return l, nil, err
+	}
+
+	c.OriginalTerragruntConfigPath = c.TerragruntConfigPath
 
 	return l, c, nil
 }

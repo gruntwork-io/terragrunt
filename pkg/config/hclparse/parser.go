@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -44,7 +43,7 @@ func (parser *Parser) ParseFromFile(configPath string) (*File, error) {
 	if err != nil {
 		parser.logger.Warnf("Error reading file %s: %v", configPath, err)
 
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return parser.ParseFromBytes(content, configPath)
@@ -60,7 +59,7 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 	// those panics here and convert them to normal errors
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = errors.New(PanicWhileParsingConfigError{RecoveredValue: recovered, ConfigFile: configPath})
+			err = PanicWhileParsingConfigError{RecoveredValue: recovered, ConfigFile: configPath}
 		}
 	}()
 
@@ -85,7 +84,7 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 	if err := parser.handleDiagnostics(file, diags); err != nil {
 		parser.logger.Warnf("Failed to parse HCL in file %s: %v", configPath, diags)
 
-		return nil, errors.New(diags)
+		return nil, diags
 	}
 
 	return file, nil

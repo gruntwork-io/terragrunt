@@ -15,8 +15,9 @@ import (
 	"strings"
 	"sync"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -33,8 +34,9 @@ type WorktreePhase struct {
 
 // NewWorktreePhase creates a new WorktreePhase.
 func NewWorktreePhase(gitExpressions filter.GitExpressions, numWorkers int) *WorktreePhase {
+	// Default to available CPUs when no explicit worker count is given.
 	if numWorkers <= 0 {
-		numWorkers = runtime.NumCPU()
+		numWorkers = runtime.GOMAXPROCS(0)
 	}
 
 	return &WorktreePhase{
@@ -86,11 +88,16 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 				return err
 			}
 
+			// Expand routes reading filters for deleted files onto the from side, since a deleted file
+			// only exists in the from worktree where its read relationship can be evaluated. These need
+			// different handling from the path filters for genuinely removed components, so split them.
+			deletedReadFilters, removalFilters := fromFilters.PartitionReadingFilters()
+
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
 
-			if len(fromFilters) > 0 {
+			if len(removalFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.FromWorktree, fromFilters, FromWorktreeKind)
+					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.FromWorktree, removalFilters, FromWorktreeKind)
 					if err != nil {
 						return err
 					}
@@ -103,9 +110,24 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 				})
 			}
 
-			if len(toFilters) > 0 {
+			if len(toFilters) > 0 || len(deletedReadFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.ToWorktree, toFilters, ToWorktreeKind)
+					finalToFilters := toFilters
+
+					if len(deletedReadFilters) > 0 {
+						translated, err := p.deletedReadingComponentsToFilters(fromToCtx, l, input, pair.FromWorktree, deletedReadFilters)
+						if err != nil {
+							return err
+						}
+
+						finalToFilters = slices.Concat(toFilters, translated)
+					}
+
+					if len(finalToFilters) == 0 {
+						return nil
+					}
+
+					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.ToWorktree, finalToFilters, ToWorktreeKind)
 					if err != nil {
 						return err
 					}
@@ -140,7 +162,7 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 	}
 
 	for _, c := range discoveredComponents.ToComponents() {
-		status, reason, graphIdx := StatusDiscovered, CandidacyReasonNone, -1
+		status, reason, graphIdx := filter.StatusReadyForFilter, filter.CandidacyReasonNone, -1
 
 		if input.Classifier != nil {
 			classCtx := filter.ClassificationContext{}
@@ -156,11 +178,11 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 		}
 
 		switch result.Status {
-		case StatusDiscovered:
+		case filter.StatusReadyForFilter:
 			results.AddDiscovered(result)
-		case StatusCandidate:
+		case filter.StatusCandidate:
 			results.AddCandidate(result)
-		case StatusExcluded:
+		case filter.StatusExcluded:
 			// Excluded components are not added
 		}
 	}
@@ -195,8 +217,14 @@ func (p *WorktreePhase) discoverInWorktree(
 		return nil, err
 	}
 
+	// Propagate non-git filters from the parent discovery to the worktree sub-discovery.
+	// Git expressions are excluded to avoid infinite recursion (the worktree phase is
+	// already handling them). All other filters (path, attribute, negation) are included
+	// so that exclusions and type constraints apply within sub-discoveries.
+	allFilters := slices.Concat(filters, discovery.filters.ExcludingGitFilters())
+
 	subDiscovery := NewDiscovery(wt.Path).
-		WithFilters(filters).
+		WithFilters(allFilters).
 		WithDiscoveryContext(discoveryContext).
 		WithNumWorkers(p.numWorkers)
 
@@ -216,6 +244,48 @@ func (p *WorktreePhase) discoverInWorktree(
 	return components, nil
 }
 
+// deletedReadingComponentsToFilters discovers, in the from worktree, the units that read files
+// deleted in the diff (those files only exist on the from side), then returns a path filter per
+// discovered unit aimed at its equivalent path in the to worktree. A unit that no longer exists in the
+// to worktree simply matches nothing there, which is the expected outcome for a genuine removal that
+// another filter already covers. Stacks are intentionally skipped: a stack reading a deleted file is
+// routed through ReadingAffectedStacks during generation so its generated units get walked, which a
+// plain path filter (matching only the stack file) would not achieve.
+func (p *WorktreePhase) deletedReadingComponentsToFilters(
+	ctx context.Context,
+	l log.Logger,
+	input *PhaseInput,
+	fromWorktree worktrees.Worktree,
+	readingFilters filter.Filters,
+) (filter.Filters, error) {
+	affected, err := p.discoverInWorktree(ctx, l, input, fromWorktree, readingFilters, FromWorktreeKind)
+	if err != nil {
+		return nil, err
+	}
+
+	toFilters := make(filter.Filters, 0, len(affected))
+
+	for _, c := range affected {
+		if _, ok := c.(*component.Stack); ok {
+			continue
+		}
+
+		relPath, err := filepath.Rel(fromWorktree.Path, c.Path())
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve relative path for reading-affected component %s: %w", c.Path(), err)
+		}
+
+		expr, err := filter.NewPathFilter(relPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create path filter for reading-affected component %s: %w", relPath, err)
+		}
+
+		toFilters = append(toFilters, filter.NewFilter(expr, expr.String()))
+	}
+
+	return toFilters, nil
+}
+
 // discoverChangesInWorktreeStacks discovers changes in worktree stacks.
 func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	ctx context.Context,
@@ -227,15 +297,20 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 
 	stackDiff := w.Stacks()
 
+	allChanged := make([]worktrees.StackDiffChangedPair, 0, len(stackDiff.Changed)+len(stackDiff.ReadingAffected))
+	allChanged = append(allChanged, stackDiff.Changed...)
+	allChanged = append(allChanged, stackDiff.ReadingAffected...)
+
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(max(1, min(runtime.NumCPU(), len(stackDiff.Added)+len(stackDiff.Removed)+len(stackDiff.Changed)*2)))
+	// Cap workers to the total number of diff operations, but no more than available CPUs (at least 1).
+	g.SetLimit(max(1, min(runtime.GOMAXPROCS(0), len(stackDiff.Added)+len(stackDiff.Removed)+len(allChanged)*2)))
 
 	var (
 		mu   sync.Mutex
-		errs = make([]error, 0, len(stackDiff.Changed))
+		errs = make([]error, 0, len(allChanged))
 	)
 
-	for _, changed := range stackDiff.Changed {
+	for _, changed := range allChanged {
 		g.Go(func() error {
 			components, err := p.walkChangedStack(ctx, l, input, changed.FromStack, changed.ToStack)
 			if err != nil {
@@ -298,17 +373,20 @@ func (p *WorktreePhase) walkChangedStack(
 	var fromComponents, toComponents component.Components
 
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
-	discoveryGroup.SetLimit(min(runtime.NumCPU(), 2)) //nolint:mnd
+	// Run at most 2 discovery tasks (from/to) in parallel, capped by available CPUs.
+	discoveryGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
 
 	var (
 		mu   sync.Mutex
 		errs = make([]error, 0, 2) //nolint:mnd
 	)
 
+	parentFilters := discovery.filters.ExcludingGitFilters()
+
 	discoveryGroup.Go(func() error {
 		fromDiscovery := NewDiscovery(fromStack.Path()).
 			WithDiscoveryContext(fromDiscoveryContext).
-			WithFilters(filter.Filters{}).
+			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers)
 
 		var fromDiscoveryErr error
@@ -336,7 +414,7 @@ func (p *WorktreePhase) walkChangedStack(
 	discoveryGroup.Go(func() error {
 		toDiscovery := NewDiscovery(toStack.Path()).
 			WithDiscoveryContext(toDiscoveryContext).
-			WithFilters(filter.Filters{}).
+			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers)
 
 		var toDiscoveryErr error
@@ -396,7 +474,8 @@ func (p *WorktreePhase) walkChangedStack(
 		var fromSHA, toSHA string
 
 		shaGroup, _ := errgroup.WithContext(ctx)
-		shaGroup.SetLimit(min(runtime.NumCPU(), 2)) //nolint:mnd
+		// Hash from/to directories in parallel (at most 2), capped by available CPUs.
+		shaGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
 
 		shaGroup.Go(func() error {
 			var localErr error

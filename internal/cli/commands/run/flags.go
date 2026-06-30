@@ -3,6 +3,7 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -25,6 +26,7 @@ const (
 	NoAutoProviderCacheDirFlagName           = "no-auto-provider-cache-dir"
 	NoEngineFlagName                         = "no-engine"
 	NoDependencyFetchOutputFromStateFlagName = "no-dependency-fetch-output-from-state"
+	NoHooksFlagName                          = "no-hooks"
 	TFForwardStdoutFlagName                  = "tf-forward-stdout"
 	UnitsThatIncludeFlagName                 = "units-that-include"
 	DependencyFetchOutputFromStateFlagName   = "dependency-fetch-output-from-state"
@@ -84,13 +86,14 @@ const (
 	IAMAssumeRoleWebIdentityTokenFlagName = shared.IAMAssumeRoleWebIdentityTokenFlagName
 )
 
+var ErrNoHooksRequiresExperiment = errors.New(
+	"--no-hooks requires the 'optional-hooks' experiment to be enabled (e.g., --experiment=optional-hooks)",
+)
+
 // NewFlags creates and returns global flags.
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
-	legacyLogsControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName, controls.LegacyLogs)
-
 	cmdFlags := clihelper.Flags{
 		// `--all` related flags.
 
@@ -100,7 +103,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.OutputFolder,
 			Usage:       "Directory to store plan files.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("out-dir"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("out-dir"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        JSONOutDirFlagName,
@@ -108,7 +111,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.JSONOutputFolder,
 			Usage:       "Directory to store json plan files.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-out-dir"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-out-dir"), opts.StrictControls)),
 
 		// `graph/-graph` related flags.
 
@@ -118,7 +121,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("graph-root"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("graph-root"), opts.StrictControls)),
 
 		// `--all` and `--graph` related flags.
 
@@ -131,7 +134,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 
 		//  Backward compatibility with `terragrunt-` prefix flags.
 
-		shared.NewConfigFlag(opts, prefix, CommandName),
+		shared.NewConfigFlag(opts, prefix),
 
 		shared.NewTFPathFlag(opts),
 
@@ -144,7 +147,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		},
 			flags.WithDeprecatedFlag(&clihelper.BoolFlag{
 				EnvVars: terragruntPrefix.EnvVars("auto-init"),
-			}, nil, terragruntPrefixControl)),
+			}, nil, opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NoAutoRetryFlagName,
@@ -155,7 +158,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		},
 			flags.WithDeprecatedFlag(&clihelper.BoolFlag{
 				EnvVars: terragruntPrefix.EnvVars("auto-retry"),
-			}, nil, terragruntPrefixControl)),
+			}, nil, opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NoAutoApproveFlagName,
@@ -166,7 +169,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		},
 			flags.WithDeprecatedFlag(&clihelper.BoolFlag{
 				EnvVars: terragruntPrefix.EnvVars("auto-approve"),
-			}, nil, terragruntPrefixControl)),
+			}, nil, opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NoAutoProviderCacheDirFlagName,
@@ -175,7 +178,25 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "Disable the auto-provider-cache-dir feature even when the experiment is enabled.",
 		}),
 
-		shared.NewDownloadDirFlag(opts, prefix, CommandName),
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:        NoHooksFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoHooksFlagName),
+			Destination: &opts.NoRunHooks,
+			Usage:       "Disable Terragrunt hooks during run. Requires the 'optional-hooks' experiment.",
+			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
+				if !value {
+					return nil
+				}
+
+				if opts.Experiments.Evaluate(experiment.OptionalHooks) {
+					return nil
+				}
+
+				return ErrNoHooksRequiresExperiment
+			},
+		}),
+
+		shared.NewDownloadDirFlag(opts, prefix),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        SourceFlagName,
@@ -183,7 +204,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.Source,
 			Usage:       "Download OpenTofu/Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("source"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("source"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        SourceUpdateFlagName,
@@ -191,7 +212,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.SourceUpdate,
 			Usage:       "Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("source-update"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("source-update"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.MapFlag[string, string]{
 			Name:        SourceMapFlagName,
@@ -200,10 +221,10 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "Replace any source URL (including the source URL of a config pulled in with dependency blocks) that has root source with dest.",
 			Splitter:    util.SplitUrls,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("source-map"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("source-map"), opts.StrictControls)),
 
 		// Assume IAM Role flags.
-		shared.NewInputsDebugFlag(opts, prefix, CommandName),
+		shared.NewInputsDebugFlag(opts, prefix),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        UsePartialParseConfigCacheFlagName,
@@ -211,7 +232,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.UsePartialParseConfigCache,
 			Usage:       "Enables caching of includes during partial parsing operations. Will also be used for the --iam-role option if provided.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("use-partial-parse-config-cache"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("use-partial-parse-config-cache"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.SliceFlag[string]{
 			Name:        VersionManagerFileNameFlagName,
@@ -232,7 +253,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("fetch-dependency-output-from-state"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("fetch-dependency-output-from-state"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NoDependencyFetchOutputFromStateFlagName,
@@ -248,8 +269,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.ForwardTFStdout,
 			Usage:       "If specified, the output of OpenTofu/Terraform commands will be printed as is, without being integrated into the Terragrunt log.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("forward-tf-stdout"), terragruntPrefixControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-module-prefix"), legacyLogsControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("forward-tf-stdout"), opts.StrictControls),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("include-module-prefix"), opts.StrictControls, controls.LegacyLogs)),
 
 		flags.NewFlag(&clihelper.SliceFlag[string]{
 			Name:    UnitsThatIncludeFlagName,
@@ -277,7 +298,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("modules-that-include"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("modules-that-include"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        DisableCommandValidationFlagName,
@@ -293,7 +314,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("disable-command-validation"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("disable-command-validation"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:    NoDestroyDependenciesCheckFlagName,
@@ -324,7 +345,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.ProviderCacheOptions.Enabled,
 			Usage:       "Enables Terragrunt's provider caching.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProviderCacheDirFlagName,
@@ -332,7 +353,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.ProviderCacheOptions.Dir,
 			Usage:       "The path to the Terragrunt provider cache directory. By default, 'terragrunt/providers' folder in the user cache directory.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-dir"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-dir"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProviderCacheTokenFlagName,
@@ -340,7 +361,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.ProviderCacheOptions.Token,
 			Usage:       "The token for authentication to the Terragrunt Provider Cache server. By default, assigned automatically.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-token"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-token"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProviderCacheHostnameFlagName,
@@ -348,7 +369,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.ProviderCacheOptions.Hostname,
 			Usage:       "The hostname of the Terragrunt Provider Cache server. By default, 'localhost'.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-hostname"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-hostname"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.GenericFlag[int]{
 			Name:        ProviderCachePortFlagName,
@@ -356,7 +377,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.ProviderCacheOptions.Port,
 			Usage:       "The port of the Terragrunt Provider Cache server. By default, assigned automatically.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-port"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-port"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.SliceFlag[string]{
 			Name:        ProviderCacheRegistryNamesFlagName,
@@ -364,9 +385,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Destination: &opts.ProviderCacheOptions.RegistryNames,
 			Usage:       "The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'.",
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-registry-names"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-registry-names"), opts.StrictControls)),
 
-		shared.NewAuthProviderCmdFlag(opts, prefix, CommandName),
+		shared.NewAuthProviderCmdFlag(opts, prefix),
+
+		shared.NewNoDiscoveryAuthProviderCmdFlag(opts, prefix),
 
 		// Terragrunt engine flags.
 
@@ -383,7 +406,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("experimental-engine"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("experimental-engine"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        EngineCachePathFlagName,
@@ -392,7 +415,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "Cache path for Terragrunt engine files.",
 			Hidden:      true,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("engine-cache-path"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("engine-cache-path"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        EngineSkipCheckFlagName,
@@ -401,7 +424,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "Skip checksum check for Terragrunt engine files.",
 			Hidden:      true,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("engine-skip-check"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("engine-skip-check"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        EngineLogLevelFlagName,
@@ -410,7 +433,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "Terragrunt engine log level.",
 			Hidden:      true,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("engine-log-level"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("engine-log-level"), opts.StrictControls)),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NoEngineFlagName,
@@ -498,10 +521,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	cmdFlags = cmdFlags.Add(shared.NewBackendFlags(opts, prefix)...)
 	cmdFlags = cmdFlags.Add(shared.NewFeatureFlags(opts, prefix)...)
 	cmdFlags = cmdFlags.Add(shared.NewFailFastFlag(opts))
-	cmdFlags = cmdFlags.Add(shared.NewIAMAssumeRoleFlags(opts, prefix, CommandName)...)
+	cmdFlags = cmdFlags.Add(shared.NewIAMAssumeRoleFlags(opts, prefix)...)
 	cmdFlags = cmdFlags.Add(shared.NewQueueFlags(opts, prefix)...)
 	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts)...)
 	cmdFlags = cmdFlags.Add(shared.NewParallelismFlag(opts))
+	cmdFlags = cmdFlags.Add(shared.NewCASFlags(opts, prefix)...)
 
 	return cmdFlags.Sort()
 }

@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -27,14 +27,16 @@ func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, nonInt
 	if err != nil {
 		l.Error(err)
 
-		return "", errors.New(err)
+		return "", err
 	}
 
 	if n != len(prompt) {
 		l.Errorln("Failed to write data")
 
-		return "", errors.New(err)
+		return "", err
 	}
+
+	exec.PrepareStdinForPrompt(l)
 
 	reader := bufio.NewReader(os.Stdin)
 
@@ -44,7 +46,7 @@ func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, nonInt
 	go func() {
 		input, err := reader.ReadString('\n')
 		if err != nil {
-			errCh <- errors.New(err)
+			errCh <- err
 			return
 		}
 
@@ -65,7 +67,7 @@ func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, nonInt
 func PromptUserForYesNo(ctx context.Context, l log.Logger, prompt string, nonInteractive bool, errWriter io.Writer) (bool, error) {
 	resp, err := PromptUserForInput(ctx, l, prompt+" (y/n) ", nonInteractive, errWriter)
 	if err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	switch strings.ToLower(resp) {

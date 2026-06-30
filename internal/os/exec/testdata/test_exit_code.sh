@@ -1,3 +1,5 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
 
-exit $1
+set -e
+
+exit "$1"

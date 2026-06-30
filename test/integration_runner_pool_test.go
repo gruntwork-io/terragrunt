@@ -223,8 +223,8 @@ func TestRunnerPoolDestroyFailFast(t *testing.T) {
 	// Verify that unit-b failed
 	assert.Contains(t, stderr, "Failed to execute")
 	assert.Contains(t, stderr, "in ./unit-b")
-	assert.NotContains(t, stdout, "unit-b tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
-	assert.NotContains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
+	assert.NotContains(t, stdout, "unit-b tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed")
+	assert.NotContains(t, stdout, "unit-a tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed.")
 }
 
 func TestRunnerPoolDestroyDependencies(t *testing.T) {
@@ -241,16 +241,17 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- destroy")
 	require.NoError(t, err)
-	assert.Contains(t, stdout, "unit-b tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
-	assert.Contains(t, stdout, "unit-c tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
-	assert.Contains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
+	assert.Contains(t, stdout, "unit-b tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed")
+	assert.Contains(t, stdout, "unit-c tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed")
+	assert.Contains(t, stdout, "unit-a tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed.")
 }
 
 func TestRunnerPoolRemoteSource(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.NewGitServer(t)
 	helpers.CleanupTerraformFolder(t, testFixtureRunnerPoolRemoteSource)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunnerPoolRemoteSource)
+	tmpEnvPath := mirror.RenderFixture(testFixtureRunnerPoolRemoteSource)
 	testPath := filepath.Join(tmpEnvPath, testFixtureRunnerPoolRemoteSource)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+"  -- apply")
@@ -262,18 +263,23 @@ func TestRunnerPoolRemoteSource(t *testing.T) {
 func TestRunnerPoolSourceMap(t *testing.T) {
 	t.Parallel()
 
+	mirror := helpers.NewGitServer(t)
+	// The fixture's source is redirected to the server via --source-map
+	// (not a placeholder), so name the fixture it ends up cloning.
+	mirror.AddFixtures("test/fixtures/download/hello-world-no-remote")
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureSourceMapSlashes)
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all --non-interactive "+
-			"--source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=github.com/gruntwork-io/terragrunt.git?ref=v0.85.0 "+
+			"--source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::"+mirror.URL+"?ref=v0.85.0 "+
 			"--working-dir "+testPath+" -- apply ",
 	)
 	require.NoError(t, err)
 	// Verify that source map values are used
-	require.Contains(t, stderr, "configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.85.0")
+	require.Contains(t, stderr, "configurations from git::"+mirror.URL+"?ref=v0.85.0")
 }
 
 // TestAuthProviderParallelExecution verifies that --auth-provider-cmd is executed in parallel

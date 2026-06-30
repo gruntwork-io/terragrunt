@@ -1,0 +1,18 @@
+---
+name: queue-strict-include
+status: active
+---
+
+Throw an error when using the deprecated `--queue-strict-include` flag.
+
+### `queue-strict-include` - Reason
+
+The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior. The `--queue-strict-include` flag is no longer needed and has been deprecated.
+
+### `queue-strict-include` - Example
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt run --all plan --queue-strict-include
+WARN  The `--queue-strict-include` flag is deprecated and will be removed in a future version of Terragrunt. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior.
+```

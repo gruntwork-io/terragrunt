@@ -1,0 +1,10 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Fix detection of offline usage in Provider Cache Server
+
+A bug in the detection of offline usage in the Provider Cache Server resulted in attempts to reach the default provider registry for OpenTofu/Terraform to trigger errors even when using the Provider Cache Server to proxy requests to a network or filesystem mirror.
+
+This has been fixed. When the default provider registry isn't available for OpenTofu/Terraform for any reason, the Provider Cache Server will use the provided network/filesystem mirror instead without attempting to use the discovery endpoint. This will help users in air-gapped environments using the Provider Cache Server.

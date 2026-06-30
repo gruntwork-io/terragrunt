@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	. "github.com/gruntwork-io/terragrunt/pkg/log/format/options"      //nolint:revive
 	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders" //nolint:revive
 )
@@ -151,5 +150,5 @@ func ParseFormat(str string) (Placeholders, error) {
 		}
 	}
 
-	return nil, errors.Errorf("available values: %s", strings.Join(slices.Collect(maps.Keys(presets)), ","))
+	return nil, fmt.Errorf("available values: %s", strings.Join(slices.Collect(maps.Keys(presets)), ","))
 }

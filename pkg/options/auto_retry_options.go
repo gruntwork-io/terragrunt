@@ -1,27 +1,20 @@
 package options
 
 import (
-	"regexp"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 )
 
-// defaultErrorsConfig builds a default errorconfig.Config using retry.DefaultRetryableErrors
+// defaultErrorsConfig builds a default errorconfig.Config using retry.DefaultRetryableRegexps
 // and default retry timings. Intended as a fallback when no errors{retry} blocks
 // are defined in configuration.
 func defaultErrorsConfig() *errorconfig.Config {
-	compiled := make([]*errorconfig.Pattern, 0, len(retry.DefaultRetryableErrors))
+	compiled := make([]*errorconfig.Pattern, len(retry.DefaultRetryableRegexps))
 
-	for _, pat := range retry.DefaultRetryableErrors {
-		re, err := regexp.Compile(pat)
-		if err != nil {
-			// Should not happen, as patterns are hardcoded and tested
-			panic(err)
-		}
-
-		compiled = append(compiled, &errorconfig.Pattern{Pattern: re})
+	for i, re := range retry.DefaultRetryableRegexps {
+		compiled[i] = &errorconfig.Pattern{Pattern: re}
 	}
 
 	cfg := &errorconfig.Config{

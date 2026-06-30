@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Bootstrap `use_lockfile` boolean handling fixed
+
+A bug in remote state backend configuration caused `use_lockfile = true` to be emitted as `use_lockfile = "true"` (quoted string), which OpenTofu/Terraform rejects. Boolean values in backend config are now normalized correctly.

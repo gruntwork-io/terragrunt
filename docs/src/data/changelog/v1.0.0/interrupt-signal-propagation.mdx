@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Interrupt signal propagation to OpenTofu/Terraform fixed
+
+The mechanism by which Terragrunt sends interrupt signals to OpenTofu/Terraform processes it started has been made more robust. Terragrunt will now send the interrupt signal in the event that a user explicitly sends an interrupt signal to Terragrunt in addition to scenarios where Terragrunt's context cancellation is triggered (e.g. in the event of a timeout).

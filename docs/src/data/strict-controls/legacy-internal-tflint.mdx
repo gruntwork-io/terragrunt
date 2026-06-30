@@ -1,0 +1,10 @@
+---
+name: legacy-internal-tflint
+status: active
+---
+
+Force the use of external tflint binary.
+
+### `legacy-internal-tflint` - Reason
+
+The embedded version of tflint has been held back by upstream's adoption of the BUSL license. As a result, the embedded version is horribly out of date, and we are deprecating it for removal in a future version of Terragrunt. You may use `--terragrunt-external-tflint` in your `tflint` hook to opt in to the use of an external tflint binary, or enable this strict control.

@@ -13,12 +13,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-getter"
 )
 
 // DefaultEngineType is the default engine type.
@@ -28,7 +27,9 @@ const DefaultEngineType = "rpc"
 //
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder.
-func CopyLockFile(l log.Logger, rootWorkingDir string, logShowAbsPaths bool, sourceFolder, destinationFolder string) error {
+func CopyLockFile(
+	l log.Logger, rootWorkingDir string, logShowAbsPaths bool, sourceFolder, destinationFolder string,
+) error {
 	sourceLockFilePath := filepath.Join(sourceFolder, tf.TerraformLockFile)
 	destinationLockFilePath := filepath.Join(destinationFolder, tf.TerraformLockFile)
 
@@ -59,7 +60,9 @@ func CopyLockFile(l log.Logger, rootWorkingDir string, logShowAbsPaths bool, sou
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
 // method returns the source URL. If neither is specified, returns "." to indicate the current directory should be
 // used as the source, ensuring a .terragrunt-cache directory is always created for consistency.
-func GetTerraformSourceURL(source string, sourceMap map[string]string, originalConfigPath string, cfg *RunConfig) (string, error) {
+func GetTerraformSourceURL(
+	source string, sourceMap map[string]string, originalConfigPath string, cfg *RunConfig,
+) (string, error) {
 	switch {
 	case source != "":
 		return source, nil
@@ -92,12 +95,12 @@ func AdjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 		return source, nil
 	}
 
-	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
+	// Split the module source string into a valid URL and subdirectory (if // is present).
 	moduleURL, moduleSubdir := getter.SourceDirSubdir(source)
 
 	// if both URL and subdir are missing, something went terribly wrong
 	if moduleURL == "" && moduleSubdir == "" {
-		return "", errors.New(InvalidSourceURLWithMapError{ModulePath: modulePath, ModuleSourceURL: source})
+		return "", InvalidSourceURLWithMapError{ModulePath: modulePath, ModuleSourceURL: source}
 	}
 
 	// If module URL is missing, return the source as is as it will not match anything in the map.
@@ -143,7 +146,11 @@ type InvalidSourceURLWithMapError struct {
 }
 
 func (err InvalidSourceURLWithMapError) Error() string {
-	return fmt.Sprintf("The --source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.ModulePath, err.ModuleSourceURL)
+	return fmt.Sprintf(
+		"The --source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'."+
+			" Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!",
+		err.ModulePath, err.ModuleSourceURL,
+	)
 }
 
 // ParsingModulePathError is an error type for when module path cannot be parsed from source URL.
@@ -152,7 +159,11 @@ type ParsingModulePathError struct {
 }
 
 func (err ParsingModulePathError) Error() string {
-	return fmt.Sprintf("Unable to obtain the module path from the source URL '%s'. Ensure that the URL is in a supported format.", err.ModuleSourceURL)
+	return fmt.Sprintf(
+		"Unable to obtain the module path from the source URL '%s'."+
+			" Ensure that the URL is in a supported format.",
+		err.ModuleSourceURL,
+	)
 }
 
 // Regexp for module name extraction. It assumes that the query string has already been stripped off.
@@ -170,10 +181,11 @@ func GetModulePathFromSourceURL(sourceURL string) (string, error) {
 
 	matches := moduleNameRegexp.FindStringSubmatch(sourceURL)
 
-	// if regexp returns less/more than the full match + 1 capture group, then something went wrong with regex (invalid source string)
+	// if regexp returns less/more than the full match + 1 capture group,
+	// then something went wrong with regex (invalid source string)
 	const matchedPats = 2
 	if len(matches) != matchedPats {
-		return "", errors.New(ParsingModulePathError{ModuleSourceURL: sourceURL})
+		return "", ParsingModulePathError{ModuleSourceURL: sourceURL}
 	}
 
 	return matches[1], nil
@@ -237,11 +249,17 @@ func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
 
 		// Validate retry settings
 		if retryBlock.MaxAttempts < 1 {
-			return nil, errors.Errorf("cannot have less than 1 max retry in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.MaxAttempts)
+			return nil, fmt.Errorf(
+				"cannot have less than 1 max retry in errors.retry %q, but you specified %d",
+				retryBlock.Label, retryBlock.MaxAttempts,
+			)
 		}
 
 		if retryBlock.SleepIntervalSec < 0 {
-			return nil, errors.Errorf("cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.SleepIntervalSec)
+			return nil, fmt.Errorf(
+				"cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d",
+				retryBlock.Label, retryBlock.SleepIntervalSec,
+			)
 		}
 
 		compiledPatterns := make([]*errorconfig.Pattern, 0, len(retryBlock.RetryableErrors))
@@ -249,7 +267,7 @@ func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
 		for _, pattern := range retryBlock.RetryableErrors {
 			value, err := errorsPattern(pattern)
 			if err != nil {
-				return nil, errors.Errorf("invalid retry pattern %q in block %q: %w",
+				return nil, fmt.Errorf("invalid retry pattern %q in block %q: %w",
 					pattern, retryBlock.Label, err)
 			}
 
@@ -287,7 +305,7 @@ func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
 		for _, pattern := range ignoreBlock.IgnorableErrors {
 			value, err := errorsPattern(pattern)
 			if err != nil {
-				return nil, errors.Errorf("invalid ignore pattern %q in block %q: %w",
+				return nil, fmt.Errorf("invalid ignore pattern %q in block %q: %w",
 					pattern, ignoreBlock.Label, err)
 			}
 

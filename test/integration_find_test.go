@@ -15,13 +15,14 @@ import (
 )
 
 const (
-	testFixtureFindBasic                = "fixtures/find/basic"
-	testFixtureFindHidden               = "fixtures/find/hidden"
-	testFixtureFindDAG                  = "fixtures/find/dag"
-	testFixtureFindInternalVExternal    = "fixtures/find/internal-v-external"
-	testFixtureFindExclude              = "fixtures/exclude/basic"
-	testFixtureFindInclude              = "fixtures/find/include"
-	testFixtureFindReadTerragruntConfig = "fixtures/find/read-terragrunt-config"
+	testFixtureFindBasic                       = "fixtures/find/basic"
+	testFixtureFindHidden                      = "fixtures/find/hidden"
+	testFixtureFindDAG                         = "fixtures/find/dag"
+	testFixtureFindInternalVExternal           = "fixtures/find/internal-v-external"
+	testFixtureFindExclude                     = "fixtures/exclude/basic"
+	testFixtureFindInclude                     = "fixtures/find/include"
+	testFixtureFindReadTerragruntConfig        = "fixtures/find/read-terragrunt-config"
+	testFixtureFindDynamicDependencyConfigPath = "fixtures/find/dynamic-dependency-config-path"
 )
 
 func TestFindBasic(t *testing.T) {
@@ -423,6 +424,49 @@ func TestFindWithReadTerragruntConfig(t *testing.T) {
 
 			// Verify the JSON output matches expected
 			jsonStringsEqual(t, tc.expected, stdout)
+		})
+	}
+}
+
+func TestFindWithDynamicDependencyConfigPath(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFindDynamicDependencyConfigPath)
+
+	testCases := []struct {
+		name     string
+		args     string
+		expected string
+	}{
+		{
+			name:     "find with dag",
+			args:     "--dag",
+			expected: "unit\n",
+		},
+		{
+			name:     "find with dag and json",
+			args:     "--dag --json",
+			expected: `[{"type":"unit","path":"unit"}]`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureFindDynamicDependencyConfigPath)
+
+			cmd := fmt.Sprintf("terragrunt find --no-color --working-dir %s %s", testFixtureFindDynamicDependencyConfigPath, tc.args)
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+			require.NoError(t, err, "find command should not panic or fail")
+			assert.Empty(t, stderr)
+
+			if strings.Contains(tc.args, "--json") {
+				jsonStringsEqual(t, tc.expected, stdout)
+			} else {
+				assert.Equal(t, tc.expected, stdout)
+			}
 		})
 	}
 }

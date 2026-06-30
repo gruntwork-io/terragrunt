@@ -64,6 +64,16 @@ Component is a generic term to refer to something that is either a unit or a sta
 
 Certain Terragrunt commands operate on components (e.g. [`find`](/reference/cli/commands/find) and [`list`](/reference/cli/commands/list)) while others operate on particular types of components (e.g. [`run`](/reference/cli/commands/run) only runs units whereas [`stack generate`](/reference/cli/commands/stack/generate) and [`stack output`](/reference/cli/commands/stack/output) commands run on stacks).
 
+### Discovery
+
+Discovery is the process by which Terragrunt scans the filesystem to determine which [components](#component) exist in a project.
+
+Terragrunt discovers units by the presence of `terragrunt.hcl` files and stacks by the presence of `terragrunt.stack.hcl` files, starting from the current working directory and descending through child directories.
+
+Discovery is the first step in building the [Run Queue](#run-queue), as Terragrunt needs to know which components are relevant before it can determine what work to do and in what order.
+
+The [`find`](/reference/cli/commands/find) and [`list`](/reference/cli/commands/list) commands expose discovery directly, letting you inspect which components Terragrunt sees without performing any runs. This makes them useful for dry-running infrastructure targeting (for example, in combination with the [`--filter`](/features/filter) flag) before invoking a command that affects infrastructure.
+
 ### Module
 
 A module is an [OpenTofu/Terraform construct](https://opentofu.org/docs/language/modules/) defined using a collection of OpenTofu/Terraform configurations ending in `.tf` (or `.tofu` in the case of OpenTofu) that represent a general pattern of infrastructure that can be instantiated multiple times.
@@ -162,7 +172,7 @@ The Run Queue is the queue of all units that Terragrunt will do work on over one
 
 Certain commands like [run --all](/reference/cli/commands/run#all) populate the Run Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Run Queue with the unit that the command was run in.
 
-Certain flags like [--include-dir](/reference/cli/commands/run#include-dir) can be used to adjust the Run Queue to include additional units. Conversely, there are flags like [--exclude-dir](/reference/cli/commands/run#exclude-dir) that can be used to adjust the Run Queue to exclude units.
+The [`--filter`](/features/filter) flag can be used to adjust the Run Queue, including or excluding units based on filter expressions. For example, `--filter './networking'` includes a specific path, while `--filter '!./legacy'` excludes one.
 
 Terragrunt will always attempt to run until the Run Queue is empty.
 
@@ -213,7 +223,7 @@ By default, Terragrunt will interact with OpenTofu/Terraform in order to retriev
 
 Terragrunt does have the ability to mock outputs, which is useful when dependencies do not yet have outputs to be consumed (e.g. during the run of a unit with a dependency that has not been applied).
 
-Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--fetch-dependency-output-from-state](/reference/cli/commands/run#fetch-dependency-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
+Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/reference/cli/commands/run#dependency-fetch-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
 
 ### Feature
 

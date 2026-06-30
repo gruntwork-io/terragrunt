@@ -7,7 +7,6 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 )
 
@@ -97,7 +96,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 
 	dependencyCty, err := dependencyBlocksAsCty(config.TerragruntDependencies)
 	if err != nil {
-		return cty.NilVal, err
+		return cty.NilVal, fieldError(MetadataDependency, err)
 	}
 
 	if dependencyCty != cty.NilVal {
@@ -124,7 +123,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 
 	inputsCty, err := convertToCtyWithJSON(config.Inputs)
 	if err != nil {
-		return cty.NilVal, err
+		return cty.NilVal, fieldError(MetadataInputs, err)
 	}
 
 	if inputsCty != cty.NilVal {
@@ -133,7 +132,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 
 	localsCty, err := convertToCtyWithJSON(config.Locals)
 	if err != nil {
-		return cty.NilVal, err
+		return cty.NilVal, fieldError(MetadataLocals, err)
 	}
 
 	if localsCty != cty.NilVal {
@@ -142,7 +141,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 
 	featureFlagsCty, err := featureFlagsBlocksAsCty(config.FeatureFlags)
 	if err != nil {
-		return cty.NilVal, err
+		return cty.NilVal, fieldError(MetadataFeatureFlag, err)
 	}
 
 	if featureFlagsCty != cty.NilVal {
@@ -407,7 +406,10 @@ type ValueWithMetadata struct {
 // ctyCatalogConfig is an alternate representation of CatalogConfig that converts internal blocks into a map that
 // maps the name to the underlying struct, as opposed to a list representation.
 type ctyCatalogConfig struct {
-	URLs []string `cty:"urls"`
+	DefaultTemplate string   `cty:"default_template"`
+	URLs            []string `cty:"urls"`
+	NoShell         bool     `cty:"no_shell"`
+	NoHooks         bool     `cty:"no_hooks"`
 }
 
 // ctyEngineConfig is an alternate representation of EngineConfig that converts internal blocks into a map that
@@ -423,6 +425,7 @@ type ctyEngineConfig struct {
 type ctyExclude struct {
 	Actions             []string `cty:"actions"`
 	If                  bool     `cty:"if"`
+	NoRun               bool     `cty:"no_run"`
 	ExcludeDependencies bool     `cty:"exclude_dependencies"`
 }
 
@@ -432,8 +435,21 @@ func catalogConfigAsCty(config *CatalogConfig) (cty.Value, error) {
 		return cty.NilVal, nil
 	}
 
+	noShell := false
+	if config.NoShell != nil {
+		noShell = *config.NoShell
+	}
+
+	noHooks := false
+	if config.NoHooks != nil {
+		noHooks = *config.NoHooks
+	}
+
 	configCty := ctyCatalogConfig{
-		URLs: config.URLs,
+		URLs:            config.URLs,
+		DefaultTemplate: config.DefaultTemplate,
+		NoShell:         noShell,
+		NoHooks:         noHooks,
 	}
 
 	return GoTypeToCty(configCty)
@@ -478,9 +494,15 @@ func excludeConfigAsCty(config *ExcludeConfig) (cty.Value, error) {
 		excludeDependencies = *config.ExcludeDependencies
 	}
 
+	noRun := false
+	if config.NoRun != nil {
+		noRun = *config.NoRun
+	}
+
 	configCty := ctyExclude{
 		If:                  config.If,
 		Actions:             config.Actions,
+		NoRun:               noRun,
 		ExcludeDependencies: excludeDependencies,
 	}
 
@@ -489,6 +511,10 @@ func excludeConfigAsCty(config *ExcludeConfig) (cty.Value, error) {
 
 // CtyTerraformConfig is an alternate representation of TerraformConfig that converts internal blocks into a map that
 // maps the name to the underlying struct, as opposed to a list representation.
+//
+// Fields that should be omitted when nil (rather than serialized as null) must not be included in this struct.
+// Instead, conditionally add them to the cty value in terraformConfigAsCty using ctyObjectAddField.
+// This is necessary because gocty does not support omitempty semantics.
 type CtyTerraformConfig struct {
 	ExtraArgs             map[string]TerraformExtraArguments `cty:"extra_arguments"`
 	Source                *string                            `cty:"source"`
@@ -533,7 +559,22 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 		configCty.ErrorHooks[errorHook.Name] = errorHook
 	}
 
-	return GoTypeToCty(configCty)
+	val, err := GoTypeToCty(configCty)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	// Only include update_source_with_cas when explicitly set, to avoid
+	// surfacing it as null in outputs for configs that don't use it.
+	if config.UpdateSourceWithCAS != nil {
+		val = ctyObjectAddField(val, "update_source_with_cas", goboolToCty(*config.UpdateSourceWithCAS))
+	}
+
+	if config.Mutable != nil {
+		val = ctyObjectAddField(val, "mutable", goboolToCty(*config.Mutable))
+	}
+
+	return val, nil
 }
 
 // RemoteStateAsCty serializes RemoteState to a cty Value. We can't directly
@@ -624,16 +665,58 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 		output[MetadataRetry] = retryCty
 	}
 
-	ignoreCty, err := GoTypeToCty(config.Ignore)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	if ignoreCty != cty.NilVal {
+	if ignoreCty := ignoreBlocksAsCty(config.Ignore); ignoreCty != cty.NilVal {
 		output[MetadataIgnore] = ignoreCty
 	}
 
 	return ConvertValuesMapToCtyVal(output)
+}
+
+// ignoreBlocksAsCty returns the blocks as cty.TupleVal. gocty infers each
+// Signals map's element type from its contents (cty.Map(cty.String) when
+// populated, cty.Map(cty.DynamicPseudoType) when empty), so cty.ListVal
+// panics on "inconsistent list element types" when blocks disagree.
+// Tuples allow per-position type variation.
+func ignoreBlocksAsCty(blocks []*IgnoreBlock) cty.Value {
+	if len(blocks) == 0 {
+		return cty.NilVal
+	}
+
+	values := make([]cty.Value, 0, len(blocks))
+	for _, b := range blocks {
+		values = append(values, ignoreBlockAsCty(b))
+	}
+
+	return cty.TupleVal(values)
+}
+
+func ignoreBlockAsCty(b *IgnoreBlock) cty.Value {
+	if b == nil {
+		return cty.NullVal(cty.DynamicPseudoType)
+	}
+
+	ignorableErrors := cty.ListValEmpty(cty.String)
+
+	if len(b.IgnorableErrors) > 0 {
+		items := make([]cty.Value, len(b.IgnorableErrors))
+		for i, s := range b.IgnorableErrors {
+			items[i] = cty.StringVal(s)
+		}
+
+		ignorableErrors = cty.ListVal(items)
+	}
+
+	signals := cty.MapValEmpty(cty.DynamicPseudoType)
+	if len(b.Signals) > 0 {
+		signals = cty.ObjectVal(b.Signals)
+	}
+
+	return cty.ObjectVal(map[string]cty.Value{
+		"name":             cty.StringVal(b.Label),
+		"ignorable_errors": ignorableErrors,
+		"message":          cty.StringVal(b.Message),
+		"signals":          signals,
+	})
 }
 
 // stackConfigAsCty converts a StackConfig into a cty Value so its attributes can be used in other configs.
@@ -772,12 +855,12 @@ func unitToCty(unit *Unit) (cty.Value, error) {
 func convertToCtyWithJSON(val any) (cty.Value, error) {
 	jsonBytes, err := json.Marshal(val)
 	if err != nil {
-		return cty.NilVal, errors.New(err)
+		return cty.NilVal, err
 	}
 
 	var ctyJSONVal ctyjson.SimpleJSONValue
 	if err := ctyJSONVal.UnmarshalJSON(jsonBytes); err != nil {
-		return cty.NilVal, errors.New(err)
+		return cty.NilVal, err
 	}
 
 	return ctyJSONVal.Value, nil
@@ -805,12 +888,12 @@ func GoTypeToCty(val any) (cty.Value, error) {
 	// Use the existing logic for other types
 	ctyType, err := gocty.ImpliedType(val)
 	if err != nil {
-		return cty.NilVal, errors.New(err)
+		return cty.NilVal, err
 	}
 
 	ctyOut, err := gocty.ToCtyValue(val, ctyType)
 	if err != nil {
-		return cty.NilVal, errors.New(err)
+		return cty.NilVal, err
 	}
 
 	return ctyOut, nil
@@ -836,6 +919,18 @@ func goboolToCty(val bool) cty.Value {
 	}
 
 	return ctyOut
+}
+
+// ctyObjectAddField returns a new cty object value with an additional attribute.
+func ctyObjectAddField(obj cty.Value, name string, val cty.Value) cty.Value {
+	attrs := obj.AsValueMap()
+	if attrs == nil {
+		attrs = map[string]cty.Value{}
+	}
+
+	attrs[name] = val
+
+	return cty.ObjectVal(attrs)
 }
 
 // FormatValue converts a primitive value to its string representation.

@@ -22,7 +22,11 @@ import (
 )
 
 // newTestBoilerplateOptions creates a BoilerplateOptions for testing
-func newTestBoilerplateOptions(templateFolder, outputFolder string, vars map[string]any, noShell, noHooks bool) *boilerplateoptions.BoilerplateOptions {
+func newTestBoilerplateOptions(
+	templateFolder, outputFolder string,
+	vars map[string]any,
+	noShell, noHooks bool,
+) *boilerplateoptions.BoilerplateOptions {
 	return &boilerplateoptions.BoilerplateOptions{
 		TemplateFolder:          templateFolder,
 		OutputFolder:            outputFolder,
@@ -85,8 +89,10 @@ func TestDefaultTemplateVariables(t *testing.T) {
 
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, vars, true, true)
 
-	emptyDep := variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	l := logger.CreateLogger()
+
+	emptyDep := &variables.Dependency{}
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	content, err := util.ReadFileAsString(filepath.Join(outputDir, "terragrunt.hcl"))
@@ -98,8 +104,6 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	l := logger.CreateLogger()
-
 	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 	cfg, err := config.ReadTerragruntConfig(t.Context(), l, pctx, config.DefaultParserOptions(l, opts.StrictControls))
 	require.NoError(t, err)
@@ -107,7 +111,110 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	assert.Len(t, cfg.Inputs, 1)
 	_, found := cfg.Inputs["required_var_1"]
 	require.True(t, found)
-	require.Equal(t, "git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8", *cfg.Terraform.Source)
+	require.Equal(t,
+		"git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8",
+		*cfg.Terraform.Source)
+}
+
+func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
+	t.Parallel()
+
+	// One required and one optional ParsedVariable, both carrying a
+	// UserValue that the template should emit verbatim instead of the
+	// TODO placeholder line or the commented default line.
+	requiredVariables := []*config.ParsedVariable{
+		{
+			Name:                    "vpc_cidr",
+			Description:             "VPC CIDR block.",
+			Type:                    "string",
+			DefaultValuePlaceholder: `""`,
+			UserValue:               `"10.0.0.0/16"`,
+		},
+		{
+			Name:                    "subnets",
+			Description:             "Subnet list.",
+			Type:                    "list(string)",
+			DefaultValuePlaceholder: "[]",
+			UserValue:               `["10.0.1.0/24", "10.0.2.0/24"]`,
+		},
+	}
+
+	optionalVariables := []*config.ParsedVariable{
+		{
+			Name:         "enable_dns",
+			Description:  "Enable DNS.",
+			Type:         "bool",
+			DefaultValue: "true",
+			UserValue:    "false",
+		},
+		{
+			Name:                    "untouched",
+			Description:             "Optional left untouched.",
+			Type:                    "string",
+			DefaultValue:            `"keep"`,
+			DefaultValuePlaceholder: `""`,
+		},
+	}
+
+	vars := map[string]any{
+		"requiredVariables": requiredVariables,
+		"optionalVariables": optionalVariables,
+		"sourceUrl":         "git::https://github.com/gruntwork-io/terragrunt.git//mod?ref=v1",
+		"EnableRootInclude": false,
+		"RootFileName":      "root.hcl",
+	}
+
+	workDir := helpers.TmpDirWOSymlinks(t)
+
+	templateDir := filepath.Join(workDir, "template")
+	require.NoError(t, os.Mkdir(templateDir, 0755))
+
+	outputDir := filepath.Join(workDir, "output")
+	require.NoError(t, os.Mkdir(outputDir, 0755))
+
+	require.NoError(t, os.WriteFile(filepath.Join(templateDir, "terragrunt.hcl"),
+		[]byte(scaffold.DefaultTerragruntTemplate), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(templateDir, "boilerplate.yml"),
+		[]byte(scaffold.DefaultBoilerplateConfig), 0644))
+
+	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, vars, true, true)
+	l := logger.CreateLogger()
+	emptyDep := &variables.Dependency{}
+	require.NoError(t, templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep))
+
+	content, err := util.ReadFileAsString(filepath.Join(outputDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	// Required field with a user value: HCL fragment emitted, no TODO line.
+	assert.Contains(t, content, `vpc_cidr = "10.0.0.0/16"`)
+	assert.NotRegexp(t, `vpc_cidr\s*=\s*""\s*# TODO`, content,
+		"a user-supplied required value should suppress the TODO placeholder line")
+
+	// Required list value: emitted verbatim, not turned into a TODO.
+	assert.Contains(t, content, `subnets = ["10.0.1.0/24", "10.0.2.0/24"]`)
+
+	// Optional field with a user value: written uncommented with the user
+	// value, not as the commented default line.
+	assert.Contains(t, content, `enable_dns = false`)
+	assert.NotContains(t, content, `# enable_dns = true`,
+		"a user-supplied optional value should suppress the commented default")
+
+	// Optional field with no user value: stays commented out with the default.
+	assert.Contains(t, content, `# untouched = "keep"`)
+
+	// The generated file should still parse as a valid terragrunt.hcl.
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
+	cfg, err := config.ReadTerragruntConfig(t.Context(), l, pctx, config.DefaultParserOptions(l, opts.StrictControls))
+	require.NoError(t, err)
+
+	assert.Contains(t, cfg.Inputs, "vpc_cidr")
+	assert.Contains(t, cfg.Inputs, "subnets")
+	assert.Contains(t, cfg.Inputs, "enable_dns")
+	assert.NotContains(t, cfg.Inputs, "untouched",
+		"optional variable without a user value should remain commented out")
 }
 
 func TestCatalogConfigApplication(t *testing.T) {
@@ -175,8 +282,8 @@ catalog {
   no_shell = true
   no_hooks = true
 }`,
-			cliNoShell:  boolPtr(false),
-			cliNoHooks:  boolPtr(false),
+			cliNoShell:  new(false),
+			cliNoHooks:  new(false),
 			description: "CLI flags override catalog config (CLI false > config true)",
 		},
 		{
@@ -187,8 +294,8 @@ catalog {
   no_shell = false
   no_hooks = false
 }`,
-			cliNoShell:      boolPtr(true),
-			cliNoHooks:      boolPtr(true),
+			cliNoShell:      new(true),
+			cliNoHooks:      new(true),
 			expectedNoShell: true,
 			expectedNoHooks: true,
 			description:     "CLI flags override catalog config (CLI true > config false)",
@@ -201,7 +308,7 @@ catalog {
   no_shell = false
   no_hooks = true
 }`,
-			cliNoShell:      boolPtr(true),
+			cliNoShell:      new(true),
 			expectedNoShell: true,
 			expectedNoHooks: true,
 			description:     "CLI --no-shell overrides config, no_hooks from config",
@@ -214,7 +321,7 @@ catalog {
   no_shell = true
   no_hooks = false
 }`,
-			cliNoHooks:      boolPtr(true),
+			cliNoHooks:      new(true),
 			expectedNoShell: true,
 			expectedNoHooks: true,
 			description:     "CLI --no-hooks overrides config, no_shell from config",
@@ -234,8 +341,8 @@ catalog {
 catalog {
   urls = ["test-url"]
 }`,
-			cliNoShell:      boolPtr(true),
-			cliNoHooks:      boolPtr(true),
+			cliNoShell:      new(true),
+			cliNoHooks:      new(true),
 			expectedNoShell: true,
 			expectedNoHooks: true,
 			description:     "Config omits no_shell/no_hooks, CLI sets both true - CLI should take effect",
@@ -246,8 +353,8 @@ catalog {
 catalog {
   urls = ["test-url"]
 }`,
-			cliNoShell:  boolPtr(false),
-			cliNoHooks:  boolPtr(false),
+			cliNoShell:  new(false),
+			cliNoHooks:  new(false),
 			description: "Config omits no_shell/no_hooks, CLI sets both false - should remain false",
 		},
 		{
@@ -256,7 +363,7 @@ catalog {
 catalog {
   urls = ["test-url"]
 }`,
-			cliNoShell:      boolPtr(true),
+			cliNoShell:      new(true),
 			expectedNoShell: true,
 			description:     "Config omits attributes, only CLI --no-shell set - only no_shell should be true",
 		},
@@ -288,7 +395,7 @@ catalog {
   urls = ["test-url"]
   no_shell = false
 }`,
-			cliNoHooks:      boolPtr(true),
+			cliNoHooks:      new(true),
 			expectedNoHooks: true,
 			description:     "Config sets no_shell=false, no_hooks omitted, CLI --no-hooks - should be false/true",
 		},
@@ -362,11 +469,6 @@ catalog {
 			assert.Equal(t, tc.expectedNoHooks, opts.NoHooks, "Final NoHooks value should match expected: %s", tc.description)
 		})
 	}
-}
-
-// Helper function to create bool pointers
-func boolPtr(b bool) *bool {
-	return &b
 }
 
 // TestCatalogConfigParsing tests that catalog config is properly parsed with new attributes
@@ -485,8 +587,9 @@ shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	l := logger.CreateLogger()
+	emptyDep := &variables.Dependency{}
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	// Verify the file was generated
@@ -543,8 +646,9 @@ shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	l := logger.CreateLogger()
+	emptyDep := &variables.Dependency{}
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	// Verify the file was generated
@@ -609,8 +713,9 @@ test_var = "{{ .TestVar }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, true)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	l := logger.CreateLogger()
+	emptyDep := &variables.Dependency{}
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	// Verify the template file was generated
@@ -677,8 +782,9 @@ test_var = "{{ .TestVar }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	l := logger.CreateLogger()
+	emptyDep := &variables.Dependency{}
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	// Verify the template file was generated
@@ -739,8 +845,9 @@ shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, true)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	l := logger.CreateLogger()
+	emptyDep := &variables.Dependency{}
+	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
 	// Verify the template file was generated

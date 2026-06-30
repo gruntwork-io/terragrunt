@@ -8,7 +8,6 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -16,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 
 	"go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 )
 
 const (
@@ -47,16 +46,16 @@ type Meter struct {
 func NewMeter(ctx context.Context, appName, appVersion string, writer io.Writer, opts *Options) (*Meter, error) {
 	exporter, err := NewMetricsExporter(ctx, writer, opts)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	if exporter == nil {
 		return nil, nil
 	}
 
-	provider, err := newMetricsProvider(exporter, appName, appVersion)
+	provider, err := newMetricsProvider(ctx, exporter, appName, appVersion)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	otel.SetMeterProvider(provider)
@@ -71,7 +70,9 @@ func NewMeter(ctx context.Context, appName, appVersion string, writer io.Writer,
 }
 
 // Time collects time for function execution
-func (meter *Meter) Time(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
+func (meter *Meter) Time(
+	ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error,
+) error {
 	if meter == nil || meter.exporter == nil {
 		return fn(ctx)
 	}
@@ -80,7 +81,7 @@ func (meter *Meter) Time(ctx context.Context, name string, attrs map[string]any,
 
 	histogram, err := meter.Int64Histogram(CleanMetricName(name + "_duration"))
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	startTime := time.Now()
@@ -144,17 +145,22 @@ func NewMetricsExporter(ctx context.Context, writer io.Writer, opts *Options) (m
 }
 
 // newMetricsProvider creates a new metrics provider.
-func newMetricsProvider(exp metric.Exporter, appName, appVersion string) (*metric.MeterProvider, error) {
-	r, err := resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
+func newMetricsProvider(
+	ctx context.Context,
+	exp metric.Exporter,
+	appName, appVersion string,
+) (*metric.MeterProvider, error) {
+	r, err := resource.New(ctx,
+		resource.WithSchemaURL(semconv.SchemaURL),
+		resource.WithAttributes(
 			semconv.ServiceName(appName),
 			semconv.ServiceVersion(appVersion),
 		),
+		resource.WithTelemetrySDK(),
+		resource.WithFromEnv(),
 	)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	meterProvider := metric.NewMeterProvider(

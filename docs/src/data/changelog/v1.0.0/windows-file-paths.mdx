@@ -1,0 +1,43 @@
+---
+version: "v1.0.0"
+category: "breaking-changes"
+---
+
+#### Windows compatibility in file paths improved
+
+All HCL functions now return operating system native file paths without forward slash normalization.
+
+- `get_terragrunt_dir()`
+- `get_original_terragrunt_dir()`
+- `get_parent_terragrunt_dir()`
+- `get_path_from_repo_root()`
+- `get_path_to_repo_root()`
+- `find_in_parent_folders()`
+- `path_relative_to_include()`
+- `path_relative_from_include()`
+
+If you and your team do not work in Windows environments, you are unlikely to see any change as a consequence of this. If you do use Terragrunt in a Windows environment, Terragrunt will now return appropriate Windows file paths, with backslashes as file path separators instead of Unix-like forward slashes.
+
+If you need to normalize paths, you can use the `replace` function to achieve this.
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "s3"
+
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+
+  config = {
+    bucket = "my-tofu-state"
+
+    key            = "${replace(path_relative_to_include(), "\\", "/")}/tofu.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+```

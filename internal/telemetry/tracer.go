@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -11,12 +12,12 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -39,22 +40,25 @@ type Tracer struct {
 	parentTraceID    *trace.TraceID
 	parentSpanID     *trace.SpanID
 	parentTraceFlags *trace.TraceFlags
+	l                log.Logger
 }
 
 // NewTracer creates and configures the traces collection.
-func NewTracer(ctx context.Context, appName, appVersion string, writer io.Writer, opts *Options) (*Tracer, error) {
+func NewTracer(
+	ctx context.Context, l log.Logger, appName, appVersion string, writer io.Writer, opts *Options,
+) (*Tracer, error) {
 	spanExporter, err := NewTraceExporter(ctx, writer, opts)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	if spanExporter == nil { // no exporter
 		return nil, nil
 	}
 
-	provider, err := newTraceProvider(spanExporter, appName, appVersion, opts)
+	provider, err := newTraceProvider(ctx, spanExporter, appName, appVersion, opts)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	otel.SetTracerProvider(provider)
@@ -76,7 +80,7 @@ func NewTracer(ctx context.Context, appName, appVersion string, writer io.Writer
 
 		parsedFlag, err := strconv.Atoi(traceFlagsStr)
 		if err != nil {
-			return nil, errors.Errorf("invalid trace flags: %w", err)
+			return nil, fmt.Errorf("invalid trace flags: %w", err)
 		}
 
 		traceFlags := trace.FlagsSampled
@@ -86,12 +90,12 @@ func NewTracer(ctx context.Context, appName, appVersion string, writer io.Writer
 
 		traceID, err := trace.TraceIDFromHex(traceIDHex)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 
 		spanID, err := trace.SpanIDFromHex(spanIDHex)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 
 		parentTraceID = &traceID
@@ -106,23 +110,27 @@ func NewTracer(ctx context.Context, appName, appVersion string, writer io.Writer
 		parentTraceID:    parentTraceID,
 		parentSpanID:     parentSpanID,
 		parentTraceFlags: parentTraceFlags,
+		l:                l,
 	}
 
 	return tracer, nil
 }
 
 // newTraceProvider creates a new trace tracer with terragrunt version.
-func newTraceProvider(exp sdktrace.SpanExporter, appName, appVersion string, opts *Options) (*sdktrace.TracerProvider, error) {
-	r, err := resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
+func newTraceProvider(
+	ctx context.Context, exp sdktrace.SpanExporter, appName, appVersion string, opts *Options,
+) (*sdktrace.TracerProvider, error) {
+	r, err := resource.New(ctx,
+		resource.WithSchemaURL(semconv.SchemaURL),
+		resource.WithAttributes(
 			semconv.ServiceName(appName),
 			semconv.ServiceVersion(appVersion),
 		),
+		resource.WithTelemetrySDK(),
+		resource.WithFromEnv(),
 	)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	exporterType := traceExporterType(opts.TraceExporter)
@@ -186,12 +194,26 @@ func NewTraceExporter(ctx context.Context, writer io.Writer, opts *Options) (sdk
 }
 
 // Trace collects traces for method execution.
-func (tracer *Tracer) Trace(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
+func (tracer *Tracer) Trace(
+	ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error,
+) error {
 	if tracer == nil || tracer.spanExporter == nil || tracer.provider == nil { // invoke function without tracing
 		return fn(ctx)
 	}
 
 	ctx, span := tracer.openSpan(ctx, name, attrs)
+
+	if span == nil {
+		if tracer.l != nil {
+			tracer.l.Debugf(
+				"openSpan returned nil span for %q (provider may have been shut down), bypassing tracing. Stack:\n%s",
+				name, debug.Stack(),
+			)
+		}
+
+		return fn(ctx)
+	}
+
 	defer span.End()
 
 	if err := fn(ctx); err != nil {

@@ -210,7 +210,7 @@
 // ## Evaluator
 //
 // The evaluator (evaluator.go) walks the AST and applies the filter logic:
-//   - PathFilter: Uses glob matching (github.com/gobwas/glob) with eager compilation
+//   - PathFilter: Uses glob matching (internal/glob Compile, backed by gobwas) with eager compilation
 //     and caching via sync.Once for performance
 //   - AttributeFilter: Matches attributes by key-value pairs:
 //   - name: Matches filepath.Base(component.Path)

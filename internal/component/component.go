@@ -12,7 +12,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
@@ -42,8 +43,6 @@ type Component interface {
 
 	lock()
 	unlock()
-	rLock()
-	rUnlock()
 
 	ensureDependency(Component)
 	ensureDependent(Component)

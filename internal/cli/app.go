@@ -24,8 +24,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
 
-	"github.com/gruntwork-io/go-commons/version"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -48,9 +50,12 @@ type App struct {
 	l    log.Logger
 }
 
-// NewApp creates the Terragrunt CLI App.
-func NewApp(l log.Logger, opts *options.TerragruntOptions) *App {
-	terragruntCommands := commands.New(l, opts)
+// NewApp creates the Terragrunt CLI App. The supplied [venv.Venv] is the
+// root virtualized environment; it is threaded through to the command
+// constructors and captured by their Action closures rather than held on
+// the App, so virtualized handlers stay function parameters.
+func NewApp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *App {
+	terragruntCommands := commands.New(l, opts, v)
 
 	app := clihelper.NewApp()
 	app.Name = AppName
@@ -60,7 +65,7 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions) *App {
 	app.Writer = opts.Writers.Writer
 	app.ErrWriter = opts.Writers.ErrWriter
 	app.Flags = global.NewFlags(l, opts, nil)
-	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
+	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, v))
 	app.Before = beforeAction(opts)
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
@@ -158,7 +163,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		return err
 	}
 
-	telemeter, err := telemetry.NewTelemeter(ctx, app.Name, app.Version, app.Writer, app.opts.Telemetry)
+	telemeter, err := telemetry.NewTelemeter(ctx, app.l, app.Name, app.Version, app.Writer, app.opts.Telemetry)
 	if err != nil {
 		return err
 	}
@@ -184,7 +189,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 
 	args = removeNoColorFlagDuplicates(args)
 
-	if err := app.App.RunContext(ctx, args); err != nil && !errors.IsContextCanceled(err) {
+	if err := app.App.RunContext(ctx, args); err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}
 
@@ -235,7 +240,7 @@ func beforeAction(_ *options.TerragruntOptions) clihelper.ActionFunc {
 				// Show a clear error pointing users to the explicit run form.
 				// Example: `terragrunt workspace ls` -> suggest `terragrunt run -- workspace ls`.
 				return clihelper.NewExitError(
-					errors.Errorf("unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://docs.terragrunt.com/migrate/cli-redesign/#use-the-new-run-command", cmdName, cmdName),
+					fmt.Errorf("unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://docs.terragrunt.com/migrate/cli-redesign/#use-the-new-run-command", cmdName, cmdName),
 					clihelper.ExitCodeGeneralError,
 				)
 			}

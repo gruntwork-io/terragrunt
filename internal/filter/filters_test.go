@@ -629,6 +629,170 @@ func TestFilters_RestrictToStacks(t *testing.T) {
 	})
 }
 
+func TestFilters_PartitionReadingFilters(t *testing.T) {
+	t.Parallel()
+
+	newReading := func(t *testing.T, value string) *filter.Filter {
+		t.Helper()
+
+		expr, err := filter.NewAttributeExpression(filter.AttributeReading, value)
+		require.NoError(t, err)
+
+		return filter.NewFilter(expr, expr.String())
+	}
+
+	newPath := func(t *testing.T, value string) *filter.Filter {
+		t.Helper()
+
+		expr, err := filter.NewPathFilter(value)
+		require.NoError(t, err)
+
+		return filter.NewFilter(expr, expr.String())
+	}
+
+	newName := func(t *testing.T, value string) *filter.Filter {
+		t.Helper()
+
+		expr, err := filter.NewAttributeExpression(filter.AttributeName, value)
+		require.NoError(t, err)
+
+		return filter.NewFilter(expr, expr.String())
+	}
+
+	t.Run("empty filters", func(t *testing.T) {
+		t.Parallel()
+
+		reading, other := filter.Filters{}.PartitionReadingFilters()
+		assert.Empty(t, reading)
+		assert.Empty(t, other)
+	})
+
+	t.Run("only reading filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters := filter.Filters{newReading(t, "config/item-a.yml")}
+
+		reading, other := filters.PartitionReadingFilters()
+		assert.Len(t, reading, 1)
+		assert.Empty(t, other)
+	})
+
+	t.Run("only non-reading filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters := filter.Filters{newPath(t, "app")}
+
+		reading, other := filters.PartitionReadingFilters()
+		assert.Empty(t, reading)
+		assert.Len(t, other, 1)
+	})
+
+	t.Run("mixed filters preserve order within groups", func(t *testing.T) {
+		t.Parallel()
+
+		filters := filter.Filters{
+			newPath(t, "removed-unit"),
+			newReading(t, "config/item-a.yml"),
+			newName(t, "keep"),
+			newReading(t, "config/item-b.yml"),
+			newPath(t, "another-removed"),
+		}
+
+		reading, other := filters.PartitionReadingFilters()
+
+		readingStrs := make([]string, 0, len(reading))
+		for _, f := range reading {
+			readingStrs = append(readingStrs, f.String())
+		}
+
+		otherStrs := make([]string, 0, len(other))
+		for _, f := range other {
+			otherStrs = append(otherStrs, f.String())
+		}
+
+		// Only reading-attribute filters land in the reading group; a non-reading attribute
+		// filter (name=keep) must stay with the path filters in the other group.
+		assert.Equal(t, []string{"reading=config/item-a.yml", "reading=config/item-b.yml"}, readingStrs)
+		assert.Equal(t, []string{"removed-unit", "name=keep", "another-removed"}, otherStrs)
+	})
+}
+
+func TestFilters_ExcludingGitFilters(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters := filter.Filters{}
+		result := filters.ExcludingGitFilters()
+		assert.Empty(t, result)
+	})
+
+	t.Run("only git expression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD]"})
+		require.NoError(t, err)
+
+		result := filters.ExcludingGitFilters()
+		assert.Empty(t, result)
+	})
+
+	t.Run("no git expressions", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"./live/**", "!./iac/**"})
+		require.NoError(t, err)
+		require.Len(t, filters, 2)
+
+		result := filters.ExcludingGitFilters()
+		assert.Len(t, result, 2)
+	})
+
+	t.Run("mixed git and non-git", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD]", "!./iac/**", "type=unit"})
+		require.NoError(t, err)
+		require.Len(t, filters, 3)
+
+		result := filters.ExcludingGitFilters()
+		assert.Len(t, result, 2)
+
+		// Verify the remaining filters are the non-git ones
+		resultStrs := make([]string, 0, len(result))
+		for _, f := range result {
+			resultStrs = append(resultStrs, f.String())
+		}
+
+		assert.Contains(t, resultStrs, "!./iac/**")
+		assert.Contains(t, resultStrs, "type=unit")
+	})
+
+	t.Run("infix containing git expression is excluded", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD] | !./iac/**"})
+		require.NoError(t, err)
+		require.Len(t, filters, 1)
+
+		result := filters.ExcludingGitFilters()
+		assert.Empty(t, result, "infix filter containing a git expression should be excluded")
+	})
+
+	t.Run("does not modify original", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD]", "./live/**"})
+		require.NoError(t, err)
+		require.Len(t, filters, 2)
+
+		result := filters.ExcludingGitFilters()
+		assert.Len(t, result, 1)
+		assert.Len(t, filters, 2, "original should not be modified")
+	})
+}
+
 func TestFilters_RequiresGitReferences(t *testing.T) {
 	t.Parallel()
 

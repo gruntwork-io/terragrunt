@@ -17,7 +17,7 @@
 // The package provides several constructors for different use cases:
 //
 //   - [NewDiscovery]: Creates a Discovery with sensible defaults including CPU-aware worker
-//     count (scales with runtime.NumCPU, min 4, max 8) and pre-initialized [component.DiscoveryContext].
+//     count (scales with runtime.GOMAXPROCS, min 4, max 8) and pre-initialized [component.DiscoveryContext].
 //     This is the recommended constructor for most use cases.
 //
 //   - [NewForDiscoveryCommand]: Creates a Discovery configured for discovery commands (find/list)
@@ -32,9 +32,9 @@
 // The [filter.Classifier] analyzes all filter expressions upfront and classifies
 // each component into one of three statuses:
 //
-//   - [StatusDiscovered]: Matches a positive filter (path, attribute, or git expression)
-//   - [StatusCandidate]: Needs further evaluation (graph target, requires parsing, or potential dependent)
-//   - [StatusExcluded]: Only matches negated filters, or positive filters exist but none match
+//   - [filter.StatusReadyForFilter]: Passed classification, ready for final filter evaluation
+//   - [filter.StatusCandidate]: Needs further evaluation (graph target, requires parsing, or potential dependent)
+//   - [filter.StatusExcluded]: Only matches negated filters, or positive filters exist but none match
 //
 // When no positive filters exist, components are included by default. When positive
 // filters exist, only matching components are included.
@@ -49,7 +49,7 @@
 //     and detect added/removed/modified components via SHA256 comparison
 //
 //  2. Parse Phase (if needed)
-//     - [PhaseParse]: Parse HCL configs for candidates with [CandidacyReasonRequiresParse]
+//     - [PhaseParse]: Parse HCL configs for candidates with [filter.CandidacyReasonRequiresParse]
 //     - Re-classify based on parsed attributes (reading, source), promote to discovered or
 //     transition to graph candidate
 //
@@ -57,7 +57,7 @@
 //     - Pre-graph: If dependent filters exist, parse all components and build bidirectional
 //     dependency links for reverse traversal
 //     - [PhaseGraph]: Traverse dependencies (target|N) and/or dependents (...target) based on
-//     [GraphExpressionInfo] configuration
+//     [filter.GraphExpressionInfo] configuration
 //     - Supports depth limits and target exclusion (^target) for flexible graph queries
 //
 //  4. Relationship Phase (optional)

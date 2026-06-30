@@ -1,0 +1,26 @@
+---
+version: "v1.0.3"
+category: "experiments-updated"
+---
+
+#### `catalog-redesign` — Templates and `.terragrunt-catalog-ignore`
+
+The `catalog-redesign` experiment picked up user-visible improvements to discovery and filtering.
+
+Discovery walks the entire repository instead of only a `modules/` directory, so modules and templates can live anywhere in the tree. Boilerplate templates (directories containing a `.boilerplate/` subdirectory or a top-level `boilerplate.yml`) are discovered as a distinct component kind alongside OpenTofu/Terraform modules and labeled as templates in the UI. When a directory qualifies as both, it is classified as a template.
+
+Catalog authors can commit a `.terragrunt-catalog-ignore` file at the repo root to keep directories such as `examples/` or `test/` out of discovery. The file uses `.gitignore`-style semantics: one pattern per line, `#` for comments, `!` for negation, and last match wins. Matching is anchored at the repo root; a lone `*` does not cross `/`, and `**` does.
+
+```plaintext
+# .terragrunt-catalog-ignore
+examples
+examples/**
+test/**
+!test/keep
+```
+
+An `--ignore-file` flag (also available via `TG_IGNORE_FILE`) points at an additional ignore file that is layered on top of the repo's `.terragrunt-catalog-ignore`. The extra rules are appended under last-match-wins semantics, so the flag can either add new exclusions or re-include paths that the repo file excluded.
+
+To learn more, see [Excluding paths from discovery](/features/catalog/tui#excluding-paths-from-discovery).
+
+The list view is split into `All`, `Modules`, and `Templates` tabs, with `All` selected on launch so every discovered component is visible without switching views. Press `tab` and `shift+tab` to cycle between them; each tab keeps its own cursor and search filter.

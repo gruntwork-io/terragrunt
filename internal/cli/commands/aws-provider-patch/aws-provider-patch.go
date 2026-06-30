@@ -1,6 +1,7 @@
 package awsproviderpatch
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -11,11 +12,13 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -24,42 +27,42 @@ import (
 
 const defaultKeyParts = 2
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
-		return runAll(ctx, l, opts)
+		return runAll(ctx, l, v, opts)
 	}
 
-	return runSingle(ctx, l, opts)
+	return runSingle(ctx, l, v, opts)
 }
 
-func runSingle(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	prepared, err := prepare.PrepareConfig(ctx, l, opts)
+func runSingle(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
 	if err != nil {
 		return err
 	}
 
 	r := report.NewReport()
 
-	updatedOpts, err := prepare.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
+	updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)
 	if err != nil {
 		return err
 	}
 
 	runCfg := prepared.Cfg.ToRunConfig(l)
 
-	if err := prepare.PrepareGenerate(l, updatedOpts, runCfg); err != nil {
+	if err := prepare.PrepareGenerate(l, v, updatedOpts, runCfg); err != nil {
 		return err
 	}
 
-	if err := prepare.PrepareInit(ctx, l, opts, updatedOpts, runCfg, r); err != nil {
+	if err := prepare.PrepareInit(ctx, l, v, opts, updatedOpts, runCfg, r); err != nil {
 		return err
 	}
 
 	return runAwsProviderPatch(l, updatedOpts)
 }
 
-func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+	d := discovery.NewDiscovery(opts.WorkingDir).WithExec(v.Exec)
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
@@ -81,7 +84,7 @@ func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) 
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 
-		if err := runSingle(ctx, l, unitOpts); err != nil {
+		if err := runSingle(ctx, l, v, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -101,7 +104,7 @@ func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) 
 
 func runAwsProviderPatch(l log.Logger, opts *options.TerragruntOptions) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
-		return errors.New(MissingOverrideAttrError(OverrideAttrFlagName))
+		return MissingOverrideAttrError(OverrideAttrFlagName)
 	}
 
 	terraformFilesInModules, err := findAllTerraformFilesInModules(opts)
@@ -125,7 +128,7 @@ func runAwsProviderPatch(l log.Logger, opts *options.TerragruntOptions) error {
 		if codeWasUpdated {
 			l.Debugf("Patching AWS provider in %s", terraformFile)
 
-			if err := util.WriteFileWithSamePermissions(terraformFile, terraformFile, []byte(updatedTerraformFileContents)); err != nil {
+			if err := util.WriteFileWithSamePermissions(terraformFile, terraformFile, bytes.NewBufferString(updatedTerraformFileContents)); err != nil {
 				return err
 			}
 		}
@@ -167,12 +170,12 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 
 	modulesJSONContents, err := os.ReadFile(modulesJSONPath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	var terraformModulesJSON TerraformModulesJSON
 	if err := json.Unmarshal(modulesJSONContents, &terraformModulesJSON); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	var terraformFiles []string
@@ -186,7 +189,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 
 			moduleFiles, err := util.FindTFFiles(moduleAbsPath)
 			if err != nil {
-				return nil, errors.New(err)
+				return nil, err
 			}
 
 			// Filter out JSON files (.tf.json, .tofu.json, or any .json) as hclwrite cannot parse JSON
@@ -227,7 +230,7 @@ func PatchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 
 	hclFile, err := hclwrite.ParseConfig([]byte(terraformCode), terraformFilePath, hcl.InitialPos)
 	if err != nil {
-		return "", false, errors.New(err)
+		return "", false, err
 	}
 
 	codeWasUpdated := false
@@ -312,7 +315,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := TypeInferenceError{value: value, underlyingErr: err}
 
-		return false, errors.New(returnErr)
+		return false, returnErr
 	}
 
 	ctyVal, err := ctyjson.Unmarshal(valueBytes, ctyType)
@@ -320,7 +323,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := MalformedJSONValError{value: value, underlyingErr: err}
 
-		return false, errors.New(returnErr)
+		return false, returnErr
 	}
 
 	body.SetAttributeValue(attr, ctyVal)

@@ -1,0 +1,3 @@
+output "svc" {
+  value = "svc"
+}

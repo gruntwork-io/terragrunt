@@ -130,7 +130,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			filterStrings: []string{},
 			componentPath: "/project/foo",
 			workingDir:    "/project",
-			expectStatus:  filter.StatusDiscovered,
+			expectStatus:  filter.StatusReadyForFilter,
 			expectReason:  filter.CandidacyReasonNone,
 			expectIndex:   -1,
 		},
@@ -139,7 +139,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			filterStrings: []string{"./foo"},
 			componentPath: "/project/foo",
 			workingDir:    "/project",
-			expectStatus:  filter.StatusDiscovered,
+			expectStatus:  filter.StatusReadyForFilter,
 			expectReason:  filter.CandidacyReasonNone,
 			expectIndex:   -1,
 		},
@@ -166,7 +166,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			filterStrings: []string{"!./foo"},
 			componentPath: "/project/bar",
 			workingDir:    "/project",
-			expectStatus:  filter.StatusDiscovered,
+			expectStatus:  filter.StatusReadyForFilter,
 			expectReason:  filter.CandidacyReasonNone,
 			expectIndex:   -1,
 		},
@@ -412,7 +412,7 @@ func TestDiscoveryStatus_String(t *testing.T) {
 		expected string
 		status   filter.ClassificationStatus
 	}{
-		{expected: "discovered", status: filter.StatusDiscovered},
+		{expected: "discovered", status: filter.StatusReadyForFilter},
 		{expected: "candidate", status: filter.StatusCandidate},
 		{expected: "excluded", status: filter.StatusExcluded},
 		{expected: "unknown", status: filter.ClassificationStatus(999)},

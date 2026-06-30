@@ -6,6 +6,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,7 +16,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/hashicorp/go-version"
@@ -33,14 +35,14 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 	if util.FileExists(filename) {
 		content, err := os.ReadFile(filename)
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 
 		var diags hcl.Diagnostics
 
 		file, diags = hclwrite.ParseConfig(content, filename, hcl.Pos{Line: 1, Column: 1})
 		if diags.HasErrors() {
-			return errors.New(diags)
+			return diags
 		}
 	}
 
@@ -48,9 +50,14 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 		return err
 	}
 
+	// CAS may materialize the lock file as a read-only hard link, so remove it before writing
+	if err := os.Remove(filename); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("failed to remove lock file %s before writing: %w", filename, err)
+	}
+
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -105,27 +112,15 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(constraintsValue))
 	}
 
-	h1Hash, err := PackageHashV1(provider.PackageDir())
+	newHashes, err := collectNewHashes(ctx, provider)
 	if err != nil {
 		return err
-	}
-
-	newHashes := []Hash{h1Hash}
-
-	documentSHA256Sums, err := provider.DocumentSHA256Sums(ctx)
-	if err != nil {
-		return err
-	}
-
-	if documentSHA256Sums != nil {
-		zipHashes := DocumentHashes(documentSHA256Sums)
-		newHashes = append(newHashes, zipHashes...)
 	}
 
 	// merge with existing hashes
-	for _, newHashe := range newHashes {
-		if !slices.Contains(hashes, newHashe) {
-			hashes = append(hashes, newHashe)
+	for _, newHash := range newHashes {
+		if !slices.Contains(hashes, newHash) {
+			hashes = append(hashes, newHash)
 		}
 	}
 
@@ -134,6 +129,70 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	providerBlock.Body().SetAttributeRaw("hashes", tokensForListPerLine(hashes))
 
 	return nil
+}
+
+// collectNewHashes returns the hashes to merge into the lock file for the
+// given provider. The locally-computed `h1:` hash for the unpacked package is
+// always included so verification still works if the registry omits an `h1:`
+// entry for the running platform. When the registry supplies per-platform
+// hashes (the OpenTofu 1.12 `packages` field), those are merged in; otherwise
+// the shasums document supplies the additional `zh:` hashes.
+func collectNewHashes(ctx context.Context, provider Provider) ([]Hash, error) {
+	h1Hash, err := PackageHashV1(provider.PackageDir())
+	if err != nil {
+		return nil, err
+	}
+
+	hashes := []Hash{h1Hash}
+
+	if registryHashes := provider.RegistryHashes(); len(registryHashes) > 0 {
+		return appendUnique(hashes, flattenRegistryHashes(registryHashes)), nil
+	}
+
+	documentSHA256Sums, err := provider.DocumentSHA256Sums(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if documentSHA256Sums != nil {
+		hashes = appendUnique(hashes, DocumentHashes(documentSHA256Sums))
+	}
+
+	return hashes, nil
+}
+
+// flattenRegistryHashes flattens the per-platform hashes from the OpenTofu
+// registry's `packages` response field into a deduplicated list. Each input
+// hash is already scheme-prefixed (e.g. `h1:` or `zh:`).
+func flattenRegistryHashes(byPlatform map[string][]Hash) []Hash {
+	seen := make(map[Hash]struct{})
+
+	var hashes []Hash
+
+	for _, platformHashes := range byPlatform {
+		for _, h := range platformHashes {
+			if _, ok := seen[h]; ok {
+				continue
+			}
+
+			seen[h] = struct{}{}
+			hashes = append(hashes, h)
+		}
+	}
+
+	return hashes
+}
+
+// appendUnique appends additional hashes to base, skipping any value already
+// present in base.
+func appendUnique(base, additional []Hash) []Hash {
+	for _, h := range additional {
+		if !slices.Contains(base, h) {
+			base = append(base, h)
+		}
+	}
+
+	return base
 }
 
 func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash, error) {
@@ -222,7 +281,7 @@ func getAttributeValueAsSlice(attr *hclwrite.Attribute) ([]string, error) {
 	var val []string
 
 	if err := json.Unmarshal(valBytes, &val); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return val, nil
@@ -260,12 +319,12 @@ func UpdateLockfileConstraints(ctx context.Context, workingDir string, constrain
 
 	content, err := os.ReadFile(filename)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	file, diags := hclwrite.ParseConfig(content, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return errors.New(diags)
+		return diags
 	}
 
 	updated := false
@@ -309,7 +368,7 @@ func UpdateLockfileConstraints(ctx context.Context, workingDir string, constrain
 	if updated {
 		const ownerWriteGlobalReadPerms = 0644
 		if err := os.WriteFile(filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 

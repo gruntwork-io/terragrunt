@@ -1,10 +1,10 @@
 package config_test
 
 import (
+	"reflect"
 	"sort"
 	"testing"
 
-	"github.com/fatih/structs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -148,8 +148,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test the root properties
-	testConfigStructInfo := structs.New(testConfig)
-	testConfigFields := testConfigStructInfo.Names()
+	testConfigFields := structFieldNames(testConfig)
 	checked := map[string]bool{} // used to track which fields of the ctyMap were seen
 
 	for _, field := range testConfigFields {
@@ -165,6 +164,55 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		_, hasKey := checked[key]
 		assert.Truef(t, hasKey, "cty value key %s is not accounted for from struct field", key)
 	}
+}
+
+// TestTerragruntConfigAsCtyMixedIgnoreSignals pins the fix for a panic
+// reachable from `terragrunt render` when two errors.ignore blocks have
+// differently-shaped signals maps. Before the fix, cty.ListVal panicked
+// on "inconsistent list element types" because gocty inferred
+// cty.Map(cty.String) for the populated block and
+// cty.Map(cty.DynamicPseudoType) for the empty one.
+func TestTerragruntConfigAsCtyMixedIgnoreSignals(t *testing.T) {
+	t.Parallel()
+
+	testConfig := config.TerragruntConfig{
+		Errors: &config.ErrorsConfig{
+			Ignore: []*config.IgnoreBlock{
+				{
+					Label:           "with-signals",
+					IgnorableErrors: []string{".*timeout.*"},
+					Message:         "ignored",
+					Signals: map[string]cty.Value{
+						"foo": cty.StringVal("bar"),
+					},
+				},
+				{
+					Label:           "without-signals",
+					IgnorableErrors: []string{".*5xx.*"},
+					Message:         "also ignored",
+				},
+			},
+		},
+	}
+
+	ctyVal, err := config.TerragruntConfigAsCty(&testConfig)
+	require.NoError(t, err)
+
+	ctyMap, err := ctyhelper.ParseCtyValueToMap(ctyVal)
+	require.NoError(t, err)
+
+	errorsMap := ctyMap["errors"].(map[string]any)
+	ignore := errorsMap["ignore"].([]any)
+	require.Len(t, ignore, 2)
+
+	first := ignore[0].(map[string]any)
+	assert.Equal(t, "with-signals", first["name"])
+	assert.Equal(t, "ignored", first["message"])
+	assert.Equal(t, map[string]any{"foo": "bar"}, first["signals"])
+
+	second := ignore[1].(map[string]any)
+	assert.Equal(t, "without-signals", second["name"])
+	assert.Equal(t, "also ignored", second["message"])
 }
 
 // This test makes sure that all the fields in RemoteState are converted to cty
@@ -194,8 +242,7 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test the root properties
-	testConfigStructInfo := structs.New(testConfig)
-	testConfigFields := testConfigStructInfo.Names()
+	testConfigFields := structFieldNames(testConfig)
 	checked := map[string]bool{} // used to track which fields of the ctyMap were seen
 
 	for _, field := range testConfigFields {
@@ -217,12 +264,26 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	t.Parallel()
 
-	terraformConfigStructInfo := structs.New(config.TerraformConfig{})
-	terraformConfigFields := terraformConfigStructInfo.Names()
+	// Fields that are intentionally excluded from CtyTerraformConfig because
+	// they use omit-when-nil semantics via ctyObjectAddField.
+	omitWhenNilFields := map[string]bool{
+		"UpdateSourceWithCAS": true,
+		"Mutable":             true,
+	}
+
+	var terraformConfigFields []string
+
+	for _, name := range structFieldNames(config.TerraformConfig{}) {
+		if omitWhenNilFields[name] {
+			continue
+		}
+
+		terraformConfigFields = append(terraformConfigFields, name)
+	}
+
 	sort.Strings(terraformConfigFields)
 
-	ctyTerraformConfigStructInfo := structs.New(config.CtyTerraformConfig{})
-	ctyTerraformConfigFields := ctyTerraformConfigStructInfo.Names()
+	ctyTerraformConfigFields := structFieldNames(config.CtyTerraformConfig{})
 	sort.Strings(ctyTerraformConfigFields)
 	assert.Equal(t, terraformConfigFields, ctyTerraformConfigFields)
 }
@@ -340,4 +401,24 @@ func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, boo
 		// This should not execute
 		return "", false
 	}
+}
+
+// structFieldNames returns the exported field names declared on v's struct
+// type. v may be a struct value or a pointer to one. Embedded fields appear
+// under the embedded type's name, matching fatih/structs' behavior.
+func structFieldNames(v any) []string {
+	t := reflect.TypeOf(v)
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+
+	names := make([]string, 0, t.NumField())
+
+	for f := range t.Fields() {
+		if f.IsExported() {
+			names = append(names, f.Name)
+		}
+	}
+
+	return names
 }

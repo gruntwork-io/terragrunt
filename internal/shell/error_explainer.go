@@ -1,15 +1,14 @@
 package shell
 
 import (
+	"errors"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
-
-	"github.com/gruntwork-io/go-commons/collections"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // terraformErrorsMatcher List of errors that we know how to explain to the user. The key is a regex that matches the error message, and the value is the explanation.
@@ -36,8 +35,7 @@ var terraformErrorsMatcher = map[string]string{
 func ExplainError(err error) string {
 	explanations := map[string]string{}
 
-	// iterate over each error, unwrap it, and check for error output
-	for _, err := range errors.UnwrapErrors(err) {
+	for _, err := range flattenErrorChain(err) {
 		message := err.Error()
 
 		// extract process output, if it is the case
@@ -50,11 +48,38 @@ func ExplainError(err error) string {
 
 		for regex, explanation := range terraformErrorsMatcher {
 			if match, _ := regexp.MatchString(regex, message); match {
-				// collect matched explanations
 				explanations[explanation] = "1"
 			}
 		}
 	}
 
-	return strings.Join(collections.Keys(explanations), "\n")
+	return strings.Join(slices.Sorted(maps.Keys(explanations)), "\n")
+}
+
+// flattenErrorChain walks both single-error (Unwrap() error) and joined-error
+// (Unwrap() []error) chains, returning every error encountered including the root.
+func flattenErrorChain(err error) []error {
+	var (
+		out  []error
+		walk func(error)
+	)
+
+	walk = func(e error) {
+		for e != nil {
+			out = append(out, e)
+			if multi, ok := e.(interface{ Unwrap() []error }); ok {
+				for _, child := range multi.Unwrap() {
+					walk(child)
+				}
+
+				return
+			}
+
+			e = errors.Unwrap(e)
+		}
+	}
+
+	walk(err)
+
+	return out
 }

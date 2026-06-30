@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	getproviders "github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	log "github.com/gruntwork-io/terragrunt/pkg/log"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -110,6 +111,20 @@ func (m *MockProvider) PackageDir() string {
 func (mr *MockProviderMockRecorder) PackageDir() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PackageDir", reflect.TypeOf((*MockProvider)(nil).PackageDir))
+}
+
+// RegistryHashes mocks base method.
+func (m *MockProvider) RegistryHashes() map[string][]getproviders.Hash {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegistryHashes")
+	ret0, _ := ret[0].(map[string][]getproviders.Hash)
+	return ret0
+}
+
+// RegistryHashes indicates an expected call of RegistryHashes.
+func (mr *MockProviderMockRecorder) RegistryHashes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegistryHashes", reflect.TypeOf((*MockProvider)(nil).RegistryHashes))
 }
 
 // Version mocks base method.

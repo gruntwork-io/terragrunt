@@ -2,19 +2,24 @@ package runnerpool
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/multierror"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // UnitRunner defines a function type that executes a Unit within a given context and returns an error.
@@ -90,11 +95,11 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 		var (
 			wg      sync.WaitGroup
 			sem     = make(chan struct{}, dr.concurrency)
-			results = xsync.NewMapOf[string, error]()
+			results = xsync.NewMap[string, error]()
 		)
 
 		if dr.runner == nil {
-			return errors.Errorf("Runner Pool Controller: runner is not set, cannot run")
+			return errors.New("runner Pool Controller: runner is not set, cannot run")
 		}
 
 		l.Debugf("Runner Pool Controller: starting with %d tasks, concurrency %d",
@@ -111,9 +116,12 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			l.Debugf("Runner Pool Controller: found %d readyEntries tasks", len(readyEntries))
 
 			for _, e := range readyEntries {
-				// log debug which entry is running
+				if !dr.q.ClaimForRunning(e) {
+					l.Debugf("Runner Pool Controller: skipping %s; fail-fast cancelled before dispatch", e.Component.Path())
+					continue
+				}
+
 				l.Debugf("Runner Pool Controller: running %s", e.Component.Path())
-				dr.q.SetEntryStatus(e, queue.StatusRunning)
 
 				sem <- struct{}{}
 
@@ -132,7 +140,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 					unit := dr.unitsMap[ent.Component.Path()]
 					if unit == nil {
-						err := errors.Errorf("unit for path %s not found in discovered units", ent.Component.Path())
+						err := fmt.Errorf("unit for path %s not found in discovered units", ent.Component.Path())
 						l.Errorf("Runner Pool Controller: unit for path %s not found in discovered units, skipping execution", ent.Component.Path())
 						dr.q.FailEntry(ent)
 						results.Store(ent.Component.Path(), err)
@@ -169,30 +177,50 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 		wg.Wait()
 
-		// Collect errors from results map and check for errors
-		errCollector := &errors.MultiError{}
+		var errCollector []error
+
+		var succeeded, failed, earlyExit int
 
 		for _, entry := range dr.q.Entries {
+			switch entry.Status {
+			case queue.StatusSucceeded:
+				succeeded++
+			case queue.StatusFailed:
+				failed++
+			case queue.StatusEarlyExit:
+				earlyExit++
+			case queue.StatusPending, queue.StatusBlocked, queue.StatusUnsorted, queue.StatusReady, queue.StatusRunning:
+				// Non-terminal states are not counted in the summary.
+			}
+
 			if err, ok := results.Load(entry.Component.Path()); ok {
 				if err == nil {
 					continue
 				}
 
-				errCollector = errCollector.Append(err)
+				errCollector = append(errCollector, err)
 
 				continue
 			}
 
 			if entry.Status == queue.StatusEarlyExit {
 				failedDep := findFailedDependency(entry, dr.q)
-				errCollector = errCollector.Append(NewUnitEarlyExitError(entry.Component.Path(), failedDep))
+				errCollector = append(errCollector, NewUnitEarlyExitError(entry.Component.Path(), failedDep))
 			}
 
 			if entry.Status == queue.StatusFailed {
-				errCollector = errCollector.Append(NewUnitFailedError(entry.Component.Path()))
+				errCollector = append(errCollector, NewUnitFailedError(entry.Component.Path()))
 			}
 		}
 
-		return errCollector.ErrorOrNil()
+		if span := trace.SpanFromContext(childCtx); span.IsRecording() {
+			span.SetAttributes(
+				attribute.Int("tasks_succeeded", succeeded),
+				attribute.Int("tasks_failed", failed),
+				attribute.Int("tasks_early_exit", earlyExit),
+			)
+		}
+
+		return multierror.Join(errCollector...)
 	})
 }

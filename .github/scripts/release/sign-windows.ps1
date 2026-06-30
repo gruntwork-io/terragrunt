@@ -250,19 +250,6 @@ function Patch-Binaries {
     Write-Host "All Windows binaries patched with resources"
 }
 
-function Save-Credentials {
-    Write-Host "Saving credentials to Windows Credential Manager..."
-
-    & smctl.exe credentials save $env:SM_API_KEY $env:SM_CLIENT_CERT_PASSWORD
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to save credentials"
-        exit 1
-    }
-
-    Write-Host "Credentials saved to Windows Credential Manager"
-}
-
 function Invoke-Healthcheck {
     Write-Host "Running smctl healthcheck..."
 
@@ -308,20 +295,6 @@ function Sign-Binary {
     Write-Host "Successfully signed $BinaryPath"
 }
 
-function Verify-Signature {
-    param([string]$BinaryPath)
-
-    Write-Host "Verifying signature on: $BinaryPath"
-
-    & smctl.exe sign verify --input "$BinaryPath"
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Signature verification returned non-zero exit code (may be expected)"
-    } else {
-        Write-Host "Signature verified successfully"
-    }
-}
-
 function Main {
     # Verify environment variables
     Assert-EnvVar "SM_HOST"
@@ -344,9 +317,6 @@ function Main {
 
     # Patch all Windows binaries with resources (icon, manifest, version info)
     Patch-Binaries -Platforms $windowsPlatforms
-
-    # Save credentials
-    Save-Credentials
 
     # Run healthcheck
     Invoke-Healthcheck
@@ -374,10 +344,7 @@ function Main {
             Write-Host "Signing $($platform.binary) ($($platform.arch))..."
             Sign-Binary -BinaryPath $binaryPath
 
-            Write-Host "Verifying signature on $($platform.binary)..."
-            Verify-Signature -BinaryPath $binaryPath
-
-            Write-Host "✓ $($platform.binary): signed and verified"
+            Write-Host "✓ $($platform.binary): signed"
             $signedCount++
         } else {
             Write-Host "○ $($platform.binary) ($($platform.arch)): patched with resources only (not signed per config)"

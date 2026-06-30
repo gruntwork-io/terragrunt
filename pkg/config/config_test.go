@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -22,13 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
-
-func createLogger() log.Logger {
-	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
-	formatter.SetDisabledColors(true)
-
-	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
-}
 
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 	t.Parallel()
@@ -651,14 +643,15 @@ include {
 }
 `, "root.hcl")
 
-	cfgPath := "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath
+	cfgPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "parent-folders", "terragrunt-in-root", "child", "sub-child", "sub-sub-child", config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
 
 	l := createLogger()
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
-	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
+	terragruntConfig, parseErr := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
+	if assert.NoError(t, parseErr, "Unexpected error: %v", parseErr) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -689,7 +682,7 @@ include {
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
 	terragruntConfig, parseErr := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
-	if assert.NoError(t, parseErr, "Unexpected error: %v", errors.New(parseErr)) {
+	if assert.NoError(t, parseErr, "Unexpected error: %v", parseErr) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -732,7 +725,7 @@ remote_state {
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
-	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
+	if assert.NoError(t, err, "Unexpected error: %v", err) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -781,7 +774,7 @@ dependencies {
 
 	ctx, pctx := newTestParsingContext(t, configPath)
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, configPath, cfg, nil)
-	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
+	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.NotNil(t, terragruntConfig.Terraform)
 	assert.NotNil(t, terragruntConfig.Terraform.Source)
@@ -832,7 +825,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
-	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
+	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.NotNil(t, terragruntConfig.Terraform)
 	assert.NotNil(t, terragruntConfig.Terraform.Source)
@@ -1510,10 +1503,6 @@ func TestModuleDependenciesMerge(t *testing.T) {
 	}
 }
 
-func ptr(str string) *string {
-	return &str
-}
-
 // Run a benchmark on ReadTerragruntConfig for all fixtures possible.
 // This should reveal regressions on execution time due to new, changed or removed features.
 func BenchmarkReadTerragruntConfig(b *testing.B) {
@@ -1555,6 +1544,7 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 	}
 }
 
+// TestBestEffortParseConfigString verifies that best-effort parsing returns a partial config when recoverable errors occur.
 func TestBestEffortParseConfigString(t *testing.T) {
 	t.Parallel()
 
@@ -1632,6 +1622,57 @@ func TestBestEffortParseConfigString(t *testing.T) {
 	}
 }
 
+// TestParseConfigGenerateBlockWithHclFmt verifies that hcl_fmt is parsed from generate blocks.
+func TestParseConfigGenerateBlockWithHclFmt(t *testing.T) {
+	t.Parallel()
+
+	cfg := `generate "test" {
+  path = "test.tf"
+  if_exists = "overwrite"
+  contents = "test = 1"
+  hcl_fmt = false
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+	require.NotNil(t, terragruntConfig)
+
+	generateConfig, ok := terragruntConfig.GenerateConfigs["test"]
+	require.True(t, ok)
+	require.NotNil(t, generateConfig.HclFmt)
+	assert.False(t, *generateConfig.HclFmt)
+}
+
+// TestParseConfigGenerateAttrWithHclFmt verifies that hcl_fmt is parsed from generate attribute maps.
+func TestParseConfigGenerateAttrWithHclFmt(t *testing.T) {
+	t.Parallel()
+
+	cfg := `generate = {
+  test = {
+    path = "test.tf"
+    if_exists = "overwrite"
+    contents = "test = 1"
+    hcl_fmt = false
+  }
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+	require.NotNil(t, terragruntConfig)
+
+	generateConfig, ok := terragruntConfig.GenerateConfigs["test"]
+	require.True(t, ok)
+	require.NotNil(t, generateConfig.HclFmt)
+	assert.False(t, *generateConfig.HclFmt)
+}
+
+// TestParseConfigWithMissingIfExists verifies that generate blocks require the if_exists attribute.
 func TestParseConfigWithMissingIfExists(t *testing.T) {
 	t.Parallel()
 
@@ -1716,6 +1757,7 @@ dependency "dep" {
 	}, terragruntConfig)
 }
 
+// TestWriteTo verifies that a parsed Terragrunt config can be written and parsed again without losing supported fields.
 func TestWriteTo(t *testing.T) {
 	t.Parallel()
 
@@ -1729,6 +1771,8 @@ locals {
 
 terraform {
 	source = "git::git@github.com:org/repo.git//modules/test?ref=v0.1.0"
+	update_source_with_cas = true
+	mutable = true
 
 	extra_arguments "secrets" {
 		commands = ["plan", "apply"]
@@ -1849,6 +1893,7 @@ EOF
 	comment_prefix = "//"
 	disable_signature = true
 	disable = false
+	hcl_fmt = false
 }
 
 feature "test_feature" {
@@ -1894,6 +1939,8 @@ inputs = {
 	// Verify the configs match
 	assert.Equal(t, terragruntConfig.Locals, rereadConfig.Locals)
 	assert.Equal(t, terragruntConfig.Terraform.Source, rereadConfig.Terraform.Source)
+	assert.Equal(t, terragruntConfig.Terraform.UpdateSourceWithCAS, rereadConfig.Terraform.UpdateSourceWithCAS)
+	assert.Equal(t, terragruntConfig.Terraform.Mutable, rereadConfig.Terraform.Mutable)
 	assert.Equal(t, terragruntConfig.Terraform.ExtraArgs, rereadConfig.Terraform.ExtraArgs)
 	assert.Equal(t, terragruntConfig.Terraform.BeforeHooks, rereadConfig.Terraform.BeforeHooks)
 	assert.Equal(t, terragruntConfig.Terraform.AfterHooks, rereadConfig.Terraform.AfterHooks)
@@ -1956,4 +2003,63 @@ inputs = {
 	assert.Equal(t, terragruntConfig.IamAssumeRoleDuration, rereadConfig.IamAssumeRoleDuration)
 	assert.Equal(t, terragruntConfig.IamAssumeRoleSessionName, rereadConfig.IamAssumeRoleSessionName)
 	assert.Equal(t, terragruntConfig.Inputs, rereadConfig.Inputs)
+}
+
+// TestWriteToExcludeNoRun verifies that the exclude no-run setting is preserved when writing config.
+func TestWriteToExcludeNoRun(t *testing.T) {
+	t.Parallel()
+
+	src := `
+exclude {
+  if      = true
+  actions = ["apply"]
+  no_run  = true
+}
+`
+
+	ctx, pctx := newTestParsingContext(t, "test-exclude-no-run")
+	cfg, err := config.ParseConfigString(ctx, pctx, createLogger(), config.DefaultTerragruntConfigPath, src, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.Exclude)
+	require.NotNil(t, cfg.Exclude.NoRun)
+
+	var buf bytes.Buffer
+
+	_, writeErr := cfg.WriteTo(&buf)
+	require.NoError(t, writeErr)
+	assert.Contains(t, buf.String(), "no_run")
+}
+
+// TestWriteToCatalogFields verifies that catalog fields are written to config output.
+func TestWriteToCatalogFields(t *testing.T) {
+	t.Parallel()
+
+	noShell := true
+	noHooks := true
+
+	cfg := &config.TerragruntConfig{
+		Catalog: &config.CatalogConfig{
+			URLs:            []string{"github.com/example/modules"},
+			DefaultTemplate: "github.com/example/template",
+			NoShell:         &noShell,
+			NoHooks:         &noHooks,
+		},
+	}
+
+	var buf bytes.Buffer
+
+	_, writeErr := cfg.WriteTo(&buf)
+	require.NoError(t, writeErr)
+
+	rendered := buf.String()
+	assert.Contains(t, rendered, "default_template")
+	assert.Contains(t, rendered, "no_shell")
+	assert.Contains(t, rendered, "no_hooks")
+}
+
+func createLogger() log.Logger {
+	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
+	formatter.SetDisabledColors(true)
+
+	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }

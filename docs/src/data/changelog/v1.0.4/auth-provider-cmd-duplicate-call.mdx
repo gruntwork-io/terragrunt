@@ -1,0 +1,10 @@
+---
+version: "v1.0.4"
+category: "bug-fixes"
+---
+
+#### `--auth-provider-cmd` no longer runs once per dependency cache directory
+
+Resolving `dependency` outputs ran the configured `--auth-provider-cmd` again from inside each `.terragrunt-cache` working directory, on top of the call already made for the unit.
+
+Terragrunt now reuses the credentials already obtained for the dependency when reading outputs from a cached working directory, so `--auth-provider-cmd` is invoked once per dependency instead of twice.

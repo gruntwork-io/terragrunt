@@ -1,0 +1,10 @@
+---
+name: disable-command-validation
+status: active
+---
+
+Throw an error when using the deprecated `--disable-command-validation` flag.
+
+### `disable-command-validation` - Reason
+
+Command validation has been removed entirely from Terragrunt. The `run` command now accepts any command and passes it through to the underlying OpenTofu/Terraform binary. The `--disable-command-validation` flag is no longer needed and does nothing.

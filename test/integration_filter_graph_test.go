@@ -5,11 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	gogit "github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing/object"
-	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -66,6 +62,24 @@ func TestFilterFlagWithFindGraphExpressions(t *testing.T) {
 			name:           "exclude target - ^a-dependent...",
 			filterQuery:    "^a-dependent...",
 			expectedOutput: "b-dependency\n",
+			expectError:    false,
+		},
+		{
+			name:           "dependencies intersected with type - a-dependent... | type=unit",
+			filterQuery:    "a-dependent... | type=unit",
+			expectedOutput: "a-dependent\nb-dependency\n",
+			expectError:    false,
+		},
+		{
+			name:           "dependents intersected with type - ...b-dependency | type=unit",
+			filterQuery:    "...b-dependency | type=unit",
+			expectedOutput: "a-dependent\nb-dependency\nc-mixed-deps\nd-dependencies-only\n",
+			expectError:    false,
+		},
+		{
+			name:           "both directions intersected with type - ...a-dependent... | type=unit",
+			filterQuery:    "...a-dependent... | type=unit",
+			expectedOutput: "a-dependent\nb-dependency\nc-mixed-deps\nd-dependencies-only\n",
 			expectError:    false,
 		},
 	}
@@ -399,29 +413,13 @@ func TestFilterFlagWithFindCombinedGitAndGraphExpressions(t *testing.T) {
 
 		tmpDir := helpers.TmpDirWOSymlinks(t)
 
-		runner, err := git.NewGitRunner()
-		require.NoError(t, err)
-
-		runner = runner.WithWorkDir(tmpDir)
-
-		err = runner.Init(t.Context())
-		require.NoError(t, err)
-
-		err = runner.GoOpenRepo()
-		require.NoError(t, err)
-
-		t.Cleanup(func() {
-			err = runner.GoCloseStorage()
-			if err != nil {
-				t.Logf("Error closing storage: %s", err)
-			}
-		})
+		runner := helpers.InitTestGitRunner(t, tmpDir)
 
 		// Create a dependency chain: app -> db -> vpc
 		// We'll modify 'db' and use git+graph filter to find its dependencies and dependents
 
 		vpcDir := filepath.Join(tmpDir, "vpc")
-		err = os.MkdirAll(vpcDir, 0755)
+		err := os.MkdirAll(vpcDir, 0755)
 		require.NoError(t, err)
 
 		vpcHCL := `# VPC unit - no dependencies`
@@ -452,17 +450,8 @@ dependency "db" {
 		err = os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(appHCL), 0644)
 		require.NoError(t, err)
 
-		err = runner.GoAdd(".")
-		require.NoError(t, err)
-
-		err = runner.GoCommit("Initial commit with vpc, db, app chain", &gogit.CommitOptions{
-			Author: &object.Signature{
-				Name:  "Test User",
-				Email: "test@example.com",
-				When:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Initial commit with vpc, db, app chain"))
 
 		modifiedDBHCL := `# DB unit - depends on vpc (MODIFIED)
 dependency "vpc" {
@@ -472,17 +461,8 @@ dependency "vpc" {
 		err = os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(modifiedDBHCL), 0644)
 		require.NoError(t, err)
 
-		err = runner.GoAdd(".")
-		require.NoError(t, err)
-
-		err = runner.GoCommit("Modify db unit", &gogit.CommitOptions{
-			Author: &object.Signature{
-				Name:  "Test User",
-				Email: "test@example.com",
-				When:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Modify db unit"))
 
 		return tmpDir
 	}
@@ -543,6 +523,27 @@ dependency "vpc" {
 			description:   "Should find vpc (dependency) and app (dependent), excluding db itself",
 			expectError:   false,
 		},
+		{
+			name:          "dependents of git changes intersected with type - ...[HEAD~1...HEAD] | type=unit",
+			filterQuery:   "...[HEAD~1...HEAD] | type=unit",
+			expectedUnits: []string{"db", "app"},
+			description:   "Issue #6269: an intersected attribute filter must not drop the git-changed unit's dependents",
+			expectError:   false,
+		},
+		{
+			name:          "dependencies of git changes intersected with type - [HEAD~1...HEAD]... | type=unit",
+			filterQuery:   "[HEAD~1...HEAD]... | type=unit",
+			expectedUnits: []string{"db", "vpc"},
+			description:   "Issue #6269: an intersected attribute filter must not drop the git-changed unit's dependencies",
+			expectError:   false,
+		},
+		{
+			name:          "both directions intersected with type - ...[HEAD~1...HEAD]... | type=unit",
+			filterQuery:   "...[HEAD~1...HEAD]... | type=unit",
+			expectedUnits: []string{"vpc", "db", "app"},
+			description:   "Issue #6269: an intersected attribute filter must not drop dependencies or dependents",
+			expectError:   false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -585,29 +586,13 @@ func TestFilterFlagWithRunAllCombinedGitAndGraphExpressions(t *testing.T) {
 
 		tmpDir := helpers.TmpDirWOSymlinks(t)
 
-		runner, err := git.NewGitRunner()
-		require.NoError(t, err)
-
-		runner = runner.WithWorkDir(tmpDir)
-
-		err = runner.Init(t.Context())
-		require.NoError(t, err)
-
-		err = runner.GoOpenRepo()
-		require.NoError(t, err)
-
-		t.Cleanup(func() {
-			err = runner.GoCloseStorage()
-			if err != nil {
-				t.Logf("Error closing storage: %s", err)
-			}
-		})
+		runner := helpers.InitTestGitRunner(t, tmpDir)
 
 		// Create a dependency chain: service -> cache -> vpc
 		// We'll modify 'cache' and use git+graph filter
 
 		vpcDir := filepath.Join(tmpDir, "vpc")
-		err = os.MkdirAll(vpcDir, 0755)
+		err := os.MkdirAll(vpcDir, 0755)
 		require.NoError(t, err)
 
 		vpcHCL := `# VPC unit`
@@ -659,17 +644,8 @@ dependency "cache" {
 		require.NoError(t, err)
 
 		// Initial commit
-		err = runner.GoAdd(".")
-		require.NoError(t, err)
-
-		err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-			Author: &object.Signature{
-				Name:  "Test User",
-				Email: "test@example.com",
-				When:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
 		modifiedCacheHCL := `# Cache unit (MODIFIED)
 dependency "vpc" {
@@ -683,17 +659,8 @@ dependency "vpc" {
 		err = os.WriteFile(filepath.Join(cacheDir, "terragrunt.hcl"), []byte(modifiedCacheHCL), 0644)
 		require.NoError(t, err)
 
-		err = runner.GoAdd(".")
-		require.NoError(t, err)
-
-		err = runner.GoCommit("Modify cache", &gogit.CommitOptions{
-			Author: &object.Signature{
-				Name:  "Test User",
-				Email: "test@example.com",
-				When:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Modify cache"))
 
 		return tmpDir
 	}
@@ -751,4 +718,78 @@ dependency "vpc" {
 			assert.ElementsMatch(t, tc.expectedUnits, runs.Names())
 		})
 	}
+}
+
+// TestFilterFlagWithFindNoDuplicateWorktreeEntries tests that when multiple units
+// are both directly changed AND related via dependencies, no duplicates appear.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5748
+func TestFilterFlagWithFindNoDuplicateWorktreeEntries(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	// Create unit-a (no dependencies)
+	unitADir := filepath.Join(tmpDir, "unit-a")
+	err := os.MkdirAll(unitADir, 0755)
+	require.NoError(t, err)
+
+	unitAHCL := `# unit-a - no dependencies
+`
+	err = os.WriteFile(filepath.Join(unitADir, "terragrunt.hcl"), []byte(unitAHCL), 0644)
+	require.NoError(t, err)
+
+	// Create unit-b (depends on unit-a)
+	unitBDir := filepath.Join(tmpDir, "unit-b")
+	err = os.MkdirAll(unitBDir, 0755)
+	require.NoError(t, err)
+
+	unitBHCL := `# unit-b - depends on unit-a
+dependency "unit-a" {
+  config_path = "../unit-a"
+}
+`
+	err = os.WriteFile(filepath.Join(unitBDir, "terragrunt.hcl"), []byte(unitBHCL), 0644)
+	require.NoError(t, err)
+
+	// Initial commit
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit with unit-a and unit-b"))
+
+	// Modify BOTH units
+	modifiedUnitAHCL := `# unit-a - no dependencies (modified)
+`
+	err = os.WriteFile(filepath.Join(unitADir, "terragrunt.hcl"), []byte(modifiedUnitAHCL), 0644)
+	require.NoError(t, err)
+
+	modifiedUnitBHCL := `# unit-b - depends on unit-a (modified)
+dependency "unit-a" {
+  config_path = "../unit-a"
+}
+`
+	err = os.WriteFile(filepath.Join(unitBDir, "terragrunt.hcl"), []byte(modifiedUnitBHCL), 0644)
+	require.NoError(t, err)
+
+	// Second commit
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Modify both unit-a and unit-b"))
+
+	// Run find with dependents filter
+	cmd := "terragrunt find --no-color --working-dir " + tmpDir + " --filter '...[HEAD~1...HEAD]'"
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+
+	actualUnits := []string{}
+
+	for line := range strings.SplitSeq(strings.TrimSpace(stdout), "\n") {
+		if line != "" {
+			actualUnits = append(actualUnits, filepath.Base(line))
+		}
+	}
+
+	expectedUnits := []string{"unit-a", "unit-b"}
+
+	assert.ElementsMatch(t, expectedUnits, actualUnits)
+	assert.Len(t, actualUnits, len(expectedUnits), "Expected no duplicate entries, but got: %v", actualUnits)
 }

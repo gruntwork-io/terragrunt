@@ -11,16 +11,9 @@ const (
 )
 
 // NewInputsDebugFlag creates a flag for enabling inputs debug output.
-func NewInputsDebugFlag(opts *options.TerragruntOptions, prefix flags.Prefix, commandName string) *flags.Flag {
+func NewInputsDebugFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-
-	var terragruntPrefixControl flags.RegisterStrictControlsFunc
-	if commandName != "" {
-		terragruntPrefixControl = flags.StrictControlsByCommand(opts.StrictControls, commandName)
-	} else {
-		terragruntPrefixControl = flags.StrictControlsByGlobalFlags(opts.StrictControls)
-	}
 
 	return flags.NewFlag(
 		&clihelper.BoolFlag{
@@ -29,6 +22,6 @@ func NewInputsDebugFlag(opts *options.TerragruntOptions, prefix flags.Prefix, co
 			Destination: &opts.Debug,
 			Usage:       "Write debug.tfvars to working folder to help root-cause issues.",
 		},
-		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("debug"), terragruntPrefixControl),
+		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("debug"), opts.StrictControls),
 	)
 }

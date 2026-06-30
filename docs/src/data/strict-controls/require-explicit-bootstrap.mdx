@@ -1,0 +1,10 @@
+---
+name: require-explicit-bootstrap
+status: completed
+---
+
+**Status**: Completed - Backend provisioning is no longer performed automatically by default.
+
+Terragrunt now requires explicit opt-in to bootstrap backend infrastructure. Use `terragrunt backend bootstrap` or pass `--backend-bootstrap` to a `run` command (e.g., `terragrunt run apply --backend-bootstrap`) to provision or update backend resources referenced by the [`remote_state`](/reference/hcl/blocks/#remote_state) block.
+
+This strict control is no longer necessary because the default behavior already requires explicit bootstrapping.

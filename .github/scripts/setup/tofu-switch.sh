@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -10,5 +10,4 @@ mise uninstall --all terraform
 
 tofu --version
 
-printf "export TG_TF_PATH='%s'\n" "tofu" >> "$ENV_FILE"
-
+printf "export TG_TF_PATH='%s'\n" "tofu" >>"$ENV_FILE"

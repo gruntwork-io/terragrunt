@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### SOPS decryption race condition fixed
+
+A race condition in the concurrent access to SOPS decrypted secrets in different environments combined with usage of the `--auth-provider-cmd` flag resulted in authentication failures. Synchronization controls have been introduced to ensure authentication proceeds correctly for each environment independently.

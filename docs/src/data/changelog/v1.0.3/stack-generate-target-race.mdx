@@ -1,0 +1,10 @@
+---
+version: "v1.0.3"
+category: "bug-fixes"
+---
+
+#### Fixed a race condition in `terragrunt stack generate`
+
+Fixed a race condition in `terragrunt stack generate` that could produce non-deterministic file errors on nested stack hierarchies. The same stack file could reach the worker pool twice through different path forms and cause the duplicate writes to conflict with each other. Paths are now normalized before dispatch so each stack file is generated exactly once per invocation.
+
+When a stack file is legitimately claimed by more than one parent during generation, Terragrunt now logs a warning that names the contending parents and records the latest claimant, so the configuration can be corrected before it causes silent overwrites.

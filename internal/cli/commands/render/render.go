@@ -9,11 +9,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -21,16 +23,16 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-func Run(ctx context.Context, l log.Logger, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
 
 	if opts.RunAll {
-		return runAll(ctx, l, opts)
+		return runAll(ctx, l, v, opts)
 	}
 
-	prepared, err := prepare.PrepareConfig(ctx, l, opts.TerragruntOptions)
+	prepared, err := prepare.PrepareConfig(ctx, l, v, opts.TerragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -38,8 +40,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	return runRender(l, opts, prepared.Cfg)
 }
 
-func runAll(ctx context.Context, l log.Logger, opts *Options) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
+	d := discovery.NewDiscovery(opts.WorkingDir).WithExec(v.Exec)
 
 	components, err := d.Discover(ctx, l, opts.TerragruntOptions)
 	if err != nil {
@@ -61,7 +63,7 @@ func runAll(ctx context.Context, l log.Logger, opts *Options) error {
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 
-		prepared, err := prepare.PrepareConfig(ctx, l, unitOpts.TerragruntOptions)
+		prepared, err := prepare.PrepareConfig(ctx, l, v, unitOpts.TerragruntOptions)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -159,7 +161,7 @@ func renderJSON(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error
 
 	_, err = opts.Writers.Writer.Write(jsonBytes)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -180,7 +182,7 @@ func writeRendered(l log.Logger, opts *Options, data []byte) error {
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(outPath, data, ownerWriteGlobalReadPerms); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -193,17 +195,17 @@ func writeRendered(l log.Logger, opts *Options, data []byte) error {
 func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 	jsonBytesIntermediate, err := ctyjson.Marshal(ctyVal, cty.DynamicPseudoType)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	var ctyJSONOutput ctyhelper.CtyJSONOutput
 	if err = json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	jsonBytes, err := json.Marshal(ctyJSONOutput.Value)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	jsonBytes = append(jsonBytes, '\n')

@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,19 +23,23 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("store new content", func(t *testing.T) {
 		t.Parallel()
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+
+		v := newMemVenv(t)
+		require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+		store := cas.NewStore("/store")
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		err := content.Store(l, testHash, testData)
+		err := content.Store(l, v, testHash, testData)
 		require.NoError(t, err)
 
 		// Verify content was stored
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(v.FS, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
 	})
@@ -41,7 +47,10 @@ func TestContent_Store(t *testing.T) {
 	t.Run("ensure existing content", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+		v := newMemVenv(t)
+		require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+		store := cas.NewStore("/store")
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
@@ -49,15 +58,15 @@ func TestContent_Store(t *testing.T) {
 		differentData := []byte("different content")
 
 		// Store content twice
-		err := content.Ensure(l, testHash, testData)
+		err := content.Ensure(l, v, testHash, testData)
 		require.NoError(t, err)
-		err = content.Ensure(l, testHash, differentData)
+		err = content.Ensure(l, v, testHash, differentData)
 		require.NoError(t, err)
 
 		// Verify original content remains
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(v.FS, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
 	})
@@ -65,7 +74,10 @@ func TestContent_Store(t *testing.T) {
 	t.Run("overwrite existing content", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+		v := newMemVenv(t)
+		require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+		store := cas.NewStore("/store")
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
@@ -73,15 +85,15 @@ func TestContent_Store(t *testing.T) {
 		differentData := []byte("different content")
 
 		// Store content twice
-		err := content.Store(l, testHash, testData)
+		err := content.Store(l, v, testHash, testData)
 		require.NoError(t, err)
-		err = content.Store(l, testHash, differentData)
+		err = content.Store(l, v, testHash, differentData)
 		require.NoError(t, err)
 
-		// Verify original content remains
+		// Verify content was overwritten
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(v.FS, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, differentData, storedData)
 	})
@@ -94,64 +106,289 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("create new link", func(t *testing.T) {
 		t.Parallel()
-		storeDir := helpers.TmpDirWOSymlinks(t)
-		store := cas.NewStore(storeDir)
+
+		v := newMemVenv(t)
+		require.NoError(t, v.FS.MkdirAll("/store", 0755))
+		require.NoError(t, v.FS.MkdirAll("/target", 0755))
+
+		store := cas.NewStore("/store")
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
 		testData := []byte("test content")
 
 		// First store some content
-		err := content.Store(l, testHash, testData)
+		err := content.Store(l, v, testHash, testData)
 		require.NoError(t, err)
 
 		// Then create a link to it
-		targetDir := helpers.TmpDirWOSymlinks(t)
-		targetPath := filepath.Join(targetDir, "test.txt")
+		targetPath := filepath.Join("/target", "test.txt")
 
-		err = content.Link(t.Context(), testHash, targetPath)
+		err = content.Link(t.Context(), v, testHash, targetPath, 0o644)
 		require.NoError(t, err)
 
 		// Verify link was created and contains correct content
-		linkedData, err := os.ReadFile(targetPath)
+		linkedData, err := vfs.ReadFile(v.FS, targetPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, linkedData)
+	})
 
-		// Verify it's a hard link by checking inode numbers
-		partitionDir := filepath.Join(store.Path(), testHash[:2])
-		sourceInfo, err := os.Stat(filepath.Join(partitionDir, testHash))
+	t.Run("create hard link on real filesystem", func(t *testing.T) {
+		t.Parallel()
+
+		v, err := cas.OSVenv()
+		require.NoError(t, err)
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("test content")
+
+		err = content.Store(l, v, testHash, testData)
+		require.NoError(t, err)
+
+		targetPath := filepath.Join(targetDir, "test.txt")
+		err = content.Link(t.Context(), v, testHash, targetPath, 0o644)
+		require.NoError(t, err)
+
+		// Verify hard link by comparing inodes
+		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
+		sourceInfo, err := os.Stat(sourcePath)
 		require.NoError(t, err)
 		targetInfo, err := os.Stat(targetPath)
 		require.NoError(t, err)
-		assert.Equal(t, sourceInfo.Sys(), targetInfo.Sys())
+		assert.True(t, os.SameFile(sourceInfo, targetInfo), "expected hard link (same inode)")
 	})
 
-	t.Run("link to existing file", func(t *testing.T) {
+	t.Run("force copy creates independent inode on real filesystem", func(t *testing.T) {
 		t.Parallel()
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+
+		v, err := cas.OSVenv()
+		require.NoError(t, err)
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("test content")
+
+		err = content.Store(l, v, testHash, testData)
+		require.NoError(t, err)
+
+		targetPath := filepath.Join(targetDir, "test.txt")
+		err = content.Link(t.Context(), v, testHash, targetPath, 0o644, cas.WithLinkForceCopy())
+		require.NoError(t, err)
+
+		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
+		sourceInfo, err := os.Stat(sourcePath)
+		require.NoError(t, err)
+		targetInfo, err := os.Stat(targetPath)
+		require.NoError(t, err)
+		assert.False(t, os.SameFile(sourceInfo, targetInfo), "expected independent inode (copy, not hard link)")
+		assert.Equal(t, os.FileMode(0o644), targetInfo.Mode().Perm(),
+			"force copy must preserve original git perms exactly")
+
+		copied, err := os.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, testData, copied)
+
+		// The destination must be writable so callers can mutate it without
+		// touching the shared store.
+		require.NoError(t, os.WriteFile(targetPath, []byte("mutated"), 0644))
+
+		stored, err := os.ReadFile(sourcePath)
+		require.NoError(t, err)
+		assert.Equal(t, testData, stored, "store blob must not change when target is mutated")
+	})
+
+	t.Run("default path strips write bit from non-executable", func(t *testing.T) {
+		t.Parallel()
+
+		v, err := cas.OSVenv()
+		require.NoError(t, err)
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("test content")
+
+		require.NoError(t, content.Store(l, v, testHash, testData))
+
+		targetPath := filepath.Join(targetDir, "test.txt")
+		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o644))
+
+		info, err := os.Stat(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o444), info.Mode().Perm(),
+			"default path must clear write bits (0o644 -> 0o444)")
+	})
+
+	t.Run("default path hardlinks executable when store carries matching perms", func(t *testing.T) {
+		t.Parallel()
+
+		v, err := cas.OSVenv()
+		require.NoError(t, err)
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("#!/bin/sh\necho hi\n")
+
+		require.NoError(t, content.Store(l, v, testHash, testData))
+
+		// Mirror the store-side chmod that the git-clone path applies: stored
+		// blobs carry their original git mode with write bits cleared, so
+		// executables sit at 0o555 in the store.
+		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
+		require.NoError(t, os.Chmod(sourcePath, 0o555))
+
+		targetPath := filepath.Join(targetDir, "run.sh")
+		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o755))
+
+		info, err := os.Stat(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o555), info.Mode().Perm(),
+			"executable entry must keep exec bits and lose only write (0o755 -> 0o555)")
+
+		sourceInfo, err := os.Stat(sourcePath)
+		require.NoError(t, err)
+		assert.True(t, os.SameFile(sourceInfo, info),
+			"executable entry should hardlink when the stored blob already carries 0o555")
+	})
+
+	t.Run("default path falls back to copy on perm collision", func(t *testing.T) {
+		t.Parallel()
+
+		v, err := cas.OSVenv()
+		require.NoError(t, err)
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("test content")
+
+		require.NoError(t, content.Store(l, v, testHash, testData))
+
+		// The blob landed in the store at 0o444 (treated as non-exec). A second
+		// tree referencing the same content under mode 100755 wants 0o555.
+		// Link must produce a fresh inode at 0o555 rather than hardlinking
+		// the 0o444 blob.
+		targetPath := filepath.Join(targetDir, "run.sh")
+		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o755))
+
+		info, err := os.Stat(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o555), info.Mode().Perm())
+
+		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
+		sourceInfo, err := os.Stat(sourcePath)
+		require.NoError(t, err)
+		assert.False(t, os.SameFile(sourceInfo, info),
+			"perm mismatch must materialize as an independent inode")
+	})
+
+	t.Run("force copy preserves executable bits", func(t *testing.T) {
+		t.Parallel()
+
+		v, err := cas.OSVenv()
+		require.NoError(t, err)
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("#!/bin/sh\necho hi\n")
+
+		require.NoError(t, content.Store(l, v, testHash, testData))
+
+		targetPath := filepath.Join(targetDir, "run.sh")
+		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o755, cas.WithLinkForceCopy()))
+
+		info, err := os.Stat(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o755), info.Mode().Perm(),
+			"force copy must reproduce git mode exactly (0o755)")
+	})
+
+	t.Run("link to existing file overwrites stale content", func(t *testing.T) {
+		t.Parallel()
+
+		v := newMemVenv(t)
+		require.NoError(t, v.FS.MkdirAll("/store", 0755))
+		require.NoError(t, v.FS.MkdirAll("/target", 0755))
+
+		store := cas.NewStore("/store")
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
 		testData := []byte("test content")
 
 		// Store content
-		err := content.Store(l, testHash, testData)
+		err := content.Store(l, v, testHash, testData)
 		require.NoError(t, err)
 
-		// Create target file
-		targetDir := helpers.TmpDirWOSymlinks(t)
-		targetPath := filepath.Join(targetDir, "test.txt")
-		err = os.WriteFile(targetPath, []byte("existing content"), 0644)
+		// Pre-populate the target with stale bytes. A previous failed
+		// run could leave the working tree in this state; Link must
+		// publish the CAS content rather than silently keep the stale
+		// file.
+		targetPath := filepath.Join("/target", "test.txt")
+		err = vfs.WriteFile(v.FS, targetPath, []byte("existing content"), 0644)
 		require.NoError(t, err)
 
-		// Try to create link
-		err = content.Link(t.Context(), testHash, targetPath)
+		err = content.Link(t.Context(), v, testHash, targetPath, 0o644)
 		require.NoError(t, err)
 
-		// Verify original content remains
-		existingData, err := os.ReadFile(targetPath)
+		got, err := vfs.ReadFile(v.FS, targetPath)
 		require.NoError(t, err)
-		assert.Equal(t, []byte("existing content"), existingData)
+		assert.Equal(t, testData, got)
+	})
+
+	t.Run("copy path recovers from a stale read-only temp file", func(t *testing.T) {
+		t.Parallel()
+
+		v, err := cas.OSVenv()
+		require.NoError(t, err)
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("ref: refs/heads/master\n")
+
+		require.NoError(t, content.Store(l, v, testHash, testData))
+
+		// Mismatched store perms route Link through the copy path.
+		require.NoError(t, os.Chmod(filepath.Join(storeDir, testHash[:2], testHash), 0o644))
+
+		targetPath := filepath.Join(targetDir, "HEAD")
+
+		// An interrupted run can leave a read-only temp file behind. Opening
+		// it for writing fails with EACCES, so Link must not reuse it.
+		require.NoError(t, os.WriteFile(targetPath+".tmp", []byte("partial"), 0o444))
+
+		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o644))
+
+		got, err := os.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, testData, got)
 	})
 }
 
@@ -163,23 +400,27 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("content already exists", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+		v := newMemVenv(t)
+		require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+		store := cas.NewStore("/store")
+
 		content := cas.NewContent(store)
 		testHash := testHashValue
 		testData := []byte("test content")
 
 		// Store content first
-		err := content.Store(l, testHash, testData)
+		err := content.Store(l, v, testHash, testData)
 		require.NoError(t, err)
 
 		// EnsureWithWait should not need to write again
-		err = content.EnsureWithWait(l, testHash, []byte("different content"))
+		err = content.EnsureWithWait(l, v, testHash, []byte("different content"))
 		require.NoError(t, err)
 
 		// Verify original content remains
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(v.FS, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
 	})
@@ -187,19 +428,23 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("content doesn't exist", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+		v := newMemVenv(t)
+		require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+		store := cas.NewStore("/store")
+
 		content := cas.NewContent(store)
 		testHash := "newcontent123456"
 		testData := []byte("new test content")
 
 		// EnsureWithWait should store the content
-		err := content.EnsureWithWait(l, testHash, testData)
+		err := content.EnsureWithWait(l, v, testHash, testData)
 		require.NoError(t, err)
 
 		// Verify content was stored
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(v.FS, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
 	})
@@ -207,7 +452,11 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("concurrent writes - optimization", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+		v := newMemVenv(t)
+		require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+		store := cas.NewStore("/store")
+
 		content := cas.NewContent(store)
 		testHash := "concurrent123456"
 
@@ -220,7 +469,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		go func() {
 			defer close(process1Done)
 
-			err := content.EnsureWithWait(l, testHash, []byte("process 1 data"))
+			err := content.EnsureWithWait(l, v, testHash, []byte("process 1 data"))
 			assert.NoError(t, err)
 
 			close(process1Started)
@@ -233,7 +482,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 			// Wait for process 1 to start
 			<-process1Started
 
-			err := content.EnsureWithWait(l, testHash, []byte("process 2 data"))
+			err := content.EnsureWithWait(l, v, testHash, []byte("process 2 data"))
 			assert.NoError(t, err)
 		}()
 
@@ -244,8 +493,17 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		// Verify only one content exists (from process 1)
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(v.FS, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, []byte("process 1 data"), storedData)
 	})
+}
+
+func newMemVenv(t *testing.T) cas.Venv {
+	t.Helper()
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	return cas.Venv{FS: vfs.NewMemMapFS(), Git: runner}
 }

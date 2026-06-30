@@ -1,0 +1,10 @@
+---
+version: "v1.0.0"
+category: "breaking-changes"
+---
+
+#### Consistent `.terragrunt-cache` directory generation
+
+Terragrunt now creates a `.terragrunt-cache` directory for every run, regardless of whether the `terragrunt.hcl` file defines a `terraform` block with a `source` attribute.
+
+This change improves consistency across all Terragrunt executions, as OpenTofu/Terraform will now always run within the `.terragrunt-cache` directory. This standardized behavior simplifies troubleshooting and makes the execution model more predictable.

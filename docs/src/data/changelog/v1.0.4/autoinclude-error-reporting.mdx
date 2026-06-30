@@ -1,0 +1,15 @@
+---
+version: "v1.0.4"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies` — Stricter validation and clearer parse errors for `autoinclude`
+
+Malformed configuration inside an `autoinclude` block previously produced misleading messages or, in some cases, was silently ignored during stack discovery.
+
+Two changes tighten this up:
+
+- A `dependency` block inside `autoinclude` must declare exactly one label. Zero labels (`dependency {}`) and multiple labels (`dependency "a" "b" {}`) are now rejected at parse time with a diagnostic that points at the offending block.
+- Parse failures encountered while expanding `autoinclude` files during `stack generate`, `find`, and `list` are surfaced with the underlying HCL diagnostic instead of being swallowed or remapped to a generic discovery error.
+
+Reported in [#5980](https://github.com/gruntwork-io/terragrunt/issues/5980).

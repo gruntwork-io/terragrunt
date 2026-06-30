@@ -4,6 +4,7 @@ package hclhelper
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -11,7 +12,7 @@ import (
 func WrapMapToSingleLineHcl(m map[string]any) string {
 	var attributes = make([]string, 0, len(m))
 	for key, value := range m {
-		attributes = append(attributes, fmt.Sprintf(`%s=%s`, key, formatHclValue(value)))
+		attributes = append(attributes, fmt.Sprintf(`%s=%s`, key, FormatValueToSingleLineHcl(value)))
 	}
 
 	sort.Strings(attributes)
@@ -19,14 +20,25 @@ func WrapMapToSingleLineHcl(m map[string]any) string {
 	return fmt.Sprintf("{%s}", strings.Join(attributes, ","))
 }
 
-// formatHclValue - Wrap single line HCL values in quotes.
-func formatHclValue(value any) string {
+// WrapListToSingleLineHcl converts a slice to a single-line HCL list expression.
+func WrapListToSingleLineHcl(values []any) string {
+	var items = make([]string, 0, len(values))
+	for _, item := range values {
+		items = append(items, FormatValueToSingleLineHcl(item))
+	}
+
+	return fmt.Sprintf("[%s]", strings.Join(items, ","))
+}
+
+// FormatValueToSingleLineHcl converts a Go value to a single-line HCL expression.
+func FormatValueToSingleLineHcl(value any) string {
 	switch v := value.(type) {
 	case string:
-		escapedValue := strings.ReplaceAll(v, `"`, `\"`)
-		return fmt.Sprintf(`"%s"`, escapedValue)
+		return strconv.Quote(v)
 	case map[string]any:
 		return WrapMapToSingleLineHcl(v)
+	case []any:
+		return WrapListToSingleLineHcl(v)
 	default:
 		return fmt.Sprintf(`%v`, v)
 	}

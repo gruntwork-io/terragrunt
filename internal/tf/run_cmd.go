@@ -8,13 +8,12 @@ import (
 
 	"slices"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -52,16 +51,19 @@ type TFOptions struct {
 	JSONLogFormat                bool
 }
 
-// RunCommand runs the given Terraform command.
-func RunCommand(ctx context.Context, l log.Logger, runOpts *TFOptions, args ...string) error {
-	_, err := RunCommandWithOutput(ctx, l, runOpts, args...)
+// RunCommand runs the given Terraform command using the provided vexec.Exec.
+// Pass vexec.NewMemExec from tests and fuzzers to intercept invocations so
+// tofu/terraform are never forked.
+func RunCommand(ctx context.Context, l log.Logger, e vexec.Exec, runOpts *TFOptions, args ...string) error {
+	_, err := RunCommandWithOutput(ctx, l, e, runOpts, args...)
 
 	return err
 }
 
-// RunCommandWithOutput runs the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
-// method's caller
-func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *TFOptions, args ...string) (*util.CmdOutput, error) {
+// RunCommandWithOutput runs the given Terraform command using the provided
+// vexec.Exec, writing its stdout/stderr to the terminal AND returning
+// stdout/stderr to this method's caller.
+func RunCommandWithOutput(ctx context.Context, l log.Logger, e vexec.Exec, runOpts *TFOptions, args ...string) (*util.CmdOutput, error) {
 	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
@@ -84,7 +86,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *TFOptions,
 		shellOpts.Writers.ErrWriter = errWriter
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, shellOpts, "", false, needsPTY, runOpts.ShellOptions.TFPath, args...)
+	output, err := shell.RunCommandWithOutput(ctx, l, e, shellOpts, "", false, needsPTY, runOpts.ShellOptions.TFPath, args...)
 
 	hasDetailedExitCode := slices.Contains(args, FlagNameDetailedExitCode)
 	if hasDetailedExitCode {
@@ -165,7 +167,7 @@ func isCommandThatNeedsPty(args []string) (bool, error) {
 
 	fi, err := os.Stdin.Stat()
 	if err != nil {
-		return false, errors.New(err)
+		return false, err
 	}
 
 	// if there is data in the stdin, then the terraform console is used in non-interactive mode, for example `echo "1 + 5" | terragrunt console`.
@@ -202,7 +204,7 @@ func shouldForceForwardTFStdout(args clihelper.Args) bool {
 		return true
 	}
 
-	return collections.ListContainsElement(tfCommands, args.CommandName())
+	return slices.Contains(tfCommands, args.CommandName())
 }
 
 // buildOutWriter returns the writer for the command's stdout.

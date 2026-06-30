@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -o pipefail
+set -euo pipefail
 
 : "${AWS_TEST_OIDC_ROLE_ARN:?The AWS_TEST_OIDC_ROLE_ARN environment variable must be set.}"
 : "${OIDC_TOKEN:?The OIDC_TOKEN environment variable must be set.}"

@@ -1,0 +1,52 @@
+export const prerender = true;
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { getCollection, render } from 'astro:content';
+import { sortPatternEntries, type PatternEntry } from '@lib/patterns';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('patterns');
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+interface Props {
+  entry: PatternEntry;
+}
+
+const { entry } = Astro.props;
+
+// Order all patterns the same way the index grid does, so prev/next walk the
+// list in the order a reader sees it.
+const ordered = sortPatternEntries(await getCollection('patterns'));
+const currentIndex = ordered.findIndex((e) => e.id === entry.id);
+const prevEntry = currentIndex > 0 ? ordered[currentIndex - 1] : null;
+const nextEntry =
+  currentIndex >= 0 && currentIndex < ordered.length - 1
+    ? ordered[currentIndex + 1]
+    : null;
+
+const { Content } = await render(entry);
+---
+
+<StarlightPage
+  frontmatter={{
+    title: entry.data.title,
+    description: entry.data.description,
+    prev: prevEntry
+      ? { label: prevEntry.data.title, link: `/guides/patterns/${prevEntry.id}` }
+      : { label: 'All patterns', link: '/guides/patterns' },
+    next: nextEntry
+      ? { label: nextEntry.data.title, link: `/guides/patterns/${nextEntry.id}` }
+      : false,
+  }}
+>
+  <p class="-mt-2 text-(length:--sl-text-sm) text-(--sl-color-gray-3)">By {entry.data.author}</p>
+
+  <Content />
+
+  <hr />
+  <p><a href="/guides/patterns">← Back to all patterns</a></p>
+</StarlightPage>

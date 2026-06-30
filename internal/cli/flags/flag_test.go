@@ -18,10 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func mockDestValue[T any](val T) *T {
-	return &val
-}
-
 func newLogger() (log.Logger, *bytes.Buffer) {
 	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
 	output := new(bytes.Buffer)
@@ -38,23 +34,23 @@ func TestFlag_TakesValue(t *testing.T) {
 		expected bool
 	}{
 		{
-			&clihelper.BoolFlag{Name: "name", Destination: mockDestValue(false)},
+			&clihelper.BoolFlag{Name: "name", Destination: new(false)},
 			true,
 		},
 		{
-			&clihelper.BoolFlag{Name: "name", Destination: mockDestValue(true)},
+			&clihelper.BoolFlag{Name: "name", Destination: new(true)},
 			false,
 		},
 		{
-			&clihelper.BoolFlag{Name: "name", Negative: true, Destination: mockDestValue(true)},
+			&clihelper.BoolFlag{Name: "name", Negative: true, Destination: new(true)},
 			true,
 		},
 		{
-			&clihelper.BoolFlag{Name: "name", Negative: true, Destination: mockDestValue(false)},
+			&clihelper.BoolFlag{Name: "name", Negative: true, Destination: new(false)},
 			false,
 		},
 		{
-			&clihelper.GenericFlag[string]{Name: "name", Destination: mockDestValue("value")},
+			&clihelper.GenericFlag[string]{Name: "name", Destination: new("value")},
 			true,
 		},
 	}
@@ -76,9 +72,10 @@ func TestFlag_TakesValue(t *testing.T) {
 func TestFlag_Evaluate(t *testing.T) {
 	t.Parallel()
 
-	mockRegControls := func(flagNameControl, envVarControl strict.Control) bool {
-		return true
-	}
+	// A non-nil (even empty) Controls is enough to trigger registration in
+	// DeprecatedFlag.SetStrictControls; the umbrella parents simply aren't
+	// present to add subcontrols under.
+	mockStrictControls := strict.Controls{}
 
 	deprecatedFlagWarning := func() string {
 		return controls.NewDeprecatedFlagName(&clihelper.BoolFlag{}, &clihelper.BoolFlag{}, "").WarningFmt
@@ -104,7 +101,7 @@ func TestFlag_Evaluate(t *testing.T) {
 				{
 					flags.NewFlag(
 						&clihelper.BoolFlag{Name: "new-flag-name"},
-						flags.WithDeprecatedName("old-flag-name", mockRegControls),
+						flags.WithDeprecatedName("old-flag-name", mockStrictControls),
 					),
 					"old-flag-name",
 					"",
@@ -112,7 +109,7 @@ func TestFlag_Evaluate(t *testing.T) {
 				{
 					flags.NewFlag(
 						&clihelper.BoolFlag{Name: "new-env-var-name", EnvVars: []string{"NEW_ENV_VAR_NAME"}},
-						flags.WithDeprecatedName("old-env-var-name", mockRegControls),
+						flags.WithDeprecatedName("old-env-var-name", mockStrictControls),
 					),
 					"",
 					"OLD_ENV_VAR_NAME",

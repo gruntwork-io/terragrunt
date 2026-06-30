@@ -20,14 +20,10 @@ func TestTerragruntSourceMap(t *testing.T) {
 	t.Parallel()
 
 	fixtureSourceMapPath := filepath.Join("fixtures", "source-map")
+
+	// Clean the shared source fixture once up front; per-subtest CopyEnvironment
+	// calls then read from it concurrently without racing a parallel cleanup.
 	helpers.CleanupTerraformFolder(t, fixtureSourceMapPath)
-	tmpEnvPath := helpers.CopyEnvironment(t, fixtureSourceMapPath)
-	rootPath := filepath.Join(tmpEnvPath, fixtureSourceMapPath)
-	sourceMapArgs := fmt.Sprintf(
-		"--source-map %s --source-map %s",
-		"git::ssh://git@github.com/gruntwork-io/i-dont-exist.git="+tmpEnvPath,
-		"git::ssh://git@github.com/gruntwork-io/another-dont-exist.git="+tmpEnvPath,
-	)
 
 	testCases := []struct {
 		name     string
@@ -58,6 +54,14 @@ func TestTerragruntSourceMap(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, fixtureSourceMapPath)
+			rootPath := filepath.Join(tmpEnvPath, fixtureSourceMapPath)
+			sourceMapArgs := fmt.Sprintf(
+				"--source-map %s --source-map %s",
+				"git::ssh://git@github.com/gruntwork-io/i-dont-exist.git="+tmpEnvPath,
+				"git::ssh://git@github.com/gruntwork-io/another-dont-exist.git="+tmpEnvPath,
+			)
 
 			tgPath := filepath.Join(rootPath, tc.name)
 

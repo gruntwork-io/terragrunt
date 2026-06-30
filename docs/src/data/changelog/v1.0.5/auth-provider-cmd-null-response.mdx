@@ -1,0 +1,10 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### Auth provider command returning `null` no longer crashes Terragrunt
+
+If the command configured via `--auth-provider-cmd` wrote the JSON value `null` to stdout, Terragrunt crashed with a nil pointer dereference before it could obtain credentials.
+
+A `null` response is now treated as an empty response: no environment variables and no credentials are applied, and the run continues.

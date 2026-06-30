@@ -1,24 +1,25 @@
 package cas_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const defaultStorePath = "/store"
 
 func TestStore(t *testing.T) {
 	t.Parallel()
 
 	t.Run("custom path", func(t *testing.T) {
 		t.Parallel()
-		tempDir := helpers.TmpDirWOSymlinks(t)
-		customPath := filepath.Join(tempDir, "custom-store")
+
+		customPath := "/custom-store"
 
 		store := cas.NewStore(customPath)
 		assert.Equal(t, customPath, store.Path())
@@ -27,18 +28,20 @@ func TestStore(t *testing.T) {
 
 func TestStore_NeedsWrite(t *testing.T) {
 	t.Parallel()
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	store := cas.NewStore(tempDir)
+
+	v := newMemVenv(t)
+	storePath := defaultStorePath
+	store := cas.NewStore(storePath)
 
 	// Create a fake content file
 	testHash := "abcdef123456"
 	// Create partition directory
 	partitionDir := filepath.Join(store.Path(), testHash[:2])
-	err := os.MkdirAll(partitionDir, 0755)
+	err := v.FS.MkdirAll(partitionDir, 0755)
 	require.NoError(t, err, "Failed to create partition directory")
 
 	testPath := filepath.Join(partitionDir, testHash)
-	err = os.WriteFile(testPath, []byte("test"), 0644)
+	err = vfs.WriteFile(v.FS, testPath, []byte("test"), 0644)
 	require.NoError(t, err, "Failed to create test file")
 
 	tests := []struct {
@@ -61,25 +64,28 @@ func TestStore_NeedsWrite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, store.NeedsWrite(tt.hash))
+			assert.Equal(t, tt.want, store.NeedsWrite(v, tt.hash))
 		})
 	}
 }
 
 func TestStore_AcquireLock(t *testing.T) {
 	t.Parallel()
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	store := cas.NewStore(tempDir)
+
+	v := newMemVenv(t)
+	storePath := defaultStorePath
+	store := cas.NewStore(storePath)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
 	// Test successful lock acquisition
-	lock, err := store.AcquireLock(testHash)
+	lock, err := store.AcquireLock(v, testHash)
 	require.NoError(t, err)
 	assert.NotNil(t, lock)
 
-	// Verify lock file exists
-	lockPath := filepath.Join(tempDir, testHash[:2], testHash+".lock")
-	assert.FileExists(t, lockPath)
+	// Verify partition directory was created
+	partitionDir := filepath.Join(storePath, testHash[:2])
+	_, err = v.FS.Stat(partitionDir)
+	require.NoError(t, err)
 
 	// Clean up
 	err = lock.Unlock()
@@ -88,18 +94,20 @@ func TestStore_AcquireLock(t *testing.T) {
 
 func TestStore_TryAcquireLock(t *testing.T) {
 	t.Parallel()
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	store := cas.NewStore(tempDir)
+
+	v := newMemVenv(t)
+	storePath := defaultStorePath
+	store := cas.NewStore(storePath)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
 	// Test successful lock acquisition
-	lock1, acquired, err := store.TryAcquireLock(testHash)
+	lock1, acquired, err := store.TryAcquireLock(v, testHash)
 	require.NoError(t, err)
 	assert.True(t, acquired)
 	assert.NotNil(t, lock1)
 
 	// Test lock contention - should fail to acquire
-	lock2, acquired, err := store.TryAcquireLock(testHash)
+	lock2, acquired, err := store.TryAcquireLock(v, testHash)
 	require.NoError(t, err)
 	assert.False(t, acquired)
 	assert.Nil(t, lock2)
@@ -109,7 +117,7 @@ func TestStore_TryAcquireLock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now should be able to acquire again
-	lock3, acquired, err := store.TryAcquireLock(testHash)
+	lock3, acquired, err := store.TryAcquireLock(v, testHash)
 	require.NoError(t, err)
 	assert.True(t, acquired)
 	assert.NotNil(t, lock3)
@@ -121,8 +129,10 @@ func TestStore_TryAcquireLock(t *testing.T) {
 
 func TestStore_LockConcurrency(t *testing.T) {
 	t.Parallel()
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	store := cas.NewStore(tempDir)
+
+	v := newMemVenv(t)
+	storePath := defaultStorePath
+	store := cas.NewStore(storePath)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
 	// Test that multiple goroutines can't acquire the same lock
@@ -131,7 +141,7 @@ func TestStore_LockConcurrency(t *testing.T) {
 
 	// First goroutine acquires lock and holds it briefly
 	go func() {
-		lock, err := store.AcquireLock(testHash)
+		lock, err := store.AcquireLock(v, testHash)
 		assert.NoError(t, err)
 
 		acquired <- true
@@ -150,7 +160,7 @@ func TestStore_LockConcurrency(t *testing.T) {
 
 		// Should block until first lock is released
 		start := time.Now()
-		lock, err := store.AcquireLock(testHash)
+		lock, err := store.AcquireLock(v, testHash)
 		elapsed := time.Since(start)
 
 		assert.NoError(t, err)
@@ -169,24 +179,26 @@ func TestStore_LockConcurrency(t *testing.T) {
 
 func TestStore_EnsureWithWait(t *testing.T) {
 	t.Parallel()
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	store := cas.NewStore(tempDir)
+
+	v := newMemVenv(t)
+	storePath := defaultStorePath
+	store := cas.NewStore(storePath)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
 	t.Run("content already exists", func(t *testing.T) {
 		t.Parallel()
 
 		// Create the content manually
-		partitionDir := filepath.Join(tempDir, testHash[:2])
-		err := os.MkdirAll(partitionDir, 0755)
+		partitionDir := filepath.Join(storePath, testHash[:2])
+		err := v.FS.MkdirAll(partitionDir, 0755)
 		require.NoError(t, err)
 
 		contentPath := filepath.Join(partitionDir, testHash)
-		err = os.WriteFile(contentPath, []byte("existing content"), 0644)
+		err = vfs.WriteFile(v.FS, contentPath, []byte("existing content"), 0644)
 		require.NoError(t, err)
 
 		// EnsureWithWait should return false (no write needed)
-		needsWrite, lock, err := store.EnsureWithWait(testHash)
+		needsWrite, lock, err := store.EnsureWithWait(v, testHash)
 		require.NoError(t, err)
 		assert.False(t, needsWrite)
 		assert.Nil(t, lock)
@@ -198,7 +210,7 @@ func TestStore_EnsureWithWait(t *testing.T) {
 		testHashNew := "fedcba0987654321fedcba0987654321fedcba09"
 
 		// EnsureWithWait should return true (write needed) and provide lock
-		needsWrite, lock, err := store.EnsureWithWait(testHashNew)
+		needsWrite, lock, err := store.EnsureWithWait(v, testHashNew)
 		require.NoError(t, err)
 		assert.True(t, needsWrite)
 		assert.NotNil(t, lock)

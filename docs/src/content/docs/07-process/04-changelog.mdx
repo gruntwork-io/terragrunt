@@ -1,0 +1,54 @@
+---
+title: Changelog
+description: A log of notable changes to Terragrunt.
+slug: process/changelog
+sidebar:
+  order: 4
+tableOfContents:
+  maxHeadingLevel: 3
+pagefind: false
+---
+
+{/* Changelog entries are managed in docs/src/data/changelog/<version>/ as one MDX file per change.
+Add new entries there, not here.
+
+Directory layout:
+
+  docs/src/data/changelog/
+    v1.2.3/
+      my-new-feature.mdx
+      fix-some-bug.mdx
+
+Each file has frontmatter identifying the release it belongs to and the
+category it renders under, followed by a `#### <title>` heading and prose:
+
+---
+version: "v1.2.3"
+category: "new-features"     # see the slug list below
+order: 1                      # optional; sorts within a category (lower first)
+---
+
+#### Feature title
+
+Description of the change.
+
+Valid `category` slugs, in the order they render:
+
+  breaking-changes           🛠️ Breaking Changes
+  new-features               ✨ New Features
+  performance-improvements   🏎️ Performance Improvements
+  tips-added                 💡 Tips Added
+  bug-fixes                  🐛 Bug Fixes
+  documentation-updates      📖 Documentation Updates
+  experiments-added          🧪 Experiments Added
+  experiments-updated        🧪 Experiments Updated
+  process-updates            ⚙️ Process Updates
+
+The canonical list lives in `docs/src/lib/changelog.ts` — update it there if
+you need to add or rename a category.
+
+*/}
+
+{/* This page is rendered by docs/src/pages/process/changelog.astro (release
+index) and docs/src/pages/process/changelog/[version].astro (per-release
+pages), using data from docs/src/data/changelog/. */}

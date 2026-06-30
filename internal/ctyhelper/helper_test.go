@@ -1,7 +1,9 @@
 package ctyhelper_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
@@ -9,6 +11,29 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
+
+func TestParseCtyValueToMapPreservesLargeNumberPrecision(t *testing.T) {
+	t.Parallel()
+
+	// Reproduces https://github.com/gruntwork-io/terragrunt/issues/3514
+	// Large integers (>16 digits) lost precision because json.Unmarshal
+	// decoded them as float64.
+	largeNumber := "111111111111111111"
+	bigFloat, _, _ := big.ParseFloat(largeNumber, 10, 512, big.ToNearestEven)
+
+	input := cty.ObjectVal(map[string]cty.Value{
+		"some_number": cty.NumberVal(bigFloat),
+	})
+
+	result, err := ctyhelper.ParseCtyValueToMap(input)
+	require.NoError(t, err)
+
+	// The value should be a json.Number preserving full precision, not a float64.
+	num, ok := result["some_number"].(json.Number)
+	require.True(t, ok, "expected json.Number, got %T", result["some_number"])
+	assert.Equal(t, largeNumber, num.String(),
+		"large number should survive the cty→map round trip without precision loss")
+}
 
 func TestUpdateUnknownCtyValValues(t *testing.T) {
 	t.Parallel()

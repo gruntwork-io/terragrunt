@@ -25,7 +25,8 @@ type Unit struct {
 	reading          []string
 	dependencies     Components
 	dependents       Components
-	mu               sync.RWMutex
+	mu               sync.Mutex
+	parseMu          sync.Mutex
 	external         bool
 	excluded         bool
 }
@@ -51,7 +52,7 @@ func (u *Unit) WithReading(files ...string) *Unit {
 
 // WithConfig adds configuration to a Unit component.
 func (u *Unit) WithConfig(cfg *config.TerragruntConfig) *Unit {
-	u.cfg = cfg
+	u.StoreConfig(cfg)
 
 	return u
 }
@@ -65,12 +66,35 @@ func (u *Unit) WithDiscoveryContext(ctx *DiscoveryContext) *Unit {
 
 // Config returns the parsed Terragrunt configuration for this unit.
 func (u *Unit) Config() *config.TerragruntConfig {
+	u.lock()
+	defer u.unlock()
+
 	return u.cfg
 }
 
 // StoreConfig stores the parsed Terragrunt configuration for this unit.
 func (u *Unit) StoreConfig(cfg *config.TerragruntConfig) {
+	u.lock()
+	defer u.unlock()
+
 	u.cfg = cfg
+}
+
+// GuardConfigParse runs parse to populate this unit's config at most once, even
+// when called concurrently. Callers that lose the race skip parse and observe
+// the config stored by the winner.
+//
+// The guard is separate from the config mutex so a slow parse doesn't block
+// reads of an already-parsed unit.
+func (u *Unit) GuardConfigParse(parse func() error) error {
+	u.parseMu.Lock()
+	defer u.parseMu.Unlock()
+
+	if u.Config() != nil {
+		return nil
+	}
+
+	return parse()
 }
 
 // ConfigFile returns the discovered config filename for this unit.
@@ -120,16 +144,25 @@ func (u *Unit) SetExcluded(excluded bool) {
 
 // Reading returns the list of files being read by this component.
 func (u *Unit) Reading() []string {
+	u.lock()
+	defer u.unlock()
+
 	return u.reading
 }
 
 // SetReading sets the list of files being read by this component.
 func (u *Unit) SetReading(files ...string) {
+	u.lock()
+	defer u.unlock()
+
 	u.reading = files
 }
 
 // Sources returns the list of sources for this component.
 func (u *Unit) Sources() []string {
+	u.lock()
+	defer u.unlock()
+
 	if u.cfg == nil || u.cfg.Terraform == nil || u.cfg.Terraform.Source == nil {
 		return []string{}
 	}
@@ -164,16 +197,6 @@ func (u *Unit) lock() {
 // unlock unlocks the Unit.
 func (u *Unit) unlock() {
 	u.mu.Unlock()
-}
-
-// rLock locks the Unit for reading.
-func (u *Unit) rLock() {
-	u.mu.RLock()
-}
-
-// rUnlock unlocks the Unit for reading.
-func (u *Unit) rUnlock() {
-	u.mu.RUnlock()
 }
 
 // AddDependency adds a dependency to the Unit and vice versa.
@@ -220,16 +243,16 @@ func (u *Unit) AddDependent(dependent Component) {
 
 // Dependencies returns the dependencies of the Unit.
 func (u *Unit) Dependencies() Components {
-	u.rLock()
-	defer u.rUnlock()
+	u.lock()
+	defer u.unlock()
 
 	return u.dependencies
 }
 
 // Dependents returns the dependents of the Unit.
 func (u *Unit) Dependents() Components {
-	u.rLock()
-	defer u.rUnlock()
+	u.lock()
+	defer u.unlock()
 
 	return u.dependents
 }
@@ -240,9 +263,9 @@ func (u *Unit) Dependents() Components {
 //
 //	Unit /path/to/unit (excluded: false, assume applied: false, dependencies: [/dep1, /dep2])
 func (u *Unit) String() string {
-	// Snapshot values under read lock to avoid data races
-	u.rLock()
-	defer u.rUnlock()
+	// Snapshot values under lock to avoid data races
+	u.lock()
+	defer u.unlock()
 
 	path := u.DisplayPath()
 	deps := make([]string, 0, len(u.dependencies))

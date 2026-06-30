@@ -1,4 +1,4 @@
-//go:build aws && tofu
+//go:build awsextended && aws && tofu
 
 package test_test
 
@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestExampleLiveStacks(t *testing.T) {
+func TestAwsExampleLiveStacks(t *testing.T) {
 	uniqueID := strings.ToLower(helpers.UniqueID())
 
 	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger())

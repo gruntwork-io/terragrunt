@@ -20,7 +20,7 @@ terragrunt: $(shell find . \( -type d -name 'vendor' -prune \) \
                         -o \( -type f -name '*.go'   -print \) )
 	set -xe ;\
 	vtag_maybe_extra=$$(git describe --tags --abbrev=12 --dirty --broken) ;\
-	CGO_ENABLED=0 go build -o $@ -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=$${vtag_maybe_extra}" .
+	CGO_ENABLED=0 go build -o $@ -ldflags "-s -w -X github.com/gruntwork-io/terragrunt/internal/version.Version=$${vtag_maybe_extra}" .
 
 clean:
 	rm -f terragrunt
@@ -35,17 +35,20 @@ LINT_TAGS := $(shell grep -rh --include='*.go' 'go:build' . | \
 	sort -u | \
 	paste -sd, -)
 
+print-lint-tags:
+	@echo '$(LINT_TAGS)'
+
 run-lint:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
-	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=30m ./...
+	GOFLAGS="-tags=$(LINT_TAGS)" mise x golangci-lint -- golangci-lint run -v --timeout=30m ./...
 
 run-lint-incremental:
 	@echo "Incremental lint (new issues only) with feature flags: [$(LINT_TAGS)]"
-	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=30m --new-from-merge-base=main ./...
+	GOFLAGS="-tags=$(LINT_TAGS)" mise x golangci-lint -- golangci-lint run -v --timeout=30m --new-from-merge-base=main ./...
 
 run-lint-fix:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
-	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=30m --fix ./...
+	GOFLAGS="-tags=$(LINT_TAGS)" mise x golangci-lint -- golangci-lint run -v --timeout=30m --fix ./...
 
 generate-mocks:
 	go generate ./...
@@ -64,4 +67,4 @@ fuzz:
 		done; \
 	done
 
-.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix fuzz
+.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix fuzz print-lint-tags

@@ -5,7 +5,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -24,7 +23,7 @@ func NewGraphFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.F
 		Usage:       "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",
 		Action: func(_ context.Context, _ *clihelper.Context, _ bool) error {
 			if opts.RunAll {
-				return errors.New(new(AllGraphFlagsError))
+				return new(AllGraphFlagsError)
 			}
 
 			return nil

@@ -1,0 +1,12 @@
+---
+version: "v1.0.3"
+category: "bug-fixes"
+---
+
+#### `hcl fmt --diff` no longer requires the `diff` binary
+
+Previously, `terragrunt hcl fmt --diff` spawned a `diff` process discovered in `$PATH` to render its output. This made it incompatible with minimal container images and Windows installations where that binary was unavailable.
+
+The flag now produces unified diff output without depending on any external binary.
+
+Note that the output is not byte-identical to GNU `diff -u`. Each file diff is now preceded by a `diff old/<path> new/<path>` header line, and the `---`/`+++` lines no longer include a trailing timestamp. Scripts that parsed the previous output may need small adjustments.

@@ -8,6 +8,8 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
@@ -29,9 +31,10 @@ The `terraform` block supports the following arguments:
 
   - The `source` parameter can be configured to pull OpenTofu/Terraform modules from any Terraform module registry using
     the `tfr` protocol. The `tfr` protocol expects URLs to be provided in the format
-    `tfr://REGISTRY_HOST/MODULE_SOURCE?version=VERSION`. For example, to pull the `terraform-aws-modules/vpc/aws`
+    `tfr://REGISTRY_HOST/MODULE_SOURCE[?version=VERSION]`. For example, to pull the `terraform-aws-modules/vpc/aws`
     module from the public Terraform registry, you can use the following as the source parameter:
     `tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.3.0`.
+    The `version` query parameter is optional. When omitted, Terragrunt queries the registry's list-versions endpoint and downloads the latest stable (non-prerelease) version. Pin a version explicitly for reproducible builds in production.
   - If you wish to access a private module registry (e.g., [Terraform Cloud/Enterprise](https://www.terraform.io/docs/cloud/registry/index.html)),
     you can provide the authentication to Terragrunt as an environment variable with the key `TG_TF_REGISTRY_TOKEN`.
     This token can be any registry API token.
@@ -110,6 +113,13 @@ The `terraform` block supports the following arguments:
 - `error_hook` (block): Nested blocks used to specify command hooks that run when an error is thrown. The
   error must match one of the expressions listed in the `on_errors` attribute. Error hooks are executed after the before/after hooks.
   To handle errors during source download (when using the `source` attribute), use `init-from-module` in the `commands` list.
+
+- `mutable` (attribute): When `true`, content fetched into `.terragrunt-cache` through the
+  [content-addressable storage (CAS)](/features/caching/cas) is copied from the CAS store and the
+  working tree under `.terragrunt-cache` is editable. The default is `false`: files are
+  materialized read-only so an accidental edit cannot reach back into the shared CAS store. The
+  flag has no effect when CAS is not used to fetch the source; the standard download path already
+  produces an independent, writable copy.
 
 In addition to supporting before and after hooks for all OpenTofu/Terraform commands, the following specialized hooks are also
 supported:
@@ -485,7 +495,8 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `gcs_bucket_labels`: A map of key value pairs to associate as labels on the created GCS bucket.
 - `credentials`: Local path to Google Cloud Platform account credentials in JSON format.
 - `access_token`: A temporary [OAuth 2.0 access token] obtained from the Google Authorization server.
-  Example with S3:
+
+Example with S3:
 
 ```hcl
 # root.hcl
@@ -1378,6 +1389,12 @@ The `generate` block supports the following arguments:
 - `disable_signature` (attribute): When `true`, disables including a signature in the generated file. This means that
   there will be no difference between `overwrite_terragrunt` and `overwrite` for the `if_exists` setting. Defaults to
   `false`. Optional.
+<Since version="1.0.8">
+
+- `hcl_fmt` (attribute): When `false`, disables HCL formatting for generated `.tf`, `.hcl`, and `.tofu` files. Defaults to `true`. Optional.
+
+</Since>
+
 - `contents` (attribute): The contents of the generated file.
 - `disable` (attribute): Disables this generate block.
 
@@ -1433,6 +1450,33 @@ locals {
 # Set the generate config dynamically to the generate config in common.hcl
 generate = local.common.generate
 ```
+
+## catalog
+
+The `catalog` block is used to configure IaC catalogs for use with the [`catalog`](/reference/cli/commands/catalog) and [`scaffold`](/reference/cli/commands/scaffold) commands. It defines where Terragrunt should look for reusable patterns like OpenTofu/Terraform modules and Boilerplate templates, in addition to configuring behavior for scaffolding.
+
+The `catalog` block supports the following attributes:
+
+- `urls` (attribute, required): A list of URLs pointing to module catalogs. These can be local file paths or remote URLs (e.g., GitHub repositories). Relative paths are resolved relative to the configuration file.
+- `default_template` (attribute, optional): Path to a default [Boilerplate](https://github.com/gruntwork-io/boilerplate) template to use when scaffolding modules that don't include their own `.boilerplate` directory.
+- `no_shell` (attribute, optional): When `true`, disables shell command execution in Boilerplate templates during scaffolding. Defaults to `false`. Can be overridden via the `--no-shell` CLI flag.
+- `no_hooks` (attribute, optional): When `true`, disables hook execution in Boilerplate templates during scaffolding. Defaults to `false`. Can be overridden via the `--no-hooks` CLI flag.
+
+Example:
+
+```hcl
+# terragrunt.hcl
+
+catalog {
+  urls = [
+    "/Users/acme/modules",
+    "github.com/acme/infrastructure-modules",
+  ]
+  default_template = "/Users/acme/templates/default"
+}
+```
+
+For more details, see the [Catalog feature documentation](/features/catalog).
 
 ## engine
 
@@ -1916,3 +1960,168 @@ Terragrunt will recursively generate a stack using the contents of the `.terragr
 - The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
 
 - A pre-created `terragrunt.values.hcl` file can be provided in the stack source (sibling to the `terragrunt.stack.hcl` file used as the source of the stack). If present, this file will be used as the default values for the stack. However, if the values attribute is defined in the stack block, the generated `terragrunt.values.hcl` will replace the pre-existing file.
+
+## autoinclude
+
+<Before version="1.1.0">
+<Aside type="tip" title="Experimental">
+The `autoinclude` block is part of the [`stack-dependencies` experiment](/reference/experiments/active#stack-dependencies). Enable it with `--experiment stack-dependencies`.
+</Aside>
+</Before>
+
+The `autoinclude` block is used inside [`unit`](#unit) and [`stack`](#stack) blocks in Terragrunt stack files (`terragrunt.stack.hcl`) to inject configuration into the generated component during stack generation. Its main job is declaring `dependency` relationships between components of a stack without editing the unit sources in your catalog.
+
+**Purpose**: Inject dependencies and configuration overrides into a unit or stack at generation time.
+**Use case**: When units in a stack depend on each other (or on a sibling stack), or when a stack needs to patch a generated component with configuration that doesn't belong in the catalog source.
+**Result**: Generates a `terragrunt.autoinclude.hcl` file next to the unit's `terragrunt.hcl` (for `unit` blocks), or a `terragrunt.autoinclude.stack.hcl` file next to the nested stack's `terragrunt.stack.hcl` (for `stack` blocks). The generated file is automatically merged into the component's configuration whenever the component is parsed.
+
+The `autoinclude` block takes no label and has no arguments of its own. Its body is the configuration to inject. In an `autoinclude` on a `unit` block, the body can contain:
+
+- `dependency` blocks. The `config_path` attribute is resolved at generation time, typically from the `unit.<name>.path` and `stack.<name>.path` variables described below. All other attributes (`mock_outputs`, `mock_outputs_allowed_terraform_commands`, etc.) work as they do in a regular [`dependency`](#dependency) block.
+- The `inputs` attribute.
+- Any other block that is valid in a unit configuration: `feature`, `errors`, `generate`, `remote_state`, etc.
+
+Three things are rejected with an error:
+
+- A `locals` block fails generation. Declare locals at the stack level in `terragrunt.stack.hcl` instead, where they resolve uniformly at generate time.
+- The `values` attribute fails when the generated file is parsed, because the file is read as regular unit configuration and `values` is not a valid argument there. Pass per-unit values through the `values` attribute of the `unit` block instead.
+- A nested `autoinclude` block fails generation.
+
+Example:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+
+      mock_outputs = {
+        vpc_id = "vpc-mock"
+      }
+    }
+
+    inputs = {
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+  }
+}
+```
+
+Running <Before version="1.1.0">`terragrunt stack generate --experiment stack-dependencies`</Before><Since version="1.1.0">`terragrunt stack generate`</Since> produces:
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- .terragrunt-stack
+  - vpc
+    - terragrunt.hcl
+  - app
+    - **terragrunt.autoinclude.hcl**
+    - terragrunt.hcl
+
+</FileTree>
+
+```hcl
+# .terragrunt-stack/app/terragrunt.autoinclude.hcl
+
+# Generated by Terragrunt from autoinclude block. Do not edit manually.
+dependency "vpc" {
+  config_path = "../vpc"
+  mock_outputs = {
+    vpc_id = "vpc-mock"
+  }
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+Expressions in the autoinclude body resolve at generation time, in the context of the stack file: `local.*`, `values.*`, `unit.<name>.path`, `stack.<name>.path`, and function calls all become literals in the generated file. Because functions evaluate against the stack file rather than the unit, directory functions report the stack file's location (`get_terragrunt_dir()` returns the stack file's directory, and `path_relative_to_include()` returns `"."`). Only `dependency.*` references are kept verbatim, because dependency outputs exist only when the unit runs.
+
+### Component path variables
+
+With the experiment enabled, `terragrunt.stack.hcl` files expose a `unit.<name>.path` and `stack.<name>.path` variable for each declared component. They resolve to the generated directory of that component, following the same layout `stack generate` produces (including the effect of `no_dot_terragrunt_stack` on the referenced block). In a generated dependency, `config_path` is written relative to the unit's directory.
+
+These variables are available inside `autoinclude` blocks and in the `values` attribute of `unit` and `stack` blocks, so a parent stack can pass a component's path down to a child stack. Only components declared in the same stack file are visible; referencing an undeclared name fails generation.
+
+### Merge behavior
+
+A generated `terragrunt.autoinclude.hcl` merges into the unit's configuration using the same default strategy as a regular [`include`](#include): a shallow merge, with the autoinclude winning. Top-level keys from the unit and the autoinclude combine; on a conflict, the autoinclude's value replaces the unit's rather than deep merging nested maps. `inputs` maps combine key by key at the top level. A `dependency` block with the same name as one in the unit's own `terragrunt.hcl` replaces it wholesale.
+
+The merge applies to any unit with a sibling `terragrunt.autoinclude.hcl` while the experiment is enabled. `stack generate` normally writes this file; treat it as a generated artifact rather than something to edit by hand.
+
+### Depending on a stack
+
+A dependency's `config_path` can point at a stack directory via `stack.<name>.path`. The dependency's outputs aggregate the outputs of every unit in that stack, keyed by unit name:
+
+```hcl
+# terragrunt.stack.hcl
+
+stack "network" {
+  source = "../catalog/stacks/network"
+  path   = "network"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "network" {
+      config_path = stack.network.path
+
+      mock_outputs_allowed_terraform_commands = ["validate", "plan"]
+      mock_outputs = {
+        vpc = {
+          vpc_id = "mock-vpc"
+        }
+      }
+    }
+
+    inputs = {
+      vpc_id = dependency.network.outputs.vpc.vpc_id
+    }
+  }
+}
+```
+
+Here the `network` stack contains a unit named `vpc` with a `vpc_id` output, so the dependent unit reads it as `dependency.network.outputs.vpc.vpc_id`. During `run --all`, a dependency on a stack expands to a dependency on each of the stack's units, so the dependent unit waits for all of them to finish.
+
+### Stack-level autoinclude
+
+An `autoinclude` on a `stack` block generates `terragrunt.autoinclude.stack.hcl` next to the nested stack's `terragrunt.stack.hcl`. Its body may declare only `unit` and `stack` blocks, which are injected into the generated stack. An injected block whose name matches an existing `unit` or `stack` overrides that block wholesale; a new name adds a component.
+
+```hcl
+# terragrunt.stack.hcl
+
+stack "networking" {
+  source = "../catalog/stacks/networking"
+  path   = "networking"
+
+  autoinclude {
+    unit "extra" {
+      source = "${get_repo_root()}/catalog/units/extra"
+      path   = "extra"
+    }
+  }
+}
+```
+
+A `dependency` block is rejected in a stack-level autoinclude, because stacks themselves have no dependencies. Declare the dependency inside the target unit's own `autoinclude`.
+
+### Limitations
+
+- Stacks are opaque dependency boundaries. `unit.<name>.path` and `stack.<name>.path` only see components declared in the same stack file, so an autoinclude cannot target a unit inside another stack. Depend on the whole stack instead, or pass a component's path down to the child stack through `values`.
+- An `autoinclude` block cannot contain another `autoinclude` block. A `unit` or `stack` block injected by a stack-level autoinclude may declare its own `autoinclude`; it resolves during the next generation pass.
+- Only HCL stack files support `autoinclude`. A stack file written as JSON fails generation if it declares one.

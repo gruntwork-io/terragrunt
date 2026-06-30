@@ -1,0 +1,18 @@
+---
+name: queue-exclude-external
+status: active
+---
+
+Throw an error when using the deprecated `--queue-exclude-external` flag.
+
+### `queue-exclude-external` - Reason
+
+External dependencies are now excluded by default. The `--queue-exclude-external` flag is no longer needed and has been deprecated. Use `--queue-include-external` if you need to include external dependencies.
+
+### `queue-exclude-external` - Example
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt run --all plan --queue-exclude-external
+WARN  The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.
+```

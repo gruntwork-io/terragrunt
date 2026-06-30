@@ -1,0 +1,12 @@
+---
+version: "v1.0.4"
+category: "bug-fixes"
+---
+
+#### `get_repo_root()` returns OS-native separators on Windows
+
+`git rev-parse --show-toplevel` always emits forward-slash paths, even on Windows. Terragrunt returned that string unchanged from `get_repo_root()`, so configurations that compared the result against `path/filepath`-style paths or fed it back into helpers expecting OS-native separators saw spurious mismatches and broken joins on Windows.
+
+The output is now normalized to OS-native separators before being returned, so `get_repo_root()` produces `C:\repo\path` on Windows and `/repo/path` on Linux and macOS.
+
+Reported in [#5976](https://github.com/gruntwork-io/terragrunt/issues/5976).

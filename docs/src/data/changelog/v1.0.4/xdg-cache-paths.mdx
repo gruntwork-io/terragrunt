@@ -1,0 +1,18 @@
+---
+version: "v1.0.4"
+category: "experiments-updated"
+---
+
+#### Cache and plugin directories follow platform conventions
+
+Terragrunt's global cache directory now resolves to the platform's user cache location instead of a hard-coded `~/.cache/terragrunt`. On Linux this honors `XDG_CACHE_HOME` (still `~/.cache/terragrunt` by default), on macOS it resolves to `~/Library/Caches/terragrunt`, and on Windows it resolves under `%LocalAppData%`. The CAS content store, the auto provider cache, and the IaC engine plugin directory all move with it.
+
+Existing caches at the previous locations are not migrated. They become orphaned and continue to consume disk space until removed.
+
+Consider deleting the old paths to reclaim that space if you are on macOS or Windows, or have configured a custom `XDG_CACHE_HOME`:
+
+```bash
+# CAS store and engine plugins under the legacy ~/.cache layout
+rm -rf ~/.cache/terragrunt
+```
+

@@ -1,0 +1,12 @@
+---
+version: "v1.0.5"
+category: "bug-fixes"
+---
+
+#### Run report file generation no longer stalls or deadlocks with many runs
+
+Generating a run report via `--report-file` could stall or deadlock when a queue contained many runs and some were still recording their final status as the report was written.
+
+Reports now serialize each run independently, so writing a report no longer blocks status updates from runs that are still finishing.
+
+Thanks to [@jackiesre721](https://github.com/jackiesre721) for contributing this fix!

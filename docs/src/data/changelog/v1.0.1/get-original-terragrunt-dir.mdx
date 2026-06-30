@@ -1,0 +1,10 @@
+---
+version: "v1.0.1"
+category: "bug-fixes"
+---
+
+#### `get_original_terragrunt_dir()` now resolves correctly during dependency parsing
+
+A regression introduced in `v1.0.0-rc3` caused `get_original_terragrunt_dir()` to return the dependent directory instead of the dependency's directory when parsing dependency configurations from a unit. 
+
+This broke configurations where a dependency's `read_terragrunt_config()` chain relied on `get_original_terragrunt_dir()` to locate sibling files. The fix introduces a dedicated `WithDependencyConfigPath` method that correctly resets the original config path when parsing a dependency as an independent unit.

@@ -1,0 +1,18 @@
+---
+name: disable-dependent-modules
+status: active
+---
+
+Throw an error when using the deprecated `--disable-dependent-modules` flag.
+
+### `disable-dependent-modules` - Reason
+
+Dependent modules discovery has been removed from `terragrunt render`. The `--disable-dependent-modules` flag is no longer needed and has no effect.
+
+### `disable-dependent-modules` - Example
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt render --format=json --disable-dependent-modules
+WARN  The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.
+```

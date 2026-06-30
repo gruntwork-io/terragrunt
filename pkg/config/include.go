@@ -18,7 +18,8 @@ import (
 
 	"maps"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
@@ -29,14 +30,10 @@ var fieldsCopyLocks = util.NewKeyLocks()
 // Parse the config of the given include, if one is specified
 func parseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.New(IncludedConfigMissingPathError(pctx.TerragruntConfigPath))
+		return nil, IncludedConfigMissingPathError(pctx.TerragruntConfigPath)
 	}
 
 	includePath := includedConfig.Path
-
-	if !filepath.IsAbs(includePath) {
-		includePath = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includePath)
-	}
 
 	// These condition are here to specifically handle the `run --all` command. During any `run --all` call, terragrunt
 	// needs to first build up the dependency graph to know what order to process the modules in. We want to limit users
@@ -143,12 +140,7 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 			logPrefix           string
 		)
 
-		trackedIncludePath := includeConfig.Path
-		if !filepath.IsAbs(trackedIncludePath) {
-			trackedIncludePath = filepath.Clean(filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), trackedIncludePath))
-		}
-
-		trackFileRead(pctx.FilesRead, trackedIncludePath)
+		pctx.FilesRead.Add(includeConfig.Path)
 
 		if isPartial {
 			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, pctx, l, &includeConfig)
@@ -224,7 +216,7 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 				util.RelPathForLog(
 					pctx.RootWorkingDir,
 					includeConfig.Path,
-					pctx.Writers.LogShowAbsPaths,
+					pctx.LogShowAbsPaths,
 				),
 			)
 		case ShallowMerge:
@@ -233,7 +225,7 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 				util.RelPathForLog(
 					pctx.RootWorkingDir,
 					includeConfig.Path,
-					pctx.Writers.LogShowAbsPaths,
+					pctx.LogShowAbsPaths,
 				),
 			)
 
@@ -245,7 +237,7 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 				util.RelPathForLog(
 					pctx.RootWorkingDir,
 					includeConfig.Path,
-					pctx.Writers.LogShowAbsPaths,
+					pctx.LogShowAbsPaths,
 				),
 			)
 
@@ -743,7 +735,7 @@ func deepMergeInputs(childInputs map[string]any, parentInputs map[string]any) (m
 
 	err := mergo.Merge(&out, childInputs, mergo.WithAppendSlice, mergo.WithOverride)
 
-	return out, errors.New(err)
+	return out, err
 }
 
 // Merge the hooks (before_hook and after_hook).
@@ -797,19 +789,30 @@ func mergeErrorHooks(l log.Logger, childHooks []ErrorHook, parentHooks *[]ErrorH
 // getTrackInclude converts the terragrunt include blocks into TrackInclude structs that differentiate between an
 // included config in the current parsing ctx, and an included config that was passed through from a previous
 // parsing ctx.
+//
+// Each include's Path is normalized to an absolute path here, resolved against the directory of the current config
+// file. Downstream consumers can rely on IncludeConfig.Path being absolute and need not redo this resolution.
 func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, includeFromChild *IncludeConfig) (*TrackInclude, error) {
+	configDir := filepath.Dir(ctx.TerragruntConfigPath)
+
+	normalizedList := make(IncludeConfigs, len(terragruntIncludeList))
 	includedPaths := make([]string, 0, len(terragruntIncludeList))
 	terragruntIncludeMap := make(map[string]IncludeConfig, len(terragruntIncludeList))
 
-	for _, tgInc := range terragruntIncludeList {
+	for i, tgInc := range terragruntIncludeList {
+		if tgInc.Path != "" && !filepath.IsAbs(tgInc.Path) {
+			tgInc.Path = filepath.Clean(filepath.Join(configDir, tgInc.Path))
+		}
+
+		normalizedList[i] = tgInc
 		includedPaths = append(includedPaths, tgInc.Path)
 		terragruntIncludeMap[tgInc.Name] = tgInc
 	}
 
-	hasInclude := len(terragruntIncludeList) > 0
+	hasInclude := len(normalizedList) > 0
 
 	trackInc := TrackInclude{
-		CurrentList: terragruntIncludeList,
+		CurrentList: normalizedList,
 		CurrentMap:  terragruntIncludeMap,
 	}
 
@@ -817,17 +820,16 @@ func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, 
 	case hasInclude && includeFromChild != nil:
 		// tgInc appears in a parent that is already included, which means a nested include block. This is not
 		// something we currently support.
-		err := errors.New(TooManyLevelsOfInheritanceError{
+		err := TooManyLevelsOfInheritanceError{
 			ConfigPath:             ctx.TerragruntConfigPath,
 			FirstLevelIncludePath:  includeFromChild.Path,
 			SecondLevelIncludePath: strings.Join(includedPaths, ","),
-		})
+		}
 
 		return &TrackInclude{}, err
 	case hasInclude && includeFromChild == nil:
 		// Current parsing ctx where there is no included config already loaded.
 	case !hasInclude:
-		// Parsing ctx where there is an included config already loaded.
 		trackInc.Original = includeFromChild
 	}
 
@@ -861,13 +863,13 @@ func updateBareIncludeBlock(file *hclparse.File) error {
 	default:
 		hclFile, diags := hclwrite.ParseConfig(file.Bytes, file.ConfigPath, hcl.InitialPos)
 		if diags.HasErrors() {
-			return errors.New(diags)
+			return diags
 		}
 
 		for _, block := range hclFile.Body().Blocks() {
 			if block.Type() == MetadataInclude && len(block.Labels()) == 0 {
 				if codeWasUpdated {
-					return errors.New(MultipleBareIncludeBlocksErr{})
+					return MultipleBareIncludeBlocksErr{}
 				}
 
 				block.SetLabels([]string{bareIncludeKey})
@@ -933,7 +935,7 @@ func updateBareIncludeBlock(file *hclparse.File) error {
 func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 	var parsed map[string]any
 	if err := json.Unmarshal(fileBytes, &parsed); err != nil {
-		return nil, false, errors.New(err)
+		return nil, false, err
 	}
 
 	includeBlock, hasKey := parsed[MetadataInclude]
@@ -951,7 +953,7 @@ func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 			// Could be multiple bare includes, or Case 3. We simplify the handling of this case by erroring out,
 			// ignoring the possibility of Case 3, which, while valid HCL encoding, is too complex to detect and handle
 			// here. Instead we will recommend users use the object encoding.
-			return nil, false, errors.New(MultipleBareIncludeBlocksErr{})
+			return nil, false, MultipleBareIncludeBlocksErr{}
 		}
 
 		// Make sure this is Case 2, and not Case 3 with a single labeled block. If Case 2, update to inject the labeled
@@ -977,7 +979,7 @@ func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 		return nil, false, nil
 	}
 
-	return nil, false, errors.New(IncludeIsNotABlockErr{parsed: includeBlock})
+	return nil, false, IncludeIsNotABlockErr{parsed: includeBlock}
 }
 
 // updateSingleBareIncludeInParsedJSON replaces the include attribute into a block with the label "" in the json. Note that we
@@ -987,7 +989,7 @@ func updateSingleBareIncludeInParsedJSON(parsed map[string]any, newVal any) ([]b
 	parsed[MetadataInclude] = map[string]any{bareIncludeKey: newVal}
 	updatedBytes, err := json.Marshal(parsed)
 
-	return updatedBytes, true, errors.New(err)
+	return updatedBytes, true, err
 }
 
 // jsonIsIncludeBlock checks if the arbitrary json data is the include block. The data is determined to be an include

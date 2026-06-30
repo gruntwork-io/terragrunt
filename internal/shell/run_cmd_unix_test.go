@@ -1,5 +1,4 @@
 //go:build linux || darwin
-// +build linux darwin
 
 package shell_test
 
@@ -14,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -36,7 +36,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	cmdPath := "testdata/test_sigint_wait.sh"
 
 	go func() {
-		_, err := shell.RunCommandWithOutput(ctx, l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "", false, false, cmdPath, strconv.Itoa(expectedWait))
+		_, err := shell.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), configbridge.ShellRunOptsFromOpts(terragruntOptions), "", false, false, cmdPath, strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 

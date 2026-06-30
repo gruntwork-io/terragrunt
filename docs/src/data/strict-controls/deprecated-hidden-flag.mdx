@@ -1,0 +1,18 @@
+---
+name: deprecated-hidden-flag
+status: active
+---
+
+Throw an error when using the deprecated `--hidden` flag.
+
+### `deprecated-hidden-flag` - Reason
+
+Hidden directories are now included by default in `find` and `list` command results. The `--hidden` flag is no longer needed and has been deprecated. Use `--no-hidden` if you need to exclude hidden directories.
+
+### `deprecated-hidden-flag` - Example
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt find --hidden
+WARN  The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.
+```

@@ -12,12 +12,16 @@ import { Aside } from '@astrojs/starlight/components';
 This flag modifies how Terragrunt retrieves output values from dependent units. When enabled, Terragrunt will read the outputs directly from the state file instead of running `terraform output` or `tofu output`.
 
 <Aside type="note">
-This flag is equivalent to enabling the `dependency-fetch-output-from-state` experiment. You can also enable this feature using `--experiment dependency-fetch-output-from-state` or `--experiment-mode`. For more information, see the [Experiments documentation](/reference/experiments#dependency-fetch-output-from-state).
+This flag is equivalent to enabling the `dependency-fetch-output-from-state` experiment. You can also enable this feature using `--experiment dependency-fetch-output-from-state` or `--experiment-mode`. For more information, see the [Experiments documentation](/reference/experiments/active#dependency-fetch-output-from-state).
 </Aside>
 
 The main benefit this flag provides is performance. Reading directly from state is typically faster than executing the OpenTofu/Terraform binary to get the same outputs.
 
 The limitation of this approach is that it is only supported by the S3 backend, and OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.
+
+<Aside type="caution">
+This flag is **not compatible with OpenTofu state encryption**. When OpenTofu's client-side state encryption is enabled, the state file stored in S3 is encrypted before upload. Since this flag causes Terragrunt to read the raw state file directly from S3 via the AWS SDK, it cannot decrypt the state and will fail with a JSON parsing error. If you are using OpenTofu state encryption, disable this flag with `--no-dependency-fetch-output-from-state`.
+</Aside>
 
 <Aside type="caution">
 Avoid using this flag without pinning the version of OpenTofu/Terraform you are using.

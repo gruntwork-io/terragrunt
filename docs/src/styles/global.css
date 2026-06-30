@@ -178,9 +178,7 @@
   }
 }
 
-/* Handle all CSS overrides in a single layer to make it easier to manage and update.
-   TODO: Better organize the CSS here and split into appropriate layers as needed.
-*/
+/* Handle all CSS overrides in a single layer to make it easier to manage and update. */
 @layer components {
 
   /* Baseline styles
@@ -309,8 +307,15 @@
   h3 code,
   h4 code,
   h5 code,
-  h6 code,
-  p code {
+  h6 code {
+    border: 1px solid var(--color-code-border);
+    border-radius: 6px;
+    color: var(--color-code-text);
+    font-size: 0.75em;
+  }
+
+  p code,
+  li code {
     border: 1px solid var(--color-code-border);
     border-radius: 6px;
     color: var(--color-code-text);

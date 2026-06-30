@@ -1,186 +1,89 @@
 // @ts-check
 import { defineConfig } from "astro/config";
+import { unified } from "@astrojs/markdown-remark";
 
 import starlight from "@astrojs/starlight";
 import sitemap from "@astrojs/sitemap";
 import vercel from "@astrojs/vercel";
+import node from "@astrojs/node";
 import partytown from "@astrojs/partytown";
 import tailwindcss from "@tailwindcss/vite";
-import react from "@astrojs/react";
 
 import starlightLinksValidator from "starlight-links-validator";
 import starlightLlmsTxt from "starlight-llms-txt";
 import d2 from "astro-d2";
 
+import { sidebar } from "./src/data/sidebar.ts";
+import { rehypeChangelogAnchors } from "./src/lib/rehype-changelog-anchors.ts";
+
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
 
-export const sidebar = [
-  {
-    label: "Getting Started",
-    autogenerate: { directory: "01-getting-started" },
-  },
-  {
-    label: "Guides",
-    items: [
-      {
-        label: "Terralith to Terragrunt",
-        autogenerate: { directory: "02-guides/01-terralith-to-terragrunt", collapsed: true },
-      },
-    ],
-    collapsed: true,
-  },
-  {
-    label: "Features",
-    collapsed: true,
-    items: [
-      {
-        label: "Units",
-        collapsed: true,
-        autogenerate: { directory: "03-features/01-units", collapsed: true },
-      },
-      {
-        label: "Stacks",
-        collapsed: true,
-        autogenerate: { directory: "03-features/02-stacks", collapsed: true },
-      },
-      {
-        label: "Catalog",
-        collapsed: true,
-        autogenerate: { directory: "03-features/06-catalog", collapsed: true },
-      },
-      {
-        label: "Caching",
-        collapsed: true,
-        autogenerate: { directory: "03-features/07-caching", collapsed: true },
-      },
-      {
-        label: "Filters",
-        collapsed: true,
-        autogenerate: { directory: "03-features/08-filter", collapsed: true },
-      },
-    ],
-  },
-  {
-    label: "Reference",
-    collapsed: true,
-    items: [
-      {
-        label: "HCL",
-        autogenerate: { directory: "04-reference/01-hcl", collapsed: true },
-      },
-      {
-        label: "CLI",
-        collapsed: true,
-        items: [
-          { label: "Overview", slug: "reference/cli" },
-          {
-            label: "Commands",
-            autogenerate: {
-              directory: "04-reference/02-cli/02-commands",
-              collapsed: true,
-            },
+/**
+ * Wraps the `starlight-llms-txt` plugin so it still generates `/llms-full.txt`
+ * and `/llms-small.txt`, but does NOT inject its own `/llms.txt` route. That
+ * frees `/llms.txt` for our hand-curated index at `public/llms.txt`, which the
+ * plugin's generated entrypoint can't reproduce (its body is a fixed template).
+ *
+ * The plugin (node_modules/starlight-llms-txt/index.ts) injects its routes from
+ * inside an Astro integration's `astro:config:setup` hook. We intercept the
+ * `addIntegration` call, then wrap that integration's `injectRoute` to drop the
+ * single `/llms.txt` pattern and pass every other route through untouched.
+ */
+function starlightLlmsTxtWithoutIndex(opts) {
+  const plugin = starlightLlmsTxt(opts);
+  const originalSetup = plugin.hooks.setup;
+  return {
+    ...plugin,
+    hooks: {
+      ...plugin.hooks,
+      setup(setupContext) {
+        return originalSetup({
+          ...setupContext,
+          addIntegration(integration) {
+            const configSetup = integration.hooks?.["astro:config:setup"];
+            if (configSetup) {
+              integration.hooks["astro:config:setup"] = (configContext) =>
+                configSetup({
+                  ...configContext,
+                  injectRoute(route) {
+                    if (route.pattern === "/llms.txt") return;
+                    return configContext.injectRoute(route);
+                  },
+                });
+            }
+            return setupContext.addIntegration(integration);
           },
-          { label: "Global Flags", slug: "reference/cli/global-flags" },
-        ],
+        });
       },
-      { label: "Strict Controls", slug: "reference/strict-controls" },
-      { label: "Experiments", slug: "reference/experiments" },
-      {
-        label: "Supported Versions",
-        slug: "reference/supported-versions",
-      },
-      { label: "Lock Files", slug: "reference/lock-files" },
-      {
-        label: "Logging",
-        autogenerate: { directory: "04-reference/07-logging", collapsed: true },
-      },
-      { label: "Terragrunt Cache", slug: "reference/terragrunt-cache" },
-    ],
-  },
-  {
-    label: "Community",
-    autogenerate: { directory: "05-community", collapsed: true },
-    collapsed: true,
-  },
-  {
-    label: "Troubleshooting",
-    autogenerate: { directory: "06-troubleshooting", collapsed: true },
-    collapsed: true,
-  },
-  {
-    label: "Process",
-    autogenerate: { directory: "07-process", collapsed: true },
-    collapsed: true,
-  },
-  {
-    label: "Migrate",
-    autogenerate: { directory: "08-migrate", collapsed: true },
-    collapsed: true,
-  },
-];
+    },
+  };
+}
 
 // https://astro.build/config
 export default defineConfig({
   site: "https://docs.terragrunt.com",
   base: "/",
-  output: isVercel ? "server" : "static",
+  output: "server",
   adapter: isVercel
     ? vercel({
       imageService: true,
       isr: {
         expiration: 60 * 60 * 24, // 24 hours
       },
+      skewProtection: false,
     })
-    : undefined,
+    : node({ mode: "standalone" }),
   integrations: [
-    // We use React for the shadcn/ui components.
-    react(),
     starlight({
       title: "Terragrunt",
       description: "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.",
       editLink: {
-        // TODO: update this once the docs live in `docs`.
         baseUrl:
           "https://github.com/gruntwork-io/terragrunt/edit/main/docs",
       },
       customCss: ["./src/styles/global.css"],
       head: [
-        {
-          tag: 'meta',
-          attrs: {
-            name: 'description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:title',
-            content: 'Terragrunt',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:type',
-            content: 'website',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:url',
-            content: 'https://docs.terragrunt.com',
-          },
-        },
         {
           tag: 'meta',
           attrs: {
@@ -191,15 +94,26 @@ export default defineConfig({
         {
           tag: 'meta',
           attrs: {
-            name: 'twitter:title',
-            content: 'Terragrunt',
+            property: 'og:image',
+            content: 'https://docs.terragrunt.com/images/terragrunt-og-image-1200x630.png',
           },
         },
         {
           tag: 'meta',
           attrs: {
-            name: 'twitter:description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+            name: 'twitter:image',
+            content: 'https://docs.terragrunt.com/images/terragrunt-twitter-image.png',
+          },
+        },
+        {
+          tag: 'script',
+          attrs: {
+            async: true,
+            src: 'https://widget.kapa.ai/kapa-widget.bundle.js',
+            'data-website-id': '925274e5-086f-446e-9108-64761bc7c4b4',
+            'data-project-name': 'Terragrunt',
+            'data-project-color': '#7B5AFF',
+            'data-project-logo': 'https://docs.terragrunt.com/favicon.svg',
           },
         },
       ],
@@ -237,11 +151,22 @@ export default defineConfig({
             "/reference/cli/commands/find#*",
             "/reference/cli/commands/find/#*",
 
-            // Used as a redirect to the Terragrunt Discord server
+            // Custom .astro pages — can't be validated statically
+            "/reference/experiments/active",
+            "/reference/experiments/active#*",
+            "/reference/experiments/completed",
+            "/reference/experiments/completed#*",
+            "/reference/strict-controls/active#*",
+            "/reference/strict-controls/completed#*",
+            "/process/changelog#*",
+            "/process/changelog/*#*",
+
+            // Used as redirects to the Terragrunt Discord server
             "/community/invite",
+            "/tgs-discord",
           ],
         }),
-        starlightLlmsTxt()
+        starlightLlmsTxtWithoutIndex()
       ],
     }),
     d2({
@@ -262,14 +187,30 @@ export default defineConfig({
         forward: ['dataLayer.push'],
       },
     }),
-    sitemap(),
+    sitemap({
+      // changefreq/priority intentionally omitted: the Docusaurus/Astro
+      // maintainers note these are ignored by Google's crawler, and Bing
+      // treats them as advisory at best.
+      //
+      // lastmod intentionally omitted: a global new Date() stamps every URL
+      // with build time, which Google heuristics discount as noise. Per-page
+      // accuracy would need git log (Vercel's default shallow clone makes this
+      // unreliable) or a populated `lastUpdated` frontmatter field.
+    }),
   ],
+  markdown: {
+    // A custom `processor` still receives the integration-injected plugins (Starlight's syntax
+    // highlighting, etc.) merged in automatically, so we only register our own rehype plugin here.
+    processor: unified({ rehypePlugins: [rehypeChangelogAnchors] }),
+  },
   // Note that some redirects are handled in vercel.json instead.
   //
   // This is because Astro won't do dynamic redirects for external destinations.
   // It's faster to have Vercel handle it anyways.
   redirects: {
     // Catch-all redirect from /docs/* to /*
+    // Note: this only fires at depth 0 under the Vercel adapter; deeper paths
+    // are handled by an equivalent rule in vercel.json. Kept here for `astro dev`.
     "/docs/[...slug]": "/[...slug]",
 
     // Root redirects
@@ -288,7 +229,7 @@ export default defineConfig({
 
     // Redirects to external sites.
     "/terragrunt-ambassador": "https://terragrunt.com/terragrunt-ambassador",
-    "/terragrunt-scale": "https://terragrunt.com/terragrunt-scale",
+    "/terragrunt-scale": "/terragrunt-scale/overview/",
     "/contact/": "https://gruntwork.io/contact",
     "/commercial-support/": "https://gruntwork.io/support",
     "/cookie-policy/": "https://gruntwork.io/legal/cookie-policy/",

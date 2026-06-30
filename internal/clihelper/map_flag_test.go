@@ -6,7 +6,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,13 +37,13 @@ func TestMapFlagStringStringApply(t *testing.T) {
 			expectedValue: map[string]string{},
 		},
 		{
-			flag:          clihelper.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"})},
+			flag:          clihelper.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: new(map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"})},
 			args:          []string{"--foo", "arg1-key=arg1-value", "--foo", "arg2-key=arg2-value"},
 			envs:          map[string]string{"FOO": "env1-key=env1-value,env2-key=env2-value"},
 			expectedValue: map[string]string{"arg1-key": "arg1-value", "arg2-key": "arg2-value"},
 		},
 		{
-			flag:          clihelper.MapFlag[string, string]{Name: "foo", Destination: mockDestValue(map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"})},
+			flag:          clihelper.MapFlag[string, string]{Name: "foo", Destination: new(map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"})},
 			expectedValue: map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"},
 		},
 	}
@@ -81,13 +80,13 @@ func TestMapFlagStringIntApply(t *testing.T) {
 		},
 
 		{
-			flag:          clihelper.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(map[string]int{"default1-key": 50, "default2-key": 51})},
+			flag:          clihelper.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}, Destination: new(map[string]int{"default1-key": 50, "default2-key": 51})},
 			args:          []string{"--foo", "arg1-key=10", "--foo", "arg2-key=11"},
 			envs:          map[string]string{"FOO": "env1-key=20,env2-key=21"},
 			expectedValue: map[string]int{"arg1-key": 10, "arg2-key": 11},
 		},
 		{
-			flag:          clihelper.MapFlag[string, int]{Name: "foo", Destination: mockDestValue(map[string]int{"default1-key": 50, "default2-key": 51})},
+			flag:          clihelper.MapFlag[string, int]{Name: "foo", Destination: new(map[string]int{"default1-key": 50, "default2-key": 51})},
 			expectedValue: map[string]int{"default1-key": 50, "default2-key": 51},
 		},
 	}
@@ -149,10 +148,10 @@ func testMapFlagApply[K clihelper.MapFlagKeyType, V clihelper.MapFlagValueType](
 
 	assert.Subset(t, expectedValue, actualValue)
 
-	assert.Equal(t, collections.MapJoin(expectedValue, flag.EnvVarSep, flag.KeyValSep), flag.GetValue(), "GetValue()")
+	assert.Equal(t, clihelper.MapJoin(expectedValue, flag.EnvVarSep, flag.KeyValSep), flag.GetValue(), "GetValue()")
 
 	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
-	assert.Equal(t, collections.MapJoin(expectedDefaultValue, flag.EnvVarSep, flag.KeyValSep), flag.GetDefaultText(), "GetDefaultText()")
+	assert.Equal(t, clihelper.MapJoin(expectedDefaultValue, flag.EnvVarSep, flag.KeyValSep), flag.GetDefaultText(), "GetDefaultText()")
 
 	assert.False(t, flag.Value().IsBoolFlag(), "IsBoolFlag()")
 	assert.True(t, flag.TakesValue(), "TakesValue()")

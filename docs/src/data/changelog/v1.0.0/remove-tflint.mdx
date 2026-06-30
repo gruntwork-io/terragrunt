@@ -1,0 +1,14 @@
+---
+version: "v1.0.0"
+category: "breaking-changes"
+---
+
+#### Removal of `tflint`
+
+Terragrunt has been shipping with a version of `tflint` compiled into the binary to allow for more convenient usage without installing `tflint` directly. However due to the adoption of a BUSL license in `tflint`, the version included in Terragrunt was frozen.
+
+The dependency on `tflint` is now fully removed from Terragrunt. If you want to call `tflint` using a `before_hook` using Terragrunt, you will have to have `tflint` installed locally to do so.
+
+To reduce the burden of this breaking change, Terragrunt will continue to provide conveniences like automatically running `tflint init` on behalf of users, although it no longer ships with a compiled version of `tflint` in the `terragrunt` binary.
+
+To learn more, read the [documentation on the integration with tflint](/features/units/hooks/#tflint-hook).

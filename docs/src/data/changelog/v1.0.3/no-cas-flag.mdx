@@ -1,0 +1,16 @@
+---
+version: "v1.0.3"
+category: "new-features"
+---
+
+#### `--no-cas` flag for disabling CAS per command
+
+The new `--no-cas` flag disables the CAS for a single invocation, even when the `cas` experiment is enabled. It is available on [`run`](/reference/cli/commands/run), [`stack generate`](/reference/cli/commands/stack/generate), and [`stack run`](/reference/cli/commands/stack/run).
+
+```bash
+terragrunt stack generate --experiment cas --no-cas
+```
+
+This is useful when you want to fall back to the standard getter path without unwinding experiment configuration.
+
+Generation and runs error when `--no-cas` is combined with `update_source_with_cas = true` on any reachable `unit`, `stack`, or `terraform` block, since relative sources in catalog repositories cannot be resolved without the CAS.

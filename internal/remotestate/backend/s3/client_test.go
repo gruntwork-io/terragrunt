@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"errors"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -97,7 +98,7 @@ func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 
 	err := client.WaitForTableToBeActiveWithRandomSleep(t.Context(), l, tableName, retries, 1*time.Millisecond, 500*time.Millisecond)
 
-	errorMatchs := errors.IsError(err, s3backend.TableActiveRetriesExceeded{TableName: tableName, Retries: retries})
+	errorMatchs := errors.Is(err, s3backend.TableActiveRetriesExceeded{TableName: tableName, Retries: retries})
 	assert.True(t, errorMatchs, "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
@@ -136,6 +137,37 @@ func TestAwsTableTagging(t *testing.T) {
 		err := client.CreateLockTableIfNecessary(t.Context(), l, tableName, nil)
 		require.NoError(t, err, "Unexpected error: %v", err)
 	})
+}
+
+// TestAwsCreateLockTableWithTagsAtCreation verifies that
+// DynamoDB lock table tags are applied during the initial
+// CreateTable API request.
+func TestAwsCreateLockTableWithTagsAtCreation(t *testing.T) {
+	t.Parallel()
+
+	client := CreateS3ClientForTest(t)
+	tableName := UniqueTableNameForTest()
+
+	defer CleanupTableForTest(t, tableName, client)
+
+	l := logger.CreateLogger()
+
+	expectedTags := map[string]string{
+		"team": "platform",
+		"env":  "test",
+	}
+
+	err := client.CreateLockTableIfNecessary(
+		t.Context(),
+		l,
+		tableName,
+		expectedTags,
+	)
+
+	require.NoError(t, err)
+
+	// Verify tags are present immediately after creation.
+	assertTags(t, expectedTags, tableName, client)
 }
 
 func assertTags(t *testing.T, expectedTags map[string]string, tableName string, client *s3backend.Client) {

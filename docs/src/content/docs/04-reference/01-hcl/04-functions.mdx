@@ -6,7 +6,9 @@ sidebar:
   order: 4
 ---
 
+import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Before from '@components/Before.astro';
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
 
@@ -828,6 +830,39 @@ carrot
 
 This caching behavior can be modified using the special parameters described in the [Special Parameters](#special-parameters) section above.
 
+## deep_merge
+
+`deep_merge(map1, map2, ...)` deeply merges maps/objects. For overlapping keys, values from later arguments override earlier ones. Nested maps are merged recursively, and lists are appended. This function takes positional arguments.
+
+`deep_merge` requires the [`deep-merge`](/reference/experiments/active#deep-merge) experiment. Calling it without the experiment enabled returns an error.
+
+Any `null` arguments are ignored.
+
+Basic example:
+
+```hcl
+locals {
+  config = deep_merge(
+    { service = { retries = 1, mode = "safe" } },
+    { service = { retries = 3 }, tags = { env = "dev" } },
+  )
+}
+```
+
+Example with multiple JSON files (`...` expands a list into positional arguments):
+
+```hcl
+locals {
+  config_json_files = sort(fileset(get_terragrunt_dir(), "*.json"))
+  config = deep_merge([
+    for file in local.config_json_files :
+    jsondecode(file("${get_terragrunt_dir()}/${file}"))
+  ]...)
+}
+
+inputs = local.config
+```
+
 ## read_terragrunt_config
 
 `read_terragrunt_config(config_path, [default_val])` parses the terragrunt config at the given path and serializes the
@@ -1041,6 +1076,80 @@ The same technique can be used to mark a file as read when a file is read using 
 **NOTE**: Due to the way that Terragrunt parses configurations during a `run --all`, functions will only properly mark files as read
 if they are used in the `locals` block. Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs`
 block is not evaluated until *after* the queue has been populated with units to run.
+
+## mark_glob_as_read
+
+<Before version="1.1.0">
+<Aside type="caution">
+`mark_glob_as_read` requires the [`mark-many-as-read`](/reference/experiments/active#mark-many-as-read) experiment. Calling it without the experiment enabled returns an error.
+</Aside>
+</Before>
+
+<Aside type="caution">
+`mark_glob_as_read` writes to the same read tracker as [`mark_as_read`](#mark_as_read), so the same evaluation-order caveat applies: during a `run --all`, the queue is populated before `inputs` is evaluated, so a call placed in `inputs` (or any other later-evaluated block) will not influence queue construction. Call `mark_glob_as_read` from `locals` to ensure matched files are considered when the queue is built.
+</Aside>
+
+`mark_glob_as_read(pattern)` expands the given glob and marks every matching file as read. It returns the list of absolute paths that matched, so it can be composed with other expressions.
+
+Pattern syntax follows [`gobwas/glob`](https://github.com/gobwas/glob), the same matcher used elsewhere in Terragrunt. `/` is the path separator, `*` matches within a single segment, `**` matches any sequence of characters including separators, `?` matches any single non-separator character, `[abc]` matches a character class, and `{a,b}` matches any of the listed alternatives. A backslash escapes the following metacharacter.
+
+Relative patterns are resolved against the current working directory, the same way `mark_as_read` resolves a relative file path.
+
+<Aside type="caution">
+Glob patterns must use forward slashes (`/`) as the path separator, even on Windows. The matcher treats `\` as an escape character, not a path separator, so a backslash-separated pattern will not match any files.
+</Aside>
+
+<Aside type="caution">
+`**` only collapses the separators around it when the adjacent segments are literals. `config/**/*.yaml` matches files at least one directory below `config/`, but not files directly inside `config/`, because the trailing segment `*.yaml` is a wildcard. Use brace alternation to match at any depth:
+
+```hcl
+mark_glob_as_read("${get_terragrunt_dir()}/config/{*.yaml,**/*.yaml}")
+```
+</Aside>
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  configs = mark_glob_as_read("${get_terragrunt_dir()}/config/{*.yaml,**/*.yaml}")
+}
+
+inputs = {
+  configs = [for f in local.configs : yamldecode(file(f))]
+}
+```
+
+A typical use case is a unit that consumes a directory of configuration files indirectly (for example, through `run_cmd`, `templatefile`, or a shared helper module) and wants changes to any of them to trigger the unit through [reading-based filter expressions](/features/filter/attributes#reading-based-expressions) such as `--filter 'reading=./config/**'`.
+
+If the pattern matches nothing, the function returns an empty list without error.
+
+### Boundary
+
+`mark_glob_as_read` confines glob expansion to a boundary directory. By default the boundary is the enclosing Git repository root; outside a Git repository, no boundary applies. A pattern whose walk would begin outside the boundary returns an error rather than expanding.
+
+This keeps a pattern that resolves higher than intended from walking a large portion of the filesystem. A pattern interpolated from an empty value is the common case: `"${local.dir}/{*.yaml}"` becomes `/{*.yaml}` when `local.dir` is `""`.
+
+Pass a leading `--terragrunt-boundary` argument to set the boundary explicitly. Use it to scope the walk to a subdirectory, or to widen it when a scan outside the repository root is intended. A relative value resolves against the working directory.
+
+```hcl
+locals {
+  # Restrict the walk to a subdirectory.
+  scoped = mark_glob_as_read("--terragrunt-boundary=/etc/terragrunt", "/etc/terragrunt/{*.yaml}")
+
+  # Remove the boundary entirely.
+  everything = mark_glob_as_read("--terragrunt-boundary=/", "/{*.yaml}")
+}
+```
+
+<Aside type="caution">
+A `? :` conditional does not skip the call. HCL evaluates both branches of a conditional before selecting one, so a guard such as `local.dir != "" ? mark_glob_as_read(...) : []` still expands the glob. Wrap the call in [`try`](https://opentofu.org/docs/language/functions/try/) so a boundary error recovers to a fallback:
+
+```hcl
+locals {
+  files = sort(try(mark_glob_as_read("${local.dir}/{*.yaml,*.yml,*.json}"), []))
+}
+```
+</Aside>
 
 ## constraint_check
 

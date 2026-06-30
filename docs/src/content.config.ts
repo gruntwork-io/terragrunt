@@ -2,6 +2,7 @@ import { defineCollection, z } from 'astro:content';
 import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
 import { glob, file } from 'astro/loaders';
+import { CHANGELOG_CATEGORY_SLUGS } from './lib/changelog';
 
 const commands = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/commands" }),
@@ -37,7 +38,13 @@ const commands = defineCollection({
 
 const docs = defineCollection({
 	loader: docsLoader(),
-	schema: docsSchema(),
+	schema: docsSchema({
+		extend: z.object({
+			banner: z.object({ content: z.string() }).default({
+				content: '🎉 <strong>Terragrunt v1.0 is here!</strong> Read the <a href="https://www.gruntwork.io/blog/terragrunt-1-0-released">announcement</a> to learn more.',
+			}),
+		}),
+	}),
 });
 
 const flags = defineCollection({
@@ -49,6 +56,46 @@ const flags = defineCollection({
 		type: z.string(),
 		env: z.array(z.string()).optional(),
 		aliases: z.array(z.string()).optional(),
+		since: z.string().optional(),
+	}),
+});
+
+const faq = defineCollection({
+	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/faq" }),
+	schema: z.object({
+		// The question, shown as the row title on the index and as the page
+		// heading on the question's own page.
+		question: z.string(),
+		// A short, ~1-2 line answer shown (truncated to two lines) in the
+		// "Answer" column of the index table.
+		description: z.string(),
+		// Optional: controls ordering on the index. Lower numbers sort first;
+		// entries without an order fall back to alphabetical by question.
+		order: z.number().optional(),
+	}),
+});
+
+const patterns = defineCollection({
+	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/patterns" }),
+	schema: z.object({
+		// The pattern's title, shown on its card and as the page heading.
+		title: z.string(),
+		// A short description shown on the card beneath the title.
+		description: z.string(),
+		// The author's name, shown on the card and the pattern's page.
+		author: z.string(),
+		// Optional: controls ordering on the index. Lower numbers sort first;
+		// entries without an order fall back to alphabetical by title.
+		order: z.number().optional(),
+	}),
+});
+
+const changelog = defineCollection({
+	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/changelog" }),
+	schema: z.object({
+		version: z.string(),
+		category: z.enum(CHANGELOG_CATEGORY_SLUGS),
+		order: z.number().optional(),
 	}),
 });
 
@@ -64,4 +111,28 @@ const compatibility = defineCollection({
 	}),
 });
 
-export const collections = { commands, compatibility, docs, flags };
+const experiments = defineCollection({
+	loader: glob({ pattern: "**/*.mdx", base: "src/data/experiments" }),
+	schema: z.object({
+		name: z.string(),
+		// `since` is the release an experiment became available for opt-in.
+		// `completedSince` is the release in which the experiment concluded,
+		// whether it graduated to a default feature or was retired; once that
+		// release ships, the experiment is treated as completed. An
+		// experiment's active/completed status is derived from these versions
+		// rather than a separate `status` field.
+		since: z.string().optional(),
+		completedSince: z.string().optional(),
+	}),
+});
+
+const strictControls = defineCollection({
+	loader: glob({ pattern: "**/*.mdx", base: "src/data/strict-controls" }),
+	schema: z.object({
+		name: z.string(),
+		status: z.enum(["active", "completed"]),
+		since: z.string().optional(),
+	}),
+});
+
+export const collections = { changelog, commands, compatibility, docs, experiments, faq, flags, patterns, strictControls };

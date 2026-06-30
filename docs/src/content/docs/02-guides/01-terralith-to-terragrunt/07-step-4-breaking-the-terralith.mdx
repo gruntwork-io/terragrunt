@@ -23,7 +23,7 @@ First, let's create a top-level directory for `prod` in `live`.
 
 Next, let's move everything into the `prod` directory (If you're not comfortable with using the `find` command here, you can just drag the content into the `prod` directory).
 
-<Code title="live" lang="bash" frame="terminal" code={`find . -mindepth 1 -maxdepth 1 -not -name 'prod' -exec mv {} prod/ \;`} />
+<Code title="live" lang="bash" frame="terminal" code={`find . -mindepth 1 -maxdepth 1 -not -name 'prod' -exec mv {} prod/ \\;`} />
 
 To complete our new multi-environment setup, let's duplicate that `prod` directory to a new `dev` directory.
 

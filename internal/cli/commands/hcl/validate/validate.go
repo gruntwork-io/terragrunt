@@ -15,7 +15,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/google/shlex"
@@ -23,10 +22,12 @@ import (
 
 	"maps"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/view"
@@ -39,27 +40,27 @@ import (
 
 const splitCount = 2
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
-			return errors.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputsFlagName)
+			return fmt.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputsFlagName)
 		}
 
 		if opts.HCLValidateJSONOutput {
-			return errors.Errorf("specifying both -%s and -%s is invalid", JSONFlagName, InputsFlagName)
+			return fmt.Errorf("specifying both -%s and -%s is invalid", JSONFlagName, InputsFlagName)
 		}
 
-		return RunValidateInputs(ctx, l, opts)
+		return RunValidateInputs(ctx, l, v, opts)
 	}
 
 	if opts.HCLValidateStrict {
-		return errors.Errorf("specifying -%s without -%s is invalid", StrictFlagName, InputsFlagName)
+		return fmt.Errorf("specifying -%s without -%s is invalid", StrictFlagName, InputsFlagName)
 	}
 
-	return RunValidate(ctx, l, opts)
+	return RunValidate(ctx, l, v, opts)
 }
 
-func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	var diags diagnostic.Diagnostics
 
 	// Diagnostics handler to collect validation errors
@@ -94,17 +95,21 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		Filters:     opts.Filters,
 		Experiments: opts.Experiments,
 	})
+	if d != nil {
+		d = d.WithExec(v.Exec)
+	}
+
 	if err != nil {
-		return processDiagnostics(l, opts, diags, errors.New(err))
+		return processDiagnostics(l, opts, diags, err)
 	}
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
 	gitFilters := opts.Filters.UniqueGitFilters()
 
-	worktrees, parseErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+	worktrees, parseErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
 	if parseErr != nil {
-		return errors.Errorf("failed to create worktrees: %w", parseErr)
+		return fmt.Errorf("failed to create worktrees: %w", parseErr)
 	}
 
 	defer func() {
@@ -118,7 +123,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
-		return processDiagnostics(l, opts, diags, errors.New(err))
+		return processDiagnostics(l, opts, diags, err)
 	}
 
 	parseOptions := []hclparse.Option{diagnosticsHandler}
@@ -134,10 +139,11 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			parseOpts.TerragruntConfigPath = stackFilePath
 
 			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
+			parser.Venv = v.ToRoot()
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
-				parseErrs = append(parseErrs, errors.New(err))
+				parseErrs = append(parseErrs, err)
 			}
 
 			parser = parser.WithParseOption(parseOptions)
@@ -147,12 +153,21 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 			file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(stackFilePath)
 			if err != nil {
-				parseErrs = append(parseErrs, errors.New(err))
+				parseErrs = append(parseErrs, err)
 				continue
 			}
 
-			if _, err := config.ParseStackConfig(ctx, l, parser, file, values); err != nil {
-				parseErrs = append(parseErrs, errors.New(err))
+			stackCfg, err := config.ParseStackConfig(ctx, l, parser, file, values)
+			if err != nil {
+				parseErrs = append(parseErrs, err)
+				continue
+			}
+
+			// The lenient stack decode above leaves autoinclude blocks unvalidated, so run the
+			// strict autoinclude parse `stack generate` uses. It no-ops unless the
+			// stack-dependencies experiment is enabled and the config declares autoinclude.
+			if err := config.ValidateStackAutoIncludes(ctx, l, parser, stackFilePath, stackCfg, values); err != nil {
+				parseErrs = append(parseErrs, err)
 			}
 
 			continue
@@ -167,8 +182,10 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
 		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
+		pctx.Venv = v.ToRoot()
+
 		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
-			parseErrs = append(parseErrs, errors.New(err))
+			parseErrs = append(parseErrs, err)
 		}
 	}
 
@@ -203,7 +220,7 @@ func processDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags dia
 		return err
 	}
 
-	diagError := errors.Errorf("%d HCL validation error(s) found", len(diags))
+	diagError := fmt.Errorf("%d HCL validation error(s) found", len(diags))
 
 	// If diagnostics exist and no other error was returned,
 	// return a synthetic error to mark validation as failed and
@@ -230,7 +247,7 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 	return writer.Diagnostics(diags)
 }
 
-func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	opts = opts.Clone()
 
 	opts.SkipOutput = true
@@ -241,27 +258,31 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 		Filters:     opts.Filters,
 		Experiments: opts.Experiments,
 	})
+	if d != nil {
+		d = d.WithExec(v.Exec)
+	}
+
 	if err != nil {
 		return err
 	}
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		gitFilters := opts.Filters.UniqueGitFilters()
+	// We do worktree generation here instead of in the discovery constructor
+	// so that we can defer cleanup in the same context.
+	gitFilters := opts.Filters.UniqueGitFilters()
 
-		worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
-		if worktreeErr != nil {
-			return errors.Errorf("failed to create worktrees: %w", worktreeErr)
-		}
-
-		defer func() {
-			cleanupErr := worktrees.Cleanup(ctx, l)
-			if cleanupErr != nil {
-				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
-			}
-		}()
-
-		d = d.WithWorktrees(worktrees)
+	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
+	if worktreeErr != nil {
+		return fmt.Errorf("failed to create worktrees: %w", worktreeErr)
 	}
+
+	defer func() {
+		cleanupErr := worktrees.Cleanup(ctx, l)
+		if cleanupErr != nil {
+			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+		}
+	}()
+
+	d = d.WithWorktrees(worktrees)
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
@@ -288,21 +309,21 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 
 		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
-		prepared, err := prepare.PrepareConfig(ctx, l, unitOpts)
+		prepared, err := prepare.PrepareConfig(ctx, l, v, unitOpts)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Download source
-		updatedOpts, err := prepare.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
+		updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Generate config
-		if err := prepare.PrepareGenerate(l, updatedOpts, prepared.Cfg.ToRunConfig(l)); err != nil {
+		if err := prepare.PrepareGenerate(l, v, updatedOpts, prepared.Cfg.ToRunConfig(l)); err != nil {
 			errs = append(errs, err)
 			continue
 		}

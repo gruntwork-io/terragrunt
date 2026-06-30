@@ -1,0 +1,10 @@
+---
+version: "v1.0.4"
+category: "performance-improvements"
+---
+
+#### `run_cmd` and Git repo-root results memoized without the Provider Cache Server
+
+Within a single command, repeated `run_cmd(...)` calls and repeated Git repo-root lookups across units used to share their cached results only when the Provider Cache Server was running. Commands invoked without `--provider-cache` (the common case for `find`, `list`, and `run --all` against estates that do not need provider caching) re-evaluated each `run_cmd` and re-shelled to `git rev-parse --show-toplevel` for every unit.
+
+Both caches are now active for every command, so identical `run_cmd` arguments and repeated repo-root lookups are reused across units regardless of whether the Provider Cache Server is enabled.

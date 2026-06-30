@@ -6,6 +6,7 @@ package configbridge
 import (
 	"context"
 
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -14,14 +15,30 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 // NewParsingContext creates a config.ParsingContext populated from TerragruntOptions.
-func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *config.ParsingContext) {
+func NewParsingContext(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (context.Context, *config.ParsingContext) {
 	ctx, pctx := config.NewParsingContext(ctx, l, config.WithStrictControls(opts.StrictControls))
 	populateFromOpts(pctx, opts)
 
 	return ctx, pctx
+}
+
+// StackFuncFactory returns a dir-scoped HCL function factory for early stack
+// discovery parsing, built from TerragruntOptions. Each call rebuilds the
+// function map for the given stack dir so dir-sensitive functions resolve there.
+func StackFuncFactory(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) inthclparse.StackFuncFactory {
+	_, pctx := NewParsingContext(ctx, l, opts)
+
+	return func(stackDir string) (map[string]function.Function, error) {
+		return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+	}
 }
 
 // populateFromOpts copies fields from TerragruntOptions into ParsingContext flat fields.
@@ -40,6 +57,8 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.StrictControls = opts.StrictControls
 	pctx.FeatureFlags = opts.FeatureFlags
 	pctx.Writers = opts.Writers
+	pctx.LogShowAbsPaths = opts.LogShowAbsPaths
+	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	pctx.Env = opts.Env
 	pctx.IAMRoleOptions = opts.IAMRoleOptions
 	pctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
@@ -62,6 +81,8 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.CheckDependentUnits = opts.CheckDependentUnits
 	pctx.Telemetry = opts.Telemetry
 	pctx.NoStackValidate = opts.NoStackValidate
+	pctx.NoCAS = opts.NoCAS
+	pctx.CASCloneDepth = opts.CASCloneDepth
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
 	pctx.ProviderCacheOptions = opts.ProviderCacheOptions
@@ -69,19 +90,21 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 
 // ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
 func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
-	return &shell.ShellOptions{
-		Writers:         opts.Writers,
-		EngineOptions:   opts.EngineOptions,
-		WorkingDir:      opts.WorkingDir,
-		Env:             opts.Env,
-		TFPath:          opts.TFPath,
-		EngineConfig:    opts.EngineConfig,
-		Experiments:     opts.Experiments,
-		Telemetry:       opts.Telemetry,
-		RootWorkingDir:  opts.RootWorkingDir,
-		Headless:        opts.Headless,
-		ForwardTFStdout: opts.ForwardTFStdout,
-	}
+	s := shell.NewShellOptions().
+		WithWorkingDir(opts.WorkingDir).
+		WithEnv(opts.Env).
+		WithWriters(opts.Writers).
+		WithTelemetry(opts.Telemetry).
+		WithEngine(opts.EngineConfig, opts.EngineOptions).
+		WithTFPath(opts.TFPath).
+		WithRootWorkingDir(opts.RootWorkingDir).
+		WithExperiments(opts.Experiments).
+		WithHeadless(opts.Headless).
+		WithForwardTFStdout(opts.ForwardTFStdout)
+	s.LogShowAbsPaths = opts.LogShowAbsPaths
+	s.LogDisableErrorSummary = opts.LogDisableErrorSummary
+
+	return s
 }
 
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
@@ -119,42 +142,48 @@ func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
 // NewRunOptions creates a run.Options from TerragruntOptions.
 // This replaces the former run.NewOptions(opts) function.
 func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
-	return &run.Options{
-		Writers:                      opts.Writers,
-		TerragruntConfigPath:         opts.TerragruntConfigPath,
-		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		WorkingDir:                   opts.WorkingDir,
-		RootWorkingDir:               opts.RootWorkingDir,
-		DownloadDir:                  opts.DownloadDir,
-		TerraformCommand:             opts.TerraformCommand,
-		OriginalTerraformCommand:     opts.OriginalTerraformCommand,
-		TerraformCliArgs:             opts.TerraformCliArgs,
-		Source:                       opts.Source,
-		SourceMap:                    opts.SourceMap,
-		Env:                          opts.Env,
-		IAMRoleOptions:               opts.IAMRoleOptions,
-		OriginalIAMRoleOptions:       opts.OriginalIAMRoleOptions,
-		EngineConfig:                 opts.EngineConfig,
-		EngineOptions:                opts.EngineOptions,
-		Errors:                       opts.Errors,
-		Experiments:                  opts.Experiments,
-		StrictControls:               opts.StrictControls,
-		FeatureFlags:                 opts.FeatureFlags,
-		TFPath:                       opts.TFPath,
-		TofuImplementation:           opts.TofuImplementation,
-		ForwardTFStdout:              opts.ForwardTFStdout,
-		JSONLogFormat:                opts.JSONLogFormat,
-		Headless:                     opts.Headless,
-		NonInteractive:               opts.NonInteractive,
-		Debug:                        opts.Debug,
-		AutoInit:                     opts.AutoInit,
-		AutoRetry:                    opts.AutoRetry,
-		BackendBootstrap:             opts.BackendBootstrap,
-		Telemetry:                    opts.Telemetry,
-		AuthProviderCmd:              opts.AuthProviderCmd,
-		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
-		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
-		DisableBucketUpdate:          opts.DisableBucketUpdate,
-		SourceUpdate:                 opts.SourceUpdate,
-	}
+	runOpts := run.NewOptions()
+	runOpts.Writers = opts.Writers
+	runOpts.LogShowAbsPaths = opts.LogShowAbsPaths
+	runOpts.LogDisableErrorSummary = opts.LogDisableErrorSummary
+	runOpts.TerragruntConfigPath = opts.TerragruntConfigPath
+	runOpts.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
+	runOpts.WorkingDir = opts.WorkingDir
+	runOpts.RootWorkingDir = opts.RootWorkingDir
+	runOpts.DownloadDir = opts.DownloadDir
+	runOpts.TerraformCommand = opts.TerraformCommand
+	runOpts.OriginalTerraformCommand = opts.OriginalTerraformCommand
+	runOpts.TerraformCliArgs = opts.TerraformCliArgs
+	runOpts.Source = opts.Source
+	runOpts.SourceMap = opts.SourceMap
+	runOpts.Env = opts.Env
+	runOpts.IAMRoleOptions = opts.IAMRoleOptions
+	runOpts.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
+	runOpts.EngineConfig = opts.EngineConfig
+	runOpts.EngineOptions = opts.EngineOptions
+	runOpts.Errors = opts.Errors
+	runOpts.Experiments = opts.Experiments
+	runOpts.StrictControls = opts.StrictControls
+	runOpts.FeatureFlags = opts.FeatureFlags
+	runOpts.TFPath = opts.TFPath
+	runOpts.TofuImplementation = opts.TofuImplementation
+	runOpts.ForwardTFStdout = opts.ForwardTFStdout
+	runOpts.JSONLogFormat = opts.JSONLogFormat
+	runOpts.Headless = opts.Headless
+	runOpts.NonInteractive = opts.NonInteractive
+	runOpts.Debug = opts.Debug
+	runOpts.AutoInit = opts.AutoInit
+	runOpts.AutoRetry = opts.AutoRetry
+	runOpts.BackendBootstrap = opts.BackendBootstrap
+	runOpts.Telemetry = opts.Telemetry
+	runOpts.AuthProviderCmd = opts.AuthProviderCmd
+	runOpts.MaxFoldersToCheck = opts.MaxFoldersToCheck
+	runOpts.FailIfBucketCreationRequired = opts.FailIfBucketCreationRequired
+	runOpts.DisableBucketUpdate = opts.DisableBucketUpdate
+	runOpts.SourceUpdate = opts.SourceUpdate
+	runOpts.CASCloneDepth = opts.CASCloneDepth
+	runOpts.NoCAS = opts.NoCAS
+	runOpts.NoHooks = opts.NoRunHooks
+
+	return runOpts
 }

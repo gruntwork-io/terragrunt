@@ -1,0 +1,48 @@
+---
+title: Amazon S3
+description: How the CAS probes and deduplicates Amazon S3 and S3-compatible sources.
+slug: features/caching/cas/s3
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+
+<Before version="1.1.0">
+<Aside type="tip" title="Experimental">
+CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
+</Aside>
+
+</Before>
+## Overview
+
+An S3 source is identified by a bucket, an object key, and an optional version. Terragrunt reads the object's metadata to derive a cache key, preferring a real content checksum over the weaker `ETag`.
+
+## The cheap probe
+
+The probe Terragrunt uses to attempt to avoid fetching S3 sources is a `HeadObject` call with checksum mode enabled. It reads the object's stored checksum, preferring the strongest available in this order:
+
+1. SHA-256
+2. CRC64NVME
+3. SHA-1
+4. CRC32C
+5. CRC32
+6. `ETag` (last resort)
+
+## Cache key & deduplication
+
+When any checksum is available, the key is content-addressed, so the same object bytes reached through different URLs or buckets deduplicate to one stored tree. When only an `ETag` is available, the key is scoped to the URL, because a multipart `ETag` (`<md5>-<n>`) is not a content hash. File blobs are content-addressed in every case.
+
+## Cache miss
+
+If the object has neither a checksum nor an `ETag`, or the probe errors, Terragrunt downloads the object and keys the tree by the content hash of what it fetched. A fresh probe key that is not yet stored also downloads, then stores the tree under that key so the next run hits.
+
+## Cache hit
+
+When the probe returns a key already present in the store, Terragrunt links the cached tree with no download.
+
+## Fallback behavior
+
+Any AWS or network error makes the probe yield no key, and Terragrunt falls back to downloading and content-hashing the object.
+

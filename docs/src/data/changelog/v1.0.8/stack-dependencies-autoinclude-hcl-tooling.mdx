@@ -1,0 +1,12 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: HCL tooling now handles `autoinclude`
+
+Two tooling gaps around the experimental `autoinclude` block are closed:
+
+- **`hcl validate` now validates `autoinclude` blocks.** With the `stack-dependencies` experiment enabled, validating a `terragrunt.stack.hcl` that declares `autoinclude` runs the same strict checks as `terragrunt stack generate`. A malformed block (for example, a `locals` block inside `autoinclude`) is now reported at validation time instead of passing `hcl validate` and only failing later during generation. Without the experiment, validation behavior is unchanged.
+
+- **`read_terragrunt_config()` can read stack-level autoinclude files.** Reading a generated `terragrunt.autoinclude.stack.hcl` previously failed because the file was decoded as a unit configuration, which rejects its `unit` and `stack` blocks. With the experiment enabled, the file is now decoded as the stack-file fragment it is, returning its `unit` and `stack` blocks the same way reading a `terragrunt.stack.hcl` does. Unit-level `terragrunt.autoinclude.hcl` files already read correctly and continue to do so.

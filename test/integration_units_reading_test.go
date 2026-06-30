@@ -27,7 +27,7 @@ const (
 func TestSOPSUnitsReading(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureUnitsReading)
+	helpers.CleanupTerraformFolder(t, testFixtureUnitsReading)
 
 	testCases := []struct {
 		name           string
@@ -184,7 +184,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 	}
 }
 
-func TestUnitsReadingWithFilter(t *testing.T) {
+func TestSOPSUnitsReadingWithFilter(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -342,13 +342,13 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 	}
 }
 
-// TestQueueStrictIncludeWithUnitsReading tests that --queue-include-units-reading works correctly
+// TestSOPSQueueStrictIncludeWithUnitsReading tests that --queue-include-units-reading works correctly
 // with --queue-include-units-reading when no --queue-include-dir is specified.
 // This reproduces the bug where units reading the specified file were not included.
-func TestQueueStrictIncludeWithUnitsReading(t *testing.T) {
+func TestSOPSQueueStrictIncludeWithUnitsReading(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureUnitsReading)
+	helpers.CleanupTerraformFolder(t, testFixtureUnitsReading)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureUnitsReading)

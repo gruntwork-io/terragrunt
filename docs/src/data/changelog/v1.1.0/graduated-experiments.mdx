@@ -1,0 +1,21 @@
+---
+version: "v1.1.0"
+category: "experiments-updated"
+---
+
+#### Six experiments completed
+
+The following experiments graduated to general availability in this release, and the features they gated are now enabled by default:
+
+- `stack-dependencies`
+- `cas`
+- `catalog-redesign`
+- `mark-many-as-read`
+- `opt-out-auth`
+- `dag-queue-display`
+
+Each feature is described in the New Features section above.
+
+The corresponding `--experiment` flags (and `TG_EXPERIMENT` values) are no longer needed. Passing one still works, but emits a warning about the completed experiment, so you can drop it at your convenience.
+
+Thank you to everyone who ran these experiments early and filed the feedback that got them here.

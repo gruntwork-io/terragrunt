@@ -14,7 +14,6 @@ const (
 func NewTFPathFlag(opts *options.TerragruntOptions) *flags.Flag {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 
 	return flags.NewFlag(
 		&clihelper.GenericFlag[string]{
@@ -28,6 +27,6 @@ func NewTFPathFlag(opts *options.TerragruntOptions) *flags.Flag {
 				return nil
 			},
 		},
-		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("tfpath"), terragruntPrefixControl),
+		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("tfpath"), opts.StrictControls),
 	)
 }

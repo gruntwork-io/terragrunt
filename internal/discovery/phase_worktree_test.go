@@ -51,7 +51,7 @@ func TestNewWorktreePhase(t *testing.T) {
 			if tt.expectedNumWorkers > 0 {
 				assert.Equal(t, tt.expectedNumWorkers, phase.NumWorkers())
 			} else {
-				// When workers <= 0, it should default to runtime.NumCPU()
+				// When workers <= 0, it should default to runtime.GOMAXPROCS(0)
 				assert.Positive(t, phase.NumWorkers())
 			}
 		})

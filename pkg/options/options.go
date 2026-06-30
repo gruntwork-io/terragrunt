@@ -11,10 +11,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -27,12 +28,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/hashicorp/go-version"
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/puzpuzpuz/xsync/v4"
 )
 
 const ContextKey ctxKey = iota
@@ -81,7 +83,7 @@ type TerragruntOptions struct {
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
-	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
+	FeatureFlags *xsync.Map[string, string] `clone:"shadowcopy"`
 	// EngineConfig holds the resolved engine configuration from HCL.
 	EngineConfig *engine.EngineConfig
 	// EngineOptions groups CLI-supplied engine options.
@@ -111,7 +113,8 @@ type TerragruntOptions struct {
 	TerragruntStackConfigPath string
 	// Location of the original Terragrunt config file.
 	OriginalTerragruntConfigPath string
-	// Unlike `WorkingDir`, this path is the same for all dependencies and points to the root working directory specified in the CLI.
+	// Unlike `WorkingDir`, this path is the same for all dependencies and
+	// points to the root working directory specified in the CLI.
 	RootWorkingDir string
 	// Download Terraform configurations from the specified source location into a temporary folder
 	Source string
@@ -139,6 +142,9 @@ type TerragruntOptions struct {
 	TerragruntConfigPath string
 	// Name of the root Terragrunt configuration file, if used.
 	ScaffoldRootFileName string
+	// Path to an additional ignore file layered on top of a repo's
+	// .terragrunt-catalog-ignore during catalog discovery.
+	CatalogIgnoreFile string
 	// Path to a file with a list of directories that need to be excluded when running *-all commands.
 	ExcludesFile string
 	// Path to folder of scaffold output
@@ -177,6 +183,10 @@ type TerragruntOptions struct {
 	Parallelism int
 	// When searching the directory tree, this is the max folders to check before exiting with an error.
 	MaxFoldersToCheck int
+	// CASCloneDepth is passed to git clone as --depth when CAS clones a remote
+	// repository. Defaults to 1 (see internal/cas.DefaultCASCloneDepth). Values must be
+	// positive (git rejects --depth 0) or negative (e.g. -1) for a full clone without --depth.
+	CASCloneDepth int
 	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 	// True if terragrunt should run in debug mode
@@ -211,6 +221,10 @@ type TerragruntOptions struct {
 	AutoRetry bool
 	// Whether we should automatically run terraform init if necessary when executing other commands
 	AutoInit bool
+	// When false (set via --no-discovery-auth-provider-cmd), skip running the
+	// auth provider command during the discovery parse phase. Requires the
+	// opt-out-auth experiment. Default true preserves existing behavior.
+	DiscoveryAuthProviderCmd bool
 	// Allows to skip the output of all dependencies.
 	SkipOutput bool
 	// Whether we should prompt the user for confirmation or always assume "yes"
@@ -223,7 +237,11 @@ type TerragruntOptions struct {
 	RunAllAutoApprove bool
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
 	SourceUpdate bool
-	// HCLValidateStrict is a strict mode for HCL validation files. When it's set to false the command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When it's set to true, an error will be returned if required inputs are missing or if unused variables are passed to Terragrunt.",
+	// HCLValidateStrict is a strict mode for HCL validation files. When
+	// it's set to false the command will only return an error if required
+	// inputs are missing from all input sources (env vars, var files, etc).
+	// When it's set to true, an error will be returned if required inputs
+	// are missing or if unused variables are passed to Terragrunt.
 	HCLValidateStrict bool
 	// HCLValidateInputs checks if the terragrunt configured inputs align with the terraform defined variables.
 	HCLValidateInputs bool
@@ -239,9 +257,12 @@ type TerragruntOptions struct {
 	NoStackGenerate bool
 	// NoStackValidate disable generated stack validation.
 	NoStackValidate bool
+	// NoCAS disables the CAS feature even when the experiment is enabled.
+	NoCAS bool
 	// RunAll runs the provided OpenTofu/Terraform command against a stack.
 	RunAll bool
-	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.
+	// Graph runs the provided OpenTofu/Terraform against the graph of
+	// dependencies for the unit in the current working directory.
 	Graph bool
 	// BackendBootstrap automatically bootstraps backend infrastructure before attempting to use it.
 	BackendBootstrap bool
@@ -257,13 +278,18 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
-	// NoDependencyFetchOutputFromState disables the dependency-fetch-output-from-state feature even when the experiment is enabled.
+	// NoDependencyFetchOutputFromState disables the
+	// dependency-fetch-output-from-state feature even when the experiment
+	// is enabled.
 	NoDependencyFetchOutputFromState bool
+	// NoRunHooks disables before, after, and error hooks during run.
+	NoRunHooks bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
 	TFPathExplicitlySet bool
 	// FailFast is a flag to stop execution on the first error in apply of units.
 	FailFast bool
-	// NoDependencyPrompt disables prompt requiring confirmation for base and leaf file dependencies when using scaffolding.
+	// NoDependencyPrompt disables prompt requiring confirmation for base
+	// and leaf file dependencies when using scaffolding.
 	NoDependencyPrompt bool
 	// NoShell disables shell commands when using boilerplate templates in catalog and scaffold commands.
 	NoShell bool
@@ -271,6 +297,11 @@ type TerragruntOptions struct {
 	NoHooks bool
 	// If set, disable automatic reading of .terragrunt-filters file.
 	NoFiltersFile bool
+	// LogShowAbsPaths disables replacing full paths in logs with short
+	// relative paths.
+	LogShowAbsPaths bool
+	// LogDisableErrorSummary suppresses the trailing error summary.
+	LogDisableErrorSummary bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -298,29 +329,31 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		Writers:                writer.Writers{Writer: stdout, ErrWriter: stderr},
-		TFPath:                 DefaultWrappedPath,
-		ExcludesFile:           defaultExcludesFile,
-		FiltersFile:            defaultFiltersFile,
-		AutoInit:               true,
-		RunAllAutoApprove:      true,
-		Env:                    map[string]string{},
-		SourceMap:              map[string]string{},
-		TerraformCliArgs:       iacargs.New(),
-		MaxFoldersToCheck:      DefaultMaxFoldersToCheck,
-		AutoRetry:              true,
-		Parallelism:            DefaultParallelism,
-		JSONOut:                DefaultJSONOutName,
-		TofuImplementation:     tfimpl.Unknown,
-		ProviderCacheOptions:   pcoptions.ProviderCacheOptions{RegistryNames: pcoptions.DefaultRegistryNames},
-		FeatureFlags:           xsync.NewMapOf[string, string](),
-		Errors:                 defaultErrorsConfig(),
-		StrictControls:         controls.New(),
-		Experiments:            experiment.NewExperiments(),
-		Tips:                   tips.NewTips(),
-		Telemetry:              new(telemetry.Options),
-		EngineOptions:          new(engine.EngineOptions),
-		VersionManagerFileName: defaultVersionManagerFileName,
+		Writers:                  writer.Writers{Writer: stdout, ErrWriter: stderr},
+		TFPath:                   DefaultWrappedPath,
+		ExcludesFile:             defaultExcludesFile,
+		FiltersFile:              defaultFiltersFile,
+		AutoInit:                 true,
+		RunAllAutoApprove:        true,
+		DiscoveryAuthProviderCmd: true,
+		Env:                      map[string]string{},
+		SourceMap:                map[string]string{},
+		TerraformCliArgs:         iacargs.New(),
+		MaxFoldersToCheck:        DefaultMaxFoldersToCheck,
+		AutoRetry:                true,
+		Parallelism:              DefaultParallelism,
+		JSONOut:                  DefaultJSONOutName,
+		TofuImplementation:       tfimpl.Unknown,
+		ProviderCacheOptions:     pcoptions.ProviderCacheOptions{RegistryNames: pcoptions.DefaultRegistryNames},
+		FeatureFlags:             xsync.NewMap[string, string](),
+		Errors:                   defaultErrorsConfig(),
+		StrictControls:           controls.New(),
+		Experiments:              experiment.NewExperiments(),
+		Tips:                     tips.NewTips(),
+		Telemetry:                new(telemetry.Options),
+		EngineOptions:            new(engine.EngineOptions),
+		VersionManagerFileName:   defaultVersionManagerFileName,
+		CASCloneDepth:            1,
 	}
 }
 
@@ -333,7 +366,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 		if !filepath.IsAbs(terragruntConfigPath) {
 			absPath, err := filepath.Abs(terragruntConfigPath)
 			if err != nil {
-				return nil, errors.New(err)
+				return nil, err
 			}
 
 			terragruntConfigPath = absPath
@@ -359,13 +392,15 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 }
 
 // NewTerragruntOptionsForTest creates a new TerragruntOptions object with reasonable defaults for test usage.
-func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
+func NewTerragruntOptionsForTest(
+	terragruntConfigPath string, options ...TerragruntOptionsFunc,
+) (*TerragruntOptions, error) {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
 
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).Errorf("%v\n", errors.New(err))
+		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).Errorf("%v\n", err)
 
 		return nil, err
 	}
@@ -398,12 +433,15 @@ func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 	return newOpts
 }
 
-// CloneWithConfigPath creates a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
+// CloneWithConfigPath creates a copy of this TerragruntOptions, but with
+// different values for the given variables. This is useful for
 // creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
 //
 // It also adjusts the given logger, as each cloned option has to use a working directory specific logger to enrich
 // log output correctly.
-func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath string) (log.Logger, *TerragruntOptions, error) {
+func (opts *TerragruntOptions) CloneWithConfigPath(
+	l log.Logger, configPath string,
+) (log.Logger, *TerragruntOptions, error) {
 	newOpts := opts.Clone()
 
 	// Ensure configPath is absolute and normalized for consistent path handling
@@ -426,7 +464,8 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	return l, newOpts, nil
 }
 
-// InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
+// InsertTerraformCliArgs inserts the given argsToInsert after the terraform
+// command argument, but before the remaining args.
 // Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	// Ensure TerraformCliArgs is initialized. This allows callers to use
@@ -528,7 +567,7 @@ func (opts *TerragruntOptions) DataDir() string {
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
 func identifyDefaultWrappedExecutable(ctx context.Context) string {
-	if util.IsCommandExecutable(ctx, TofuDefaultPath, "-version") {
+	if util.IsCommandExecutable(vexec.NewOSExec(), ctx, TofuDefaultPath, "-version") {
 		return TofuDefaultPath
 	}
 	// fallback to Terraform if tofu is not available
@@ -642,7 +681,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 			case <-time.After(time.Duration(action.RetrySleepSecs) * time.Second):
 				// try again
 			case <-ctx.Done():
-				return errors.New(ctx.Err())
+				return ctx.Err()
 			}
 
 			currentAttempt++

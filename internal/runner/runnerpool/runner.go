@@ -19,16 +19,22 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Runner implements the Stack interface for runner pool execution.
@@ -54,7 +60,7 @@ func CloneUnitOptions(
 
 	// Override logger prefix with display path (relative to discovery context) for cleaner logs
 	// unless --log-show-abs-paths is set
-	if !stackOpts.Writers.LogShowAbsPaths {
+	if !stackOpts.LogShowAbsPaths {
 		clonedLogger = clonedLogger.WithField(placeholders.WorkDirKeyName, unit.DisplayPath())
 	}
 
@@ -108,7 +114,7 @@ func BuildUnitOpts(l log.Logger, stackOpts *options.TerragruntOptions, unit *com
 				unitConfig,
 			)
 			if sourceErr != nil {
-				return nil, nil, tgerrors.Errorf("failed to compute source for unit %s: %w", unit.DisplayPath(), sourceErr)
+				return nil, nil, fmt.Errorf("failed to compute source for unit %s: %w", unit.DisplayPath(), sourceErr)
 			}
 
 			if unitSource != "" {
@@ -307,7 +313,7 @@ func filterUnitsToComponents(units []*component.Unit) component.Components {
 
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
-func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.TerragruntOptions, r *report.Report) error {
+func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
@@ -408,7 +414,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 		// Build per-unit opts and logger on demand
 		unitOpts, unitLogger, err := BuildUnitOpts(l, stackOpts, u)
 		if err != nil {
-			return tgerrors.Errorf("failed to build opts for unit %s: %w", u.Path(), err)
+			return fmt.Errorf("failed to build opts for unit %s: %w", u.Path(), err)
 		}
 
 		// Sync CLI args from stackOpts into unit opts
@@ -423,12 +429,19 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 			}
 		}
 
+		unitPath := u.Path()
+		unitName := filepath.Base(unitPath)
+
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
+			"unit_path":              unitPath,
+			"unit_name":              unitName,
 			"terraform_command":      unitOpts.TerraformCommand,
 			"terraform_cli_args":     unitOpts.TerraformCliArgs,
 			"working_dir":            unitOpts.WorkingDir,
 			"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
+			l.Debugf("Runner Pool Task: starting unit=%s command=%s", unitPath, unitOpts.TerraformCommand)
+
 			// Wrap the writer to buffer unit-scoped output
 			unitWriter := NewUnitWriter(unitOpts.Writers.Writer)
 			unitOpts.Writers.Writer = unitWriter
@@ -438,38 +451,67 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 			// get_aws_account_id() in locals need auth-provider credentials
 			// available in opts.Env during HCL evaluation.
 			// See https://github.com/gruntwork-io/terragrunt/issues/5515
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
+			//
+			// The obtain_creds span is emitted by externalcmd.Provider.GetCredentials
+			// only when an auth provider is configured, so no conditional is needed here.
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, v.Exec, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
 			if err != nil {
+				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
+
 				return err
 			}
 
-			parseCtx, pctx := configbridge.NewParsingContext(childCtx, unitLogger, unitOpts)
+			var cfg *config.TerragruntConfig
 
-			cfg, err := config.ReadTerragruntConfig(
-				parseCtx,
-				unitLogger,
-				pctx,
-				pctx.ParserOptions,
-			)
+			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, "unit_read_config", map[string]any{
+				"unit_path":              unitPath,
+				"unit_name":              unitName,
+				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
+			}, func(readCtx context.Context) error {
+				parseCtx, pctx := configbridge.NewParsingContext(readCtx, unitLogger, unitOpts)
+				pctx.Venv = v.ToRoot()
+
+				var readErr error
+
+				cfg, readErr = config.ReadTerragruntConfig(
+					parseCtx,
+					unitLogger,
+					pctx,
+					pctx.ParserOptions,
+				)
+
+				return readErr
+			})
 			if err != nil {
+				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
+
 				return err
 			}
 
 			runCfg := cfg.ToRunConfig(unitLogger)
 
-			err = unitRunner.Run(
-				childCtx,
-				unitLogger,
-				unitOpts,
-				r,
-				runCfg,
-				credsGetter,
-			)
+			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, "unit_run", map[string]any{
+				"unit_path":         unitPath,
+				"unit_name":         unitName,
+				"terraform_command": unitOpts.TerraformCommand,
+			}, func(runCtx context.Context) error {
+				return unitRunner.Run(
+					runCtx,
+					unitLogger,
+					v,
+					unitOpts,
+					r,
+					runCfg,
+					credsGetter,
+				)
+			})
 
 			// Flush any remaining buffered output
 			if flushErr := unitWriter.Flush(); flushErr != nil && err == nil {
 				err = flushErr
 			}
+
+			logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
 
 			return err
 		})
@@ -583,37 +625,59 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 	return err
 }
 
-// LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
-func (rnr *Runner) LogUnitDeployOrder(l log.Logger, terraformCmd string, isDestroy bool, showAbsPaths bool) error {
-	outStr := fmt.Sprintf(
-		"Unit queue will be processed for %s in this order:\n",
-		terraformCmd,
-	)
+// LogUnitDeployOrder logs the order of units to be processed as a DAG tree
+// showing dependency relationships between units.
+func (rnr *Runner) LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths bool, experiments experiment.Experiments) error {
+	return rnr.logUnitDeployOrderDAG(l, isDestroy, showAbsPaths)
+}
 
-	// For destroy commands, reflect the actual processing order (reverse of apply order).
-	// NOTE: This is display-only. The queue scheduler dynamically handles destroy order via
-	// IsUp() checks - dependents must complete before their dependencies are processed.
-	entries := slices.Clone(rnr.queue.Entries)
-	if isDestroy {
-		slices.Reverse(entries)
-	}
+// logUnitDeployOrderDAG renders the queue as a DAG tree showing dependency relationships.
+// Independent units (siblings in the tree) may run concurrently.
+func (rnr *Runner) logUnitDeployOrderDAG(l log.Logger, isDestroy bool, showAbsPaths bool) error {
+	components := rnr.queueComponents()
+	listed := rnr.buildListedComponents(components, isDestroy, showAbsPaths)
 
-	var outStrSb strings.Builder
+	shouldColor := !l.Formatter().DisabledColors() && !stdout.IsRedirected()
+	s := dag.NewTreeStyler(shouldColor)
+	t := dag.GenerateDAGTree(listed, s)
+	t = s.Style(t)
 
-	for _, unit := range entries {
-		unitPath := unit.Component.DisplayPath()
-		if showAbsPaths {
-			unitPath = unit.Component.Path()
-		}
+	header := deployOrderHeader(isDestroy)
 
-		fmt.Fprintf(&outStrSb, "- Unit %s\n", unitPath)
-	}
-
-	outStr += outStrSb.String()
-
-	l.Info(outStr)
+	l.Info(header + t.String())
 
 	return nil
+}
+
+// queueComponents extracts the components from the runner's queue entries.
+func (rnr *Runner) queueComponents() []component.Component {
+	components := make([]component.Component, 0, len(rnr.queue.Entries))
+	for _, entry := range rnr.queue.Entries {
+		components = append(components, entry.Component)
+	}
+
+	return components
+}
+
+// buildListedComponents converts queue components into the format needed for tree rendering.
+// For destroy commands, the graph is inverted so units without dependents become roots.
+// For apply/plan commands, units without dependencies are roots.
+func (rnr *Runner) buildListedComponents(components []component.Component, isDestroy bool, showAbsPaths bool) dag.ListedComponents {
+	useDisplayPath := !showAbsPaths
+
+	if isDestroy {
+		return dag.FromComponentsReversed(components, useDisplayPath)
+	}
+
+	return dag.FromComponents(components, useDisplayPath)
+}
+
+func deployOrderHeader(isDestroy bool) string {
+	if isDestroy {
+		return "The following units will be run, starting with dependents and then their dependencies:\n"
+	}
+
+	return "The following units will be run, starting with dependencies and then their dependents:\n"
 }
 
 // JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
@@ -944,4 +1008,25 @@ func collectDependenciesBounded(unit *component.Unit, paths map[string]bool, dep
 			collectDependenciesBounded(depUnit, paths, depth+1)
 		}
 	}
+}
+
+// logTaskOutcome stamps the task outcome on the active span and emits a debug log,
+// so the runner_pool_task span carries succeeded/failed status without callers
+// needing to call SpanFromContext directly.
+func logTaskOutcome(ctx context.Context, l log.Logger, unitPath, command string, err error) {
+	outcome := "succeeded"
+	if err != nil {
+		outcome = "failed"
+	}
+
+	if span := trace.SpanFromContext(ctx); span.IsRecording() {
+		span.SetAttributes(attribute.String("outcome", outcome))
+	}
+
+	if err != nil {
+		l.Debugf("Runner Pool Task: finished unit=%s command=%s outcome=%s err=%v", unitPath, command, outcome, err)
+		return
+	}
+
+	l.Debugf("Runner Pool Task: finished unit=%s command=%s outcome=%s", unitPath, command, outcome)
 }

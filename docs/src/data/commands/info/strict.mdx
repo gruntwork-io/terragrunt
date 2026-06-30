@@ -1,0 +1,23 @@
+---
+name: strict
+path: info/strict
+category: configuration
+sidebar:
+  order: 1300
+description: List and inspect strict controls.
+usage: |
+  Lists all active strict controls. Use the `--all` flag to include completed controls. Optionally pass a control name to see details for a specific control.
+
+  For more information on strict controls, see the [Strict Controls reference](/reference/strict-controls).
+examples:
+  - description: List all active strict controls.
+    code: |
+      $ terragrunt info strict list
+  - description: List all strict controls, including completed ones.
+    code: |
+      $ terragrunt info strict list --all
+  - description: Show details for a specific strict control.
+    code: |
+      $ terragrunt info strict list cli-redesign
+
+---

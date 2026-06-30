@@ -3,7 +3,6 @@ package runnerpool
 import (
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 )
 
@@ -24,10 +23,10 @@ func (e UnitEarlyExitError) Error() string {
 
 // NewUnitEarlyExitError creates a new UnitEarlyExitError.
 func NewUnitEarlyExitError(unitPath, failedDep string) error {
-	return errors.New(UnitEarlyExitError{
+	return UnitEarlyExitError{
 		UnitPath:         unitPath,
 		FailedDependency: failedDep,
-	})
+	}
 }
 
 // UnitFailedError is an error type for units that failed during execution.
@@ -41,7 +40,7 @@ func (e UnitFailedError) Error() string {
 
 // NewUnitFailedError creates a new UnitFailedError.
 func NewUnitFailedError(unitPath string) error {
-	return errors.New(UnitFailedError{UnitPath: unitPath})
+	return UnitFailedError{UnitPath: unitPath}
 }
 
 // findFailedDependency finds the first failed dependency for a given entry.

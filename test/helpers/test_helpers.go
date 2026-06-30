@@ -3,6 +3,7 @@ package helpers
 import (
 	"bytes"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,10 +19,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultDirPerms = 0755
+const defaultDirPerms = 0o755
 
 func IsWindows() bool {
 	return runtime.GOOS == "windows"
+}
+
+// MustAbs resolves rel against the Go test process working directory.
+// [util.CopyFolderContents] and related helpers require absolute paths
+// so their dest-inside-source guard isn't fooled by Terragrunt's
+// `--working-dir`, which detaches the runtime working directory from
+// the Go process CWD. In tests there's no such flag, so resolving
+// against the test process working directory is safe.
+func MustAbs(t *testing.T, rel string) string {
+	t.Helper()
+
+	abs, err := filepath.Abs(rel)
+	require.NoError(t, err)
+
+	return abs
 }
 
 func ValidateHookTraceParent(t *testing.T, hook, str string) {
@@ -88,6 +104,11 @@ func CreateGitRepo(t *testing.T, path string) {
 	cmd.Dir = path
 	_, err = cmd.CombinedOutput()
 	require.NoError(t, err, "git config user.name failed")
+
+	cmd = exec.CommandContext(ctx, "git", "config", "commit.gpgsign", "false")
+	cmd.Dir = path
+	_, err = cmd.CombinedOutput()
+	require.NoError(t, err, "git config commit.gpgsign failed")
 
 	// Add all files and commit
 	cmd = exec.CommandContext(ctx, "git", "add", "-A")
@@ -180,12 +201,6 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 	}
 
 	require.NoError(t, err)
-}
-
-// PointerTo returns a pointer to the given parameter.
-// Useful for constructing pointers to primitive types in test tables, etc.
-func PointerTo[T any](v T) *T {
-	return &v
 }
 
 // TmpDirWOSymlinks returns a temporary directory, evaluating any symlinks that might be there.
@@ -375,4 +390,38 @@ func ValidateAuthProviderScript(t *testing.T, dir string, script string) {
 
 	err = externalcmd.ValidateResponse(scriptStdout.Bytes())
 	require.NoError(t, err)
+}
+
+// FindCachedFile searches unitDir recursively for files whose base name equals
+// filename and asserts that exactly one match exists, returning its absolute
+// path. Centralizes the .terragrunt-cache layout assumption so tests do not
+// depend on the exact nesting depth produced by Terragrunt's source caching.
+// Multiple matches fail the test: stale caches from a prior failed run would
+// otherwise silently mask output-propagation regressions.
+func FindCachedFile(t *testing.T, unitDir, filename string) string {
+	t.Helper()
+
+	var matches []string
+
+	err := filepath.WalkDir(unitDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if filepath.Base(path) != filename {
+			return nil
+		}
+
+		matches = append(matches, path)
+
+		return nil
+	})
+	require.NoError(t, err)
+	require.Lenf(t, matches, 1, "expected exactly one %s under %s, got %d: %v", filename, unitDir, len(matches), matches)
+
+	return matches[0]
 }

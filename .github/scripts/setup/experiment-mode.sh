@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -6,4 +6,4 @@ set -euo pipefail
 
 touch "$ENV_FILE"
 
-printf "export TG_EXPERIMENT_MODE=%s\n" "true" >> "$ENV_FILE"
+printf "export TG_EXPERIMENT_MODE=%s\n" "true" >>"$ENV_FILE"

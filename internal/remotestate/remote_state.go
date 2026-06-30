@@ -3,20 +3,24 @@ package remotestate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 var backends = backend.Backends{
 	s3.NewBackend(),
 	gcs.NewBackend(),
+	azurerm.NewBackend(),
 }
 
 // Options contains the subset of configuration needed by RemoteState operations.
@@ -32,8 +36,18 @@ type RemoteState struct {
 	backend backend.Backend
 }
 
-// New creates a new `RemoteState` instance.
+// New creates a new `RemoteState` instance. config may be nil when the
+// caller (config.convertToTerragruntConfig) doesn't parse a remote_state
+// block, e.g. a root.hcl that only declares locals — callers used to hit
+// a nil pointer dereference at config.BackendName here and crash.
 func New(config *Config) *RemoteState {
+	if config == nil {
+		return &RemoteState{
+			Config:  &Config{},
+			backend: backend.NewCommonBackend(""),
+		}
+	}
+
 	remote := &RemoteState{
 		Config:  config,
 		backend: backend.NewCommonBackend(config.BackendName),
@@ -80,23 +94,25 @@ func (remote *RemoteState) Bootstrap(ctx context.Context, l log.Logger, opts *Op
 }
 
 // Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
-func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, opts, dstOpts *Options, dstRemote *RemoteState) error {
+func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, exec vexec.Exec, opts, dstOpts *Options, dstRemote *RemoteState) error {
 	l.Debugf("Migrate remote state for the %s backend", remote.BackendName)
 
 	if remote.BackendName == dstRemote.BackendName {
 		return remote.backend.Migrate(ctx, l, remote.BackendConfig, dstRemote.BackendConfig, &opts.Options)
 	}
 
-	stateFile, err := remote.pullState(ctx, l, opts.TFRunOpts)
+	stateFile, err := remote.pullState(ctx, l, exec, opts.TFRunOpts)
 	if err != nil {
 		return err
 	}
 
 	defer func() {
-		os.Remove(stateFile) // nolint: errcheck
+		if err := os.Remove(stateFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+			l.Warnf("Failed to remove temporary state file %s: %v", stateFile, err)
+		}
 	}()
 
-	return dstRemote.pushState(ctx, l, dstOpts.TFRunOpts, stateFile)
+	return dstRemote.pushState(ctx, l, exec, dstOpts.TFRunOpts, stateFile)
 }
 
 // NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:
@@ -133,7 +149,20 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 	var backendConfigArgs = make([]string, 0, len(config))
 
 	for key, value := range config {
-		arg := fmt.Sprintf("-backend-config=%s=%v", key, value)
+		var serialized string
+
+		switch v := value.(type) {
+		case string:
+			serialized = v
+		case map[string]any:
+			serialized = hclhelper.WrapMapToSingleLineHcl(v)
+		case []any:
+			serialized = hclhelper.WrapListToSingleLineHcl(v)
+		default:
+			serialized = fmt.Sprintf("%v", value)
+		}
+
+		arg := fmt.Sprintf("-backend-config=%s=%s", key, serialized)
 		backendConfigArgs = append(backendConfigArgs, arg)
 	}
 
@@ -147,12 +176,12 @@ func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, workingDir string)
 	return remote.Config.GenerateOpenTofuCode(l, workingDir, backendConfig)
 }
 
-func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions) (string, error) {
+func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, exec vexec.Exec, tfOpts *tf.TFOptions) (string, error) {
 	l.Debugf("Pulling state from %s backend", remote.BackendName)
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, tfOpts, args...)
+	output, err := tf.RunCommandWithOutput(ctx, l, exec, tfOpts, args...)
 	if err != nil {
 		return "", err
 	}
@@ -161,7 +190,7 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, tfOpts *
 
 	file, err := os.CreateTemp("", "*.tfstate")
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	defer func() {
@@ -169,16 +198,16 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, tfOpts *
 	}()
 
 	if _, err := file.Write(output.Stdout.Bytes()); err != nil {
-		return file.Name(), errors.New(err)
+		return file.Name(), err
 	}
 
 	return file.Name(), nil
 }
 
-func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions, stateFile string) error {
+func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, exec vexec.Exec, tfOpts *tf.TFOptions, stateFile string) error {
 	l.Debugf("Pushing state to %s backend", remote.BackendName)
 
 	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
 
-	return tf.RunCommand(ctx, l, tfOpts, args...)
+	return tf.RunCommand(ctx, l, exec, tfOpts, args...)
 }
