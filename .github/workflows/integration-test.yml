@@ -217,7 +217,7 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ${{ steps.go-cache-paths.outputs.go-build }}
@@ -228,7 +228,7 @@ jobs:
 
       - name: Terragrunt Provider Cache
         if: runner.os == 'Linux'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cache/terragrunt
           key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
