@@ -27,6 +27,7 @@ const (
 	NoEngineFlagName                         = "no-engine"
 	NoDependencyFetchOutputFromStateFlagName = "no-dependency-fetch-output-from-state"
 	NoHooksFlagName                          = "no-hooks"
+	SkipDependencyOutputsFlagName            = "skip-dependency-outputs"
 	TFForwardStdoutFlagName                  = "tf-forward-stdout"
 	UnitsThatIncludeFlagName                 = "units-that-include"
 	DependencyFetchOutputFromStateFlagName   = "dependency-fetch-output-from-state"
@@ -194,6 +195,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 
 				return ErrNoHooksRequiresExperiment
 			},
+		}),
+
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:        SkipDependencyOutputsFlagName,
+			EnvVars:     tgPrefix.EnvVars(SkipDependencyOutputsFlagName),
+			Destination: &opts.SkipOutput,
+			Usage:       "Skip all dependency output resolution. Dependency blocks will not call tofu/terraform output.",
 		}),
 
 		shared.NewDownloadDirFlag(opts, prefix),
