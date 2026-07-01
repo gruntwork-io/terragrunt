@@ -2,6 +2,7 @@ package module
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -322,23 +323,76 @@ func (repo *Repo) handleLocalDir(l log.Logger, repoPath string) error {
 }
 
 func (repo *Repo) prepareCloneDirectory(l log.Logger, fsys vfs.FS) error {
-	if err := fsys.MkdirAll(repo.path, os.ModePerm); err != nil {
+	cloneRoot := repo.path
+
+	if err := prepareCloneRoot(fsys, cloneRoot); err != nil {
 		return err
 	}
 
 	repoName := repo.extractRepoName()
-	repo.path = filepath.Join(repo.path, repoName)
+	repo.path = filepath.Join(cloneRoot, repoName)
 
 	// Clean up incomplete clones
 	if repo.shouldCleanupIncompleteClone(fsys) {
 		l.Debugf("The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.", cloneCompleteSentinel)
 
-		if err := fsys.RemoveAll(repo.path); err != nil {
+		if err := removeIncompleteClone(fsys, cloneRoot, repo.path); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func prepareCloneRoot(fsys vfs.FS, cloneRoot string) error {
+	if err := fsys.MkdirAll(cloneRoot, os.ModePerm); err != nil {
+		return err
+	}
+
+	return validateCloneRoot(fsys, cloneRoot)
+}
+
+func validateCloneRoot(fsys vfs.FS, cloneRoot string) error {
+	if cloneRoot == "" {
+		return nil
+	}
+
+	info, err := vfs.Lstat(fsys, cloneRoot)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("refusing to use clone root %q because it is a symlink", cloneRoot)
+	}
+
+	return nil
+}
+
+func removeIncompleteClone(fsys vfs.FS, cloneRoot, clonePath string) error {
+	if err := validateCloneRoot(fsys, cloneRoot); err != nil {
+		return err
+	}
+
+	rel, err := filepath.Rel(filepath.Clean(cloneRoot), filepath.Clean(clonePath))
+	if err != nil {
+		return err
+	}
+
+	parentHasSymlink, err := vfs.ParentPathHasSymlink(fsys, cloneRoot, rel)
+	if err != nil {
+		return err
+	}
+
+	if parentHasSymlink {
+		return fmt.Errorf("refusing to remove clone path %q outside clone root %q", clonePath, cloneRoot)
+	}
+
+	return fsys.RemoveAll(clonePath)
 }
 
 func (repo *Repo) extractRepoName() string {
