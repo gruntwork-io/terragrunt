@@ -160,7 +160,7 @@ func OpaqueKey(scheme, url, token string) string {
 func (c *CAS) MakeFetchTempDir(l log.Logger, v Venv) (string, func(), error) {
 	v.RequireFS()
 
-	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-fetch-*")
+	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-fetch-")
 	if err != nil {
 		return "", nil, fmt.Errorf("create source fetch dir: %w", err)
 	}

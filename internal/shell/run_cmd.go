@@ -47,6 +47,7 @@ type ShellOptions struct {
 	UnitDir                string
 	TFPath                 string
 	Experiments            experiment.Experiments
+	SignalForwardingDelay  time.Duration
 	Headless               bool
 	ForwardTFStdout        bool
 	LogShowAbsPaths        bool
@@ -320,6 +321,12 @@ func runCommand(
 		}
 	}
 
+	forwardSignalDelay := runOpts.SignalForwardingDelay
+	if forwardSignalDelay == 0 {
+		// Callers that leave the delay unset get the production grace period.
+		forwardSignalDelay = SignalForwardingDelay
+	}
+
 	cmd := exec.Command(ctx, e, cmdOpts.Command, cmdOpts.Args...)
 	cmd.SetDir(cmdOpts.CommandDir)
 	cmd.SetStdout(cmdStdout)
@@ -327,7 +334,7 @@ func runCommand(
 	cmd.Configure(
 		exec.WithUsePTY(cmdOpts.NeedsPTY),
 		exec.WithEnv(runOpts.Env),
-		exec.WithForwardSignalDelay(SignalForwardingDelay),
+		exec.WithForwardSignalDelay(forwardSignalDelay),
 	)
 
 	// Save/restore console mode around subprocess - Windows subprocesses can reset it.

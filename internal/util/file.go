@@ -1038,6 +1038,7 @@ type fileManifest struct {
 	fileHandle     *os.File
 	ManifestFolder string
 	ManifestFile   string
+	maxEntries     int
 }
 
 // fileManifestEntry represents an entry in the fileManifest.
@@ -1083,10 +1084,11 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 func (manifest *fileManifest) clean(l log.Logger, fsys vfs.FS, rootDir, manifestRelPath string) error {
 	pending := []string{manifestRelPath}
 	ctx := &fileManifestCleanContext{
-		l:       l,
-		fsys:    fsys,
-		rootDir: rootDir,
-		seen:    make(map[string]struct{}),
+		l:          l,
+		fsys:       fsys,
+		rootDir:    rootDir,
+		seen:       make(map[string]struct{}),
+		maxEntries: manifest.maxEntries,
 	}
 	attemptedManifests := 0
 
@@ -1173,6 +1175,7 @@ type fileManifestCleanContext struct {
 	seen           map[string]struct{}
 	rootDir        string
 	decodedEntries int
+	maxEntries     int
 }
 
 // fileManifestCleanLimits bounds child manifests queued from one decoded manifest.
@@ -1279,7 +1282,7 @@ func (manifest *fileManifest) cleanManifestEntries(
 ) ([]string, error) {
 	var manifestRelPaths []string
 
-	for range maxFileManifestEntries {
+	for range ctx.maxEntries {
 		entry, ok, err := ctx.decodeManifestEntry(decoder)
 		if err != nil || !ok {
 			return manifestRelPaths, err
@@ -1298,7 +1301,7 @@ func (manifest *fileManifest) cleanManifestEntries(
 		}
 	}
 
-	return manifestRelPaths, decodeExtraManifestEntry(decoder, manifestPath)
+	return manifestRelPaths, decodeExtraManifestEntry(decoder, manifestPath, ctx.maxEntries)
 }
 
 func (ctx *fileManifestCleanContext) decodeManifestEntry(decoder *gob.Decoder) (fileManifestEntry, bool, error) {
@@ -1311,9 +1314,9 @@ func (ctx *fileManifestCleanContext) decodeManifestEntry(decoder *gob.Decoder) (
 		return entry, false, fileManifestDecodeError{err: err}
 	}
 
-	if ctx.decodedEntries >= maxFileManifestEntries {
+	if ctx.decodedEntries >= ctx.maxEntries {
 		return entry, false, fileManifestLimitError{
-			message: fmt.Sprintf("manifest cleanup under %q exceeded entry cap of %d", ctx.rootDir, maxFileManifestEntries),
+			message: fmt.Sprintf("manifest cleanup under %q exceeded entry cap of %d", ctx.rootDir, ctx.maxEntries),
 		}
 	}
 
@@ -1357,7 +1360,7 @@ func (ctx *fileManifestCleanContext) appendManifestRelPath(
 	return append(manifestRelPaths, manifestRelPath), nil
 }
 
-func decodeExtraManifestEntry(decoder *gob.Decoder, manifestPath string) error {
+func decodeExtraManifestEntry(decoder *gob.Decoder, manifestPath string, maxEntries int) error {
 	var extraEntry fileManifestEntry
 	if err := decoder.Decode(&extraEntry); err != nil {
 		if isFileManifestDecodeDone(err) {
@@ -1368,7 +1371,7 @@ func decodeExtraManifestEntry(decoder *gob.Decoder, manifestPath string) error {
 	}
 
 	return fileManifestLimitError{
-		message: fmt.Sprintf("manifest %q exceeds entry cap; processing first %d entries only", manifestPath, maxFileManifestEntries),
+		message: fmt.Sprintf("manifest %q exceeds entry cap; processing first %d entries only", manifestPath, maxEntries),
 	}
 }
 
@@ -1406,8 +1409,31 @@ func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
 
-func NewFileManifest(manifestFolder string, manifestFile string) *fileManifest {
-	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+// FileManifestOption configures a fileManifest built by NewFileManifest.
+type FileManifestOption func(*fileManifest)
+
+// WithMaxManifestEntries overrides the per-manifest entry cap that Clean
+// enforces before rejecting a manifest as oversized. Production callers keep
+// the default; a lower cap lets tests trip the rejection path without
+// encoding the default number of entries.
+func WithMaxManifestEntries(maxEntries int) FileManifestOption {
+	return func(manifest *fileManifest) {
+		manifest.maxEntries = maxEntries
+	}
+}
+
+func NewFileManifest(manifestFolder string, manifestFile string, opts ...FileManifestOption) *fileManifest {
+	manifest := &fileManifest{
+		ManifestFolder: manifestFolder,
+		ManifestFile:   manifestFile,
+		maxEntries:     maxFileManifestEntries,
+	}
+
+	for _, opt := range opts {
+		opt(manifest)
+	}
+
+	return manifest
 }
 
 // Custom errors
