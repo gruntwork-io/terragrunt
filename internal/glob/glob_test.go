@@ -337,6 +337,37 @@ func TestExpandBoundaryResolvesSymlinksConsistently(t *testing.T) {
 	assert.Empty(t, got)
 }
 
+// TestExpandBoundaryAllowsExistingSymlinkedRoot is the happy-path counterpart:
+// when the walk root itself exists behind the boundary's symlink, the resolved
+// comparison recognizes it as inside the boundary rather than refusing it.
+func TestExpandBoundaryAllowsExistingSymlinkedRoot(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/real/sub", 0o755))
+	require.NoError(t, vfs.WriteFile(fs, "/real/sub/a.yaml", nil, 0o644))
+	require.NoError(t, vfs.Symlink(fs, "/real", "/link"))
+
+	_, err := glob.Expand(fs, "/link/sub/*.yaml", glob.WithBoundary("/link"))
+	require.NoError(t, err, "an existing root behind the boundary symlink must be allowed")
+}
+
+// TestExpandRelativePatternWithLeadingWildcard pins that a metacharacter with
+// no preceding directory separator walks from the current directory rather than
+// mis-splitting the root: the root-level file matches while the nested one does
+// not, since "*" never crosses a separator.
+func TestExpandRelativePatternWithLeadingWildcard(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "a.yaml", nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fs, "sub/b.yaml", nil, 0o644))
+
+	got, err := glob.Expand(fs, "*.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a.yaml"}, got)
+}
+
 // TestLegacyExpandCollapsesGlobstar documents the reason LegacyExpand exists:
 // zglob collapses the separators flanking `**`, whereas Expand (gobwas) does
 // not. Switching the include_in_copy / exclude_from_copy call site from

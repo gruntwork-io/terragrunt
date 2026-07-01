@@ -306,6 +306,38 @@ func TestCopyCmd_StdioSettersAreNoops(t *testing.T) {
 	})
 }
 
+// TestCopyCmd_RejectsValuesStubWhenPathIsDirectory verifies the values-stub
+// preflight refuses to proceed when the stub path is occupied by something
+// other than a regular file (here, a directory), since WriteValuesFile could
+// neither overwrite nor leave it alone safely.
+func TestCopyCmd_RejectsValuesStubWhenPathIsDirectory(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"),
+		`locals { region = values.region }`)
+
+	repo := newFakeRepo(t, fsys, repoDir)
+
+	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+
+	workingDir := testWorkingDir
+	require.NoError(t, fsys.MkdirAll(filepath.Join(workingDir, "terragrunt.values.hcl"), 0o755))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = workingDir
+
+	err = tui.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run()
+
+	var notRegularErr *tui.DestinationNotRegularError
+
+	require.ErrorAs(t, err, &notRegularErr)
+	assert.Equal(t, filepath.Join(workingDir, "terragrunt.values.hcl"), notRegularErr.Path)
+}
+
 // assertFileExistsFS asserts a file exists at path on fsys.
 func assertFileExistsFS(t *testing.T, fsys vfs.FS, path string) {
 	t.Helper()

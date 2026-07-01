@@ -518,7 +518,7 @@ func TestFileManifestCleanRejectsTooManyReferencedManifests(t *testing.T) {
 	manifestPath := filepath.Join(root, testManifestName)
 	entries := make([]manifestTestEntry, 0, testMaxFileManifests)
 
-	for idx := 0; idx < testMaxFileManifests; idx++ {
+	for idx := range testMaxFileManifests {
 		entries = append(entries, manifestDir(filepath.Join(root, fmt.Sprintf("dir-%06d", idx))))
 	}
 

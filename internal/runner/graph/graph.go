@@ -100,7 +100,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 
 	if opts.ReportSchemaFile != "" {
 		defer func() {
-			if err := r.WriteSchemaToFile(opts.ReportSchemaFile); err != nil {
+			if err := r.WriteSchemaToFile(v.FS, opts.ReportSchemaFile); err != nil {
 				l.Warnf("Failed to write report schema to %s: %v", opts.ReportSchemaFile, err)
 			}
 		}()
@@ -108,7 +108,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 
 	if opts.ReportFile != "" {
 		defer func() {
-			if err := r.WriteToFile(opts.ReportFile); err != nil {
+			if err := r.WriteToFile(v.FS, opts.ReportFile); err != nil {
 				l.Warnf("Failed to write report to %s: %v", opts.ReportFile, err)
 			}
 		}()

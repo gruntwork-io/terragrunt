@@ -3888,7 +3888,7 @@ func TestHclFmtDiff(t *testing.T) {
 	// the hunk body can be compared exactly against the fixture.
 	var hunk strings.Builder
 
-	for _, line := range strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimRight(stdout.String(), "\n"), "\n") {
 		if strings.HasPrefix(line, "diff old/") || strings.HasPrefix(line, "--- old/") || strings.HasPrefix(line, "+++ new/") {
 			continue
 		}

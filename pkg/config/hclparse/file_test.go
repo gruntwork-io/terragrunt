@@ -135,11 +135,7 @@ func TestRebindWithRacing(t *testing.T) {
 	start.Add(1)
 
 	for range goroutines {
-		done.Add(1)
-
-		go func() {
-			defer done.Done()
-
+		done.Go(func() {
 			start.Wait()
 
 			var buf bytes.Buffer
@@ -149,9 +145,10 @@ func TestRebindWithRacing(t *testing.T) {
 			var out fooOnly
 
 			decodeErr := rebound.Decode(&out, evalContextMissingDependency())
+			//nolint:testifylint // require's FailNow must run on the test goroutine, not this spawned one
 			assert.Error(t, decodeErr)
 			assert.Contains(t, buf.String(), `no variable named "dependency"`)
-		}()
+		})
 	}
 
 	start.Done()

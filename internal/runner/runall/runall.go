@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -82,11 +83,19 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 	}
 
 	if opts.ReportSchemaFile != "" {
-		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSchemaToFile(v.FS, opts.ReportSchemaFile); err != nil {
+				l.Warnf("Failed to write report schema to %s: %v", opts.ReportSchemaFile, err)
+			}
+		}()
 	}
 
 	if opts.ReportFile != "" {
-		defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteToFile(v.FS, opts.ReportFile); err != nil {
+				l.Warnf("Failed to write report to %s: %v", opts.ReportFile, err)
+			}
+		}()
 	}
 
 	// Skip summary for programmatic interactions:
@@ -161,6 +170,10 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 		if err != nil {
 			return fmt.Errorf("failed to generate stack file: %w", err)
 		}
+
+		// After generation, hint when a literal stack filter left nested stacks ungenerated.
+		funcsFor := configbridge.StackFuncFactory(ctx, l, opts)
+		tips.GiveStackNestedGenerateTip(l, v.FS, funcsFor, opts.WorkingDir, opts.Filters, opts.Tips)
 	} else {
 		l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
 	}
@@ -190,7 +203,7 @@ func RunAllOnStack(
 	l.Debugf("%s", rnr.GetStack().String())
 
 	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
-	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.Writers.LogShowAbsPaths, opts.Experiments); err != nil {
+	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.LogShowAbsPaths, opts.Experiments); err != nil {
 		return err
 	}
 

@@ -358,6 +358,38 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, testData, got)
 	})
+
+	t.Run("copy path recovers from a stale read-only temp file", func(t *testing.T) {
+		t.Parallel()
+
+		v, err := cas.OSVenv()
+		require.NoError(t, err)
+
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("ref: refs/heads/master\n")
+
+		require.NoError(t, content.Store(l, v, testHash, testData))
+
+		// Mismatched store perms route Link through the copy path.
+		require.NoError(t, os.Chmod(filepath.Join(storeDir, testHash[:2], testHash), 0o644))
+
+		targetPath := filepath.Join(targetDir, "HEAD")
+
+		// An interrupted run can leave a read-only temp file behind. Opening
+		// it for writing fails with EACCES, so Link must not reuse it.
+		require.NoError(t, os.WriteFile(targetPath+".tmp", []byte("partial"), 0o444))
+
+		require.NoError(t, content.Link(t.Context(), v, testHash, targetPath, 0o644))
+
+		got, err := os.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, testData, got)
+	})
 }
 
 func TestContent_EnsureWithWait(t *testing.T) {

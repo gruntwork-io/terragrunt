@@ -41,17 +41,13 @@ func TestKeyLocksSharedKeySerializes(t *testing.T) {
 	)
 
 	for range 10 {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			kl.Lock("test-key")
 			defer kl.Unlock("test-key")
 
 			counter++
 			counter++
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -112,11 +108,7 @@ func TestKeyLocksLockUnlockStressWithSharedKey(t *testing.T) {
 	)
 
 	for range numGoroutines {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			kl.Lock("shared_key")
 			defer kl.Unlock("shared_key")
 
@@ -124,7 +116,7 @@ func TestKeyLocksLockUnlockStressWithSharedKey(t *testing.T) {
 				counter++
 				counter++
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

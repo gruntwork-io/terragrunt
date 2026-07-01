@@ -108,6 +108,8 @@ type ParsingContext struct {
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
 	NoCAS                            bool
+	LogShowAbsPaths                  bool
+	LogDisableErrorSummary           bool
 
 	// skipAutoIncludeMerge is set on contexts that parse the files an autoinclude pulls in through its
 	// own include blocks, so those files do not re-merge a sibling autoinclude. This bounds the merge to

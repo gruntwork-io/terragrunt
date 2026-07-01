@@ -137,7 +137,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	genOpts := generateOpts{
 		rootWorkingDir:  pctx.RootWorkingDir,
-		logShowAbsPaths: pctx.Writers.LogShowAbsPaths,
+		logShowAbsPaths: pctx.LogShowAbsPaths,
 		sourceMap:       pctx.SourceMap,
 		noStackValidate: pctx.NoStackValidate,
 		stackConfigPath: pctx.TerragruntStackConfigPath,
@@ -1432,7 +1432,7 @@ func processLocals(ctx context.Context, l log.Logger, parser *ParsingContext, fi
 			evaluatedLocals,
 		)
 		if evalErr != nil {
-			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(parser.RootWorkingDir, file.ConfigPath, parser.Writers.LogShowAbsPaths))
+			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(parser.RootWorkingDir, file.ConfigPath, parser.LogShowAbsPaths))
 
 			return evalErr
 		}

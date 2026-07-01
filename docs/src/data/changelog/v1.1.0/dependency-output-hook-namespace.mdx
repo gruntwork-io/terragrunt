@@ -1,0 +1,8 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Resolve `dependency` outputs for units whose `before_hook` references a dependency
+
+Resolving a unit's `dependency` outputs no longer evaluates that unit's `terraform` hooks, so a `before_hook` (or `after_hook`) that interpolates `${dependency.<name>.outputs.<key>}` no longer fails downstream units with `There is no variable named "dependency"`. Dependency output resolution still applies the unit's `extra_arguments` `env_vars` and `source`.

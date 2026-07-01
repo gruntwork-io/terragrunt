@@ -135,6 +135,11 @@ jobs:
             target: ./...
             setup_scripts:
               - .github/scripts/setup/experiment-mode.sh
+          - name: OpenTofu Unit Tests
+            os: ubuntu
+            target: ./internal/...
+            tags: tofu
+            run: "^TestTofu"
           - name: Exec
             os: ubuntu
             target: ./internal/vexec/...
@@ -145,7 +150,7 @@ jobs:
             tags: exec
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           fetch-depth: 1
 

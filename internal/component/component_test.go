@@ -2,9 +2,11 @@ package component_test
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -157,16 +159,12 @@ func TestUnitStringConcurrent(t *testing.T) {
 	const goroutines = 10
 
 	for range goroutines {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			for range 100 {
 				s := unit.String()
 				assert.Contains(t, s, "/test/path")
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -238,4 +236,35 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 
 	// Should have exactly one component despite concurrent adds
 	assert.Equal(t, 1, tsc.Len(), "should have exactly one component after concurrent adds")
+}
+
+// TestUnitGuardConfigParseWithRacing verifies the parse runs exactly once when
+// many goroutines race to parse the same unit.
+func TestUnitGuardConfigParseWithRacing(t *testing.T) {
+	t.Parallel()
+
+	unit := component.NewUnit("/test/unit")
+
+	var parses atomic.Int32
+
+	var wg sync.WaitGroup
+
+	const goroutines = 32
+
+	for range goroutines {
+		wg.Go(func() {
+			err := unit.GuardConfigParse(func() error {
+				parses.Add(1)
+				unit.StoreConfig(&config.TerragruntConfig{})
+
+				return nil
+			})
+			assert.NoError(t, err)
+		})
+	}
+
+	wg.Wait()
+
+	assert.Equal(t, int32(1), parses.Load(), "config should be parsed exactly once")
+	assert.NotNil(t, unit.Config(), "config should be populated after parsing")
 }

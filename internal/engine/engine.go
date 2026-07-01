@@ -74,7 +74,8 @@ type ExecutionOptions struct {
 	EngineOptions     *EngineOptions
 	EngineConfig      *EngineConfig
 	Env               map[string]string
-	WorkingDir        string
+	UnitDir           string
+	CacheDir          string
 	RootWorkingDir    string
 	Command           string
 	Args              []string
@@ -82,12 +83,109 @@ type ExecutionOptions struct {
 	ForwardTFStdout   bool
 	SuppressStdout    bool
 	AllocatePseudoTty bool
+
+	LogShowAbsPaths        bool
+	LogDisableErrorSummary bool
 }
 
 type engineInstance struct {
 	engineClient *proto.EngineClient
 	client       *plugin.Client
 	execOptions  *ExecutionOptions
+}
+
+// engineEntry single-flights one cache dir's engine creation: the builder writes instance and
+// err, then closes ready, so every other reader must receive on ready first. That close is
+// their sole happens-before edge.
+type engineEntry struct {
+	ready       chan struct{}
+	instance    *engineInstance
+	err         error
+	execOptions *ExecutionOptions
+}
+
+// engineClients is the registry of engine instances, keyed by post-download cache working dir.
+// mu guards only map membership, never the slow create or shutdown work, so distinct cache
+// dirs proceed in parallel. Every removal is under mu, so a batch Shutdown racing a per-unit
+// ShutdownUnit never shuts an engine down twice.
+type engineClients struct {
+	clients map[string]*engineEntry
+	mu      sync.Mutex
+}
+
+func newEngineClients() *engineClients {
+	return &engineClients{clients: make(map[string]*engineEntry)}
+}
+
+// loadOrCreate returns the instance for key, or reserves the key and builds one via create.
+// Concurrent callers for one key share a single build instead of racing to register competing
+// engines. The bool reports whether an existing instance was reused.
+func (c *engineClients) loadOrCreate(
+	key string,
+	execOptions *ExecutionOptions,
+	create func() (*engineInstance, error),
+) (*engineInstance, bool, error) {
+	c.mu.Lock()
+
+	if e, found := c.clients[key]; found {
+		c.mu.Unlock()
+
+		<-e.ready
+
+		return e.instance, true, e.err
+	}
+
+	e := &engineEntry{ready: make(chan struct{}), execOptions: execOptions}
+	c.clients[key] = e
+	c.mu.Unlock()
+
+	e.instance, e.err = create()
+
+	if e.err != nil {
+		// Drop a failed build so the next Run rebuilds instead of serving the cached failure.
+		// The identity guard avoids deleting a different entry that replaced this one.
+		c.mu.Lock()
+		if c.clients[key] == e {
+			delete(c.clients, key)
+		}
+		c.mu.Unlock()
+	}
+
+	close(e.ready)
+
+	return e.instance, false, e.err
+}
+
+// takeAll removes and returns every registered entry.
+func (c *engineClients) takeAll() []*engineEntry {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	taken := make([]*engineEntry, 0, len(c.clients))
+	for _, e := range c.clients {
+		taken = append(taken, e)
+	}
+
+	clear(c.clients)
+
+	return taken
+}
+
+// takeUnit removes and returns the entry for the given unit, or nil. It matches the
+// entry's execOptions, not the instance's, so it finds a unit whose engine is still building.
+func (c *engineClients) takeUnit(unitDir string) *engineEntry {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for key, e := range c.clients {
+		if e.execOptions.UnitDir == unitDir {
+			delete(c.clients, key)
+
+			return e
+		}
+	}
+
+	return nil
 }
 
 // Run executes the given command with the experimental engine. The provided
@@ -104,56 +202,27 @@ func Run(
 		return nil, err
 	}
 
-	workingDir := execOptions.WorkingDir
-	instance, found := engineClients.Load(workingDir)
+	cacheDir := execOptions.CacheDir
+
+	instance, found, err := engineClients.loadOrCreate(cacheDir, execOptions, func() (*engineInstance, error) {
+		return createInstance(ctx, l, e, execOptions)
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	var output *util.CmdOutput
 
 	runErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_run", map[string]any{
 		"command":            execOptions.Command,
-		"working_dir":        workingDir,
+		"cache_dir":          cacheDir,
 		"engine_initialized": found,
 	}, func(runCtx context.Context) error {
-		// initialize engine for working directory
-		if !found {
-			// download engine if not available
-			if err = downloadEngine(runCtx, l, execOptions); err != nil {
-				return err
-			}
-
-			terragruntEngine, client, createEngineErr := createEngine(runCtx, l, e, execOptions)
-			if createEngineErr != nil {
-				return createEngineErr
-			}
-
-			engineClients.Store(workingDir, &engineInstance{
-				engineClient: terragruntEngine,
-				client:       client,
-				execOptions:  execOptions,
-			})
-
-			instance, _ = engineClients.Load(workingDir)
-
-			if err = initialize(runCtx, l, execOptions, terragruntEngine); err != nil {
-				return err
-			}
-		}
-
-		engInst, ok := instance.(*engineInstance)
-		if !ok {
-			return fmt.Errorf("failed to fetch engine instance %s", workingDir)
-		}
-
-		terragruntEngine := engInst.engineClient
-
 		var invokeErr error
 
-		output, invokeErr = invoke(runCtx, l, execOptions, terragruntEngine)
-		if invokeErr != nil {
-			return invokeErr
-		}
+		output, invokeErr = invoke(runCtx, l, execOptions, instance.engineClient)
 
-		return nil
+		return invokeErr
 	})
 	if runErr != nil {
 		return nil, runErr
@@ -162,9 +231,40 @@ func Run(
 	return output, nil
 }
 
+// createInstance downloads, starts, and initializes an engine for execOptions. A plugin
+// that starts but fails to initialize is killed rather than leaked, since it is never
+// registered for a later Shutdown to reach.
+func createInstance(
+	ctx context.Context,
+	l log.Logger,
+	e vexec.Exec,
+	execOptions *ExecutionOptions,
+) (*engineInstance, error) {
+	if err := downloadEngine(ctx, l, execOptions); err != nil {
+		return nil, err
+	}
+
+	terragruntEngine, client, err := createEngine(ctx, l, e, execOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := initialize(ctx, l, execOptions, terragruntEngine); err != nil {
+		client.Kill()
+
+		return nil, err
+	}
+
+	return &engineInstance{
+		engineClient: terragruntEngine,
+		client:       client,
+		execOptions:  execOptions,
+	}, nil
+}
+
 // WithEngineValues add to context default values for engine.
 func WithEngineValues(ctx context.Context) context.Context {
-	ctx = context.WithValue(ctx, terraformCommandContextKey, &sync.Map{})
+	ctx = context.WithValue(ctx, terraformCommandContextKey, newEngineClients())
 	ctx = context.WithValue(ctx, locksContextKey, util.NewKeyLocks())
 	ctx = context.WithValue(ctx, latestVersionsContextKey, cache.NewCache[string]("engineVersions"))
 
@@ -448,14 +548,14 @@ func isArchiveByHeader(l log.Logger, filePath string) bool {
 	return err == nil && archiveType != ""
 }
 
-// engineClientsFromContext returns the engine clients map from the context.
-func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
+// engineClientsFromContext returns the engine clients registry from the context.
+func engineClientsFromContext(ctx context.Context) (*engineClients, error) {
 	val := ctx.Value(terraformCommandContextKey)
 	if val == nil {
 		return nil, errors.New(errMsgEngineClientsFetch)
 	}
 
-	result, ok := val.(*sync.Map)
+	result, ok := val.(*engineClients)
 	if !ok {
 		return nil, errors.New(errMsgEngineClientsCast)
 	}
@@ -493,8 +593,12 @@ func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], 
 }
 
 const (
-	gracefulExitTimeout    = 5 * time.Second
+	// gracefulExitTimeout is the grace period for a plugin to exit on its own.
+	gracefulExitTimeout = 5 * time.Second
+	// pluginExitPollInterval is the cadence for polling whether the plugin has exited.
 	pluginExitPollInterval = 50 * time.Millisecond
+	// shutdownRPCTimeout bounds the Shutdown RPC stream.
+	shutdownRPCTimeout = 30 * time.Second
 )
 
 // Shutdown shuts down the experimental engine.
@@ -503,61 +607,96 @@ func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experime
 		return nil
 	}
 
-	// iterate over all engine instances and shutdown
 	engineClients, err := engineClientsFromContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	engineClients.Range(func(key, value any) bool {
-		instance := value.(*engineInstance)
-		l.Debugf("Shutting down engine for %s", instance.execOptions.WorkingDir)
-
-		// We use without cancel here to ensure that the shutdown isn't cancelled by the main context,
-		// like it is in the RunCommandWithOutput function. This ensures that we don't cancel the shutdown
-		// when the command is cancelled.
-		if err := shutdown(
-			context.WithoutCancel(ctx),
-			l,
-			instance.execOptions,
-			instance.engineClient,
-		); err != nil {
-			l.Errorf("Error shutting down engine: %v", err)
-		}
-
-		// Wait for plugin to exit gracefully before force-killing.
-		// The shutdown RPC has already told the plugin to exit, so it should
-		// be cleaning up and exiting on its own. Give it time to finish.
-		if !waitForPluginExit(instance.client, gracefulExitTimeout) {
-			l.Debugf("Plugin did not exit gracefully within timeout, force killing")
-			instance.client.Kill()
-		}
-
-		return true
-	})
+	for _, entry := range engineClients.takeAll() {
+		drainEntry(ctx, l, entry)
+	}
 
 	return nil
 }
 
-// waitForPluginExit waits for the plugin process to exit, returning true if it exited
-// within the timeout, false otherwise.
-func waitForPluginExit(client *plugin.Client, timeout time.Duration) bool {
-	done := make(chan struct{})
+// ShutdownUnit shuts down and removes the engine bound to a single unit, releasing its
+// plugin subprocess when the unit finishes rather than at the batch Shutdown. It is
+// experiment-gated; the only error it returns is a missing engine-clients context.
+func ShutdownUnit(
+	ctx context.Context,
+	l log.Logger,
+	experiments experiment.Experiments,
+	noEngine bool,
+	unitDir string,
+) error {
+	if !experiments.Evaluate(experiment.IacEngine) || noEngine {
+		return nil
+	}
 
-	go func() {
-		// Client.Exited() returns true when the plugin process has exited
-		for !client.Exited() {
-			time.Sleep(pluginExitPollInterval)
+	engineClients, err := engineClientsFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	if entry := engineClients.takeUnit(filepath.Clean(unitDir)); entry != nil {
+		drainEntry(ctx, l, entry)
+	}
+
+	return nil
+}
+
+// drainEntry shuts down the entry's engine after its build settles. A failed build leaves a
+// nil instance and nothing to release: createInstance already killed any half-built plugin.
+func drainEntry(ctx context.Context, l log.Logger, e *engineEntry) {
+	<-e.ready
+
+	if e.instance == nil {
+		return
+	}
+
+	shutdownInstance(ctx, l, e.instance)
+}
+
+// shutdownInstance tears down one engine, force-killing a plugin that will not exit in time.
+// Errors are logged, not returned: shutdown is best-effort and must not fail the run. The
+// context is detached from cancellation so an already-cancelled run still shuts engines down,
+// then bounded by shutdownRPCTimeout so a hung Shutdown stream falls through to the force-kill
+// below instead of blocking the worker.
+func shutdownInstance(ctx context.Context, l log.Logger, instance *engineInstance) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownRPCTimeout)
+	defer cancel()
+
+	l.Debugf("Shutting down engine for %s", instance.execOptions.CacheDir)
+
+	if err := shutdown(ctx, l, instance.execOptions, instance.engineClient); err != nil {
+		l.Errorf("Error shutting down engine: %v", err)
+	}
+
+	// The shutdown RPC already told the plugin to exit, so wait before force-killing it.
+	if !WaitForPluginExit(instance.client.Exited, gracefulExitTimeout) {
+		l.Debugf("Plugin did not exit gracefully within timeout, force killing")
+		instance.client.Kill()
+	}
+}
+
+// WaitForPluginExit reports whether the plugin exited within the timeout, polling at
+// pluginExitPollInterval.
+func WaitForPluginExit(exited func() bool, timeout time.Duration) bool {
+	deadline := time.After(timeout)
+
+	ticker := time.NewTicker(pluginExitPollInterval)
+	defer ticker.Stop()
+
+	for {
+		if exited() {
+			return true
 		}
 
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		return true
-	case <-time.After(timeout):
-		return false
+		select {
+		case <-deadline:
+			return false
+		case <-ticker.C:
+		}
 	}
 }
 
@@ -600,9 +739,9 @@ func createEngine(
 	)
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_create", map[string]any{
-		"source":      execOptions.EngineConfig.Source,
-		"version":     execOptions.EngineConfig.Version,
-		"working_dir": execOptions.WorkingDir,
+		"source":    execOptions.EngineConfig.Source,
+		"version":   execOptions.EngineConfig.Version,
+		"cache_dir": execOptions.CacheDir,
 	}, func(ctx context.Context) error {
 		path, err := engineDir(execOptions)
 		if err != nil {
@@ -696,7 +835,11 @@ func createEngine(
 			return err
 		}
 
-		terragruntEngine := rawClient.(proto.EngineClient)
+		terragruntEngine, ok := rawClient.(proto.EngineClient)
+		if !ok {
+			return fmt.Errorf("engine plugin returned unexpected client type %T", rawClient)
+		}
+
 		engineClient = &terragruntEngine
 		pluginClient = client
 
@@ -719,8 +862,8 @@ func invoke(
 	var result *util.CmdOutput
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_invoke", map[string]any{
-		"command":     runOptions.Command,
-		"working_dir": runOptions.WorkingDir,
+		"command":   runOptions.Command,
+		"cache_dir": runOptions.CacheDir,
 	}, func(ctx context.Context) error {
 		l = l.WithField(placeholders.TFPathKeyName, "engine")
 
@@ -733,7 +876,7 @@ func invoke(
 			Command:           runOptions.Command,
 			Args:              runOptions.Args,
 			AllocatePseudoTty: runOptions.AllocatePseudoTty,
-			WorkingDir:        runOptions.WorkingDir,
+			WorkingDir:        runOptions.CacheDir,
 			Meta:              meta,
 			EnvVars:           runOptions.Env,
 		})
@@ -824,18 +967,18 @@ func invoke(
 			return err
 		}
 
-		l.Debugf("Engine execution done in %v", runOptions.WorkingDir)
+		l.Debugf("Engine execution done in %v", runOptions.CacheDir)
 
 		if resultCode != 0 {
 			err = util.ProcessExecutionError{
 				Err:             fmt.Errorf("command failed with exit code %d", resultCode),
 				Output:          output,
-				WorkingDir:      runOptions.WorkingDir,
+				WorkingDir:      runOptions.CacheDir,
 				RootWorkingDir:  runOptions.RootWorkingDir,
-				LogShowAbsPaths: runOptions.Writers.LogShowAbsPaths,
+				LogShowAbsPaths: runOptions.LogShowAbsPaths,
 				Command:         runOptions.Command,
 				Args:            runOptions.Args,
-				DisableSummary:  runOptions.Writers.LogDisableErrorSummary,
+				DisableSummary:  runOptions.LogDisableErrorSummary,
 			}
 
 			return err
@@ -885,25 +1028,25 @@ var ErrEngineInitFailed = errors.New("engine init failed")
 // initialize engine for working directory
 func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_initialize", map[string]any{
-		"working_dir": runOptions.WorkingDir,
+		"cache_dir": runOptions.CacheDir,
 	}, func(ctx context.Context) error {
 		meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 		if err != nil {
 			return err
 		}
 
-		l.Debugf("Running init for engine in %s", runOptions.WorkingDir)
+		l.Debugf("Running init for engine in %s", runOptions.CacheDir)
 
 		request, err := (*client).Init(ctx, &proto.InitRequest{
 			EnvVars:    runOptions.Env,
-			WorkingDir: runOptions.WorkingDir,
+			WorkingDir: runOptions.CacheDir,
 			Meta:       meta,
 		})
 		if err != nil {
 			return err
 		}
 
-		l.Debugf("Reading init output for engine in %s", runOptions.WorkingDir)
+		l.Debugf("Reading init output for engine in %s", runOptions.CacheDir)
 
 		return ReadEngineOutput(runOptions, true, func() (*OutputLine, error) {
 			output, err := request.Recv()
@@ -958,7 +1101,7 @@ func shutdown(
 	terragruntEngine *proto.EngineClient,
 ) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_shutdown", map[string]any{
-		"working_dir": runOptions.WorkingDir,
+		"cache_dir": runOptions.CacheDir,
 	}, func(ctx context.Context) error {
 		meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 		if err != nil {
@@ -966,7 +1109,7 @@ func shutdown(
 		}
 
 		request, err := (*terragruntEngine).Shutdown(ctx, &proto.ShutdownRequest{
-			WorkingDir: runOptions.WorkingDir,
+			WorkingDir: runOptions.CacheDir,
 			Meta:       meta,
 			EnvVars:    runOptions.Env,
 		})
@@ -974,7 +1117,7 @@ func shutdown(
 			return err
 		}
 
-		l.Debugf("Reading shutdown output for engine in %s", runOptions.WorkingDir)
+		l.Debugf("Reading shutdown output for engine in %s", runOptions.CacheDir)
 
 		return ReadEngineOutput(runOptions, true, func() (*OutputLine, error) {
 			output, err := request.Recv()
