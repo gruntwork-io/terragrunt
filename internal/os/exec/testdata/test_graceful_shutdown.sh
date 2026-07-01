@@ -7,5 +7,6 @@ set -e
 # This is used to verify that the graceful shutdown sends SIGINT rather than SIGKILL.
 
 trap 'exit 42' INT
+echo ready
 
 while true; do sleep 0.1; done
