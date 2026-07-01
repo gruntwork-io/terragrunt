@@ -46,6 +46,7 @@ const (
 	testFixtureDependencyRemoteStateOutput       = "fixtures/regressions/dependency-remote-state-output"
 	testFixtureDependencyGenuineError            = "fixtures/regressions/dependency-genuine-error"
 	testFixtureDependencyOutputLocalOptimization = "fixtures/regressions/dependency-output-local-optimization"
+	testFixtureDependencySourceOutput            = "fixtures/regressions/dependency-source-output"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -1223,6 +1224,28 @@ func TestDependencyExtraArgsOutputResolution(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+moduleCPath+" -- output -raw echo")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "argocd")
+}
+
+// TestDependencySourceOutputWithSourceOverride pins that the output-resolution fallback recomputes a `--source`
+// override against the dependency it is resolving, not the unit the run started from. module-b's terraform source
+// consumes module-a's output, so resolving it for module-c takes the full-run fallback; with a --source override
+// active, the override's module subdir must be retargeted from module-c (the caller) to module-b. Without that, the
+// fallback reads module-b's outputs from the caller's stale module directory and module-c fails with a misleading
+// "detected no outputs" even though module-b applied and produced real outputs.
+func TestDependencySourceOutputWithSourceOverride(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencySourceOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencySourceOutput)
+	livePath := filepath.Join(rootPath, "live")
+	modulesPath := filepath.Join(rootPath, "modules")
+
+	// module-a <- module-b (terraform.source consumes module-a's output) <- module-c, run under a --source override.
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+livePath+" --source "+modulesPath+" -- apply")
+	require.NoError(t, err)
+
+	// module-b's real output must propagate to module-c's echo; a wrong-module read would leave it empty.
+	assert.Contains(t, stdout+stderr, "argocd")
 }
 
 // TestDependencyRemoteStateOutputResolution checks a unit can resolve outputs of a dependency whose remote_state config references its own dependency.

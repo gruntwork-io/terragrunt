@@ -1034,31 +1034,6 @@ func adjustSourceForTargetModule(pctx *ParsingContext, targetConfig string, targ
 	return nil
 }
 
-// recomputeSourceForTarget recomputes the `--source` override for targetConfig before the output fallback runs the
-// target in full. It is used when the lightweight parse that normally supplies the target's source failed, so it
-// re-parses just the terraform source attribute (which, unlike extra_arguments or hooks, never depends on dependency
-// outputs). A best-effort step: if even the source can't be parsed, the override is left untouched for the full run
-// to resolve.
-func recomputeSourceForTarget(ctx context.Context, pctx *ParsingContext, l log.Logger, targetConfig string) error {
-	if pctx.Source == "" {
-		return nil
-	}
-
-	sourceCfg, err := PartialParseConfigFile(
-		ctx,
-		pctx.WithDecodeList(TerraformSource).WithDiagnosticsSuppressed(l),
-		l,
-		targetConfig,
-		nil,
-	)
-	if err != nil {
-		l.Debugf("Could not parse terraform source from target config %s to recompute --source: %v", targetConfig, err)
-		return nil
-	}
-
-	return adjustSourceForTargetModule(pctx, targetConfig, sourceCfg)
-}
-
 // resolveOutputJSON retrieves the outputs from the terraform state in the target configuration. It
 // attempts to optimize retrieval if the following conditions are true:
 //   - State backends are managed with a `remote_state` block.
@@ -1098,15 +1073,11 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		// The config being parsed may reference dependency outputs that this lightweight parse can't resolve; the
 		// full output run can, so fall back instead of failing the dependent unit. That parse error is often the
 		// misleading "no variable named dependency" diagnostic, so it is logged for debugging but not returned; the
-		// full run is authoritative and reproduces any genuine error.
+		// full run is authoritative and reproduces any genuine error. runTerragruntOutputJSON retargets any `--source`
+		// override to the target module from its fully resolved source, so a stale subdir from the calling unit — even
+		// one whose source itself consumes a dependency output — is not carried into the run.
 		l.Debugf("Could not partially parse terraform block from target config %s: %v", pctx.TerragruntConfigPath, err)
 		l.Debugf("Falling back to terragrunt output.")
-
-		// A `--source` override is relative to the original unit, so the full run still has to recompute it against the
-		// target's own terraform source.
-		if srcErr := recomputeSourceForTarget(ctx, pctx, l, targetConfig); srcErr != nil {
-			return nil, "", srcErr
-		}
 
 		out, runErr := runTerragruntOutputJSON(ctx, pctx, l, targetConfig)
 
@@ -1551,6 +1522,15 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
+		return nil, err
+	}
+
+	// A `--source` override carries the module subdir of whichever unit the run started from, not the dependency being
+	// resolved here, so retarget it to this module's own subdir before running. The full parse above resolves the
+	// target's real source even when it references a dependency output (which the lightweight parse in resolveOutputJSON
+	// cannot), making it the authoritative input. Without this, a dependency whose source consumes a dependency output
+	// would run against the caller's stale subdir and read the wrong module's outputs.
+	if err := adjustSourceForTargetModule(pctx, targetConfig, cfg); err != nil {
 		return nil, err
 	}
 
