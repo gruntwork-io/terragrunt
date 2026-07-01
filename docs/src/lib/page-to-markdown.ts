@@ -334,6 +334,7 @@ export async function componentToSimpleMarkdown(
 		props,
 		request: context.request,
 		params: context.params,
+		locals: context.locals,
 	});
 	return htmlToMarkdown(html, shouldMinify);
 }
