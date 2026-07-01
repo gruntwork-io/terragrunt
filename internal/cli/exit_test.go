@@ -54,6 +54,19 @@ func TestExitCodeFor(t *testing.T) {
 		assert.Contains(t, buf.String(), "TERRAGRUNT CRASH")
 	})
 
+	t.Run("cty function panic preserves raw binary version", func(t *testing.T) {
+		t.Parallel()
+
+		l, buf := newBufferLogger()
+		ctyErr := function.PanicError{Value: "nil deref", Stack: []byte("cty stack")}
+
+		code := cli.ExitCodeFor(l, []string{"terragrunt"}, "latest", ctyErr, 0, newReporter())
+
+		assert.Equal(t, 1, code)
+		assert.Contains(t, buf.String(), "Terragrunt version: latest")
+		assert.NotContains(t, buf.String(), "Terragrunt version: 0.0.0")
+	})
+
 	t.Run("ErrUserCancelled exits 0 silently without logging the error", func(t *testing.T) {
 		t.Parallel()
 

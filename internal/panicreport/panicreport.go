@@ -112,6 +112,12 @@ type Reporter struct {
 	BuildInfo func() (commit string, modified bool)
 }
 
+// RecoveredError carries a panic recovered outside the main goroutine.
+type RecoveredError struct {
+	value any
+	stack []byte
+}
+
 // New returns a Reporter wired with production defaults.
 func New() *Reporter {
 	return &Reporter{
@@ -122,6 +128,26 @@ func New() *Reporter {
 		TempDir:   os.TempDir,
 		BuildInfo: readBuildInfo,
 	}
+}
+
+// NewRecoveredError returns err with a defensive copy of stack.
+func NewRecoveredError(value any, stack []byte) RecoveredError {
+	return RecoveredError{
+		value: value,
+		stack: append([]byte(nil), stack...),
+	}
+}
+
+func (err RecoveredError) Error() string {
+	if err.value == nil {
+		return "<nil>"
+	}
+
+	return fmt.Sprintf("%v", err.value)
+}
+
+func (err RecoveredError) ErrorStack() string {
+	return string(err.stack)
 }
 
 // PanicHandler reports rec when non-nil and returns true.

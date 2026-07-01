@@ -20,7 +20,7 @@ func (app *App) RunWithExitCode(args []string, em *tf.DetailedExitCodeMap, repor
 	err := app.RunContext(ctx, args)
 	detailed := app.opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode)
 
-	return ExitCodeFor(app.l, args, app.opts.VersionString(), err, em.Final(detailed), reporter)
+	return ExitCodeFor(app.l, args, app.Version, err, em.Final(detailed), reporter)
 }
 
 // ExitCodeFor maps a CLI run result to a process exit code; reporter must be non-nil.

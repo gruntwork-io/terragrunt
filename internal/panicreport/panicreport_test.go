@@ -251,6 +251,22 @@ func TestPanicDetails(t *testing.T) {
 	})
 }
 
+func TestRecoveredError(t *testing.T) {
+	t.Parallel()
+
+	err := panicreport.NewRecoveredError(
+		"recovered panic",
+		[]byte("goroutine 1:\nruntime/panic.go:860\npanic({0x...})\n"),
+	)
+
+	assert.Equal(t, "recovered panic", err.Error())
+	assert.True(t, panicreport.IsPanic(err))
+
+	msg, stack := panicreport.PanicDetails(fmt.Errorf("wrapped: %w", err))
+	assert.Equal(t, "wrapped: recovered panic", msg)
+	assert.Equal(t, []byte(err.ErrorStack()), stack)
+}
+
 func TestIsPanic(t *testing.T) {
 	t.Parallel()
 

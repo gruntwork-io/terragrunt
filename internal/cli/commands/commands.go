@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"slices"
 	"strings"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
@@ -307,8 +309,13 @@ func RunAction(
 	}
 
 	// Run command action
-	errGroup.Go(func() error {
+	errGroup.Go(func() (err error) {
 		defer cancel()
+		defer func() {
+			if rec := recover(); rec != nil {
+				err = panicreport.NewRecoveredError(rec, debug.Stack())
+			}
+		}()
 
 		if action != nil {
 			return action(actionCtx, cliCtx)
@@ -414,10 +421,13 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
 	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(clihelper.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
+	isRunCommand := cmdName == runcmd.CommandName
 
-	if cmdName == runcmd.CommandName {
+	if isRunCommand {
 		cmdName = args.CommandName()
-	} else {
+	}
+
+	if !isRunCommand {
 		args = append([]string{cmdName}, args...)
 	}
 
