@@ -149,7 +149,8 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	runOpts.TerragruntConfigPath = opts.TerragruntConfigPath
 	runOpts.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
-	runOpts.WorkingDir = opts.WorkingDir
+	runOpts.UnitDir = opts.WorkingDir
+	runOpts.CacheDir = opts.WorkingDir
 	runOpts.RootWorkingDir = opts.RootWorkingDir
 	runOpts.DownloadDir = opts.DownloadDir
 	runOpts.TerraformCommand = opts.TerraformCommand

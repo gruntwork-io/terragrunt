@@ -43,8 +43,8 @@ const (
 // DownloadTerraformSource downloads the given source URL, which should use Terraform's module source syntax,
 // into a temporary folder, then:
 // 1. Check if module directory exists in temporary folder
-// 2. Copy the contents of opts.WorkingDir into the temporary folder.
-// 3. Set opts.WorkingDir to the temporary folder.
+// 2. Copy the contents of opts.UnitDir into the temporary folder.
+// 3. Return a clone whose CacheDir points at the temporary folder.
 //
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
@@ -65,7 +65,7 @@ func DownloadTerraformSource(
 
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.StrictControls)
 
-	terraformSource, err := tf.NewSource(l, source, opts.DownloadDir, opts.WorkingDir, walkWithSymlinks)
+	terraformSource, err := tf.NewSource(l, source, opts.DownloadDir, opts.UnitDir, walkWithSymlinks)
 	if err != nil {
 		return nil, err
 	}
@@ -94,13 +94,13 @@ func DownloadTerraformSource(
 	// overlays working-dir files on top of the downloaded source. These files may
 	// change independently of the source version hash, so the copy must always run.
 	sourceIsWorkingDir := tf.IsLocalSource(terraformSource.CanonicalSourceURL) &&
-		filepath.Clean(terraformSource.CanonicalSourceURL.Path) == filepath.Clean(opts.WorkingDir)
+		filepath.Clean(terraformSource.CanonicalSourceURL.Path) == filepath.Clean(opts.UnitDir)
 	needsModuleCopy := downloaded || !sourceIsWorkingDir
 
 	if needsModuleCopy {
 		l.Debugf(
 			"Copying files from %s into %s",
-			util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.LogShowAbsPaths),
+			util.RelPathForLog(opts.UnitDir, opts.UnitDir, opts.LogShowAbsPaths),
 			util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.LogShowAbsPaths),
 		)
 
@@ -116,10 +116,10 @@ func DownloadTerraformSource(
 		}
 
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "copy_folder_contents", map[string]any{
-			"src":  opts.WorkingDir,
+			"src":  opts.UnitDir,
 			"dest": terraformSource.WorkingDir,
 		}, func(_ context.Context) error {
-			return util.CopyFolderContents(l, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
+			return util.CopyFolderContents(l, opts.UnitDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
 		})
 		if err != nil {
 			return nil, err
@@ -139,7 +139,7 @@ func DownloadTerraformSource(
 			opts.LogShowAbsPaths,
 		),
 	)
-	updatedOpts.WorkingDir = terraformSource.WorkingDir
+	updatedOpts.CacheDir = terraformSource.WorkingDir
 
 	return updatedOpts, nil
 }
@@ -447,7 +447,7 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 	if _, err := client.Get(ctx, &getter.Request{
 		Src: canonicalSourceURL,
 		Dst: src.DownloadDir,
-		Pwd: opts.WorkingDir,
+		Pwd: opts.CacheDir,
 	}); err != nil {
 		l.Warnf("CAS download failed: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(ctx, l, cas.FallbackReasonGetterError, map[string]any{"url": canonicalSourceURL})
