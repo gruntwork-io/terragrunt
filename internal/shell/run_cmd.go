@@ -27,11 +27,13 @@ import (
 
 // SignalForwardingDelay is the time to wait before forwarding the signal to the subcommand.
 //
-// The signal can be sent to the main process (only `terragrunt`) as well as the process group (`terragrunt` and `terraform`), for example:
+// The signal can be sent to the main process (only `terragrunt`) as well as the
+// process group (`terragrunt` and `terraform`), for example:
 // kill -INT <pid>  # sends SIGINT only to the main process
 // kill -INT -<pid> # sends SIGINT to the process group
 // Since we cannot know how the signal is sent, we should give `tofu`/`terraform` time to gracefully exit
-// if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `tofu`/`terraform`.
+// if it receives the signal directly from the shell, to avoid sending the
+// second interrupt signal to `tofu`/`terraform`.
 const SignalForwardingDelay = time.Second * 15
 
 // ShellOptions contains the configuration needed to run shell commands.
@@ -44,8 +46,10 @@ type ShellOptions struct {
 
 	RootWorkingDir         string
 	WorkingDir             string
+	UnitDir                string
 	TFPath                 string
 	Experiments            experiment.Experiments
+	SignalForwardingDelay  time.Duration
 	Headless               bool
 	ForwardTFStdout        bool
 	LogShowAbsPaths        bool
@@ -77,6 +81,13 @@ func NewShellOptions() *ShellOptions {
 // WithWorkingDir sets the working directory for command execution.
 func (o *ShellOptions) WithWorkingDir(dir string) *ShellOptions {
 	o.WorkingDir = dir
+
+	return o
+}
+
+// WithUnitDir sets the logical unit directory the command belongs to.
+func (o *ShellOptions) WithUnitDir(dir string) *ShellOptions {
+	o.UnitDir = dir
 
 	return o
 }
@@ -168,7 +179,14 @@ func (o *ShellOptions) NoEngine() bool {
 // RunCommand runs the given shell command using the provided vexec.Exec.
 // Pass vexec.NewMemExec from tests and fuzzers to intercept subprocess
 // invocations so external binaries like tofu/terraform are never forked.
-func RunCommand(ctx context.Context, l log.Logger, e vexec.Exec, runOpts *ShellOptions, command string, args ...string) error {
+func RunCommand(
+	ctx context.Context,
+	l log.Logger,
+	e vexec.Exec,
+	runOpts *ShellOptions,
+	command string,
+	args ...string,
+) error {
 	_, err := RunCommandWithOutput(ctx, l, e, runOpts, "", false, false, command, args...)
 
 	return err
@@ -292,7 +310,8 @@ func runCommand(
 				EngineOptions:          runOpts.EngineOptions,
 				EngineConfig:           runOpts.EngineConfig,
 				Env:                    runOpts.Env,
-				WorkingDir:             cmdOpts.CommandDir,
+				UnitDir:                runOpts.UnitDir,
+				CacheDir:               cmdOpts.CommandDir,
 				RootWorkingDir:         runOpts.RootWorkingDir,
 				Command:                cmdOpts.Command,
 				Args:                   cmdOpts.Args,
@@ -311,6 +330,12 @@ func runCommand(
 		}
 	}
 
+	forwardSignalDelay := runOpts.SignalForwardingDelay
+	if forwardSignalDelay == 0 {
+		// Callers that leave the delay unset get the production grace period.
+		forwardSignalDelay = SignalForwardingDelay
+	}
+
 	cmd := exec.Command(ctx, e, cmdOpts.Command, cmdOpts.Args...)
 	cmd.SetDir(cmdOpts.CommandDir)
 	cmd.SetStdout(cmdStdout)
@@ -318,7 +343,7 @@ func runCommand(
 	cmd.Configure(
 		exec.WithUsePTY(cmdOpts.NeedsPTY),
 		exec.WithEnv(runOpts.Env),
-		exec.WithForwardSignalDelay(SignalForwardingDelay),
+		exec.WithForwardSignalDelay(forwardSignalDelay),
 	)
 
 	// Save/restore console mode around subprocess - Windows subprocesses can reset it.

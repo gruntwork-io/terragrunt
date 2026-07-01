@@ -77,7 +77,7 @@ func TestRun_NonOSBackedExecReturnsSentinel(t *testing.T) {
 			Version: "v0.0.0",
 			Type:    "test",
 		},
-		WorkingDir: t.TempDir(),
+		CacheDir: t.TempDir(),
 	}
 
 	_, err := engine.Run(ctx, log.New(), memExec, opts)

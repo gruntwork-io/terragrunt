@@ -200,13 +200,13 @@ func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfi
 	defer actualLock.Unlock()
 
 	for _, genCfg := range cfg.GenerateConfigs {
-		if err := codegen.WriteToFile(l, opts.WorkingDir, &genCfg); err != nil {
+		if err := codegen.WriteToFile(l, opts.CacheDir, &genCfg); err != nil {
 			return err
 		}
 	}
 
 	if cfg.RemoteState.Config != nil && cfg.RemoteState.Generate != nil {
-		if err := cfg.RemoteState.GenerateOpenTofuCode(l, opts.WorkingDir); err != nil {
+		if err := cfg.RemoteState.GenerateOpenTofuCode(l, opts.CacheDir); err != nil {
 			return err
 		}
 	} else if cfg.RemoteState.Config != nil {
@@ -235,7 +235,7 @@ func runTerragruntWithConfig(
 	r *report.Report,
 ) error {
 	if cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
-		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.WorkingDir)
+		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.CacheDir)
 
 		return nil
 	}
@@ -318,13 +318,13 @@ func runTerragruntWithConfig(
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
 			// Use directory from OriginalTerragruntConfigPath to copy locks since WorkingDir point to cache directory
-			lockFileError = runcfg.CopyLockFile(l, opts.RootWorkingDir, opts.LogShowAbsPaths, opts.WorkingDir, filepath.Dir(opts.OriginalTerragruntConfigPath))
+			lockFileError = runcfg.CopyLockFile(l, opts.RootWorkingDir, opts.LogShowAbsPaths, opts.CacheDir, filepath.Dir(opts.OriginalTerragruntConfigPath))
 		}
 
 		// If command failed, log a helpful message
 		if runTerraformError != nil {
 			if out == nil {
-				l.Errorf("%s invocation failed in %s", opts.TofuImplementation, opts.WorkingDir)
+				l.Errorf("%s invocation failed in %s", opts.TofuImplementation, opts.CacheDir)
 			}
 		}
 
@@ -439,13 +439,13 @@ func SetTerragruntInputsAsEnvVars(l log.Logger, opts *Options, cfg *runcfg.RunCo
 
 // CheckFolderContainsTerraformCode checks if the folder contains Terraform/OpenTofu code
 func CheckFolderContainsTerraformCode(opts *Options) error {
-	found, err := util.DirContainsTFFiles(opts.WorkingDir)
+	found, err := util.DirContainsTFFiles(opts.CacheDir)
 	if err != nil {
 		return err
 	}
 
 	if !found {
-		return NoTerraformFilesFound(opts.WorkingDir)
+		return NoTerraformFilesFound(opts.CacheDir)
 	}
 
 	return nil
@@ -459,7 +459,7 @@ func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType stri
 	}
 
 	// Check for backend definitions in .tf and .tofu files using WalkDir
-	definesBackend, err := util.RegexFoundInTFFiles(opts.WorkingDir, terraformBackendRegexp)
+	definesBackend, err := util.RegexFoundInTFFiles(opts.CacheDir, terraformBackendRegexp)
 	if err != nil {
 		return err
 	}
@@ -473,7 +473,7 @@ func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType stri
 		return err
 	}
 
-	definesJSONBackend, err := util.GrepFilesWithSuffix(fs, terraformJSONBackendRegexp, opts.WorkingDir, ".tf.json")
+	definesJSONBackend, err := util.GrepFilesWithSuffix(fs, terraformJSONBackendRegexp, opts.CacheDir, ".tf.json")
 	if err != nil {
 		return err
 	}
@@ -482,14 +482,14 @@ func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType stri
 		return nil
 	}
 
-	return BackendNotDefined{ConfigPath: opts.TerragruntConfigPath, WorkingDir: opts.WorkingDir, BackendType: backendType}
+	return BackendNotDefined{ConfigPath: opts.TerragruntConfigPath, WorkingDir: opts.CacheDir, BackendType: backendType}
 }
 
 // Returns true if we need to run `terraform init` to download providers
 func providersNeedInit(opts *Options) bool {
 	pluginsPath := filepath.Join(opts.DataDir(), "plugins")
 	providersPath := filepath.Join(opts.DataDir(), "providers")
-	terraformLockPath := filepath.Join(opts.WorkingDir, tf.TerraformLockFile)
+	terraformLockPath := filepath.Join(opts.CacheDir, tf.TerraformLockFile)
 
 	return (!util.FileExists(pluginsPath) && !util.FileExists(providersPath)) || !util.FileExists(terraformLockPath)
 }
@@ -502,7 +502,7 @@ func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, erro
 	}
 
 	initOptions.TerraformCliArgs = iacargs.New().SetCommand(tf.CommandNameInit)
-	initOptions.WorkingDir = opts.WorkingDir
+	initOptions.CacheDir = opts.CacheDir
 	initOptions.TerraformCommand = tf.CommandNameInit
 	initOptions.Headless = true
 
@@ -532,7 +532,7 @@ func modulesNeedInit(opts *Options) (bool, error) {
 	}
 
 	// Check for module definitions in .tf and .tofu files using WalkDir
-	hasModuleDefinition, err := util.RegexFoundInTFFiles(opts.WorkingDir, ModuleRegex)
+	hasModuleDefinition, err := util.RegexFoundInTFFiles(opts.CacheDir, ModuleRegex)
 	if err != nil {
 		return false, err
 	}
@@ -707,7 +707,7 @@ func needsInitRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runc
 
 	// Marker check lives here, not in modulesNeedInit, so a populated .terraform/modules/
 	// can't short-circuit past it. Refs: #1921, #6058.
-	if util.FileExists(filepath.Join(opts.WorkingDir, ModuleInitRequiredFile)) {
+	if util.FileExists(filepath.Join(opts.CacheDir, ModuleInitRequiredFile)) {
 		return true, nil
 	}
 
@@ -755,7 +755,7 @@ func runTerraformInitRunCfg(
 		return err
 	}
 
-	moduleNeedInit := filepath.Join(opts.WorkingDir, ModuleInitRequiredFile)
+	moduleNeedInit := filepath.Join(opts.CacheDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return os.Remove(moduleNeedInit)
 	}
@@ -807,7 +807,7 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 		return "", err
 	}
 
-	varFile := filepath.Join(opts.WorkingDir, NullTFVarsFile)
+	varFile := filepath.Join(opts.CacheDir, NullTFVarsFile)
 
 	const ownerReadWritePermissions = 0600
 

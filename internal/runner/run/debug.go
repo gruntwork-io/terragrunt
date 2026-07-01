@@ -23,10 +23,10 @@ func WriteTerragruntDebugFile(l log.Logger, opts *Options, cfg *runcfg.RunConfig
 	l.Infof(
 		"Debug mode requested: generating debug file %s in working dir %s",
 		TerragruntTFVarsFile,
-		opts.WorkingDir,
+		opts.CacheDir,
 	)
 
-	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
+	required, optional, err := tf.ModuleVariables(opts.CacheDir)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func WriteTerragruntDebugFile(l log.Logger, opts *Options, cfg *runcfg.RunConfig
 	l.Debugf(
 		"\t%s -chdir=\"%s\" %s -var-file=\"%s\" ",
 		tofuImpl,
-		opts.WorkingDir,
+		opts.CacheDir,
 		strings.Join(opts.TerraformCliArgs.Slice(), " "),
 		fileName,
 	)
