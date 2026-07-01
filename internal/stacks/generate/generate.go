@@ -198,7 +198,13 @@ func generateLevel(
 
 		wp.Submit(func() error {
 			_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-			return config.GenerateStackFile(ctx, l, pctx, wp, node.FilePath)
+
+			scopedLogger, scopedPctx, err := pctx.WithConfigPath(l, node.FilePath)
+			if err != nil {
+				return err
+			}
+
+			return config.GenerateStackFile(ctx, scopedLogger, scopedPctx, wp, node.FilePath)
 		})
 	}
 
