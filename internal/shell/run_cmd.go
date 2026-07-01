@@ -44,6 +44,7 @@ type ShellOptions struct {
 
 	RootWorkingDir         string
 	WorkingDir             string
+	UnitDir                string
 	TFPath                 string
 	Experiments            experiment.Experiments
 	Headless               bool
@@ -77,6 +78,13 @@ func NewShellOptions() *ShellOptions {
 // WithWorkingDir sets the working directory for command execution.
 func (o *ShellOptions) WithWorkingDir(dir string) *ShellOptions {
 	o.WorkingDir = dir
+
+	return o
+}
+
+// WithUnitDir sets the logical unit directory the command belongs to.
+func (o *ShellOptions) WithUnitDir(dir string) *ShellOptions {
+	o.UnitDir = dir
 
 	return o
 }
@@ -292,7 +300,8 @@ func runCommand(
 				EngineOptions:          runOpts.EngineOptions,
 				EngineConfig:           runOpts.EngineConfig,
 				Env:                    runOpts.Env,
-				WorkingDir:             cmdOpts.CommandDir,
+				UnitDir:                runOpts.UnitDir,
+				CacheDir:               cmdOpts.CommandDir,
 				RootWorkingDir:         runOpts.RootWorkingDir,
 				Command:                cmdOpts.Command,
 				Args:                   cmdOpts.Args,

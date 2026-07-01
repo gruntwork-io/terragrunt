@@ -94,6 +94,24 @@ func (f Filters) RequiresParse() (Expression, bool) {
 	return nil, false
 }
 
+// PartitionReadingFilters splits the filters by whether their top-level expression is a reading
+// attribute filter, preserving the original order within each group. Worktree discovery uses this to
+// separate reading filters (which track files that may be read by other components via a glob) from
+// plain path filters, because a reading relationship can only be evaluated where the read file exists.
+func (f Filters) PartitionReadingFilters() (reading, other Filters) {
+	for _, filter := range f {
+		if attr, ok := filter.expr.(*AttributeExpression); ok && attr.Key == AttributeReading {
+			reading = append(reading, filter)
+
+			continue
+		}
+
+		other = append(other, filter)
+	}
+
+	return reading, other
+}
+
 // ExcludingGitFilters returns all filters that do not contain a git expression.
 // Git expressions are excluded because they are handled by the worktree phase
 // itself and would cause infinite recursion if propagated to sub-discoveries.

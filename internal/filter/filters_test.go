@@ -629,6 +629,94 @@ func TestFilters_RestrictToStacks(t *testing.T) {
 	})
 }
 
+func TestFilters_PartitionReadingFilters(t *testing.T) {
+	t.Parallel()
+
+	newReading := func(t *testing.T, value string) *filter.Filter {
+		t.Helper()
+
+		expr, err := filter.NewAttributeExpression(filter.AttributeReading, value)
+		require.NoError(t, err)
+
+		return filter.NewFilter(expr, expr.String())
+	}
+
+	newPath := func(t *testing.T, value string) *filter.Filter {
+		t.Helper()
+
+		expr, err := filter.NewPathFilter(value)
+		require.NoError(t, err)
+
+		return filter.NewFilter(expr, expr.String())
+	}
+
+	newName := func(t *testing.T, value string) *filter.Filter {
+		t.Helper()
+
+		expr, err := filter.NewAttributeExpression(filter.AttributeName, value)
+		require.NoError(t, err)
+
+		return filter.NewFilter(expr, expr.String())
+	}
+
+	t.Run("empty filters", func(t *testing.T) {
+		t.Parallel()
+
+		reading, other := filter.Filters{}.PartitionReadingFilters()
+		assert.Empty(t, reading)
+		assert.Empty(t, other)
+	})
+
+	t.Run("only reading filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters := filter.Filters{newReading(t, "config/item-a.yml")}
+
+		reading, other := filters.PartitionReadingFilters()
+		assert.Len(t, reading, 1)
+		assert.Empty(t, other)
+	})
+
+	t.Run("only non-reading filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters := filter.Filters{newPath(t, "app")}
+
+		reading, other := filters.PartitionReadingFilters()
+		assert.Empty(t, reading)
+		assert.Len(t, other, 1)
+	})
+
+	t.Run("mixed filters preserve order within groups", func(t *testing.T) {
+		t.Parallel()
+
+		filters := filter.Filters{
+			newPath(t, "removed-unit"),
+			newReading(t, "config/item-a.yml"),
+			newName(t, "keep"),
+			newReading(t, "config/item-b.yml"),
+			newPath(t, "another-removed"),
+		}
+
+		reading, other := filters.PartitionReadingFilters()
+
+		readingStrs := make([]string, 0, len(reading))
+		for _, f := range reading {
+			readingStrs = append(readingStrs, f.String())
+		}
+
+		otherStrs := make([]string, 0, len(other))
+		for _, f := range other {
+			otherStrs = append(otherStrs, f.String())
+		}
+
+		// Only reading-attribute filters land in the reading group; a non-reading attribute
+		// filter (name=keep) must stay with the path filters in the other group.
+		assert.Equal(t, []string{"reading=config/item-a.yml", "reading=config/item-b.yml"}, readingStrs)
+		assert.Equal(t, []string{"removed-unit", "name=keep", "another-removed"}, otherStrs)
+	})
+}
+
 func TestFilters_ExcludingGitFilters(t *testing.T) {
 	t.Parallel()
 
