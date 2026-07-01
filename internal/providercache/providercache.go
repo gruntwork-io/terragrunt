@@ -241,7 +241,10 @@ func (pc *ProviderCache) TerraformCommandHook(
 
 	env := pc.providerCacheEnvironment(tfOpts.ShellOptions.Env, tfOpts.TofuImplementation, cliConfigFilename)
 
-	if output, err := pc.warmUpCache(ctx, l, tfOpts, cliConfigFilename, args, env, lockfileExists); err != nil {
+	lockfileReadonly := LockfileReadonlyRequested(args, env)
+
+	output, err := pc.warmUpCache(ctx, l, tfOpts, cliConfigFilename, args, env, lockfileExists, lockfileReadonly)
+	if err != nil {
 		return output, err
 	}
 
@@ -260,6 +263,7 @@ func (pc *ProviderCache) warmUpCache(
 	args clihelper.Args,
 	env map[string]string,
 	lockfileExists bool,
+	lockfileReadonly bool,
 ) (*util.CmdOutput, error) {
 	var (
 		cacheRequestID = uuid.New().String()
@@ -295,6 +299,18 @@ func (pc *ProviderCache) warmUpCache(
 	}
 
 	isUpgrade := tfOpts.TerraformCliArgs != nil && tfOpts.TerraformCliArgs.Contains("-upgrade")
+
+	// `-lockfile=readonly` asks OpenTofu/Terraform to verify that every provider is
+	// already recorded in `.terraform.lock.hcl` and to fail otherwise. If Terragrunt
+	// wrote the lock file here, that check would always pass, silently defeating the
+	// flag. Leave the lock file untouched and let OpenTofu/Terraform enforce it.
+	if lockfileReadonly {
+		l.Warnf("`%s=%s` is set, so Terragrunt will not generate or update %s in %s. "+
+			"OpenTofu/Terraform will fail if the lock file is missing or incomplete.",
+			tf.FlagNameLockfile, tf.LockfileModeReadonly, tf.TerraformLockFile, tfOpts.ShellOptions.WorkingDir)
+
+		return nil, nil
+	}
 
 	// If a lock file already existed before this run, skip writing to it — let
 	// OpenTofu/Terraform verify and manage the lock file during the actual init.
@@ -359,6 +375,48 @@ func (pc *ProviderCache) runTerraformWithCache(
 	}
 
 	return tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), newTFOpts, args...)
+}
+
+// LockfileReadonlyRequested reports whether the user asked OpenTofu/Terraform to treat
+// `.terraform.lock.hcl` as read-only via `-lockfile=readonly`. The flag may be supplied
+// directly on the command line or through the `TF_CLI_ARGS` / `TF_CLI_ARGS_init`
+// environment variables that OpenTofu/Terraform reads for the `init` command.
+func LockfileReadonlyRequested(args clihelper.Args, env map[string]string) bool {
+	if argsRequestReadonlyLockfile(args) {
+		return true
+	}
+
+	for _, name := range []string{tf.EnvNameTFCLIArgs, tf.EnvNameTFCLIArgsInit} {
+		if argsRequestReadonlyLockfile(strings.Fields(env[name])) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// argsRequestReadonlyLockfile reports whether the given args set the lock file to
+// read-only mode, accepting both the `-lockfile=readonly` and `-lockfile readonly`
+// forms as well as their double-dash variants.
+func argsRequestReadonlyLockfile(args []string) bool {
+	for i, arg := range args {
+		name, value, hasValue := strings.Cut(arg, "=")
+
+		if name != tf.FlagNameLockfile && name != "-"+tf.FlagNameLockfile {
+			continue
+		}
+
+		if hasValue {
+			return value == tf.LockfileModeReadonly
+		}
+
+		// `-lockfile readonly` form: the mode is supplied as the next argument.
+		if i+1 < len(args) && args[i+1] == tf.LockfileModeReadonly {
+			return true
+		}
+	}
+
+	return false
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
