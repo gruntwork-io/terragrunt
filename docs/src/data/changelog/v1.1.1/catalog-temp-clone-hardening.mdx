@@ -3,8 +3,6 @@ version: "v1.1.1"
 category: "bug-fixes"
 ---
 
-#### `terragrunt catalog` no longer uses predictable temporary clone paths
+#### Safer temporary clone directories for `terragrunt catalog`
 
-The `catalog` command used to derive its temporary clone directory from the repository URL under the shared system temp directory. On shared machines, a pre-existing symlink at that path could redirect catalog clone cleanup outside the intended temp root.
-
-Terragrunt now creates a fresh temporary clone root for each catalog load and refuses to prepare or clean up a clone root that is a symlink. Catalog browsing and unit/stack copy behavior continue to use the clone for the current TUI session, and Terragrunt removes the temporary clone when the session exits.
+Terragrunt now creates a fresh temporary clone directory for each catalog load, rejects symlinked clone roots, and removes catalog clones when the TUI session exits.

@@ -14,13 +14,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-const tempDirPattern = "catalog-*"
-
 // CreateCatalogTempPath creates a fresh clone root under the resolved temp dir.
 // Resolving os.TempDir keeps filepath.Rel results inside the clone on systems
 // where the temp dir itself is reported through a symlink.
-func CreateCatalogTempPath(fsys vfs.FS) (string, error) {
-	return vfs.MkdirTemp(fsys, util.ResolvePath(os.TempDir()), tempDirPattern)
+func CreateCatalogTempPath(fsys vfs.FS, repoURL string) (string, error) {
+	pattern := fmt.Sprintf("catalog-%s-*", util.EncodeBase64Sha1(repoURL))
+
+	return vfs.MkdirTemp(fsys, util.ResolvePath(os.TempDir()), pattern)
 }
 
 // LoadURL clones repoURL via module.NewRepo, walks it with a
@@ -45,7 +45,7 @@ func LoadURL(
 	allowCAS := !opts.NoCAS
 	slowReporting := opts.Experiments.Evaluate(experiment.SlowTaskReporting)
 
-	tempPath, err := CreateCatalogTempPath(v.FS)
+	tempPath, err := CreateCatalogTempPath(v.FS, repoURL)
 	if err != nil {
 		return fmt.Errorf("failed to create catalog temporary directory for %s: %w", repoURL, err)
 	}

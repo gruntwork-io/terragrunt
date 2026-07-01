@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -35,7 +36,7 @@ func TestCreateCatalogTempPathResolvesSymlinkedTmpDir(t *testing.T) {
 
 	t.Setenv("TMPDIR", linkTmp)
 
-	got, err := tui.CreateCatalogTempPath(vfs.NewOSFS())
+	got, err := tui.CreateCatalogTempPath(vfs.NewOSFS(), "github.com/gruntwork-io/terragrunt-scale-catalog")
 	require.NoError(t, err)
 
 	// The clone dir must sit directly under the resolved temp dir, with no
@@ -47,19 +48,25 @@ func TestCreateCatalogTempPathResolvesSymlinkedTmpDir(t *testing.T) {
 func TestCreateCatalogTempPathUsesFreshDirectory(t *testing.T) {
 	t.Parallel()
 
-	first, err := tui.CreateCatalogTempPath(vfs.NewOSFS())
+	repoURL := "github.com/gruntwork-io/terragrunt-scale-catalog"
+
+	first, err := tui.CreateCatalogTempPath(vfs.NewOSFS(), repoURL)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, os.RemoveAll(first))
 	})
 
-	second, err := tui.CreateCatalogTempPath(vfs.NewOSFS())
+	second, err := tui.CreateCatalogTempPath(vfs.NewOSFS(), repoURL)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, os.RemoveAll(second))
 	})
 
 	assert.NotEqual(t, first, second)
+
+	expectedPrefix := "catalog-" + util.EncodeBase64Sha1(repoURL) + "-"
+	assert.True(t, strings.HasPrefix(filepath.Base(first), expectedPrefix))
+	assert.True(t, strings.HasPrefix(filepath.Base(second), expectedPrefix))
 	assert.DirExists(t, first)
 	assert.DirExists(t, second)
 }
