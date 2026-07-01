@@ -32,6 +32,7 @@ func LoadURL(
 	l log.Logger,
 	v venv.Venv,
 	opts *options.TerragruntOptions,
+	tempDirs *TempDirTracker,
 	repoURL string,
 	componentCh chan<- *ComponentEntry,
 ) error {
@@ -48,6 +49,20 @@ func LoadURL(
 	if err != nil {
 		return fmt.Errorf("failed to create catalog temporary directory for %s: %w", repoURL, err)
 	}
+
+	tempDirs.Track(tempPath)
+
+	keepDir := false
+
+	defer func() {
+		if keepDir {
+			return
+		}
+
+		if err := v.FS.RemoveAll(tempPath); err != nil {
+			l.Debugf("Failed to remove unused catalog temporary directory %q: %v", tempPath, err)
+		}
+	}()
 
 	l.Debugf("Processing repository %s in temporary path %s", repoURL, tempPath)
 
@@ -100,6 +115,8 @@ func LoadURL(
 			return nil
 		}
 	}
+
+	keepDir = true
 
 	return nil
 }

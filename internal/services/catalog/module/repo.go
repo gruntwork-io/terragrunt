@@ -345,6 +345,10 @@ func (repo *Repo) prepareCloneDirectory(l log.Logger, fsys vfs.FS) error {
 }
 
 func prepareCloneRoot(fsys vfs.FS, cloneRoot string) error {
+	if err := validateCloneRoot(fsys, cloneRoot); err != nil {
+		return err
+	}
+
 	if err := fsys.MkdirAll(cloneRoot, os.ModePerm); err != nil {
 		return err
 	}
