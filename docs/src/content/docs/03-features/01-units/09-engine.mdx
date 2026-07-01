@@ -68,6 +68,10 @@ engine {
 >
 </Code>
 
+Direct HTTP(S) sources are downloaded as-is. Use them only for trusted engines.
+
+For checksum and signature verification, use a GitHub release source so Terragrunt can download the engine package, checksum file, and checksum signature together.
+
 ## Local Sources
 
 Specify a local absolute path as the source:
@@ -100,12 +104,12 @@ The cached engines are stored in the following directory by default:
 
 If you need to use a different path, set the environment variable `TG_ENGINE_CACHE_PATH` accordingly.
 
-Downloaded engines are checked for integrity using the SHA256 checksum GPG key.
+Engines downloaded from GitHub releases are checked for integrity using the SHA256 checksum GPG key.
 If the checksum does not match, the engine is not executed.
-To disable this feature, set the environment variable:
+To disable this feature for trusted development or testing engines, set the environment variable:
 
 ```sh
-export TG_ENGINE_SKIP_CHECK=0
+export TG_ENGINE_SKIP_CHECK=1
 ```
 
 To configure a custom log level for the engine, set the `TG_ENGINE_LOG_LEVEL` environment variable to one of `debug`, `info`, `warn`, `error`.

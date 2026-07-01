@@ -64,6 +64,11 @@ const (
 	errMsgVersionsCacheCast  = "failed to cast engine versions cache from context"
 )
 
+const (
+	engineArchiveDecompressedSizeLimit int64 = 512 << 20
+	engineArchiveFilesLimit                  = 20
+)
+
 type (
 	engineClientsKey byte
 	engineLocksKey   byte
@@ -297,7 +302,7 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 
 		// identify engine version if not specified
 		if len(e.Version) == 0 {
-			if !strings.Contains(e.Source, "://") {
+			if !isDirectURL(e.Source) {
 				tag, err := lastReleaseVersion(ctx, execOptions)
 				if err != nil {
 					return err
@@ -344,7 +349,7 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		var checksumFile, checksumSigFile string
 
 		// Only add checksum files for GitHub releases (not direct URLs)
-		if !strings.Contains(e.Source, "://") {
+		if !isDirectURL(e.Source) {
 			checksumFile = filepath.Join(path, engineChecksumName(e))
 			checksumSigFile = filepath.Join(path, engineChecksumSigName(e))
 			assets.ChecksumFile = checksumFile
@@ -410,6 +415,22 @@ func lastReleaseVersion(ctx context.Context, opts *ExecutionOptions) (string, er
 }
 
 func extractArchive(l log.Logger, downloadFile string, engineFile string) error {
+	return extractArchiveWithLimits(
+		l,
+		downloadFile,
+		engineFile,
+		engineArchiveDecompressedSizeLimit,
+		engineArchiveFilesLimit,
+	)
+}
+
+func extractArchiveWithLimits(
+	l log.Logger,
+	downloadFile string,
+	engineFile string,
+	decompressedSizeLimit int64,
+	filesLimit int,
+) error {
 	if !isArchiveByHeader(l, downloadFile) {
 		l.Info("Downloaded file is not an archive, no extraction needed")
 		// move file directly if it is not an archive
@@ -433,8 +454,11 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 		}
 	}()
 	// extract archive
-	if err = vfs.NewZipDecompressor().Unzip(l, vfs.NewOSFS(), tempDir, downloadFile, 0); err != nil {
-		return err
+	if err = vfs.NewZipDecompressor(
+		vfs.WithFileSizeLimit(decompressedSizeLimit),
+		vfs.WithFilesLimit(filesLimit),
+	).Unzip(l, vfs.NewOSFS(), tempDir, downloadFile, 0); err != nil {
+		return newArchiveExtractionError(downloadFile, err)
 	}
 
 	// process files
@@ -539,6 +563,10 @@ func engineChecksumSigName(e *EngineConfig) string {
 // enginePackageName returns the package name for the engine.
 func enginePackageName(e *EngineConfig) string {
 	return engineFileName(e) + ".zip"
+}
+
+func isDirectURL(source string) bool {
+	return strings.Contains(source, "://")
 }
 
 // isArchiveByHeader checks if a file is an archive by examining its header.

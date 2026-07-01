@@ -739,6 +739,24 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 		assert.Equal(t, []byte("small content"), data)
 	})
 
+	t.Run("allows extraction exactly at size limit", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchive(t, map[string][]byte{
+			"exact.txt": []byte("0123456789"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(10)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.NoError(t, err)
+
+		data, err := vfs.ReadFile(fs, "/dst/exact.txt")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("0123456789"), data)
+	})
+
 	t.Run("rejects extraction exceeding size limit", func(t *testing.T) {
 		t.Parallel()
 
