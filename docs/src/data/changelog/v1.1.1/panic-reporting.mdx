@@ -7,6 +7,4 @@ category: "new-features"
 
 Terragrunt now writes a `terragrunt-crash-YYYYMMDDTHHMMSSZ-<pid>.log` file when it crashes.
 
-The report includes runtime details, the command line, the panic message, and the stack trace.
-
-Review the report for secrets before sharing it.
+The report includes runtime details, the command line, the panic message, and the stack trace. You can conveniently share this file (after reviewing for sensitive information) to report panics if Terragrunt crashes.
