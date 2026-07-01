@@ -788,7 +788,7 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 	// The from-ref stack references catalog/units/app, which was removed from the checked-out
 	// tree; before the fix, get_repo_root() resolved to the original checkout and generation
 	// failed to fetch the source.
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w, generate.WithWorktreeOnly())
+	err = generate.WorktreeStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
@@ -3127,7 +3127,7 @@ unit "app" {
 	opts.Experiments = experiment.NewExperiments()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
 
-	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w, generate.WithWorktreeOnly()))
+	require.NoError(t, generate.WorktreeStacks(t.Context(), l, opts, w))
 
 	// The working tree must stay untouched: no stack was generated under it.
 	_, statErr := os.Stat(filepath.Join(stackDir, ".terragrunt-stack"))

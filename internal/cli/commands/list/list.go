@@ -61,13 +61,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		}
 	}()
 
-	if len(worktrees.WorktreePairs) > 0 {
-		gen := generate.NewGenerator()
-
-		genErr := gen.GenerateStacks(ctx, l, opts.TerragruntOptions, worktrees, generate.WithWorktreeOnly())
-		if genErr != nil {
-			return fmt.Errorf("failed to generate stacks in worktrees: %w", genErr)
-		}
+	if err := generate.WorktreeStacks(ctx, l, opts.TerragruntOptions, worktrees); err != nil {
+		return err
 	}
 
 	d = d.WithWorktrees(worktrees)

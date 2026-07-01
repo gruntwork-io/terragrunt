@@ -53,43 +53,57 @@ func NewStackNode(filePath string) *StackNode {
 	}
 }
 
-// GenerateOption configures a stack generation run.
-type GenerateOption func(*generateOptions)
+// stackScope selects which stacks a generation run materializes.
+type stackScope int
 
-// generateOptions holds the resolved configuration for a stack generation run.
-type generateOptions struct {
-	worktreeOnly bool
-}
+const (
+	// allStacks generates stacks in the working directory and in any provided worktrees.
+	allStacks stackScope = iota
+	// worktreeStacksOnly generates only the worktree stacks, leaving the working directory untouched.
+	worktreeStacksOnly
+)
 
-func newGenerateOptions(genOpts ...GenerateOption) generateOptions {
-	var cfg generateOptions
-
-	for _, genOpt := range genOpts {
-		genOpt(&cfg)
+// WorktreeStacks generates the stacks that live inside the comparison worktrees, leaving the
+// working directory untouched. It is a no-op when no worktrees are present. find and list use it
+// to surface units nested in generated stacks without generating into the user's working directory.
+func WorktreeStacks(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	wts *worktrees.Worktrees,
+) error {
+	if wts == nil || len(wts.WorktreePairs) == 0 {
+		return nil
 	}
 
-	return cfg
-}
-
-// WithWorktreeOnly restricts stack generation to the provided worktrees, leaving the
-// working directory untouched.
-func WithWorktreeOnly() GenerateOption {
-	return func(cfg *generateOptions) {
-		cfg.worktreeOnly = true
+	if err := NewGenerator().generateStacks(ctx, l, opts, wts, worktreeStacksOnly); err != nil {
+		return fmt.Errorf("failed to generate stacks in worktrees: %w", err)
 	}
+
+	return nil
 }
 
-// GenerateStacks generates the stack files using topological ordering to
-// prevent race conditions. Stack files are generated level by level, with
-// parent stacks completing before their children. Worktrees must be
-// provided by the caller if needed; this function will never create
+// GenerateStacks generates every stack file under the working directory, plus any worktree stacks
+// carried on wts. Worktrees must be provided by the caller if needed; this function never creates
 // worktrees internally.
 func (g *Generator) GenerateStacks(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
-	genOpts ...GenerateOption,
+) error {
+	return g.generateStacks(ctx, l, opts, wts, allStacks)
+}
+
+// generateStacks generates the stack files using topological ordering to prevent race conditions.
+// Stack files are generated level by level, with parent stacks completing before their children.
+// scope selects whether the working directory is included or only the worktree stacks carried on wts.
+func (g *Generator) generateStacks(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	wts *worktrees.Worktrees,
+	scope stackScope,
 ) error {
 	workingDir, err := util.CanonicalResolvedPath(opts.WorkingDir, opts.WorkingDir)
 	if err != nil {
@@ -99,7 +113,7 @@ func (g *Generator) GenerateStacks(
 	g.locks.Lock(workingDir)
 	defer g.locks.Unlock(workingDir)
 
-	foundFiles, err := ListStackFiles(ctx, l, opts, wts, genOpts...)
+	foundFiles, err := ListStackFiles(ctx, l, opts, wts, scope)
 	if err != nil {
 		return fmt.Errorf("failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
@@ -137,7 +151,7 @@ func (g *Generator) GenerateStacks(
 			return err
 		}
 
-		err := discoverAndAddNewNodes(ctx, l, opts, wts, workingDir, stackTrees, generatedFiles, level+1, genOpts...)
+		err := discoverAndAddNewNodes(ctx, l, opts, wts, workingDir, stackTrees, generatedFiles, level+1, scope)
 		if err != nil {
 			return err
 		}
@@ -224,9 +238,9 @@ func discoverAndAddNewNodes(
 	dependencyGraph map[string]*StackNode,
 	generatedFiles map[string]bool,
 	minLevel int,
-	genOpts ...GenerateOption,
+	scope stackScope,
 ) error {
-	newFiles, listErr := ListStackFiles(ctx, l, opts, worktrees, genOpts...)
+	newFiles, listErr := ListStackFiles(ctx, l, opts, worktrees, scope)
 	if listErr != nil {
 		return fmt.Errorf("failed to list stack files after level %d: %w", minLevel-1, listErr)
 	}
@@ -359,19 +373,17 @@ func addNewNodesToGraph(
 }
 
 // ListStackFiles returns canonical, symlink-resolved stack-file paths under the absolute opts.WorkingDir.
-// With WithWorktreeOnly, stack files in the working directory are skipped and only worktree stacks are returned.
+// For worktreeStacksOnly, stack files in the working directory are skipped and only worktree stacks are returned.
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
-	genOpts ...GenerateOption,
+	scope stackScope,
 ) ([]string, error) {
-	cfg := newGenerateOptions(genOpts...)
-
 	var discoveredComponents component.Components
 
-	if !cfg.worktreeOnly {
+	if scope != worktreeStacksOnly {
 		d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 			WorkingDir: opts.WorkingDir,
 			Filters:    opts.Filters,
@@ -392,26 +404,15 @@ func ListStackFiles(
 	}
 
 	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
-	for _, c := range discoveredComponents {
-		if _, ok := c.(*component.Stack); !ok {
-			continue
-		}
 
-		canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
-		if err != nil {
-			return nil, err
-		}
-
-		foundFiles = append(foundFiles, canonical)
+	foundFiles, err = appendStackFilePaths(foundFiles, discoveredComponents, opts.WorkingDir)
+	if err != nil {
+		return nil, err
 	}
 
-	for _, c := range worktreeStacks {
-		canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
-		if err != nil {
-			return nil, err
-		}
-
-		foundFiles = append(foundFiles, canonical)
+	foundFiles, err = appendStackFilePaths(foundFiles, worktreeStacks, opts.WorkingDir)
+	if err != nil {
+		return nil, err
 	}
 
 	return foundFiles, nil
@@ -453,7 +454,7 @@ func ListStackFilesWithExcludes(
 		return nil, nil, err
 	}
 
-	foundFiles, err = appendWorktreeStackPaths(foundFiles, worktreeStacks, opts.WorkingDir)
+	foundFiles, err = appendStackFilePaths(foundFiles, worktreeStacks, opts.WorkingDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -495,22 +496,27 @@ func collectStackAndExcludedPaths(
 	return foundFiles, excludedPaths, nil
 }
 
-// appendWorktreeStackPaths appends canonical stack-file paths for worktree stacks to foundFiles.
-func appendWorktreeStackPaths(
-	foundFiles []string,
-	worktreeStacks component.Components,
+// appendStackFilePaths appends the canonical terragrunt.stack.hcl path of every stack component in
+// components to dst, resolving each against workingDir. Non-stack components are skipped.
+func appendStackFilePaths(
+	dst []string,
+	components component.Components,
 	workingDir string,
 ) ([]string, error) {
-	for _, c := range worktreeStacks {
+	for _, c := range components {
+		if _, ok := c.(*component.Stack); !ok {
+			continue
+		}
+
 		canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), workingDir)
 		if err != nil {
 			return nil, err
 		}
 
-		foundFiles = append(foundFiles, canonical)
+		dst = append(dst, canonical)
 	}
 
-	return foundFiles, nil
+	return dst, nil
 }
 
 // worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.
