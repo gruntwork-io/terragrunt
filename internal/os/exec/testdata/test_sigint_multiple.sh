@@ -6,6 +6,7 @@ INT_REQUIRED=$1
 INT_COUNTER=0
 
 trap int_handler INT
+echo ready
 
 # shellcheck disable=SC2329  # invoked indirectly via trap
 function int_handler() {

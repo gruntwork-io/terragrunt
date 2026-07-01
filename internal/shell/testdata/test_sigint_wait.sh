@@ -5,6 +5,7 @@ set -e
 WAIT_TIME=$1
 
 trap int_handler INT
+echo ready
 
 function int_handler() {
 	sleep "$WAIT_TIME"

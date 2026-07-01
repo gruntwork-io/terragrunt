@@ -50,6 +50,7 @@ type ShellOptions struct {
 	ForwardTFStdout        bool
 	LogShowAbsPaths        bool
 	LogDisableErrorSummary bool
+	ForwardSignalDelay     time.Duration
 }
 
 // NewShellOptions creates ShellOptions with sensible defaults:
@@ -64,7 +65,8 @@ func NewShellOptions() *ShellOptions {
 			Writer:    os.Stdout,
 			ErrWriter: os.Stderr,
 		},
-		Telemetry: &telemetry.Options{},
+		Telemetry:          &telemetry.Options{},
+		ForwardSignalDelay: SignalForwardingDelay,
 	}
 
 	if tp := os.Getenv(telemetry.TraceParentEnv); tp != "" {
@@ -154,6 +156,13 @@ func (o *ShellOptions) WithHeadless(h bool) *ShellOptions {
 // WithForwardTFStdout sets the flag to forward TF stdout.
 func (o *ShellOptions) WithForwardTFStdout(f bool) *ShellOptions {
 	o.ForwardTFStdout = f
+
+	return o
+}
+
+// WithForwardSignalDelay sets the delay before forwarding an interrupt signal.
+func (o *ShellOptions) WithForwardSignalDelay(delay time.Duration) *ShellOptions {
+	o.ForwardSignalDelay = delay
 
 	return o
 }
@@ -318,7 +327,7 @@ func runCommand(
 	cmd.Configure(
 		exec.WithUsePTY(cmdOpts.NeedsPTY),
 		exec.WithEnv(runOpts.Env),
-		exec.WithForwardSignalDelay(SignalForwardingDelay),
+		exec.WithForwardSignalDelay(runOpts.ForwardSignalDelay),
 	)
 
 	// Save/restore console mode around subprocess - Windows subprocesses can reset it.

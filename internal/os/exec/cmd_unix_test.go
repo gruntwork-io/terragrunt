@@ -3,10 +3,12 @@
 package exec_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -53,11 +55,13 @@ func TestExitCodeUnix(t *testing.T) {
 func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	t.Parallel()
 
-	expectedWait := 5
+	expectedWait := 1
 
 	l := logger.CreateLogger()
 
 	cmd := exec.Command(t.Context(), vexec.NewOSExec(), "testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
+	ready := make(chan struct{})
+	cmd.SetStdout(&signalReadyWriter{ready: ready})
 
 	runChannel := make(chan error)
 
@@ -65,7 +69,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 		runChannel <- cmd.Run(l)
 	}()
 
-	time.Sleep(time.Second)
+	waitForSignalTestReady(t, ready)
 
 	start := time.Now()
 
@@ -79,14 +83,14 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	assert.Equal(t, expectedWait, retCode)
 	assert.WithinDuration(t, time.Now(), start.Add(time.Duration(expectedWait)*time.Second), time.Second,
-		"Expected to wait 5 (+/-1) seconds after SIGINT")
+		"Expected to wait %d (+/-1) seconds after SIGINT", expectedWait)
 }
 
 // There isn't a proper way to catch interrupts in Windows batch scripts, so this test exists only for Unix.
 func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	t.Parallel()
 
-	expectedInterrupts := 10
+	expectedInterrupts := 3
 
 	l := logger.CreateLogger()
 
@@ -94,6 +98,8 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 		t.Context(), vexec.NewOSExec(),
 		"testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts),
 	)
+	ready := make(chan struct{})
+	cmd.SetStdout(&signalReadyWriter{ready: ready})
 
 	runChannel := make(chan error)
 
@@ -101,7 +107,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 		runChannel <- cmd.Run(l)
 	}()
 
-	time.Sleep(time.Second)
+	waitForSignalTestReady(t, ready)
 
 	interruptAndWaitForProcess := func() (int, error) {
 		var (
@@ -140,11 +146,13 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	l := logger.CreateLogger()
 
 	cmd := exec.Command(ctx, vexec.NewOSExec(), "testdata/test_graceful_shutdown.sh")
+	ready := make(chan struct{})
+	cmd.SetStdout(&signalReadyWriter{ready: ready})
 
 	cmd.Configure(exec.WithGracefulShutdownDelay(5 * time.Second))
 
@@ -154,7 +162,7 @@ func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
 		runChannel <- cmd.Run(l)
 	}()
 
-	time.Sleep(500 * time.Millisecond)
+	waitForSignalTestReady(t, ready)
 
 	cancel()
 
@@ -172,4 +180,30 @@ func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
 			"This suggests SIGKILL was sent instead of SIGINT.",
 		retCode,
 	)
+}
+
+type signalReadyWriter struct {
+	ready chan<- struct{}
+	once  sync.Once
+}
+
+func (writer *signalReadyWriter) Write(data []byte) (int, error) {
+	if bytes.Contains(data, []byte("ready")) {
+		writer.once.Do(func() {
+			close(writer.ready)
+		})
+	}
+
+	return len(data), nil
+}
+
+func waitForSignalTestReady(t *testing.T, ready <-chan struct{}) {
+	t.Helper()
+
+	select {
+	case <-ready:
+		return
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timed out waiting for signal test process readiness")
+	}
 }

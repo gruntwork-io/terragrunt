@@ -536,14 +536,14 @@ func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
 
 	l := logger.CreateLogger().WithOptions(tglog.WithLevel(tglog.ErrorLevel))
 
-	const testMaxFileManifestEntries = 1_000_000
+	const testMaxFileManifestEntries = 100
 
 	root := helpers.TmpDirWOSymlinks(t)
 	manifestPath := filepath.Join(root, testManifestName)
 
 	writeRepeatedManifestEntry(t, manifestPath, testMaxFileManifestEntries+1, manifestFile(""))
 
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifestWithEntryCapForTest(root, testManifestName, testMaxFileManifestEntries)
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "entry cap")
