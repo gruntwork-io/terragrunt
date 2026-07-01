@@ -27,11 +27,13 @@ import (
 
 // SignalForwardingDelay is the time to wait before forwarding the signal to the subcommand.
 //
-// The signal can be sent to the main process (only `terragrunt`) as well as the process group (`terragrunt` and `terraform`), for example:
+// The signal can be sent to the main process (only `terragrunt`) as well as the
+// process group (`terragrunt` and `terraform`), for example:
 // kill -INT <pid>  # sends SIGINT only to the main process
 // kill -INT -<pid> # sends SIGINT to the process group
 // Since we cannot know how the signal is sent, we should give `tofu`/`terraform` time to gracefully exit
-// if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `tofu`/`terraform`.
+// if it receives the signal directly from the shell, to avoid sending the
+// second interrupt signal to `tofu`/`terraform`.
 const SignalForwardingDelay = time.Second * 15
 
 // ShellOptions contains the configuration needed to run shell commands.
@@ -177,7 +179,14 @@ func (o *ShellOptions) NoEngine() bool {
 // RunCommand runs the given shell command using the provided vexec.Exec.
 // Pass vexec.NewMemExec from tests and fuzzers to intercept subprocess
 // invocations so external binaries like tofu/terraform are never forked.
-func RunCommand(ctx context.Context, l log.Logger, e vexec.Exec, runOpts *ShellOptions, command string, args ...string) error {
+func RunCommand(
+	ctx context.Context,
+	l log.Logger,
+	e vexec.Exec,
+	runOpts *ShellOptions,
+	command string,
+	args ...string,
+) error {
 	_, err := RunCommandWithOutput(ctx, l, e, runOpts, "", false, false, command, args...)
 
 	return err

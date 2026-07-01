@@ -1,6 +1,8 @@
 package tips_test
 
 import (
+	"errors"
+	"io/fs"
 	"path/filepath"
 	"testing"
 
@@ -12,6 +14,26 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/function"
 )
+
+// errStatFault stands in for a Stat failure that is not "file does not exist".
+var errStatFault = errors.New("stat fault")
+
+// missingAsErrorFS wraps a vfs.FS and reports a missing path as a hard Stat
+// error instead of a clean "not found". It lets tests drive the FileExists
+// error branches that an ordinary in-memory FS never reaches.
+type missingAsErrorFS struct {
+	vfs.FS
+	err error
+}
+
+func (f *missingAsErrorFS) Stat(name string) (fs.FileInfo, error) {
+	info, err := f.FS.Stat(name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, f.err
+	}
+
+	return info, err
+}
 
 func TestSuggestRecursiveStackFilter(t *testing.T) {
 	t.Parallel()
@@ -213,4 +235,33 @@ func TestGiveStackNestedGenerateTipNoOp(t *testing.T) {
 			assert.Empty(t, output.String())
 		})
 	}
+}
+
+func TestGiveStackNestedGenerateTipSkipsOnStatError(t *testing.T) {
+	t.Parallel()
+
+	const (
+		workingDir   = "/work"
+		stackOfStack = "stack \"child\" {\n  source = \"x\"\n  path = \"child\"\n}\n"
+		stackOfUnit  = "unit \"u\" {\n  source = \"x\"\n  path = \"u\"\n}\n"
+	)
+
+	stackDir := filepath.Join(workingDir, "my-stack")
+
+	base := vfs.NewMemMapFS()
+	writeFile(t, base, filepath.Join(stackDir, "terragrunt.stack.hcl"), stackOfStack)
+	writeFile(t, base, filepath.Join(stackDir, ".terragrunt-stack", "child", "terragrunt.stack.hcl"), stackOfUnit)
+
+	// The nested unit's generated path does not exist; the wrapper turns that
+	// missing-path Stat into an error, exercising anyPathMissing's error branch.
+	fs := &missingAsErrorFS{FS: base, err: errStatFault}
+
+	parsed, err := filter.Parse("./my-stack | type=stack")
+	require.NoError(t, err)
+
+	l, output := newTestLogger()
+
+	tips.GiveStackNestedGenerateTip(l, fs, emptyStackFuncFactory(), workingDir, filter.Filters{parsed}, tips.NewTips())
+
+	assert.NotContains(t, output.String(), tips.StackNestedStacksNotGenerated)
 }

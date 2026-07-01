@@ -42,7 +42,17 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	shellOpts.SignalForwardingDelay = 100 * time.Millisecond
 
 	go func() {
-		_, err := shell.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), shellOpts, "", false, false, cmdPath, strconv.Itoa(expectedWait))
+		_, err := shell.RunCommandWithOutput(
+			ctx,
+			l,
+			vexec.NewOSExec(),
+			shellOpts,
+			"",
+			false,
+			false,
+			cmdPath,
+			strconv.Itoa(expectedWait),
+		)
 		errCh <- err
 	}()
 

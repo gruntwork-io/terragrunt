@@ -19,7 +19,10 @@ func writePackageDir(t *testing.T, content string) string {
 	dir := helpers.TmpDirWOSymlinks(t)
 
 	const ownerWriteGlobalReadPerms = 0644
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "terraform-provider-test"), []byte(content), ownerWriteGlobalReadPerms))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(dir, "terraform-provider-test"), []byte(content), ownerWriteGlobalReadPerms),
+	)
 
 	return dir
 }

@@ -107,7 +107,9 @@ func TestPackageAuthenticationAllAuthenticate(t *testing.T) {
 func TestPackageAuthenticationAllAcceptableHashes(t *testing.T) {
 	t.Parallel()
 
-	shasums := "53e30545ff8926a8e30ad30648991ca8b93b6fa496272cd23b26763c8ee84515  terraform-provider-null_3.1.0_linux_amd64.zip\n"
+	const nullSHA256 = "53e30545ff8926a8e30ad30648991ca8b93b6fa496272cd23b26763c8ee84515"
+
+	shasums := nullSHA256 + "  terraform-provider-null_3.1.0_linux_amd64.zip\n"
 
 	t.Run("returns-hashes-from-last-capable-check", func(t *testing.T) {
 		t.Parallel()
@@ -122,7 +124,11 @@ func TestPackageAuthenticationAllAcceptableHashes(t *testing.T) {
 		hashes, ok := auth.(getproviders.PackageAuthenticationHashes)
 		require.True(t, ok)
 
-		assert.Equal(t, []getproviders.Hash{"zh:53e30545ff8926a8e30ad30648991ca8b93b6fa496272cd23b26763c8ee84515"}, hashes.AcceptableHashes())
+		assert.Equal(
+			t,
+			[]getproviders.Hash{"zh:" + nullSHA256},
+			hashes.AcceptableHashes(),
+		)
 	})
 
 	t.Run("nil-when-no-check-provides-hashes", func(t *testing.T) {
