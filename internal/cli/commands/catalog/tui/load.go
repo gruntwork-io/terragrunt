@@ -50,9 +50,17 @@ func LoadURL(
 		return fmt.Errorf("failed to create catalog temporary directory for %s: %w", repoURL, err)
 	}
 
-	tempDirs.Track(tempPath)
-
 	keepDir := false
+
+	preserveTempDir := func() {
+		if keepDir {
+			return
+		}
+
+		keepDir = true
+
+		tempDirs.Track(tempPath)
+	}
 
 	defer func() {
 		if keepDir {
@@ -60,7 +68,7 @@ func LoadURL(
 		}
 
 		if err := v.FS.RemoveAll(tempPath); err != nil {
-			l.Debugf("Failed to remove unused catalog temporary directory %q: %v", tempPath, err)
+			l.Warnf("Failed to remove catalog temporary directory %q: %v", tempPath, err)
 		}
 	}()
 
@@ -111,12 +119,11 @@ func LoadURL(
 
 		select {
 		case componentCh <- entry:
+			preserveTempDir()
 		case <-ctx.Done():
 			return nil
 		}
 	}
-
-	keepDir = true
 
 	return nil
 }

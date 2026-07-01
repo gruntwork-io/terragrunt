@@ -1,12 +1,18 @@
 package tui_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,4 +62,86 @@ func TestCreateCatalogTempPathUsesFreshDirectory(t *testing.T) {
 	assert.NotEqual(t, first, second)
 	assert.DirExists(t, first)
 	assert.DirExists(t, second)
+}
+
+func TestLoadURLKeepsTempDirAfterEmittingComponentOnCancel(t *testing.T) {
+	// t.Setenv forbids t.Parallel.
+	base := t.TempDir()
+	tempRoot := filepath.Join(base, "tmp")
+	require.NoError(t, os.Mkdir(tempRoot, 0o755))
+	t.Setenv("TMPDIR", tempRoot)
+
+	repoDir := filepath.Join(base, "repo")
+	writeCatalogRepo(t, repoDir)
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	v := venv.OSVenv()
+	tracker := tui.NewTempDirTracker(v.FS)
+	ctx, cancel := context.WithCancel(t.Context())
+	componentCh := make(chan *tui.ComponentEntry)
+	errCh := make(chan error, 1)
+
+	go func() {
+		errCh <- tui.LoadURL(ctx, logger.CreateLogger(), v, opts, tracker, repoDir, componentCh)
+	}()
+
+	select {
+	case <-componentCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for first component")
+	}
+
+	cancel()
+
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for LoadURL to return")
+	}
+
+	catalogDirs := catalogTempDirs(t, tempRoot)
+	require.Len(t, catalogDirs, 1)
+	assert.DirExists(t, catalogDirs[0])
+
+	tracker.Cleanup(logger.CreateLogger())
+	assert.NoDirExists(t, catalogDirs[0])
+}
+
+func writeCatalogRepo(t *testing.T, repoDir string) {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(repoDir, ".git"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, ".git", "config"), []byte(`[core]
+	repositoryformatversion = 0
+[remote "origin"]
+	url = github.com/gruntwork-io/fake-repo
+`), 0o644))
+
+	require.NoError(t, os.MkdirAll(filepath.Join(repoDir, "alpha"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "alpha", "main.tf"), []byte("# alpha\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(repoDir, "bravo"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "bravo", "main.tf"), []byte("# bravo\n"), 0o644))
+}
+
+func catalogTempDirs(t *testing.T, tempRoot string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(tempRoot)
+	require.NoError(t, err)
+
+	var dirs []string
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "catalog-") {
+			continue
+		}
+
+		dirs = append(dirs, filepath.Join(tempRoot, entry.Name()))
+	}
+
+	return dirs
 }
