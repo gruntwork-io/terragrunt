@@ -65,6 +65,7 @@ const (
 )
 
 const (
+	// Cap extraction so malformed archives fail before they can exhaust disk space.
 	engineArchiveDecompressedSizeLimit int64 = 512 << 20
 	engineArchiveFilesLimit                  = 20
 )
