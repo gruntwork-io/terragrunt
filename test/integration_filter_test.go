@@ -2173,25 +2173,9 @@ func TestDestroyWithOutDirGitFilterDependentsWithRacing(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	outDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
+	runner := helpers.InitTestGitRunner(t, tmpDir)
 
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err = runner.GoCloseStorage()
-		if err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
-
-	err = os.WriteFile(filepath.Join(tmpDir, ".gitignore"), []byte(".terragrunt-cache/\n.terraform/\n.terraform.lock.hcl\n"), 0644)
+	err := os.WriteFile(filepath.Join(tmpDir, ".gitignore"), []byte(".terragrunt-cache/\n.terraform/\n.terraform.lock.hcl\n"), 0644)
 	require.NoError(t, err)
 
 	// create unit to destroy
@@ -2230,17 +2214,8 @@ resource "null_resource" "unit_a" {}
 	require.NoError(t, err)
 
 	// Initial commit
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
 
 	// do initial apply
 	cmd := "terragrunt run --all --no-color --non-interactive --working-dir " + tmpDir +
@@ -2251,17 +2226,8 @@ resource "null_resource" "unit_a" {}
 	err = os.RemoveAll(unitDir)
 	require.NoError(t, err)
 
-	err = runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit("Unit removal", &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Unit removal"))
 
 	// Use ...[HEAD~1...HEAD] (dependents syntax) instead of plain [HEAD~1...HEAD].
 	// The graph expression wrapper must not strip the -destroy flag from the
