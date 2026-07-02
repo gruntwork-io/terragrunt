@@ -42,8 +42,12 @@ func TestReportPanicWritesCrashLog(t *testing.T) {
 	assert.Contains(t, logOutput, "1. Your Terragrunt version: 1.7.9")
 	assert.Contains(t, logOutput, "2. The full panic report file linked above.")
 	assert.Contains(t, logOutput, "Full error details follow")
+	assert.Contains(t, logOutput, "nil pointer dereference")
 	assert.Contains(t, logOutput, panicreport.PanicIssueURL)
 	assert.NotContains(t, logOutput, "Failed to save a panic report file")
+	// The full report belongs in the file only; the terminal shows the banner and panic message.
+	assert.NotContains(t, logOutput, "stack-frames")
+	assert.NotContains(t, logOutput, "Terragrunt panic report")
 
 	body, err := vfs.ReadFile(fs, expectedPath)
 	require.NoError(t, err)
@@ -178,7 +182,9 @@ func TestPanicHandler(t *testing.T) {
 		body, err := vfs.ReadFile(fs, expectedPath)
 		require.NoError(t, err)
 		assert.Contains(t, output.String(), "TERRAGRUNT CRASH")
-		assert.Contains(t, output.String(), "Panic: boom")
+		assert.Contains(t, output.String(), "boom")
+		// The stack trace goes to the file only; the terminal must stay free of goroutine dumps.
+		assert.NotContains(t, output.String(), "goroutine")
 		// The test's own frame must appear in the captured stack so defer-ordering regressions are caught.
 		assert.Contains(t, string(body), "panicreport_test.go")
 	})

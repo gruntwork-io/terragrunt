@@ -304,15 +304,6 @@ type TerragruntOptions struct {
 	LogDisableErrorSummary bool
 }
 
-// VersionString returns the configured Terragrunt version, or "" if unset or receiver is nil.
-func (opts *TerragruntOptions) VersionString() string {
-	if opts == nil || opts.TerragruntVersion == nil {
-		return ""
-	}
-
-	return opts.TerragruntVersion.String()
-}
-
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
 type TerragruntOptionsFunc func(*TerragruntOptions)
 

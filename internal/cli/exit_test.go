@@ -52,6 +52,9 @@ func TestExitCodeFor(t *testing.T) {
 
 		assert.Equal(t, 1, code)
 		assert.Contains(t, buf.String(), "TERRAGRUNT CRASH")
+		assert.Contains(t, buf.String(), "nil deref")
+		// The stack belongs in the crash file only, not the terminal.
+		assert.NotContains(t, buf.String(), "cty stack")
 	})
 
 	t.Run("cty function panic preserves raw binary version", func(t *testing.T) {

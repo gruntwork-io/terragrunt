@@ -33,7 +33,8 @@ const (
 	crashLogPrefix         = "terragrunt-crash"
 	crashLogFileTimeLayout = "20060102T150405Z"
 
-	unknownValue = "unknown"
+	unknownValue   = "unknown"
+	noPanicMessage = "(no panic message)"
 
 	crashFileMode os.FileMode = 0o600
 
@@ -171,6 +172,7 @@ func (r *Reporter) PanicHandler(rec any, l log.Logger, version func() string, ar
 }
 
 // ReportPanic writes the crash log and friendly banner for a panic surfaced as a returned error.
+// The full report is printed inline only when the crash log file cannot be written.
 func (r *Reporter) ReportPanic(l log.Logger, version, panicMsg string, stack []byte, args []string) {
 	logPath, logContent, writeErr := r.writeLog(version, panicMsg, stack, args)
 
@@ -186,8 +188,13 @@ func (r *Reporter) ReportPanic(l log.Logger, version, panicMsg string, stack []b
 		return
 	}
 
+	displayMsg := panicMsg
+	if displayMsg == "" {
+		displayMsg = noPanicMessage
+	}
+
 	l.Errorf(panicBannerSuccess, logPath, displayVersion, PanicIssueURL)
-	l.Error(logContent)
+	l.Error(displayMsg)
 }
 
 // PanicDetails returns the panic message and stack split out of err; callers must gate on IsPanic.
@@ -419,7 +426,7 @@ func (r *Reporter) formatLog(
 	command := strings.Join(args, " ")
 
 	if panicMsg == "" {
-		panicMsg = "(no panic message)"
+		panicMsg = noPanicMessage
 	}
 
 	if version == "" {
