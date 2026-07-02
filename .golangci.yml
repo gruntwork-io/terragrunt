@@ -140,13 +140,13 @@ linters:
       - linters:
           - gocritic
         text: "hugeParam:"
-        path: internal/cli/commands/catalog/tui/
+        path: internal/cli/commands/(browse|catalog)/tui/
       # Incrementally linting lines that are too long to ensure that
       # we don't have conflicts on every file in the codebase while
       # trying to get this merged in.
       - linters:
           - lll
-        path-except: '^(internal/awshelper/|internal/cas/|internal/cli/commands/(backend/(delete|migrate)|catalog/tui/command|dag/graph|exec|find|help|list|scaffold|stack)/|internal/cloner/|internal/codegen/|internal/configbridge/|internal/discovery/|internal/engine/|internal/errorconfig/|internal/errors/|internal/experiment/|internal/filter/|internal/gcphelper/|internal/getter/|internal/git/|internal/os/exec/|internal/prepare/|internal/queue/|internal/report/|internal/retry/|internal/runner/(common|graph|run/creds|runall|runcfg)/|internal/stacks/(generate|output)/|internal/telemetry/|internal/tf/cache/(controllers|middleware)/|internal/tflint/|internal/tips/|internal/vfs/|internal/worktrees/|pkg/log/(format/(options|placeholders)|writer)/|pkg/options/)'
+        path-except: '^(internal/awshelper/|internal/cas/|internal/cli/commands/(backend/(delete|migrate)|browse|catalog/tui/command|dag/graph|exec|find|help|list|scaffold|stack)/|internal/cloner/|internal/codegen/|internal/configbridge/|internal/discovery/|internal/engine/|internal/errorconfig/|internal/errors/|internal/experiment/|internal/filter/|internal/gcphelper/|internal/getter/|internal/git/|internal/os/exec/|internal/prepare/|internal/queue/|internal/report/|internal/retry/|internal/runner/(common|graph|run/creds|runall|runcfg)/|internal/stacks/(generate|output)/|internal/telemetry/|internal/tf/cache/(controllers|middleware)/|internal/tflint/|internal/tips/|internal/vfs/|internal/worktrees/|pkg/log/(format/(options|placeholders)|writer)/|pkg/options/)'
     paths:
       - docs
       - _ci

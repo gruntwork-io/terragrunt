@@ -29,6 +29,7 @@ import (
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/internal/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/backend"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag"
 	execcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/exec"
@@ -93,8 +94,9 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 	)
 
 	discoveryCommands := clihelper.Commands{
-		find.NewCommand(l, opts), // find
-		list.NewCommand(l, opts), // list
+		find.NewCommand(l, opts),   // find
+		list.NewCommand(l, opts),   // list
+		browse.NewCommand(l, opts), // browse
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  DiscoveryCommandsCategoryName,
