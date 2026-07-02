@@ -133,10 +133,10 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 		return aws.Config{}, fmt.Errorf("error loading AWS config: %w", err)
 	}
 
-	if createCredentialsFromEnv(b.env) != nil {
-		return cfg, nil
-	}
-
+	// Role assumption must not be skipped when env credentials are present: they serve as the
+	// source identity for the assumption. The role-assuming credential providers below capture
+	// cfg by value before cfg.Credentials is overwritten, so the STS calls they make are signed
+	// with the env credentials, chaining the two.
 	mergedIAMRoleOptions := getMergedIAMRoleOptions(b.sessionConfig, b.iamRoleOpts)
 	if mergedIAMRoleOptions.RoleARN == "" {
 		return cfg, nil
