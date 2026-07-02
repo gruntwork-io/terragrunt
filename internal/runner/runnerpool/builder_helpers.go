@@ -226,10 +226,7 @@ func checkUnitVersionConstraints(
 	// This is almost definitely already parsed, but we'll check just in case.
 	if unitConfig == nil {
 		configCtx, pctx := configbridge.NewParsingContext(ctx, l, unitOpts)
-		pctx = pctx.WithDecodeList(
-			config.TerragruntVersionConstraints,
-			config.FeatureFlagsBlock,
-		)
+		pctx = pctx.WithDecodeList(config.TerragruntVersionConstraints)
 
 		var err error
 
@@ -280,24 +277,6 @@ func checkUnitVersionConstraints(
 			unitConfig.TerragruntVersionConstraint,
 		); err != nil {
 			return fmt.Errorf("terragrunt version check failed for unit %s: %w", unit.DisplayPath(), err)
-		}
-	}
-
-	if unitConfig.FeatureFlags != nil {
-		for _, flag := range unitConfig.FeatureFlags {
-			flagName := flag.Name
-
-			defaultValue, err := flag.DefaultAsString()
-			if err != nil {
-				return fmt.Errorf(
-					"failed to get default value for feature flag %s in unit %s: %w",
-					flagName, unit.DisplayPath(), err,
-				)
-			}
-
-			if _, exists := unitOpts.FeatureFlags.Load(flagName); !exists {
-				unitOpts.FeatureFlags.Store(flagName, defaultValue)
-			}
 		}
 	}
 
