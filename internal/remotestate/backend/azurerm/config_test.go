@@ -118,6 +118,28 @@ func TestGetTFInitArgs_EmptyConfig(t *testing.T) {
 	assert.Empty(t, args)
 }
 
+func TestGetTFInitArgs_NormalizesSnapshotBool(t *testing.T) {
+	t.Parallel()
+
+	cfg := fullConfig()
+	cfg["snapshot"] = "true"
+
+	args := cfg.GetTFInitArgs()
+
+	v, ok := args["snapshot"].(bool)
+	require.True(t, ok, "snapshot must be coerced to a bool before tofu init")
+	assert.True(t, v)
+}
+
+func TestRemoteStateConfigCacheKey(t *testing.T) {
+	t.Parallel()
+
+	ext, err := fullConfig().ExtendedAzurermConfig()
+	require.NoError(t, err)
+
+	assert.Equal(t, "tfstate1234/tfstate", ext.RemoteStateConfigAzurerm.CacheKey())
+}
+
 // fullConfig returns a complete, valid azurerm backend config for use across the
 // azurerm_test package (also referenced from backend_test.go).
 func fullConfig() azurerm.Config {

@@ -1,0 +1,20 @@
+---
+version: "v1.1.1"
+category: "experiments-updated"
+---
+
+#### `azure-backend` now manages Azure Storage remote state
+
+The `azure-backend` experiment now enables functional Terragrunt support for the Azure Storage (`azurerm`) remote-state backend.
+
+When the experiment is enabled, Terragrunt can bootstrap the resource group, storage account, and blob container used by `remote_state { backend = "azurerm" }`, detect whether the backend needs bootstrapping, converge blob versioning and soft-delete settings, delete state blobs or containers, and migrate state blobs within the same storage account.
+
+Terragrunt-only bootstrap settings such as `location`, storage account SKU settings, `skip_*` creation flags, `enable_soft_delete`, `soft_delete_retention_days`, and `msi_resource_id` are used by Terragrunt but filtered out before `tofu init -backend-config`, so the underlying `azurerm` backend receives only keys it understands.
+
+This remains opt-in while the experiment is active:
+
+```bash
+terragrunt --experiment azure-backend run -- plan
+```
+
+Thanks to [@omattsson](https://github.com/omattsson) for driving this support forward.
