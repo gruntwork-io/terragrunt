@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Improved log messages for hooks with errors
+
+Hooks encountering errors will now return errors that better communicate whether an error was caused by failure to execute an external process or successfully running an external process, but receiving a non-zero exit code.

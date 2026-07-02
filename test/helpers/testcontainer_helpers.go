@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/docker/go-connections/nat"
 	"github.com/mattn/go-shellwords"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -58,7 +57,7 @@ func RunContainer(tb testing.TB, image string, port int, opts ...testcontainers.
 		testcontainers.WithExposedPorts(portStr),
 		testcontainers.WithLogger(tLogger{tb}),
 		testcontainers.WithAdditionalWaitStrategy(
-			wait.ForListeningPort(nat.Port(portStr)),
+			wait.ForListeningPort(portStr),
 		),
 	)
 
@@ -66,7 +65,7 @@ func RunContainer(tb testing.TB, image string, port int, opts ...testcontainers.
 	testcontainers.CleanupContainer(tb, c)
 	require.NoError(tb, err)
 
-	mappedPort, err := c.MappedPort(ctx, nat.Port(portStr))
+	mappedPort, err := c.MappedPort(ctx, portStr)
 	require.NoError(tb, err)
 	mappedIP, err := c.Host(ctx)
 	require.NoError(tb, err)

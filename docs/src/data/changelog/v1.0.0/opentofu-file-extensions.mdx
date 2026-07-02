@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### OpenTofu file extensions handled in catalog and scaffold
+
+Terragrunt `catalog` now lists modules that use `.tofu`, `.tf.json`, or `.tofu.json` files. Terragrunt `scaffold` now parses variables from `.tofu` files — previously, variables defined in `.tofu` files were silently missing from the generated `terragrunt.hcl`.

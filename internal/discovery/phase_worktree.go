@@ -15,8 +15,9 @@ import (
 	"strings"
 	"sync"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -87,11 +88,16 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 				return err
 			}
 
+			// Expand routes reading filters for deleted files onto the from side, since a deleted file
+			// only exists in the from worktree where its read relationship can be evaluated. These need
+			// different handling from the path filters for genuinely removed components, so split them.
+			deletedReadFilters, removalFilters := fromFilters.PartitionReadingFilters()
+
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
 
-			if len(fromFilters) > 0 {
+			if len(removalFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.FromWorktree, fromFilters, FromWorktreeKind)
+					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.FromWorktree, removalFilters, FromWorktreeKind)
 					if err != nil {
 						return err
 					}
@@ -104,9 +110,24 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 				})
 			}
 
-			if len(toFilters) > 0 {
+			if len(toFilters) > 0 || len(deletedReadFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.ToWorktree, toFilters, ToWorktreeKind)
+					finalToFilters := toFilters
+
+					if len(deletedReadFilters) > 0 {
+						translated, err := p.deletedReadingComponentsToFilters(fromToCtx, l, input, pair.FromWorktree, deletedReadFilters)
+						if err != nil {
+							return err
+						}
+
+						finalToFilters = slices.Concat(toFilters, translated)
+					}
+
+					if len(finalToFilters) == 0 {
+						return nil
+					}
+
+					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.ToWorktree, finalToFilters, ToWorktreeKind)
 					if err != nil {
 						return err
 					}
@@ -196,8 +217,14 @@ func (p *WorktreePhase) discoverInWorktree(
 		return nil, err
 	}
 
+	// Propagate non-git filters from the parent discovery to the worktree sub-discovery.
+	// Git expressions are excluded to avoid infinite recursion (the worktree phase is
+	// already handling them). All other filters (path, attribute, negation) are included
+	// so that exclusions and type constraints apply within sub-discoveries.
+	allFilters := slices.Concat(filters, discovery.filters.ExcludingGitFilters())
+
 	subDiscovery := NewDiscovery(wt.Path).
-		WithFilters(filters).
+		WithFilters(allFilters).
 		WithDiscoveryContext(discoveryContext).
 		WithNumWorkers(p.numWorkers)
 
@@ -215,6 +242,48 @@ func (p *WorktreePhase) discoverInWorktree(
 	}
 
 	return components, nil
+}
+
+// deletedReadingComponentsToFilters discovers, in the from worktree, the units that read files
+// deleted in the diff (those files only exist on the from side), then returns a path filter per
+// discovered unit aimed at its equivalent path in the to worktree. A unit that no longer exists in the
+// to worktree simply matches nothing there, which is the expected outcome for a genuine removal that
+// another filter already covers. Stacks are intentionally skipped: a stack reading a deleted file is
+// routed through ReadingAffectedStacks during generation so its generated units get walked, which a
+// plain path filter (matching only the stack file) would not achieve.
+func (p *WorktreePhase) deletedReadingComponentsToFilters(
+	ctx context.Context,
+	l log.Logger,
+	input *PhaseInput,
+	fromWorktree worktrees.Worktree,
+	readingFilters filter.Filters,
+) (filter.Filters, error) {
+	affected, err := p.discoverInWorktree(ctx, l, input, fromWorktree, readingFilters, FromWorktreeKind)
+	if err != nil {
+		return nil, err
+	}
+
+	toFilters := make(filter.Filters, 0, len(affected))
+
+	for _, c := range affected {
+		if _, ok := c.(*component.Stack); ok {
+			continue
+		}
+
+		relPath, err := filepath.Rel(fromWorktree.Path, c.Path())
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve relative path for reading-affected component %s: %w", c.Path(), err)
+		}
+
+		expr, err := filter.NewPathFilter(relPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create path filter for reading-affected component %s: %w", relPath, err)
+		}
+
+		toFilters = append(toFilters, filter.NewFilter(expr, expr.String()))
+	}
+
+	return toFilters, nil
 }
 
 // discoverChangesInWorktreeStacks discovers changes in worktree stacks.
@@ -312,10 +381,12 @@ func (p *WorktreePhase) walkChangedStack(
 		errs = make([]error, 0, 2) //nolint:mnd
 	)
 
+	parentFilters := discovery.filters.ExcludingGitFilters()
+
 	discoveryGroup.Go(func() error {
 		fromDiscovery := NewDiscovery(fromStack.Path()).
 			WithDiscoveryContext(fromDiscoveryContext).
-			WithFilters(filter.Filters{}).
+			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers)
 
 		var fromDiscoveryErr error
@@ -343,7 +414,7 @@ func (p *WorktreePhase) walkChangedStack(
 	discoveryGroup.Go(func() error {
 		toDiscovery := NewDiscovery(toStack.Path()).
 			WithDiscoveryContext(toDiscoveryContext).
-			WithFilters(filter.Filters{}).
+			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers)
 
 		var toDiscoveryErr error

@@ -21,7 +21,7 @@ We're going to follow a very similar process to what we did when breaking apart 
 
 First, we'll create a directory for each of the new units we want to create for all the constituent modules of the `best_cat` megamodule. In each of our environments (`dev` and `prod`).
 
-<Code title="live" lang="bash" frame="terminal" code={`mkdir -p {dev, prod}/{s3, ddb, iam, lambda}`} />
+<Code title="live" lang="bash" frame="terminal" code={`mkdir -p {dev,prod}/{s3,ddb,iam,lambda}`} />
 
 Next, we'll create the `terragrunt.hcl` files in each of these directories.
 
@@ -123,7 +123,7 @@ cd ../s3 && terragrunt state push /tmp/tofu.tfstate
 
 We can now clean up the extraneous files mentioned earlier at the root of the environments.
 
-<Code title="live" lang="bash" frame="terminal" code={`rm -f {dev, prod}/{terragrunt.hcl, moved.tf}`} />
+<Code title="live" lang="bash" frame="terminal" code={`rm -f {dev,prod}/{terragrunt.hcl,moved.tf}`} />
 
 Go ahead and run the following to see very similar plan output to what we've seen in the past when we needed to make state moves & removes.
 

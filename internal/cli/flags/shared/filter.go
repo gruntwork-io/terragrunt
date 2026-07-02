@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -68,7 +69,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 					}
 
 					// Check for uncommitted changes
-					gitRunner, err := git.NewGitRunner()
+					gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
 					if err != nil {
 						return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 					}

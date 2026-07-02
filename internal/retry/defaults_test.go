@@ -17,40 +17,49 @@ func TestDefaultRetryableErrorsMatch(t *testing.T) {
 	}{
 		// OpenTofu provider resolution errors (the CI failures that prompted this change)
 		{
-			name:      "opentofu context deadline on provider resolve",
-			errMsg:    "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/null: could not connect to registry.opentofu.org: failed to request discovery document: Get \"https://registry.opentofu.org/.well-known/terraform.json\": context deadline exceeded",
+			name: "opentofu context deadline on provider resolve",
+			errMsg: "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/null:" +
+				" could not connect to registry.opentofu.org: failed to request discovery document:" +
+				` Get "https://registry.opentofu.org/.well-known/terraform.json": context deadline exceeded`,
 			wantMatch: true,
 		},
 		{
-			name:      "opentofu TLS handshake timeout on provider resolve",
-			errMsg:    "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/aws: could not connect to registry.opentofu.org: TLS handshake timeout",
+			name: "opentofu TLS handshake timeout on provider resolve",
+			errMsg: "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/aws:" +
+				" could not connect to registry.opentofu.org: TLS handshake timeout",
 			wantMatch: true,
 		},
 		{
-			name:      "opentofu tcp timeout on provider resolve",
-			errMsg:    "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/null: could not connect to registry.opentofu.org: tcp connection timeout",
+			name: "opentofu tcp timeout on provider resolve",
+			errMsg: "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/null:" +
+				" could not connect to registry.opentofu.org: tcp connection timeout",
 			wantMatch: true,
 		},
 		{
-			name:      "opentofu tcp connection reset on provider resolve",
-			errMsg:    "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/null: could not connect to registry.opentofu.org: tcp: connection reset by peer",
+			name: "opentofu tcp connection reset on provider resolve",
+			errMsg: "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/null:" +
+				" could not connect to registry.opentofu.org: tcp: connection reset by peer",
 			wantMatch: true,
 		},
 		{
-			name:      "opentofu failed to query available provider packages",
-			errMsg:    "Error: Failed to query available provider packages\nCould not retrieve the list of available versions for provider hashicorp/null: could not connect to registry.opentofu.org: context deadline exceeded",
+			name: "opentofu failed to query available provider packages",
+			errMsg: "Error: Failed to query available provider packages\n" +
+				"Could not retrieve the list of available versions for provider hashicorp/null:" +
+				" could not connect to registry.opentofu.org: context deadline exceeded",
 			wantMatch: true,
 		},
 		{
-			name:      "opentofu discovery document deadline",
-			errMsg:    "failed to request discovery document: Get \"https://registry.opentofu.org/.well-known/terraform.json\": context deadline exceeded",
+			name: "opentofu discovery document deadline",
+			errMsg: `failed to request discovery document: Get "https://registry.opentofu.org/.well-known/terraform.json":` +
+				" context deadline exceeded",
 			wantMatch: true,
 		},
 
 		// Terraform provider installation errors (existing behavior preserved)
 		{
-			name:      "terraform context deadline on provider query",
-			errMsg:    "Error: Failed to install provider\ncould not query provider registry for registry.terraform.io/hashicorp/null: context deadline exceeded",
+			name: "terraform context deadline on provider query",
+			errMsg: "Error: Failed to install provider\ncould not query provider registry for" +
+				" registry.terraform.io/hashicorp/null: context deadline exceeded",
 			wantMatch: true,
 		},
 		{
@@ -76,8 +85,9 @@ func TestDefaultRetryableErrorsMatch(t *testing.T) {
 			wantMatch: true,
 		},
 		{
-			name:      "terraform registry context deadline",
-			errMsg:    "could not query provider registry for registry.terraform.io/hashicorp/template: context deadline exceeded",
+			name: "terraform registry context deadline",
+			errMsg: "could not query provider registry for" +
+				" registry.terraform.io/hashicorp/template: context deadline exceeded",
 			wantMatch: true,
 		},
 
@@ -115,13 +125,15 @@ func TestDefaultRetryableErrorsMatch(t *testing.T) {
 
 		// Permanent errors that must NOT match
 		{
-			name:      "provider not found is permanent",
-			errMsg:    "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/nonexistent: provider registry registry.opentofu.org does not have a provider named hashicorp/nonexistent",
+			name: "provider not found is permanent",
+			errMsg: "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/nonexistent:" +
+				" provider registry registry.opentofu.org does not have a provider named hashicorp/nonexistent",
 			wantMatch: false,
 		},
 		{
-			name:      "version constraint mismatch is permanent",
-			errMsg:    "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/aws: no available releases match the given constraints >= 99.0.0",
+			name: "version constraint mismatch is permanent",
+			errMsg: "Error: Failed to resolve provider packages\nCould not resolve provider hashicorp/aws:" +
+				" no available releases match the given constraints >= 99.0.0",
 			wantMatch: false,
 		},
 		{

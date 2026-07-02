@@ -3,21 +3,23 @@ package find
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+
+	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/mgutz/ansi"
+
+	"charm.land/lipgloss/v2"
 )
 
 // Run runs the find command.
@@ -35,16 +37,20 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		Experiments:       opts.Experiments,
 	})
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
 	gitFilters := opts.Filters.UniqueGitFilters()
 
-	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
+	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+		WorkingDir:     opts.WorkingDir,
+		GitExpressions: gitFilters,
+		Experiments:    opts.Experiments,
+	})
 	if worktreeErr != nil {
-		return errors.Errorf("failed to create worktrees: %w", worktreeErr)
+		return fmt.Errorf("failed to create worktrees: %w", worktreeErr)
 	}
 
 	defer func() {
@@ -93,7 +99,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 			return nil
 		})
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 	default:
 		// This should never happen, because of validation in the command.
@@ -107,14 +113,12 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"working_dir":  opts.WorkingDir,
 		"config_count": len(components),
 	}, func(ctx context.Context) error {
-		var convErr error
+		foundComponents = discoveredToFound(l, components, opts)
 
-		foundComponents, convErr = discoveredToFound(components, opts)
-
-		return convErr
+		return nil
 	})
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	switch opts.Format {
@@ -142,9 +146,8 @@ type FoundComponent struct {
 	Reading      []string `json:"reading,omitempty"`
 }
 
-func discoveredToFound(components component.Components, opts *Options) (FoundComponents, error) {
+func discoveredToFound(l log.Logger, components component.Components, opts *Options) FoundComponents {
 	foundComponents := make(FoundComponents, 0, len(components))
-	errs := []error{}
 
 	for _, c := range components {
 		if opts.QueueConstructAs != "" {
@@ -157,26 +160,14 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			}
 		}
 
-		var (
-			relPath string
-			err     error
-		)
-
+		base := opts.WorkingDir
 		if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
-			relPath, err = filepath.Rel(c.DiscoveryContext().WorkingDir, c.Path())
-		} else {
-			relPath, err = filepath.Rel(opts.WorkingDir, c.Path())
-		}
-
-		if err != nil {
-			errs = append(errs, errors.New(err))
-
-			continue
+			base = c.DiscoveryContext().WorkingDir
 		}
 
 		foundComponent := &FoundComponent{
 			Type: c.Kind(),
-			Path: relPath,
+			Path: discovery.RelPathOrAbs(l, base, c.Path(), "component"),
 		}
 
 		if opts.Exclude {
@@ -192,10 +183,8 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 				if cfg := unit.Config(); cfg != nil && cfg.ProcessedIncludes != nil {
 					foundComponent.Include = make(map[string]string, len(cfg.ProcessedIncludes))
 					for _, v := range cfg.ProcessedIncludes {
-						foundComponent.Include[v.Name], err = util.GetPathRelativeTo(v.Path, opts.RootWorkingDir)
-						if err != nil {
-							errs = append(errs, errors.New(err))
-						}
+						desc := fmt.Sprintf("include %q of unit %q", v.Name, unit.Path())
+						foundComponent.Include[v.Name] = discovery.RelPathOrAbs(l, opts.RootWorkingDir, v.Path, desc)
 					}
 				}
 			}
@@ -204,63 +193,47 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 		if opts.Reading && len(c.Reading()) > 0 {
 			foundComponent.Reading = make([]string, len(c.Reading()))
 
+			readingBase := opts.WorkingDir
+			if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
+				readingBase = c.DiscoveryContext().WorkingDir
+			}
+
+			desc := fmt.Sprintf("read path of unit %q", c.Path())
 			for i, reading := range c.Reading() {
-				var relReadingPath string
-
-				if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
-					relReadingPath, err = filepath.Rel(c.DiscoveryContext().WorkingDir, reading)
-				} else {
-					relReadingPath, err = filepath.Rel(opts.WorkingDir, reading)
-				}
-
-				if err != nil {
-					errs = append(errs, errors.New(err))
-
-					continue
-				}
-
-				foundComponent.Reading[i] = relReadingPath
+				foundComponent.Reading[i] = discovery.RelPathOrAbs(l, readingBase, reading, desc)
 			}
 		}
 
 		if opts.Dependencies && len(c.Dependencies()) > 0 {
 			foundComponent.Dependencies = make([]string, len(c.Dependencies()))
 
+			desc := fmt.Sprintf("dependency of unit %q", c.Path())
 			for i, dep := range c.Dependencies() {
-				var relDepPath string
-
+				depBase := opts.WorkingDir
 				if dep.DiscoveryContext() != nil && dep.DiscoveryContext().WorkingDir != "" {
-					relDepPath, err = filepath.Rel(dep.DiscoveryContext().WorkingDir, dep.Path())
-				} else {
-					relDepPath, err = filepath.Rel(opts.WorkingDir, dep.Path())
+					depBase = dep.DiscoveryContext().WorkingDir
 				}
 
-				if err != nil {
-					errs = append(errs, errors.New(err))
-
-					continue
-				}
-
-				foundComponent.Dependencies[i] = relDepPath
+				foundComponent.Dependencies[i] = discovery.RelPathOrAbs(l, depBase, dep.Path(), desc)
 			}
 		}
 
 		foundComponents = append(foundComponents, foundComponent)
 	}
 
-	return foundComponents, errors.Join(errs...)
+	return foundComponents
 }
 
 // outputJSON outputs the discovered components in JSON format.
 func outputJSON(opts *Options, components FoundComponents) error {
 	jsonBytes, err := json.MarshalIndent(components, "", "  ")
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	_, err = opts.Writers.Writer.Write(append(jsonBytes, []byte("\n")...))
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -283,10 +256,14 @@ func NewColorizer(shouldColor bool) *Colorizer {
 		}
 	}
 
+	unitStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+	stackStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
+	pathStyle := lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("7"))
+
 	return &Colorizer{
-		unitColorizer:  ansi.ColorFunc("blue+bh"),
-		stackColorizer: ansi.ColorFunc("green+bh"),
-		pathColorizer:  ansi.ColorFunc("white+d"),
+		unitColorizer:  func(s string) string { return unitStyle.Render(s) },
+		stackColorizer: func(s string) string { return stackStyle.Render(s) },
+		pathColorizer:  func(s string) string { return pathStyle.Render(s) },
 	}
 }
 
@@ -333,7 +310,7 @@ func outputText(l log.Logger, opts *Options, components FoundComponents) error {
 
 	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
 
-	return errors.New(err)
+	return err
 }
 
 // shouldColor returns true if the output should be colored.

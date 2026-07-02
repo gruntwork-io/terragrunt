@@ -82,8 +82,9 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:    ExternalFlagName,
 			EnvVars: tgPrefix.EnvVars(ExternalFlagName),
-			Usage:   "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
-			Hidden:  true,
+			Usage: "Discover external dependencies from initial results," +
+				" and add them to top-level results (implies discovery of dependencies).",
+			Hidden: true,
 			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
 				if !value {
 					return nil
@@ -140,6 +141,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 	flags := NewFlags(l, cmdOpts, prefix)
 	flags = append(flags, shared.NewBackendFlags(opts, prefix)...)
 	flags = append(flags, shared.NewFeatureFlags(opts, prefix)...)
+	flags = append(flags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, prefix))
 
 	return &clihelper.Command{
 		Name:    CommandName,

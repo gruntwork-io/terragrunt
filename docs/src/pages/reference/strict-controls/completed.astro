@@ -2,7 +2,6 @@
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import StrictControlEntries from '@components/StrictControlEntries.astro';
 import { getCollection } from 'astro:content';
-import { sidebar } from '../../../data/sidebar';
 
 const entries = await getCollection('strictControls');
 
@@ -34,7 +33,6 @@ for (const entry of completed) {
 		description: 'Strict controls that have been completed and are no longer needed.',
 	}}
 	headings={headings}
-	sidebar={sidebar}
 >
 	<p>
 		These strict controls have been completed and are no longer needed. The features they controlled have been fully removed or the behavior is now the default.

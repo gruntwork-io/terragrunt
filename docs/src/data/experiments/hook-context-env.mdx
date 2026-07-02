@@ -1,0 +1,48 @@
+---
+name: hook-context-env
+since: "1.0.8"
+---
+
+Expose additional `TG_CTX_*` environment variables to hook scripts.
+
+### `hook-context-env` - What it does
+
+When enabled, Terragrunt sets three additional environment variables on the process running every `before_hook`, `after_hook`, and `error_hook`:
+
+- `TG_CTX_HOOK_TYPE` — `before_hook`, `after_hook`, or `error_hook`, depending on which lifecycle phase is executing the hook.
+- `TG_CTX_SOURCE` — the resolved terraform source URL for the current unit, matching the precedence Terragrunt uses for the actual download: the `--source` CLI override if set, otherwise the evaluated `terraform.source` (with `--source-map` applied), otherwise `.`.
+- `TG_CTX_TERRAGRUNT_DIR` — the directory containing the current Terragrunt config (equivalent to `get_terragrunt_dir()`).
+
+These variables make it easier for hook scripts to branch on lifecycle phase, to know whether the unit pulls remote source, and to locate the config directory without having to thread that information through hook arguments.
+
+```bash
+terragrunt run --all --experiment hook-context-env -- apply
+```
+
+Example hook script:
+
+```bash
+#!/usr/bin/env bash
+
+case "$TG_CTX_HOOK_TYPE" in
+  before_hook) echo "preparing $TG_CTX_TERRAGRUNT_DIR" ;;
+  after_hook)  echo "cleaning up $TG_CTX_TERRAGRUNT_DIR" ;;
+  error_hook)  echo "failure in $TG_CTX_TERRAGRUNT_DIR" ;;
+esac
+
+if [ "$TG_CTX_SOURCE" != "." ]; then
+  echo "unit uses source: $TG_CTX_SOURCE"
+fi
+```
+
+### `hook-context-env` - How to provide feedback
+
+Provide your feedback in the [`hook-context-env` GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/6185).
+
+### `hook-context-env` - Criteria for stabilization
+
+To transition the `hook-context-env` feature to a stable release, the following must be addressed:
+
+- [ ] Confirm the three new variables cover the most common hook scripting needs.
+- [ ] Confirm the chosen variable names and values (`before_hook`/`after_hook`/`error_hook`) match user expectations.
+- [ ] Positive feedback from users relying on the variables in production hook scripts.

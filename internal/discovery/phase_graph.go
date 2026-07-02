@@ -8,11 +8,13 @@ import (
 	"strings"
 	"sync"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -264,17 +266,20 @@ func (p *GraphPhase) discoverDependencies(
 		return nil
 	}
 
-	cfg := unit.Config()
-	if cfg == nil {
-		err := parseComponent(ctx, l, c, state.opts, state.discovery)
-		if err != nil {
-			return err
-		}
+	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependencies)
 
-		cfg = unit.Config()
+	if err := ensureParsed(ctx, l, c, state.opts, state.discovery); err != nil {
+		return err
 	}
 
+	cfg := unit.Config()
+
 	depPaths, err := extractDependencyPaths(cfg, c)
+	if err != nil {
+		return err
+	}
+
+	depPaths, err = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.opts, depPaths)
 	if err != nil {
 		return err
 	}
@@ -318,7 +323,7 @@ func (p *GraphPhase) discoverDependencies(
 					Phase:     PhaseGraph,
 				})
 
-				err = p.discoverDependencies(ctx, l, state, depComponent, depthRemaining-1)
+				err = p.discoverDependencies(contextWithIncrementedParseDepth(ctx), l, state, depComponent, depthRemaining-1)
 				if err != nil {
 					errMu.Lock()
 
@@ -432,7 +437,9 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	boundaryRoot string,
 	depthRemaining int,
 ) error {
-	l.Debugf("discoverDependentsUpstream: target=%s currentDir=%s boundary=%s depth=%d", target.Path(), currentDir, boundaryRoot, depthRemaining)
+	l.Debugf("discoverDependentsUpstream: target=%s"+
+		" currentDir=%s boundary=%s depth=%d",
+		target.Path(), currentDir, boundaryRoot, depthRemaining)
 
 	if depthRemaining <= 0 {
 		l.Debugf("discoverDependentsUpstream: depth limit reached")
@@ -571,7 +578,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		l.Debugf("Recursively discovering dependents of %s from %s", dependent.Path(), filepath.Dir(dependent.Path()))
 
 		err := p.discoverDependentsUpstream(
-			ctx, l, state, dependent, freshVisitedDirs,
+			contextWithIncrementedParseDepth(ctx), l, state, dependent, freshVisitedDirs,
 			filepath.Dir(dependent.Path()), boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
@@ -582,7 +589,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	parentDir := filepath.Dir(currentDir)
 	if parentDir != currentDir && depthRemaining > 0 {
 		err := p.discoverDependentsUpstream(
-			ctx, l, state, target, visitedDirs,
+			contextWithIncrementedParseDepth(ctx), l, state, target, visitedDirs,
 			parentDir, boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
@@ -627,23 +634,22 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	cfg := unit.Config()
-	if cfg == nil {
-		err := parseComponent(ctx, l, candidate, state.graphTraversalState.opts, state.graphTraversalState.discovery)
-		if err != nil {
-			if !state.graphTraversalState.discovery.suppressParseErrors {
-				state.errMu.Lock()
+	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
+	graphState := state.graphTraversalState
 
-				*state.errs = append(*state.errs, err)
+	if err := ensureParsed(ctx, l, candidate, graphState.opts, graphState.discovery); err != nil {
+		if !state.graphTraversalState.discovery.suppressParseErrors {
+			state.errMu.Lock()
 
-				state.errMu.Unlock()
-			}
+			*state.errs = append(*state.errs, err)
 
-			return nil
+			state.errMu.Unlock()
 		}
 
-		cfg = unit.Config()
+		return nil
 	}
+
+	cfg := unit.Config()
 
 	deps, err := extractDependencyPaths(cfg, candidate)
 	if err != nil {
@@ -651,6 +657,17 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 		*state.errs = append(*state.errs, err)
 
+		state.errMu.Unlock()
+
+		return nil
+	}
+
+	var stackErr error
+
+	deps, stackErr = stackDependencyPaths(ctx, l, vfs.NewOSFS(), state.graphTraversalState.opts, deps)
+	if stackErr != nil {
+		state.errMu.Lock()
+		*state.errs = append(*state.errs, stackErr)
 		state.errMu.Unlock()
 
 		return nil

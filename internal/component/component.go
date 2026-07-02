@@ -12,7 +12,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
@@ -42,8 +43,6 @@ type Component interface {
 
 	lock()
 	unlock()
-	rLock()
-	rUnlock()
 
 	ensureDependency(Component)
 	ensureDependent(Component)
@@ -80,8 +79,11 @@ type DiscoveryContext struct {
 }
 
 // Copy returns a copy of the DiscoveryContext.
+// Args is deep-copied so mutations on the copy (e.g. slices.DeleteFunc) do not
+// corrupt the original's backing array.
 func (dc *DiscoveryContext) Copy() *DiscoveryContext {
 	c := *dc
+	c.Args = slices.Clone(dc.Args)
 
 	return &c
 }

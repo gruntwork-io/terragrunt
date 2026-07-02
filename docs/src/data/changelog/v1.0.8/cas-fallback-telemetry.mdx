@@ -1,0 +1,10 @@
+---
+version: "v1.0.8"
+category: "experiments-updated"
+---
+
+#### `cas`: fallbacks now emit telemetry
+
+When the `cas` experiment is enabled and a CAS operation cannot complete, Terragrunt falls back to a slower path (the standard download client, or a temporary clone when the shared git store is unavailable) and keeps going. Until now the only record of a fallback was a warning in the logs, which made it impractical to measure how often CAS degrades across a fleet.
+
+Each fallback now also emits a `cas_fallback` telemetry event whose `reason` attribute identifies the cause: `init_error`, `getter_error`, `git_store_unavailable`, `probe_failure`, or `stack_generation_error`. Operators collecting OpenTelemetry traces or metrics from Terragrunt can count and alert on these events to judge CAS health before relying on it by default.

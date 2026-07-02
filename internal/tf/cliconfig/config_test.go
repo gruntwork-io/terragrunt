@@ -10,6 +10,66 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAddHost(t *testing.T) {
+	t.Parallel()
+
+	t.Run("new host is appended", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := cliconfig.NewConfig()
+		cfg.AddHost("registry.example.com", map[string]string{
+			"providers.v1": "https://registry.example.com/v1/providers/",
+		})
+
+		require.Len(t, cfg.Hosts, 1)
+		assert.Equal(t, "registry.example.com", cfg.Hosts[0].Name)
+		assert.Equal(t, "https://registry.example.com/v1/providers/", cfg.Hosts[0].Services["providers.v1"])
+	})
+
+	t.Run("existing host services are merged", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := cliconfig.NewConfig()
+		cfg.AddHost("registry.example.com", map[string]string{
+			"modules.v1": "https://registry.example.com/v1/modules/",
+		})
+		cfg.AddHost("registry.example.com", map[string]string{
+			"providers.v1": "https://registry.example.com/v1/providers/",
+		})
+
+		require.Len(t, cfg.Hosts, 1, "should not create a duplicate host entry")
+		assert.Equal(t, "https://registry.example.com/v1/modules/", cfg.Hosts[0].Services["modules.v1"], "original service preserved")
+		assert.Equal(t, "https://registry.example.com/v1/providers/", cfg.Hosts[0].Services["providers.v1"], "new service added")
+	})
+
+	t.Run("overlapping service key is overwritten by new value", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := cliconfig.NewConfig()
+		cfg.AddHost("registry.example.com", map[string]string{
+			"providers.v1": "https://old-url.example.com/v1/providers/",
+			"modules.v1":   "https://registry.example.com/v1/modules/",
+		})
+		cfg.AddHost("registry.example.com", map[string]string{
+			"providers.v1": "https://new-url.example.com/v1/providers/",
+		})
+
+		require.Len(t, cfg.Hosts, 1)
+		assert.Equal(t, "https://new-url.example.com/v1/providers/", cfg.Hosts[0].Services["providers.v1"], "overlapping key should be overwritten")
+		assert.Equal(t, "https://registry.example.com/v1/modules/", cfg.Hosts[0].Services["modules.v1"], "non-overlapping key should be preserved")
+	})
+
+	t.Run("multiple different hosts are all appended", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := cliconfig.NewConfig()
+		cfg.AddHost("registry.terraform.io", map[string]string{"providers.v1": "http://localhost/tf/"})
+		cfg.AddHost("registry.opentofu.org", map[string]string{"providers.v1": "http://localhost/opentofu/"})
+
+		require.Len(t, cfg.Hosts, 2)
+	})
+}
+
 func TestConfig(t *testing.T) {
 	t.Parallel()
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 )
 
 // GitFilterCommandError represents an error that occurs when attempting to use
@@ -35,10 +35,10 @@ func (e GitFilterCommandError) Error() string {
 
 // NewGitFilterCommandError creates a new GitFilterCommandError with the given command and arguments.
 func NewGitFilterCommandError(cmd string, args []string) error {
-	return errors.New(GitFilterCommandError{
+	return GitFilterCommandError{
 		Cmd:  cmd,
 		Args: args,
-	})
+	}
 }
 
 // MissingDiscoveryContextError represents an error that occurs when a component
@@ -60,9 +60,9 @@ func (e MissingDiscoveryContextError) Error() string {
 
 // NewMissingDiscoveryContextError creates a new MissingDiscoveryContextError for the given component path.
 func NewMissingDiscoveryContextError(componentPath string) error {
-	return errors.New(MissingDiscoveryContextError{
+	return MissingDiscoveryContextError{
 		ComponentPath: componentPath,
-	})
+	}
 }
 
 // MissingWorkingDirectoryError represents an error that occurs when a component's
@@ -84,9 +84,9 @@ func (e MissingWorkingDirectoryError) Error() string {
 
 // NewMissingWorkingDirectoryError creates a new MissingWorkingDirectoryError for the given component path.
 func NewMissingWorkingDirectoryError(componentPath string) error {
-	return errors.New(MissingWorkingDirectoryError{
+	return MissingWorkingDirectoryError{
 		ComponentPath: componentPath,
-	})
+	}
 }
 
 // ClassificationError represents an error during component classification.
@@ -104,33 +104,54 @@ func (e ClassificationError) Error() string {
 
 // NewClassificationError creates a new ClassificationError.
 func NewClassificationError(componentPath, reason string) error {
-	return errors.New(ClassificationError{
+	return ClassificationError{
 		ComponentPath: componentPath,
 		Reason:        reason,
-	})
+	}
 }
 
 // CoexistenceError represents an error when a directory contains both
 // a unit configuration file and a stack configuration file.
 type CoexistenceError struct {
-	ComponentPath   string
-	UnitConfigFile  string
-	StackConfigFile string
+	ComponentPath string
+	ConfigFileA   string
+	ConfigFileB   string
 }
 
 func (e CoexistenceError) Error() string {
 	return fmt.Sprintf(
 		"Component %q contains both configuration files %s and %s. "+
 			"A component must be either a unit or a stack, not both.",
-		e.ComponentPath, e.UnitConfigFile, e.StackConfigFile,
+		e.ComponentPath, e.ConfigFileA, e.ConfigFileB,
 	)
 }
 
-// NewCoexistenceError creates a new CoexistenceError.
-func NewCoexistenceError(componentPath, unitConfigFile, stackConfigFile string) error {
-	return errors.New(CoexistenceError{
-		ComponentPath:   componentPath,
-		UnitConfigFile:  unitConfigFile,
-		StackConfigFile: stackConfigFile,
-	})
+// NewCoexistenceError creates a new CoexistenceError from two components with different kinds.
+func NewCoexistenceError(a, b component.Component) error {
+	return CoexistenceError{
+		ComponentPath: a.Path(),
+		ConfigFileA:   a.ConfigFile(),
+		ConfigFileB:   b.ConfigFile(),
+	}
+}
+
+// StackDependencyExpansionError indicates that a stack dependency path could not be expanded into
+// its constituent unit paths. Wraps the underlying parse error so callers can extract typed details
+// via errors.As.
+type StackDependencyExpansionError struct {
+	Wrapped error
+	DepPath string
+}
+
+func (e StackDependencyExpansionError) Error() string {
+	return fmt.Sprintf("failed to expand stack dependency path %s: %s", e.DepPath, e.Wrapped)
+}
+
+func (e StackDependencyExpansionError) Unwrap() error {
+	return e.Wrapped
+}
+
+// NewStackDependencyExpansionError wraps err with the dependency path that triggered the expansion.
+func NewStackDependencyExpansionError(depPath string, err error) error {
+	return StackDependencyExpansionError{DepPath: depPath, Wrapped: err}
 }

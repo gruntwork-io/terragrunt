@@ -1,0 +1,21 @@
+---
+version: "v1.0.4"
+category: "bug-fixes"
+---
+
+#### Provider Cache Server now supports custom `host` blocks
+
+Running `terragrunt` with the Provider Cache Server enabled against a private registry declared via a `host` block in `.terraformrc` (or a file referenced by `TF_CLI_CONFIG_FILE`) failed with errors such as `provider registry.opentofu.org/<org>/<provider> was not found`, because the cache server proxy did not recognize the custom registry and rewrote requests to `registry.opentofu.org`.
+
+Terragrunt now registers each custom `host` block with the cache server, seeds its service discovery from the `services` map so registries that do not serve `.well-known/terraform.json` still work, and forwards `OPENTOFU_NETRC_*` / `TF_TOKEN_*` credentials so authenticated registries continue to authenticate through the proxy.
+
+```hcl
+# .terraformrc
+host "registry.example.com" {
+  services = {
+    "providers.v1" = "https://registry.example.com/repository/terraform-hosted/v1/providers/"
+  }
+}
+```
+
+Resolves [#5916](https://github.com/gruntwork-io/terragrunt/issues/5916). Thanks to [@elkh510](https://github.com/elkh510) for contributing this fix!

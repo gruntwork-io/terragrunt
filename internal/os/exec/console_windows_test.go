@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
@@ -189,6 +191,43 @@ func TestWindowsConsoleStdinFlagsOnCONIN(t *testing.T) {
 		"required flags should be restored")
 }
 
+// TestWindowsConsoleRestoreClearsVirtualTerminalInput is the regression test for
+// issue #6245: PrepareConsole enables ENABLE_VIRTUAL_TERMINAL_INPUT on the console
+// shared with the parent shell, which leaves shells such as Nushell rendering arrow
+// keys as raw escape sequences after Terragrunt exits. A ConsoleState captured
+// before PrepareConsole runs must, on Restore, return stdin to its original mode
+// with virtual terminal input cleared.
+//
+// This exercises the real production handles (os.Stdin) and is therefore skipped
+// when stdin is piped (e.g. CI), where SaveConsoleState/PrepareConsole are no-ops.
+// It is intentionally not parallel: it mutates the global os.Stdin console mode,
+// which would race with the parallel tests that read it.
+func TestWindowsConsoleRestoreClearsVirtualTerminalInput(t *testing.T) { //nolint:paralleltest // mutates global stdin
+	var originalStdin uint32
+	if windows.GetConsoleMode(windows.Handle(os.Stdin.Fd()), &originalStdin) != nil {
+		t.Skip("skipping: os.Stdin is not a real console handle (piped stdin)")
+	}
+
+	// Start from a known state without VT input, matching a typical parent shell.
+	cleared := originalStdin &^ windows.ENABLE_VIRTUAL_TERMINAL_INPUT
+	setMode(t, os.Stdin, cleared)
+	t.Cleanup(func() { setMode(t, os.Stdin, originalStdin) })
+
+	saved := exec.SaveConsoleState()
+
+	exec.PrepareConsole(logger.CreateLogger())
+
+	require.NotEqual(t, uint32(0), getMode(t, os.Stdin)&windows.ENABLE_VIRTUAL_TERMINAL_INPUT,
+		"PrepareConsole should enable virtual terminal input on stdin")
+
+	saved.Restore()
+
+	assert.Equal(t, uint32(0), getMode(t, os.Stdin)&windows.ENABLE_VIRTUAL_TERMINAL_INPUT,
+		"Restore must clear the virtual terminal input that PrepareConsole enabled")
+	assert.Equal(t, cleared, getMode(t, os.Stdin),
+		"Restore must return stdin to exactly the saved mode")
+}
+
 // TestWindowsConsoleSubprocessSaveRestore is an integration test that runs a
 // real subprocess and verifies the save→subprocess→restore pattern preserves
 // console modes. Uses CONOUT$ for a real console handle.
@@ -205,13 +244,13 @@ func TestWindowsConsoleSubprocessSaveRestore(t *testing.T) {
 
 	before := getMode(t, conout)
 
-	cmd := exec.Command(t.Context(), "cmd.exe", "/C", "echo hello")
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+	cmd := exec.Command(t.Context(), vexec.NewOSExec(), "cmd.exe", "/C", "echo hello")
+	cmd.SetStdout(nil)
+	cmd.SetStderr(nil)
 
 	saved := exec.SaveConsoleState()
 
-	require.NoError(t, cmd.Run())
+	require.NoError(t, cmd.Run(logger.CreateLogger()))
 
 	saved.Restore()
 

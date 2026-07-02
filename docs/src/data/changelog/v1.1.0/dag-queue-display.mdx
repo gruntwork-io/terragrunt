@@ -1,0 +1,22 @@
+---
+version: "v1.1.0"
+category: "new-features"
+order: 6
+---
+
+#### Run queue displayed as a dependency tree
+
+Before a `run --all`, Terragrunt lists the units it's about to run. That list now renders as a dependency tree by default instead of a flat list, with units nested under their dependencies, so the run order and the relationships between units are visible before anything executes:
+
+```text
+The following units will be run, starting with dependencies and then their dependents:
+.
+├── monitoring
+╰── vpc
+    ╰── database
+        ╰── backend-app
+```
+
+The header adapts to direction: dependencies come before dependents on apply, and the order reverses on destroy.
+
+Previously gated behind the `dag-queue-display` experiment, the tree display no longer requires `--experiment dag-queue-display`.

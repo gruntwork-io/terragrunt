@@ -439,6 +439,47 @@ func TestClassifier_Classify(t *testing.T) {
 			expectedReason: filter.CandidacyReasonNone,
 			expectedIdx:    -1,
 		},
+		{
+			name:           "positive_filter_with_unrelated_negation_excludes_non_matching",
+			filterStrs:     []string{"./apps/app1", "!./libs/db"},
+			componentPath:  "./apps/app2",
+			expectedStatus: filter.StatusExcluded,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
+		{
+			name:           "compound_negation_filter_does_not_force_exclude_by_default",
+			filterStrs:     []string{"!./_stacks | type=stack"},
+			componentPath:  "./unit1",
+			expectedStatus: filter.StatusReadyForFilter,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
+		{
+			name:             "git_graph_target_with_intersected_attribute_returns_graph_target_candidate",
+			filterStrs:       []string{"...[main...feature] | type=unit"},
+			componentPath:    "./libs/db",
+			componentRef:     "main",
+			expectedStatus:   filter.StatusCandidate,
+			expectedReason:   filter.CandidacyReasonGraphTarget,
+			expectIdxGteZero: true,
+		},
+		{
+			name:             "path_graph_target_with_intersected_attribute_returns_graph_target_candidate",
+			filterStrs:       []string{"db... | type=unit"},
+			componentPath:    "./libs/db",
+			expectedStatus:   filter.StatusCandidate,
+			expectedReason:   filter.CandidacyReasonGraphTarget,
+			expectIdxGteZero: true,
+		},
+		{
+			name:           "attribute_filter_without_graph_expression_stays_ready_for_filter",
+			filterStrs:     []string{"type=unit"},
+			componentPath:  "./libs/db",
+			expectedStatus: filter.StatusReadyForFilter,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
 	}
 
 	for _, tt := range tests {

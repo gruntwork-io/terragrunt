@@ -75,6 +75,19 @@ type TerraformConfig struct {
 	// NoCopyTerraformLockFile specifies whether to skip copying the lock file
 	// Defaults to false (copy the lock file) when not set
 	NoCopyTerraformLockFile bool
+
+	// UpdateSourceWithCAS indicates the terraform.source is a relative path
+	// meant to be rewritten against a cloned repository by CAS. The run path
+	// rejects this when CAS is unavailable, since the relative path has no
+	// meaning without a resolved repo root.
+	UpdateSourceWithCAS bool
+
+	// Mutable, when true, makes CAS copy fetched content into the working
+	// directory under .terragrunt-cache instead of hardlinking it from the
+	// shared store, so the working tree is safe to edit. Has no effect when
+	// content is fetched via the standard go-getter path, which already
+	// produces a copy.
+	Mutable bool
 }
 
 // Hook represents a lifecycle hook (before/after).

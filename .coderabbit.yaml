@@ -32,10 +32,356 @@ reviews:
         Make sure that the Astro code follows best practices and is easy to understand, maintain, and follows best practices.
         When possible, suggest improvements to the Astro code to make it better.
 
+    - path: 'docs/src/content/docs/**/*.{md,mdx}'
+      instructions: >-
+        RELEASE-GATING CHECK. Documentation must not describe behavior
+        before the release that ships it. Terragrunt docs gate
+        not-yet-released content with two Astro components imported from
+        `@components/Since.astro` and `@components/Before.astro`:
+        `<Since version="vX.Y.Z">...</Since>` renders its children only once
+        the latest release is >= that version (use it to wrap docs for a
+        feature that is new or changed in an upcoming release), and
+        `<Before version="vX.Y.Z">...</Before>` renders its children only
+        while the latest release is < that version (use it to keep the old
+        documentation visible until the new release ships, and to retire it
+        afterward). When this PR adds or edits documentation that describes a
+        feature, flag, block, attribute, function, default, or behavior that
+        is being introduced or changed by an as-yet-unreleased version,
+        verify that the new prose is wrapped in `<Since version="...">` and
+        that any superseded prose is wrapped in `<Before version="...">`,
+        using the SAME target version as the change's changelog entry under
+        `docs/src/data/changelog/<version>/`. If unreleased documentation is
+        added without `<Since>` gating (or replaces existing documentation
+        without preserving it under `<Before>`), flag at HIGH and ask the
+        author to gate it so the docs site does not publish documentation for
+        an unreleased feature. Do NOT use markdown headings (##, ###) inside
+        `<Since>` or `<Before>`; headings are extracted into the table of
+        contents before the component renders, so a gated heading would leak.
+        Pure corrections to already-released documentation (typo, grammar,
+        clarification of existing behavior) do NOT need gating; do not flag
+        those.
+
+    - path: 'docs/public/llms.txt'
+      instructions: >-
+        HAND-CURATED llms.txt INDEX. This file (https://llmstxt.org/) is served
+        verbatim at /llms.txt and is NOT auto-generated: the starlight-llms-txt
+        plugin's own /llms.txt route is suppressed by the
+        `starlightLlmsTxtWithoutIndex()` wrapper in docs/astro.config.mjs, while
+        the plugin still generates /llms-full.txt and /llms-small.txt. When this
+        file changes, verify: (1) every link is an absolute
+        https://docs.terragrunt.com/<slug>/ URL that resolves to a real page —
+        cross-check each slug against a content file under
+        docs/src/content/docs/ (the numeric `NN-` directory/file prefixes are
+        stripped from slugs) and against the redirects in docs/astro.config.mjs
+        and docs/vercel.json; flag any link whose target does not exist.
+        (2) The file still parses as valid llms.txt: a single `# Title` H1, an
+        optional `> summary` blockquote, then `##` sections of
+        `- [label](url): description` list items. (3) Each description still
+        accurately reflects the page it links to. Flag broken or stale links at
+        HIGH.
+
+    - path: 'docs/src/content/docs/**/*.{md,mdx}'
+      instructions: >-
+        LLMS.TXT DRIFT CHECK. docs/public/llms.txt curates a SUBSET of these
+        pages by slug. Flag at HIGH only if this PR renames, moves, or deletes a
+        page whose slug is referenced in docs/public/llms.txt (read that file
+        for the slug list), or adds a NEW top-level section peering with the
+        index's ## groups. Do NOT flag ordinary body edits or unreferenced
+        pages.
+
     - path: '**/*.go'
       instructions: >-
         Review the Go code for quality and correctness.
         Make sure that the Go code follows best practices, is performant, and is easy to understand and maintain.
+
+    - path: '**/*.go'
+      instructions: >-
+        CHANGELOG-ENTRY CHECK. Determine whether this PR introduces a
+        user-facing change: new or changed CLI flags, commands, or
+        subcommands; new or changed HCL blocks, attributes, or functions;
+        changed default behavior, output, exit codes, or error messages a
+        user would observe; new or changed experiments or strict controls;
+        bug fixes that change observed behavior; performance changes a user
+        would notice; or new configuration/environment variables. If the PR
+        is user-facing, verify that it ALSO adds at least one changelog
+        entry under `docs/src/data/changelog/<version>/<slug>.mdx`. Each
+        entry is an MDX file whose frontmatter has a `version` (e.g.
+        "v1.2.3") and a `category` (one of: breaking-changes, new-features,
+        performance-improvements, tips-added, bug-fixes,
+        documentation-updates, experiments-added, experiments-updated,
+        process-updates), followed by a `#### Title` heading and prose
+        describing the user-visible effect. Note: changes that are gated
+        behind an experiment must be categorized as `experiments-updated`
+        (or `experiments-added`), NOT `breaking-changes`. If a user-facing
+        Go change has no corresponding changelog entry, flag at HIGH and
+        ask the author to add one, naming the likely category. Purely
+        internal changes (refactors, test-only changes, comments, private
+        helpers with no observable effect) do NOT require an entry; do not
+        flag those.
+
+    # Supply-chain guards. Added after PR #6190 (obfuscated loader in tailwind.config.mjs).
+
+    # Tier 1 - universal: patterns with no legitimate use anywhere.
+    - path: '**/*.{js,cjs,mjs,ts,astro}'
+      instructions: >-
+        SECURITY-CRITICAL PATTERN SCAN. Read ALL added lines in this file
+        and flag at CRITICAL (recommend BLOCK) if you see ANY of:
+        (1) `global[<key>] = require` or `global[<key>] = module` or the
+        same on `globalThis` - require/module stashed under a bracket-indexed
+        key has no legitimate use; it is the JJEncode packer prelude.
+        (2) Any identifier matching the pattern `_$_[0-9a-f]{3,}` -
+        characteristic JJEncode obfuscator output, never written by hand.
+        (3) `String.fromCharCode(127)` or `split('\x7f')` / `split('')`
+        anywhere - the DEL character is used as a string separator to
+        evade naive grep; there is no benign reason for it.
+        (4) `Function(...)` / `new Function(...)` / `eval(...)` whose
+        argument is built dynamically (concatenation, array lookup, decoded
+        string, shuffled string). Immediate-invoke `Function(<x>)(<y>)` is
+        an especially strong signal.
+        (5) An IIFE that takes `(string, integer)` and returns a function
+        via `charAt()` + modular swap math + `split/join` on a one-character
+        separator - shape of the PR #6190 string-shuffle decoder.
+        (6) Unicode bidi-control characters (U+202A-202E, U+2066-2069) or
+        zero-width characters (U+200B-200D) - CVE-2021-42574 "Trojan Source".
+        These patterns are not file-specific; they are language-specific.
+        Whenever they appear, regardless of which file or how the PR title
+        framed the change, escalate and require the maintainer to justify.
+        Reference attack: gruntwork-io/terragrunt PR #6190 (2026-05-24).
+
+    # Tier 2 - build-time files: patterns suspicious only in code the toolchain runs implicitly.
+    - path: '**/{*.config.{js,cjs,mjs,ts},*.astro}'
+      instructions: >-
+        SECURITY-CRITICAL FILE. This code runs at build time, test time, or
+        on every Vercel/CI deploy. Flag at CRITICAL (recommend BLOCK) any of:
+        (1) `createRequire(import.meta.url)` or the import
+        `import { createRequire } from 'module'` introduced where it was
+        not previously present - ESM-to-CJS bridge is the documented PR #6190
+        prelude.
+        (2) `require('child_process')` / `require('http')` / `require('https')`
+        / `require('dns')` / `require('fs')` (or the `import ... from`
+        equivalents) - configs and build helpers do not legitimately fork
+        subprocesses, open sockets, or write disk paths outside well-known
+        project locations.
+        (3) Any string literal longer than 500 characters, especially if
+        it is percent-encoded, base64-looking, or contains `R`/`%`/`#` as
+        recurring separators (payload-sized blob).
+        Always cross-check the COMMIT SUBJECT against the file changes - if
+        a "test fix" or "style" commit modifies one of these files, treat
+        that as a deliberate smokescreen.
+
+    - path: '**/package.json'
+      instructions: >-
+        SECURITY-CRITICAL FILE. Flag at CRITICAL any of:
+        (1) NEW `scripts.preinstall`, `scripts.postinstall`, `scripts.prepare`,
+        `scripts.prepublish`, or `scripts.install` entries (arbitrary code
+        execution on `npm install` / `bun install` / `yarn`);
+        (2) Newly added direct dependencies that aren't already in the
+        project's dependency tree;
+        (3) Dependencies whose names look like typo-squats of well-known
+        packages (`loadashh`, `requestt`, `expresss`, `chaek`, `axioss`,
+        `lodash-utils` variants, etc.);
+        (4) `resolutions` / `overrides` rewriting a transitive to a custom
+        `git+` or `file:` version;
+        (5) `bundleDependencies` pointing outside the repo.
+
+    - path: '**/.github/workflows/**/*.{yml,yaml}'
+      instructions: >-
+        SECURITY-CRITICAL FILE. Flag at CRITICAL any of:
+        (1) `on: pull_request_target` combined with `actions/checkout` of
+        the PR head SHA AND any reference to `secrets.*` in the same job
+        (CVE-2021-45449 escalation pattern);
+        (2) `permissions: write-all` introduced where previously absent
+        or `permissions: read-all`;
+        (3) `actions/*` pinned to a moving tag (`@v3`, `@main`) rather
+        than a 40-char SHA (action-substitution risk);
+        (4) `run:` steps that fetch and execute remote scripts
+        (`curl ... | sh`, `iex (irm ...)`, `wget ... | bash`);
+        (5) `secrets.GITHUB_TOKEN` echoed, logged, base64-encoded, or
+        forwarded to curl/wget;
+        (6) Workflows triggered on `push` that newly access cloud creds
+        without an explicit environment gate.
+
+    - path: '**/Dockerfile*'
+      instructions: >-
+        Flag at HIGH any: `RUN curl ... | sh` remote-exec; `ADD` of a URL
+        (use `COPY` of local files instead); `USER root` introduced where
+        previously a non-root user was set; new `--privileged` or
+        `--cap-add` arguments; addition of `RUN echo ... > /etc/cron.d/*`.
+
+    - path: '**/*.{sh,bash,zsh,ps1}'
+      instructions: >-
+        Flag at HIGH any: `eval` on dynamic content; `curl ... | sh`;
+        variable expansion that influences `bash -c` invocations;
+        unquoted command-substitution in commands that touch credentials.
+
+    # Tier 3 - unknown-unknowns: heuristic scan applied to every file in
+    # the diff, independent of language. Catches changes that pass the
+    # signature-based rules above but still do not belong in the PR.
+    - path: '**/*'
+      instructions: >-
+        UNKNOWN-UNKNOWNS SCAN. Independently of the file-type-specific
+        checks above, ask of every hunk: "Can I articulate why this hunk
+        exists from the PR title, description, and surrounding code?" If
+        not, flag the hunk at HIGH and require the maintainer to explain
+        its intent before merge. "I do not understand this change" is
+        itself a valid finding.
+        Specifically scan added lines for:
+        (1) Strings, identifiers, or comments in a script different from
+        the rest of the file, OR mixed-script identifiers where some
+        characters are visually-confusable homoglyphs (Cyrillic, Greek,
+        or full-width characters that look like ASCII letters).
+        Homoglyph swaps in imports, package names, function calls, or
+        URL hosts are an established substitution attack vector.
+        (2) Newly hard-coded URLs, hostnames, IP addresses, mail
+        addresses, webhook endpoints, or bot-token-shaped strings
+        (Discord, Telegram, Slack, generic UUIDs that look like keys).
+        Cross-check the host against the project's existing
+        infrastructure before approving; a brand-new outbound
+        destination added in source code is an exfiltration / C2 vector
+        regardless of file type.
+        (3) High-entropy literals matching AWS access-key IDs,
+        GCP service-account JSON, Azure connection-strings, generic
+        bearer tokens, JWT-shaped strings, SSH private keys, or
+        PEM-block patterns. Real secrets in a PR are a P0 finding even
+        if redacted on the next push.
+        (4) Removal of an input-validation check, authentication check,
+        authorization check, signature check, integrity check,
+        rate-limit check, allow-list filter, or assertion in test code.
+        One deleted line that silently weakens a boundary deserves more
+        scrutiny than ten added lines.
+        (5) Newly added linter / scanner / type-checker suppressions
+        (`// nolint`, `//gosec:disable`, `// nosec`, `// eslint-disable`,
+        `# noqa`, `# pylint: disable`, `# type: ignore`, `@ts-ignore`,
+        `@ts-nocheck`, `# pragma: no cover`, `# checkov:skip`,
+        `# tfsec:ignore`, `# trivy:ignore`, `#nosec`). Each suppression
+        hides what the suppressed tool would have caught; require the
+        maintainer to justify each one per-line, not per-file.
+        (6) Disabled, skipped, or weakened tests: `t.Skip`,
+        `testing.Short`-gated returns, `xit` / `xdescribe`,
+        `@pytest.mark.skip`, `@Disabled`, an existing security test
+        whose regex was loosened, an assertion whose tolerance was
+        widened, or a mock that replaces a previously-real code path.
+        (7) Code paths gated on an environment variable, a specific
+        hostname, a specific date or time window, a build-tag, or a
+        debug flag that the rest of the PR does not exercise.
+        Conditional payloads and time-bombs are how malicious code
+        stays dormant until merge.
+        (8) New `TODO` / `FIXME` / `HACK` / `XXX` comment paired with a
+        deferred safety or correctness concern. Flag at MEDIUM and ask
+        the maintainer to either resolve in the PR or link a tracking
+        issue in the comment.
+        Whenever any of (1) through (8) triggers, post a review comment
+        citing the exact `file:line` and pattern and explicitly state
+        which signature triggered. Do NOT auto-approve a PR that
+        contains an unresolved (1) through (7) finding.
+
+  # Diff-shape heuristics that aren't expressible as a file glob.
+  tone_instructions: >-
+    Before evaluating any PR, run these triage checks and surface the
+    findings at the TOP of your review summary, above the file-by-file
+    walkthrough:
+    (a) If the total PR diff exceeds 5x the size implied by the PR title,
+    flag at HIGH and ask the maintainer to explain.
+    (b) If multiple files have near-equal `+`/`-` line counts that collapse
+    to empty under `git diff --ignore-all-space`, flag the PR as a possible
+    SMOKESCREEN (line-ending churn used to bury a real change) and ask
+    the maintainer to confirm intent before merge.
+    (c) If a late commit (not the first commit of the PR) touches a
+    build-time config file (`*.config.{js,mjs,cjs,ts}`, `package.json`,
+    `.github/workflows/**`, `Dockerfile`, `Makefile`), treat that commit
+    with extreme suspicion and inspect its full diff regardless of the
+    commit subject.
+    (d) If this is the author's first-ever PR to the repo, raise the bar
+    for any non-source-code file (config, CI, lockfile, install script).
+    (e) Title-vs-diff coherence: enumerate every file changed and decide
+    whether each one is plausibly justified by the stated PR scope. Any
+    file that cannot be mapped to the title or description is a
+    SCOPE-CREEP / SMUGGLING signal. Flag at HIGH and require the
+    maintainer to justify per-file before merge.
+    (f) Commit-subject hygiene: if a commit subject is a single generic
+    word (`fix`, `update`, `wip`, `chore`, `cleanup`, `tweak`, `style`)
+    and the commit modifies a security-sensitive file (build config,
+    CI, lockfile, install script, auth or crypto code), inspect the
+    full diff line-by-line and do NOT trust the subject as a summary
+    of intent.
+    (g) Multi-author / force-push: if the PR has commits from more than
+    one author identity, or the branch shows force-push history
+    rewriting, raise the review bar and confirm every author is a known
+    contributor before approving.
+    (h) Lockfile-vs-manifest mismatch: if `package-lock.json`,
+    `yarn.lock`, `pnpm-lock.yaml`, `bun.lockb`, `go.sum`, `Cargo.lock`,
+    `Pipfile.lock`, `poetry.lock`, or equivalent changes by more than
+    ~20 lines while the corresponding manifest (`package.json`,
+    `go.mod`, `Cargo.toml`, `Pipfile`, `pyproject.toml`) shows no
+    proportional dep edits, flag at HIGH. Transitive dep swaps without
+    a manifest change are a documented lockfile-injection vector.
+    (i) New-host inventory: list every URL host, IP address, and mail
+    domain introduced in added lines that was NOT present on the target
+    branch. Surface the list in the review summary so a human reviewer
+    can sanity-check each new outbound destination before merge.
+    (j) Unknown-unknowns gate: ask, of the diff as a whole, "Does
+    anything here look unexplained or potentially malicious?" If there
+    is any hunk you cannot map to a sentence in the PR title or
+    description, do not auto-approve. Ask the maintainer "what is the
+    intent of `<file>:<line range>`?" and treat absence of an answer
+    as a HIGH finding. The point of this check is to catch attacks that
+    pass every signature-based rule above by being novel.
+    (k) Generated-file plausibility: if the PR adds or replaces a
+    minified bundle, a vendored third-party file, a base64 blob, an
+    SVG with embedded `<script>`, or any file whose human-reviewability
+    is effectively zero, require the maintainer to (i) name the
+    upstream source commit, (ii) describe the reproduction command,
+    and (iii) confirm no manual edits were applied. Treat unreviewable
+    binary or minified content as opaque payload until proven
+    otherwise.
+    (l) Changelog coverage: decide whether the PR contains a user-facing
+    change (CLI flags/commands, HCL blocks/attributes/functions, changed
+    defaults or output or exit codes or error messages, experiments,
+    strict controls, behavior-changing bug fixes, user-visible performance
+    changes, new config/env vars). If it does, confirm at least one
+    changelog entry was added under
+    `docs/src/data/changelog/<version>/<slug>.mdx` with a valid `version`
+    and `category`. If a user-facing change ships without a changelog
+    entry, flag at HIGH in the summary and name the likely category.
+    Internal-only changes (refactors, tests, comments) are exempt.
+    (m) Documentation release-gating: for any documentation added or
+    edited under `docs/src/content/docs/**` that describes an unreleased
+    feature or behavior change, confirm the new prose is wrapped in
+    `<Since version="...">` and any superseded prose is wrapped in
+    `<Before version="...">`, both pinned to the same version as the
+    change's changelog entry. Ungated documentation for an unreleased
+    feature would publish to the live docs site before the release ships;
+    flag it at HIGH and ask the author to gate it. Corrections to
+    already-released documentation are exempt.
+
+  # Auto-label suspicious PRs.
+  labeling_instructions:
+    - label: "security:supply-chain-suspect"
+      instructions: >-
+        Apply when ANY of these are true:
+        the PR adds an obfuscated payload (JJEncode, packer, base64-decode-
+        eval, string-shuffle) in any file; the PR modifies a build-time
+        config file outside its stated feature scope; the PR adds
+        `scripts.postinstall` / `preinstall` / `prepare` in package.json;
+        the PR adds a new direct dependency that isn't already in the
+        tree; the PR's diff shape matches the smokescreen pattern (massive
+        whitespace churn across unrelated files). When this label is
+        applied, ALSO post a CRITICAL review comment citing the specific
+        file:line and pattern, and recommend BLOCK.
+
+    - label: "security:unexplained-content"
+      instructions: >-
+        Apply when the PR contains content that cannot be mapped to the
+        PR title or description: files outside the stated scope, hunks
+        with no articulable purpose, newly added outbound URLs / hosts /
+        IP addresses, environment-gated or date-gated conditional code
+        paths, removed safety checks without a justification in the PR
+        body, newly added linter or scanner suppressions, weakened or
+        skipped tests, homoglyph / mixed-script identifiers, or
+        unreviewable binary / minified / base64 payloads. When this
+        label is applied, ALSO post one review comment per unexplained
+        hunk citing `file:line` and asking the maintainer to explain
+        the intent. Do NOT auto-approve while this label is present.
 
   tools:
     languagetool:

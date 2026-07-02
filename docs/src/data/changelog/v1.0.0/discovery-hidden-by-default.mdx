@@ -1,0 +1,10 @@
+---
+version: "v1.0.0"
+category: "breaking-changes"
+---
+
+#### Discovery commands discover hidden configurations by default
+
+The [`find`](/reference/cli/commands/find/) and [`list`](/reference/cli/commands/list/) commands now discover units/stacks in hidden directories by default (this previously required usage of the `--hidden` flag), notably this now discovers `.terragrunt-stack` directories by default. The commands also now support an opt-in `--no-hidden` flag to avoid discovery in hidden directories.
+
+The `--hidden` flag has been deprecated, and will not be removed in 1.0. Using the flag no longer does anything.

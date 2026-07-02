@@ -1,0 +1,12 @@
+---
+version: "v1.0.5"
+category: "performance-improvements"
+---
+
+#### `stack output` fetches unit outputs in parallel
+
+`terragrunt stack output` now fetches outputs from multiple units at the same time, which is noticeably faster on larger stacks. Use the existing `--parallelism` flag (or `TG_PARALLELISM`) to lower concurrency if you need to.
+
+```bash
+terragrunt stack output --parallelism 4
+```

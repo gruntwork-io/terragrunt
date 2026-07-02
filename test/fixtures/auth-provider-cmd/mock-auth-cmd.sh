@@ -2,7 +2,11 @@
 
 set -euo pipefail
 
+# shellcheck disable=SC1091  # creds.config is generated at test runtime
 . "${PWD}/creds.config"
+
+# Variables sourced from creds.config
+# shellcheck disable=SC2154
 
 json_string=$(jq -n \
 	--arg access_key_id "$access_key_id" \

@@ -2,19 +2,14 @@ package controls
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-)
-
-const (
-	GlobalEnvVarsCategoryName     = "Global env vars"
-	CommandEnvVarsCategoryNameFmt = "`%s` command env vars"
 )
 
 var _ = strict.Control(new(DeprecatedEnvVar))
@@ -86,7 +81,7 @@ func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 			return nil
 		}
 
-		return errors.Errorf(ctrl.ErrorFmt, valueName, envName)
+		return fmt.Errorf(ctrl.ErrorFmt, valueName, envName)
 	}
 
 	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.isSuppressed() {

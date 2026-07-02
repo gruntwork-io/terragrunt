@@ -356,11 +356,23 @@ func TestLexer_EdgeCases(t *testing.T) {
 			},
 		},
 		{
-			name:  "single dot (invalid)",
+			name:  "single dot is working directory path",
 			input: ".",
 			expected: []filter.Token{
-				{Type: filter.ILLEGAL, Literal: ".", Position: 0},
+				{Type: filter.PATH, Literal: ".", Position: 0},
 				{Type: filter.EOF, Literal: "", Position: 1},
+			},
+		},
+		{
+			name:  "single dot before pipe is working directory path",
+			input: ". | type=stack",
+			expected: []filter.Token{
+				{Type: filter.PATH, Literal: ".", Position: 0},
+				{Type: filter.PIPE, Literal: "|", Position: 2},
+				{Type: filter.IDENT, Literal: "type", Position: 4},
+				{Type: filter.EQUAL, Literal: "=", Position: 8},
+				{Type: filter.IDENT, Literal: "stack", Position: 9},
+				{Type: filter.EOF, Literal: "", Position: 14},
 			},
 		},
 		{

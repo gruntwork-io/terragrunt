@@ -18,7 +18,10 @@ func NewInvalidTipNameError(requestedName string, allowedNames []string) *Invali
 }
 
 func (err InvalidTipNameError) Error() string {
-	return "invalid tip suppression requested for `--no-tip`: '" + err.requestedName + "'; valid tip(s) for suppression: " + strings.Join(err.allowedNames, ", ")
+	return "invalid tip suppression requested for `--no-tip`: '" +
+		err.requestedName +
+		"'; valid tip(s) for suppression: " +
+		strings.Join(err.allowedNames, ", ")
 }
 
 func (err InvalidTipNameError) Is(target error) bool {

@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -22,9 +23,15 @@ func NewGetter() *Getter {
 }
 
 // ObtainAndUpdateEnvIfNecessary obtains credentials through different providers and sets them to the provided env map.
-func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.Logger, env map[string]string, authProviders ...providers.Provider) error {
+func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
+	ctx context.Context,
+	l log.Logger,
+	exec vexec.Exec,
+	env map[string]string,
+	authProviders ...providers.Provider,
+) error {
 	for _, provider := range authProviders {
-		creds, err := provider.GetCredentials(ctx, l)
+		creds, err := provider.GetCredentials(ctx, l, exec)
 		if err != nil {
 			return err
 		}
@@ -35,7 +42,8 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 
 		for providerName, prevCreds := range getter.obtainedCreds {
 			if prevCreds.Name == creds.Name {
-				l.Warnf("%s credentials obtained using %s are overwritten by credentials obtained using %s.", creds.Name, providerName, provider.Name())
+				l.Warnf("%s credentials obtained using %s are overwritten by credentials obtained using %s.",
+					creds.Name, providerName, provider.Name())
 			}
 		}
 
@@ -51,9 +59,18 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 // credentials, and populates env before HCL parsing.
 // Use when sops_decrypt_file() or get_aws_account_id() may appear in locals.
 // See https://github.com/gruntwork-io/terragrunt/issues/5515
-func ObtainCredsForParsing(ctx context.Context, l log.Logger, authProviderCmd string, env map[string]string, shellOpts *shell.ShellOptions) (*Getter, error) {
+func ObtainCredsForParsing(
+	ctx context.Context,
+	l log.Logger,
+	exec vexec.Exec,
+	authProviderCmd string,
+	env map[string]string,
+	shellOpts *shell.ShellOptions,
+) (*Getter, error) {
 	g := NewGetter()
-	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, env, externalcmd.NewProvider(l, authProviderCmd, shellOpts)); err != nil {
+
+	provider := externalcmd.NewProvider(l, authProviderCmd, shellOpts)
+	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, exec, env, provider); err != nil {
 		return nil, err
 	}
 

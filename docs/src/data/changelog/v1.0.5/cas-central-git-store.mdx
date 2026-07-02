@@ -1,0 +1,16 @@
+---
+version: "v1.0.5"
+category: "experiments-updated"
+---
+
+#### CAS keeps a central Git store for incremental fetches
+
+CAS now keeps one bare Git repository per remote URL inside its store, under `~/.cache/terragrunt/cas/store/git/` on Linux by default. See [Storage](/features/caching/cas#storage) for where this lives on macOS and Windows. On a cache miss, Terragrunt fetches just the requested ref into that repository instead of running a fresh shallow clone into a temporary directory. Repeated misses against the same remote reuse the existing pack files, so fetching a second ref from the same repository transfers only the new objects.
+
+Concurrent Terragrunt runs against the same remote URL share one fetch instead of cloning in parallel; later runs reuse what the first one transferred. If the shared fetch hangs or fails, Terragrunt logs a warning and falls back to a temporary clone so cloning still succeeds.
+
+You can reclaim space at any time by deleting the `git/` subdirectory:
+
+```bash
+rm -rf ~/.cache/terragrunt/cas/store/git
+```

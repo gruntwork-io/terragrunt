@@ -7,10 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	gogit "github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -86,6 +83,201 @@ func TestWorktreePhase_Integration_UnitLifecycle(t *testing.T) {
 
 	assert.NotContains(t, unitPaths, expectedUnitToBeUntouched, "Unit should not be discovered as it was untouched")
 	assert.DirExists(t, expectedUnitToBeUntouched)
+}
+
+// TestWorktreePhase_Integration_DeletedReadingUnitRediscovered verifies that when a file a unit
+// reads via mark_glob_as_read is deleted, the unit is rediscovered in the to-worktree (where it
+// still exists) rather than being left on the from-worktree path and treated as a removal. The
+// deleted file only exists on the from side, so the reading filter lands there, but the surviving
+// unit must keep its HEAD identity and avoid the -destroy treatment.
+func TestWorktreePhase_Integration_DeletedReadingUnitRediscovered(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	createUnit(t, tmpDir, "unit-reads-config", `locals {
+  config_files = mark_glob_as_read("../config/{*.yaml,*.yml}")
+}`)
+
+	configDir := filepath.Join(tmpDir, "config")
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	// Delete one of the tracked files only; the unit itself is untouched.
+	require.NoError(t, os.Remove(filepath.Join(configDir, "item-a.yml")))
+	commitChanges(t, runner, "Delete tracked config file")
+
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+	components, w := runWorktreeDiscovery(t, tmpDir, gitExpressions, "plan", nil)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	fromPath := filepath.Join(pair.FromWorktree.Path, "unit-reads-config")
+	toPath := filepath.Join(pair.ToWorktree.Path, "unit-reads-config")
+
+	units := components.Filter(component.UnitKind)
+	unitPaths := units.Paths()
+
+	assert.Contains(t, unitPaths, toPath, "Surviving reading unit should be rediscovered in the to-worktree")
+	assert.NotContains(t, unitPaths, fromPath, "Surviving reading unit should not remain on the from-worktree path")
+
+	var found bool
+
+	for _, c := range units {
+		if c.Path() != toPath {
+			continue
+		}
+
+		found = true
+
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD", dc.Ref, "Rediscovered unit should carry the to-worktree ref")
+		assert.NotContains(t, dc.Args, "-destroy", "Rediscovered unit should not be treated as a removal")
+	}
+
+	assert.True(t, found, "Expected the rediscovered unit in the worktree discovery results")
+}
+
+// TestWorktreePhase_Integration_RemovedReadingUnitStaysDestroyed verifies that a unit which both
+// reads a deleted file and is itself removed is still treated as a removal: it is discovered in the
+// from-worktree with -destroy and is not spuriously rediscovered in the to-worktree (where it no
+// longer exists).
+func TestWorktreePhase_Integration_RemovedReadingUnitStaysDestroyed(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	createUnit(t, tmpDir, "unit-removed", `locals {
+  config_files = mark_glob_as_read("../config/{*.yaml,*.yml}")
+}`)
+
+	configDir := filepath.Join(tmpDir, "config")
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	// Remove the unit and the file it read in the same diff.
+	require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "unit-removed")))
+	require.NoError(t, os.RemoveAll(configDir))
+	commitChanges(t, runner, "Remove unit and the file it read")
+
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+	components, w := runWorktreeDiscovery(t, tmpDir, gitExpressions, "plan", nil)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	fromPath := filepath.Join(pair.FromWorktree.Path, "unit-removed")
+	toPath := filepath.Join(pair.ToWorktree.Path, "unit-removed")
+
+	units := components.Filter(component.UnitKind)
+	unitPaths := units.Paths()
+
+	assert.Contains(t, unitPaths, fromPath, "Removed reading unit should be discovered in the from-worktree")
+	assert.NotContains(t, unitPaths, toPath, "Removed reading unit must not be rediscovered in the to-worktree")
+
+	for _, c := range units {
+		if c.Path() != fromPath {
+			continue
+		}
+
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD~1", dc.Ref, "Removed unit should carry the from-worktree ref")
+		assert.Contains(t, dc.Args, "-destroy", "Removed unit should retain the -destroy treatment")
+	}
+}
+
+// TestWorktreePhase_Integration_MultipleReadersOfDeletedFile exercises the fan-out when a single
+// deleted file is read by several units at once. Surviving readers must each be rediscovered in the
+// to-worktree, a reader removed in the same diff must keep its from-side -destroy and not be
+// rediscovered, and an unrelated reader of an unchanged file must not be pulled in by the translation.
+func TestWorktreePhase_Integration_MultipleReadersOfDeletedFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	readsShared := `locals {
+  config_files = mark_glob_as_read("../shared/{*.yaml,*.yml}")
+}`
+
+	createUnit(t, tmpDir, "survivor-a", readsShared)
+	createUnit(t, tmpDir, "survivor-b", readsShared)
+	createUnit(t, tmpDir, "removed", readsShared)
+	createUnit(t, tmpDir, "untouched", `locals {
+  config_files = mark_glob_as_read("../other/{*.yaml,*.yml}")
+}`)
+
+	sharedDir := filepath.Join(tmpDir, "shared")
+	require.NoError(t, os.MkdirAll(sharedDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+
+	otherDir := filepath.Join(tmpDir, "other")
+	require.NoError(t, os.MkdirAll(otherDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(otherDir, "keep.yml"), []byte("c: 3\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	// One shared file read by three units is deleted, and one of those three readers is removed.
+	require.NoError(t, os.Remove(filepath.Join(sharedDir, "item-a.yml")))
+	require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "removed")))
+	commitChanges(t, runner, "Delete a shared read file and remove one of its readers")
+
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+	components, w := runWorktreeDiscovery(t, tmpDir, gitExpressions, "plan", nil)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	from := pair.FromWorktree.Path
+	to := pair.ToWorktree.Path
+
+	units := components.Filter(component.UnitKind)
+	unitPaths := units.Paths()
+
+	byPath := make(map[string]component.Component, len(units))
+	for _, c := range units {
+		byPath[c.Path()] = c
+	}
+
+	// Each surviving reader is rediscovered on the to side, with HEAD identity and no destroy.
+	for _, name := range []string{"survivor-a", "survivor-b"} {
+		toUnit := filepath.Join(to, name)
+		assert.Contains(t, unitPaths, toUnit, "surviving reader %s should be rediscovered in to-worktree", name)
+		assert.NotContains(t, unitPaths, filepath.Join(from, name), "surviving reader %s should not stay on from side", name)
+
+		c, ok := byPath[toUnit]
+		require.True(t, ok)
+
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD", dc.Ref, "surviving reader %s should carry the to-worktree ref", name)
+		assert.NotContains(t, dc.Args, "-destroy", "surviving reader %s should not be a removal", name)
+	}
+
+	// The removed reader keeps its from-side destroy treatment and is not rediscovered in the to side.
+	removedFrom := filepath.Join(from, "removed")
+	assert.Contains(t, unitPaths, removedFrom, "removed reader should be discovered in from-worktree")
+	assert.NotContains(t, unitPaths, filepath.Join(to, "removed"), "removed reader must not reappear in to-worktree")
+
+	removed, ok := byPath[removedFrom]
+	require.True(t, ok)
+
+	removedCtx := removed.DiscoveryContext()
+	require.NotNil(t, removedCtx)
+	assert.Equal(t, "HEAD~1", removedCtx.Ref)
+	assert.Contains(t, removedCtx.Args, "-destroy")
+
+	// The unrelated reader (reads an unchanged directory) is not selected by the translated filters.
+	assert.NotContains(t, unitPaths, filepath.Join(to, "untouched"))
+	assert.NotContains(t, unitPaths, filepath.Join(from, "untouched"))
 }
 
 // TestWorktreePhase_Integration_CommandArgs tests command argument handling for worktrees.
@@ -176,7 +368,11 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 			// Set up discovery
 			l := logger.CreateLogger()
 
-			w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
+			wtOpts := worktrees.WorktreeOpts{
+				WorkingDir:     tmpDir,
+				GitExpressions: gitExpressions,
+			}
+			w, err := worktrees.NewWorktrees(t.Context(), l, wtOpts)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -278,19 +474,11 @@ func TestWorktreePhase_Integration_EmptyFilters(t *testing.T) {
 	tmpDir, runner := setupGitRepo(t)
 
 	// Create initial empty commit
-	err := runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
 	// Create a second commit with only non-terragrunt files
 	readmePath := filepath.Join(tmpDir, "README.md")
-	err = os.WriteFile(readmePath, []byte("# Test"), 0o644)
+	err := os.WriteFile(readmePath, []byte("# Test"), 0o644)
 	require.NoError(t, err)
 
 	commitChanges(t, runner, "Update README")
@@ -311,26 +499,10 @@ func TestWorktreePhase_Integration_EmptyDiffs(t *testing.T) {
 	tmpDir, runner := setupGitRepo(t)
 
 	// Create initial empty commit
-	err := runner.GoCommit("Initial commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
 	// Create a second empty commit
-	err = runner.GoCommit("Empty commit", &gogit.CommitOptions{
-		AllowEmptyCommits: true,
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Commit(t.Context(), "Empty commit", "--allow-empty"))
 
 	// Run worktree discovery
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
@@ -446,7 +618,11 @@ unit "unit_to_be_untouched" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -466,7 +642,7 @@ unit "unit_to_be_untouched" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -806,7 +982,11 @@ locals {
 			require.NoError(t, err)
 
 			// Create worktrees
-			w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()})
+			wtOpts := worktrees.WorktreeOpts{
+				WorkingDir:     tmpDir,
+				GitExpressions: filters.UniqueGitFilters(),
+			}
+			w, err := worktrees.NewWorktrees(t.Context(), l, wtOpts)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -900,7 +1080,11 @@ locals {
 	require.NoError(t, err)
 
 	// Create worktrees from the subdirectory
-	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: basicDir, GitExpressions: filters.UniqueGitFilters()})
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     basicDir,
+		GitExpressions: filters.UniqueGitFilters(),
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1165,7 +1349,11 @@ locals {
 			require.NoError(t, err)
 
 			// Create worktrees
-			w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()})
+			wtOpts := worktrees.WorktreeOpts{
+				WorkingDir:     tmpDir,
+				GitExpressions: filters.UniqueGitFilters(),
+			}
+			w, err := worktrees.NewWorktrees(t.Context(), l, wtOpts)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -1262,7 +1450,11 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 			require.NoError(t, err)
 
 			// Create worktrees from the subdirectory
-			w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: basicDir, GitExpressions: filters.UniqueGitFilters()})
+			wtOpts := worktrees.WorktreeOpts{
+				WorkingDir:     basicDir,
+				GitExpressions: filters.UniqueGitFilters(),
+			}
+			w, err := worktrees.NewWorktrees(t.Context(), l, wtOpts)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -1313,23 +1505,7 @@ func setupGitRepo(t *testing.T) (string, *git.GitRunner) {
 	t.Helper()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	runner, err := git.NewGitRunner()
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		if err := runner.GoCloseStorage(); err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
+	runner := helpers.InitTestGitRunner(t, tmpDir)
 
 	return tmpDir, runner
 }
@@ -1338,17 +1514,8 @@ func setupGitRepo(t *testing.T) (string, *git.GitRunner) {
 func commitChanges(t *testing.T, runner *git.GitRunner, message string) {
 	t.Helper()
 
-	err := runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit(message, &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), message))
 }
 
 // createUnit creates a unit directory with terragrunt.hcl.
@@ -1440,7 +1607,11 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1461,7 +1632,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1602,7 +1773,11 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1622,7 +1797,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1757,7 +1932,11 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1777,7 +1956,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1830,7 +2009,8 @@ unit "app" {
 	}
 
 	assert.True(t, foundStack,
-		"Stack with nested read_terragrunt_config reference should be discovered when sidecar changes; got: %v", componentPaths)
+		"Stack with nested read_terragrunt_config reference should be discovered"+
+			" when sidecar changes; got: %v", componentPaths)
 
 	// Verify: stack WITHOUT the reference should NOT be discovered
 	stackNoRefRel, err := filepath.Rel(tmpDir, stackNoRefDir)
@@ -1930,7 +2110,7 @@ unit "myapp" {
 
 	// Generate stacks — using tmpDir as working directory so that only
 	// worktreeStacksToGenerate can cause generation inside worktrees.
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Verify: no .terragrunt-stack directories should exist in the worktrees,
@@ -1980,7 +2160,7 @@ func TestWorktreePhase_Integration_StackReadingRespectsExclusion(t *testing.T) {
 
 	markerFile := filepath.Join(tmpDir, "land-mine-parsed.marker")
 
-	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), []byte(fmt.Sprintf(`
+	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), fmt.Appendf(nil, `
 locals {
   marker = run_cmd("--terragrunt-quiet", "bash", "-c", "touch %s")
 }
@@ -1989,7 +2169,7 @@ unit "myapp" {
   source = "${get_repo_root()}/catalog/units/myapp"
   path   = "myapp"
 }
-`, markerFile)), 0o644)
+`, markerFile), 0o644)
 	require.NoError(t, err)
 
 	// Create a normal stack that reads a config file
@@ -2053,7 +2233,7 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	// Generate stacks
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — the land-mine stack should not have been parsed.
@@ -2090,7 +2270,7 @@ func TestWorktreePhase_Integration_StackReadingExclusionOverridesInclusion(t *te
 
 	markerFile := filepath.Join(tmpDir, "land-mine-parsed.marker")
 
-	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), []byte(fmt.Sprintf(`
+	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), fmt.Appendf(nil, `
 locals {
   marker = run_cmd("--terragrunt-quiet", "bash", "-c", "touch %s")
 }
@@ -2099,7 +2279,7 @@ unit "myapp" {
   source = "${get_repo_root()}/catalog/units/myapp"
   path   = "myapp"
 }
-`, markerFile)), 0o644)
+`, markerFile), 0o644)
 	require.NoError(t, err)
 
 	// Create a normal stack that reads a config file
@@ -2166,7 +2346,7 @@ unit "myapp" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — negation should prevent parsing
@@ -2188,7 +2368,11 @@ func runWorktreeDiscovery(
 
 	l := logger.CreateLogger()
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, wtOpts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -2317,13 +2501,13 @@ unit "myapp" {
 		fromOpts := opts.Clone()
 		fromOpts.WorkingDir = pair.FromWorktree.Path
 		fromOpts.RootWorkingDir = pair.FromWorktree.Path
-		err = generate.GenerateStacks(t.Context(), l, fromOpts, w)
+		err = generate.NewGenerator().GenerateStacks(t.Context(), l, fromOpts, w)
 		require.NoError(t, err)
 
 		toOpts := opts.Clone()
 		toOpts.WorkingDir = pair.ToWorktree.Path
 		toOpts.RootWorkingDir = pair.ToWorktree.Path
-		err = generate.GenerateStacks(t.Context(), l, toOpts, w)
+		err = generate.NewGenerator().GenerateStacks(t.Context(), l, toOpts, w)
 		require.NoError(t, err)
 	}
 
@@ -2364,4 +2548,433 @@ unit "myapp" {
 	assert.NotEmpty(t, unitPaths,
 		"Expected at least one unit to be discovered when a read file changes, "+
 			"but got no units. All components: %v", componentPaths)
+}
+
+// TestWorktreePhase_Integration_DeletedReadingStackRecordedAsReadingAffected verifies that when a
+// file a stack reads via mark_glob_as_read is deleted, the stack is recorded in ReadingAffectedStacks
+// during generation so the worktree phase walks it for unit-level diffs. The deleted file only exists
+// on the from side, so the reading filter lands there; the symmetric "to" side detection that covers
+// changed and added files would otherwise miss it, leaving the stack to be rediscovered as a bare
+// stack file with no generated-unit discovery.
+func TestWorktreePhase_Integration_DeletedReadingStackRecordedAsReadingAffected(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
+	require.NoError(t, os.MkdirAll(legacyUnitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644))
+
+	stackWithRefDir := filepath.Join(tmpDir, "live", "stack-with-ref")
+	configsDir := filepath.Join(stackWithRefDir, "configs")
+	require.NoError(t, os.MkdirAll(configsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(configsDir, "item-a.yml"), []byte("a: 1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(configsDir, "item-b.yml"), []byte("b: 2\n"), 0o644))
+
+	stackWithRefContent := `
+locals {
+  config_files = mark_glob_as_read("configs/*.yml")
+}
+
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+	stackWithRefFile := filepath.Join(stackWithRefDir, "terragrunt.stack.hcl")
+	require.NoError(t, os.WriteFile(stackWithRefFile, []byte(stackWithRefContent), 0o644))
+
+	// Control stack that reads nothing; it must stay untouched.
+	stackNoRefDir := filepath.Join(tmpDir, "live", "stack-no-ref")
+	require.NoError(t, os.MkdirAll(stackNoRefDir, 0o755))
+
+	stackNoRefContent := `
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+	stackNoRefFile := filepath.Join(stackNoRefDir, "terragrunt.stack.hcl")
+	require.NoError(t, os.WriteFile(stackNoRefFile, []byte(stackNoRefContent), 0o644))
+
+	commitChanges(t, runner, "Create stacks")
+
+	// Delete one tracked sidecar file only; the stack file itself is untouched.
+	require.NoError(t, os.Remove(filepath.Join(configsDir, "item-a.yml")))
+	commitChanges(t, runner, "Delete a tracked sidecar file")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l))
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
+
+	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w))
+
+	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
+
+	for _, pair := range w.ReadingAffectedStacks {
+		rel, relErr := filepath.Rel(pair.ToStack.DiscoveryContext().WorkingDir, pair.ToStack.Path())
+		require.NoError(t, relErr)
+
+		readingAffectedDirs = append(readingAffectedDirs, filepath.ToSlash(rel))
+	}
+
+	assert.Contains(t, readingAffectedDirs, "live/stack-with-ref",
+		"Stack reading the deleted file should be recorded as reading-affected for unit-level walking")
+	assert.NotContains(t, readingAffectedDirs, "live/stack-no-ref",
+		"Stack reading nothing should not be recorded as reading-affected")
+}
+
+// TestWorktreePhase_Integration_MultipleChangedFilesReadByDistinctStacks verifies that when several
+// files change in one diff and each is read by a different stack, every reading stack is recorded as
+// reading-affected. Matching only the first reading filter records just one of them and silently skips
+// the rest, leaving those stacks' units un-walked.
+func TestWorktreePhase_Integration_MultipleChangedFilesReadByDistinctStacks(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
+	require.NoError(t, os.MkdirAll(legacyUnitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644))
+
+	// Each stack reads its own sidecar via read_terragrunt_config, so a stack matches exactly one
+	// reading filter.
+	stackContent := `
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+
+	stackNames := []string{"stack-a", "stack-b"}
+
+	for _, name := range stackNames {
+		dir := filepath.Join(tmpDir, "live", name)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.hcl"), []byte(`inputs = { version = "v1" }`), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.stack.hcl"), []byte(stackContent), 0o644))
+	}
+
+	commitChanges(t, runner, "Create stacks")
+
+	// Change every sidecar in one commit; the stack files themselves are untouched.
+	for _, name := range stackNames {
+		dir := filepath.Join(tmpDir, "live", name)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.hcl"), []byte(`inputs = { version = "v2" }`), 0o644))
+	}
+
+	commitChanges(t, runner, "Change every sidecar")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l))
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
+
+	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w))
+
+	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
+
+	for _, pair := range w.ReadingAffectedStacks {
+		rel, relErr := filepath.Rel(pair.ToStack.DiscoveryContext().WorkingDir, pair.ToStack.Path())
+		require.NoError(t, relErr)
+
+		readingAffectedDirs = append(readingAffectedDirs, filepath.ToSlash(rel))
+	}
+
+	assert.Contains(t, readingAffectedDirs, "live/stack-a",
+		"Stack reading one changed file should be recorded as reading-affected: %v", readingAffectedDirs)
+	assert.Contains(t, readingAffectedDirs, "live/stack-b",
+		"Stack reading another changed file should also be recorded as reading-affected: %v", readingAffectedDirs)
+}
+
+// TestWorktreePhase_Integration_NegatedFiltersAppliedInWorktreeSubDiscoveries tests that
+// negated path filters (e.g., from .terragrunt-filters) are applied within worktree
+// sub-discoveries, not just during the final filter evaluation.
+// This is a regression test for #5821: source catalog units in worktrees were being
+// discovered and parsed despite being excluded by a negated path filter, because the
+// worktree sub-discoveries did not receive the exclusion filters.
+func TestWorktreePhase_Integration_NegatedFiltersAppliedInWorktreeSubDiscoveries(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create two units: one that should be discovered and one that should be excluded.
+	createUnit(t, tmpDir, "app", `# App unit`)
+	// This catalog unit references values.* — it's a template that only works
+	// when generated through a stack. Without the fix, the worktree sub-discovery
+	// tries to parse it and fails with "Unknown variable: values".
+	createUnit(t, tmpDir, "catalog/units/svc", `
+locals {
+  environment = values.environment
+}
+`)
+
+	commitChanges(t, runner, "Initial commit")
+
+	// Modify both units
+	err := os.WriteFile(filepath.Join(tmpDir, "app", "terragrunt.hcl"), []byte(`# Modified app`), 0o644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(tmpDir, "catalog", "units", "svc", "terragrunt.hcl"), []byte(`
+locals {
+  environment = values.environment
+  region      = "us-east-1"
+}
+`), 0o644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Modify both units")
+
+	l := logger.CreateLogger()
+
+	// Parse filters: git expression + negated path that excludes catalog
+	filterQueries := []string{"[HEAD~1...HEAD]", "!./catalog/**"}
+	filters, parseErr := filter.ParseFilterQueries(l, filterQueries)
+	require.NoError(t, parseErr)
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: filters.UniqueGitFilters(),
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: tmpDir,
+			Cmd:        "plan",
+		}).
+		WithWorktrees(w).
+		WithRelationships().
+		WithFilters(filters)
+
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	unitPaths := components.Filter(component.UnitKind).Paths()
+
+	worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, worktreePair)
+
+	toWorktree := worktreePair.ToWorktree.Path
+
+	// The app unit should be discovered (it's in the git diff and not excluded)
+	assert.Contains(t, unitPaths, filepath.Join(toWorktree, "app"),
+		"app unit should be discovered")
+
+	// The catalog unit should NOT be discovered (excluded by !./catalog/**)
+	for _, p := range unitPaths {
+		assert.NotContains(t, p, "catalog",
+			"catalog units should be excluded by the negated filter, but found: %s", p)
+	}
+}
+
+// TestWorktreePhase_Integration_GitFilterExclusionPreventsParsingInWorktree verifies that
+// a negated filter prevents excluded units from being parsed inside worktree sub-discoveries.
+// The land-mine unit uses run_cmd("exit 1") which would cause a fatal parse error if evaluated.
+func TestWorktreePhase_Integration_GitFilterExclusionPreventsParsingInWorktree(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	createUnit(t, tmpDir, "app", `# App unit`)
+	createUnit(t, tmpDir, "land-mine", `
+locals {
+  boom = run_cmd("--terragrunt-quiet", "bash", "-c", "exit 1")
+}
+`)
+
+	commitChanges(t, runner, "Initial commit")
+
+	err := os.WriteFile(filepath.Join(tmpDir, "app", "terragrunt.hcl"), []byte(`# Modified app`), 0o644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(tmpDir, "land-mine", "terragrunt.hcl"), []byte(`
+locals {
+  boom = run_cmd("--terragrunt-quiet", "bash", "-c", "exit 1")
+  modified = true
+}
+`), 0o644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Modify both units")
+
+	l := logger.CreateLogger()
+	filters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]", "!./land-mine"})
+	require.NoError(t, parseErr)
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: filters.UniqueGitFilters(),
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir, Cmd: "plan"}).
+		WithWorktrees(w).
+		WithRelationships().
+		WithFilters(filters)
+
+	// If the land-mine unit is parsed, run_cmd("exit 1") causes a fatal error.
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	unitPaths := components.Filter(component.UnitKind).Paths()
+
+	toWorktree := w.WorktreePairs["[HEAD~1...HEAD]"].ToWorktree.Path
+	assert.Contains(t, unitPaths, filepath.Join(toWorktree, "app"), "app should be discovered")
+
+	for _, p := range unitPaths {
+		assert.NotContains(t, p, "land-mine", "land-mine should not be discovered: %s", p)
+	}
+}
+
+// TestWorktreePhase_Integration_StackDiscoveryDoesNotParseUnits verifies that
+// discoverStacks (via GenerateStacks) does not parse non-stack components even when
+// reading filters trigger the parse phase. The land-mine unit uses run_cmd("exit 1")
+// which would cause a fatal error if parsed.
+func TestWorktreePhase_Integration_StackDiscoveryDoesNotParseUnits(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create a land-mine unit at the repo root
+	createUnit(t, tmpDir, "land-mine", `
+locals {
+  boom = run_cmd("--terragrunt-quiet", "bash", "-c", "exit 1")
+}
+`)
+
+	// Create a catalog unit for the stack to source
+	catalogDir := filepath.Join(tmpDir, "catalog", "units", "myapp")
+	err := os.MkdirAll(catalogDir, 0o755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0o644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogDir, "main.tf"), []byte(`output "ok" { value = "ok" }`), 0o644)
+	require.NoError(t, err)
+
+	// Create a stack that reads a config file (triggers reading filter path in worktreeStacksToGenerate)
+	stackDir := filepath.Join(tmpDir, "live", "stack")
+	err = os.MkdirAll(stackDir, 0o755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { v = "v1" }`), 0o644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(`
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "myapp" {
+  source = "${get_repo_root()}/catalog/units/myapp"
+  path   = "myapp"
+  values = local.config.inputs
+}
+`), 0o644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Initial commit")
+
+	// Change only the config file (triggers reading filter, not a direct stack change)
+	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { v = "v2" }`), 0o644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Update config file")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
+	require.NoError(t, err)
+
+	// GenerateStacks internally calls discoverStacks with reading filters.
+	// If the land-mine unit is parsed, run_cmd("exit 1") causes a fatal error.
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
+	require.NoError(t, err)
 }

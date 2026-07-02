@@ -3,9 +3,13 @@ package test_test
 import (
 	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -13,6 +17,8 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +39,9 @@ const (
 	testFixtureChainedDepsExposedInclude         = "fixtures/regressions/chained-deps-exposed-include"
 	testFixtureExposedIncludePartialParseError   = "fixtures/regressions/exposed-include-partial-parse-error"
 	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
+	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
+	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
+	testFixtureDependencyHookOutput              = "fixtures/regressions/dependency-hook-output"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -49,6 +58,32 @@ func TestNoAutoInit(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, stderr, "no force apply stderr")
 	require.Error(t, err)
 	assert.Contains(t, stderr.String(), "Required plugins are not installed")
+}
+
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/6058
+func TestAutoInitHonorsMarkerWhenModulesCached(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitMarkerCachedModules)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitMarkerCachedModules)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr)
+	require.NoError(t, err)
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"), "first plan should run init")
+
+	// Bump mtime so EncodeSourceVersion sees a different hash and writes the marker.
+	sourceFile := filepath.Join(rootPath, "src", "main.tf")
+	future := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(sourceFile, future, future))
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr)
+	require.NoError(t, err)
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"), "second plan should re-run init because the source-change marker was written")
+	assert.NotContains(t, stderr.String(), "Required plugins are not installed")
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
@@ -214,7 +249,7 @@ func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyEmptyConfigPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureDependencyEmptyConfigPath)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -249,7 +284,7 @@ func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureParsingDeprecated)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureParsingDeprecated)
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture(testFixtureParsingDeprecated)
 	childPath := filepath.Join(tmpEnvPath, testFixtureParsingDeprecated, "child")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
@@ -833,24 +868,41 @@ func TestExposedIncludeFullParseReturnsError(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	childPath := filepath.Join(rootPath, "child")
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --non-interactive --working-dir "+childPath+" -- plan",
 	)
 	require.Error(t, err, "Full parsing should fail when exposed include has unresolved dependency")
-	assert.Contains(t, stderr, "detected no outputs",
-		"Error should mention that dependency has no outputs")
 }
 
-// TestQueueDisplayOrder verifies that the flat queue display lists units in
+// TestExposedIncludeErrorIdentifiesIncludeBlock is a regression test for
+// https://github.com/gruntwork-io/terragrunt/issues/6282. When resolving an exposed include fails, the error must
+// identify WHICH include block and WHICH included (parent) file caused it, not just the child config path —
+// otherwise location-less errors (e.g. "unsuitable value: a bool is required") are impossible to debug.
+func TestExposedIncludeErrorIdentifiesIncludeBlock(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExposedIncludePartialParseError)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExposedIncludePartialParseError)
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	childPath := filepath.Join(rootPath, "child")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+childPath+" -- plan",
+	)
+	require.Error(t, err)
+	assert.Contains(t, stderr, `exposed include "root"`,
+		"error should name the include block so the user knows WHERE resolution failed")
+	assert.Contains(t, stderr, "root.hcl", "error should name the included (parent) file")
+}
+
+// TestQueueDisplayOrder verifies that the DAG queue display lists units in
 // dependency order: dependencies before dependents.
 // Regression test for https://github.com/gruntwork-io/terragrunt/issues/5035
 func TestQueueDisplayOrder(t *testing.T) {
 	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping: experiment mode enables dag-queue-display which changes queue output format")
-	}
 
 	// The fixture has the chain: vpc -> database -> backend-app -> frontend-app
 	// plus monitoring (independent).
@@ -941,7 +993,7 @@ func TestDAGQueueDisplay(t *testing.T) {
 		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
 
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-			t, "terragrunt run --all --non-interactive --no-color --experiment dag-queue-display --working-dir "+rootPath+" -- plan",
+			t, "terragrunt run --all --non-interactive --no-color --working-dir "+rootPath+" -- plan",
 		)
 		require.NoError(t, err)
 
@@ -957,11 +1009,196 @@ func TestDAGQueueDisplay(t *testing.T) {
 		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
 
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-			t, "terragrunt run --all --non-interactive --no-color --experiment dag-queue-display --working-dir "+rootPath+" -- plan -destroy",
+			t, "terragrunt run --all --non-interactive --no-color --working-dir "+rootPath+" -- plan -destroy",
 		)
 		require.NoError(t, err)
 
 		assert.Contains(t, stderr, "starting with dependents and then their dependencies")
 		assert.Contains(t, stderr, expectedDownTree)
 	})
+}
+
+// TestForgedModuleManifestDoesNotEscapeCache pins that a forged .terragrunt-module-manifest shipped inside a downloaded git module does not delete a sentinel file outside the cache.
+func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
+	t.Parallel()
+
+	sentinelDir := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(sentinelDir, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# benign\n"), "module"))
+	require.NoError(t, srv.CommitFile(t.Context(), ".terragrunt-module-manifest", encodeForgedManifest(t, forgedFile(sentinel)), "forged manifest"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	consumer := helpers.TmpDirWOSymlinks(t)
+	tgConfig := fmt.Sprintf("terraform {\n  source = \"git::%s\"\n}\n", url)
+	require.NoError(t, os.WriteFile(filepath.Join(consumer, "terragrunt.hcl"), []byte(tgConfig), 0o644))
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+consumer+" -- init -backend=false",
+	)
+	require.NoError(t, err, "init must succeed: stdout=%s stderr=%s", stdout, stderr)
+
+	cacheRoot := filepath.Join(consumer, ".terragrunt-cache")
+	cachedMain := findCachedFile(t, cacheRoot, "main.tf")
+	require.NotEmpty(t, cachedMain, "the benign main.tf from the module must be present in the cache")
+
+	cachedModuleDir := filepath.Dir(cachedMain)
+	staleCanary := filepath.Join(cachedModuleDir, "stale-canary.tf")
+	forgedManifestPath := filepath.Join(cachedModuleDir, ".terragrunt-module-manifest")
+
+	require.NoError(t, os.WriteFile(staleCanary, []byte("must be cleaned"), 0o600))
+	require.NoError(t, os.WriteFile(
+		forgedManifestPath,
+		encodeForgedManifest(t, forgedFile(staleCanary), forgedFile(sentinel), forgedDir(sentinelDir)),
+		0o600,
+	))
+	require.FileExists(t, forgedManifestPath, "test setup must plant the forged cache manifest before the second init")
+
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+consumer+" -- init -backend=false",
+	)
+	require.NoError(t, err, "second init must succeed: stdout=%s stderr=%s", stdout, stderr)
+
+	assert.NoFileExists(t, staleCanary, "forged manifest must have been processed and removed the in-cache canary")
+	assert.FileExists(t, sentinel, "forged manifest entry must not have deleted the sentinel outside the cache")
+
+	manifestEntries := readForgedManifestEntries(t, forgedManifestPath)
+	manifestPaths := make([]string, 0, len(manifestEntries))
+
+	for _, entry := range manifestEntries {
+		manifestPaths = append(manifestPaths, entry.Path)
+	}
+
+	assert.NotContains(t, manifestPaths, staleCanary, "fresh manifest should not retain the forged in-cache canary entry")
+	assert.NotContains(t, manifestPaths, sentinel, "fresh manifest should not retain the forged out-of-cache file entry")
+	assert.NotContains(t, manifestPaths, sentinelDir, "fresh manifest should not retain the forged out-of-cache directory entry")
+}
+
+// encodeForgedManifest builds a gob-encoded .terragrunt-module-manifest with one file entry per supplied path so tests can plant adversarial inputs.
+func encodeForgedManifest(t *testing.T, entries ...forgedManifestEntry) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	enc := gob.NewEncoder(&buf)
+
+	for _, entry := range entries {
+		require.NoError(t, enc.Encode(entry))
+	}
+
+	return buf.Bytes()
+}
+
+func readForgedManifestEntries(t *testing.T, path string) []forgedManifestEntry {
+	t.Helper()
+
+	file, err := os.Open(path)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, file.Close())
+	}()
+
+	decoder := gob.NewDecoder(file)
+	entries := []forgedManifestEntry{}
+
+	for {
+		var entry forgedManifestEntry
+		if err := decoder.Decode(&entry); err != nil {
+			if errors.Is(err, io.EOF) {
+				return entries
+			}
+
+			require.NoError(t, err)
+		}
+
+		entries = append(entries, entry)
+	}
+}
+
+// forgedManifestEntry mirrors the gob manifest entry layout for adversarial fixtures.
+type forgedManifestEntry struct {
+	Path  string
+	IsDir bool
+}
+
+func forgedFile(path string) forgedManifestEntry {
+	return forgedManifestEntry{Path: path}
+}
+
+func forgedDir(path string) forgedManifestEntry {
+	return forgedManifestEntry{Path: path, IsDir: true}
+}
+
+// findCachedFile returns the first path under cacheRoot whose basename matches name, or "" if not found.
+func findCachedFile(t *testing.T, cacheRoot, name string) string {
+	t.Helper()
+
+	var found string
+
+	walkErr := vfs.WalkDir(vfs.NewOSFS(), cacheRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !d.IsDir() && filepath.Base(path) == name {
+			found = path
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+	require.NoError(t, walkErr, "walking %s", cacheRoot)
+
+	return found
+}
+
+// TestDependencyExtraArgsEnvVarsResolveOutput checks that dependency output resolution honors extra_arguments env_vars
+func TestDependencyExtraArgsEnvVarsResolveOutput(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyExtraArgsEnv)
+	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyExtraArgsEnv)
+	moduleAPath := filepath.Join(testPath, "module-a")
+	moduleBPath := filepath.Join(testPath, "module-b")
+
+	// apply the dependency so its state is written under the custom workspace selected by extra_arguments
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleAPath)
+	require.NoError(t, err)
+
+	// resolving module-a outputs here must use the extra_arguments workspace to read the right state
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleBPath)
+	require.NoError(t, err)
+
+	// confirm module-a output propagated through the dependency, not just a clean exit
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw test_output --non-interactive --working-dir "+moduleBPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "hello from module-a")
+}
+
+// TestDependencyHookOutputResolution checks a unit can resolve outputs of a dependency whose before_hook references its own dependency.
+func TestDependencyHookOutputResolution(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyHookOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyHookOutput)
+
+	// module-a <- module-b (before_hook references module-a) <- module-c
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// confirm module-b's output propagated to module-c
+	moduleCPath := filepath.Join(rootPath, "module-c")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw echo --non-interactive --working-dir "+moduleCPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "argocd")
 }

@@ -1513,7 +1513,8 @@ func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
 
 	// The name should be relative to the worktree dir, not the original repo dir
 	// Without the fix, this would be the full absolute path since unitPath doesn't start with originalRepoDir
-	assert.Equal(t, "module/unit", runs[0].Name, "Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
+	assert.Equal(t, "module/unit", runs[0].Name,
+		"Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
 }
 
 // TestWriteCSVWithDiscoveryWorkingDir verifies that CSV output also uses DiscoveryWorkingDir.
@@ -1554,7 +1555,8 @@ func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
 	require.Len(t, records, 2) // header + 1 data row
 
 	// The name (first column) should be relative to worktree dir
-	assert.Equal(t, "module/unit", records[1][0], "Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
+	assert.Equal(t, "module/unit", records[1][0],
+		"Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
 }
 
 // TestParseJSONRuns verifies that JSON report data can be parsed from bytes.
@@ -1649,7 +1651,8 @@ func TestParseJSONRunsFromFile(t *testing.T) {
 		t.Parallel()
 
 		reportFile := filepath.Join(tmp, "valid-report.json")
-		content := `[{"Name": "test-unit", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"}]`
+		content := `[{"Name": "test-unit", "Started": "2024-01-01T10:00:00Z",` +
+			` "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"}]`
 
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
@@ -1773,9 +1776,15 @@ func TestParseCSVRuns(t *testing.T) {
 			expected: report.CSVRuns{},
 		},
 		{
-			name:     "single run",
-			input:    "Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args\nmodule/unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,,,,\n",
-			expected: report.CSVRuns{{Name: "module/unit", Started: "2024-01-01T10:00:00Z", Ended: "2024-01-01T10:01:00Z", Result: "succeeded"}},
+			name: "single run",
+			input: "Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args\n" +
+				"module/unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,,,,\n",
+			expected: report.CSVRuns{{
+				Name:    "module/unit",
+				Started: "2024-01-01T10:00:00Z",
+				Ended:   "2024-01-01T10:01:00Z",
+				Result:  "succeeded",
+			}},
 		},
 		{
 			name: "multiple runs with all fields",
@@ -1784,8 +1793,25 @@ unit-a,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,,HEAD~1,plan,-out=pl
 unit-b,2024-01-01T10:01:00Z,2024-01-01T10:02:00Z,failed,run error,some error,main,apply,
 `,
 			expected: report.CSVRuns{
-				{Name: "unit-a", Started: "2024-01-01T10:00:00Z", Ended: "2024-01-01T10:01:00Z", Result: "succeeded", Ref: "HEAD~1", Cmd: "plan", Args: "-out=plan.tfplan|-var=foo=bar"},
-				{Name: "unit-b", Started: "2024-01-01T10:01:00Z", Ended: "2024-01-01T10:02:00Z", Result: "failed", Reason: "run error", Cause: "some error", Ref: "main", Cmd: "apply"},
+				{
+					Name:    "unit-a",
+					Started: "2024-01-01T10:00:00Z",
+					Ended:   "2024-01-01T10:01:00Z",
+					Result:  "succeeded",
+					Ref:     "HEAD~1",
+					Cmd:     "plan",
+					Args:    "-out=plan.tfplan|-var=foo=bar",
+				},
+				{
+					Name:    "unit-b",
+					Started: "2024-01-01T10:01:00Z",
+					Ended:   "2024-01-01T10:02:00Z",
+					Result:  "failed",
+					Reason:  "run error",
+					Cause:   "some error",
+					Ref:     "main",
+					Cmd:     "apply",
+				},
 			},
 		},
 		{
@@ -1832,7 +1858,8 @@ func TestParseCSVRunsFromFile(t *testing.T) {
 		t.Parallel()
 
 		reportFile := filepath.Join(tmp, "valid-report.csv")
-		content := "Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args\ntest-unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,,,,\n"
+		content := "Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args\n" +
+			"test-unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,,,,\n"
 
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
@@ -1974,10 +2001,13 @@ func TestParseJSONRunsFromFileValidation(t *testing.T) {
 		},
 		{
 			name: "valid multiple runs",
-			input: `[
-				{"Name": "unit-a", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"},
-				{"Name": "unit-b", "Started": "2024-01-01T10:01:00Z", "Ended": "2024-01-01T10:02:00Z", "Result": "failed", "Reason": "run error"}
-			]`,
+			input: "[" +
+				`{"Name": "unit-a", "Started": "2024-01-01T10:00:00Z",` +
+				` "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"},` +
+				`{"Name": "unit-b", "Started": "2024-01-01T10:01:00Z",` +
+				` "Ended": "2024-01-01T10:02:00Z", "Result": "failed",` +
+				` "Reason": "run error"}` +
+				"]",
 			expectError: false,
 		},
 		{

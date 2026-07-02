@@ -7,7 +7,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,6 +60,16 @@ func TestParseTreeEntry(t *testing.T) {
 				Type: "blob",
 				Hash: "m3n4o5p6",
 				Path: "path with spaces.txt",
+			},
+		},
+		{
+			name:  "submodule gitlink",
+			input: "160000 commit q7r8s9t0 modules/child",
+			want: git.TreeEntry{
+				Mode: "160000",
+				Type: "commit",
+				Hash: "q7r8s9t0",
+				Path: "modules/child",
 			},
 		},
 		{
@@ -137,12 +148,119 @@ invalid format`),
 	}
 }
 
+// TestLinkTreeSymlinks pins the materialize-time symlink contract: a 120000
+// entry whose blob holds the link target string surfaces as a real symbolic
+// link in the destination, and absolute or dot-dot targets that climb above
+// the root are refused.
+func TestLinkTreeSymlinks(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	tests := []struct {
+		wantLinks    map[string]string
+		wantBlobs    map[string][]byte
+		storeTargets map[string]string
+		name         string
+		treeData     []byte
+		wantErr      bool
+	}{
+		{
+			name: "symlink blob materializes as a real symlink",
+			treeData: []byte(`120000 blob 1111111111 link.txt
+100644 blob 2222222222 real.txt`),
+			wantLinks: map[string]string{"link.txt": "real.txt"},
+			wantBlobs: map[string][]byte{"real.txt": []byte("hello")},
+		},
+		{
+			name:      "symlink to sibling within tree via dot-dot",
+			treeData:  []byte(`120000 blob 3333333333 nested/up.txt`),
+			wantLinks: map[string]string{"nested/up.txt": "../sibling.txt"},
+		},
+		{
+			name:         "absolute symlink target is rejected",
+			treeData:     []byte(`120000 blob 4444444444 escape.txt`),
+			storeTargets: map[string]string{"4444444444": "/etc/passwd"},
+			wantErr:      true,
+		},
+		{
+			name:         "relative symlink that escapes root is rejected",
+			treeData:     []byte(`120000 blob 5555555555 escape.txt`),
+			storeTargets: map[string]string{"5555555555": "../../../etc/passwd"},
+			wantErr:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := newMemVenv(t)
+			require.NoError(t, v.FS.MkdirAll("/store", 0o755))
+
+			store := cas.NewStore("/store")
+			content := cas.NewContent(store)
+
+			tree, err := git.ParseTree(tt.treeData, "test-repo")
+			require.NoError(t, err)
+
+			for _, entry := range tree.Entries() {
+				switch entry.Mode {
+				case "120000":
+					target, ok := tt.storeTargets[entry.Hash]
+					if !ok {
+						target = tt.wantLinks[entry.Path]
+					}
+
+					require.NoError(t, content.Store(l, v, entry.Hash, []byte(target)))
+				default:
+					if data, ok := tt.wantBlobs[entry.Path]; ok {
+						require.NoError(t, content.Store(l, v, entry.Hash, data))
+					}
+				}
+			}
+
+			targetDir := "/target"
+			require.NoError(t, v.FS.MkdirAll(targetDir, 0o755))
+
+			err = cas.LinkTree(t.Context(), v, store, store, tree, targetDir)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			for path, wantTarget := range tt.wantLinks {
+				full := filepath.Join(targetDir, path)
+
+				info, err := vfs.Lstat(v.FS, full)
+				require.NoError(t, err)
+				assert.NotZero(t, info.Mode()&os.ModeSymlink, "%s is not a symlink (mode=%s)", full, info.Mode())
+
+				got, err := vfs.Readlink(v.FS, full)
+				require.NoError(t, err)
+				assert.Equal(t, wantTarget, got)
+			}
+
+			for path, wantContent := range tt.wantBlobs {
+				full := filepath.Join(targetDir, path)
+				got, err := vfs.ReadFile(v.FS, full)
+				require.NoError(t, err)
+				assert.Equal(t, wantContent, got)
+			}
+		})
+	}
+}
+
 func TestLinkTree(t *testing.T) {
 	t.Parallel()
 
+	l := logger.CreateLogger()
+
 	tests := []struct {
 		name       string
-		setupStore func(t *testing.T) (*cas.Store, string)
+		setupStore func(t *testing.T, v cas.Venv) (*cas.Store, string)
 		treeData   []byte
 		wantFiles  []struct {
 			path    string
@@ -154,23 +272,24 @@ func TestLinkTree(t *testing.T) {
 	}{
 		{
 			name: "basic tree with files and directories",
-			setupStore: func(t *testing.T) (*cas.Store, string) {
+			setupStore: func(t *testing.T, v cas.Venv) (*cas.Store, string) {
 				t.Helper()
 
-				storeDir := helpers.TmpDirWOSymlinks(t)
-				store := cas.NewStore(storeDir)
+				require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+				store := cas.NewStore("/store")
 				content := cas.NewContent(store)
 
 				// Create test content
 				testData := []byte("test content")
 				testHash := "a1b2c3d4"
-				err := content.Store(nil, testHash, testData)
+				err := content.Store(l, v, testHash, testData)
 				require.NoError(t, err)
 
 				// Create and store the src directory tree data
 				srcTreeData := `100644 blob a1b2c3d4 README.md`
 				srcTreeHash := "i9j0k1l2"
-				err = content.Store(nil, srcTreeHash, []byte(srcTreeData))
+				err = content.Store(l, v, srcTreeHash, []byte(srcTreeData))
 				require.NoError(t, err)
 
 				return store, testHash
@@ -210,11 +329,12 @@ func TestLinkTree(t *testing.T) {
 		},
 		{
 			name: "empty tree",
-			setupStore: func(t *testing.T) (*cas.Store, string) {
+			setupStore: func(t *testing.T, v cas.Venv) (*cas.Store, string) {
 				t.Helper()
 
-				storeDir := helpers.TmpDirWOSymlinks(t)
-				store := cas.NewStore(storeDir)
+				require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+				store := cas.NewStore("/store")
 
 				return store, ""
 			},
@@ -228,11 +348,12 @@ func TestLinkTree(t *testing.T) {
 		},
 		{
 			name: "tree with missing content",
-			setupStore: func(t *testing.T) (*cas.Store, string) {
+			setupStore: func(t *testing.T, v cas.Venv) (*cas.Store, string) {
 				t.Helper()
 
-				storeDir := helpers.TmpDirWOSymlinks(t)
-				store := cas.NewStore(storeDir)
+				require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+				store := cas.NewStore("/store")
 
 				return store, ""
 			},
@@ -245,18 +366,21 @@ func TestLinkTree(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			v := newMemVenv(t)
+
 			// Setup store
-			store, _ := tt.setupStore(t)
+			store, _ := tt.setupStore(t, v)
 
 			// Parse the tree
 			tree, err := git.ParseTree(tt.treeData, "test-repo")
 			require.NoError(t, err)
 
 			// Create target directory
-			targetDir := helpers.TmpDirWOSymlinks(t)
+			targetDir := "/target"
+			require.NoError(t, v.FS.MkdirAll(targetDir, 0755))
 
 			// Link the tree
-			err = cas.LinkTree(t.Context(), store, tree, targetDir)
+			err = cas.LinkTree(t.Context(), v, store, store, tree, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -269,26 +393,21 @@ func TestLinkTree(t *testing.T) {
 				path := filepath.Join(targetDir, want.path)
 
 				// Check if file/directory exists
-				info, err := os.Stat(path)
+				info, err := v.FS.Stat(path)
 				require.NoError(t, err)
 				assert.Equal(t, want.isDir, info.IsDir())
 
 				if !want.isDir {
 					// Check file content
-					data, err := os.ReadFile(path)
+					data, err := vfs.ReadFile(v.FS, path)
 					require.NoError(t, err)
 					assert.Equal(t, want.content, data)
 
-					dataStat, err := os.Stat(path)
-					require.NoError(t, err)
-
-					// Verify hard link by comparing content.
-					// We don't compare inode numbers because the test might be running on Windows.
+					// Verify content matches store by reading from both locations
 					storePath := filepath.Join(store.Path(), want.hash[:2], want.hash)
-					storeStat, err := os.Stat(storePath)
+					storeData, err := vfs.ReadFile(v.FS, storePath)
 					require.NoError(t, err)
-
-					assert.True(t, os.SameFile(dataStat, storeStat))
+					assert.Equal(t, storeData, data)
 				}
 			}
 		})

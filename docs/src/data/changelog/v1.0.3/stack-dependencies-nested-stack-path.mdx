@@ -1,0 +1,29 @@
+---
+version: "v1.0.3"
+category: "experiments-updated"
+---
+
+#### `stack-dependencies`: Multi-level nested `stack.<name>.<nested_stack>.path` references
+
+The [`stack-dependencies`](/reference/experiments/active#stack-dependencies) experiment already supported `stack.<name>.path` (a whole stack) and `stack.<name>.<unit_name>.path` (a unit inside a stack). It now also resolves references where the second segment is itself a nested stack, so an `autoinclude` block in a parent stack can target a stack that lives inside another stack:
+
+```hcl
+# live/terragrunt.stack.hcl
+stack "infra" {
+  source = "../catalog/stacks/infra"
+  path   = "infra"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "deep" {
+      config_path = stack.infra.deep.path
+    }
+  }
+}
+```
+
+Here `stack.infra.deep.path` resolves to the generated directory of a `stack "deep"` block declared inside `catalog/stacks/infra/terragrunt.stack.hcl`. This makes deeper stack hierarchies addressable from a single dependency expression without flattening the layout.

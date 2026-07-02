@@ -2,20 +2,24 @@ package stack
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -29,6 +33,8 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return nil
 	}
 
+	tips.GiveStackTargetTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
+
 	opts.StackAction = "generate"
 
 	// Clean stack folders before calling `generate` when the `--source-update` flag is passed
@@ -41,7 +47,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			return clean.CleanStacks(l, opts)
 		})
 		if err != nil {
-			return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
+			return fmt.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
 		}
 	}
 
@@ -55,9 +61,13 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	if len(gitFilters) > 0 {
 		var err error
 
-		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
+		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+			WorkingDir:     opts.WorkingDir,
+			GitExpressions: gitFilters,
+			Experiments:    opts.Experiments,
+		})
 		if err != nil {
-			return errors.Errorf("failed to create worktrees: %w", err)
+			return fmt.Errorf("failed to create worktrees: %w", err)
 		}
 
 		defer func() {
@@ -68,16 +78,27 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}()
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
+	gen := generate.NewGenerator()
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return generate.GenerateStacks(ctx, l, opts, wts)
+		return gen.GenerateStacks(ctx, l, opts, wts)
 	})
+	if err != nil {
+		return err
+	}
+
+	// After generation, hint when a literal stack filter left nested stacks ungenerated.
+	funcsFor := configbridge.StackFuncFactory(ctx, l, opts)
+	tips.GiveStackNestedGenerateTip(l, vfs.NewOSFS(), funcsFor, opts.WorkingDir, opts.Filters, opts.Tips)
+
+	return nil
 }
 
-// Run execute stack command.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+// Run executes the stack command.
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	opts.StackAction = "run"
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_run", map[string]any{
@@ -90,12 +111,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	return runall.Run(ctx, l, opts)
+	return runall.Run(ctx, l, v, opts)
 }
 
 // RunOutput stack output.
 func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, index string) error {
 	opts.StackAction = "output"
+	opts.TerraformCommand = "output" // required for discovery exclude action matching in StackOutput
 
 	var outputs cty.Value
 
@@ -110,7 +132,7 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		return err
 	})
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	// Filter outputs based on index key
@@ -121,17 +143,17 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 	switch opts.StackOutputFormat {
 	default:
 		if err := PrintOutputs(opts.Writers.Writer, filteredOutputs); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 	case rawOutputFormat:
 		if err := PrintRawOutputs(opts, opts.Writers.Writer, filteredOutputs); err != nil {
-			return errors.New(err)
+			return err
 		}
 
 	case jsonOutputFormat:
 		if err := PrintJSONOutput(opts.Writers.Writer, filteredOutputs); err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 
@@ -186,7 +208,7 @@ func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 		return clean.CleanStacks(l, opts)
 	})
 	if err != nil {
-		return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
+		return fmt.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
 	}
 
 	return nil

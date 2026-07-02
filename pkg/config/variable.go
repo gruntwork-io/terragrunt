@@ -4,10 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
@@ -17,22 +16,26 @@ import (
 )
 
 // ParsedVariable structure with input name, default value and description.
+//
+// UserValue is the raw HCL fragment a caller (for example, the interactive
+// catalog scaffold form) supplied for the right-hand side of the inputs
+// assignment. When empty, scaffold templates fall back to the placeholder
+// TODO line.
 type ParsedVariable struct {
 	Name                    string
 	Description             string
 	Type                    string
 	DefaultValue            string
 	DefaultValuePlaceholder string
+	UserValue               string
 }
 
 // ParseVariables - parse variables from tf files.
-func ParseVariables(l log.Logger, experiments experiment.Experiments, strictControls strict.Controls, directoryPath string) ([]*ParsedVariable, error) {
-	walkWithSymlinks := experiments.Evaluate(experiment.Symlinks)
-
+func ParseVariables(l log.Logger, fsys vfs.FS, strictControls strict.Controls, directoryPath string) ([]*ParsedVariable, error) {
 	// list all tf files
-	tfFiles, err := util.ListTfFiles(directoryPath, walkWithSymlinks)
+	tfFiles, err := util.ListTfFiles(fsys, directoryPath)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	parser := hclparse.NewParser(DefaultParserOptions(l, strictControls)...)
@@ -41,7 +44,12 @@ func ParseVariables(l log.Logger, experiments experiment.Experiments, strictCont
 	var parsedInputs []*ParsedVariable
 
 	for _, tfFile := range tfFiles {
-		if _, err := parser.ParseFromFile(tfFile); err != nil {
+		content, err := vfs.ReadFile(fsys, tfFile)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := parser.ParseFromBytes(content, tfFile); err != nil {
 			return nil, err
 		}
 	}
@@ -96,17 +104,17 @@ func ParseVariables(l log.Logger, experiments experiment.Experiments, strictCont
 						if defaultValue != nil {
 							jsonBytes, err := ctyjson.Marshal(*defaultValue, cty.DynamicPseudoType)
 							if err != nil {
-								return nil, errors.New(err)
+								return nil, err
 							}
 
 							var ctyJSONOutput ctyJSONValue
 							if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
-								return nil, errors.New(err)
+								return nil, err
 							}
 
 							jsonBytes, err = json.Marshal(ctyJSONOutput.Value)
 							if err != nil {
-								return nil, errors.New(err)
+								return nil, err
 							}
 
 							defaultValueText = string(jsonBytes)

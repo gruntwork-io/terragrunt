@@ -287,7 +287,7 @@ func TestSOPSTerragruntLogSopsErrors(t *testing.T) {
 func TestSOPSDecryptOnMissing(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureSopsMissing)
+	helpers.CleanupTerraformFolder(t, testFixtureSopsMissing)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSopsMissing)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureSopsMissing)
 

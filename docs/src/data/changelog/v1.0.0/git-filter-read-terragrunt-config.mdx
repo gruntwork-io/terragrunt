@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Git filter discovery for `read_terragrunt_config` fixed
+
+Git-filter discovery now correctly detects stacks affected by changes to sidecar files read via `read_terragrunt_config()`, by parsing stack files to check `FilesRead` against diff paths instead of relying on generic directory-based detection.

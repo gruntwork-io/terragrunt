@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/stretchr/testify/assert"
@@ -35,9 +37,11 @@ func TestWindowsConsolePrepare(t *testing.T) {
 func TestWindowsExitCode(t *testing.T) {
 	t.Parallel()
 
+	l := logger.CreateLogger()
+
 	for i := 0; i <= 255; i++ {
-		cmd := exec.Command(t.Context(), `testdata\test_exit_code.bat`, strconv.Itoa(i))
-		err := cmd.Run()
+		cmd := exec.Command(t.Context(), vexec.NewOSExec(), `testdata\test_exit_code.bat`, strconv.Itoa(i))
+		err := cmd.Run(l)
 
 		if i == 0 {
 			assert.NoError(t, err)
@@ -62,20 +66,20 @@ func TestWindowsNewSignalsForwarderWait(t *testing.T) {
 
 	expectedWait := 5
 
-	cmd := exec.Command(t.Context(), `testdata\test_sigint_wait.bat`, strconv.Itoa(expectedWait))
+	l := logger.CreateLogger()
+
+	cmd := exec.Command(t.Context(), vexec.NewOSExec(), `testdata\test_sigint_wait.bat`, strconv.Itoa(expectedWait))
 
 	runChannel := make(chan error)
 
 	go func() {
-		runChannel <- cmd.Run()
+		runChannel <- cmd.Run(l)
 	}()
 
 	time.Sleep(time.Second)
 	// start := time.Now()
 	// Note: sending interrupt on Windows is not supported by Windows and not implemented in Go
-	if cmd.Process != nil { // on some Go versions(Go 1.23, Windows), cmd.Process is nil
-		cmd.Process.Signal(os.Kill)
-	}
+	cmd.SendSignal(l, os.Kill)
 
 	err := <-runChannel
 

@@ -17,6 +17,7 @@ Please see the following for more info, including install instructions and compl
 * [Terragrunt Website](https://terragrunt.com)
 * [Getting started with Terragrunt](https://docs.terragrunt.com/getting-started/quick-start/)
 * [Terragrunt Documentation](https://docs.terragrunt.com/)
+* [Terragrunt Scale](https://docs.terragrunt.com/terragrunt-scale/)
 * [Contributing to Terragrunt](https://docs.terragrunt.com/community/contributing)
 * [Commercial Support](https://gruntwork.io/support/)
 

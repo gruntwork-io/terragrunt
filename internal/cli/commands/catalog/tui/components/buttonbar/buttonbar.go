@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // SelectBtnMsg is a message that contains the index of the button to select.
@@ -58,7 +58,7 @@ func (b *ButtonBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, 0)
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "tab":
 			b.activeButton = (b.activeButton + 1) % len(b.buttons)
@@ -78,7 +78,7 @@ func (b *ButtonBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements tea.Model.
-func (b *ButtonBar) View() string {
+func (b *ButtonBar) View() tea.View {
 	s := strings.Builder{}
 
 	for i, btn := range b.buttons {
@@ -94,7 +94,7 @@ func (b *ButtonBar) View() string {
 		}
 	}
 
-	return s.String()
+	return tea.NewView(s.String())
 }
 
 func (b *ButtonBar) activeBtnCmd() tea.Msg {

@@ -21,27 +21,25 @@ jobs:
     name: Coverage (${{ inputs.base_ref }})
     runs-on: ubuntu-latest
     env:
-      MISE_PROFILE: cicd
       GOGC: "400"
     steps:
+      - name: Fetch coverage scripts
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        with:
+          sparse-checkout: .github/scripts
+          path: _coverage-scripts
+          fetch-depth: 1
+
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           ref: ${{ inputs.base_ref }}
           fetch-depth: 1
 
-      - name: Fetch coverage scripts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          sparse-checkout: .github/scripts/coverage
-          path: _coverage-scripts
-          fetch-depth: 1
-
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          version: 2026.1.9
-          experimental: true
+          version: 2026.5.12
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -52,14 +50,14 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-go-build-
 
       - name: Go Mod Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -79,7 +77,7 @@ jobs:
         run: ./_coverage-scripts/.github/scripts/coverage/generate-summary.sh
 
       - name: Upload Coverage
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-base
           path: coverage-summary.json
@@ -88,27 +86,25 @@ jobs:
     name: Coverage (${{ inputs.head_ref }})
     runs-on: ubuntu-latest
     env:
-      MISE_PROFILE: cicd
       GOGC: "400"
     steps:
+      - name: Fetch coverage scripts
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        with:
+          sparse-checkout: .github/scripts
+          path: _coverage-scripts
+          fetch-depth: 1
+
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           ref: ${{ inputs.head_ref }}
           fetch-depth: 1
 
-      - name: Fetch coverage scripts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          sparse-checkout: .github/scripts/coverage
-          path: _coverage-scripts
-          fetch-depth: 1
-
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          version: 2026.1.9
-          experimental: true
+          version: 2026.5.12
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -119,14 +115,14 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-go-build-
 
       - name: Go Mod Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -146,7 +142,7 @@ jobs:
         run: ./_coverage-scripts/.github/scripts/coverage/generate-summary.sh
 
       - name: Upload Coverage
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-head
           path: coverage-summary.json
@@ -157,9 +153,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (scripts only)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
-          sparse-checkout: .github/scripts/coverage
+          sparse-checkout: .github/scripts
           fetch-depth: 1
 
       - name: Download Base Coverage
@@ -184,45 +180,11 @@ jobs:
         env:
           BASE_REF: ${{ inputs.base_ref }}
           HEAD_REF: ${{ inputs.head_ref }}
-        run: |
-          # Sanitize user inputs for markdown injection
-          BASE_REF=$(echo "$BASE_REF" | tr -d '<>|`\n\r')
-          HEAD_REF=$(echo "$HEAD_REF" | tr -d '<>|`\n\r')
-
-          echo "## Coverage Comparison: ${BASE_REF} vs ${HEAD_REF}" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-          CURR=$(jq -r '.current_total' comparison-report.json)
-          PREV=$(jq -r '.previous_total' comparison-report.json)
-          DELTA=$(jq -r '.total_delta' comparison-report.json)
-
-          echo "| Ref | Coverage |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|-----|----------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| ${BASE_REF} (base) | ${PREV}% |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| ${HEAD_REF} (head) | ${CURR}% |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Delta | ${DELTA}% |" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-          DROPS=$(jq -r '.top_drops[:10][] | "| \(.package) | \(.previous)% | \(.current)% | \(.delta)% |"' comparison-report.json 2>/dev/null || true)
-          if [[ -n "$DROPS" ]]; then
-            echo "### Top Drops" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Package | Base | Head | Delta |" >> "$GITHUB_STEP_SUMMARY"
-            echo "|---------|------|------|-------|" >> "$GITHUB_STEP_SUMMARY"
-            echo "$DROPS" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          GAINS=$(jq -r '.top_gains[:5][] | "| \(.package) | \(.previous)% | \(.current)% | +\(.delta)% |"' comparison-report.json 2>/dev/null || true)
-          if [[ -n "$GAINS" ]]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "### Top Gains" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Package | Base | Head | Delta |" >> "$GITHUB_STEP_SUMMARY"
-            echo "|---------|------|------|-------|" >> "$GITHUB_STEP_SUMMARY"
-            echo "$GAINS" >> "$GITHUB_STEP_SUMMARY"
-          fi
+        run: ./.github/scripts/coverage/write-summary-compare.sh comparison-report.json
 
       - name: Upload comparison-report.json
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: comparison-report.json
           path: comparison-report.json
@@ -230,14 +192,14 @@ jobs:
 
       - name: Upload comparison-report.html
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: comparison-report.html
           path: comparison-report.html
           retention-days: 30
 
       - name: Notify Slack
-        if: ${{ inputs.notify_slack }}
+        if: ${{ inputs.notify_slack && env.COVERAGE_SLACK_WEBHOOK_URL != '' }}
         env:
           COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
           BASE_REF: ${{ inputs.base_ref }}

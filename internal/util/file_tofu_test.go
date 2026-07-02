@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -522,11 +523,11 @@ func TestListTfFiles(t *testing.T) {
 			expectedFiles: []string{},
 		},
 		{
-			description:   "Directory with nested .tofu files",
+			description:   "Nested files are ignored",
 			files:         []string{"main.tf", "modules/vpc/main.tofu"},
 			directories:   []string{"modules", "modules/vpc"},
-			expectedCount: 2,
-			expectedFiles: []string{"main.tf", "modules/vpc/main.tofu"},
+			expectedCount: 1,
+			expectedFiles: []string{"main.tf"},
 		},
 	}
 
@@ -547,7 +548,7 @@ func TestListTfFiles(t *testing.T) {
 				require.NoError(t, os.WriteFile(filePath, []byte("# Test file content"), 0644))
 			}
 
-			actual, err := util.ListTfFiles(tmpDir, false)
+			actual, err := util.ListTfFiles(vfs.NewOSFS(), tmpDir)
 			require.NoError(t, err)
 
 			assert.Len(t, actual, tc.expectedCount, "Expected %d files, got %d", tc.expectedCount, len(actual))
@@ -561,33 +562,6 @@ func TestListTfFiles(t *testing.T) {
 				assert.True(t, util.IsTFFile(foundFile), "Non-TF file %s found in results", foundFile)
 			}
 		})
-	}
-}
-
-func TestListTfFilesWithSymlinks(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	// Create a real directory with .tofu files
-	realDir := filepath.Join(tmpDir, "real-module")
-	require.NoError(t, os.MkdirAll(realDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(realDir, "main.tofu"), []byte("# main"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(realDir, "variables.tf"), []byte("# vars"), 0644))
-
-	// Create a symlink to the real directory
-	linkDir := filepath.Join(tmpDir, "linked-module")
-	require.NoError(t, os.Symlink(realDir, linkDir))
-
-	// walkWithSymlinks=true should follow symlinks and find files
-	actual, err := util.ListTfFiles(tmpDir, true)
-	require.NoError(t, err)
-
-	// Should find files in both real dir and symlinked dir
-	assert.Len(t, actual, 4)
-
-	for _, foundFile := range actual {
-		assert.True(t, util.IsTFFile(foundFile), "Non-TF file %s found in results", foundFile)
 	}
 }
 

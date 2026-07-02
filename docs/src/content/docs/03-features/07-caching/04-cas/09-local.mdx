@@ -1,0 +1,41 @@
+---
+title: Local paths
+description: How the CAS handles local filesystem sources, which have no cheap probe.
+slug: features/caching/cas/local
+sidebar:
+  order: 9
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+
+<Before version="1.1.0">
+<Aside type="tip" title="Experimental">
+CAS source fetching is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
+</Aside>
+
+</Before>
+## Overview
+
+A local source is a directory on the machine running Terragrunt. There is nothing remote to probe, so Terragrunt reads the directory directly and keys it by the content hash of its tree.
+
+## The cheap probe
+
+None. Local content is read directly. Terragrunt walks the directory in deterministic (lexical) order and hashes it.
+
+## Cache key & deduplication
+
+Each file is hashed with SHA-256, and the directory is keyed by the content hash of the resulting tree. Identical files and identical trees deduplicate across configurations through the shared store. Symbolic links are stored as link entries that record their target, and Terragrunt validates that a target stays inside the source directory so the store never persists a path that escapes it.
+
+## Cache miss
+
+When the tree hash is not yet present, Terragrunt stores the blobs and tree, then links them into the target directory. Blobs that already exist in the store are not copied again.
+
+## Cache hit
+
+When the tree hash is already present, Terragrunt links the cached tree into the target without re-storing the content. The directory is still walked and hashed to compute the key, but that work is local and cheap.
+
+## Fallback behavior
+
+There is no network step to fall back from. When materializing content into the target, the usual hard-link-to-copy fallback applies if the host cannot hard link from the store.
+

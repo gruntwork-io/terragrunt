@@ -1,0 +1,10 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Removing usage of `filepath.Abs` and reducing usage of `filepath.ToSlash`
+
+Usage of the Golang `filepath.Abs` and `filepath.ToSlash` standard library functions significantly reduced. Overly broad application of these functions to file paths caused subtle operating system compatibility issues and incompatibility with the `--working-dir` flag.
+
+The codebase has been updated to only use `filepath.Abs` early on in initialization of the CLI prior to setting the value of `--working-dir` (after which, working dir is considered the source of truth for file path canonicalization) and tests. The codebase has been updated to use `filepath.ToSlash` only where unix-style forward slash normalization is a requirement (e.g. when used in file path globs).

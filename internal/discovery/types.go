@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -125,6 +126,12 @@ type Discovery struct {
 	// worktrees is the worktrees created for Git-based filters.
 	worktrees *worktrees.Worktrees
 
+	// exec is the process-execution handle used by the git top-level probe
+	// and the auth-provider-command credentials fetch. It defaults to the
+	// OS-backed handle and is overridden via [Discovery.WithExec] when a
+	// caller has the threaded root virtualized environment.
+	exec vexec.Exec
+
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string
 
@@ -149,6 +156,10 @@ type Discovery struct {
 	// gitExpressions contains Git filter expressions that require worktree discovery.
 	gitExpressions filter.GitExpressions
 
+	// parseReasons gates the parse phase: non-empty (or classifier
+	// parse-required filters at activation) runs it. Surfaced on telemetry.
+	parseReasons []parseReason
+
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 
@@ -157,9 +168,6 @@ type Discovery struct {
 
 	// noHidden determines whether to detect configurations in hidden directories.
 	noHidden bool
-
-	// requiresParse is true when the discovery requires parsing Terragrunt configurations.
-	requiresParse bool
 
 	// parseExclude determines whether to parse exclude configurations.
 	parseExclude bool

@@ -13,7 +13,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -46,9 +47,9 @@ func PrintRawOutputs(_ *options.TerragruntOptions, writer io.Writer, outputs cty
 	}
 
 	// Multiple top-level keys, can't provide a single raw output
-	return errors.New("The -raw option requires a single output value. There are multiple outputs " +
-		"available in the current stack. Please specify which output you want to display by using " +
-		"the full output key as an argument to the command.")
+	return errors.New("the -raw option requires a single output value, but there are multiple outputs " +
+		"available in the current stack; specify which output you want to display by passing " +
+		"the full output key as an argument to the command")
 }
 
 // extractSingleValue extracts a single primitive value from a map with only one element,
@@ -109,6 +110,7 @@ func traverseNestedObject(topKey string, topValue cty.Value) (cty.Value, error) 
 func writePrimitiveValue(writer io.Writer, value cty.Value, path string) error {
 	// Check if the value is null
 	if value.IsNull() {
+		//nolint:staticcheck // user-facing message intentionally written as full sentences
 		return errors.New("Error: Unsupported value for raw output\n\n" +
 			"The -raw option only supports strings, numbers, and boolean values, but the output value is null.\n\n" +
 			"Use the -json option for machine-readable representations of output values that have complex types.")
@@ -126,12 +128,12 @@ func writePrimitiveValue(writer io.Writer, value cty.Value, path string) error {
 
 	valueStr, err := config.FormatValue(value)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	// Write the raw value without any formatting
 	if _, err := writer.Write([]byte(valueStr)); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -161,7 +163,7 @@ func PrintOutputs(writer io.Writer, outputs cty.Value) error {
 	}
 
 	if _, err := writer.Write(f.Bytes()); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -177,16 +179,16 @@ func PrintJSONOutput(writer io.Writer, outputs cty.Value) error {
 
 	rawJSON, err := ctyjson.Marshal(outputs, outputs.Type())
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	var pretty bytes.Buffer
 	if err := json.Indent(&pretty, rawJSON, "", "  "); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if _, err := writer.Write(pretty.Bytes()); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil

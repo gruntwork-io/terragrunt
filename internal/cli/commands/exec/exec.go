@@ -2,21 +2,31 @@ package exec
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmdOpts *Options, args clihelper.Args) error {
-	prepared, err := prepare.PrepareConfig(ctx, l, opts)
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	cmdOpts *Options,
+	args clihelper.Args,
+) error {
+	rv := run.FromRoot(v)
+
+	prepared, err := prepare.PrepareConfig(ctx, l, rv, opts)
 	if err != nil {
 		return err
 	}
@@ -24,7 +34,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 	r := report.NewReport()
 
 	// Download source
-	updatedOpts, err := prepare.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
+	updatedOpts, err := prepare.PrepareSource(ctx, l, rv, prepared.Opts, prepared.Cfg, r)
 	if err != nil {
 		return err
 	}
@@ -32,13 +42,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 	runCfg := prepared.Cfg.ToRunConfig(l)
 
 	// Generate config
-	if err := prepare.PrepareGenerate(l, updatedOpts, runCfg); err != nil {
+	if err := prepare.PrepareGenerate(l, rv, updatedOpts, runCfg); err != nil {
 		return err
 	}
 
 	if cmdOpts.InDownloadDir {
 		// Run terraform init
-		if err := prepare.PrepareInit(ctx, l, opts, updatedOpts, runCfg, r); err != nil {
+		if err := prepare.PrepareInit(ctx, l, rv, opts, updatedOpts, runCfg, r); err != nil {
 			return err
 		}
 	} else {
@@ -50,12 +60,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 		}
 	}
 
-	return runTargetCommand(ctx, l, updatedOpts, runCfg, r, cmdOpts, args)
+	return runTargetCommand(ctx, l, v, updatedOpts, runCfg, r, cmdOpts, args)
 }
 
 func runTargetCommand(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
@@ -73,11 +84,14 @@ func runTargetCommand(
 	}
 
 	runOpts := configbridge.NewRunOptions(opts)
+	rv := run.FromRoot(v)
 
-	return run.RunActionWithHooks(ctx, l, command, runOpts, cfg, r, func(ctx context.Context) error {
-		_, err := shell.RunCommandWithOutput(ctx, l, configbridge.ShellRunOptsFromOpts(opts), dir, false, false, command, cmdArgs...)
+	return run.RunActionWithHooks(ctx, l, rv, command, runOpts, cfg, r, func(ctx context.Context) error {
+		_, err := shell.RunCommandWithOutput(
+			ctx, l, v.Exec, configbridge.ShellRunOptsFromOpts(opts), dir, false, false, command, cmdArgs...,
+		)
 		if err != nil {
-			return errors.Errorf("failed to run command in directory %s: %w", dir, err)
+			return fmt.Errorf("failed to run command in directory %s: %w", dir, err)
 		}
 
 		return nil

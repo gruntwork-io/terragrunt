@@ -90,6 +90,12 @@ func (l *Lexer) NextToken() Token {
 		switch nextCh := l.peekChar(); {
 		case nextCh == '/':
 			tok = l.readPath(startPosition)
+		case nextCh == 0 || unicode.IsSpace(rune(nextCh)) || isSpecialChar(nextCh):
+			// Bare '.' (followed by whitespace, EOF, or a special operator like '|')
+			// is a valid path expression for the working directory.
+			tok = NewToken(PATH, ".", startPosition)
+
+			l.readChar()
 		case isIdentifierChar(nextCh):
 			literal := l.readIdentifier()
 			tok = NewToken(IDENT, literal, startPosition)

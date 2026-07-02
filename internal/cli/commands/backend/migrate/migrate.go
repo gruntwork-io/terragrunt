@@ -3,11 +3,15 @@ package migrate
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -15,7 +19,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *options.TerragruntOptions) error {
+// Run migrates Terraform/OpenTofu state from srcPath to dstPath. v is the
+// virtualized environment used for the underlying stack runner build and
+// the state pull/push terraform invocations.
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	srcPath, dstPath string,
+	opts *options.TerragruntOptions,
+) error {
 	var err error
 
 	srcPath, err = util.CanonicalPath(srcPath, opts.WorkingDir)
@@ -32,32 +45,33 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	rnr, err := runner.NewStackRunner(ctx, l, opts)
+	rnr, err := runner.NewStackRunner(ctx, l, run.FromRoot(v), opts)
 	if err != nil {
 		return err
 	}
 
 	srcUnit := rnr.GetStack().FindUnitByPath(srcPath)
 	if srcUnit == nil {
-		return errors.Errorf("src unit not found at %s", srcPath)
+		return fmt.Errorf("src unit not found at %s", srcPath)
 	}
 
 	dstUnit := rnr.GetStack().FindUnitByPath(dstPath)
 	if dstUnit == nil {
-		return errors.Errorf("dst unit not found at %s", dstPath)
+		return fmt.Errorf("dst unit not found at %s", dstPath)
 	}
 
 	srcOpts, _, err := runner.BuildUnitOpts(l, opts, srcUnit)
 	if err != nil {
-		return errors.Errorf("failed to build opts for src unit %s: %w", srcPath, err)
+		return fmt.Errorf("failed to build opts for src unit %s: %w", srcPath, err)
 	}
 
 	dstOpts, _, err := runner.BuildUnitOpts(l, opts, dstUnit)
 	if err != nil {
-		return errors.Errorf("failed to build opts for dst unit %s: %w", dstPath, err)
+		return fmt.Errorf("failed to build opts for dst unit %s: %w", dstPath, err)
 	}
 
 	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
+	srcPctx.Venv = v
 
 	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
 	if err != nil {
@@ -65,7 +79,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 	}
 
 	if srcRemoteState == nil {
-		return errors.Errorf("missing remote state configuration for source module: %s", srcPath)
+		return fmt.Errorf("missing remote state configuration for source module: %s", srcPath)
 	}
 
 	// ParseRemoteState updates pctx.WorkingDir to point to the .terragrunt-cache
@@ -74,6 +88,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 	srcOpts.WorkingDir = srcPctx.WorkingDir
 
 	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstOpts)
+	dstPctx.Venv = v
 
 	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
 	if err != nil {
@@ -81,7 +96,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 	}
 
 	if dstRemoteState == nil {
-		return errors.Errorf("missing remote state configuration for destination module: %s", dstPath)
+		return fmt.Errorf("missing remote state configuration for destination module: %s", dstPath)
 	}
 
 	// Same for the destination: pushState needs the cache directory.
@@ -94,9 +109,18 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		}
 
 		if !enabled {
-			return errors.Errorf("src bucket is not versioned, refusing to migrate backend state. If you are sure you want to migrate the backend state anyways, use the --%s flag", ForceBackendMigrateFlagName)
+			return fmt.Errorf(
+				"src bucket is not versioned, refusing to migrate backend state."+
+					" If you are sure you want to migrate the backend state anyways, use the --%s flag",
+				ForceBackendMigrateFlagName)
 		}
 	}
 
-	return srcRemoteState.Migrate(ctx, l, configbridge.RemoteStateOptsFromOpts(srcOpts), configbridge.RemoteStateOptsFromOpts(dstOpts), dstRemoteState)
+	return srcRemoteState.Migrate(
+		ctx, l,
+		v.Exec,
+		configbridge.RemoteStateOptsFromOpts(srcOpts),
+		configbridge.RemoteStateOptsFromOpts(dstOpts),
+		dstRemoteState,
+	)
 }

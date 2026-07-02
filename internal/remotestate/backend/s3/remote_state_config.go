@@ -7,7 +7,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -146,15 +145,15 @@ func (cfg *ExtendedRemoteStateConfigS3) Validate() error {
 	var config = cfg.RemoteStateConfigS3
 
 	if config.Region == "" {
-		return errors.New(MissingRequiredS3RemoteStateConfig("region"))
+		return MissingRequiredS3RemoteStateConfig("region")
 	}
 
 	if config.Bucket == "" {
-		return errors.New(MissingRequiredS3RemoteStateConfig("bucket"))
+		return MissingRequiredS3RemoteStateConfig("bucket")
 	}
 
 	if config.Key == "" {
-		return errors.New(MissingRequiredS3RemoteStateConfig("key"))
+		return MissingRequiredS3RemoteStateConfig("key")
 	}
 
 	return nil

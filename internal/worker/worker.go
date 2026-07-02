@@ -20,10 +20,9 @@
 package worker
 
 import (
+	"errors"
 	"sync"
 	"sync/atomic"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // Task represents a unit of work that can be executed
@@ -32,7 +31,7 @@ type Task func() error
 // Pool manages concurrent task execution with a configurable number of workers
 type Pool struct {
 	semaphore   chan struct{}
-	allErrors   *errors.MultiError
+	allErrors   []error
 	wg          sync.WaitGroup
 	maxWorkers  int
 	mu          sync.RWMutex
@@ -51,7 +50,6 @@ func NewWorkerPool(maxWorkers int) *Pool {
 		maxWorkers: maxWorkers,
 		semaphore:  make(chan struct{}, maxWorkers),
 		isRunning:  false,
-		allErrors:  &errors.MultiError{},
 	}
 }
 
@@ -69,9 +67,8 @@ func (wp *Pool) Start() {
 
 	wp.semaphore = make(chan struct{}, wp.maxWorkers)
 
-	// Reset allErrors
 	wp.allErrorsMu.Lock()
-	wp.allErrors = &errors.MultiError{}
+	wp.allErrors = nil
 	wp.allErrorsMu.Unlock()
 
 	wp.mu.Unlock()
@@ -84,7 +81,7 @@ func (wp *Pool) appendError(err error) {
 	}
 
 	wp.allErrorsMu.Lock()
-	wp.allErrors = wp.allErrors.Append(err)
+	wp.allErrors = append(wp.allErrors, err)
 	wp.allErrorsMu.Unlock()
 }
 
@@ -103,12 +100,8 @@ func (wp *Pool) Submit(task Task) {
 		return
 	}
 
-	wp.wg.Add(1)
-
 	// Start a new goroutine for each task, but limit concurrency with semaphore
-	go func() {
-		defer wp.wg.Done()
-
+	wp.wg.Go(func() {
 		wp.semaphore <- struct{}{}
 
 		defer func() { <-wp.semaphore }()
@@ -117,7 +110,7 @@ func (wp *Pool) Submit(task Task) {
 		if err != nil {
 			wp.appendError(err)
 		}
-	}()
+	})
 }
 
 // Wait blocks until all tasks are completed and returns any errors
@@ -125,9 +118,8 @@ func (wp *Pool) Wait() error {
 	// Wait for all tasks to complete
 	wp.wg.Wait()
 
-	// Get all collected errors
 	wp.allErrorsMu.RLock()
-	result := wp.allErrors.ErrorOrNil()
+	result := errors.Join(wp.allErrors...)
 	wp.allErrorsMu.RUnlock()
 
 	return result

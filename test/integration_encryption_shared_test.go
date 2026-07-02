@@ -1,3 +1,5 @@
+//go:build tofu && (aws || docker)
+
 package test_test
 
 import (
@@ -13,12 +15,12 @@ import (
 )
 
 const (
-	stateFile = "tofu.tfstate" //nolint:unused
+	stateFile = "tofu.tfstate"
 )
 
 // Check the statefile contains an encrypted_data key
 // and that the encrypted_data is base64 encoded
-func validateStateIsEncrypted(t *testing.T, fileName string, path string) { //nolint:unused
+func validateStateIsEncrypted(t *testing.T, fileName string, path string) {
 	t.Helper()
 
 	filePath := filepath.Join(path, fileName)

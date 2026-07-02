@@ -1,0 +1,8 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Resolve transitive `autoinclude` dependencies on a stack directory
+
+`run --all` no longer fails with "does not contain a terragrunt.hcl file" when an `autoinclude` dependency points at a stack directory (one holding `terragrunt.stack.hcl`) and the unit is reached transitively through another unit. The dependency cycle check now skips a target with no unit config, matching the direct dependency case.

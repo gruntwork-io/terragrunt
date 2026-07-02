@@ -1,0 +1,52 @@
+---
+name: mark-many-as-read
+since: "1.0.3"
+completedSince: "1.1.0"
+---
+
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
+
+Mark many files as read in one step, so reading-based filter expressions cascade changes from shared files to the units that consume them.
+
+### `mark-many-as-read` - What it does
+
+<Before version="1.1.0">
+Enabling the experiment activates two behaviors:
+</Before>
+
+<Since version="1.1.0">
+This experiment flag is no longer needed; the two behaviors it gated are now enabled by default:
+</Since>
+
+1. When a unit's `terraform` block points at a local module source, Terragrunt walks that directory and records every `*.tf`, `*.tf.json`, `*.hcl`, `*.tofu`, and `*.tofu.json` file as read for the unit. Non-source files such as `README.md` are skipped. Remote sources (Git, registry, S3, etc.) are not walked.
+2. The `mark_glob_as_read(pattern)` HCL function. It expands a glob using [`gobwas/glob`](https://github.com/gobwas/glob) syntax and marks every matching file as read, returning the list of absolute paths that matched. <Before version="1.1.0">Without the experiment enabled, calling the function returns an error. </Before>See the [HCL reference](/reference/hcl/functions/#mark_glob_as_read) for pattern syntax and examples.
+
+Both behaviors feed the same reading tracker that powers the [`reading=` filter attribute](/features/filter/attributes#reading-based-expressions), so a change to a local module file or a globbed configuration file is picked up by `--filter 'reading=<path>'` and matches every unit that reads it.
+
+<Before version="1.1.0">
+
+```bash
+terragrunt run --all --experiment mark-many-as-read -- plan
+```
+
+</Before>
+
+### `mark-many-as-read` - How to provide feedback
+
+<Before version="1.1.0">
+Provide your feedback on the [`mark-many-as-read` GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/6225).
+</Before>
+
+<Since version="1.1.0">
+Now that the `mark-many-as-read` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+</Since>
+
+### `mark-many-as-read` - Criteria for stabilization
+
+To transition the `mark-many-as-read` feature to a stable release, the following were completed:
+
+- [x] Confirm local module walking handles nested modules sensibly across macOS, Linux, and Windows.
+- [x] Confirm glob semantics match user expectations for common patterns, especially `**` with a wildcard trailing segment.
+- [x] Positive feedback from users relying on reading-based filters in production pipelines.
+- [x] Integration tests covering the interaction between module walking, `mark_glob_as_read`, and `--filter 'reading=...'`.

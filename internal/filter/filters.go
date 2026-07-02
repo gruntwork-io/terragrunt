@@ -6,8 +6,9 @@ import (
 	"slices"
 	"strings"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -93,6 +94,39 @@ func (f Filters) RequiresParse() (Expression, bool) {
 	return nil, false
 }
 
+// PartitionReadingFilters splits the filters by whether their top-level expression is a reading
+// attribute filter, preserving the original order within each group. Worktree discovery uses this to
+// separate reading filters (which track files that may be read by other components via a glob) from
+// plain path filters, because a reading relationship can only be evaluated where the read file exists.
+func (f Filters) PartitionReadingFilters() (reading, other Filters) {
+	for _, filter := range f {
+		if attr, ok := filter.expr.(*AttributeExpression); ok && attr.Key == AttributeReading {
+			reading = append(reading, filter)
+
+			continue
+		}
+
+		other = append(other, filter)
+	}
+
+	return reading, other
+}
+
+// ExcludingGitFilters returns all filters that do not contain a git expression.
+// Git expressions are excluded because they are handled by the worktree phase
+// itself and would cause infinite recursion if propagated to sub-discoveries.
+func (f Filters) ExcludingGitFilters() Filters {
+	result := make(Filters, 0, len(f))
+
+	for _, filter := range f {
+		if !containsGitExpression(filter.expr) {
+			result = append(result, filter)
+		}
+	}
+
+	return result
+}
+
 // DependencyGraphExpressions returns all target expressions from graph expressions that require dependency traversal.
 func (f Filters) DependencyGraphExpressions() []Expression {
 	targets := make([]Expression, 0, len(f))
@@ -139,73 +173,15 @@ func (f Filters) UniqueGitFilters() GitExpressions {
 
 // RestrictToStacks returns a new Filters object with only the filters that are restricted to stacks.
 func (f Filters) RestrictToStacks() Filters {
-	return slices.Collect(func(yield func(*Filter) bool) {
-		for _, filter := range f {
-			if filter.expr.IsRestrictedToStacks() && !yield(filter) {
-				return
-			}
+	result := make(Filters, 0, len(f))
+
+	for _, filter := range f {
+		if filter.expr.IsRestrictedToStacks() {
+			result = append(result, filter)
 		}
-	})
-}
+	}
 
-// collectGraphExpressionTargetsWithDependencies collects target expressions from GraphExpression nodes that have IncludeDependencies set.
-func collectGraphExpressionTargetsWithDependencies(expr Expression) []Expression {
-	var targets []Expression
-
-	WalkExpressions(expr, func(e Expression) bool {
-		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependencies {
-			targets = append(targets, graphExpr.Target)
-		}
-
-		return true
-	})
-
-	return targets
-}
-
-// collectGraphExpressionTargetsWithDependents collects target expressions from GraphExpression nodes that have IncludeDependents set.
-func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
-	var targets []Expression
-
-	WalkExpressions(expr, func(e Expression) bool {
-		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependents {
-			targets = append(targets, graphExpr.Target)
-		}
-
-		return true
-	})
-
-	return targets
-}
-
-// collectWorktreeExpressions collects worktree expressions from GitExpression nodes.
-func collectWorktreeExpressions(expr Expression) []*GitExpression {
-	var targets []*GitExpression
-
-	WalkExpressions(expr, func(e Expression) bool {
-		if gitExpr, ok := e.(*GitExpression); ok {
-			targets = append(targets, gitExpr)
-		}
-
-		return true
-	})
-
-	return targets
-}
-
-// collectGitReferences collects Git references from GitExpression nodes.
-func collectGitReferences(expr Expression) []string {
-	var refs []string
-
-	WalkExpressions(expr, func(e Expression) bool {
-		if gitExpr, ok := e.(*GitExpression); ok {
-			refs = append(refs, gitExpr.FromRef, gitExpr.ToRef)
-		}
-
-		return true
-	})
-
-	return refs
+	return result
 }
 
 // Evaluate applies all filters with union (OR) semantics in two phases:
@@ -307,7 +283,42 @@ func (f Filters) EvaluateOnFiles(l log.Logger, files []string, workingDir string
 	return f.Evaluate(l, comps)
 }
 
-func initialComponents(l log.Logger, positiveFilters []*Filter, components component.Components) (component.Components, error) {
+// String returns a JSON array representation of all filter strings.
+func (f Filters) String() string {
+	filterStrings := make([]string, len(f))
+	for i, filter := range f {
+		filterStrings[i] = filter.String()
+	}
+
+	jsonBytes, err := json.Marshal(filterStrings)
+	if err != nil {
+		return "[]"
+	}
+
+	return string(jsonBytes)
+}
+
+// containsGitExpression returns true if the expression tree contains a GitExpression.
+func containsGitExpression(expr Expression) bool {
+	found := false
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if _, ok := e.(*GitExpression); ok {
+			found = true
+			return false
+		}
+
+		return true
+	})
+
+	return found
+}
+
+func initialComponents(
+	l log.Logger,
+	positiveFilters []*Filter,
+	components component.Components,
+) (component.Components, error) {
 	if len(positiveFilters) == 0 {
 		return components, nil
 	}
@@ -333,17 +344,58 @@ func initialComponents(l log.Logger, positiveFilters []*Filter, components compo
 	return remaining, nil
 }
 
-// String returns a JSON array representation of all filter strings.
-func (f Filters) String() string {
-	filterStrings := make([]string, len(f))
-	for i, filter := range f {
-		filterStrings[i] = filter.String()
-	}
+func collectGraphExpressionTargetsWithDependencies(expr Expression) []Expression {
+	var targets []Expression
 
-	jsonBytes, err := json.Marshal(filterStrings)
-	if err != nil {
-		return "[]"
-	}
+	WalkExpressions(expr, func(e Expression) bool {
+		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependencies {
+			targets = append(targets, graphExpr.Target)
+		}
 
-	return string(jsonBytes)
+		return true
+	})
+
+	return targets
+}
+
+func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
+	var targets []Expression
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependents {
+			targets = append(targets, graphExpr.Target)
+		}
+
+		return true
+	})
+
+	return targets
+}
+
+func collectGitReferences(expr Expression) []string {
+	var refs []string
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if gitExpr, ok := e.(*GitExpression); ok {
+			refs = append(refs, gitExpr.FromRef, gitExpr.ToRef)
+		}
+
+		return true
+	})
+
+	return refs
+}
+
+func collectWorktreeExpressions(expr Expression) []*GitExpression {
+	var targets []*GitExpression
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if gitExpr, ok := e.(*GitExpression); ok {
+			targets = append(targets, gitExpr)
+		}
+
+		return true
+	})
+
+	return targets
 }

@@ -3,17 +3,21 @@ package runall
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -27,16 +31,31 @@ import (
 // Known terraform commands that are explicitly not supported in run --all due to the nature of the command. This is
 // tracked as a map that maps the terraform command to the reasoning behind disallowing the command in run --all.
 var runAllDisabledCommands = map[string]string{
-	tf.CommandNameImport:      "terraform import should only be run against a single state representation to avoid injecting the wrong object in the wrong state representation.",
-	tf.CommandNameTaint:       "terraform taint should only be run against a single state representation to avoid using the wrong state address.",
-	tf.CommandNameUntaint:     "terraform untaint should only be run against a single state representation to avoid using the wrong state address.",
-	tf.CommandNameConsole:     "terraform console requires stdin, which is shared across all instances of run --all when multiple modules run concurrently.",
-	tf.CommandNameForceUnlock: "lock IDs are unique per state representation and thus should not be run with run --all.",
+	tf.CommandNameImport: "terraform import should only be run against a single" +
+		" state representation to avoid injecting the wrong object" +
+		" in the wrong state representation.",
+	tf.CommandNameTaint: "terraform taint should only be run against a single" +
+		" state representation to avoid using the wrong state address.",
+	tf.CommandNameUntaint: "terraform untaint should only be run against a single" +
+		" state representation to avoid using the wrong state address.",
+	tf.CommandNameConsole: "terraform console requires stdin, which is shared" +
+		" across all instances of run --all when multiple modules" +
+		" run concurrently.",
+	tf.CommandNameForceUnlock: "lock IDs are unique per state representation" +
+		" and thus should not be run with run --all.",
 }
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+// Run executes the configured terraform command across every unit in the
+// stack. v is the virtualized environment threaded through the runner pool
+// into each unit's run pipeline.
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) (err error) {
+	// --filter sets RunAll, so the CLI layer dispatches here without going
+	// through the single-unit run path. Emit the tip here as well; the
+	// underlying sync.Once dedupes if both paths fire.
+	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
+
 	if opts.TerraformCommand == "" {
-		return errors.New(MissingCommand{})
+		return MissingCommand{}
 	}
 
 	reason, isDisabled := runAllDisabledCommands[opts.TerraformCommand]
@@ -64,35 +83,52 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	if opts.ReportSchemaFile != "" {
-		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSchemaToFile(v.FS, opts.ReportSchemaFile); err != nil {
+				l.Warnf("Failed to write report schema to %s: %v", opts.ReportSchemaFile, err)
+			}
+		}()
 	}
 
 	if opts.ReportFile != "" {
-		defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteToFile(v.FS, opts.ReportFile); err != nil {
+				l.Warnf("Failed to write report to %s: %v", opts.ReportFile, err)
+			}
+		}()
 	}
 
 	// Skip summary for programmatic interactions:
 	// - When JSON output is requested (--json or report format is JSON)
 	// - When running 'output' command (typically for programmatic consumption)
+	// - When the user cancelled the run-all confirmation prompt, since
+	//   no units ran.
 	if !opts.SummaryDisable && !shouldSkipSummary(opts) {
 		defer func() {
-			if err := r.WriteSummary(opts.Writers.Writer); err != nil {
-				l.Warnf("Failed to write summary: %v", err)
+			if errors.Is(err, ErrUserCancelled) {
+				return
+			}
+
+			if writeErr := r.WriteSummary(opts.Writers.Writer); writeErr != nil {
+				l.Warnf("Failed to write summary: %v", writeErr)
 			}
 		}()
 	}
 
 	gitFilters := opts.Filters.UniqueGitFilters()
 
-	// Only create worktrees when git filter expressions are present
-	var (
-		wts *worktrees.Worktrees
-		err error
-	)
+	// Only create worktrees when git filter expressions are present.
+	// `err` is the named return; the summary defer reads it to detect
+	// ErrUserCancelled.
+	var wts *worktrees.Worktrees
 	if len(gitFilters) > 0 {
-		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
+		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+			WorkingDir:     opts.WorkingDir,
+			GitExpressions: gitFilters,
+			Experiments:    opts.Experiments,
+		})
 		if err != nil {
-			return errors.Errorf("failed to create worktrees: %w", err)
+			return fmt.Errorf("failed to create worktrees: %w", err)
 		}
 
 		defer func() {
@@ -117,22 +153,27 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 				return clean.CleanStacks(l, opts)
 			})
 			if errClean != nil {
-				return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, errClean)
+				return fmt.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, errClean)
 			}
 		}
 
 		// Generate the stack configuration with telemetry tracking
+		gen := generate.NewGenerator()
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
-			return generate.GenerateStacks(ctx, l, opts, wts)
+			return gen.GenerateStacks(ctx, l, opts, wts)
 		})
 
 		// Handle any errors during stack generation
 		if err != nil {
-			return errors.Errorf("failed to generate stack file: %w", err)
+			return fmt.Errorf("failed to generate stack file: %w", err)
 		}
+
+		// After generation, hint when a literal stack filter left nested stacks ungenerated.
+		funcsFor := configbridge.StackFuncFactory(ctx, l, opts)
+		tips.GiveStackNestedGenerateTip(l, v.FS, funcsFor, opts.WorkingDir, opts.Filters, opts.Tips)
 	} else {
 		l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
 	}
@@ -142,19 +183,27 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		runnerOpts = append(runnerOpts, common.WithWorktrees(wts))
 	}
 
-	rnr, err := runner.NewStackRunner(ctx, l, opts, runnerOpts...)
+	rnr, err := runner.NewStackRunner(ctx, l, v, opts, runnerOpts...)
 	if err != nil {
 		return err
 	}
 
-	return RunAllOnStack(ctx, l, opts, rnr, r)
+	return RunAllOnStack(ctx, l, v, opts, rnr, r)
 }
 
-func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, rnr common.StackRunner, r *report.Report) error {
+// RunAllOnStack drives the supplied [common.StackRunner] to completion.
+func RunAllOnStack(
+	ctx context.Context,
+	l log.Logger,
+	v run.Venv,
+	opts *options.TerragruntOptions,
+	rnr common.StackRunner,
+	r *report.Report,
+) error {
 	l.Debugf("%s", rnr.GetStack().String())
 
 	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
-	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.Writers.LogShowAbsPaths, opts.Experiments); err != nil {
+	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.LogShowAbsPaths, opts.Experiments); err != nil {
 		return err
 	}
 
@@ -164,9 +213,12 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	case tf.CommandNameApply:
 		prompt = "Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed above?"
 	case tf.CommandNameDestroy:
-		prompt = "WARNING: Are you sure you want to run `terragrunt destroy` in each unit of the run queue displayed above? There is no undo!"
+		prompt = "WARNING: Are you sure you want to run `terragrunt destroy`" +
+			" in each unit of the run queue displayed above? There is no undo!"
 	case tf.CommandNameState:
-		prompt = "Are you sure you want to manipulate the state with `terragrunt state` in each unit of the run queue displayed above? Note that absolute paths are shared, while relative paths will be relative to each working directory."
+		prompt = "Are you sure you want to manipulate the state with `terragrunt state`" +
+			" in each unit of the run queue displayed above? Note that absolute paths are shared," +
+			" while relative paths will be relative to each working directory."
 	}
 
 	if prompt != "" {
@@ -176,8 +228,11 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		}
 
 		if !shouldRunAll {
-			// We explicitly exit here to avoid running any defers that might be registered, like from the run summary.
-			os.Exit(0)
+			// Return a sentinel so the caller can map the cancellation
+			// to a clean exit. os.Exit here would skip every defer in
+			// the program, including worktree cleanup and telemetry
+			// shutdown.
+			return ErrUserCancelled
 		}
 	}
 
@@ -187,7 +242,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		err := rnr.Run(ctx, l, opts, r)
+		err := rnr.Run(ctx, l, v, opts, r)
 		if err != nil {
 			// At this stage, we can't handle the error any further, so we just log it and return nil.
 			// After this point, we'll need to report on what happened, and we want that to happen

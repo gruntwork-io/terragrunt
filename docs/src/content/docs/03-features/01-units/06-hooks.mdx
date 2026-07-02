@@ -57,6 +57,12 @@ All hooks add extra environment variables when executing the hook's run command:
 - `TG_CTX_COMMAND`
 - `TG_CTX_HOOK_NAME`
 
+When the [`hook-context-env`](/reference/experiments/active#hook-context-env) experiment is enabled, three additional variables are also set:
+
+- `TG_CTX_HOOK_TYPE` — `before_hook`, `after_hook`, or `error_hook`
+- `TG_CTX_SOURCE` — the resolved terraform source URL (CLI `--source` override, else evaluated `terraform.source` with source-map applied, else `.`)
+- `TG_CTX_TERRAGRUNT_DIR` — the directory of the current Terragrunt config
+
 For example:
 
 ```hcl
@@ -230,6 +236,14 @@ terraform {
 
 This configuration will cause Terragrunt to output `Will run OpenTofu` and then `Running OpenTofu` before the call
 to OpenTofu/Terraform.
+
+## Hook exit codes
+
+Hooks control the exit code Terragrunt returns. If any `before_hook`, `after_hook`, or `error_hook` exits with a non-zero status, the `terragrunt` command exits with a non-zero status, even when the underlying `tofu`/`terraform` command succeeded.
+
+A failing `before_hook` short-circuits the run: Terragrunt does not invoke `tofu`/`terraform` at all, and does not run any `after_hook` whose `run_on_error` is not set.
+
+For example, suppose you run `terragrunt apply` on a unit with no `before_hook` and one `after_hook`. Terragrunt runs `tofu apply` and it returns `0`. Terragrunt then runs the `after_hook`, which returns `1`. The `terragrunt apply` command exits with `1`, even though `tofu apply` succeeded.
 
 ## Tflint hook
 

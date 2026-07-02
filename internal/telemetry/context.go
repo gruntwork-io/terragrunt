@@ -19,10 +19,11 @@ func ContextWithTelemeter(ctx context.Context, telemeter *Telemeter) context.Con
 	return context.WithValue(ctx, telemeterContextKey, telemeter)
 }
 
-// TelemeterFromContext retrieves the Telemeter from the context, or nil if not present.
+// TelemeterFromContext retrieves the Telemeter from the context.
+// Returns a zero-value Telemeter (safe no-op) if not present or nil.
 func TelemeterFromContext(ctx context.Context) *Telemeter {
 	if val := ctx.Value(telemeterContextKey); val != nil {
-		if telemeter, ok := val.(*Telemeter); ok {
+		if telemeter, ok := val.(*Telemeter); ok && telemeter != nil {
 			return telemeter
 		}
 	}
@@ -30,7 +31,8 @@ func TelemeterFromContext(ctx context.Context) *Telemeter {
 	return new(Telemeter)
 }
 
-// TraceParentFromContext returns the W3C traceparent header value from the context's span, or an error if not available.
+// TraceParentFromContext returns the W3C traceparent header value from
+// the context's span, or an error if not available.
 func TraceParentFromContext(ctx context.Context, telemetry *Options) string {
 	span := trace.SpanFromContext(ctx)
 	spanContext := span.SpanContext()
@@ -39,7 +41,7 @@ func TraceParentFromContext(ctx context.Context, telemetry *Options) string {
 		return ""
 	}
 
-	if len(telemetry.TraceParent) > 0 {
+	if telemetry != nil && len(telemetry.TraceParent) > 0 {
 		return telemetry.TraceParent
 	}
 

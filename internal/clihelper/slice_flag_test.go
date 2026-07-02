@@ -37,13 +37,13 @@ func TestSliceFlagStringApply(t *testing.T) {
 			flag: clihelper.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
 		},
 		{
-			flag:          clihelper.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue([]string{"default-value1", "default-value2"})},
+			flag:          clihelper.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: new([]string{"default-value1", "default-value2"})},
 			args:          []string{"--foo", "arg-value1", "--foo", "arg-value2"},
 			envs:          map[string]string{"FOO": "env-value1,env-value2"},
 			expectedValue: []string{"arg-value1", "arg-value2"},
 		},
 		{
-			flag:          clihelper.SliceFlag[string]{Name: "foo", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
+			flag:          clihelper.SliceFlag[string]{Name: "foo", Destination: new([]string{"default-value1", "default-value2"})},
 			expectedValue: []string{"default-value1", "default-value2"},
 		},
 	}
@@ -79,7 +79,7 @@ func TestSliceFlagIntApply(t *testing.T) {
 			expectedValue: []int{20, 21},
 		},
 		{
-			flag:          clihelper.SliceFlag[int]{Name: "foo", Destination: mockDestValue([]int{50, 51})},
+			flag:          clihelper.SliceFlag[int]{Name: "foo", Destination: new([]int{50, 51})},
 			expectedValue: []int{50, 51},
 		},
 	}
@@ -115,7 +115,7 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 			expectedValue: []int64{20, 21},
 		},
 		{
-			flag:          clihelper.SliceFlag[int64]{Name: "foo", Destination: mockDestValue([]int64{50, 51})},
+			flag:          clihelper.SliceFlag[int64]{Name: "foo", Destination: new([]int64{50, 51})},
 			expectedValue: []int64{50, 51},
 		},
 	}

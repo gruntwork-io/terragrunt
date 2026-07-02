@@ -4,8 +4,9 @@ import (
 	"slices"
 	"strings"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 

@@ -2,7 +2,8 @@
 package cliconfig
 
 import (
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -153,6 +154,21 @@ func (cfg *Config) Clone() *Config {
 //		}
 //	}
 func (cfg *Config) AddHost(name string, services map[string]string) {
+	// Merge with existing host to avoid duplicates while preserving other service endpoints.
+	for i, host := range cfg.Hosts {
+		if host.Name == name {
+			merged := maps.Clone(host.Services)
+			if merged == nil {
+				merged = make(map[string]string)
+			}
+
+			maps.Copy(merged, services)
+			cfg.Hosts[i] = ConfigHost{Name: name, Services: merged}
+
+			return
+		}
+	}
+
 	cfg.Hosts = append(cfg.Hosts, ConfigHost{
 		Name:     name,
 		Services: services,
@@ -186,7 +202,7 @@ func (cfg *Config) Save(configPath string) error {
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := vfs.WriteFile(cfg.FS(), configPath, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil

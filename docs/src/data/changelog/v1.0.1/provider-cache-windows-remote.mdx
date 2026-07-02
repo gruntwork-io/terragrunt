@@ -1,0 +1,8 @@
+---
+version: "v1.0.1"
+category: "bug-fixes"
+---
+
+#### Provider cache fixed on Windows for remote URLs
+
+The provider cache failed on Windows with `CreateFile https://...: The filename, directory name, or volume label syntax is incorrect` because remote download URLs were passed to `os.Stat`, and the colon in `https:` is invalid Windows path syntax. The fix skips the filesystem existence check when the download URL is a remote URL (`://`), going directly to the download path.

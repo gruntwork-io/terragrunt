@@ -1,11 +1,13 @@
 package filter_test
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -153,21 +155,8 @@ func TestHints_Golden(t *testing.T) {
      ...
         ^ Expression is incomplete
 
-  hint: The '...' operator must be used in either a graph-based or Git-based expression. e.g. '...foo...' or '[main...HEAD]'
-`,
-		},
-		// TODO: Make this not an error. This should just be a path expression pointing at the current directory.
-		{
-			name:  "illegal character",
-			query: ".",
-			expected: `Filter parsing error: Illegal token
- --> --filter '.'
-
-     .
-     ^ Unrecognized character '.'
-
-  hint: This character is not recognized. Valid operators: | (union), ! (negation), = (attribute)
-`,
+  hint: ` + "The '...' operator must be used in either a graph-based or Git-based expression. " +
+				"e.g. '...foo...' or '[main...HEAD]'\n",
 		},
 		{
 			name:  "missing git ref after ellipsis",
@@ -202,8 +191,8 @@ func TestHints_Golden(t *testing.T) {
      ./foo...^
              ^ Unexpected '^' after expression
 
-  hint: The '^' operator excludes the target from graph results when used on the left side of the expression. Did you mean '^./foo...'?
-`,
+  hint: ` + "The '^' operator excludes the target from graph results when used on the left side " +
+				"of the expression. Did you mean '^./foo...'?\n",
 		},
 	}
 
@@ -521,7 +510,7 @@ func renderParseError(query string) (string, error) {
 
 	var parseErr filter.ParseError
 	if !errors.As(err, &parseErr) {
-		return "", errors.Errorf("expected ParseError but got: %v", err)
+		return "", fmt.Errorf("expected ParseError but got: %w", err)
 	}
 
 	// Render without colors for consistent golden testing

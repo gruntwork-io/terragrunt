@@ -46,12 +46,13 @@ func NewUnitRunner(unit *component.Unit) *UnitRunner {
 func (runner *UnitRunner) runTerragrunt(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
 	credsGetter *creds.Getter,
 ) error {
-	l.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.Writers.LogShowAbsPaths))
+	l.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.LogShowAbsPaths))
 
 	defer func() {
 		// Flush buffered output for this unit, if the writer supports it.
@@ -90,7 +91,7 @@ func (runner *UnitRunner) runTerragrunt(
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, unitExitCode)
 
-	runErr := run.Run(ctx, l, configbridge.NewRunOptions(opts), r, cfg, credsGetter)
+	runErr := run.Run(ctx, l, v, configbridge.NewRunOptions(opts), r, cfg, credsGetter)
 
 	// Store the unit exit code in the global map using the unit path as key.
 	if globalExitCode != nil {
@@ -132,6 +133,7 @@ func (runner *UnitRunner) runTerragrunt(
 func (runner *UnitRunner) Run(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
@@ -143,7 +145,7 @@ func (runner *UnitRunner) Run(
 		return nil
 	}
 
-	if err := runner.runTerragrunt(ctx, l, opts, r, cfg, credsGetter); err != nil {
+	if err := runner.runTerragrunt(ctx, l, v, opts, r, cfg, credsGetter); err != nil {
 		return err
 	}
 
@@ -162,11 +164,16 @@ func (runner *UnitRunner) Run(
 		jsonOptions.JSONLogFormat = false
 		jsonOptions.Writers.Writer = &stdout
 		jsonOptions.TerraformCommand = tf.CommandNameShow
-		jsonOptions.TerraformCliArgs = iacargs.New(tf.CommandNameShow, "-json", runner.Unit.PlanFile(opts.RootWorkingDir, opts.OutputFolder, opts.JSONOutputFolder, opts.TerraformCommand))
+		planFile := runner.Unit.PlanFile(
+			opts.RootWorkingDir, opts.OutputFolder, opts.JSONOutputFolder, opts.TerraformCommand,
+		)
+		jsonOptions.TerraformCliArgs = iacargs.New(tf.CommandNameShow, "-json", planFile)
 
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
-		if err := run.Run(ctx, jsonLogger, configbridge.NewRunOptions(jsonOptions), adhocReport, cfg, credsGetter); err != nil {
+
+		runOpts := configbridge.NewRunOptions(jsonOptions)
+		if err := run.Run(ctx, jsonLogger, v, runOpts, adhocReport, cfg, credsGetter); err != nil {
 			return err
 		}
 

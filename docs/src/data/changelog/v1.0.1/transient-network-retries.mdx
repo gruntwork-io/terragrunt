@@ -1,0 +1,8 @@
+---
+version: "v1.0.1"
+category: "bug-fixes"
+---
+
+#### Additional transient network errors now retried automatically
+
+Added retry patterns for provider resolution and registry connection failures commonly seen in CI environments, including TLS handshake timeouts, TCP connection resets, context deadline exceeded errors, and failed discovery document requests. These cover both Terraform and OpenTofu provider workflows.

@@ -2,9 +2,11 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -67,7 +69,7 @@ func evaluateExcludeBlocks(ctx context.Context, pctx *ParsingContext, l log.Logg
 
 	if len(excludeBlock) > 1 {
 		// only one block allowed
-		return nil, errors.Errorf("Only one %s block is allowed found multiple in %s", MetadataExclude, file.ConfigPath)
+		return nil, fmt.Errorf("only one %s block is allowed found multiple in %s", MetadataExclude, file.ConfigPath)
 	}
 
 	attrs, err := excludeBlock[0].JustAttributes()
@@ -100,7 +102,7 @@ func evaluateExcludeBlocks(ctx context.Context, pctx *ParsingContext, l log.Logg
 			if value.Type() == cty.String { // handle bool flag value
 				val, err := strconv.ParseBool(value.AsString())
 				if err != nil {
-					return nil, errors.New(err)
+					return nil, err
 				}
 
 				evaluatedAttrs[boolFlag] = cty.BoolVal(val)

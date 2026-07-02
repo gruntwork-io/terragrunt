@@ -10,16 +10,20 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
-	"github.com/charmbracelet/lipgloss/tree"
+	"errors"
+
+	"charm.land/lipgloss/v2/tree"
 	"github.com/charmbracelet/x/term"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Run runs the list command.
@@ -34,16 +38,20 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		Experiments:       opts.Experiments,
 	})
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
 	gitFilters := opts.Filters.UniqueGitFilters()
 
-	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
+	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+		WorkingDir:     opts.WorkingDir,
+		GitExpressions: gitFilters,
+		Experiments:    opts.Experiments,
+	})
 	if worktreeErr != nil {
-		return errors.Errorf("failed to create worktrees: %w", worktreeErr)
+		return fmt.Errorf("failed to create worktrees: %w", worktreeErr)
 	}
 
 	defer func() {
@@ -67,6 +75,11 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"dependencies": opts.Dependencies || opts.Mode == ModeDAG,
 	}, func(ctx context.Context) error {
 		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
+
+		if span := trace.SpanFromContext(ctx); span.IsRecording() {
+			span.SetAttributes(attribute.Int("component_count", len(components)))
+		}
+
 		return discoverErr
 	})
 	if err != nil {
@@ -91,7 +104,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 			return nil
 		})
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 	default:
 		// This should never happen, because of validation in the command.
@@ -105,14 +118,16 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"working_dir":  opts.WorkingDir,
 		"config_count": len(components),
 	}, func(ctx context.Context) error {
-		var convErr error
+		listedComponents = discoveredToListed(l, components, opts)
 
-		listedComponents, convErr = discoveredToListed(components, opts)
+		if span := trace.SpanFromContext(ctx); span.IsRecording() {
+			span.SetAttributes(attribute.Int("listed_count", len(listedComponents)))
+		}
 
-		return convErr
+		return nil
 	})
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	switch opts.Format {
@@ -131,9 +146,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	}
 }
 
-func discoveredToListed(components component.Components, opts *Options) (dag.ListedComponents, error) {
+func discoveredToListed(l log.Logger, components component.Components, opts *Options) dag.ListedComponents {
 	listedComponents := make(dag.ListedComponents, 0, len(components))
-	errs := []error{}
 
 	for _, c := range components {
 		excluded := false
@@ -152,26 +166,14 @@ func discoveredToListed(components component.Components, opts *Options) (dag.Lis
 			}
 		}
 
-		var (
-			relPath string
-			err     error
-		)
-
+		base := opts.WorkingDir
 		if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
-			relPath, err = filepath.Rel(c.DiscoveryContext().WorkingDir, c.Path())
-		} else {
-			relPath, err = filepath.Rel(opts.WorkingDir, c.Path())
-		}
-
-		if err != nil {
-			errs = append(errs, errors.New(err))
-
-			continue
+			base = c.DiscoveryContext().WorkingDir
 		}
 
 		listedCfg := &dag.ListedComponent{
 			Type:     c.Kind(),
-			Path:     relPath,
+			Path:     discovery.RelPathOrAbs(l, base, c.Path(), "component"),
 			Excluded: excluded,
 		}
 
@@ -183,19 +185,11 @@ func discoveredToListed(components component.Components, opts *Options) (dag.Lis
 
 		listedCfg.Dependencies = make([]*dag.ListedComponent, len(c.Dependencies()))
 
+		desc := fmt.Sprintf("dependency of unit %q", c.Path())
 		for i, dep := range c.Dependencies() {
-			var relDepPath string
-
+			depBase := opts.WorkingDir
 			if dep.DiscoveryContext() != nil && dep.DiscoveryContext().WorkingDir != "" {
-				relDepPath, err = filepath.Rel(dep.DiscoveryContext().WorkingDir, dep.Path())
-			} else {
-				relDepPath, err = filepath.Rel(opts.WorkingDir, dep.Path())
-			}
-
-			if err != nil {
-				errs = append(errs, errors.New(err))
-
-				continue
+				depBase = dep.DiscoveryContext().WorkingDir
 			}
 
 			depExcluded := false
@@ -212,7 +206,7 @@ func discoveredToListed(components component.Components, opts *Options) (dag.Lis
 
 			listedCfg.Dependencies[i] = &dag.ListedComponent{
 				Type:     dep.Kind(),
-				Path:     relDepPath,
+				Path:     discovery.RelPathOrAbs(l, depBase, dep.Path(), desc),
 				Excluded: depExcluded,
 			}
 		}
@@ -224,7 +218,7 @@ func discoveredToListed(components component.Components, opts *Options) (dag.Lis
 		listedComponents = append(listedComponents, listedCfg)
 	}
 
-	return listedComponents, errors.Join(errs...)
+	return listedComponents
 }
 
 // outputText outputs the discovered components in text format.
@@ -280,7 +274,7 @@ func renderLong(opts *Options, components dag.ListedComponents, c *dag.Colorizer
 
 	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
 
-	return errors.New(err)
+	return err
 }
 
 // buildLongHeadings renders the headings for the long format.
@@ -329,7 +323,7 @@ func renderTabular(opts *Options, components dag.ListedComponents, c *dag.Colori
 
 	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
 
-	return errors.New(err)
+	return err
 }
 
 // outputTree outputs the discovered components in tree format.
@@ -419,7 +413,7 @@ func renderTree(opts *Options, components dag.ListedComponents, s *dag.TreeStyle
 
 	_, err := opts.Writers.Writer.Write([]byte(t.String() + "\n"))
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -514,5 +508,5 @@ func renderDot(opts *Options, components dag.ListedComponents) error {
 
 	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
 
-	return errors.New(err)
+	return err
 }

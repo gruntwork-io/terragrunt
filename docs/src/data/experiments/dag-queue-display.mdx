@@ -1,22 +1,43 @@
 ---
 name: dag-queue-display
-status: active
 since: "1.0.1"
+completedSince: "1.1.0"
 ---
+
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Display the run queue as a DAG tree showing dependency hierarchy.
 
 ### `dag-queue-display` - What it does
+<Before version="1.1.0">
 By default, Terragrunt displays the run queue as a flat list of units before execution. When this experiment is enabled, the queue is rendered as a tree that visualizes dependency relationships between units. Independent units appear as siblings at the root, while dependent units are nested under their dependencies.
+</Before>
+
+<Since version="1.1.0">
+The run queue is rendered as a tree that visualizes dependency relationships between units, instead of the flat list Terragrunt displayed previously. Independent units appear as siblings at the root, while dependent units are nested under their dependencies. This experiment flag is no longer needed, as the tree display is now the default.
+</Since>
 
 The tree also changes its header message based on execution direction:
 
 - **Apply/Plan**: "starting with dependencies and then their dependents"
 - **Destroy**: "starting with dependents and then their dependencies"
 
+<Before version="1.1.0">
+
 ```bash
 terragrunt run --all --experiment dag-queue-display -- plan
 ```
+
+</Before>
+
+<Since version="1.1.0">
+
+```bash
+terragrunt run --all -- plan
+```
+
+</Since>
 
 Example output:
 
@@ -31,11 +52,18 @@ The following units will be run, starting with dependencies and then their depen
 ```
 
 ### `dag-queue-display` - How to provide feedback
+
+<Before version="1.1.0">
 Provide your feedback on the [DAG Queue Display](https://github.com/gruntwork-io/terragrunt/discussions/5783) GitHub Discussion.
+</Before>
+
+<Since version="1.1.0">
+Now that the `dag-queue-display` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+</Since>
 
 ### `dag-queue-display` - Criteria for stabilization
-To transition the `dag-queue-display` feature to a stable release, the following must be addressed, at a minimum:
+To transition the `dag-queue-display` feature to a stable release, the following were completed:
 
-- [ ] Community feedback on the tree visualization format
-- [ ] Confirm readability with large dependency graphs
-- [ ] Confirm compatibility with CI/CD log viewers (color and Unicode handling)
+- [x] Community feedback on the tree visualization format
+- [x] Confirm readability with large dependency graphs
+- [x] Confirm compatibility with CI/CD log viewers (color and Unicode handling)

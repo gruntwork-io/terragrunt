@@ -1,6 +1,7 @@
 package tf
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -12,19 +13,58 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-getter"
-	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 var (
 	forcedRegexp     = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
 	httpSchemeRegexp = regexp.MustCompile(`(?i)^https?://`)
+
+	// publicGoogleAPIsStorage matches the URL shape pre-v1.0.5 normalizeSourceURL
+	// auto-prefixed with `gcs::`: an http(s) URL whose host is
+	// www.googleapis.com under the /storage/ path. Hostnames like
+	// storage.googleapis.com (the bucket-name-as-subdomain form) are
+	// deliberately excluded — they were not handled by the v1 GCSDetector
+	// either.
+	publicGoogleAPIsStorage = regexp.MustCompile(`(?i)^https?://www\.googleapis\.com/storage/`)
 )
 
 const matchCount = 2
+
+// RewriteLegacyGCSPublicSource auto-prefixes plain
+// `https://www.googleapis.com/storage/...` source URLs with `gcs::` so they
+// route through the credentialed gcs getter. Returns the URL unchanged when
+// the `legacy-gcs-public-prefix` strict control is enabled.
+//
+// The deprecation warning is wired onto the control's Warning field, so
+// emission goes through the control's sync.Once. Repeated calls collapse to
+// a single warning per process.
+//
+// A ctrls slice that does not contain the control falls back to applying the
+// rewrite silently.
+func RewriteLegacyGCSPublicSource(ctx context.Context, l log.Logger, source string, ctrls strict.Controls) string {
+	if !publicGoogleAPIsStorage.MatchString(source) {
+		return source
+	}
+
+	ctrl := ctrls.Find(controls.LegacyGCSPublicPrefix)
+	if ctrl == nil {
+		return "gcs::" + source
+	}
+
+	if ctrl.GetEnabled() {
+		return source
+	}
+
+	evalCtx := log.ContextWithLogger(ctx, l)
+	_ = ctrl.Evaluate(evalCtx)
+
+	return "gcs::" + source
+}
 
 // Source represents information about Terraform source code that needs to be downloaded.
 type Source struct {
@@ -120,13 +160,13 @@ func (src Source) WriteVersionFile(l log.Logger) error {
 		// This ensures we attempt to redownload the source next time.
 		version, err = util.GenerateRandomSha256()
 		if err != nil {
-			return errors.New(err)
+			return err
 		}
 	}
 
 	const ownerReadWriteGroupReadPerms = 0640
 
-	return errors.New(os.WriteFile(src.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
+	return os.WriteFile(src.VersionFile, []byte(version), ownerReadWriteGroupReadPerms)
 }
 
 // NewSource takes the given source path and create a Source struct from it, including the folder where the source should
@@ -204,35 +244,41 @@ func ToSourceURL(source string, workingDir string) (*url.URL, error) {
 		return nil, err
 	}
 
-	// The go-getter library is what Terraform's init command uses to download source URLs. Use that library to
-	// parse the URL.
-	rawSourceURLWithGetter, err := getter.Detect(source, workingDir, getter.Detectors)
+	// Run the source through Terragrunt's detector chain so it picks up the
+	// same canonicalization OpenTofu/Terraform init applies (github/gitlab shorthand,
+	// bitbucket, etc.).
+	rawSourceURLWithGetter, err := getter.Detect(source, workingDir)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	return parseSourceURL(rawSourceURLWithGetter)
 }
 
-// We have to remove the http(s) scheme from the source URL to allow `getter.Detect` to add the source type, but only if the `getter` has a detector for that host.
+// normalizeSourceURL strips the http(s) scheme from `source` so the detector
+// chain can canonicalize it, but only if at least one detector recognizes the
+// scheme-less form. The detector list deliberately excludes:
+//
+//   - FileDetector: not a host detector.
+//   - S3Detector: stripping `https` from a public S3 URL would force the
+//     S3Detector to re-add `s3::https`, which then requires credentials even
+//     for a public bucket.
+//   - GCSDetector: same reasoning as S3 — a public storage.googleapis.com URL
+//     should resolve via the http getter, not the credentialed gcs getter.
 func normalizeSourceURL(source string, workingDir string) (string, error) {
 	newSource := httpSchemeRegexp.ReplaceAllString(source, "")
 
-	// We can't use `the getter.Detectors` global variable because we need to exclude from checking:
-	// * `getter.FileDetector` is not a host detector
-	// * `getter.S3Detector` we should not remove `https` from s3 link since this is a public link, and if we remove `https` scheme, `getter.S3Detector` adds `s3::https` which in turn requires credentials.
 	detectors := []getter.Detector{
 		new(getter.GitHubDetector),
 		new(getter.GitLabDetector),
 		new(getter.GitDetector),
 		new(getter.BitBucketDetector),
-		new(getter.GCSDetector),
 	}
 
 	for _, detector := range detectors {
 		_, ok, err := detector.Detect(newSource, workingDir)
 		if err != nil {
-			return source, errors.New(err)
+			return source, err
 		}
 
 		if ok {
@@ -257,9 +303,9 @@ func parseSourceURL(source string) (*url.URL, error) {
 	}
 
 	// Parse the URL without the getter prefix
-	canonicalSourceURL, err := urlhelper.Parse(rawSourceURL)
+	canonicalSourceURL, err := getter.URLParse(rawSourceURL)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, err
 	}
 
 	// Reattach the "getter" prefix as part of the scheme
@@ -279,13 +325,29 @@ func IsLocalSource(sourceURL *url.URL) bool {
 // (//), which typically represents the root of a modules repo (e.g. github.com/foo/infrastructure-modules) and the
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
 // sourceUrl and the path is an empty string.
+//
+// A cas:: reference parses as an opaque URL (scheme "cas::sha1", opaque
+// "<hash>//modules/foo"), so the "//" is split out of the opaque component
+// rather than the path.
 func SplitSourceURL(l log.Logger, sourceURL *url.URL) (*url.URL, string, error) {
+	if sourceURL.Opaque != "" {
+		opaqueSplitOnDoubleSlash := strings.SplitN(sourceURL.Opaque, "//", 2) //nolint:mnd
+		if len(opaqueSplitOnDoubleSlash) > 1 {
+			rootSourceURL := *sourceURL
+			rootSourceURL.Opaque = opaqueSplitOnDoubleSlash[0]
+
+			return &rootSourceURL, opaqueSplitOnDoubleSlash[1], nil
+		}
+
+		return sourceURL, "", nil
+	}
+
 	pathSplitOnDoubleSlash := strings.SplitN(sourceURL.Path, "//", 2) //nolint:mnd
 
 	if len(pathSplitOnDoubleSlash) > 1 {
 		sourceURLModifiedPath, err := parseSourceURL(sourceURL.String())
 		if err != nil {
-			return nil, "", errors.New(err)
+			return nil, "", err
 		}
 
 		sourceURLModifiedPath.Path = pathSplitOnDoubleSlash[0]
@@ -315,7 +377,7 @@ func SplitSourceURL(l log.Logger, sourceURL *url.URL) (*url.URL, string, error) 
 func encodeSourceName(sourceURL *url.URL) (string, error) {
 	sourceURLNoQuery, err := parseSourceURL(sourceURL.String())
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	sourceURLNoQuery.RawQuery = ""

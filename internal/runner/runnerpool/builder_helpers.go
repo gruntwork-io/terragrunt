@@ -2,6 +2,7 @@ package runnerpool
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -11,10 +12,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -179,6 +180,7 @@ func createRunner(
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
+	exec vexec.Exec,
 	opts *options.TerragruntOptions,
 	units []*component.Unit,
 ) error {
@@ -198,6 +200,7 @@ func checkVersionConstraints(
 			return checkUnitVersionConstraints(
 				checkCtx,
 				l,
+				exec,
 				unitOpts,
 				unitLogger,
 				unit,
@@ -213,6 +216,7 @@ func checkVersionConstraints(
 func checkUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
+	exec vexec.Exec,
 	unitOpts *options.TerragruntOptions,
 	unitLogger log.Logger,
 	unit *component.Unit,
@@ -237,7 +241,7 @@ func checkUnitVersionConstraints(
 			nil,
 		)
 		if err != nil {
-			return errors.Errorf("failed to parse config for unit %s: %w", unit.DisplayPath(), err)
+			return fmt.Errorf("failed to parse config for unit %s: %w", unit.DisplayPath(), err)
 		}
 	}
 
@@ -249,9 +253,13 @@ func checkUnitVersionConstraints(
 		l = unitLogger
 	}
 
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, unitOpts.WorkingDir, unitOpts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(unitOpts))
+	_, ver, impl, err := run.PopulateTFVersion(ctx, l, exec, run.PopulateTFVersionInput{
+		TFOpts:       configbridge.TFRunOptsFromOpts(unitOpts),
+		WorkingDir:   unitOpts.WorkingDir,
+		VersionFiles: unitOpts.VersionManagerFileName,
+	})
 	if err != nil {
-		return errors.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
+		return fmt.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
 	}
 
 	unitOpts.TerraformVersion = ver
@@ -263,7 +271,7 @@ func checkUnitVersionConstraints(
 	}
 
 	if err := run.CheckTerraformVersionMeetsConstraint(unitOpts.TerraformVersion, terraformVersionConstraint); err != nil {
-		return errors.Errorf("Terraform version check failed for unit %s: %w", unit.DisplayPath(), err)
+		return fmt.Errorf("terraform version check failed for unit %s: %w", unit.DisplayPath(), err)
 	}
 
 	if unitConfig.TerragruntVersionConstraint != "" {
@@ -271,7 +279,7 @@ func checkUnitVersionConstraints(
 			unitOpts.TerragruntVersion,
 			unitConfig.TerragruntVersionConstraint,
 		); err != nil {
-			return errors.Errorf("Terragrunt version check failed for unit %s: %w", unit.DisplayPath(), err)
+			return fmt.Errorf("terragrunt version check failed for unit %s: %w", unit.DisplayPath(), err)
 		}
 	}
 
@@ -281,7 +289,10 @@ func checkUnitVersionConstraints(
 
 			defaultValue, err := flag.DefaultAsString()
 			if err != nil {
-				return errors.Errorf("failed to get default value for feature flag %s in unit %s: %w", flagName, unit.DisplayPath(), err)
+				return fmt.Errorf(
+					"failed to get default value for feature flag %s in unit %s: %w",
+					flagName, unit.DisplayPath(), err,
+				)
 			}
 
 			if _, exists := unitOpts.FeatureFlags.Load(flagName); !exists {

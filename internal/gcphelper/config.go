@@ -4,10 +4,11 @@ package gcphelper
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 
 	"cloud.google.com/go/storage"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
@@ -64,7 +65,7 @@ func (b *GCPConfigBuilder) BuildGCSClient(ctx context.Context) (*storage.Client,
 
 	gcsClient, err := storage.NewClient(ctx, clientOpts...)
 	if err != nil {
-		return nil, errors.Errorf("Error creating GCS client: %w", err)
+		return nil, fmt.Errorf("error creating GCS client: %w", err)
 	}
 
 	return gcsClient, nil
@@ -127,7 +128,7 @@ func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, er
 			Delegates:       gcpCfg.ImpersonateServiceAccountDelegates,
 		}, clientOpts...)
 		if err != nil {
-			return nil, errors.Errorf("Error creating impersonation token source: %w", err)
+			return nil, fmt.Errorf("error creating impersonation token source: %w", err)
 		}
 
 		clientOpts = []option.ClientOption{option.WithTokenSource(ts)}
@@ -157,7 +158,7 @@ func createGCPCredentialsFromEnv(env map[string]string) (option.ClientOption, er
 func credentialsFileOption(filename string) (option.ClientOption, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		return nil, errors.Errorf("Error reading credentials file %s: %w", filename, err)
+		return nil, fmt.Errorf("error reading credentials file %s: %w", filename, err)
 	}
 
 	var meta struct {
@@ -165,7 +166,7 @@ func credentialsFileOption(filename string) (option.ClientOption, error) {
 	}
 
 	if err := json.Unmarshal(data, &meta); err != nil {
-		return nil, errors.Errorf("Error parsing credentials file %s: %w", filename, err)
+		return nil, fmt.Errorf("error parsing credentials file %s: %w", filename, err)
 	}
 
 	credType, err := credentialsTypeFromString(meta.Type)
@@ -189,13 +190,16 @@ func credentialsTypeFromString(t string) (option.CredentialsType, error) {
 	case credTypeExternalAccount:
 		return option.ExternalAccount, nil
 	default:
-		return "", errors.Errorf("Unsupported GCP credentials type: %q", t)
+		return "", fmt.Errorf("unsupported GCP credentials type: %q", t)
 	}
 }
 
 // createGCPCredentialsFromGoogleCredentialsEnv creates GCP credentials from GOOGLE_CREDENTIALS environment variable.
 // This can be either a file path or the JSON content directly (to mirror how Terraform works).
-func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, env map[string]string) (option.ClientOption, error) {
+func createGCPCredentialsFromGoogleCredentialsEnv(
+	ctx context.Context,
+	env map[string]string,
+) (option.ClientOption, error) {
 	var account = struct {
 		PrivateKeyID string `json:"private_key_id"`
 		PrivateKey   string `json:"private_key"`
@@ -208,11 +212,11 @@ func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, env map[s
 
 	contents, err := util.FileOrData(creds)
 	if err != nil {
-		return nil, errors.Errorf("Error loading credentials: %w", err)
+		return nil, fmt.Errorf("error loading credentials: %w", err)
 	}
 
 	if err := json.Unmarshal([]byte(contents), &account); err != nil {
-		return nil, errors.Errorf("Error parsing GCP credentials.")
+		return nil, errors.New("error parsing GCP credentials")
 	}
 
 	conf := jwt.Config{

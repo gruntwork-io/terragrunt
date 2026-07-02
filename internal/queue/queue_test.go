@@ -2,6 +2,7 @@ package queue_test
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -272,7 +273,8 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	// Check that all entries are ready initially and in order A, B, C
 	readyEntries := q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
-	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Component.Path())
+	assert.Equal(t, queue.StatusReady, readyEntries[0].Status,
+		"Entry %s should have StatusReady", readyEntries[0].Component.Path())
 	assert.Equal(t, "A", readyEntries[0].Component.Path(), "First ready entry should be A")
 
 	// Mark A as running and complete it
@@ -325,7 +327,8 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	// 1. Initially, only A should be ready
 	readyEntries := q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
-	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Component.Path())
+	assert.Equal(t, queue.StatusReady, readyEntries[0].Status,
+		"Entry %s should have StatusReady", readyEntries[0].Component.Path())
 	assert.Equal(t, "A", readyEntries[0].Component.Path(), "First ready entry should be A")
 
 	// Mark A as running and complete it
@@ -418,7 +421,8 @@ func TestQueue_FailFast(t *testing.T) {
 
 	// All entries should be listed as terminal (A: Failed, B/C: EarlyExit)
 	for _, entry := range q.Entries {
-		assert.True(t, entry.Status == queue.StatusFailed || entry.Status == queue.StatusEarlyExit, "Entry %s should be terminal", entry.Component.Path())
+		assert.True(t, entry.Status == queue.StatusFailed || entry.Status == queue.StatusEarlyExit,
+			"Entry %s should be terminal", entry.Component.Path())
 	}
 
 	// Now all should be terminal
@@ -1046,5 +1050,73 @@ func TestSetEntryStatus_TerminalGuard(t *testing.T) {
 
 			assert.Equal(t, tc.initial, entry.Status, "Terminal status should not change")
 		})
+	}
+}
+
+// TestQueueClaimForRunningRacesFailEntryWithRacing exercises the dispatch-race
+// invariant the runner pool relies on for fail-fast correctness: across many
+// concurrent FailEntry / ClaimForRunning pairs, ClaimForRunning's return value
+// must match the entry's resulting status. A `true` return guarantees the
+// caller can safely launch the unit; a `false` return guarantees the entry has
+// already been cancelled and must not run. The WithRacing suffix enrolls this
+// test in CI's -race configuration so any regression that reintroduces a data
+// race or a torn transition is caught at runtime, not via flake.
+func TestQueueClaimForRunningRacesFailEntryWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const iterations = 50
+
+	for i := range iterations {
+		cfgA := component.NewUnit(fmt.Sprintf("A-%d", i))
+		cfgB := component.NewUnit(fmt.Sprintf("B-%d", i))
+
+		q, err := queue.NewQueue(component.Components{cfgA, cfgB})
+		require.NoError(t, err)
+
+		q.FailFast = true
+
+		var entryA, entryB *queue.Entry
+
+		for _, e := range q.Entries {
+			if e.Component.Path() == cfgA.Path() {
+				entryA = e
+				continue
+			}
+
+			entryB = e
+		}
+
+		// FailEntry expects the failing entry to be in flight.
+		entryA.Status = queue.StatusRunning
+
+		var (
+			claimed bool
+			wg      sync.WaitGroup
+		)
+
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+
+			q.FailEntry(entryA)
+		}()
+
+		go func() {
+			defer wg.Done()
+
+			claimed = q.ClaimForRunning(entryB)
+		}()
+
+		wg.Wait()
+
+		require.Equal(t, queue.StatusFailed, entryA.Status, "iteration %d: A status", i)
+
+		if claimed {
+			require.Equal(t, queue.StatusRunning, entryB.Status, "iteration %d: claim true but B is %v", i, entryB.Status)
+			continue
+		}
+
+		require.Equal(t, queue.StatusEarlyExit, entryB.Status, "iteration %d: claim false but B is %v", i, entryB.Status)
 	}
 }

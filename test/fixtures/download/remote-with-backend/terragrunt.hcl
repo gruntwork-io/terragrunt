@@ -3,7 +3,7 @@ inputs = {
 }
 
 terraform {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/download/hello-world-with-backend?ref=v0.83.2"
+  source = "git::__MIRROR_URL__//test/fixtures/download/hello-world-with-backend?ref=v0.83.2"
 }
 
 # Configure Terragrunt to automatically store tfstate files in an S3 bucket

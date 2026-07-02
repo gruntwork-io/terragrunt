@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Invalid unit configurations cause explicit errors instead of silently being excluded during runs
+
+A bug in discovery logic resulted in units with invalid HCL configurations being silently excluded from runs with a warning. This bug has been fixed, and attempting to parse invalid HCL configurations during a run will result in an error.

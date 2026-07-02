@@ -109,164 +109,72 @@ func TestProviderCache(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			// TODO: Remove this once we can invest time in figuring out why this test is so flaky.
-			//
-			// It's a pain, but it's not worth the time to fix it.
-			maxRetries := 3
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
 
-			var lastErr error
+			errGroup, ctx := errgroup.WithContext(ctx)
+			l := logger.CreateLogger()
 
-			for attempt := 1; attempt <= maxRetries; attempt++ {
-				if attempt > 1 {
-					t.Logf("Retry attempt %d/%d for test case %d", attempt, maxRetries, i)
-				}
+			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
+			providerHandler := handlers.NewDirectProviderHandler(l, new(cliconfig.ProviderInstallationDirect), nil)
+			proxyProviderHandler := handlers.NewProxyProviderHandler(l, nil)
 
-				// Create a new context for each test case to avoid interference
-				//
-				//nolint:usetesting
-				ctx := context.Background()
+			tc.opts = append(tc.opts,
+				cache.WithProviderService(providerService),
+				cache.WithProviderHandlers(providerHandler),
+				cache.WithProxyProviderHandler(proxyProviderHandler),
+			)
 
-				ctx, cancel := context.WithCancel(ctx)
-				defer cancel()
+			server := cache.NewServer(tc.opts...)
 
-				errGroup, ctx := errgroup.WithContext(ctx)
-				logger := logger.CreateLogger()
+			ln, err := server.Listen(t.Context())
+			require.NoError(t, err)
 
-				providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, logger)
-				providerHandler := handlers.NewDirectProviderHandler(logger, new(cliconfig.ProviderInstallationDirect), nil)
-				proxyProviderHandler := handlers.NewProxyProviderHandler(logger, nil)
+			defer ln.Close()
 
-				tc.opts = append(tc.opts,
-					cache.WithProviderService(providerService),
-					cache.WithProviderHandlers(providerHandler),
-					cache.WithProxyProviderHandler(proxyProviderHandler),
-				)
+			errGroup.Go(func() error {
+				return server.Run(ctx, ln)
+			})
 
-				server := cache.NewServer(tc.opts...)
+			urlPath := server.ProviderController.URL()
+			urlPath.Path += tc.relURLPath
 
-				ln, err := server.Listen(t.Context())
-				if err != nil {
-					lastErr = err
-
-					if attempt < maxRetries {
-						continue
-					}
-
-					require.NoError(t, err)
-				}
-				defer ln.Close()
-
-				errGroup.Go(func() error {
-					return server.Run(ctx, ln)
-				})
-
-				urlPath := server.ProviderController.URL()
-				urlPath.Path += tc.relURLPath
-
-				if tc.fullURLPath != "" {
-					urlPath.Path = tc.fullURLPath
-				}
-
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath.String(), nil)
-				if err != nil {
-					lastErr = err
-
-					if attempt < maxRetries {
-						continue
-					}
-
-					require.NoError(t, err)
-				}
-
-				req.Header.Set("Authorization", "Bearer "+token)
-
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					lastErr = err
-
-					if attempt < maxRetries {
-						continue
-					}
-
-					require.NoError(t, err)
-				}
-				defer resp.Body.Close()
-
-				if resp.StatusCode != tc.expectedStatusCode {
-					lastErr = fmt.Errorf("expected status code %d, got %d", tc.expectedStatusCode, resp.StatusCode)
-
-					if attempt < maxRetries {
-						continue
-					}
-
-					assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
-				}
-
-				if tc.expectedBodyReg != nil {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						lastErr = err
-
-						if attempt < maxRetries {
-							continue
-						}
-
-						require.NoError(t, err)
-					}
-
-					if !tc.expectedBodyReg.MatchString(string(body)) {
-						lastErr = fmt.Errorf("body did not match expected regex: %s", tc.expectedBodyReg.String())
-
-						if attempt < maxRetries {
-							continue
-						}
-
-						assert.Regexp(t, tc.expectedBodyReg, string(body))
-					}
-				}
-
-				// Skip WaitForCacheReady for unauthorized test cases since they don't trigger background operations,
-				// and we cancel context at the end of the test.
-				if tc.expectedStatusCode != http.StatusUnauthorized {
-					_, err = providerService.WaitForCacheReady("")
-					if err != nil {
-						lastErr = err
-
-						if attempt < maxRetries {
-							continue
-						}
-
-						require.NoError(t, err)
-					}
-				}
-
-				if tc.expectedCachePath != "" {
-					if !assert.FileExists(t, filepath.Join(providerCacheDir, tc.expectedCachePath)) {
-						lastErr = fmt.Errorf("expected cache file does not exist: %s", tc.expectedCachePath)
-
-						if attempt < maxRetries {
-							continue
-						}
-					}
-				}
-
-				cancel()
-
-				err = errGroup.Wait()
-				if err != nil {
-					lastErr = err
-
-					if attempt < maxRetries {
-						continue
-					}
-
-					require.NoError(t, err)
-				}
-
-				return
+			if tc.fullURLPath != "" {
+				urlPath.Path = tc.fullURLPath
 			}
 
-			t.Fatalf("Test case %d failed after %d attempts. Last error: %v", i, maxRetries, lastErr)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath.String(), nil)
+			require.NoError(t, err)
+
+			req.Header.Set("Authorization", "Bearer "+token)
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+
+			if tc.expectedBodyReg != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				assert.Regexp(t, tc.expectedBodyReg, string(body))
+			}
+
+			// Skip WaitForCacheReady for unauthorized test cases since they don't trigger background operations,
+			// and we cancel context at the end of the test.
+			if tc.expectedStatusCode != http.StatusUnauthorized {
+				_, err = providerService.WaitForCacheReady("")
+				require.NoError(t, err)
+			}
+
+			if tc.expectedCachePath != "" {
+				assert.FileExists(t, filepath.Join(providerCacheDir, tc.expectedCachePath))
+			}
+
+			cancel()
+
+			require.NoError(t, errGroup.Wait())
 		})
 	}
 }

@@ -131,7 +131,10 @@ func TestHiddenDiscovery(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	expectedPaths := []string{"unit1", "unit2", filepath.Join("nested", "unit4"), "stack1", filepath.Join(".hidden", "unit3")}
+	expectedPaths := []string{
+		"unit1", "unit2", filepath.Join("nested", "unit4"),
+		"stack1", filepath.Join(".hidden", "unit3"),
+	}
 
 	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir

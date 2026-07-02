@@ -1,0 +1,61 @@
+---
+import type { PullRequestGroup } from "@lib/changelog";
+
+interface Props {
+  groups: PullRequestGroup[];
+  slug?: string;
+  label?: string;
+}
+
+const { groups, slug = "pull-requests", label = "Pull Requests" } = Astro.props;
+
+type TitlePart = { code: boolean; text: string };
+
+function splitTitle(title: string): TitlePart[] {
+  const parts: TitlePart[] = [];
+  let last = 0;
+  for (const m of title.matchAll(/`([^`]+)`/g)) {
+    const idx = m.index ?? 0;
+    if (idx > last) parts.push({ code: false, text: title.slice(last, idx) });
+    parts.push({ code: true, text: m[1] });
+    last = idx + m[0].length;
+  }
+  if (last < title.length) parts.push({ code: false, text: title.slice(last) });
+  return parts;
+}
+---
+
+{groups.length > 0 && (
+  <section class="pull-requests">
+    <div class="sl-heading-wrapper level-h2">
+      <h2 id={slug}>{label}</h2>
+      <a class="sl-anchor-link" href={`#${slug}`}>
+        <span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"/></svg></span>
+        <span class="sr-only" data-pagefind-ignore>Section titled {label}</span>
+      </a>
+    </div>
+    <hr />
+    {groups.map((group) => (
+      <div class="pull-requests-group">
+        <h3 id={`pull-requests-${group.type.key}`}>{group.type.label}</h3>
+        <ul>
+          {group.items.map((item) => (
+            <li>
+              {splitTitle(item.title).map((part) =>
+                part.code ? <code>{part.text}</code> : <Fragment>{part.text}</Fragment>
+              )}
+              {" by "}
+              <a href={`https://github.com/${item.author}`}>@{item.author}</a>
+              {item.prNumber !== null && (
+                <>
+                  {" in "}
+                  <a href={item.prUrl}>#{item.prNumber}</a>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))}
+  </section>
+)}

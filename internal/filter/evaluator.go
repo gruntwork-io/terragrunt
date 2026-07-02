@@ -52,9 +52,9 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 
 	switch node := expr.(type) {
 	case *PathExpression:
-		return evaluatePathFilter(node, components)
+		return evaluatePathFilter(l, node, components)
 	case *AttributeExpression:
-		return evaluateAttributeFilter(node, components)
+		return evaluateAttributeFilter(l, node, components)
 	case *PrefixExpression:
 		return evaluatePrefixExpression(l, node, components)
 	case *InfixExpression:
@@ -69,20 +69,32 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 }
 
 // evaluatePathFilter evaluates a path filter using glob matching.
-func evaluatePathFilter(filter *PathExpression, components component.Components) (component.Components, error) {
+func evaluatePathFilter(
+	l log.Logger,
+	filter *PathExpression,
+	components component.Components,
+) (component.Components, error) {
 	result := make(component.Components, 0, len(components))
 
 	for _, c := range components {
 		if matchPath(c, filter) {
 			result = append(result, c)
+
+			continue
 		}
+
+		traceFilterMiss(l, filter, c)
 	}
 
 	return result, nil
 }
 
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(filter *AttributeExpression, components []component.Component) ([]component.Component, error) {
+func evaluateAttributeFilter(
+	l log.Logger,
+	filter *AttributeExpression,
+	components []component.Component,
+) ([]component.Component, error) {
 	var result []component.Component
 
 	switch filter.Key {
@@ -92,7 +104,11 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 		for _, c := range components {
 			if g.Match(filepath.Base(c.Path())) {
 				result = append(result, c)
+
+				continue
 			}
+
+			traceFilterMiss(l, filter, c)
 		}
 
 	case AttributeType:
@@ -101,13 +117,21 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 			for _, c := range components {
 				if _, ok := c.(*component.Unit); ok {
 					result = append(result, c)
+
+					continue
 				}
+
+				traceFilterMiss(l, filter, c)
 			}
 		case AttributeTypeValueStack:
 			for _, c := range components {
 				if _, ok := c.(*component.Stack); ok {
 					result = append(result, c)
+
+					continue
 				}
+
+				traceFilterMiss(l, filter, c)
 			}
 		default:
 			return nil, NewEvaluationError("invalid type value: " + filter.Value + " (expected 'unit' or 'stack')")
@@ -118,13 +142,21 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 			for _, c := range components {
 				if c.External() {
 					result = append(result, c)
+
+					continue
 				}
+
+				traceFilterMiss(l, filter, c)
 			}
 		case AttributeExternalValueFalse:
 			for _, c := range components {
 				if !c.External() {
 					result = append(result, c)
+
+					continue
 				}
+
+				traceFilterMiss(l, filter, c)
 			}
 		default:
 			return nil, NewEvaluationError("invalid external value: " + filter.Value + " (expected 'true' or 'false')")
@@ -133,7 +165,10 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 		g := filter.Glob()
 
 		for _, c := range components {
-			if slices.ContainsFunc(c.Reading(), g.Match) {
+			// Read paths are OS-native; the glob is '/'-separated, so normalize first.
+			if slices.ContainsFunc(c.Reading(), func(reading string) bool {
+				return g.Match(filepath.ToSlash(reading))
+			}) {
 				result = append(result, c)
 
 				continue
@@ -141,6 +176,8 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 
 			discoveryCtx := c.DiscoveryContext()
 			if discoveryCtx == nil || discoveryCtx.WorkingDir == "" {
+				traceFilterMiss(l, filter, c)
+
 				continue
 			}
 
@@ -148,7 +185,10 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 			for _, reading := range c.Reading() {
 				rel, err := filepath.Rel(c.DiscoveryContext().WorkingDir, reading)
 				if err != nil {
-					return nil, NewEvaluationErrorWithCause(fmt.Sprintf("failed to get relative path for component %s reading: %s", c.Path(), reading), err)
+					return nil, NewEvaluationErrorWithCause(
+						fmt.Sprintf("failed to get relative path for component %s reading: %s", c.Path(), reading),
+						err,
+					)
 				}
 
 				relReading = append(relReading, filepath.ToSlash(rel))
@@ -156,15 +196,27 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 
 			if slices.ContainsFunc(relReading, g.Match) {
 				result = append(result, c)
+
+				continue
 			}
+
+			traceFilterMiss(l, filter, c)
 		}
 	case AttributeSource:
 		g := filter.Glob()
 
 		for _, c := range components {
-			if slices.ContainsFunc(c.Sources(), g.Match) {
+			// terraform.source can carry native or mixed separators on Windows, so
+			// normalize before matching the '/'-separated glob.
+			if slices.ContainsFunc(c.Sources(), func(source string) bool {
+				return g.Match(filepath.ToSlash(source))
+			}) {
 				result = append(result, c)
+
+				continue
 			}
+
+			traceFilterMiss(l, filter, c)
 		}
 	default:
 		return nil, NewEvaluationError("unknown attribute key: " + filter.Key)
@@ -173,8 +225,17 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 	return result, nil
 }
 
+// traceFilterMiss emits a trace log when a component does not match a filter.
+func traceFilterMiss(l log.Logger, expr Expression, c component.Component) {
+	l.Tracef("Filter %s did not match component %s", expr, c.Path())
+}
+
 // evaluatePrefixExpression evaluates a prefix expression (negation).
-func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components component.Components) (component.Components, error) {
+func evaluatePrefixExpression(
+	l log.Logger,
+	expr *PrefixExpression,
+	components component.Components,
+) (component.Components, error) {
 	if expr.Operator != "!" {
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
@@ -213,7 +274,11 @@ func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components c
 }
 
 // evaluateInfixExpression evaluates an infix expression (intersection).
-func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components component.Components) (component.Components, error) {
+func evaluateInfixExpression(
+	l log.Logger,
+	expr *InfixExpression,
+	components component.Components,
+) (component.Components, error) {
 	if expr.Operator != "|" {
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}
@@ -232,7 +297,11 @@ func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components com
 }
 
 // evaluateGraphExpression evaluates a graph expression by traversing dependency/dependent graphs.
-func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components component.Components) (component.Components, error) {
+func evaluateGraphExpression(
+	l log.Logger,
+	expr *GraphExpression,
+	components component.Components,
+) (component.Components, error) {
 	targetMatches, err := Evaluate(l, expr.Target, components)
 	if err != nil {
 		return nil, err
@@ -337,11 +406,12 @@ func traverseGraph(
 	remainingDepth int,
 ) {
 	if remainingDepth <= 0 {
-		if l != nil && params.warnOnLimit {
+		if params.warnOnLimit {
 			directionName := params.direction.String()
 
 			l.Warnf(
-				"Maximum %s traversal depth (%d) reached for component %s during filtering. Some %s may have been excluded from results.",
+				"Maximum %s traversal depth (%d) reached for component %s during filtering. "+
+					"Some %s may have been excluded from results.",
 				directionName,
 				MaxTraversalDepth,
 				c.Path(),

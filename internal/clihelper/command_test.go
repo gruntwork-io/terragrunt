@@ -6,8 +6,9 @@ import (
 	"io"
 	"testing"
 
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	urfaveCli "github.com/urfave/cli/v2"

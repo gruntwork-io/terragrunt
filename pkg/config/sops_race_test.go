@@ -40,7 +40,7 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 
 		secretFile := filepath.Join(unitDir, "secret.enc.json")
 		require.NoError(t, os.WriteFile(secretFile,
-			[]byte(fmt.Sprintf(`{"value":"secret-from-unit-%02d"}`, i)), 0644))
+			fmt.Appendf(nil, `{"value":"secret-from-unit-%02d"}`, i), 0644))
 
 		files = append(files, secretFile)
 	}

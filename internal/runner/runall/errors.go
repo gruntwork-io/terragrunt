@@ -1,6 +1,10 @@
 package runall
 
-import "fmt"
+import (
+	"fmt"
+
+	"errors"
+)
 
 type RunAllDisabledErr struct {
 	command string
@@ -16,3 +20,8 @@ type MissingCommand struct{}
 func (err MissingCommand) Error() string {
 	return "Missing run --all command argument (Example: terragrunt run --all plan)"
 }
+
+// ErrUserCancelled signals that the user answered "no" to a destructive
+// `run --all` confirmation prompt. The top-level error handler treats
+// it as a clean exit.
+var ErrUserCancelled = errors.New("run --all cancelled by user")

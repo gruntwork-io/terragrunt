@@ -22,7 +22,7 @@ const (
 func TestFeatureFlagDefaults(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testSimpleFlag)
+	helpers.CleanupTerraformFolder(t, testSimpleFlag)
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := filepath.Join(tmpEnvPath, testSimpleFlag)
 
@@ -34,7 +34,7 @@ func TestFeatureFlagDefaults(t *testing.T) {
 func TestFeatureFlagCli(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testSimpleFlag)
+	helpers.CleanupTerraformFolder(t, testSimpleFlag)
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := filepath.Join(tmpEnvPath, testSimpleFlag)
 
@@ -50,7 +50,7 @@ func TestFeatureFlagCli(t *testing.T) {
 func TestFeatureApplied(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testSimpleFlag)
+	helpers.CleanupTerraformFolder(t, testSimpleFlag)
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := filepath.Join(tmpEnvPath, testSimpleFlag)
 
@@ -66,7 +66,7 @@ func TestFeatureApplied(t *testing.T) {
 func TestFeatureFlagEnv(t *testing.T) {
 	t.Setenv("TG_FEATURE", "int_feature_flag=111,bool_feature_flag=true,string_feature_flag=xyz")
 
-	cleanupTerraformFolder(t, testSimpleFlag)
+	helpers.CleanupTerraformFolder(t, testSimpleFlag)
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := filepath.Join(tmpEnvPath, testSimpleFlag)
 
@@ -82,7 +82,7 @@ func TestFeatureFlagEnv(t *testing.T) {
 func TestFeatureIncludeFlag(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testIncludeFlag)
+	helpers.CleanupTerraformFolder(t, testIncludeFlag)
 	tmpEnvPath := helpers.CopyEnvironment(t, testIncludeFlag)
 	rootPath := filepath.Join(tmpEnvPath, testIncludeFlag, "app")
 
@@ -94,7 +94,7 @@ func TestFeatureIncludeFlag(t *testing.T) {
 func TestFeatureFlagRunAll(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testRunAllFlag)
+	helpers.CleanupTerraformFolder(t, testRunAllFlag)
 	tmpEnvPath := helpers.CopyEnvironment(t, testRunAllFlag)
 	rootPath := filepath.Join(tmpEnvPath, testRunAllFlag)
 	app1 := filepath.Join(tmpEnvPath, testRunAllFlag, "app1")
@@ -109,7 +109,7 @@ func TestFeatureFlagRunAll(t *testing.T) {
 func TestFailOnEmptyFeatureFlag(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testErrorEmptyFlag)
+	helpers.CleanupTerraformFolder(t, testErrorEmptyFlag)
 	tmpEnvPath := helpers.CopyEnvironment(t, testErrorEmptyFlag)
 	rootPath := filepath.Join(tmpEnvPath, testErrorEmptyFlag)
 

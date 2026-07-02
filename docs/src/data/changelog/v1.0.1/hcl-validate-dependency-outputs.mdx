@@ -1,0 +1,10 @@
+---
+version: "v1.0.1"
+category: "bug-fixes"
+---
+
+#### `hcl validate` no longer fails on `dependency.outputs` references
+
+`terragrunt hcl validate` previously failed with "Unsupported attribute" when a configuration referenced `dependency.<name>.outputs.<key>` without `mock_outputs`. 
+
+During validation, output resolution is skipped, but the `outputs` attribute was never added to the dependency evaluation context, causing any output reference to error. The fix provides a dynamic placeholder for dependency outputs (and inputs) during validation so that attribute access evaluates to unknown rather than failing. Additionally, the dependency resolution pipeline is now more resilient during validation. Dependencies with unresolvable `config_path` values or nonexistent targets no longer cause the entire `dependency` namespace to disappear from the evaluation context.
