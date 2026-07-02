@@ -21,7 +21,7 @@ const (
 	usageText = "terragrunt backend migrate [options] <src-unit> <dst-unit>"
 )
 
-func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+func NewFlags(_ log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	sharedFlags := clihelper.Flags{
