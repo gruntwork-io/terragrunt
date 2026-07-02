@@ -151,6 +151,7 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.UnitDir = opts.WorkingDir
 	runOpts.CacheDir = opts.WorkingDir
 	runOpts.RootWorkingDir = opts.RootWorkingDir
+	runOpts.ProfileDir = opts.ProfileDir
 	runOpts.DownloadDir = opts.DownloadDir
 	runOpts.TerraformCommand = opts.TerraformCommand
 	runOpts.OriginalTerraformCommand = opts.OriginalTerraformCommand

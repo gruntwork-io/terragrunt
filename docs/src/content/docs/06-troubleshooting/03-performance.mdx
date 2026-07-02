@@ -309,203 +309,125 @@ You can learn more about benchmarking in Go by reading the [official documentati
 
 Use profiling tools like [pprof](https://github.com/google/pprof) to get a more detailed view of the performance of Terragrunt.
 
-##### Runtime CPU Profiling with `TG_CPU_PROFILE`
+##### Runtime CPU Profiling with `TG_PROFILE_CPU`
 
-You can profile Terragrunt during normal operation by setting the `TG_CPU_PROFILE` environment variable to a file path:
+You can profile Terragrunt during normal operation by setting `TG_PROFILE_CPU` when the `profiling` experiment is enabled:
 
 ```shell
-TG_CPU_PROFILE=terragrunt_cpu.prof terragrunt run --all -- plan
+TG_EXPERIMENT=profiling TG_PROFILE_CPU=terragrunt_cpu.prof terragrunt run -- plan
 ```
 
-The file path you provide is used as-is for the Terragrunt profile. When `TG_CPU_PROFILE` is set, Terragrunt also automatically sets `TOFU_CPU_PROFILE` to the same value for downstream OpenTofu invocations. Each OpenTofu process writes its profile in its own working directory (typically inside `.terragrunt-cache/`).
-
-Use distinct filenames (e.g. `terragrunt_cpu.prof`) to avoid collisions with other profile files.
-
-###### Behavior with `run --all`
-
-When using `run --all`, Terragrunt is a single process orchestrating multiple OpenTofu invocations:
-
-- **Terragrunt**: one profile file is produced, capturing the entire orchestration including all parallel module processing.
-- **OpenTofu**: each unit gets its own profile inside its `.terragrunt-cache/` directory, because each OpenTofu process runs in a separate working directory.
-
-Use a **relative path** to ensure each unit writes to a separate file automatically. Avoid absolute paths with `run --all` as multiple OpenTofu processes would write to the same file simultaneously, corrupting the profile data.
+The file path is used as-is and profiles the Terragrunt process only.
 
 ###### Controlling the OpenTofu profile path
 
-If you want to control the OpenTofu profile path independently, set `TOFU_CPU_PROFILE` explicitly in your environment. When `TOFU_CPU_PROFILE` is already set, Terragrunt will not override it.
+To collect a CPU profile from the downstream OpenTofu process (OpenTofu 1.11 or later; Terraform does not support it), set `TOFU_CPU_PROFILE` explicitly in your environment, or use directory collection with `TG_PROFILE_DIR`. When `TOFU_CPU_PROFILE` is already set, Terragrunt will not override it.
 
 ```shell
-TG_CPU_PROFILE=terragrunt_cpu.prof TOFU_CPU_PROFILE=tofu_cpu.prof terragrunt run -- plan
+TG_EXPERIMENT=profiling TG_PROFILE_CPU=terragrunt_cpu.prof TOFU_CPU_PROFILE=tofu_cpu.prof terragrunt run -- plan
 ```
 
-##### Why the `_DIR` variants exist
+##### Directory collection with `TG_PROFILE_DIR`
 
-When running a **single unit**, a direct path works fine:
-
-```shell
-TG_CPU_PROFILE=terragrunt_cpu.prof terragrunt run -- plan
-```
-
-When you use `terragrunt run --all`, Terragrunt starts many separate OpenTofu/Terraform processes (one per unit), often in parallel.
-
-If you use a direct path:
+For `run --all`, point Terragrunt at a directory instead of individual files:
 
 ```shell
-TG_CPU_PROFILE=terragrunt_cpu.prof terragrunt run --all -- plan
-```
-
-then **every** OpenTofu process + the main Terragrunt process will try to write to the exact same file at the same time. This corrupts the profile or produces useless data.
-
-This is the reason the `_DIR` variants (`TG_CPU_PROFILE_DIR`, `TG_MEM_PROFILE_DIR`) and the CLI flag `--profile-dir` exist.
-
-##### How `TG_CPU_PROFILE_DIR` works
-
-You point it at a **directory** instead of a file:
-
-```shell
-TG_CPU_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
+TG_EXPERIMENT=profiling TG_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
 ```
 
 Terragrunt does the following automatically:
 
-1. Creates the directory (if it does not exist).
-2. For the main Terragrunt process (the orchestrator), it writes:
-   - `/tmp/profiles/terragrunt_cpu.prof`
-3. For each unit it executes:
-   - It calculates the path of that unit relative to the root directory you ran the command from.
-   - It creates a matching subdirectory.
-   - It sets the environment variable `TOFU_CPU_PROFILE` for that specific OpenTofu process so it writes its profile into its own subdirectory.
+1. Creates the directory if it does not exist.
+2. Writes `terragrunt_cpu.prof`, `terragrunt_mem.prof`, and `terragrunt_goroutine.prof` for the main Terragrunt process.
+3. For each unit, sets `TOFU_CPU_PROFILE` so the OpenTofu CPU profile (OpenTofu 1.11 or later) is written into a unit-specific subdirectory.
 
 Example result with several units:
 
 ```
 /tmp/profiles/
-├── terragrunt_cpu.prof                 # Main Terragrunt process (the one running `run --all`)
-├── modules/vpc/
-│   └── tofu_cpu.prof                   # OpenTofu profile for the vpc unit
-├── live/prod/database/
-│   └── tofu_cpu.prof
-└── live/prod/app/
-    └── tofu_cpu.prof
+|-- terragrunt_cpu.prof
+|-- terragrunt_mem.prof
+|-- terragrunt_goroutine.prof
+|-- modules/vpc/
+|   `-- tofu_cpu.prof
+|-- live/prod/database/
+|   `-- tofu_cpu.prof
+`-- live/prod/app/
+    `-- tofu_cpu.prof
 ```
 
-The subdirectory layout matches the layout of your units relative to the working directory. This guarantees that no two processes ever write to the same file.
+The subdirectory layout matches the layout of your units relative to the working directory. This guarantees that no two OpenTofu processes write to the same file in parallel.
 
 Behavior details:
-- If you do **not** set `TG_CPU_PROFILE`, Terragrunt creates `terragrunt_cpu.prof` directly inside the given directory.
-- If you **do** set `TG_CPU_PROFILE=some/path.prof`, that exact path is used for Terragrunt and `TG_CPU_PROFILE_DIR` only affects the child OpenTofu processes.
-- The relative path is computed from `RootWorkingDir` (normally the directory where you invoked Terragrunt).
 
-##### Memory profiles with `TG_MEM_PROFILE_DIR`
+- If you do not set direct profile paths, Terragrunt creates the conventional filenames directly inside the given directory.
+- If you also set `TG_PROFILE_CPU`, `TG_PROFILE_MEM`, or `TG_PROFILE_GOROUTINE`, that exact path is used for the corresponding Terragrunt profile.
+- The relative path is computed from the directory where you invoked Terragrunt (the root working directory).
+- When a unit runs OpenTofu multiple times (for example, auto-init followed by plan), the profile contains the last OpenTofu invocation in that unit.
 
-Memory profiles only come from the main Terragrunt process (OpenTofu does not support an equivalent `TOFU_MEM_PROFILE`).
+##### Memory Profiling with `TG_PROFILE_MEM`
 
-```shell
-TG_MEM_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
-```
-
-This will only create:
-
-```
-/tmp/profiles/
-├── terragrunt_mem.prof
-```
-
-You can safely combine CPU and memory directory collection:
+You can capture a heap memory profile of the Terragrunt process by setting:
 
 ```shell
-TG_CPU_PROFILE_DIR=/tmp/profiles \
-TG_MEM_PROFILE_DIR=/tmp/profiles \
-terragrunt run --all -- plan
+TG_EXPERIMENT=profiling TG_PROFILE_MEM=terragrunt_mem.prof terragrunt run -- plan
 ```
 
-The filenames are different (`terragrunt_cpu.prof` vs `terragrunt_mem.prof`), so they do not conflict.
+This is a snapshot taken at the end of the run after forcing a GC. Unlike CPU profiling, memory profiles are not collected from OpenTofu because there is no `TOFU_MEM_PROFILE` equivalent.
 
-##### Memory Profiling with `TG_MEM_PROFILE`
-
-You can capture a heap memory profile of the Terragrunt process (only) by setting:
+For `run --all`, use `TG_PROFILE_DIR`:
 
 ```shell
-TG_MEM_PROFILE=terragrunt_mem.prof terragrunt run -- plan
+TG_EXPERIMENT=profiling TG_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
 ```
 
-This is a snapshot taken at process exit (after forcing a GC). Unlike CPU profiling, memory profiles are **not** propagated to OpenTofu — there is no `TOFU_MEM_PROFILE` equivalent.
+##### Goroutine profiles with `TG_PROFILE_GOROUTINE`
 
-For `run --all`, use the directory form:
+You can capture a goroutine profile (stack traces of all goroutines) at the end of the run by setting:
 
 ```shell
-TG_MEM_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
+TG_EXPERIMENT=profiling TG_PROFILE_GOROUTINE=terragrunt_goroutine.prof terragrunt run -- plan
 ```
 
-This only produces a single file (`terragrunt_mem.prof`) in the given directory, because only the main Terragrunt process generates a memory profile.
-
-You can combine it with CPU directory collection (they use different filenames):
-
-```shell
-TG_CPU_PROFILE_DIR=/tmp/profiles TG_MEM_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
-```
-
-See the "Why `_DIR` variants exist" section above for a full explanation of how directory-based collection works with `run --all`.
+For `run --all`, use `TG_PROFILE_DIR` to collect the goroutine profile alongside CPU and memory profiles.
 
 ##### CLI Flags for Profiling (requires the `profiling` experiment)
 
 You can also enable profiling using CLI flags. These are gated behind the `profiling` experiment:
 
 ```shell
-terragrunt --experiment profiling --profile-cpu terragrunt_cpu.prof --profile-mem terragrunt_mem.prof --profile-goroutine terragrunt_goroutine.prof -- run -- plan
+terragrunt --experiment profiling --profile-cpu terragrunt_cpu.prof --profile-mem terragrunt_mem.prof --profile-goroutine terragrunt_goroutine.prof run -- plan
 ```
 
 Use `--profile-dir` to collect everything in one place (recommended for `run --all`):
 
 ```shell
-terragrunt --experiment profiling --profile-dir /tmp/profiles -- run --all -- plan
+terragrunt --experiment profiling --profile-dir /tmp/profiles run --all -- plan
 ```
 
-This is the CLI equivalent of setting both `TG_CPU_PROFILE_DIR` and `TG_MEM_PROFILE_DIR`.
-
-It behaves the same way as the `_DIR` environment variables described above:
-- Main Terragrunt process writes `terragrunt_cpu.prof`, `terragrunt_mem.prof`, and `terragrunt_goroutine.prof` directly in the directory.
-- Each child OpenTofu process gets its own subdirectory (based on the unit's relative path) containing `tofu_cpu.prof`.
-
-Example output:
-
-```
-/tmp/profiles/
-├── terragrunt_cpu.prof
-├── terragrunt_mem.prof
-├── terragrunt_goroutine.prof
-├── modules/vpc/
-│   └── tofu_cpu.prof
-└── live/prod/app/
-    └── tofu_cpu.prof
-```
+This is the CLI equivalent of setting `TG_PROFILE_DIR` and behaves the same way as the directory environment variable described above.
 
 The new flags are:
 
 | Flag                  | Description |
 |-----------------------|-------------|
-| `--profile-cpu`       | Path for the Terragrunt CPU profile. Also sets `TOFU_CPU_PROFILE` for OpenTofu (unless `--profile-dir` is used). Do **not** use a plain path with `run --all` — use `--profile-dir` instead. |
+| `--profile-cpu`       | Path for the Terragrunt CPU profile. |
 | `--profile-mem`       | Path for the Terragrunt heap memory profile. |
-| `--profile-goroutine` | Path for a goroutine profile (memory dump). |
-| `--profile-dir`       | Directory for structured collection (equivalent to setting both `*_DIR` env vars). Prevents file collisions when using `run --all` by creating per-unit subdirectories for OpenTofu CPU profiles. |
+| `--profile-goroutine` | Path for a goroutine profile (stack traces of all goroutines). |
+| `--profile-dir`       | Directory for structured collection. Prevents file collisions when using `run --all` by creating per-unit subdirectories for OpenTofu CPU profiles. |
 
 The corresponding environment variables (`TG_PROFILE_CPU`, `TG_PROFILE_MEM`, `TG_PROFILE_GOROUTINE`, `TG_PROFILE_DIR`) are also supported and require the experiment.
-
-Legacy environment variables (`TG_CPU_PROFILE`, `TG_MEM_PROFILE`, etc.) continue to work without the experiment for backward compatibility.
 
 ##### Environment Variable Reference
 
 | Variable | Description |
 |----------|-------------|
-| `TG_CPU_PROFILE` | Path for the Terragrunt CPU profile file. Also propagated as `TOFU_CPU_PROFILE` to downstream OpenTofu. **Do not use a plain file path with `run --all`** (multiple processes will collide). Use `TG_CPU_PROFILE_DIR` instead. |
-| `TG_CPU_PROFILE_DIR` | Directory for structured collection with `run --all`. Terragrunt writes `terragrunt_cpu.prof` here. For each unit it sets `TOFU_CPU_PROFILE` to a subdirectory matching the unit's path relative to root (e.g. `<dir>/live/prod/vpc/tofu_cpu.prof`). Prevents multiple processes from writing to the same file. |
-| `TG_MEM_PROFILE` | Path for the Terragrunt memory (heap) profile file. Terragrunt only — not propagated to OpenTofu. |
-| `TG_MEM_PROFILE_DIR` | Directory for memory profile collection. Only the main Terragrunt process writes `terragrunt_mem.prof` here (no per-unit subdirectories). |
-| `TOFU_CPU_PROFILE` | If set explicitly, overrides the automatic `TOFU_CPU_PROFILE` propagation from `TG_CPU_PROFILE`. |
-| `TG_PROFILE_CPU` (experiment) | New-style env var equivalent of `--profile-cpu`. |
-| `TG_PROFILE_MEM` (experiment) | New-style env var equivalent of `--profile-mem`. |
-| `TG_PROFILE_GOROUTINE` (experiment) | New-style env var equivalent of `--profile-goroutine`. |
-| `TG_PROFILE_DIR` (experiment) | New-style env var for `--profile-dir`. Behaves like `TG_CPU_PROFILE_DIR` + `TG_MEM_PROFILE_DIR` combined. |
+| `TG_EXPERIMENT=profiling` | Enables the profiling experiment for env-var based profiling. |
+| `TG_PROFILE_CPU` | Path for the Terragrunt CPU profile file. Terragrunt process only. |
+| `TG_PROFILE_MEM` | Path for the Terragrunt memory (heap) profile file. Terragrunt process only. |
+| `TG_PROFILE_GOROUTINE` | Path for the Terragrunt goroutine profile file. |
+| `TG_PROFILE_DIR` | Directory for structured collection with `run --all`. Terragrunt writes conventional profile files here, and each unit gets a subdirectory for `tofu_cpu.prof` (OpenTofu 1.11 or later). |
+| `TOFU_CPU_PROFILE` | If set explicitly, used as-is for OpenTofu CPU profiles and never overridden by Terragrunt. |
 
 ###### Analyzing profiles
 

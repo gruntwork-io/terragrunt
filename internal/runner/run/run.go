@@ -38,6 +38,7 @@ import (
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
+	tofuCPUProfileName              = "tofu_cpu.prof"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -252,27 +253,8 @@ func runTerragruntWithConfig(
 		return err
 	}
 
-	// Set TOFU_CPU_PROFILE for downstream OpenTofu when not explicitly overridden.
-	// With TG_CPU_PROFILE_DIR, use a per-module path under the profile directory;
-	// otherwise propagate TG_CPU_PROFILE directly.
-	if _, set := opts.Env[tf.EnvNameTofuCPUProfile]; !set {
-		if profileDir := opts.Env[tf.EnvNameTGCPUProfileDir]; profileDir != "" {
-			relPath, err := filepath.Rel(opts.RootWorkingDir, opts.OriginalTerragruntConfigPath)
-			if err != nil {
-				relPath = filepath.Base(opts.WorkingDir)
-			}
-
-			tofuProfileDir := filepath.Join(profileDir, filepath.Dir(relPath))
-
-			const profileDirMode = 0755
-			if err := os.MkdirAll(tofuProfileDir, profileDirMode); err != nil {
-				return fmt.Errorf("could not create tofu profile directory: %w", err)
-			}
-
-			opts.Env[tf.EnvNameTofuCPUProfile] = filepath.Join(tofuProfileDir, "tofu_cpu.prof")
-		} else if cpu := opts.Env[tf.EnvNameTGCPUProfile]; cpu != "" {
-			opts.Env[tf.EnvNameTofuCPUProfile] = cpu
-		}
+	if err := setTofuCPUProfileEnv(opts); err != nil {
+		return err
 	}
 
 	if opts.TerraformCliArgs.First() == tf.CommandNameInit {
@@ -816,4 +798,29 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 	}
 
 	return varFile, nil
+}
+
+// setTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.
+func setTofuCPUProfileEnv(opts *Options) error {
+	if opts.ProfileDir == "" {
+		return nil
+	}
+
+	if _, set := opts.Env[tf.EnvNameTofuCPUProfile]; set {
+		return nil
+	}
+
+	unitRelDir := filepath.Base(opts.UnitDir)
+	if relPath, err := filepath.Rel(opts.RootWorkingDir, opts.OriginalTerragruntConfigPath); err == nil && !strings.HasPrefix(relPath, "..") {
+		unitRelDir = filepath.Dir(relPath)
+	}
+
+	tofuProfileDir := filepath.Join(opts.ProfileDir, unitRelDir)
+	if err := util.EnsureDirectory(tofuProfileDir); err != nil {
+		return fmt.Errorf("could not create tofu profile directory: %w", err)
+	}
+
+	opts.Env[tf.EnvNameTofuCPUProfile] = filepath.Join(tofuProfileDir, tofuCPUProfileName)
+
+	return nil
 }

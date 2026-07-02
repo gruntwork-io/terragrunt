@@ -1,27 +1,28 @@
 ---
 name: profiling
+since: "1.1.1"
 ---
 
-Collect CPU profiles, memory profiles, and goroutine dumps (memory dumps) for Terragrunt.
+Collect CPU profiles, memory (heap) profiles, and goroutine profiles for Terragrunt.
 
 ### `profiling` - What it does
 
 When enabled, Terragrunt allows collecting runtime profiles using CLI flags (or the corresponding `TG_PROFILE_*` environment variables):
 
-- `--profile-cpu` / `TG_PROFILE_CPU` — write a CPU profile
-- `--profile-mem` / `TG_PROFILE_MEM` — write a heap memory profile
-- `--profile-goroutine` / `TG_PROFILE_GOROUTINE` — write a goroutine profile (useful as a "memory dump")
-- `--profile-dir` / `TG_PROFILE_DIR` — collect all of the above into a single directory using conventional filenames
+- `--profile-cpu` / `TG_PROFILE_CPU`: write a CPU profile
+- `--profile-mem` / `TG_PROFILE_MEM`: write a heap memory profile
+- `--profile-goroutine` / `TG_PROFILE_GOROUTINE`: write a goroutine profile (stack traces of all goroutines)
+- `--profile-dir` / `TG_PROFILE_DIR`: collect all of the above into a single directory using conventional filenames
 
 Example:
 
 ```bash
-terragrunt --experiment profiling --profile-dir /tmp/profiles -- run --all -- plan
+terragrunt --experiment profiling --profile-dir /tmp/profiles run --all -- plan
 ```
 
 This is primarily intended for performance investigation and debugging of Terragrunt itself.
 
-For backward compatibility, the older environment variables (`TG_CPU_PROFILE`, `TG_MEM_PROFILE`, `TG_CPU_PROFILE_DIR`, `TG_MEM_PROFILE_DIR`) continue to work without requiring the experiment.
+Set `TG_EXPERIMENT=profiling` to use the environment variables instead of CLI flags.
 
 ### `profiling` - How to provide feedback
 
@@ -31,7 +32,7 @@ Provide feedback on the [Terragrunt GitHub Discussions](https://github.com/grunt
 
 To transition the `profiling` experiment to a stable release, the following should be addressed:
 
-- [ ] Validate that early profiling covers startup reliably across different invocation styles (direct binary, `go run`, test helpers).
+- [ ] Validate that profiling reliably covers Terragrunt runs across different invocation styles.
 - [ ] Ensure documentation (CLI flags + env vars) is complete and accurate.
 - [ ] Gather feedback on the chosen flag names (`--profile-*`).
 - [ ] Decide whether additional profile types (block, mutex, etc.) should be exposed.

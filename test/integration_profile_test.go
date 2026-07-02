@@ -1,4 +1,4 @@
-//nolint:paralleltest
+//nolint:paralleltest // Tests use t.Setenv, and CPU profiling is process-global (pprof.StartCPUProfile), so tests in this file must not run in parallel.
 package test_test
 
 import (
@@ -12,13 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testFixturePprofInputs = "fixtures/inputs"
+const testFixtureProfileMultiUnit = "fixtures/profile/multi-unit"
 
-func TestTGCPUProfileCreatesProfileFile(t *testing.T) {
+func TestTGProfileCPUCreatesProfileFile(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "terragrunt_cpu.prof")
 
-	t.Setenv("TG_CPU_PROFILE", profilePath)
+	t.Setenv("TG_EXPERIMENT", "profiling")
+	t.Setenv("TG_PROFILE_CPU", profilePath)
 
 	helpers.RunTerragrunt(t, "terragrunt version")
 
@@ -27,126 +28,143 @@ func TestTGCPUProfileCreatesProfileFile(t *testing.T) {
 	assert.Positive(t, info.Size(), "CPU profile file should be non-empty")
 }
 
-func TestTGCPUProfileNotSetNoFile(t *testing.T) {
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+func TestTGProfileCPUDoesNotPropagateToTofu(t *testing.T) {
+	helpers.CleanupTerraformFolder(t, testFixtureInputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
-	helpers.RunTerragrunt(t, "terragrunt version")
-
-	entries, err := os.ReadDir(tmpDir)
-	require.NoError(t, err)
-	assert.Empty(t, entries, "No profile files should exist when TG_CPU_PROFILE is not set")
-}
-
-func TestTGCPUProfileSetsTofu(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "terragrunt_cpu.prof")
 
-	t.Setenv("TG_CPU_PROFILE", profilePath)
-
-	helpers.RunTerragrunt(t, "terragrunt version")
-
-	info, err := os.Stat(profilePath)
-	require.NoError(t, err, "CPU profile file should exist")
-	assert.Positive(t, info.Size(), "CPU profile file should be non-empty")
-}
-
-func TestTGCPUProfileDoesNotOverrideExplicitTofuCPUProfile(t *testing.T) {
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-	profilePath := filepath.Join(tmpDir, "terragrunt_cpu.prof")
-
-	t.Setenv("TG_CPU_PROFILE", profilePath)
-	t.Setenv("TOFU_CPU_PROFILE", "/custom/tofu-path.prof")
-
-	helpers.RunTerragrunt(t, "terragrunt version")
-
-	info, err := os.Stat(profilePath)
-	require.NoError(t, err, "CPU profile file should exist")
-	assert.Positive(t, info.Size(), "CPU profile file should be non-empty")
-}
-
-func TestTGCPUProfileDownstreamTofuProfile(t *testing.T) {
-	if isTerraform(t.Context()) {
-		t.Skip("TOFU_CPU_PROFILE is only supported by OpenTofu")
-	}
-
-	helpers.CleanupTerraformFolder(t, testFixturePprofInputs)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePprofInputs)
-	rootPath := filepath.Join(tmpEnvPath, testFixturePprofInputs)
-
-	// Use relative path so tofu writes its profile inside its own cache working directory,
-	// and terragrunt writes its profile in the current working directory.
-	t.Setenv("TG_CPU_PROFILE", "terragrunt_cpu.prof")
+	t.Setenv("TG_EXPERIMENT", "profiling")
+	t.Setenv("TG_PROFILE_CPU", profilePath)
 
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 
-	// Verify tofu profile was created in the cache working directory
+	info, err := os.Stat(profilePath)
+	require.NoError(t, err, "Terragrunt CPU profile should exist")
+	assert.Positive(t, info.Size(), "Terragrunt CPU profile should be non-empty")
+
 	cacheWorkingDir := helpers.FindCacheWorkingDir(t, rootPath)
-	require.NotEmpty(t, cacheWorkingDir, "should find cache working directory")
-
-	tofuProfilePath := filepath.Join(cacheWorkingDir, "terragrunt_cpu.prof")
-	require.True(t, util.FileExists(tofuProfilePath),
-		"OpenTofu CPU profile should exist at %s", tofuProfilePath)
-
-	info, err := os.Stat(tofuProfilePath)
+	profiles, err := filepath.Glob(filepath.Join(cacheWorkingDir, "*.prof"))
 	require.NoError(t, err)
-	assert.Positive(t, info.Size(), "OpenTofu CPU profile should be non-empty")
+	assert.Empty(t, profiles, "TG_PROFILE_CPU alone should not produce OpenTofu profiles")
 }
 
-func TestTGCPUProfileDirCollectsProfiles(t *testing.T) {
+func TestTGProfileCPUDoesNotOverrideExplicitTofuCPUProfile(t *testing.T) {
 	if isTerraform(t.Context()) {
 		t.Skip("TOFU_CPU_PROFILE is only supported by OpenTofu")
 	}
 
-	helpers.CleanupTerraformFolder(t, testFixturePprofInputs)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePprofInputs)
-	rootPath := filepath.Join(tmpEnvPath, testFixturePprofInputs)
+	helpers.CleanupTerraformFolder(t, testFixtureInputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	profilePath := filepath.Join(tmpDir, "terragrunt_cpu.prof")
+	tofuProfilePath := filepath.Join(tmpDir, "tofu_cpu.prof")
+
+	t.Setenv("TG_EXPERIMENT", "profiling")
+	t.Setenv("TG_PROFILE_CPU", profilePath)
+	t.Setenv("TOFU_CPU_PROFILE", tofuProfilePath)
+
+	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
+
+	info, err := os.Stat(profilePath)
+	require.NoError(t, err, "CPU profile file should exist")
+	assert.Positive(t, info.Size(), "CPU profile file should be non-empty")
+
+	tofuInfo, err := os.Stat(tofuProfilePath)
+	require.NoError(t, err, "Explicit OpenTofu CPU profile should exist")
+	assert.Positive(t, tofuInfo.Size(), "Explicit OpenTofu CPU profile should be non-empty")
+}
+
+func TestTGProfileDirCollectsProfiles(t *testing.T) {
+	if isTerraform(t.Context()) {
+		t.Skip("TOFU_CPU_PROFILE is only supported by OpenTofu")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureInputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
 	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles")
-	t.Setenv("TG_CPU_PROFILE_DIR", profileDir)
+	t.Setenv("TG_EXPERIMENT", "profiling")
+	t.Setenv("TG_PROFILE_DIR", profileDir)
 
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 
-	// Verify terragrunt profile was auto-created
-	tgProfile := filepath.Join(profileDir, "terragrunt_cpu.prof")
-	require.True(t, util.FileExists(tgProfile),
-		"Terragrunt CPU profile should exist at %s", tgProfile)
+	tgCPUProfile := filepath.Join(profileDir, "terragrunt_cpu.prof")
+	require.True(t, util.FileExists(tgCPUProfile),
+		"Terragrunt CPU profile should exist at %s", tgCPUProfile)
 
-	tgInfo, err := os.Stat(tgProfile)
+	tgInfo, err := os.Stat(tgCPUProfile)
 	require.NoError(t, err)
 	assert.Positive(t, tgInfo.Size(), "Terragrunt CPU profile should be non-empty")
 
-	// Verify tofu profile was created in the profile dir
 	tofuProfile := filepath.Join(profileDir, "tofu_cpu.prof")
 	require.True(t, util.FileExists(tofuProfile),
 		"OpenTofu CPU profile should exist at %s", tofuProfile)
+
+	memProfile := filepath.Join(profileDir, "terragrunt_mem.prof")
+	require.True(t, util.FileExists(memProfile), "Memory profile should exist at %s", memProfile)
+
+	goroutineProfile := filepath.Join(profileDir, "terragrunt_goroutine.prof")
+	require.True(t, util.FileExists(goroutineProfile), "Goroutine profile should exist at %s", goroutineProfile)
 }
 
-func TestTGCPUProfileDirWithExplicitTGCPUProfile(t *testing.T) {
+func TestTGProfileDirPerUnitTofuProfiles(t *testing.T) {
+	if isTerraform(t.Context()) {
+		t.Skip("TOFU_CPU_PROFILE is only supported by OpenTofu")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureProfileMultiUnit)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProfileMultiUnit)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureProfileMultiUnit)
+
+	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles")
+	t.Setenv("TG_EXPERIMENT", "profiling")
+	t.Setenv("TG_PROFILE_DIR", profileDir)
+
+	helpers.RunTerragrunt(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
+
+	for _, unit := range []string{"app1", "app2"} {
+		tofuProfile := filepath.Join(profileDir, unit, "tofu_cpu.prof")
+		require.True(t, util.FileExists(tofuProfile),
+			"OpenTofu CPU profile for unit %s should exist at %s", unit, tofuProfile)
+
+		info, err := os.Stat(tofuProfile)
+		require.NoError(t, err)
+		assert.Positive(t, info.Size(), "OpenTofu CPU profile for unit %s should be non-empty", unit)
+	}
+}
+
+func TestTGProfileDirWithExplicitTGProfileCPU(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profileDir := filepath.Join(tmpDir, "profiles")
 	customProfile := filepath.Join(tmpDir, "my_custom.prof")
 
-	t.Setenv("TG_CPU_PROFILE_DIR", profileDir)
-	t.Setenv("TG_CPU_PROFILE", customProfile)
+	t.Setenv("TG_EXPERIMENT", "profiling")
+	t.Setenv("TG_PROFILE_DIR", profileDir)
+	t.Setenv("TG_PROFILE_CPU", customProfile)
 
 	helpers.RunTerragrunt(t, "terragrunt version")
 
-	// TG_CPU_PROFILE takes precedence over the default
 	info, err := os.Stat(customProfile)
 	require.NoError(t, err, "Custom CPU profile should exist at %s", customProfile)
 	assert.Positive(t, info.Size(), "Custom CPU profile should be non-empty")
 
-	// Default terragrunt_cpu.prof should NOT exist since TG_CPU_PROFILE was explicit
 	defaultProfile := filepath.Join(profileDir, "terragrunt_cpu.prof")
 	assert.False(t, util.FileExists(defaultProfile),
-		"Default profile should not exist when TG_CPU_PROFILE is explicitly set")
+		"Default profile should not exist when TG_PROFILE_CPU is explicitly set")
 }
 
-func TestTGMemProfileCreatesProfileFile(t *testing.T) {
+func TestTGProfileMemCreatesProfileFile(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "terragrunt_mem.prof")
 
-	t.Setenv("TG_MEM_PROFILE", profilePath)
+	t.Setenv("TG_EXPERIMENT", "profiling")
+	t.Setenv("TG_PROFILE_MEM", profilePath)
 
 	helpers.RunTerragrunt(t, "terragrunt version")
 
@@ -155,45 +173,18 @@ func TestTGMemProfileCreatesProfileFile(t *testing.T) {
 	assert.Positive(t, info.Size(), "Memory profile file should be non-empty")
 }
 
-func TestTGMemProfileDirCollectsProfile(t *testing.T) {
+func TestTGProfileGoroutineCreatesProfileFile(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
-	profileDir := filepath.Join(tmpDir, "profiles")
+	profilePath := filepath.Join(tmpDir, "terragrunt_goroutine.prof")
 
-	t.Setenv("TG_MEM_PROFILE_DIR", profileDir)
+	t.Setenv("TG_EXPERIMENT", "profiling")
+	t.Setenv("TG_PROFILE_GOROUTINE", profilePath)
 
 	helpers.RunTerragrunt(t, "terragrunt version")
 
-	memProfile := filepath.Join(profileDir, "terragrunt_mem.prof")
-	require.True(t, util.FileExists(memProfile),
-		"Memory profile should exist at %s", memProfile)
-
-	info, err := os.Stat(memProfile)
+	info, err := os.Stat(profilePath)
 	require.NoError(t, err)
-	assert.Positive(t, info.Size(), "Memory profile should be non-empty")
-}
-
-func TestTGMemAndCPUProfileDirSameDirectory(t *testing.T) {
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-	profileDir := filepath.Join(tmpDir, "profiles")
-
-	t.Setenv("TG_CPU_PROFILE_DIR", profileDir)
-	t.Setenv("TG_MEM_PROFILE_DIR", profileDir)
-
-	helpers.RunTerragrunt(t, "terragrunt version")
-
-	cpuProfile := filepath.Join(profileDir, "terragrunt_cpu.prof")
-	memProfile := filepath.Join(profileDir, "terragrunt_mem.prof")
-
-	require.True(t, util.FileExists(cpuProfile), "CPU profile should exist")
-	require.True(t, util.FileExists(memProfile), "Memory profile should exist")
-
-	cpuInfo, err := os.Stat(cpuProfile)
-	require.NoError(t, err)
-	assert.Positive(t, cpuInfo.Size())
-
-	memInfo, err := os.Stat(memProfile)
-	require.NoError(t, err)
-	assert.Positive(t, memInfo.Size())
+	assert.Positive(t, info.Size(), "Goroutine profile should be non-empty")
 }
 
 func TestProfileCPUFlagCreatesProfileFile(t *testing.T) {
@@ -204,6 +195,28 @@ func TestProfileCPUFlagCreatesProfileFile(t *testing.T) {
 
 	info, err := os.Stat(profilePath)
 	require.NoError(t, err, "CPU profile from --profile-cpu should exist")
+	assert.Positive(t, info.Size())
+}
+
+func TestProfileCPUFlagEqualsFormCreatesProfileFile(t *testing.T) {
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	profilePath := filepath.Join(tmpDir, "cpu_from_equals_flag.prof")
+
+	helpers.RunTerragrunt(t, "terragrunt --experiment=profiling --profile-cpu="+profilePath+" version")
+
+	info, err := os.Stat(profilePath)
+	require.NoError(t, err, "CPU profile from --profile-cpu= should exist")
+	assert.Positive(t, info.Size())
+}
+
+func TestProfileCPUFlagAfterCommandCreatesProfileFile(t *testing.T) {
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	profilePath := filepath.Join(tmpDir, "cpu_from_trailing_flag.prof")
+
+	helpers.RunTerragrunt(t, "terragrunt version --experiment profiling --profile-cpu "+profilePath)
+
+	info, err := os.Stat(profilePath)
+	require.NoError(t, err, "CPU profile from flags placed after the command should exist")
 	assert.Positive(t, info.Size())
 }
 
@@ -254,8 +267,28 @@ func TestProfileFlagsRequireExperiment(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "cpu_no_exp.prof")
 
-	// Without --experiment profiling the flag should cause error.
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --profile-cpu "+profilePath+" version")
-	require.Error(t, err)
+	require.ErrorContains(t, err, "require the 'profiling' experiment")
 	assert.False(t, util.FileExists(profilePath), "profile should not be created without experiment")
+}
+
+func TestTGProfileCPUEnvRequiresExperiment(t *testing.T) {
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	profilePath := filepath.Join(tmpDir, "cpu_env_no_exp.prof")
+
+	t.Setenv("TG_PROFILE_CPU", profilePath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt version")
+	require.ErrorContains(t, err, "require the 'profiling' experiment")
+	assert.False(t, util.FileExists(profilePath), "profile should not be created without experiment")
+}
+
+func TestTGProfileDirEnvRequiresExperiment(t *testing.T) {
+	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles_no_exp")
+
+	t.Setenv("TG_PROFILE_DIR", profileDir)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt version")
+	require.ErrorContains(t, err, "require the 'profiling' experiment")
+	assert.False(t, util.FileExists(profileDir), "profile directory should not be created without experiment")
 }

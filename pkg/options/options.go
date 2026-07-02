@@ -159,6 +159,14 @@ type TerragruntOptions struct {
 	ReportFormat report.Format
 	// Path to the report schema file.
 	ReportSchemaFile string
+	// ProfileDir is the directory to write profile files into when using profiling flags.
+	ProfileDir string
+	// ProfileCPU is the path for CPU profile output.
+	ProfileCPU string
+	// ProfileMem is the path for memory (heap) profile output.
+	ProfileMem string
+	// ProfileGoroutine is the path for goroutine profile output.
+	ProfileGoroutine string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs *iacargs.IacArgs
 	// Files with variables to be used in modules scaffolding.
@@ -278,14 +286,6 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
-	// ProfileDir is the directory to write profile files into when using profiling flags.
-	ProfileDir string
-	// ProfileCPU is the path for CPU profile output.
-	ProfileCPU string
-	// ProfileMEM is the path for memory (heap) profile output.
-	ProfileMEM string
-	// ProfileGoroutine is the path for goroutine profile (memory dump) output.
-	ProfileGoroutine string
 	// NoDependencyFetchOutputFromState disables the
 	// dependency-fetch-output-from-state feature even when the experiment
 	// is enabled.

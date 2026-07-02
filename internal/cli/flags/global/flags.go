@@ -61,10 +61,10 @@ const (
 
 	// Profiling flags.
 
-	ProfileCPUFlagName      = "profile-cpu"
-	ProfileMEMFlagName      = "profile-mem"
+	ProfileCPUFlagName       = "profile-cpu"
+	ProfileMemFlagName       = "profile-mem"
 	ProfileGoroutineFlagName = "profile-goroutine"
-	ProfileDirFlagName      = "profile-dir"
+	ProfileDirFlagName       = "profile-dir"
 
 	// Renamed flags.
 
@@ -330,28 +330,28 @@ func NewProfileFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihe
 			Name:        ProfileCPUFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProfileCPUFlagName),
 			Destination: &opts.ProfileCPU,
-			Usage:       "Write a CPU profile to the given path. Requires --experiment profiling.",
+			Usage:       "Write a CPU profile to the given path. Requires the 'profiling' experiment.",
 		}),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
-			Name:        ProfileMEMFlagName,
-			EnvVars:     tgPrefix.EnvVars(ProfileMEMFlagName),
-			Destination: &opts.ProfileMEM,
-			Usage:       "Write a memory (heap) profile to the given path. Requires --experiment profiling.",
+			Name:        ProfileMemFlagName,
+			EnvVars:     tgPrefix.EnvVars(ProfileMemFlagName),
+			Destination: &opts.ProfileMem,
+			Usage:       "Write a memory (heap) profile to the given path. Requires the 'profiling' experiment.",
 		}),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProfileGoroutineFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProfileGoroutineFlagName),
 			Destination: &opts.ProfileGoroutine,
-			Usage:       "Write a goroutine profile (memory dump) to the given path. Requires --experiment profiling.",
+			Usage:       "Write a goroutine profile to the given path. Requires the 'profiling' experiment.",
 		}),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProfileDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProfileDirFlagName),
 			Destination: &opts.ProfileDir,
-			Usage:       "Directory to write profile files (cpu, mem, goroutine). Defaults are created inside this dir. Requires --experiment profiling.",
+			Usage:       "Directory to write profile files (cpu, mem, goroutine). Requires the 'profiling' experiment.",
 		}),
 	}
 }

@@ -67,6 +67,7 @@ type Options struct {
 	CacheDir                     string
 	DownloadDir                  string
 	RootWorkingDir               string
+	ProfileDir                   string
 	OriginalTerraformCommand     string
 	Source                       string
 	AuthProviderCmd              string

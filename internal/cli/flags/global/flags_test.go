@@ -14,39 +14,51 @@ func TestProfileFlagsRegistration(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
-	fl := global.NewProfileFlags(opts, nil)
+	profileFlags := global.NewProfileFlags(opts, nil)
 
-	names := fl.Names()
+	testCases := []struct {
+		flagName string
+		envName  string
+	}{
+		{flagName: global.ProfileCPUFlagName, envName: "TG_PROFILE_CPU"},
+		{flagName: global.ProfileMemFlagName, envName: "TG_PROFILE_MEM"},
+		{flagName: global.ProfileGoroutineFlagName, envName: "TG_PROFILE_GOROUTINE"},
+		{flagName: global.ProfileDirFlagName, envName: "TG_PROFILE_DIR"},
+	}
 
-	assert.True(t, slices.Contains(names, global.ProfileCPUFlagName))
-	assert.True(t, slices.Contains(names, global.ProfileMEMFlagName))
-	assert.True(t, slices.Contains(names, global.ProfileGoroutineFlagName))
-	assert.True(t, slices.Contains(names, global.ProfileDirFlagName))
-
-	// Each flag should declare its TG_ prefixed env var
-	cpuFlag := fl.Get(global.ProfileCPUFlagName)
-	require.NotNil(t, cpuFlag)
-	assert.True(t, slices.Contains(cpuFlag.GetEnvVars(), "TG_PROFILE_CPU"), "expected TG_PROFILE_CPU env")
-
-	memFlag := fl.Get(global.ProfileMEMFlagName)
-	require.NotNil(t, memFlag)
-	assert.True(t, slices.Contains(memFlag.GetEnvVars(), "TG_PROFILE_MEM"))
+	for _, tc := range testCases {
+		flag := profileFlags.Get(tc.flagName)
+		require.NotNil(t, flag, "flag %s must be registered", tc.flagName)
+		assert.True(t, slices.Contains(flag.GetEnvVars(), tc.envName), "flag %s must declare the %s env var", tc.flagName, tc.envName)
+	}
 }
 
-func TestProfileFlagsSetDestination(t *testing.T) {
+func TestProfileFlagsParse(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
-	_ = global.NewProfileFlags(opts, nil)
 
-	// Simulate values as the CLI would via destinations
-	opts.ProfileCPU = "cpu.prof"
-	opts.ProfileMEM = "mem.prof"
-	opts.ProfileGoroutine = "go.prof"
-	opts.ProfileDir = "profiles"
+	err := global.NewProfileFlags(opts, nil).Parse([]string{
+		"--profile-cpu=cpu.prof",
+		"--profile-mem=mem.prof",
+		"--profile-goroutine=goroutine.prof",
+		"--profile-dir=profiles",
+	})
+	require.NoError(t, err)
 
 	assert.Equal(t, "cpu.prof", opts.ProfileCPU)
-	assert.Equal(t, "mem.prof", opts.ProfileMEM)
-	assert.Equal(t, "go.prof", opts.ProfileGoroutine)
+	assert.Equal(t, "mem.prof", opts.ProfileMem)
+	assert.Equal(t, "goroutine.prof", opts.ProfileGoroutine)
 	assert.Equal(t, "profiles", opts.ProfileDir)
+}
+
+func TestProfileFlagsParseSpaceForm(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+
+	err := global.NewProfileFlags(opts, nil).Parse([]string{"--profile-cpu", "cpu.prof"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "cpu.prof", opts.ProfileCPU)
 }

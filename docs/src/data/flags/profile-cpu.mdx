@@ -20,6 +20,6 @@ The profile can be analyzed with `go tool pprof`:
 go tool pprof terragrunt_cpu.prof
 ```
 
-When used with `--profile-dir`, the default filename inside the directory is `terragrunt_cpu.prof`.
+This flag profiles the Terragrunt process only. To also collect CPU profiles from downstream OpenTofu processes, use [`--profile-dir`](/reference/cli/global-flags#profile-dir), or set `TOFU_CPU_PROFILE` explicitly in your environment (supported by OpenTofu 1.11 or later).
 
-When `TG_PROFILE_CPU` (or `--profile-cpu`) is set, Terragrunt will also propagate a CPU profile path for OpenTofu (as `TOFU_CPU_PROFILE`) unless you override it or use directory-based collection.
+When used together with `--profile-dir`, this path takes precedence over the default `terragrunt_cpu.prof` filename inside the directory.

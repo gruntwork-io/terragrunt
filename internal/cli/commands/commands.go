@@ -442,29 +442,6 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.Env = util.EnvironMap()
 
-	// Seed legacy profile env vars from CLI profile options (if provided via --profile-* flags).
-	if opts.ProfileDir != "" {
-		if _, set := opts.Env[tf.EnvNameTGCPUProfileDir]; !set {
-			opts.Env[tf.EnvNameTGCPUProfileDir] = opts.ProfileDir
-		}
-
-		if _, set := opts.Env[tf.EnvNameTGMemProfileDir]; !set {
-			opts.Env[tf.EnvNameTGMemProfileDir] = opts.ProfileDir
-		}
-	}
-
-	if opts.ProfileCPU != "" {
-		if _, set := opts.Env[tf.EnvNameTGCPUProfile]; !set {
-			opts.Env[tf.EnvNameTGCPUProfile] = opts.ProfileCPU
-		}
-	}
-
-	if opts.ProfileMEM != "" {
-		if _, set := opts.Env[tf.EnvNameTGMemProfile]; !set {
-			opts.Env[tf.EnvNameTGMemProfile] = opts.ProfileMEM
-		}
-	}
-
 	// --- Working Dir
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
