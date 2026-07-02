@@ -42,6 +42,11 @@ const (
 	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
 	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
 	testFixtureDependencyHookOutput              = "fixtures/regressions/dependency-hook-output"
+	testFixtureDependencyExtraArgsOutput         = "fixtures/regressions/dependency-extra-args-output"
+	testFixtureDependencyRemoteStateOutput       = "fixtures/regressions/dependency-remote-state-output"
+	testFixtureDependencyGenuineError            = "fixtures/regressions/dependency-genuine-error"
+	testFixtureDependencyOutputLocalOptimization = "fixtures/regressions/dependency-output-local-optimization"
+	testFixtureDependencySourceOutput            = "fixtures/regressions/dependency-source-output"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -1185,20 +1190,119 @@ func TestDependencyExtraArgsEnvVarsResolveOutput(t *testing.T) {
 	assert.Contains(t, stdout, "hello from module-a")
 }
 
-// TestDependencyHookOutputResolution checks a unit can resolve outputs of a dependency whose before_hook references its own dependency.
+// TestDependencyHookOutputResolution checks a unit can resolve outputs of a dependency whose before_hook, after_hook, and error_hook reference its own dependency.
 func TestDependencyHookOutputResolution(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyHookOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyHookOutput)
 
-	// module-a <- module-b (before_hook references module-a) <- module-c
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
+	// module-a <- module-b (before_hook, after_hook, error_hook reference module-a) <- module-c
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply")
 	require.NoError(t, err)
 
 	// confirm module-b's output propagated to module-c
 	moduleCPath := filepath.Join(rootPath, "module-c")
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw echo --non-interactive --working-dir "+moduleCPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+moduleCPath+" -- output -raw echo")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "argocd")
+}
+
+// TestDependencyExtraArgsOutputResolution checks a unit can resolve outputs of a dependency whose extra_arguments env_vars and arguments reference its own dependency.
+func TestDependencyExtraArgsOutputResolution(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyExtraArgsOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyExtraArgsOutput)
+
+	// module-a <- module-b (extra_arguments env_vars and arguments reference module-a) <- module-c
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply")
+	require.NoError(t, err)
+
+	// confirm module-b's output propagated to module-c
+	moduleCPath := filepath.Join(rootPath, "module-c")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+moduleCPath+" -- output -raw echo")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "argocd")
+}
+
+// TestDependencySourceOutputWithSourceOverride pins that the output-resolution fallback recomputes a `--source`
+// override against the dependency it is resolving, not the unit the run started from. module-b's terraform source
+// consumes module-a's output, so resolving it for module-c takes the full-run fallback; with a --source override
+// active, the override's module subdir must be retargeted from module-c (the caller) to module-b. Without that, the
+// fallback reads module-b's outputs from the caller's stale module directory and module-c fails with a misleading
+// "detected no outputs" even though module-b applied and produced real outputs.
+func TestDependencySourceOutputWithSourceOverride(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencySourceOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencySourceOutput)
+	livePath := filepath.Join(rootPath, "live")
+	modulesPath := filepath.Join(rootPath, "modules")
+
+	// module-a <- module-b (terraform.source consumes module-a's output) <- module-c, run under a --source override.
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+livePath+" --source "+modulesPath+" -- apply")
+	require.NoError(t, err)
+
+	// module-b's real output must propagate to module-c's echo; a wrong-module read would leave it empty.
+	assert.Contains(t, stdout+stderr, "argocd")
+}
+
+// TestDependencyRemoteStateOutputResolution checks a unit can resolve outputs of a dependency whose remote_state config references its own dependency.
+func TestDependencyRemoteStateOutputResolution(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyRemoteStateOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyRemoteStateOutput)
+
+	// module-a <- module-b (remote_state config references module-a) <- module-c
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply")
+	require.NoError(t, err)
+
+	// confirm module-b's output propagated to module-c
+	moduleCPath := filepath.Join(rootPath, "module-c")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+moduleCPath+" -- output -raw echo")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "argocd")
+}
+
+// TestDependencyGenuineErrorSurfaces pins that the output-resolution fallback does not swallow a genuine
+// (non-dependency) error in a dependency's terraform block: the fallback's full run must reproduce it. module-b
+// resolves module-a's outputs while module-a is unapplied; module-a's extra_arguments calls an undefined function,
+// and that real error must surface so the user sees the root cause rather than a misleading cascade.
+//
+// This pins the user-visible behavior, not the internal mechanism: the genuine error happens to surface on the
+// pre-fallback code path too, so the test does not by itself isolate the fallback as the source of the message.
+func TestDependencyGenuineErrorSurfaces(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenuineError)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyGenuineError)
+
+	// plan module-b alone (module-a is never applied), forcing module-a's outputs to resolve through the fallback
+	moduleBPath := filepath.Join(rootPath, "module-b")
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+moduleBPath+" -- plan")
+	require.Error(t, err)
+	assert.Contains(t, stdout+stderr, "nonexistent_function_xyz")
+}
+
+// TestDependencyOutputLocalOptimization checks that a unit can resolve outputs of a dependency that manages its state
+// with a local-backend remote_state block (the dependency-output optimization path's prerequisite, exercised without
+// AWS). The assertion only confirms the resolved value; it does not distinguish the optimization path from the
+// full-run fallback.
+func TestDependencyOutputLocalOptimization(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutputLocalOptimization)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutputLocalOptimization)
+
+	// module-a (local-backend remote_state) <- module-b
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply")
+	require.NoError(t, err)
+
+	// confirm module-a's output resolved into module-b
+	moduleBPath := filepath.Join(rootPath, "module-b")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+moduleBPath+" -- output -raw echo")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "argocd")
 }

@@ -1,0 +1,14 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### Resolve `dependency` outputs for units that reference a dependency in their `terraform` or `remote_state` block
+
+Resolving a unit's `dependency` outputs for a downstream unit no longer fails when that unit references its own dependency in:
+
+- a `before_hook`, `after_hook`, or `error_hook`
+- an `extra_arguments` block
+- a `remote_state` block
+
+Previously these raised `There is no variable named "dependency"` on the downstream unit, and a `remote_state` reference could crash Terragrunt.

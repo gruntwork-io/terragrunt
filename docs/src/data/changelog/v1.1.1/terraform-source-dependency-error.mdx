@@ -1,0 +1,8 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### Clearer error when `terraform.source` references a dependency
+
+A `terraform.source` that interpolates `${dependency.<name>.outputs.<key>}` now fails with a message explaining that the module source must be resolvable before dependencies are evaluated, rather than the cryptic `Unsuitable value type; value must be known`.

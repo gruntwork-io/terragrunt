@@ -1024,3 +1024,94 @@ dependency "upstream" {
 	require.Len(t, terragruntConfig.TerragruntDependencies, 1)
 	assert.Equal(t, "upstream", terragruntConfig.TerragruntDependencies[0].Name)
 }
+
+func TestPartialParseTerraformSourceReferencingDependencyReturnsClearError(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = "./module-${dependency.upstream.outputs.cluster_id}"
+}
+
+dependency "upstream" {
+  config_path = "../upstream"
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	// SkipOutputsResolution mirrors discovery, where dependency outputs resolve to an unknown placeholder.
+	pctx = pctx.WithDecodeList(config.TerraformSource).WithSkipOutputsResolution()
+	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+
+	var srcErr config.TerraformSourceReferencesDependencyError
+	require.ErrorAs(t, err, &srcErr, "source referencing a dependency should return a clear typed error, not a cryptic decode error")
+}
+
+// TestPartialParseTerraformSourceDependencyInUntakenBranch mirrors discovery (SkipOutputsResolution with the relevant
+// subset of the discovery decode list) over a source whose dependency reference sits in an untaken conditional branch.
+// The source evaluates to a concrete value, so the parse must succeed and still surface the dependency edge rather than
+// aborting with TerraformSourceReferencesDependencyError.
+func TestPartialParseTerraformSourceDependencyInUntakenBranch(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = true ? "./module" : dependency.upstream.outputs.source
+}
+
+dependency "upstream" {
+  config_path = "../upstream"
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(
+		config.TerraformSource,
+		config.DependenciesBlock,
+		config.DependencyBlock,
+	).WithSkipOutputsResolution()
+
+	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err, "a dependency reference in an untaken conditional branch must not be rejected")
+
+	require.NotNil(t, terragruntConfig.Terraform)
+	require.NotNil(t, terragruntConfig.Terraform.Source)
+	assert.Equal(t, "./module", *terragruntConfig.Terraform.Source)
+
+	require.Len(t, terragruntConfig.TerragruntDependencies, 1)
+	assert.Equal(t, "upstream", terragruntConfig.TerragruntDependencies[0].Name)
+}
+
+// TestPartialParseTerraformSourceUnrelatedDecodeErrorIsNotRebranded guards the gate that produces
+// TerraformSourceReferencesDependencyError: a source decode that fails for a reason unrelated to dependency
+// resolution must keep its own precise diagnostic, even when the source expression mentions the dependency namespace
+// in an untaken branch. Here the taken branch is a tuple, so the source fails to decode into a string; the dependency
+// reference is never evaluated, so the friendly error would be a misdiagnosis.
+func TestPartialParseTerraformSourceUnrelatedDecodeErrorIsNotRebranded(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = true ? [1, 2, 3] : dependency.upstream.outputs.source
+}
+
+dependency "upstream" {
+  config_path = "../upstream"
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.TerraformSource).WithSkipOutputsResolution()
+	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+
+	require.Error(t, err)
+
+	var srcErr config.TerraformSourceReferencesDependencyError
+	require.NotErrorAs(t, err, &srcErr, "an unrelated source decode error must not be rebranded as a dependency reference error")
+}

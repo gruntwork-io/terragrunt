@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
 	"errors"
@@ -81,6 +82,54 @@ type terragruntTerraformSource struct {
 type terraformConfigSourceOnly struct {
 	Source *string  `hcl:"source,attr"`
 	Remain hcl.Body `hcl:",remain"`
+}
+
+// terraformSourceUnresolvableDependency reports whether the terraform block's `source` attribute references the
+// `dependency` namespace and evaluates to an unknown value under evalCtx. Callers consult it only after a source
+// decode failure under SkipOutputsResolution: a source that genuinely consumes an unresolved dependency output
+// evaluates to an unknown value, which is exactly the cryptic "value must be known" decode failure worth rewording.
+// A decode failure for any other reason (a type mismatch, or a typo in an unrelated reference) either evaluates to a
+// known value or fails evaluation outright, so its own precise diagnostic is preserved rather than rebranded. Returns
+// false for JSON configs, whose body is not hclsyntax.
+func terraformSourceUnresolvableDependency(file *hclparse.File, evalCtx *hcl.EvalContext) bool {
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return false
+	}
+
+	for _, block := range body.Blocks {
+		if block.Type != MetadataTerraform {
+			continue
+		}
+
+		sourceAttr, ok := block.Body.Attributes["source"]
+		if !ok {
+			continue
+		}
+
+		if !expressionReferencesDependency(sourceAttr.Expr) {
+			continue
+		}
+
+		// Only an unknown result comes from the unresolved dependency placeholder; a known value or an evaluation
+		// error means the source decode failed for an unrelated reason whose own diagnostic should stand.
+		value, diags := sourceAttr.Expr.Value(evalCtx)
+		if !diags.HasErrors() && !value.IsKnown() {
+			return true
+		}
+	}
+
+	return false
+}
+
+func expressionReferencesDependency(expr hcl.Expression) bool {
+	for _, traversal := range expr.Variables() {
+		if traversal.RootName() == MetadataDependency {
+			return true
+		}
+	}
+
+	return false
 }
 
 // terragruntTerraformExtraArgs decodes only the terraform source and extra_arguments blocks.
@@ -489,8 +538,16 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		case TerraformSource:
 			decoded := terragruntTerraformSource{}
 
-			err := file.Decode(&decoded, evalParsingContext)
-			if err != nil {
+			if err := file.Decode(&decoded, evalParsingContext); err != nil {
+				// A source that consumes an unresolved dependency output evaluates to an unknown value, so the decode
+				// fails with a cryptic "value must be known". Translate that into a clear explanation, but only in the
+				// placeholder context (SkipOutputsResolution) where outputs are deliberately unresolved, and only when
+				// the source actually evaluates to an unknown dependency value so an unrelated decode failure keeps its
+				// own precise diagnostic.
+				if pctx.SkipOutputsResolution && terraformSourceUnresolvableDependency(file, evalParsingContext) {
+					return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
+				}
+
 				return nil, err
 			}
 
