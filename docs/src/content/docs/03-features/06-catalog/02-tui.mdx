@@ -23,12 +23,6 @@ If `<repo-url>` is provided, the repository will be cloned into a temporary dire
 1. The repository list are searched in the config file `terragrunt.hcl`. if `terragrunt.hcl` does not exist in the current directory, the config are searched in the parent directories.
 1. If the repository list is not found in the configuration file, the modules are looked for in the current directory.
 
-## Temporary clone directories
-
-When loading remote repositories, Terragrunt creates a fresh temporary clone directory for each repository under the system temp directory. The temp root is resolved through symlinks before discovery so component paths stay inside the clone on systems where the temp directory itself is reported through a symlink.
-
-Terragrunt does not use a predictable temp path for catalog loads. It refuses to use or clean up clone roots that are symlinks, so local temp-dir entries cannot redirect catalog cleanup outside the directory Terragrunt is preparing. Each clone remains available while the TUI session is running because unit and stack copy actions read files from it, then Terragrunt removes the temporary clone when the session exits.
-
 An example of how to define the optional default template and the list of repositories for the `catalog` command in the `terragrunt.hcl` configuration file:
 
 ``` hcl

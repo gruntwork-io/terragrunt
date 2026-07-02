@@ -278,15 +278,15 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger, fsys vfs.FS) error {
 		return repo.handleLocalDir(l, cloneURL)
 	}
 
+	if err := repo.prepareCloneDirectory(l, fsys); err != nil {
+		return err
+	}
+
 	// Prepare clone options
 	opts := CloneOptions{
 		SourceURL:  cloneURL,
 		TargetPath: repo.path,
 		Context:    ctx,
-	}
-
-	if err := repo.prepareCloneDirectory(l, fsys); err != nil {
-		return err
 	}
 
 	if repo.cloneCompleted(fsys) {

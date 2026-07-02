@@ -48,27 +48,28 @@ func TestCreateCatalogTempPathResolvesSymlinkedTmpDir(t *testing.T) {
 func TestCreateCatalogTempPathUsesFreshDirectory(t *testing.T) {
 	t.Parallel()
 
+	fsys := vfs.NewMemMapFS()
 	repoURL := "github.com/gruntwork-io/terragrunt-scale-catalog"
 
-	first, err := tui.CreateCatalogTempPath(vfs.NewOSFS(), repoURL)
+	first, err := tui.CreateCatalogTempPath(fsys, repoURL)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, os.RemoveAll(first))
-	})
 
-	second, err := tui.CreateCatalogTempPath(vfs.NewOSFS(), repoURL)
+	second, err := tui.CreateCatalogTempPath(fsys, repoURL)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, os.RemoveAll(second))
-	})
 
 	assert.NotEqual(t, first, second)
 
 	expectedPrefix := "catalog-" + util.EncodeBase64Sha1(repoURL) + "-"
 	assert.True(t, strings.HasPrefix(filepath.Base(first), expectedPrefix))
 	assert.True(t, strings.HasPrefix(filepath.Base(second), expectedPrefix))
-	assert.DirExists(t, first)
-	assert.DirExists(t, second)
+
+	firstExists, err := vfs.FileExists(fsys, first)
+	require.NoError(t, err)
+	assert.True(t, firstExists, "first temp dir should exist on the vfs")
+
+	secondExists, err := vfs.FileExists(fsys, second)
+	require.NoError(t, err)
+	assert.True(t, secondExists, "second temp dir should exist on the vfs")
 }
 
 func TestLoadURLKeepsTempDirAfterEmittingComponentOnCancel(t *testing.T) {

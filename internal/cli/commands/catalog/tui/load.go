@@ -18,9 +18,9 @@ import (
 // Resolving os.TempDir keeps filepath.Rel results inside the clone on systems
 // where the temp dir itself is reported through a symlink.
 func CreateCatalogTempPath(fsys vfs.FS, repoURL string) (string, error) {
-	pattern := fmt.Sprintf("catalog-%s-*", util.EncodeBase64Sha1(repoURL))
+	prefix := "catalog-" + util.EncodeBase64Sha1(repoURL) + "-"
 
-	return vfs.MkdirTemp(fsys, util.ResolvePath(os.TempDir()), pattern)
+	return vfs.MkdirTemp(fsys, util.ResolvePath(os.TempDir()), prefix)
 }
 
 // LoadURL clones repoURL via module.NewRepo, walks it with a
