@@ -167,7 +167,7 @@ The following backends are currently supported by `remote_state`:
 
 - [s3 backend](https://opentofu.org/docs/language/settings/backends/s3)
 - [gcs backend](https://opentofu.org/docs/language/settings/backends/gcs)
-- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (experimental; see the [`azure-backend`](/reference/experiments/active#azure-backend) experiment, which currently does not change behavior)
+- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (experimental; requires the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)
 
 For all other backends, the `remote_state` block operates in the same manner as `generate`, currently. If you are not intending for Terragrunt to automatically perform
 automated bootstrapping of remote state resources, you are advised to use `generate` blocks to configure the OpenTofu/Terraform backend instead.
@@ -353,8 +353,9 @@ The following config options are only valid for the `gcs` backend and are used b
 
 <Aside type="caution" title="Experimental">
 Azure backend support is delivered through the [`azure-backend`](/reference/experiments/active#azure-backend) experiment.
-Until that experiment lands functional behavior, Terragrunt does not bootstrap, delete, or migrate Azure resources;
-OpenTofu/Terraform's native `azurerm` backend is used as-is.
+With the experiment enabled, Terragrunt can bootstrap, delete, and migrate Azure Storage state resources; without it,
+those lifecycle operations return an error. Reading and writing the state itself is always handled by
+OpenTofu/Terraform's native `azurerm` backend.
 </Aside>
 
 Example configuration:
@@ -370,11 +371,53 @@ remote_state {
     resource_group_name  = "terraform-rg"
     subscription_id      = "00000000-0000-0000-0000-000000000000"
     use_azuread_auth     = true
+
+    # Terragrunt-only bootstrap settings
+    location                   = "eastus"
+    enable_soft_delete         = true
+    soft_delete_retention_days = 14
   }
 }
 ```
 
-Further configuration keys, authentication methods, and Terragrunt-side bootstrap behavior will be documented as the experiment matures.
+When bootstrapping (`terragrunt backend bootstrap` or `--backend-bootstrap`), Terragrunt creates the resource group
+(unless it exists or creation is skipped), the storage account, and the blob container, then converges blob versioning
+and optional soft delete on both new and pre-existing accounts.
+
+The following config options are only valid for the `azurerm` backend and are used by Terragrunt; they are **not** passed on to OpenTofu/Terraform:
+
+- `location`
+- `account_kind`
+- `account_tier`
+- `account_replication_type`
+- `access_tier`
+- `tags`
+- `skip_resource_group_creation`
+- `skip_storage_account_creation`
+- `skip_container_creation`
+- `skip_versioning`
+- `enable_soft_delete`
+- `soft_delete_retention_days`
+- `allow_blob_public_access`
+- `msi_resource_id`
+
+Authentication is resolved in the following order, with `ARM_*` and `AZURE_*` environment variable fallbacks applied
+to any values not set in the config:
+
+1. SAS token (`sas_token`)
+2. Storage account access key (`access_key`)
+3. Service principal (`client_id`, `client_secret`, `tenant_id`)
+4. Managed identity (`use_msi`, optionally `msi_resource_id`)
+5. OIDC / workload identity (`use_oidc`, `oidc_token_file_path`)
+6. Azure AD (`use_azuread_auth`, or the default credential chain, which honors `az login`)
+
+Sovereign clouds are selected with the `environment` key (`public`, `usgovernment`, or `china`).
+
+<Aside type="note" title="Known limitations">
+- SAS token and access key authentication are data-plane only: Terragrunt can create the blob container but not the resource group or storage account, which must already exist.
+- With `use_azuread_auth`, reading and writing state requires the **Storage Blob Data Contributor** role on the storage account; the control-plane Contributor role alone is not sufficient. Terragrunt does not yet assign this role automatically.
+- State migration is supported within a single storage account; cross-account migration must be performed manually (init, state pull, state push).
+</Aside>
 
 ### Disabling automatic remote state bootstrapping
 
