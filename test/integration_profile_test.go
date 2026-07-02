@@ -264,6 +264,10 @@ func TestProfileDirFlagCollectsProfiles(t *testing.T) {
 }
 
 func TestProfileFlagsRequireExperiment(t *testing.T) {
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping because we can't verify the experiment is required when experiment mode is enabled")
+	}
+
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "cpu_no_exp.prof")
 
@@ -273,6 +277,10 @@ func TestProfileFlagsRequireExperiment(t *testing.T) {
 }
 
 func TestTGProfileCPUEnvRequiresExperiment(t *testing.T) {
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping because we can't verify the experiment is required when experiment mode is enabled")
+	}
+
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "cpu_env_no_exp.prof")
 
@@ -284,6 +292,10 @@ func TestTGProfileCPUEnvRequiresExperiment(t *testing.T) {
 }
 
 func TestTGProfileDirEnvRequiresExperiment(t *testing.T) {
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping because we can't verify the experiment is required when experiment mode is enabled")
+	}
+
 	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles_no_exp")
 
 	t.Setenv("TG_PROFILE_DIR", profileDir)
