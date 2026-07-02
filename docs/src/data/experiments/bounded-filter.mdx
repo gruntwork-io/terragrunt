@@ -1,0 +1,32 @@
+---
+name: bounded-filter
+since: "1.1.1"
+---
+
+Enclose graph discovery for `--filter` expressions within a directory instead of the git repository root.
+
+### `bounded-filter` - What it does
+
+When enabled, the [`--filter-boundary`](/reference/cli/commands/find#filter-boundary) flag (env: `TG_FILTER_BOUNDARY`) becomes available on commands that accept `--filter`. It bounds graph discovery to a directory you choose instead of the git repository root, so dependents and dependencies that resolve outside it are neither parsed nor returned.
+
+This keeps discovery inside a single environment in monorepos where sibling environments cannot be parsed independently of each other, which a filter would otherwise traverse into:
+
+```bash
+cd environments/staging
+terragrunt find --experiment bounded-filter --filter '...{vpc}' --filter-boundary .
+```
+
+See the [`--filter-boundary` reference](/reference/cli/commands/find#filter-boundary) for the full behavior, including how the boundary is resolved.
+
+### `bounded-filter` - How to provide feedback
+
+Provide your feedback in the [Keeping `--filter` flag contained within working directory GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/6331), which motivated this experiment.
+
+### `bounded-filter` - Criteria for stabilization
+
+To transition the `bounded-filter` feature to a stable release, the following must be addressed:
+
+- [ ] Confirm that a single directory boundary covers the common isolation layouts (per-environment directories, shared parent configuration).
+- [ ] Decide whether path-restricting filter intersections (e.g. `...{unit} | ./**`) should narrow the boundary automatically, making the flag unnecessary for most uses.
+- [ ] Decide whether and how the boundary should apply to Git-based filter expressions (e.g. `[main...HEAD]`).
+- [ ] Positive feedback from users relying on the flag in repositories with isolated environments.

@@ -90,10 +90,11 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 	opts.NonInteractive = true
 
 	// Create discovery with filter support if experiment enabled
-	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir:  opts.WorkingDir,
-		Filters:     opts.Filters,
-		Experiments: opts.Experiments,
+	d, err := discovery.NewForHCLCommand(l, &discovery.HCLCommandOptions{
+		WorkingDir:     opts.WorkingDir,
+		FilterBoundary: opts.FilterBoundary,
+		Filters:        opts.Filters,
+		Experiments:    opts.Experiments,
 	})
 	if d != nil {
 		d = d.WithExec(v.Exec)
@@ -253,10 +254,11 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir:  opts.WorkingDir,
-		Filters:     opts.Filters,
-		Experiments: opts.Experiments,
+	d, err := discovery.NewForHCLCommand(l, &discovery.HCLCommandOptions{
+		WorkingDir:     opts.WorkingDir,
+		FilterBoundary: opts.FilterBoundary,
+		Filters:        opts.Filters,
+		Experiments:    opts.Experiments,
 	})
 	if d != nil {
 		d = d.WithExec(v.Exec)

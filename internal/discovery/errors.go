@@ -155,3 +155,47 @@ func (e StackDependencyExpansionError) Unwrap() error {
 func NewStackDependencyExpansionError(depPath string, err error) error {
 	return StackDependencyExpansionError{DepPath: depPath, Wrapped: err}
 }
+
+// FilterBoundaryDirError indicates that the directory given as the filter
+// boundary does not exist or is not a directory. Wraps the underlying
+// filesystem error, if any, so callers can extract typed details via
+// errors.As.
+type FilterBoundaryDirError struct {
+	Wrapped  error
+	Boundary string
+}
+
+func (e FilterBoundaryDirError) Error() string {
+	return fmt.Sprintf("filter boundary %q is not a usable directory: %s", e.Boundary, e.Wrapped)
+}
+
+func (e FilterBoundaryDirError) Unwrap() error {
+	return e.Wrapped
+}
+
+// NewFilterBoundaryDirError wraps err with the boundary path that failed validation.
+func NewFilterBoundaryDirError(boundary string, err error) error {
+	return FilterBoundaryDirError{Boundary: boundary, Wrapped: err}
+}
+
+// FilterBoundaryScopeError indicates that the working directory is not inside
+// the directory given as the filter boundary. Dependent discovery starts at
+// the working directory, so a boundary that does not contain it can never
+// take effect.
+type FilterBoundaryScopeError struct {
+	Boundary   string
+	WorkingDir string
+}
+
+func (e FilterBoundaryScopeError) Error() string {
+	return fmt.Sprintf(
+		"filter boundary %q does not contain the working directory %q. "+
+			"The filter boundary must be the working directory or one of its parent directories.",
+		e.Boundary, e.WorkingDir,
+	)
+}
+
+// NewFilterBoundaryScopeError creates a new FilterBoundaryScopeError for the given paths.
+func NewFilterBoundaryScopeError(boundary, workingDir string) error {
+	return FilterBoundaryScopeError{Boundary: boundary, WorkingDir: workingDir}
+}

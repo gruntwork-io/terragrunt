@@ -34,6 +34,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		NoHidden:          opts.NoHidden,
 		WithRequiresParse: opts.Dependencies || opts.Mode == ModeDAG,
 		WithRelationships: opts.Dependencies || opts.Mode == ModeDAG,
+		FilterBoundary:    opts.FilterBoundary,
 		Filters:           opts.Filters,
 		Experiments:       opts.Experiments,
 	})

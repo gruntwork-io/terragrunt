@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-shellwords"
 )
@@ -16,6 +17,7 @@ import (
 type DiscoveryCommandOptions struct {
 	WorkingDir        string
 	QueueConstructAs  string
+	FilterBoundary    string
 	Filters           filter.Filters
 	Experiments       experiment.Experiments
 	NoHidden          bool
@@ -28,9 +30,10 @@ type DiscoveryCommandOptions struct {
 
 // HCLCommandOptions contains options for HCL commands like hcl validate & format.
 type HCLCommandOptions struct {
-	WorkingDir  string
-	Filters     filter.Filters
-	Experiments experiment.Experiments
+	WorkingDir     string
+	FilterBoundary string
+	Filters        filter.Filters
+	Experiments    experiment.Experiments
 }
 
 // StackGenerateOptions contains options for stack generate commands.
@@ -99,15 +102,33 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 		d = d.WithFilters(opts.Filters)
 	}
 
+	if opts.FilterBoundary != "" {
+		boundary, err := resolveFilterBoundary(vfs.NewOSFS(), opts.WorkingDir, opts.FilterBoundary)
+		if err != nil {
+			return nil, err
+		}
+
+		d = d.WithFilterBoundary(boundary)
+	}
+
 	return d, nil
 }
 
 // NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
-func NewForHCLCommand(l log.Logger, opts HCLCommandOptions) (*Discovery, error) {
+func NewForHCLCommand(l log.Logger, opts *HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.Filters) > 0 {
 		d = d.WithFilters(opts.Filters)
+	}
+
+	if opts.FilterBoundary != "" {
+		boundary, err := resolveFilterBoundary(vfs.NewOSFS(), opts.WorkingDir, opts.FilterBoundary)
+		if err != nil {
+			return nil, err
+		}
+
+		d = d.WithFilterBoundary(boundary)
 	}
 
 	return d, nil
