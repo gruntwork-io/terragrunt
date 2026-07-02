@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -737,6 +738,24 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 		data, err := vfs.ReadFile(fs, "/dst/small.txt")
 		require.NoError(t, err)
 		assert.Equal(t, []byte("small content"), data)
+	})
+
+	t.Run("allows extraction exactly at size limit", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchive(t, map[string][]byte{
+			"exact.txt": []byte("0123456789"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(10)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.NoError(t, err)
+
+		data, err := vfs.ReadFile(fs, "/dst/exact.txt")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("0123456789"), data)
 	})
 
 	t.Run("rejects extraction exceeding size limit", func(t *testing.T) {
@@ -1556,4 +1575,71 @@ func TestWalkDirParallel(t *testing.T) {
 		assert.Contains(t, seen, filepath.Join(root, "keep", "a.txt"))
 		assert.NotContains(t, seen, filepath.Join(root, "skip", "b.txt"))
 	})
+}
+
+func TestCreateTemp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("creates a writable temp file with the given prefix", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewOSFS()
+		dir := t.TempDir()
+
+		f, err := vfs.CreateTemp(fs, dir, "prefix-")
+		require.NoError(t, err)
+		require.NotNil(t, f)
+
+		name := f.Name()
+		assert.True(t, strings.HasPrefix(filepath.Base(name), "prefix-"),
+			"expected base name %q to start with prefix", filepath.Base(name))
+
+		_, err = f.Write([]byte("hello"))
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		exists, err := vfs.FileExists(fs, name)
+		require.NoError(t, err)
+		assert.True(t, exists)
+
+		data, err := vfs.ReadFile(fs, name)
+		require.NoError(t, err)
+		assert.Equal(t, "hello", string(data))
+	})
+
+	t.Run("expands a star in the prefix as a pattern separator", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewOSFS()
+		dir := t.TempDir()
+
+		f, err := vfs.CreateTemp(fs, dir, "pre*-suf")
+		require.NoError(t, err)
+		require.NotNil(t, f)
+
+		defer func() {
+			require.NoError(t, f.Close())
+		}()
+
+		// The underlying afero.TempFile splits on the last "*" and inserts the
+		// random component there, so the star is a pattern marker, not literal.
+		base := filepath.Base(f.Name())
+		assert.True(t, strings.HasPrefix(base, "pre"), "expected base %q to keep the pre-star text", base)
+		assert.True(t, strings.HasSuffix(base, "-suf"), "expected base %q to keep the post-star text", base)
+		assert.NotContains(t, base, "*")
+	})
+}
+
+func TestMkdirTemp(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewOSFS()
+	dir := t.TempDir()
+
+	got, err := vfs.MkdirTemp(fs, dir, "tmpdir-")
+	require.NoError(t, err)
+
+	info, err := fs.Stat(got)
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
 }

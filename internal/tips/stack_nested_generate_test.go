@@ -1,6 +1,8 @@
 package tips_test
 
 import (
+	"errors"
+	"io/fs"
 	"path/filepath"
 	"testing"
 
@@ -12,6 +14,26 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/function"
 )
+
+// errStatFault stands in for a Stat failure that is not "file does not exist".
+var errStatFault = errors.New("stat fault")
+
+// missingAsErrorFS wraps a vfs.FS and reports a missing path as a hard Stat
+// error instead of a clean "not found". It lets tests drive the FileExists
+// error branches that an ordinary in-memory FS never reaches.
+type missingAsErrorFS struct {
+	vfs.FS
+	err error
+}
+
+func (f *missingAsErrorFS) Stat(name string) (fs.FileInfo, error) {
+	info, err := f.FS.Stat(name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, f.err
+	}
+
+	return info, err
+}
 
 func TestSuggestRecursiveStackFilter(t *testing.T) {
 	t.Parallel()
@@ -50,6 +72,7 @@ func TestGiveStackNestedGenerateTip(t *testing.T) {
 		stackOfStack      = "stack \"child\" {\n  source = \"x\"\n  path = \"child\"\n}\n"
 		stackOfUnit       = "unit \"u\" {\n  source = \"x\"\n  path = \"u\"\n}\n"
 		stackOfGrandchild = "stack \"grandchild\" {\n  source = \"x\"\n  path = \"grandchild\"\n}\n"
+		stackMalformed    = "stack \"child\" {\n"
 	)
 
 	stackDir := filepath.Join(workingDir, "my-stack")
@@ -90,6 +113,18 @@ func TestGiveStackNestedGenerateTip(t *testing.T) {
 			name:        "flat stack with generated units shows no tip",
 			filter:      "./my-stack | type=stack",
 			files:       []fileSpec{{parentStack, stackOfUnit}, {flatUnit, ""}},
+			expectShown: false,
+		},
+		{
+			name:        "unparseable parent stack shows no tip",
+			filter:      "./my-stack | type=stack",
+			files:       []fileSpec{{parentStack, stackMalformed}},
+			expectShown: false,
+		},
+		{
+			name:        "unparseable nested stack shows no tip",
+			filter:      "./my-stack | type=stack",
+			files:       []fileSpec{{parentStack, stackOfStack}, {nestedStack, stackMalformed}},
 			expectShown: false,
 		},
 		{
@@ -145,4 +180,88 @@ func TestGiveStackNestedGenerateTip(t *testing.T) {
 			assert.NotContains(t, output.String(), tips.StackNestedStacksNotGenerated)
 		})
 	}
+}
+
+func TestGiveStackNestedGenerateTipNoOp(t *testing.T) {
+	t.Parallel()
+
+	const workingDir = "/work"
+
+	parsed, err := filter.Parse("./my-stack | type=stack")
+	require.NoError(t, err)
+
+	filters := filter.Filters{parsed}
+
+	tcs := []struct {
+		name     string
+		funcsFor inthclparse.StackFuncFactory
+		allTips  tips.Tips
+		filters  filter.Filters
+	}{
+		{
+			name:     "no filters",
+			funcsFor: emptyStackFuncFactory(),
+			allTips:  tips.NewTips(),
+			filters:  filter.Filters{},
+		},
+		{
+			name:     "nil tips collection",
+			funcsFor: emptyStackFuncFactory(),
+			allTips:  nil,
+			filters:  filters,
+		},
+		{
+			name:     "nil func factory",
+			funcsFor: nil,
+			allTips:  tips.NewTips(),
+			filters:  filters,
+		},
+		{
+			name:     "tip absent from collection",
+			funcsFor: emptyStackFuncFactory(),
+			allTips:  tips.Tips{},
+			filters:  filters,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l, output := newTestLogger()
+
+			tips.GiveStackNestedGenerateTip(l, vfs.NewMemMapFS(), tc.funcsFor, workingDir, tc.filters, tc.allTips)
+
+			assert.Empty(t, output.String())
+		})
+	}
+}
+
+func TestGiveStackNestedGenerateTipSkipsOnStatError(t *testing.T) {
+	t.Parallel()
+
+	const (
+		workingDir   = "/work"
+		stackOfStack = "stack \"child\" {\n  source = \"x\"\n  path = \"child\"\n}\n"
+		stackOfUnit  = "unit \"u\" {\n  source = \"x\"\n  path = \"u\"\n}\n"
+	)
+
+	stackDir := filepath.Join(workingDir, "my-stack")
+
+	base := vfs.NewMemMapFS()
+	writeFile(t, base, filepath.Join(stackDir, "terragrunt.stack.hcl"), stackOfStack)
+	writeFile(t, base, filepath.Join(stackDir, ".terragrunt-stack", "child", "terragrunt.stack.hcl"), stackOfUnit)
+
+	// The nested unit's generated path does not exist; the wrapper turns that
+	// missing-path Stat into an error, exercising anyPathMissing's error branch.
+	fs := &missingAsErrorFS{FS: base, err: errStatFault}
+
+	parsed, err := filter.Parse("./my-stack | type=stack")
+	require.NoError(t, err)
+
+	l, output := newTestLogger()
+
+	tips.GiveStackNestedGenerateTip(l, fs, emptyStackFuncFactory(), workingDir, filter.Filters{parsed}, tips.NewTips())
+
+	assert.NotContains(t, output.String(), tips.StackNestedStacksNotGenerated)
 }
