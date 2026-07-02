@@ -183,6 +183,48 @@ output "cluster_min_size" {
 Oops! It says `max` when it should be `min`. If we fix `ecs-cluster/outputs.tf`
 we should be golden!
 
+## Profiling
+
+If you need to diagnose performance bottlenecks, you can enable CPU and memory profiling when the `profiling` experiment is enabled:
+
+```bash
+# CPU profiling (Terragrunt process)
+TG_EXPERIMENT=profiling TG_PROFILE_CPU=terragrunt_cpu.prof terragrunt run -- plan
+
+# Memory profiling (Terragrunt process, snapshot at the end of the run)
+TG_EXPERIMENT=profiling TG_PROFILE_MEM=terragrunt_mem.prof terragrunt run -- plan
+```
+
+When using `terragrunt run --all`, prefer `TG_PROFILE_DIR`. It tells Terragrunt to create a directory and automatically place profiles in a hierarchy that mirrors your units, including CPU profiles from downstream OpenTofu processes (OpenTofu 1.11 or later):
+
+```bash
+# Recommended for run --all
+TG_EXPERIMENT=profiling TG_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
+```
+
+Resulting layout (example):
+
+```
+/tmp/profiles/
+|-- terragrunt_cpu.prof          # Main Terragrunt process
+|-- terragrunt_mem.prof
+|-- terragrunt_goroutine.prof
+|-- modules/vpc/
+|   `-- tofu_cpu.prof            # One OpenTofu process per unit
+`-- live/prod/app/
+    `-- tofu_cpu.prof
+```
+
+For more details on profiling and performance analysis, see the [Performance documentation](/troubleshooting/performance/#runtime-cpu-profiling-with-tg_profile_cpu).
+
+You can also use CLI flags when the `profiling` experiment is enabled:
+
+```bash
+terragrunt --experiment profiling --profile-dir /tmp/profiles run -- plan
+```
+
+See the [Performance documentation](/troubleshooting/performance) for the full list of flags and environment variables.
+
 ## Additional OpenTofu/Terraform Debugging
 
 If you're still having trouble, you may want to try adjusting the `TF_LOG` environment variables to instruct OpenTofu/Terraform to emit more detailed logs.

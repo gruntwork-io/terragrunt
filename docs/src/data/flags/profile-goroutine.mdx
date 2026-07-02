@@ -1,0 +1,23 @@
+---
+name: profile-goroutine
+description: Write a goroutine profile to the given path. Requires the profiling experiment.
+type: string
+env:
+  - TG_PROFILE_GOROUTINE
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`profiling`](/reference/experiments/active#profiling) experiment. Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
+</Aside>
+
+Write a goroutine profile of the Terragrunt process at the end of the run. It contains stack traces of all goroutines, which is useful to inspect what goroutines are blocked or running.
+
+Analyze with:
+
+```shell
+go tool pprof terragrunt_goroutine.prof
+```
+
+When using `--profile-dir`, the file is written as `terragrunt_goroutine.prof` inside the directory.

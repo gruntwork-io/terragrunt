@@ -1,0 +1,31 @@
+---
+name: profile-dir
+description: Directory to write profile files (cpu, mem, goroutine). Requires the profiling experiment.
+type: string
+env:
+  - TG_PROFILE_DIR
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`profiling`](/reference/experiments/active#profiling) experiment. Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
+</Aside>
+
+Collect CPU, memory, and goroutine profiles into the given directory using conventional names:
+
+- `terragrunt_cpu.prof`
+- `terragrunt_mem.prof`
+- `terragrunt_goroutine.prof`
+
+In addition, each unit's downstream OpenTofu process writes its own CPU profile to `tofu_cpu.prof` inside a unit-specific subdirectory (supported by OpenTofu 1.11 or later; Terraform ignores it).
+
+Example:
+
+```bash
+terragrunt --experiment profiling --profile-dir /tmp/profiles run --all -- plan
+```
+
+This is the recommended way to collect profiles when using `run --all`, because unit-specific subdirectories prevent parallel OpenTofu processes from writing to the same file.
+
+Individual paths (`--profile-cpu`, `--profile-mem`, etc.) take precedence over the directory defaults.

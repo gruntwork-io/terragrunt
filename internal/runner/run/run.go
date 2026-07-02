@@ -38,6 +38,7 @@ import (
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
+	tofuCPUProfileName              = "tofu_cpu.prof"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -249,6 +250,10 @@ func runTerragruntWithConfig(
 	}
 
 	if err := SetTerragruntInputsAsEnvVars(l, opts, cfg); err != nil {
+		return err
+	}
+
+	if err := setTofuCPUProfileEnv(opts); err != nil {
 		return err
 	}
 
@@ -793,4 +798,29 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 	}
 
 	return varFile, nil
+}
+
+// setTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.
+func setTofuCPUProfileEnv(opts *Options) error {
+	if opts.ProfileDir == "" {
+		return nil
+	}
+
+	if _, set := opts.Env[tf.EnvNameTofuCPUProfile]; set {
+		return nil
+	}
+
+	unitRelDir := filepath.Base(opts.UnitDir)
+	if relPath, err := filepath.Rel(opts.RootWorkingDir, opts.OriginalTerragruntConfigPath); err == nil && !strings.HasPrefix(relPath, "..") {
+		unitRelDir = filepath.Dir(relPath)
+	}
+
+	tofuProfileDir := filepath.Join(opts.ProfileDir, unitRelDir)
+	if err := util.EnsureDirectory(tofuProfileDir); err != nil {
+		return fmt.Errorf("could not create tofu profile directory: %w", err)
+	}
+
+	opts.Env[tf.EnvNameTofuCPUProfile] = filepath.Join(tofuProfileDir, tofuCPUProfileName)
+
+	return nil
 }
