@@ -65,10 +65,12 @@
 // Use braces to explicitly mark a path expression. This is useful when:
 // - The path doesn't start with ./ or /
 // - You want to be explicit that something is a path, not an identifier
+// - The path contains characters that are otherwise operators, such as parentheses
 //
 //	{./apps/*}              # Explicitly a path
 //	{my path/file}          # Path without ./ prefix
 //	{apps}                  # Treat "apps" as a path, not a name filter
+//	{./weird(name)}         # Path containing literal parentheses (which delimit a boundary unbraced)
 //
 // ## Graph Traversal Operators (...)
 //
@@ -90,6 +92,23 @@
 //	1...foo...2             # Direct dependents and dependencies up to 2 levels
 //
 // When depth is not specified, traversal is unlimited (default behavior).
+//
+// ## Graph Boundary
+//
+// A boundary encloses graph traversal within a directory, in place of the
+// default outer limit (the git repository root for dependents, the declared
+// path for dependencies). It occupies the same operand slot as depth, written
+// as a parenthesized directory:
+//
+//	(./envs/prod)...{vpc}                  # dependents of vpc, within ./envs/prod
+//	{vpc}...(./envs/prod)                   # dependencies of vpc, within ./envs/prod
+//	(../shared)...{vpc}...(./envs/prod)     # independent bounds per direction
+//	(.)...{vpc}                             # dependents of vpc, within the working directory
+//
+// Dependencies and dependents that resolve outside the boundary are neither
+// read nor returned, the same way a too-deep node is excluded by a depth bound.
+// The value must be an existing directory, resolved against the working
+// directory. This syntax is gated behind the bounded-filter experiment.
 //
 // ## Numeric Directory Disambiguation
 //
