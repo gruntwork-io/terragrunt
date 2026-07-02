@@ -5,6 +5,7 @@ package output
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -12,7 +13,10 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
@@ -99,7 +103,9 @@ func StackOutput(
 		return cty.NilVal, fmt.Errorf("failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
 
-	if len(foundFiles) == 0 {
+	implicitMerge := opts.Experiments.Evaluate(experiment.StackOutputImplicit)
+
+	if len(foundFiles) == 0 && !implicitMerge {
 		l.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
 		return cty.NilVal, nil
 	}
@@ -181,7 +187,11 @@ func StackOutput(
 		return cty.NilVal, err
 	}
 
-	unitOutputs := make(map[string]map[string]cty.Value)
+	// unitOutputs holds each unit's dotted stack address, grouped by the
+	// position of the stack root that materialized it ("" = the working
+	// directory itself). Without the stack-output-implicit experiment every
+	// unit lands in the "" group, producing the historical flat layout.
+	unitOutputs := make(map[string]map[string]map[string]cty.Value)
 
 	// Build stack list separated by stacks, find all nested stacks, and build
 	// a dotted path. If no stack is found, use the unit name.
@@ -214,25 +224,129 @@ func StackOutput(
 			stackKey = strings.Join(stackNames, ".") + "." + unit.Name
 		}
 
-		unitOutputs[stackKey] = output
+		// With the stack-output-implicit experiment, each stack's tree is
+		// nested under the literal path of its stack directory relative to the
+		// working directory, so explicit keys live in the same path namespace
+		// as implicit units and cannot collide with them. Stacks in the
+		// working directory itself keep the established top-level shape.
+		position := ""
 
-		l.Debugf("Added output for stack key %s", stackKey)
+		if implicitMerge {
+			var posErr error
+
+			position, posErr = stackPositionPrefix(opts.WorkingDir, path)
+			if posErr != nil {
+				return cty.NilVal, posErr
+			}
+		}
+
+		if unitOutputs[position] == nil {
+			unitOutputs[position] = make(map[string]map[string]cty.Value)
+		}
+
+		unitOutputs[position][stackKey] = output
+
+		l.Debugf("Added output for stack key %s at position %q", stackKey, position)
 	}
 
-	// Convert finalMap into a cty.ObjectVal
-	result := make(map[string]cty.Value)
+	final := make(map[string]any)
 
-	nestedOutputs, err := nestUnitOutputs(unitOutputs)
-	if err != nil {
-		return cty.NilVal, fmt.Errorf("failed to nest unit outputs: %w", err)
+	// Nest each position group. The "" group sorts first and is copied to the
+	// top level, keeping the historical shape; the other groups hang under
+	// their literal position keys.
+	for _, position := range slices.Sorted(maps.Keys(unitOutputs)) {
+		nested, err := nestUnitOutputs(unitOutputs[position])
+		if err != nil {
+			return cty.NilVal, fmt.Errorf("failed to nest unit outputs: %w", err)
+		}
+
+		if position == "" {
+			maps.Copy(final, nested)
+			continue
+		}
+
+		if _, exists := final[position]; exists {
+			l.Warnf(
+				"Skipping stack outputs at %s: the key is already taken by a unit of a stack in the working directory",
+				position,
+			)
+
+			continue
+		}
+
+		final[position] = nested
 	}
 
-	ctyResult, err := config.GoTypeToCty(nestedOutputs)
+	if implicitMerge {
+		// Loose units living outside any declared stack are aggregated too,
+		// keyed by relative path. Skip the units the discovery excluded plus
+		// the units materialized by the explicit stacks above
+		// (<stack-dir>/.terragrunt-stack/<unit-path>), so they are not counted
+		// twice. Nested stacks are covered because the recursive stack-file
+		// walk parses them into parsedStackFiles like any other.
+		skipPaths := make(map[string]struct{}, len(excludedPaths))
+		maps.Copy(skipPaths, excludedPaths)
+
+		for stackPath, stackFile := range parsedStackFiles {
+			targetDir := filepath.Join(filepath.Dir(stackPath), config.StackDir)
+
+			for _, unit := range stackFile.Units {
+				skipPaths[filepath.Clean(filepath.Join(targetDir, unit.Path))] = struct{}{}
+			}
+		}
+
+		implicitOutputs, err := implicitStackOutput(ctx, l, opts, skipPaths)
+		if err != nil {
+			return cty.NilVal, err
+		}
+
+		for key, val := range implicitOutputs {
+			// Defensive: only reachable when a directory holds both a
+			// terragrunt.hcl and a terragrunt.stack.hcl, making the same
+			// position an implicit unit and an explicit stack root at once.
+			if _, exists := final[key]; exists {
+				l.Warnf("Skipping implicit output for %s: an explicit stack already defines this key", key)
+				continue
+			}
+
+			final[key] = val
+		}
+	}
+
+	// No stack files and nothing discovered: keep the NilVal contract so the
+	// printers emit nothing rather than an empty object.
+	if len(foundFiles) == 0 && len(final) == 0 {
+		return cty.NilVal, nil
+	}
+
+	ctyResult, err := config.GoTypeToCty(final)
 	if err != nil {
-		return cty.NilVal, fmt.Errorf("failed to convert unit output to cty value: %s %w", result, err)
+		return cty.NilVal, fmt.Errorf("failed to convert unit output to cty value: %w", err)
 	}
 
 	return ctyResult, nil
+}
+
+// stackPositionPrefix returns the path of the stack root that materialized the
+// given unit, relative to the working directory with forward slashes: the
+// portion of the unit's relative path before the first .terragrunt-stack
+// segment. It returns "" when the stack file lives in the working directory
+// itself (no prefix) or the unit path does not match the expected layout.
+// Nested stacks inherit the outermost stack's position because their units are
+// materialized inside its .terragrunt-stack tree.
+func stackPositionPrefix(workingDir, unitDir string) (string, error) {
+	rel, err := filepath.Rel(workingDir, unitDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to determine relative path of unit %s: %w", unitDir, err)
+	}
+
+	segments := strings.Split(filepath.ToSlash(rel), "/")
+
+	if i := slices.Index(segments, config.StackDir); i > 0 {
+		return strings.Join(segments[:i], "/"), nil
+	}
+
+	return "", nil
 }
 
 // nestUnitOutputs transforms a flat map of unit outputs into a nested hierarchical structure.
@@ -321,6 +435,85 @@ func readUnitOutput(
 	}
 
 	return output, nil
+}
+
+// implicitStackOutput collects the outputs of units that are not declared in
+// any terragrunt.stack.hcl, each keyed by its path relative to opts.WorkingDir
+// (e.g. "foo/bar"). excludedPaths holds the unit directories to skip: units
+// excluded by `exclude` blocks against opts.TerraformCommand plus units
+// already materialized by explicit stacks.
+func implicitStackOutput(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	excludedPaths map[string]struct{},
+) (map[string]cty.Value, error) {
+	d := discovery.NewDiscovery(opts.WorkingDir)
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover units in %s: %w", opts.WorkingDir, err)
+	}
+
+	units := components.Filter(component.UnitKind)
+
+	if len(units) == 0 {
+		l.Warnf("No units found in %s. Nothing to output.", opts.WorkingDir)
+		return nil, nil
+	}
+
+	outputs := xsync.NewMap[string, cty.Value]()
+
+	wp := worker.NewWorkerPool(opts.Parallelism)
+	defer wp.Stop()
+
+	for _, c := range units {
+		unitDir := c.Path()
+
+		if _, excluded := excludedPaths[filepath.Clean(unitDir)]; excluded {
+			l.Debugf("Skipping output for excluded unit in %s", unitDir)
+			continue
+		}
+
+		rel, relErr := filepath.Rel(opts.WorkingDir, unitDir)
+		if relErr != nil {
+			return nil, fmt.Errorf("failed to determine relative path of unit %s: %w", unitDir, relErr)
+		}
+
+		key := filepath.ToSlash(rel)
+
+		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+		unit := &config.Unit{Name: key}
+
+		wp.Submit(func() error {
+			out, err := readUnitOutput(ctx, l, pctx, unit, unitDir)
+			if err != nil {
+				return err
+			}
+
+			ctyVal, err := config.ConvertValuesMapToCtyVal(out)
+			if err != nil {
+				return fmt.Errorf("failed to convert unit output to cty value for %s: %w", key, err)
+			}
+
+			outputs.Store(key, ctyVal)
+
+			return nil
+		})
+	}
+
+	if err := wp.Wait(); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]cty.Value)
+
+	outputs.Range(func(k string, v cty.Value) bool {
+		result[k] = v
+		return true
+	})
+
+	return result, nil
 }
 
 // buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.

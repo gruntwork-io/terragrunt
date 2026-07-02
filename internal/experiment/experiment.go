@@ -72,6 +72,10 @@ const (
 	// --auth-provider-cmd in specific phases. The
 	// --no-discovery-auth-provider-cmd flag is enabled by default.
 	OptOutAuth = "opt-out-auth"
+	// StackOutputImplicit lets `terragrunt stack output` fall back to discovering
+	// units directly under the working directory when no terragrunt.stack.hcl
+	// files are present, aggregating their outputs keyed by relative path.
+	StackOutputImplicit = "stack-output-implicit"
 	// HookContextEnv exposes additional TG_CTX_* environment variables to hook
 	// scripts: TG_CTX_HOOK_TYPE, TG_CTX_SOURCE, and TG_CTX_TERRAGRUNT_DIR.
 	HookContextEnv = "hook-context-env"
@@ -158,6 +162,9 @@ func NewExperiments() Experiments {
 		{
 			Name:   OptOutAuth,
 			Status: StatusCompleted,
+		},
+		{
+			Name: StackOutputImplicit,
 		},
 		{
 			Name: HookContextEnv,
