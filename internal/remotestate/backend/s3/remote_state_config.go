@@ -33,6 +33,9 @@ var terragruntOnlyConfigs = []string{
 	"skip_accesslogging_bucket_ssencryption",
 	"bucket_sse_algorithm",
 	"bucket_sse_kms_key_id",
+	"skip_object_ownership",
+	"skip_location_constraint",
+	"skip_bucket_tagging",
 }
 
 /* ExtendedRemoteStateConfigS3 is a struct that contains the RemoteStateConfigS3 struct and additional
@@ -67,6 +70,9 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipAccessLoggingBucketPublicAccessBlocking  bool                `mapstructure:"skip_accesslogging_bucket_public_access_blocking"`
 	SkipAccessLoggingBucketSSEncryption          bool                `mapstructure:"skip_accesslogging_bucket_ssencryption"`
 	SkipBucketSSEncryption                       bool                `mapstructure:"skip_bucket_ssencryption"`
+	SkipObjectOwnership                          bool                `mapstructure:"skip_object_ownership"`
+	SkipLocationConstraint                       bool                `mapstructure:"skip_location_constraint"`
+	SkipBucketTagging                            bool                `mapstructure:"skip_bucket_tagging"`
 	SkipCredentialsValidation                    bool                `mapstructure:"skip_credentials_validation"`
 }
 
