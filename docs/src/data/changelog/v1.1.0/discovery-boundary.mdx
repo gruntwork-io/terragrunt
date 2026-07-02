@@ -1,0 +1,17 @@
+---
+version: "v1.1.0"
+category: "new-features"
+order: 7
+---
+
+#### Constrain dependent discovery with `--discovery-boundary`
+
+When a filter requests dependents (a leading `...`), Terragrunt walks up the filesystem to find them, scanning and parsing every configuration up to the repository root. When a single repository hosts several independent Terragrunt roots, that walk can leave the intended root and traverse unrelated subtrees.
+
+The new `--discovery-boundary` flag (env `TG_DISCOVERY_BOUNDARY`) constrains the dependent walk to a chosen directory subtree, for both in-place discovery and Git-based filters:
+
+```bash
+terragrunt find --filter '...{./some/unit}' --discovery-boundary "$PWD"
+```
+
+When unset, behavior is unchanged — the walk extends to the repository root — so the flag is fully opt-in and backward compatible.

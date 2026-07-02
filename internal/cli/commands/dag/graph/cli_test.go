@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,4 +71,16 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 			require.NoError(b, err)
 		})
 	}
+}
+
+// TestDiscoveryBoundaryFlagParses asserts the shared --discovery-boundary flag is wired into
+// `dag graph` and populates opts.DiscoveryBoundary.
+func TestDiscoveryBoundaryFlagParses(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	cmd := graph.NewCommand(logger.CreateLogger(), opts)
+
+	require.NoError(t, cmd.Flags.Parse(clihelper.Args{"--discovery-boundary", "/some/boundary"}))
+	assert.Equal(t, "/some/boundary", opts.DiscoveryBoundary)
 }

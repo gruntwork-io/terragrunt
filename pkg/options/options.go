@@ -155,6 +155,9 @@ type TerragruntOptions struct {
 	ReportFile string
 	// Path to a file containing filter queries, one per line. Default is .terragrunt-filters.
 	FiltersFile string
+	// DiscoveryBoundary constrains dependent discovery (leading `...` filters) to this
+	// directory subtree instead of walking up to the git root. Empty = git root (default).
+	DiscoveryBoundary string
 	// Report format.
 	ReportFormat report.Format
 	// Path to the report schema file.

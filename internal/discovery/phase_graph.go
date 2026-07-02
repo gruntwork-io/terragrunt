@@ -216,15 +216,39 @@ func (p *GraphPhase) processGraphTarget(
 			return err
 		}
 
-		if state.discovery.gitRoot != "" {
+		// The effective boundary for the upstream dependent walk is the explicit
+		// --discovery-boundary when set, otherwise the git root (today's default).
+		boundary := state.discovery.boundary
+		if boundary == "" {
+			boundary = state.discovery.gitRoot
+		}
+
+		if boundary != "" {
 			startDir := state.discovery.workingDir
-			boundaryRoot := state.discovery.gitRoot
+			boundaryRoot := boundary
 
 			if dCtx := c.DiscoveryContext(); dCtx != nil &&
 				dCtx.WorkingDir != "" &&
 				dCtx.WorkingDir != state.discovery.workingDir {
-				startDir = dCtx.WorkingDir
-				boundaryRoot = dCtx.WorkingDir
+				// The target was discovered in a worktree: a full checkout rooted at
+				// dCtx.WorkingDir. Translate the real-tree paths into the worktree
+				// using their gitRoot-relative form.
+				worktreeRoot := dCtx.WorkingDir
+
+				if state.discovery.boundary != "" {
+					boundaryRoot = mapIntoWorktree(worktreeRoot, state.discovery.gitRoot, state.discovery.boundary)
+					startDir = mapIntoWorktree(worktreeRoot, state.discovery.gitRoot, state.discovery.workingDir)
+				} else {
+					// No boundary set: preserve the original whole-worktree behavior.
+					startDir = worktreeRoot
+					boundaryRoot = worktreeRoot
+				}
+			}
+
+			// Begin the walk inside the boundary even when the working dir is
+			// elsewhere; otherwise the prefix check would abort it immediately.
+			if !withinBoundary(startDir, boundaryRoot) {
+				startDir = boundaryRoot
 			}
 
 			l.Debugf(
@@ -781,4 +805,22 @@ func (p *GraphPhase) resolveDependency(
 	parent.AddDependency(addedComponent)
 
 	return addedComponent, nil
+}
+
+// mapIntoWorktree translates a real-tree path p (under repoRoot) into the
+// equivalent path inside worktreeRoot, using p's repo-relative form. It returns
+// worktreeRoot when p is repoRoot itself or escapes the repo (rel begins "..").
+func mapIntoWorktree(worktreeRoot, repoRoot, p string) string {
+	rel, err := filepath.Rel(util.ResolvePath(repoRoot), util.ResolvePath(p))
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return worktreeRoot
+	}
+
+	return filepath.Join(worktreeRoot, rel)
+}
+
+// withinBoundary reports whether dir is the boundary directory or a descendant of
+// it. It is the negation of isExternal and resolves symlinks for consistency.
+func withinBoundary(dir, boundary string) bool {
+	return !isExternal(boundary, dir)
 }
