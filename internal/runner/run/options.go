@@ -63,7 +63,8 @@ type Options struct {
 	TofuImplementation           tfimpl.Type
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
-	WorkingDir                   string
+	UnitDir                      string
+	CacheDir                     string
 	DownloadDir                  string
 	RootWorkingDir               string
 	OriginalTerraformCommand     string
@@ -88,6 +89,8 @@ type Options struct {
 	DisableBucketUpdate          bool
 	SourceUpdate                 bool
 	ForwardTFStdout              bool
+	LogShowAbsPaths              bool
+	LogDisableErrorSummary       bool
 }
 
 // Clone performs a deep copy of Options.
@@ -111,12 +114,13 @@ func (o *Options) CloneWithConfigPath(l log.Logger, configPath string) (log.Logg
 
 	workingDir := filepath.Dir(configPath)
 
-	if workingDir != o.WorkingDir {
+	if workingDir != o.CacheDir {
 		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 	}
 
 	newOpts.TerragruntConfigPath = configPath
-	newOpts.WorkingDir = workingDir
+	newOpts.UnitDir = workingDir
+	newOpts.CacheDir = workingDir
 
 	return l, newOpts, nil
 }
@@ -187,13 +191,14 @@ func (o *Options) DataDir() string {
 		return tfDataDir
 	}
 
-	return filepath.Join(o.WorkingDir, tfDataDir)
+	return filepath.Join(o.CacheDir, tfDataDir)
 }
 
 // shellRunOptions builds a *shell.ShellOptions from this Options.
 func (o *Options) shellRunOptions() *shell.ShellOptions {
-	return shell.NewShellOptions().
-		WithWorkingDir(o.WorkingDir).
+	s := shell.NewShellOptions().
+		WithWorkingDir(o.CacheDir).
+		WithUnitDir(o.UnitDir).
 		WithEnv(o.Env).
 		WithWriters(o.Writers).
 		WithTelemetry(o.Telemetry).
@@ -203,6 +208,10 @@ func (o *Options) shellRunOptions() *shell.ShellOptions {
 		WithExperiments(o.Experiments).
 		WithHeadless(o.Headless).
 		WithForwardTFStdout(o.ForwardTFStdout)
+	s.LogShowAbsPaths = o.LogShowAbsPaths
+	s.LogDisableErrorSummary = o.LogDisableErrorSummary
+
+	return s
 }
 
 // tfRunOptions builds a *tf.TFOptions from this Options.
@@ -237,7 +246,8 @@ func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
 	return &tflint.TFLintOptions{
 		ShellOptions:         o.shellRunOptions(),
 		Writers:              o.Writers,
-		WorkingDir:           o.WorkingDir,
+		LogShowAbsPaths:      o.LogShowAbsPaths,
+		WorkingDir:           o.CacheDir,
 		RootWorkingDir:       o.RootWorkingDir,
 		TerragruntConfigPath: o.TerragruntConfigPath,
 		MaxFoldersToCheck:    o.MaxFoldersToCheck,
@@ -257,7 +267,7 @@ func (o *Options) RunWithErrorHandling(
 
 	currentAttempt := 1
 
-	reportWorkingDir := o.WorkingDir
+	reportWorkingDir := o.CacheDir
 	if o.OriginalTerragruntConfigPath != "" {
 		reportWorkingDir = filepath.Dir(o.OriginalTerragruntConfigPath)
 	}
@@ -355,7 +365,7 @@ func (o *Options) RunWithErrorHandling(
 }
 
 func (o *Options) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
-	signalsFile := filepath.Join(o.WorkingDir, defaultSignalsFile)
+	signalsFile := filepath.Join(o.CacheDir, defaultSignalsFile)
 
 	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
 	if err != nil {

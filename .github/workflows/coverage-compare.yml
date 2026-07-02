@@ -21,18 +21,17 @@ jobs:
     name: Coverage (${{ inputs.base_ref }})
     runs-on: ubuntu-latest
     env:
-      MISE_PROFILE: cicd
       GOGC: "400"
     steps:
       - name: Fetch coverage scripts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           sparse-checkout: .github/scripts
           path: _coverage-scripts
           fetch-depth: 1
 
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           ref: ${{ inputs.base_ref }}
           fetch-depth: 1
@@ -51,14 +50,14 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-go-build-
 
       - name: Go Mod Cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -87,18 +86,17 @@ jobs:
     name: Coverage (${{ inputs.head_ref }})
     runs-on: ubuntu-latest
     env:
-      MISE_PROFILE: cicd
       GOGC: "400"
     steps:
       - name: Fetch coverage scripts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           sparse-checkout: .github/scripts
           path: _coverage-scripts
           fetch-depth: 1
 
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           ref: ${{ inputs.head_ref }}
           fetch-depth: 1
@@ -117,14 +115,14 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-go-build-
 
       - name: Go Mod Cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -155,7 +153,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (scripts only)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           sparse-checkout: .github/scripts
           fetch-depth: 1

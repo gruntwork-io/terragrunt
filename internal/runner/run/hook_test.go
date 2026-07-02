@@ -340,18 +340,21 @@ type recorder struct {
 	mu    sync.Mutex
 }
 
+func (r *recorder) record(inv *vexec.Invocation) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.calls = append(r.calls, vexec.Invocation{
+		Name: inv.Name,
+		Dir:  inv.Dir,
+		Args: slices.Clone(inv.Args),
+		Env:  slices.Clone(inv.Env),
+	})
+}
+
 func (r *recorder) handler(result vexec.Result) vexec.Handler {
 	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-
-		r.calls = append(r.calls, vexec.Invocation{
-			Name: inv.Name,
-			Dir:  inv.Dir,
-			Args: slices.Clone(inv.Args),
-			Env:  slices.Clone(inv.Env),
-		})
-
+		r.record(&inv)
 		return result
 	}
 }
@@ -366,7 +369,7 @@ func (r *recorder) snapshot() []vexec.Invocation {
 func newHookOpts() *run.Options {
 	return &run.Options{
 		Env:               map[string]string{},
-		WorkingDir:        "/work",
+		CacheDir:          "/work",
 		RootWorkingDir:    "/work",
 		TerraformCommand:  "plan",
 		TFPath:            "/fake/tofu",

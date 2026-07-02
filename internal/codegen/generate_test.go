@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
@@ -476,4 +478,246 @@ enabled=true`,
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
+}
+
+// TestWriteToFileOverwritesReadOnlyTarget verifies that overwrite modes replace
+// an existing target even when CAS materialized it as a read-only file.
+func TestWriteToFileOverwritesReadOnlyTarget(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("read-only permission bits are not meaningfully observable on Windows")
+	}
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+
+	existingBody := "terraform {\n  required_version = \">= 1.0.0\"\n}\n"
+	generatedBody := "terraform {\n  required_version = \">= 1.3.0\"\n}\n"
+
+	testCases := []struct {
+		name             string
+		existingContents string
+		contents         string
+		commentPrefix    string
+		ifExists         codegen.GenerateConfigExists
+		existingPerms    os.FileMode
+		disableSignature bool
+	}{
+		{
+			name:             "overwrite-read-only-existing-file",
+			existingContents: existingBody,
+			contents:         generatedBody,
+			ifExists:         codegen.ExistsOverwrite,
+			existingPerms:    0444,
+			disableSignature: true,
+		},
+		{
+			name:             "overwrite-writable-existing-file",
+			existingContents: existingBody,
+			contents:         generatedBody,
+			ifExists:         codegen.ExistsOverwrite,
+			existingPerms:    0644,
+			disableSignature: true,
+		},
+		{
+			name:             "overwrite-terragrunt-read-only-generated-file",
+			existingContents: codegen.DefaultCommentPrefix + codegen.TerragruntGeneratedSignature + "\n" + existingBody,
+			contents:         generatedBody,
+			commentPrefix:    codegen.DefaultCommentPrefix,
+			ifExists:         codegen.ExistsOverwriteTerragrunt,
+			existingPerms:    0444,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(testDir, tc.name+".tf")
+			writeFileWithPerms(t, path, tc.existingContents, tc.existingPerms)
+
+			config := codegen.GenerateConfig{
+				Path:             path,
+				IfExists:         tc.ifExists,
+				CommentPrefix:    tc.commentPrefix,
+				DisableSignature: tc.disableSignature,
+				Contents:         tc.contents,
+			}
+
+			l := logger.CreateLogger()
+			require.NoError(t, codegen.WriteToFile(l, "", &config))
+
+			fileContent, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Contains(t, string(fileContent), tc.contents)
+			assert.NotContains(t, string(fileContent), ">= 1.0.0")
+
+			info, err := os.Stat(path)
+			require.NoError(t, err)
+			assert.NotZero(t, info.Mode().Perm()&0200, "regenerated file must be owner-writable")
+		})
+	}
+}
+
+// TestWriteToFileSkipAndErrorLeaveExistingFileIntact verifies that
+// non-overwrite modes never remove or modify a pre-existing target.
+func TestWriteToFileSkipAndErrorLeaveExistingFileIntact(t *testing.T) {
+	t.Parallel()
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+
+	existingBody := "terraform {\n  required_version = \">= 1.0.0\"\n}\n"
+
+	testCases := []struct {
+		name     string
+		ifExists codegen.GenerateConfigExists
+		wantErr  bool
+	}{
+		{
+			name:     "skip-leaves-existing-file",
+			ifExists: codegen.ExistsSkip,
+		},
+		{
+			name:     "error-leaves-existing-file",
+			ifExists: codegen.ExistsError,
+			wantErr:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(testDir, tc.name+".tf")
+			writeFileWithPerms(t, path, existingBody, 0444)
+
+			config := codegen.GenerateConfig{
+				Path:             path,
+				IfExists:         tc.ifExists,
+				DisableSignature: true,
+				Contents:         "terraform {}\n",
+			}
+
+			l := logger.CreateLogger()
+			writeErr := codegen.WriteToFile(l, "", &config)
+
+			if tc.wantErr {
+				var existsErr codegen.GenerateFileExistsError
+
+				require.ErrorAs(t, writeErr, &existsErr)
+			}
+
+			if !tc.wantErr {
+				require.NoError(t, writeErr)
+			}
+
+			fileContent, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Equal(t, existingBody, string(fileContent), "existing file must stay intact")
+		})
+	}
+}
+
+// TestWriteToFileOverwriteDoesNotMutateHardlinkedStore verifies that
+// overwriting a target hard-linked into the CAS store breaks the link instead
+// of mutating the shared blob.
+func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("read-only permission bits are not meaningfully observable on Windows")
+	}
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+
+	storePath := filepath.Join(testDir, "store-blob")
+	targetPath := filepath.Join(testDir, "versions.tf")
+	storeContents := "terraform {\n  required_version = \">= 1.0.0\"\n}\n"
+
+	writeFileWithPerms(t, storePath, storeContents, 0444)
+	require.NoError(t, os.Link(storePath, targetPath))
+
+	storeInfoBefore, err := os.Stat(storePath)
+	require.NoError(t, err)
+
+	config := codegen.GenerateConfig{
+		Path:             targetPath,
+		IfExists:         codegen.ExistsOverwrite,
+		DisableSignature: true,
+		Contents:         "terraform {\n  required_version = \">= 1.3.0\"\n}\n",
+	}
+
+	l := logger.CreateLogger()
+	require.NoError(t, codegen.WriteToFile(l, "", &config))
+
+	storeContentAfter, err := os.ReadFile(storePath)
+	require.NoError(t, err)
+	assert.Equal(t, storeContents, string(storeContentAfter), "store blob content must stay intact")
+
+	storeInfoAfter, err := os.Stat(storePath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0444), storeInfoAfter.Mode().Perm(), "store blob must stay read-only")
+
+	targetInfo, err := os.Stat(targetPath)
+	require.NoError(t, err)
+	assert.False(t, os.SameFile(storeInfoBefore, targetInfo),
+		"target must get a fresh inode instead of sharing the store blob")
+
+	targetContent, err := os.ReadFile(targetPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(targetContent), ">= 1.3.0")
+}
+
+// TestWriteToFileTargetIsDirectory verifies that a directory at the target
+// path still produces an error instead of being removed.
+func TestWriteToFileTargetIsDirectory(t *testing.T) {
+	t.Parallel()
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+
+	targetPath := filepath.Join(testDir, "versions.tf")
+	require.NoError(t, os.Mkdir(targetPath, 0755))
+
+	config := codegen.GenerateConfig{
+		Path:             targetPath,
+		IfExists:         codegen.ExistsOverwrite,
+		DisableSignature: true,
+		Contents:         "terraform {}\n",
+	}
+
+	l := logger.CreateLogger()
+	require.Error(t, codegen.WriteToFile(l, "", &config))
+	assert.DirExists(t, targetPath)
+}
+
+// TestWriteToFileDisabledRemovesReadOnlyFile verifies that the if_disabled
+// remove path handles a read-only target.
+func TestWriteToFileDisabledRemovesReadOnlyFile(t *testing.T) {
+	t.Parallel()
+
+	testDir := helpers.TmpDirWOSymlinks(t)
+
+	targetPath := filepath.Join(testDir, "versions.tf")
+	writeFileWithPerms(t, targetPath, "terraform {}\n", 0444)
+
+	config := codegen.GenerateConfig{
+		Path:       targetPath,
+		IfExists:   codegen.ExistsOverwrite,
+		Contents:   "terraform {}\n",
+		Disable:    true,
+		IfDisabled: codegen.DisabledRemove,
+	}
+
+	l := logger.CreateLogger()
+	require.NoError(t, codegen.WriteToFile(l, "", &config))
+	assert.True(t, util.FileNotExists(targetPath))
+}
+
+// writeFileWithPerms writes contents first and tightens permissions afterwards
+// so read-only fixtures still receive their contents.
+func writeFileWithPerms(t *testing.T, path, contents string, perms os.FileMode) {
+	t.Helper()
+
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0644))
+	require.NoError(t, os.Chmod(path, perms))
 }

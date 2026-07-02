@@ -8,7 +8,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -45,7 +44,7 @@ func EarlyStackParseFunctions(ctx context.Context, l log.Logger, baseDir string,
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, scoped, l, vexec.NewOSExec(), stackFilePath)
+	evalCtx, err := createTerragruntEvalContext(ctx, scoped, l, stackFilePath)
 	if err != nil {
 		return nil, err
 	}

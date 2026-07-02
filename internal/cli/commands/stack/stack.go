@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -78,16 +80,25 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	gen := generate.NewGenerator()
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
 		return gen.GenerateStacks(ctx, l, opts, wts)
 	})
+	if err != nil {
+		return err
+	}
+
+	// After generation, hint when a literal stack filter left nested stacks ungenerated.
+	funcsFor := configbridge.StackFuncFactory(ctx, l, opts)
+	tips.GiveStackNestedGenerateTip(l, vfs.NewOSFS(), funcsFor, opts.WorkingDir, opts.Filters, opts.Tips)
+
+	return nil
 }
 
-// Run execute stack command.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+// Run executes the stack command.
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
 	opts.StackAction = "run"
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_run", map[string]any{
@@ -100,7 +111,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	return runall.Run(ctx, l, opts)
+	return runall.Run(ctx, l, v, opts)
 }
 
 // RunOutput stack output.

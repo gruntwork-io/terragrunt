@@ -6,6 +6,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +44,7 @@ func TestDefaultClientCoversCanonicalProtocols(t *testing.T) {
 func TestWithFileCopyReplacesFileGetter(t *testing.T) {
 	t.Parallel()
 
-	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter()))
+	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
 
 	assert.True(t, hasGetter[*getter.FileCopyGetter](client.Getters), "FileCopyGetter must be registered")
 	assert.False(t, hasGetter[*getter.FileGetter](client.Getters), "stock FileGetter must be replaced")

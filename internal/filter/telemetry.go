@@ -54,7 +54,11 @@ const (
 
 // TraceGitWorktreeCreate wraps a git worktree create operation with telemetry.
 // The underlying Telemeter.Collect handles nil/unconfigured telemetry gracefully.
-func TraceGitWorktreeCreate(ctx context.Context, ref, worktreeDir, repoRemote, repoBranch, repoCommit string, fn func(ctx context.Context) error) error {
+func TraceGitWorktreeCreate(
+	ctx context.Context,
+	ref, worktreeDir, repoRemote, repoBranch, repoCommit string,
+	fn func(ctx context.Context) error,
+) error {
 	attrs := map[string]any{
 		AttrGitRef:         ref,
 		AttrGitWorktreeDir: worktreeDir,
@@ -83,7 +87,13 @@ func TraceGitWorktreeRemove(ctx context.Context, ref, worktreeDir string, fn fun
 }
 
 // TraceGitWorktreesCreate wraps multiple git worktree create operations with telemetry.
-func TraceGitWorktreesCreate(ctx context.Context, workingDir string, refCount int, repoRemote, repoBranch, repoCommit string, fn func(ctx context.Context) error) error {
+func TraceGitWorktreesCreate(
+	ctx context.Context,
+	workingDir string,
+	refCount int,
+	repoRemote, repoBranch, repoCommit string,
+	fn func(ctx context.Context) error,
+) error {
 	attrs := map[string]any{
 		AttrGitWorkingDir: workingDir,
 		AttrGitRefCount:   refCount,
@@ -104,7 +114,12 @@ func TraceGitWorktreesCreate(ctx context.Context, workingDir string, refCount in
 }
 
 // TraceGitWorktreesCleanup wraps git worktrees cleanup with telemetry.
-func TraceGitWorktreesCleanup(ctx context.Context, pairCount int, repoRemote string, fn func(ctx context.Context) error) error {
+func TraceGitWorktreesCleanup(
+	ctx context.Context,
+	pairCount int,
+	repoRemote string,
+	fn func(ctx context.Context) error,
+) error {
 	attrs := map[string]any{
 		AttrWorktreePairCount: pairCount,
 	}
@@ -144,7 +159,11 @@ func TraceGitWorktreeStackWalk(ctx context.Context, fromRef, toRef string, fn fu
 }
 
 // TraceGitWorktreeFilterApply wraps filter application to git worktrees with telemetry.
-func TraceGitWorktreeFilterApply(ctx context.Context, filterCount, resultCount int, fn func(ctx context.Context) error) error {
+func TraceGitWorktreeFilterApply(
+	ctx context.Context,
+	filterCount, resultCount int,
+	fn func(ctx context.Context) error,
+) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitWorktreeFilterApply, map[string]any{
 		AttrFilterCount: filterCount,
 		AttrResultCount: resultCount,
@@ -152,7 +171,11 @@ func TraceGitWorktreeFilterApply(ctx context.Context, filterCount, resultCount i
 }
 
 // TraceFilterEvaluate wraps filter evaluation with telemetry.
-func TraceFilterEvaluate(ctx context.Context, filterCount, componentCount int, fn func(ctx context.Context) error) error {
+func TraceFilterEvaluate(
+	ctx context.Context,
+	filterCount, componentCount int,
+	fn func(ctx context.Context) error,
+) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpFilterEvaluate, map[string]any{
 		AttrFilterCount:    filterCount,
 		AttrComponentCount: componentCount,
@@ -167,7 +190,12 @@ func TraceFilterParse(ctx context.Context, query string, fn func(ctx context.Con
 }
 
 // TraceGitFilterExpand wraps git filter expansion with telemetry.
-func TraceGitFilterExpand(ctx context.Context, fromRef, toRef string, addedCount, removedCount, changedCount int, fn func(ctx context.Context) error) error {
+func TraceGitFilterExpand(
+	ctx context.Context,
+	fromRef, toRef string,
+	addedCount, removedCount, changedCount int,
+	fn func(ctx context.Context) error,
+) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitFilterExpand, map[string]any{
 		AttrGitFromRef:     fromRef,
 		AttrGitToRef:       toRef,
@@ -178,7 +206,12 @@ func TraceGitFilterExpand(ctx context.Context, fromRef, toRef string, addedCount
 }
 
 // TraceGitFilterEvaluate wraps git filter evaluation with telemetry.
-func TraceGitFilterEvaluate(ctx context.Context, fromRef, toRef string, componentCount int, fn func(ctx context.Context) error) error {
+func TraceGitFilterEvaluate(
+	ctx context.Context,
+	fromRef, toRef string,
+	componentCount int,
+	fn func(ctx context.Context) error,
+) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitFilterEvaluate, map[string]any{
 		AttrGitFromRef:     fromRef,
 		AttrGitToRef:       toRef,
@@ -187,7 +220,12 @@ func TraceGitFilterEvaluate(ctx context.Context, fromRef, toRef string, componen
 }
 
 // TraceGraphFilterTraverse wraps graph filter traversal with telemetry.
-func TraceGraphFilterTraverse(ctx context.Context, filterType string, componentCount int, fn func(ctx context.Context) error) error {
+func TraceGraphFilterTraverse(
+	ctx context.Context,
+	filterType string,
+	componentCount int,
+	fn func(ctx context.Context) error,
+) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGraphFilterTraverse, map[string]any{
 		AttrFilterType:     filterType,
 		AttrComponentCount: componentCount,

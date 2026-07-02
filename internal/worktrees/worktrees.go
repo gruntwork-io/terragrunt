@@ -508,9 +508,11 @@ func NewWorktrees(
 	return worktrees, outerErr
 }
 
-// expandDiffPaths processes a list of changed paths from a worktree diff, creating path filter expressions
-// for discovered units and stacks. primaryExprs receives filters for config files (units/stacks),
-// while fallbackExprs receives filters for non-config files adjacent to units in the "to" worktree.
+// expandDiffPaths processes a list of added or removed paths from a worktree diff, creating filter
+// expressions for affected units and stacks. primaryExprs receives filters for config files (units/stacks)
+// and for non-config files read by other units via a glob (e.g. mark_glob_as_read), since those must be
+// matched against the same worktree the file exists in. fallbackExprs receives path filters for non-config
+// files adjacent to a unit in the "to" worktree.
 func expandDiffPaths(paths []string, toPath string, primaryExprs, fallbackExprs *filter.Expressions) error {
 	for _, path := range paths {
 		dir := filepath.Dir(path)
@@ -543,7 +545,20 @@ func expandDiffPaths(paths []string, toPath string, primaryExprs, fallbackExprs 
 				}
 
 				*fallbackExprs = append(*fallbackExprs, expr)
+
+				continue
 			}
+
+			// The file isn't adjacent to a unit, but a unit may still read it via a glob
+			// (e.g. mark_glob_as_read). Track it with a reading filter so units that read it are
+			// selected. primaryExprs targets the worktree the file exists in: the "to" worktree for
+			// added files, the "from" worktree for removed files (where the deleted file is still present).
+			expr, err := filter.NewAttributeExpression(filter.AttributeReading, path)
+			if err != nil {
+				return fmt.Errorf("failed to create reading filter for %s: %w", path, err)
+			}
+
+			*primaryExprs = append(*primaryExprs, expr)
 		}
 	}
 

@@ -1,17 +1,5 @@
 // Package git provides support for Git operations needed throughout the Terragrunt codebase.
-//
-// The package primarily uses the `git` binary installed on the host system, but experimentally supports
-// the `go-git` library for some operations. As of yet, the performance of the `go-git` library is not
-// as good as the `git` binary, so we don't use it by default. If we can optimize usage of the `go-git` library
-// so that the performance difference is negligible, we can choose to use it instead of the `git` binary for certain
-// operations.
-//
-// Even assuming the performance differences are negligible, we'll still prefer to use the `git` binary for certain
-// operations. For example, operations related to remotes are likely easier to support with the `git` binary, as
-// users might have git configurations for authentication that would be inconvenient to port over to configuration
-// of the `go-git` library. This might change in the future.
-//
-// We'll prefix usage of the `go-git` library with "Go" to make it clear when we're using it.
+// All operations are backed by the git binary installed on the host system.
 package git
 
 import (
@@ -26,8 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/storage/filesystem"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -45,8 +31,6 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	goRepo         *git.Repository
-	goStorage      *filesystem.Storage
 	exec           vexec.Exec
 	repoRootMu     *sync.Mutex
 	GitPath        string
@@ -86,7 +70,12 @@ func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 		return &GitRunner{WorkDir: workDir, exec: vexec.NewOSExec(), repoRootMu: &sync.Mutex{}}
 	}
 
+	// GetRepoRoot writes the memo fields under repoRootMu, so the copy must
+	// hold the same lock to avoid racing with a concurrent memoization.
+	g.repoRootMu.Lock()
 	newRunner := *g
+	g.repoRootMu.Unlock()
+
 	newRunner.WorkDir = workDir
 	// A different WorkDir may resolve to a different root, so reset the memo.
 	newRunner.repoRootMu = &sync.Mutex{}
@@ -103,19 +92,6 @@ func (g *GitRunner) RequiresWorkDir() error {
 			Op:      "git",
 			Context: "no working directory set",
 			Err:     ErrNoWorkDir,
-		}
-	}
-
-	return nil
-}
-
-// RequiresGoRepo returns an error if no go repository is set
-func (g *GitRunner) RequiresGoRepo() error {
-	if g.goRepo == nil {
-		return &WrappedError{
-			Op:      "git",
-			Context: "no go repository set",
-			Err:     ErrNoGoRepo,
 		}
 	}
 
@@ -884,6 +860,110 @@ func (g *GitRunner) runRepoRoot(ctx context.Context) (string, error) {
 	}
 
 	return strings.TrimSpace(stdout.String()), nil
+}
+
+// Add stages the given paths in the working directory.
+func (g *GitRunner) Add(ctx context.Context, paths ...string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, "add", paths...)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_add",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return nil
+}
+
+// Commit creates a commit with the given message. The working directory must
+// have a user.email and user.name configured (use [GitRunner.ConfigSet]).
+func (g *GitRunner) Commit(ctx context.Context, message string, flags ...string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	commitArgs := []string{"-m", message}
+	args := make([]string, 0, len(flags)+len(commitArgs))
+	args = append(args, flags...)
+	args = append(args, commitArgs...)
+
+	cmd := g.prepareCommand(ctx, "commit", args...)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_commit",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return nil
+}
+
+// Checkout checks out a branch. Pass create=true to create it first.
+func (g *GitRunner) Checkout(ctx context.Context, branch string, create bool) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	var args []string
+	if create {
+		args = append(args, "-b")
+	}
+
+	args = append(args, branch)
+	cmd := g.prepareCommand(ctx, "checkout", args...)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_checkout",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return nil
+}
+
+// ConfigSet writes a git configuration value in the working directory.
+func (g *GitRunner) ConfigSet(ctx context.Context, name, value string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, "config", name, value)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_config_set",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return nil
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) vexec.Cmd {

@@ -24,7 +24,7 @@ type Stack struct {
 	dependencies     Components
 	dependents       Components
 	Units            []*Unit
-	mu               sync.RWMutex
+	mu               sync.Mutex
 	external         bool
 }
 
@@ -47,11 +47,17 @@ func (s *Stack) WithDiscoveryContext(ctx *DiscoveryContext) *Stack {
 
 // Config returns the parsed Stack configuration for this stack.
 func (s *Stack) Config() *config.StackConfig {
+	s.lock()
+	defer s.unlock()
+
 	return s.cfg
 }
 
 // StoreConfig stores the parsed Stack configuration for this stack.
 func (s *Stack) StoreConfig(cfg *config.StackConfig) {
+	s.lock()
+	defer s.unlock()
+
 	s.cfg = cfg
 }
 
@@ -96,11 +102,17 @@ func (s *Stack) SetExternal() {
 
 // Reading returns the list of files being read by this component.
 func (s *Stack) Reading() []string {
+	s.lock()
+	defer s.unlock()
+
 	return s.reading
 }
 
 // SetReading sets the list of files being read by this component.
 func (s *Stack) SetReading(files ...string) {
+	s.lock()
+	defer s.unlock()
+
 	s.reading = files
 }
 
@@ -143,16 +155,6 @@ func (s *Stack) lock() {
 // unlock unlocks the Stack.
 func (s *Stack) unlock() {
 	s.mu.Unlock()
-}
-
-// rLock locks the Stack for reading.
-func (s *Stack) rLock() {
-	s.mu.RLock()
-}
-
-// rUnlock unlocks the Stack for reading.
-func (s *Stack) rUnlock() {
-	s.mu.RUnlock()
 }
 
 // AddDependency adds a dependency to the Stack and vice versa.
@@ -199,16 +201,16 @@ func (s *Stack) AddDependent(dependent Component) {
 
 // Dependencies returns the dependencies of the Stack.
 func (s *Stack) Dependencies() Components {
-	s.rLock()
-	defer s.rUnlock()
+	s.lock()
+	defer s.unlock()
 
 	return s.dependencies
 }
 
 // Dependents returns the dependents of the Stack.
 func (s *Stack) Dependents() Components {
-	s.rLock()
-	defer s.rUnlock()
+	s.lock()
+	defer s.unlock()
 
 	return s.dependents
 }

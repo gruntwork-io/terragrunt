@@ -1,0 +1,8 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### Limit IaC engine archive extraction
+
+Terragrunt now protects developer machines and CI runners from engine archives that expand into unexpectedly large amounts of data. If an IaC engine package is unusually large or contains too many files, Terragrunt stops processing it before it can consume excessive disk space.

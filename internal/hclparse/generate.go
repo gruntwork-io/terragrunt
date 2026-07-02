@@ -2,8 +2,10 @@ package hclparse
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 
@@ -110,6 +112,13 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	}
 
 	formatted := hclwrite.Format(out.Bytes())
+
+	// CAS may materialize the target as a read-only hard link, so remove it before writing
+	if info, statErr := fs.Stat(filePath); statErr == nil && info.Mode().IsRegular() {
+		if err := fs.Remove(filePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return FileWriteError{FilePath: filePath, Err: err}
+		}
+	}
 
 	if err := vfs.WriteFile(fs, filePath, formatted, autoIncludeFilePerm); err != nil {
 		return FileWriteError{FilePath: filePath, Err: err}

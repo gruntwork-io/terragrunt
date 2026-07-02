@@ -13,10 +13,18 @@ func TestTraceGitWorktreeCreate_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceGitWorktreeCreate(context.Background(), "main", "/tmp/worktree", "git@github.com:org/repo.git", "main", "abc123", func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceGitWorktreeCreate(
+		context.Background(),
+		"main",
+		"/tmp/worktree",
+		"git@github.com:org/repo.git",
+		"main",
+		"abc123",
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")
@@ -39,10 +47,18 @@ func TestTraceGitWorktreesCreate_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceGitWorktreesCreate(context.Background(), "/work", 2, "git@github.com:org/repo.git", "main", "abc123", func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceGitWorktreesCreate(
+		context.Background(),
+		"/work",
+		2,
+		"git@github.com:org/repo.git",
+		"main",
+		"abc123",
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")
@@ -52,10 +68,15 @@ func TestTraceGitWorktreesCleanup_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceGitWorktreesCleanup(context.Background(), 2, "git@github.com:org/repo.git", func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceGitWorktreesCleanup(
+		context.Background(),
+		2,
+		"git@github.com:org/repo.git",
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")
@@ -65,10 +86,16 @@ func TestTraceGitDiff_NoTelemeter(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	err := filter.TraceGitDiff(context.Background(), "main", "HEAD", "git@github.com:org/repo.git", func(ctx context.Context) error {
-		called = true
-		return nil
-	})
+	err := filter.TraceGitDiff(
+		context.Background(),
+		"main",
+		"HEAD",
+		"git@github.com:org/repo.git",
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
 
 	require.NoError(t, err)
 	assert.True(t, called, "callback should be called even without telemeter")

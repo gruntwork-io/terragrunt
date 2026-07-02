@@ -1,0 +1,8 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### `--filter-allow-destroy` with `...[]` dependent-traversal filters no longer fails
+
+`--filter-allow-destroy --filter '...[HEAD~1...HEAD]'` failed with "Too many command line arguments" or hung when the deleted unit had dependents. Terragrunt now correctly plans and destroys deleted units regardless of whether dependents are included in the run.

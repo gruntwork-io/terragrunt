@@ -45,7 +45,7 @@ const (
 func TestLocalDownload(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalDownloadPath)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -61,7 +61,7 @@ func TestLocalDownload(t *testing.T) {
 func TestLocalDownloadDisableCopyTerraformLockFile(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDisableCopyLockFilePath)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -77,7 +77,7 @@ func TestLocalDownloadDisableCopyTerraformLockFile(t *testing.T) {
 func TestLocalIncludeDisableCopyTerraformLockFile(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureIncludeDisableCopyLockFilePath)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -93,7 +93,7 @@ func TestLocalIncludeDisableCopyTerraformLockFile(t *testing.T) {
 func TestLocalDownloadWithHiddenFolder(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalWithHiddenFolder)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -135,7 +135,7 @@ func TestLocalDownloadWithAllowedHiddenFiles(t *testing.T) {
 func TestLocalDownloadWithRelativePath(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalRelativeDownloadPath)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -151,7 +151,7 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-lock-table-" + strings.ToLower(helpers.UniqueID())
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalMissingBackend)
 
 	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
@@ -167,8 +167,8 @@ func TestLocalWithMissingBackend(t *testing.T) {
 func TestRemoteDownload(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureRemoteDownloadPath)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(testFixtureRemoteDownloadPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRemoteDownloadPath)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -217,8 +217,8 @@ func TestInvalidRemoteDownloadWithRetries(t *testing.T) {
 func TestRemoteDownloadWithRelativePath(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureRemoteRelativeDownloadPath)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(testFixtureRemoteRelativeDownloadPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRemoteRelativeDownloadPath)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -231,8 +231,8 @@ func TestRemoteDownloadWithRelativePath(t *testing.T) {
 func TestRemoteDownloadWithRelativePathAndSlashInBranch(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, testFixtureRemoteRelativeDownloadPathWithSlash)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(testFixtureRemoteRelativeDownloadPathWithSlash)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRemoteRelativeDownloadPathWithSlash)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -245,8 +245,8 @@ func TestRemoteDownloadWithRelativePathAndSlashInBranch(t *testing.T) {
 func TestRemoteDownloadOverride(t *testing.T) {
 	t.Parallel()
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, "fixtures/download")
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture("fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOverrideDownloadPath)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -331,7 +331,7 @@ func TestExcludeDirs(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
+		tmpDir := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 		workingDir := filepath.Join(tmpDir, testFixtureLocalWithExcludeDir)
 		workingDir, err := filepath.EvalSymlinks(workingDir)
 		require.NoError(t, err)
@@ -419,7 +419,7 @@ func TestExcludeDirsWithFilter(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
+		tmpDir := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 		workingDir := filepath.Join(tmpDir, testFixtureLocalWithExcludeDir)
 		workingDir, err := filepath.EvalSymlinks(workingDir)
 		require.NoError(t, err)
@@ -505,7 +505,7 @@ func TestIncludeDirs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
+			tmpDir := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 			workingDir := filepath.Join(tmpDir, testFixtureLocalWithIncludeDir)
 			workingDir, err := filepath.EvalSymlinks(workingDir)
 			require.NoError(t, err)
@@ -570,7 +570,7 @@ func TestIncludeDirsWithFilter(t *testing.T) {
 	t.Parallel()
 
 	// Copy the entire download fixture directory to ensure all referenced sources are available
-	tmpDir := helpers.CopyEnvironment(t, "fixtures/download")
+	tmpDir := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	workingDir := filepath.Join(tmpDir, testFixtureLocalWithIncludeDir)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
@@ -823,7 +823,7 @@ func TestTerragruntExternalDependenciesWithFilter(t *testing.T) {
 func TestPreventDestroy(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	fixtureRoot := filepath.Join(tmpEnvPath, testFixtureLocalPreventDestroy)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+fixtureRoot)
@@ -839,7 +839,7 @@ func TestPreventDestroy(t *testing.T) {
 func TestPreventDestroyApply(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 
 	fixtureRoot := filepath.Join(tmpEnvPath, testFixtureLocalPreventDestroy)
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+fixtureRoot)
@@ -855,7 +855,7 @@ func TestPreventDestroyApply(t *testing.T) {
 func TestPreventDestroyDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalPreventDestroyDependencies)
 
 	// Populate module paths.
@@ -942,18 +942,18 @@ func TestDownloadWithCASEnabled(t *testing.T) {
 
 	fixturePath := "fixtures/download/remote"
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, fixturePath)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(fixturePath)
 	testPath := filepath.Join(tmpEnvPath, fixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 
-	// Run with CAS experiment enabled
+	// CAS is enabled by default.
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
 
-	cmd := "terragrunt apply --auto-approve --non-interactive --experiment cas --log-level debug --working-dir " + testPath
+	cmd := "terragrunt apply --auto-approve --non-interactive --log-level debug --working-dir " + testPath
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 	require.NoError(t, err)
 
@@ -965,12 +965,12 @@ func TestDownloadWithCASCommitRef(t *testing.T) {
 
 	fixturePath := "fixtures/download/remote-commit-ref"
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, fixturePath)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(fixturePath)
 	testPath := filepath.Join(tmpEnvPath, fixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 
-	applyCmd := "terragrunt apply --auto-approve --non-interactive --experiment cas --working-dir " + testPath
+	applyCmd := "terragrunt apply --auto-approve --non-interactive --working-dir " + testPath
 	require.NoError(t, helpers.RunTerragruntCommand(t, applyCmd, io.Discard, io.Discard))
 
 	var (
@@ -978,7 +978,7 @@ func TestDownloadWithCASCommitRef(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	outputCmd := "terragrunt output -raw test --non-interactive --experiment cas --working-dir " + testPath
+	outputCmd := "terragrunt output -raw test --non-interactive --working-dir " + testPath
 	require.NoError(t, helpers.RunTerragruntCommand(t, outputCmd, &stdout, &stderr))
 
 	assert.Equal(t, "Hello, World", stdout.String())
@@ -994,8 +994,8 @@ func TestDownloadWithCASMutable(t *testing.T) {
 
 	fixturePath := "fixtures/download/remote-mutable"
 
-	mirror := helpers.StartTerragruntMirror(t)
-	tmpEnvPath := mirror.RenderFixture(t, fixturePath)
+	mirror := helpers.NewGitServer(t)
+	tmpEnvPath := mirror.RenderFixture(fixturePath)
 	testPath := filepath.Join(tmpEnvPath, fixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 
@@ -1004,7 +1004,7 @@ func TestDownloadWithCASMutable(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	cmd := "terragrunt apply --auto-approve --non-interactive --experiment cas --log-level debug --working-dir " + testPath
+	cmd := "terragrunt apply --auto-approve --non-interactive --log-level debug --working-dir " + testPath
 	require.NoError(t, helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr))
 
 	cacheDir := filepath.Join(testPath, ".terragrunt-cache")

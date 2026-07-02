@@ -7,8 +7,6 @@ jobs:
   test:
     name: Test (${{ matrix.integration.name }})
     runs-on: ${{ matrix.integration.os }}-latest
-    env:
-      MISE_PROFILE: cicd
     strategy:
       fail-fast: false
       matrix:
@@ -41,6 +39,8 @@ jobs:
             tags: tflint
             run: "^TestTflint"
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            setup_scripts:
+              - .github/scripts/setup/tflint.sh
           - name: GCP
             os: ubuntu
             target: ./...
@@ -135,6 +135,11 @@ jobs:
             target: ./...
             setup_scripts:
               - .github/scripts/setup/experiment-mode.sh
+          - name: OpenTofu Unit Tests
+            os: ubuntu
+            target: ./internal/...
+            tags: tofu
+            run: "^TestTofu"
           - name: Exec
             os: ubuntu
             target: ./internal/vexec/...
@@ -145,7 +150,7 @@ jobs:
             tags: exec
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           fetch-depth: 1
 
@@ -212,7 +217,7 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ${{ steps.go-cache-paths.outputs.go-build }}
@@ -223,7 +228,7 @@ jobs:
 
       - name: Terragrunt Provider Cache
         if: runner.os == 'Linux'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cache/terragrunt
           key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
@@ -267,7 +272,7 @@ jobs:
             result.xml
 
       - name: Display Test Results (${{ matrix.integration.name }})
-        uses: mikepenz/action-junit-report@3a81627bfac62268172037048872e8ebd4207e6d # v6
+        uses: mikepenz/action-junit-report@d9f48fc87bc235f7e214acf696ca5abc0a986f16 # v6
         if: always()
         with:
           report_paths: result.xml

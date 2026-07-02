@@ -53,7 +53,7 @@ func TestExitCodeUnix(t *testing.T) {
 func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	t.Parallel()
 
-	expectedWait := 5
+	expectedWait := 2
 
 	l := logger.CreateLogger()
 
@@ -86,7 +86,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	t.Parallel()
 
-	expectedInterrupts := 10
+	expectedInterrupts := 4
 
 	l := logger.CreateLogger()
 

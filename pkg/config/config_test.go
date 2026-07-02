@@ -1503,10 +1503,6 @@ func TestModuleDependenciesMerge(t *testing.T) {
 	}
 }
 
-func ptr(str string) *string {
-	return &str
-}
-
 // Run a benchmark on ReadTerragruntConfig for all fixtures possible.
 // This should reveal regressions on execution time due to new, changed or removed features.
 func BenchmarkReadTerragruntConfig(b *testing.B) {
@@ -1548,6 +1544,7 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 	}
 }
 
+// TestBestEffortParseConfigString verifies that best-effort parsing returns a partial config when recoverable errors occur.
 func TestBestEffortParseConfigString(t *testing.T) {
 	t.Parallel()
 
@@ -1625,6 +1622,57 @@ func TestBestEffortParseConfigString(t *testing.T) {
 	}
 }
 
+// TestParseConfigGenerateBlockWithHclFmt verifies that hcl_fmt is parsed from generate blocks.
+func TestParseConfigGenerateBlockWithHclFmt(t *testing.T) {
+	t.Parallel()
+
+	cfg := `generate "test" {
+  path = "test.tf"
+  if_exists = "overwrite"
+  contents = "test = 1"
+  hcl_fmt = false
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+	require.NotNil(t, terragruntConfig)
+
+	generateConfig, ok := terragruntConfig.GenerateConfigs["test"]
+	require.True(t, ok)
+	require.NotNil(t, generateConfig.HclFmt)
+	assert.False(t, *generateConfig.HclFmt)
+}
+
+// TestParseConfigGenerateAttrWithHclFmt verifies that hcl_fmt is parsed from generate attribute maps.
+func TestParseConfigGenerateAttrWithHclFmt(t *testing.T) {
+	t.Parallel()
+
+	cfg := `generate = {
+  test = {
+    path = "test.tf"
+    if_exists = "overwrite"
+    contents = "test = 1"
+    hcl_fmt = false
+  }
+}`
+
+	l := createLogger()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+	require.NotNil(t, terragruntConfig)
+
+	generateConfig, ok := terragruntConfig.GenerateConfigs["test"]
+	require.True(t, ok)
+	require.NotNil(t, generateConfig.HclFmt)
+	assert.False(t, *generateConfig.HclFmt)
+}
+
+// TestParseConfigWithMissingIfExists verifies that generate blocks require the if_exists attribute.
 func TestParseConfigWithMissingIfExists(t *testing.T) {
 	t.Parallel()
 
@@ -1709,6 +1757,7 @@ dependency "dep" {
 	}, terragruntConfig)
 }
 
+// TestWriteTo verifies that a parsed Terragrunt config can be written and parsed again without losing supported fields.
 func TestWriteTo(t *testing.T) {
 	t.Parallel()
 
@@ -1844,6 +1893,7 @@ EOF
 	comment_prefix = "//"
 	disable_signature = true
 	disable = false
+	hcl_fmt = false
 }
 
 feature "test_feature" {
@@ -1955,6 +2005,7 @@ inputs = {
 	assert.Equal(t, terragruntConfig.Inputs, rereadConfig.Inputs)
 }
 
+// TestWriteToExcludeNoRun verifies that the exclude no-run setting is preserved when writing config.
 func TestWriteToExcludeNoRun(t *testing.T) {
 	t.Parallel()
 
@@ -1979,6 +2030,7 @@ exclude {
 	assert.Contains(t, buf.String(), "no_run")
 }
 
+// TestWriteToCatalogFields verifies that catalog fields are written to config output.
 func TestWriteToCatalogFields(t *testing.T) {
 	t.Parallel()
 

@@ -152,3 +152,110 @@ func FuzzResolveStackFilePath(f *testing.F) {
 		require.Equal(t, DefaultStackFile, filepath.Base(got), "resolveStackFilePath must return a path whose base is %s when ok=true (raw=%q target=%q got=%q)", DefaultStackFile, raw, target, got)
 	})
 }
+
+func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
+	t.Parallel()
+
+	envVars := func(m map[string]string) *map[string]string { return &m }
+
+	tcs := []struct {
+		initial   map[string]string
+		terraform *TerraformConfig
+		want      map[string]string
+		name      string
+	}{
+		{
+			name:    "applies env vars when commands include output",
+			initial: map[string]string{},
+			terraform: &TerraformConfig{
+				ExtraArgs: []TerraformExtraArguments{
+					{Name: "secrets", Commands: []string{"output", "plan"}, EnvVars: envVars(map[string]string{"TF_VAR_passphrase": "secret"})},
+				},
+			},
+			want: map[string]string{"TF_VAR_passphrase": "secret"},
+		},
+		{
+			name:    "skips env vars when commands exclude output",
+			initial: map[string]string{},
+			terraform: &TerraformConfig{
+				ExtraArgs: []TerraformExtraArguments{
+					{Name: "secrets", Commands: []string{"apply", "plan"}, EnvVars: envVars(map[string]string{"TF_VAR_passphrase": "secret"})},
+				},
+			},
+			want: map[string]string{},
+		},
+		{
+			name:    "skips env vars when commands list is empty",
+			initial: map[string]string{},
+			terraform: &TerraformConfig{
+				ExtraArgs: []TerraformExtraArguments{
+					{Name: "secrets", Commands: nil, EnvVars: envVars(map[string]string{"TF_VAR_passphrase": "secret"})},
+				},
+			},
+			want: map[string]string{},
+		},
+		{
+			name:      "nil terraform config is a no-op",
+			initial:   map[string]string{"EXISTING": "value"},
+			terraform: nil,
+			want:      map[string]string{"EXISTING": "value"},
+		},
+		{
+			name:      "terraform config without extra args is a no-op",
+			initial:   map[string]string{"EXISTING": "value"},
+			terraform: &TerraformConfig{},
+			want:      map[string]string{"EXISTING": "value"},
+		},
+		{
+			name:    "nil env vars is a no-op",
+			initial: map[string]string{},
+			terraform: &TerraformConfig{
+				ExtraArgs: []TerraformExtraArguments{
+					{Name: "secrets", Commands: []string{"output"}, EnvVars: nil},
+				},
+			},
+			want: map[string]string{},
+		},
+		{
+			name:    "nil env map is initialized before applying",
+			initial: nil,
+			terraform: &TerraformConfig{
+				ExtraArgs: []TerraformExtraArguments{
+					{Name: "secrets", Commands: []string{"output"}, EnvVars: envVars(map[string]string{"KEY": "value"})},
+				},
+			},
+			want: map[string]string{"KEY": "value"},
+		},
+		{
+			name:    "later block wins on overlapping keys",
+			initial: map[string]string{},
+			terraform: &TerraformConfig{
+				ExtraArgs: []TerraformExtraArguments{
+					{Name: "first", Commands: []string{"output"}, EnvVars: envVars(map[string]string{"KEY": "first"})},
+					{Name: "second", Commands: []string{"output"}, EnvVars: envVars(map[string]string{"KEY": "second"})},
+				},
+			},
+			want: map[string]string{"KEY": "second"},
+		},
+		{
+			name:    "extra args env vars override existing env",
+			initial: map[string]string{"TF_VAR_passphrase": "old"},
+			terraform: &TerraformConfig{
+				ExtraArgs: []TerraformExtraArguments{
+					{Name: "secrets", Commands: []string{"output"}, EnvVars: envVars(map[string]string{"TF_VAR_passphrase": "new"})},
+				},
+			},
+			want: map[string]string{"TF_VAR_passphrase": "new"},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			pctx := &ParsingContext{Env: tc.initial}
+			applyExtraArgsEnvVarsForOutput(pctx, tc.terraform)
+			assert.Equal(t, tc.want, pctx.Env)
+		})
+	}
+}

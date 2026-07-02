@@ -79,7 +79,7 @@ func TestAwsNegativePublicAccessResponse(t *testing.T) {
 	}
 }
 
-func TestCreateAwsConfigWithAuthProviderEnv(t *testing.T) {
+func TestAwsConfigWithAuthProviderEnv(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -101,7 +101,7 @@ func TestCreateAwsConfigWithAuthProviderEnv(t *testing.T) {
 	assert.NotNil(t, cfg.Credentials)
 }
 
-func TestCreateAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
+func TestAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()

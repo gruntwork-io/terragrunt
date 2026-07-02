@@ -13,6 +13,22 @@ const (
 	minTreePartsLength = 4
 )
 
+// Tree entry types as printed by `git ls-tree` and carried in
+// [TreeEntry.Type].
+const (
+	// EntryTypeBlob marks a file (or symlink) entry.
+	EntryTypeBlob = "blob"
+	// EntryTypeTree marks a directory entry.
+	EntryTypeTree = "tree"
+	// EntryTypeCommit marks a gitlink entry: a submodule pinned to the
+	// named commit, whose objects live in another repository.
+	EntryTypeCommit = "commit"
+)
+
+// GitmodulesPath is the repository-root path of the file registering
+// submodule paths and URLs.
+const GitmodulesPath = ".gitmodules"
+
 // Tree represents a git tree object with its entries
 type Tree struct {
 	entries []TreeEntry

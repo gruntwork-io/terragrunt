@@ -7,10 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
 
@@ -39,6 +37,7 @@ const (
 	EngineBlock
 	ExcludeBlock
 	ErrorsBlock
+	TerraformExtraArgs
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
@@ -82,6 +81,19 @@ type terragruntTerraformSource struct {
 type terraformConfigSourceOnly struct {
 	Source *string  `hcl:"source,attr"`
 	Remain hcl.Body `hcl:",remain"`
+}
+
+// terragruntTerraformExtraArgs decodes only the terraform source and extra_arguments blocks.
+type terragruntTerraformExtraArgs struct {
+	Terraform *terraformConfigExtraArgs `hcl:"terraform,block"`
+	Remain    hcl.Body                  `hcl:",remain"`
+}
+
+// terraformConfigExtraArgs decodes source and extra_arguments only, leaving hooks unevaluated in Remain.
+type terraformConfigExtraArgs struct {
+	Remain    hcl.Body                  `hcl:",remain"`
+	Source    *string                   `hcl:"source,attr"`
+	ExtraArgs []TerraformExtraArguments `hcl:"extra_arguments,block"`
 }
 
 // terragruntFlags is a struct that can be used to only decode the flag attributes (prevent_destroy)
@@ -128,7 +140,7 @@ type terragruntEngine struct {
 func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*DecodedBaseBlocks, error) {
 	var errs []error
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -504,13 +516,13 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	output.IsPartial = true
 
 	// Provide a dependency placeholder so remote_state can reference dependency outputs during partial decode.
-	if pctx.DecodedDependencies == nil && pctx.SkipOutputsResolution && pctx.Experiments.Evaluate(experiment.StackDependencies) {
+	if pctx.DecodedDependencies == nil && pctx.SkipOutputsResolution {
 		pctx = pctx.Clone()
 		dynamicVal := cty.DynamicVal
 		pctx.DecodedDependencies = &dynamicVal
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, vexec.NewOSExec(), file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -556,6 +568,21 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 			if decoded.Terraform != nil {
 				output.Terraform = &TerraformConfig{Source: decoded.Terraform.Source}
+			}
+
+		case TerraformExtraArgs:
+			decoded := terragruntTerraformExtraArgs{}
+
+			err := file.Decode(&decoded, evalParsingContext)
+			if err != nil {
+				return nil, err
+			}
+
+			if decoded.Terraform != nil {
+				output.Terraform = &TerraformConfig{
+					Source:    decoded.Terraform.Source,
+					ExtraArgs: decoded.Terraform.ExtraArgs,
+				}
 			}
 
 		case DependencyBlock:
@@ -694,6 +721,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 	}
 
+	if output.Terraform != nil && output.Terraform.Source != nil {
+		markLocalModuleSourceAsRead(pctx, file.ConfigPath, *output.Terraform.Source)
+	}
+
 	// If this file includes another, parse and merge the partial blocks. Otherwise, just return this config.
 	// If there have been errors during this parse, don't attempt to parse the included config.
 	// TrackInclude is nil when DecodeBaseBlocks returned (nil, err), e.g. an invalid feature
@@ -710,10 +741,6 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			config.ProcessedIncludes = pctx.TrackInclude.CurrentMap
 			output = config
 		}
-	}
-
-	if pctx.Experiments.Evaluate(experiment.MarkManyAsRead) && output.Terraform != nil && output.Terraform.Source != nil {
-		markLocalModuleSourceAsRead(pctx, file.ConfigPath, *output.Terraform.Source)
 	}
 
 	if joined := errors.Join(errs...); joined != nil {

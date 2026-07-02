@@ -180,6 +180,7 @@ func createRunner(
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
+	exec vexec.Exec,
 	opts *options.TerragruntOptions,
 	units []*component.Unit,
 ) error {
@@ -199,6 +200,7 @@ func checkVersionConstraints(
 			return checkUnitVersionConstraints(
 				checkCtx,
 				l,
+				exec,
 				unitOpts,
 				unitLogger,
 				unit,
@@ -214,6 +216,7 @@ func checkVersionConstraints(
 func checkUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
+	exec vexec.Exec,
 	unitOpts *options.TerragruntOptions,
 	unitLogger log.Logger,
 	unit *component.Unit,
@@ -247,7 +250,7 @@ func checkUnitVersionConstraints(
 		l = unitLogger
 	}
 
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, vexec.NewOSExec(), run.PopulateTFVersionInput{
+	_, ver, impl, err := run.PopulateTFVersion(ctx, l, exec, run.PopulateTFVersionInput{
 		TFOpts:       configbridge.TFRunOptsFromOpts(unitOpts),
 		WorkingDir:   unitOpts.WorkingDir,
 		VersionFiles: unitOpts.VersionManagerFileName,

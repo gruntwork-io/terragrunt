@@ -122,31 +122,35 @@ func TestS3Resolver_HeadFailureSurfacesErrNoVersionMetadata(t *testing.T) {
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
-// TestS3Resolver_RejectsModernURLForms pins the upstream
-// go-getter/s3/v2 limitation: modern virtual-host URLs
-// (`<bucket>.s3.<region>.amazonaws.com`) and modern path-style URLs
-// (`s3.<region>.amazonaws.com`) are rejected by the bare getter's
-// parseUrl. The resolver tracks the bare getter's behavior so probe
-// success aligns with fetch success. The fake fails the test if
-// HeadObject is reached, since rejection has to happen at parse time
-// rather than silently downgrade through a doomed HeadObject call.
-func TestS3Resolver_RejectsModernURLForms(t *testing.T) {
+// TestS3Resolver_AcceptsModernURLForms pins probe support for the URL
+// forms AWS documents today: virtual-hosted style
+// (`<bucket>.s3.<region>.amazonaws.com`) and modern path style
+// (`s3.<region>.amazonaws.com`). Region, bucket, and key are all
+// encoded in the hostname and path, so the probe's HeadObject must
+// target exactly the object the fetcher downloads.
+func TestS3Resolver_AcceptsModernURLForms(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		wantErr error
-		name    string
-		url     string
+		name       string
+		url        string
+		wantRegion string
+		wantBucket string
+		wantKey    string
 	}{
 		{
-			wantErr: getter.ErrS3UnrecognizedURL,
-			name:    "modern virtual-host style with 5 host parts",
-			url:     "https://bucket.s3.us-west-2.amazonaws.com/modules/example.tar.gz",
+			name:       "modern virtual-host style with 5 host parts",
+			url:        "https://bucket.s3.us-west-2.amazonaws.com/modules/example.tar.gz",
+			wantRegion: "us-west-2",
+			wantBucket: "bucket",
+			wantKey:    "modules/example.tar.gz",
 		},
 		{
-			wantErr: getter.ErrS3ModernPathStyleUnsupported,
-			name:    "modern path-style with 4 host parts",
-			url:     "https://s3.us-west-2.amazonaws.com/bucket/modules/example.tar.gz",
+			name:       "modern path-style with 4 host parts",
+			url:        "https://s3.us-west-2.amazonaws.com/bucket/modules/example.tar.gz",
+			wantRegion: "us-west-2",
+			wantBucket: "bucket",
+			wantKey:    "modules/example.tar.gz",
 		},
 	}
 
@@ -154,13 +158,26 @@ func TestS3Resolver_RejectsModernURLForms(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			r := newS3ResolverWith(&assertingS3Head{t: t})
+			head := &fakeS3Head{out: &s3.HeadObjectOutput{
+				ChecksumSHA256: aws.String("sha256-token"),
+			}}
 
-			_, err := r.Probe(t.Context(), tt.url)
-			require.ErrorIs(t, err, tt.wantErr,
-				"parseS3URL must reject %s; upstream go-getter/s3/v2 also rejects it", tt.url)
-			require.NotErrorIs(t, err, cas.ErrNoVersionMetadata,
-				"rejection must come from parseS3URL, not from an empty HeadObject result")
+			var gotRegion string
+
+			r := getter.NewS3Resolver()
+			r.NewClient = func(_ context.Context, region string) (getter.S3API, error) {
+				gotRegion = region
+				return head, nil
+			}
+
+			got, err := r.Probe(t.Context(), tt.url)
+			require.NoError(t, err, "parseS3URL must accept %s", tt.url)
+			assert.Equal(t, cas.ContentKey("sha256", "sha256-token"), got)
+
+			assert.Equal(t, tt.wantRegion, gotRegion, "region must come from the hostname")
+			require.NotNil(t, head.gotInput)
+			assert.Equal(t, tt.wantBucket, aws.ToString(head.gotInput.Bucket))
+			assert.Equal(t, tt.wantKey, aws.ToString(head.gotInput.Key))
 		})
 	}
 }
@@ -171,7 +188,11 @@ type fakeS3Head struct {
 	gotInput *s3.HeadObjectInput
 }
 
-func (f *fakeS3Head) HeadObject(_ context.Context, in *s3.HeadObjectInput, _ ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+func (f *fakeS3Head) HeadObject(
+	_ context.Context,
+	in *s3.HeadObjectInput,
+	_ ...func(*s3.Options),
+) (*s3.HeadObjectOutput, error) {
 	f.gotInput = in
 
 	if f.err != nil {
@@ -253,7 +274,11 @@ type assertingS3Head struct {
 	t *testing.T
 }
 
-func (f *assertingS3Head) HeadObject(_ context.Context, _ *s3.HeadObjectInput, _ ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+func (f *assertingS3Head) HeadObject(
+	_ context.Context,
+	_ *s3.HeadObjectInput,
+	_ ...func(*s3.Options),
+) (*s3.HeadObjectOutput, error) {
 	f.t.Fatalf("HeadObject must not be reached for an unsupported S3 URL form")
 	return nil, nil
 }

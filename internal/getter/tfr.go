@@ -50,16 +50,17 @@ type RegistryGetter struct {
 
 // NewRegistryGetter returns a [RegistryGetter] configured with sensible
 // defaults: a [github.com/hashicorp/go-cleanhttp.DefaultClient] for
-// registry-protocol requests, the supplied logger for diagnostic output, and
-// [tfimpl.OpenTofu] as the default implementation. A logger is required
-// because this package does not consistently guard against a nil logger, so
-// requiring one at construction time prevents nil-pointer panics at call time.
-// Use the With* methods to customize other behavior.
-func NewRegistryGetter(l log.Logger) *RegistryGetter {
+// registry-protocol requests, the supplied logger for diagnostic output,
+// the supplied filesystem for archive expansion, and [tfimpl.OpenTofu]
+// as the default implementation. A logger is required because this package
+// does not consistently guard against a nil logger, so requiring one at
+// construction time prevents nil-pointer panics at call time. Use the
+// With* methods to customize other behavior.
+func NewRegistryGetter(l log.Logger, fs vfs.FS) *RegistryGetter {
 	return &RegistryGetter{
 		HTTPClient:         cleanhttp.DefaultClient(),
 		Logger:             l,
-		FS:                 vfs.NewOSFS(),
+		FS:                 fs,
 		TofuImplementation: tfimpl.OpenTofu,
 	}
 }
@@ -248,7 +249,11 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 // resolveVersion determines the module version to download. If a version is
 // specified in the URL query it is validated and returned as-is. Otherwise the
 // latest stable version is resolved from the registry's list-versions endpoint.
-func (r *RegistryGetter) resolveVersion(ctx context.Context, queryValues url.Values, registryDomain, moduleRegistryBasePath, modulePath string) (string, error) {
+func (r *RegistryGetter) resolveVersion(
+	ctx context.Context,
+	queryValues url.Values,
+	registryDomain, moduleRegistryBasePath, modulePath string,
+) (string, error) {
 	versionList, hasVersion := queryValues[versionQueryKey]
 
 	if hasVersion && len(versionList) != 1 {
@@ -263,7 +268,14 @@ func (r *RegistryGetter) resolveVersion(ctx context.Context, queryValues url.Val
 		return versionList[0], nil
 	}
 
-	latestVersion, err := GetLatestModuleVersion(ctx, r.Logger, r.HTTPClient, registryDomain, moduleRegistryBasePath, modulePath)
+	latestVersion, err := GetLatestModuleVersion(
+		ctx,
+		r.Logger,
+		r.HTTPClient,
+		registryDomain,
+		moduleRegistryBasePath,
+		modulePath,
+	)
 	if err != nil {
 		return "", err
 	}

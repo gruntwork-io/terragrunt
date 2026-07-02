@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -44,11 +45,14 @@ var runAllDisabledCommands = map[string]string{
 		" and thus should not be run with run --all.",
 }
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (err error) {
+// Run executes the configured terraform command across every unit in the
+// stack. v is the virtualized environment threaded through the runner pool
+// into each unit's run pipeline.
+func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) (err error) {
 	// --filter sets RunAll, so the CLI layer dispatches here without going
 	// through the single-unit run path. Emit the tip here as well; the
 	// underlying sync.Once dedupes if both paths fire.
-	tips.GiveStackTargetTip(l, vfs.NewOSFS(), opts.WorkingDir, opts.Filters, opts.Tips)
+	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	if opts.TerraformCommand == "" {
 		return MissingCommand{}
@@ -79,11 +83,19 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (er
 	}
 
 	if opts.ReportSchemaFile != "" {
-		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSchemaToFile(v.FS, opts.ReportSchemaFile); err != nil {
+				l.Warnf("Failed to write report schema to %s: %v", opts.ReportSchemaFile, err)
+			}
+		}()
 	}
 
 	if opts.ReportFile != "" {
-		defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteToFile(v.FS, opts.ReportFile); err != nil {
+				l.Warnf("Failed to write report to %s: %v", opts.ReportFile, err)
+			}
+		}()
 	}
 
 	// Skip summary for programmatic interactions:
@@ -158,6 +170,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (er
 		if err != nil {
 			return fmt.Errorf("failed to generate stack file: %w", err)
 		}
+
+		// After generation, hint when a literal stack filter left nested stacks ungenerated.
+		funcsFor := configbridge.StackFuncFactory(ctx, l, opts)
+		tips.GiveStackNestedGenerateTip(l, v.FS, funcsFor, opts.WorkingDir, opts.Filters, opts.Tips)
 	} else {
 		l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
 	}
@@ -167,17 +183,19 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (er
 		runnerOpts = append(runnerOpts, common.WithWorktrees(wts))
 	}
 
-	rnr, err := runner.NewStackRunner(ctx, l, opts, runnerOpts...)
+	rnr, err := runner.NewStackRunner(ctx, l, v, opts, runnerOpts...)
 	if err != nil {
 		return err
 	}
 
-	return RunAllOnStack(ctx, l, opts, rnr, r)
+	return RunAllOnStack(ctx, l, v, opts, rnr, r)
 }
 
+// RunAllOnStack drives the supplied [common.StackRunner] to completion.
 func RunAllOnStack(
 	ctx context.Context,
 	l log.Logger,
+	v run.Venv,
 	opts *options.TerragruntOptions,
 	rnr common.StackRunner,
 	r *report.Report,
@@ -185,7 +203,7 @@ func RunAllOnStack(
 	l.Debugf("%s", rnr.GetStack().String())
 
 	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
-	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.Writers.LogShowAbsPaths, opts.Experiments); err != nil {
+	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.LogShowAbsPaths, opts.Experiments); err != nil {
 		return err
 	}
 
@@ -224,7 +242,7 @@ func RunAllOnStack(
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		err := rnr.Run(ctx, l, opts, r)
+		err := rnr.Run(ctx, l, v, opts, r)
 		if err != nil {
 			// At this stage, we can't handle the error any further, so we just log it and return nil.
 			// After this point, we'll need to report on what happened, and we want that to happen

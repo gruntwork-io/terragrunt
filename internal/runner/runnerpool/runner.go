@@ -19,11 +19,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
@@ -59,7 +61,7 @@ func CloneUnitOptions(
 
 	// Override logger prefix with display path (relative to discovery context) for cleaner logs
 	// unless --log-show-abs-paths is set
-	if !stackOpts.Writers.LogShowAbsPaths {
+	if !stackOpts.LogShowAbsPaths {
 		clonedLogger = clonedLogger.WithField(placeholders.WorkDirKeyName, unit.DisplayPath())
 	}
 
@@ -310,9 +312,26 @@ func filterUnitsToComponents(units []*component.Unit) component.Components {
 	return result
 }
 
+// UnitsWithDependents returns the set of unit paths that at least one other unit in q
+// depends on. Run uses it to decide which units may have their engine shut down early.
+func UnitsWithDependents(q *queue.Queue) map[string]bool {
+	withDependents := make(map[string]bool)
+	if q == nil {
+		return withDependents
+	}
+
+	for _, entry := range q.Entries {
+		for _, dep := range entry.Component.Dependencies() {
+			withDependents[dep.Path()] = true
+		}
+	}
+
+	return withDependents
+}
+
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
-func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.TerragruntOptions, r *report.Report) error {
+func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
@@ -409,6 +428,8 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 		}
 	}
 
+	withDependents := UnitsWithDependents(rnr.queue)
+
 	task := func(ctx context.Context, u *component.Unit) error {
 		// Build per-unit opts and logger on demand
 		unitOpts, unitLogger, err := BuildUnitOpts(l, stackOpts, u)
@@ -453,7 +474,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 			//
 			// The obtain_creds span is emitted by externalcmd.Provider.GetCredentials
 			// only when an auth provider is configured, so no conditional is needed here.
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, v.Exec, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
 			if err != nil {
 				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
 
@@ -468,6 +489,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 			}, func(readCtx context.Context) error {
 				parseCtx, pctx := configbridge.NewParsingContext(readCtx, unitLogger, unitOpts)
+				pctx.Venv = v.ToRoot()
 
 				var readErr error
 
@@ -496,12 +518,28 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 				return unitRunner.Run(
 					runCtx,
 					unitLogger,
+					v,
 					unitOpts,
 					r,
 					runCfg,
 					credsGetter,
 				)
 			})
+
+			// This unit's terraform commands are all done, so release its engine now
+			// instead of holding it until the batch Shutdown. Skip units that another
+			// in-run unit depends on: that dependent re-reads this unit's outputs through
+			// engine.Run after this task ends, which would just re-spawn the engine we
+			// tore down.
+			if !withDependents[unitPath] {
+				noEngine := unitOpts.EngineOptions != nil && unitOpts.EngineOptions.NoEngine
+				if sErr := engine.ShutdownUnit(
+					childCtx, unitLogger, unitOpts.Experiments, noEngine,
+					unitOpts.WorkingDir,
+				); sErr != nil {
+					unitLogger.Errorf("Error shutting down engine for unit %s: %v", unitPath, sErr)
+				}
+			}
 
 			// Flush any remaining buffered output
 			if flushErr := unitWriter.Flush(); flushErr != nil && err == nil {
@@ -622,15 +660,10 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 	return err
 }
 
-// LogUnitDeployOrder logs the order of units to be processed.
-// When the dag-queue-display experiment is enabled, the output is rendered as a DAG tree
-// showing dependency relationships between units. Otherwise, a flat list is shown.
+// LogUnitDeployOrder logs the order of units to be processed as a DAG tree
+// showing dependency relationships between units.
 func (rnr *Runner) LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths bool, experiments experiment.Experiments) error {
-	if experiments.Evaluate(experiment.DAGQueueDisplay) {
-		return rnr.logUnitDeployOrderDAG(l, isDestroy, showAbsPaths)
-	}
-
-	return rnr.logUnitDeployOrderFlat(l, showAbsPaths)
+	return rnr.logUnitDeployOrderDAG(l, isDestroy, showAbsPaths)
 }
 
 // logUnitDeployOrderDAG renders the queue as a DAG tree showing dependency relationships.
@@ -647,24 +680,6 @@ func (rnr *Runner) logUnitDeployOrderDAG(l log.Logger, isDestroy bool, showAbsPa
 	header := deployOrderHeader(isDestroy)
 
 	l.Info(header + t.String())
-
-	return nil
-}
-
-// logUnitDeployOrderFlat renders the queue as a flat list of units.
-func (rnr *Runner) logUnitDeployOrderFlat(l log.Logger, showAbsPaths bool) error {
-	var sb strings.Builder
-
-	for _, unit := range rnr.queue.Entries {
-		unitPath := unit.Component.DisplayPath()
-		if showAbsPaths {
-			unitPath = unit.Component.Path()
-		}
-
-		fmt.Fprintf(&sb, "- Unit %s\n", unitPath)
-	}
-
-	l.Info(sb.String())
 
 	return nil
 }

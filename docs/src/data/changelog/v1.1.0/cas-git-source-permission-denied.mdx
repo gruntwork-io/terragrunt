@@ -1,0 +1,8 @@
+---
+version: "v1.1.0"
+category: "bug-fixes"
+---
+
+#### Fix `permission denied` when CAS fetches a git source across filesystems
+
+With the CAS enabled, fetching a `git::` source could fail with `permission denied` on `.git/HEAD` or `.git/config`, sending Terragrunt back to the standard getter. It happened when the CAS store and the module's working directory sit on different filesystems, so the files are copied rather than hard-linked, and a read-only leftover from an interrupted run was in the way. Terragrunt now recovers from the leftover and completes the fetch.

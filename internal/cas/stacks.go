@@ -2,6 +2,7 @@ package cas
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -10,10 +11,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-getter/v2"
+
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-getter/v2"
 )
 
 // RemoteSourceDetectors is the go-getter detector chain CAS applies to
@@ -118,7 +120,7 @@ func (c *CAS) ProcessStackComponent(
 
 	refHash := resolved.CommitHash()
 
-	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-stack-*")
+	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-stack-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
@@ -317,7 +319,7 @@ func (c *CAS) processStackFile(
 	// The file may be a read-only hard link from the CAS store, so remove it
 	// before writing the rewritten content to avoid permission errors and to
 	// avoid mutating the stored blob.
-	if err := v.FS.Remove(stackFile); err != nil && !os.IsNotExist(err) {
+	if err := v.FS.Remove(stackFile); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to remove stack file before rewrite %s: %w", stackFile, err)
 	}
 
@@ -400,7 +402,7 @@ func (c *CAS) processUnitFile(
 	// The file may be a read-only hard link from the CAS store, so remove it
 	// before writing the rewritten content to avoid permission errors and to
 	// avoid mutating the stored blob.
-	if err := v.FS.Remove(unitFile); err != nil && !os.IsNotExist(err) {
+	if err := v.FS.Remove(unitFile); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to remove unit file before rewrite %s: %w", unitFile, err)
 	}
 
@@ -568,7 +570,7 @@ func (c *CAS) processLocalStackComponent(
 		return nil, fmt.Errorf("%w: %s", ErrNotADirectory, absSource)
 	}
 
-	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-stack-local-*")
+	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-stack-local-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}

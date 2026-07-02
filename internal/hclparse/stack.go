@@ -19,6 +19,12 @@ import (
 // stackFileName is the canonical filename of a Terragrunt stack file.
 const stackFileName = "terragrunt.stack.hcl"
 
+// valuesFileName is the canonical filename of the generated values file that stack
+// generation writes next to a generated terragrunt.stack.hcl. It mirrors the
+// constant pkg/config uses when writing the file; the two packages cannot share it
+// because internal/hclparse must not depend on pkg/config.
+const valuesFileName = "terragrunt.values.hcl"
+
 // StackFileHCL is the parsed skeleton: locals, includes, and Remain.
 type StackFileHCL struct {
 	Remain   hcl.Body           `hcl:",remain"`
@@ -112,16 +118,6 @@ func GeneratedComponentPath(stackDir, path string, noStack bool) string {
 	}
 
 	return filepath.Join(stackDir, StackDir, path)
-}
-
-// GeneratedPath returns the on-disk path this unit block generates to under stackDir.
-func (u *UnitBlockHCL) GeneratedPath(stackDir string) string {
-	return GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
-}
-
-// GeneratedPath returns the on-disk path this stack block generates to under stackDir.
-func (s *StackBlockHCL) GeneratedPath(stackDir string) string {
-	return GeneratedComponentPath(stackDir, s.Path, s.NoStack != nil && *s.NoStack)
 }
 
 // GeneratedPath returns the on-disk path this unit generates to under stackDir.
@@ -229,6 +225,52 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string, funcsFor StackFuncFactory
 	return unitPathsFromStackDir(fs, stackDir, funcsFor, make(map[string]struct{}), 0)
 }
 
+// DirectComponentPaths returns the generated on-disk paths of the direct unit and
+// stack components declared in stackDir's terragrunt.stack.hcl, honoring
+// no_dot_terragrunt_stack. It does not recurse into nested stacks; an absent stack
+// file yields empty slices and a nil error. funcsFor must be non-nil and return a
+// non-nil map.
+func DirectComponentPaths(fs vfs.FS, stackDir string, funcsFor StackFuncFactory) (unitPaths, stackPaths []string, err error) {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.DirectComponentPaths: fs is nil (stackDir=%q)", stackDir))
+	}
+
+	if stackDir == "" {
+		panic("hclparse.DirectComponentPaths: stackDir is empty")
+	}
+
+	if funcsFor == nil {
+		panic(fmt.Sprintf("hclparse.DirectComponentPaths: funcsFor is nil (stackDir=%q)", stackDir))
+	}
+
+	stackDir = util.ResolvePath(stackDir)
+	stackFile := filepath.Join(stackDir, stackFileName)
+
+	funcs, err := funcsFor(stackDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if funcs == nil {
+		panic(fmt.Sprintf("hclparse.DirectComponentPaths: funcsFor returned a nil map (stackDir=%q)", stackDir))
+	}
+
+	units, stacks, err := decodeDiscovery(fs, stackDir, stackFile, funcs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, unit := range units {
+		unitPaths = append(unitPaths, unit.GeneratedPath(stackDir))
+	}
+
+	for _, stack := range stacks {
+		stackPaths = append(stackPaths, stack.GeneratedPath(stackDir))
+	}
+
+	return unitPaths, stackPaths, nil
+}
+
 // unitPathsFromStackDir is the bounded recursive worker. Termination is guaranteed two ways:
 // visited skips any stack dir already expanded on this traversal (catches "." / ".." and
 // ancestor symlink loops), and depth caps the chain length (backstop for symlink cycles
@@ -312,6 +354,19 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 		Variables: map[string]cty.Value{},
 	}
 
+	// Load the sibling terragrunt.values.hcl written by stack generation and publish it
+	// as the `values` variable, so locals (and unit/stack attributes) referencing
+	// values.* resolve during discovery exactly as they do in the full stack parse.
+	// An absent file leaves the variable unset, matching a stack that received no values.
+	values, err := readDiscoveryValues(fs, stackDir, funcs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if values != nil {
+		evalCtx.Variables[varValues] = *values
+	}
+
 	if parsedFile.Locals != nil {
 		if err := evaluateLocals(parsedFile.Locals.Remain, evalCtx); err != nil {
 			return nil, nil, err
@@ -357,6 +412,49 @@ func decodeDiscovery(fs vfs.FS, stackDir, stackFile string, funcs map[string]fun
 	}
 
 	return decoded.Units, decoded.Stacks, nil
+}
+
+// readDiscoveryValues reads the generated terragrunt.values.hcl next to a stack file
+// and decodes its top-level attributes into a single HCL object, mirroring how
+// pkg/config's ReadValues interprets the file during a full stack parse. An absent
+// file returns (nil, nil) so the caller leaves the `values` variable unset; an
+// existing but empty file returns an empty object, matching the full parse.
+//
+// funcs is the same dir-scoped function map used for the rest of discovery, so any
+// function call in a (normally literal-only, generated) values file resolves
+// against the stack directory being expanded.
+func readDiscoveryValues(fs vfs.FS, stackDir string, funcs map[string]function.Function) (*cty.Value, error) {
+	valuesPath := filepath.Join(stackDir, valuesFileName)
+
+	data, err := vfs.ReadFile(fs, valuesPath)
+	if err != nil {
+		if errors.Is(err, iofs.ErrNotExist) {
+			return nil, nil
+		}
+
+		return nil, FileReadError{FilePath: valuesPath, Err: err}
+	}
+
+	file, parseDiags := hclsyntax.ParseConfig(data, valuesPath, hcl.Pos{Line: 1, Column: 1})
+	if parseDiags.HasErrors() {
+		return nil, FileParseError{FilePath: valuesPath, Err: parseDiags}
+	}
+
+	evalCtx := &hcl.EvalContext{
+		Functions: funcs,
+		Variables: map[string]cty.Value{},
+	}
+
+	// Decoding into a map evaluates every top-level attribute and rejects blocks,
+	// the same shape pkg/config's ReadValues decodes.
+	values := map[string]cty.Value{}
+	if diags := gohcl.DecodeBody(file.Body, evalCtx, &values); diags.HasErrors() {
+		return nil, FileDecodeError{Name: valuesPath, Err: diags}
+	}
+
+	result := cty.ObjectVal(values)
+
+	return &result, nil
 }
 
 // mergeDiscoveryStackAutoInclude merges the units and stacks declared by a sibling

@@ -175,7 +175,9 @@ func FindTFFiles(rootPath string) ([]string, error) {
 	return terraformFiles, err
 }
 
-// RegexFoundInTFFiles walks through the directory and checks if any OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json) contain the given regex pattern
+// RegexFoundInTFFiles walks through the directory and checks if any
+// OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json) contain the given
+// regex pattern
 func RegexFoundInTFFiles(workingDir string, pattern *regexp.Regexp) (bool, error) {
 	var found bool
 
@@ -208,7 +210,8 @@ func RegexFoundInTFFiles(workingDir string, pattern *regexp.Regexp) (bool, error
 	return found, err
 }
 
-// DirContainsTFFiles checks if the given directory contains any Terraform/OpenTofu files (.tf, .tofu, .tf.json, .tofu.json)
+// DirContainsTFFiles checks if the given directory contains any
+// Terraform/OpenTofu files (.tf, .tofu, .tf.json, .tofu.json)
 func DirContainsTFFiles(dirPath string) (bool, error) {
 	var found bool
 
@@ -362,8 +365,10 @@ func WithFastCopy() CopyOption {
 	}
 }
 
-// CopyFolderContents copies the files and folders within the source folder into the destination folder. Note that hidden files and folders
-// (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
+// CopyFolderContents copies the files and folders within the source folder into
+// the destination folder. Note that hidden files and folders (those starting
+// with a dot) will be skipped. Will create a specified manifest file that
+// contains paths of all copied files.
 //
 // Optional behavior is configured through [CopyOption] values such as
 // [WithIncludeInCopy], [WithExcludeFromCopy], and [WithFastCopy].
@@ -724,7 +729,11 @@ func compileExcludePattern(patterns []string) (glob.Matcher, error) {
 }
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
-func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+func CopyFolderContentsWithFilter(
+	l log.Logger,
+	source, destination, manifestFile string,
+	filter func(absolutePath string) bool,
+) error {
 	if err := assertCopyPathsSafe(source, destination, filter); err != nil {
 		return err
 	}
@@ -867,7 +876,13 @@ type CopyDestinationInsideSourceError struct {
 }
 
 func (err CopyDestinationInsideSourceError) Error() string {
-	return fmt.Sprintf("copy destination %q is inside source %q and the filter does not exclude any segment of %q; the copy would recurse into itself", err.Destination, err.Source, err.RelDest)
+	return fmt.Sprintf(
+		"copy destination %q is inside source %q and the filter does not exclude "+
+			"any segment of %q; the copy would recurse into itself",
+		err.Destination,
+		err.Source,
+		err.RelDest,
+	)
 }
 
 // assertCopyPathsSafe checks that the copy from source to destination
@@ -1038,6 +1053,7 @@ type fileManifest struct {
 	fileHandle     *os.File
 	ManifestFolder string
 	ManifestFile   string
+	maxEntries     int
 }
 
 // fileManifestEntry represents an entry in the fileManifest.
@@ -1083,10 +1099,11 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 func (manifest *fileManifest) clean(l log.Logger, fsys vfs.FS, rootDir, manifestRelPath string) error {
 	pending := []string{manifestRelPath}
 	ctx := &fileManifestCleanContext{
-		l:       l,
-		fsys:    fsys,
-		rootDir: rootDir,
-		seen:    make(map[string]struct{}),
+		l:          l,
+		fsys:       fsys,
+		rootDir:    rootDir,
+		seen:       make(map[string]struct{}),
+		maxEntries: manifest.maxEntries,
 	}
 	attemptedManifests := 0
 
@@ -1173,6 +1190,7 @@ type fileManifestCleanContext struct {
 	seen           map[string]struct{}
 	rootDir        string
 	decodedEntries int
+	maxEntries     int
 }
 
 // fileManifestCleanLimits bounds child manifests queued from one decoded manifest.
@@ -1279,7 +1297,7 @@ func (manifest *fileManifest) cleanManifestEntries(
 ) ([]string, error) {
 	var manifestRelPaths []string
 
-	for range maxFileManifestEntries {
+	for range ctx.maxEntries {
 		entry, ok, err := ctx.decodeManifestEntry(decoder)
 		if err != nil || !ok {
 			return manifestRelPaths, err
@@ -1298,7 +1316,7 @@ func (manifest *fileManifest) cleanManifestEntries(
 		}
 	}
 
-	return manifestRelPaths, decodeExtraManifestEntry(decoder, manifestPath)
+	return manifestRelPaths, decodeExtraManifestEntry(decoder, manifestPath, ctx.maxEntries)
 }
 
 func (ctx *fileManifestCleanContext) decodeManifestEntry(decoder *gob.Decoder) (fileManifestEntry, bool, error) {
@@ -1311,9 +1329,9 @@ func (ctx *fileManifestCleanContext) decodeManifestEntry(decoder *gob.Decoder) (
 		return entry, false, fileManifestDecodeError{err: err}
 	}
 
-	if ctx.decodedEntries >= maxFileManifestEntries {
+	if ctx.decodedEntries >= ctx.maxEntries {
 		return entry, false, fileManifestLimitError{
-			message: fmt.Sprintf("manifest cleanup under %q exceeded entry cap of %d", ctx.rootDir, maxFileManifestEntries),
+			message: fmt.Sprintf("manifest cleanup under %q exceeded entry cap of %d", ctx.rootDir, ctx.maxEntries),
 		}
 	}
 
@@ -1357,7 +1375,7 @@ func (ctx *fileManifestCleanContext) appendManifestRelPath(
 	return append(manifestRelPaths, manifestRelPath), nil
 }
 
-func decodeExtraManifestEntry(decoder *gob.Decoder, manifestPath string) error {
+func decodeExtraManifestEntry(decoder *gob.Decoder, manifestPath string, maxEntries int) error {
 	var extraEntry fileManifestEntry
 	if err := decoder.Decode(&extraEntry); err != nil {
 		if isFileManifestDecodeDone(err) {
@@ -1368,7 +1386,7 @@ func decodeExtraManifestEntry(decoder *gob.Decoder, manifestPath string) error {
 	}
 
 	return fileManifestLimitError{
-		message: fmt.Sprintf("manifest %q exceeds entry cap; processing first %d entries only", manifestPath, maxFileManifestEntries),
+		message: fmt.Sprintf("manifest %q exceeds entry cap; processing first %d entries only", manifestPath, maxEntries),
 	}
 }
 
@@ -1380,7 +1398,11 @@ func isFileManifestDecodeDone(err error) bool {
 func (manifest *fileManifest) Create() error {
 	const ownerWriteGlobalReadPerms = 0o644
 
-	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
+	fileHandle, err := os.OpenFile(
+		filepath.Join(manifest.ManifestFolder, manifest.ManifestFile),
+		os.O_CREATE|os.O_WRONLY|os.O_TRUNC,
+		ownerWriteGlobalReadPerms,
+	)
 	if err != nil {
 		return err
 	}
@@ -1406,8 +1428,31 @@ func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
 
-func NewFileManifest(manifestFolder string, manifestFile string) *fileManifest {
-	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+// FileManifestOption configures a fileManifest built by NewFileManifest.
+type FileManifestOption func(*fileManifest)
+
+// WithMaxManifestEntries overrides the per-manifest entry cap that Clean
+// enforces before rejecting a manifest as oversized. Production callers keep
+// the default; a lower cap lets tests trip the rejection path without
+// encoding the default number of entries.
+func WithMaxManifestEntries(maxEntries int) FileManifestOption {
+	return func(manifest *fileManifest) {
+		manifest.maxEntries = maxEntries
+	}
+}
+
+func NewFileManifest(manifestFolder string, manifestFile string, opts ...FileManifestOption) *fileManifest {
+	manifest := &fileManifest{
+		ManifestFolder: manifestFolder,
+		ManifestFile:   manifestFile,
+		maxEntries:     maxFileManifestEntries,
+	}
+
+	for _, opt := range opts {
+		opt(manifest)
+	}
+
+	return manifest
 }
 
 // Custom errors
@@ -1430,28 +1475,27 @@ func (err PathIsNotFile) Error() string {
 	return err.path + " is not a file"
 }
 
-// ListTfFiles returns a list of all TF files in the specified directory.
-func ListTfFiles(directoryPath string, walkWithSymlinks bool) ([]string, error) {
-	var tfFiles []string
-
-	walkFunc := filepath.WalkDir
-	if walkWithSymlinks {
-		walkFunc = WalkDirWithSymlinks
+// ListTfFiles returns the OpenTofu/Terraform files in the given directory.
+func ListTfFiles(fsys vfs.FS, directoryPath string) ([]string, error) {
+	entries, err := vfs.ReadDirEntries(fsys, directoryPath)
+	if err != nil {
+		return nil, err
 	}
 
-	err := walkFunc(directoryPath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+	var tfFiles []string
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
 		}
 
-		if !d.IsDir() && IsTFFile(path) {
+		path := filepath.Join(directoryPath, entry.Name())
+		if IsTFFile(path) {
 			tfFiles = append(tfFiles, path)
 		}
+	}
 
-		return nil
-	})
-
-	return tfFiles, err
+	return tfFiles, nil
 }
 
 // IsDirectoryEmpty - returns true if the given path exists and is a empty directory.
@@ -1536,7 +1580,8 @@ func ExcludeFiltersFromFile(baseDir, filename string) ([]string, error) {
 	return filters, nil
 }
 
-// GetFiltersFromFile returns a list of filter queries from the given filename, where each filter query starts on a new line.
+// GetFiltersFromFile returns a list of filter queries from the given filename,
+// where each filter query starts on a new line.
 func GetFiltersFromFile(baseDir, filename string) ([]string, error) {
 	filename, err := CanonicalPath(filename, baseDir)
 	if err != nil {
@@ -1886,7 +1931,12 @@ func expandHome(path string) (string, error) {
 	return filepath.Join(home, path[1:]), nil
 }
 
-func (manifest *fileManifest) cleanManifestEntry(l log.Logger, fsys vfs.FS, rootDir string, entry fileManifestEntry) (string, error) {
+func (manifest *fileManifest) cleanManifestEntry(
+	l log.Logger,
+	fsys vfs.FS,
+	rootDir string,
+	entry fileManifestEntry,
+) (string, error) {
 	rel, ok := relPathInsideRoot(rootDir, entry.Path)
 	if !ok {
 		l.Warnf("Skipping manifest entry %q: resolves outside manifest root %q", entry.Path, rootDir)

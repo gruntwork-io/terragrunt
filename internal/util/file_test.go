@@ -226,7 +226,8 @@ func TestFileManifestCleanRemovesRelativeInRootEntry(t *testing.T) {
 	assert.NoFileExists(t, staleFile, "relative in-root manifest entry must still be cleaned")
 }
 
-// TestFileManifestCleanRejectsCreatedOutOfRootEntries pins that Terragrunt-created manifests cannot remove outside ManifestFolder.
+// TestFileManifestCleanRejectsCreatedOutOfRootEntries pins that
+// Terragrunt-created manifests cannot remove outside ManifestFolder.
 func TestFileManifestCleanRejectsCreatedOutOfRootEntries(t *testing.T) {
 	t.Parallel()
 
@@ -518,7 +519,7 @@ func TestFileManifestCleanRejectsTooManyReferencedManifests(t *testing.T) {
 	manifestPath := filepath.Join(root, testManifestName)
 	entries := make([]manifestTestEntry, 0, testMaxFileManifests)
 
-	for idx := 0; idx < testMaxFileManifests; idx++ {
+	for idx := range testMaxFileManifests {
 		entries = append(entries, manifestDir(filepath.Join(root, fmt.Sprintf("dir-%06d", idx))))
 	}
 
@@ -536,14 +537,14 @@ func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
 
 	l := logger.CreateLogger().WithOptions(tglog.WithLevel(tglog.ErrorLevel))
 
-	const testMaxFileManifestEntries = 1_000_000
+	const testMaxFileManifestEntries = 10
 
 	root := helpers.TmpDirWOSymlinks(t)
 	manifestPath := filepath.Join(root, testManifestName)
 
 	writeRepeatedManifestEntry(t, manifestPath, testMaxFileManifestEntries+1, manifestFile(""))
 
-	manifest := util.NewFileManifest(root, testManifestName)
+	manifest := util.NewFileManifest(root, testManifestName, util.WithMaxManifestEntries(testMaxFileManifestEntries))
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "entry cap")
@@ -664,7 +665,12 @@ func writePartialInvalidManifestEntryList(t *testing.T, path string, entries ...
 	require.NoError(t, err)
 }
 
-func writeUnexpectedEOFManifest(t *testing.T, path string, validEntry manifestTestEntry, partialEntry manifestTestEntry) {
+func writeUnexpectedEOFManifest(
+	t *testing.T,
+	path string,
+	validEntry manifestTestEntry,
+	partialEntry manifestTestEntry,
+) {
 	t.Helper()
 
 	var buf bytes.Buffer
@@ -790,7 +796,10 @@ func runCopyFolderContentsCase(t *testing.T, includeInCopy, excludeFromCopy []st
 		copyOpts = append(copyOpts, util.WithFastCopy())
 	}
 
-	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", copyOpts...))
+	require.NoError(
+		t,
+		util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", copyOpts...),
+	)
 
 	for i, tc := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
@@ -1002,7 +1011,12 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 		}
 
 		if paths[expectedPath] != expectedPaths[expectedPath] {
-			t.Errorf("Path mismatch at index %d:\ngot:  %s\nwant: %s", expectedPath, paths[expectedPath], expectedPaths[expectedPath])
+			t.Errorf(
+				"Path mismatch at index %d:\ngot:  %s\nwant: %s",
+				expectedPath,
+				paths[expectedPath],
+				expectedPaths[expectedPath],
+			)
 		}
 	}
 }
@@ -1088,7 +1102,12 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 		}
 
 		if paths[expectedPath] != expectedPaths[expectedPath] {
-			t.Errorf("Path mismatch at index %d:\ngot:  %s\nwant: %s", expectedPath, paths[expectedPath], expectedPaths[expectedPath])
+			t.Errorf(
+				"Path mismatch at index %d:\ngot:  %s\nwant: %s",
+				expectedPath,
+				paths[expectedPath],
+				expectedPaths[expectedPath],
+			)
 		}
 	}
 }
@@ -1099,9 +1118,12 @@ func TestWalkDirWithSymlinksErrors(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	// Test with non-existent directory
-	require.Error(t, util.WalkDirWithSymlinks(filepath.Join(tempDir, "nonexistent"), func(_ string, _ fs.DirEntry, err error) error {
-		return err
-	}))
+	require.Error(
+		t,
+		util.WalkDirWithSymlinks(filepath.Join(tempDir, "nonexistent"), func(_ string, _ fs.DirEntry, err error) error {
+			return err
+		}),
+	)
 
 	// Test with broken symlink
 	brokenLink := filepath.Join(tempDir, "broken")
@@ -1270,7 +1292,17 @@ func TestRelPathForLog(t *testing.T) {
 			basePath:    helpers.RootFolder + "base/a/b/c",
 			targetPath:  helpers.RootFolder + "base/x/y/z",
 			showAbsPath: false,
-			expected:    ".." + string(filepath.Separator) + ".." + string(filepath.Separator) + ".." + string(filepath.Separator) + filepath.Join("x", "y", "z"),
+			expected: ".." + string(
+				filepath.Separator,
+			) + ".." + string(
+				filepath.Separator,
+			) + ".." + string(
+				filepath.Separator,
+			) + filepath.Join(
+				"x",
+				"y",
+				"z",
+			),
 		},
 		{
 			name:        "unrelated paths at different roots",
@@ -1404,7 +1436,13 @@ func TestCopyFolderContentsRejectsDestinationInsideSource(t *testing.T) {
 	t.Run("destination inside source is rejected on fast-copy path", func(t *testing.T) {
 		t.Parallel()
 
-		err := util.CopyFolderContents(l, source, filepath.Join(source, "fastnested"), ".terragrunt-test", util.WithFastCopy())
+		err := util.CopyFolderContents(
+			l,
+			source,
+			filepath.Join(source, "fastnested"),
+			".terragrunt-test",
+			util.WithFastCopy(),
+		)
 
 		var insideErr util.CopyDestinationInsideSourceError
 		require.ErrorAs(t, err, &insideErr)

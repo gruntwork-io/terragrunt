@@ -1,0 +1,10 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### Respect `-lockfile=readonly` during provider caching
+
+When you pass `-lockfile=readonly` to `init`, Terragrunt no longer generates or updates `.terraform.lock.hcl` while warming the provider cache. Previously the cache step could write the lock file before OpenTofu/Terraform ran, so the read-only check always passed and silently defeated the flag.
+
+Terragrunt now leaves the lock file untouched and lets OpenTofu/Terraform enforce it, failing when the lock file is missing or incomplete. The flag is honored whether it is supplied on the command line or through the `TF_CLI_ARGS` or `TF_CLI_ARGS_init` environment variables.

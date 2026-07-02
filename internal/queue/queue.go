@@ -338,7 +338,9 @@ func (q *Queue) GetReadyWithDependencies(l log.Logger) []*Entry {
 }
 
 // areDependenciesReadyUnsafe checks if all dependencies of an entry are ready for "up" commands.
-// For up commands, all dependencies must be in a succeeded state (or terminal if ignoring errors).
+// For up commands, only other up-command dependencies must be in a succeeded state (or terminal if
+// ignoring errors). Down-command (destroy) dependencies are skipped, mirroring [Entry.UpdateBlocked]:
+// a unit being destroyed does not gate a unit being applied or planned.
 // If a dependency is not in the queue, it is assumed to have existing state.
 // Should only be called when the caller already holds a read lock.
 func (q *Queue) areDependenciesReadyUnsafe(l log.Logger, e *Entry) bool {
@@ -347,6 +349,12 @@ func (q *Queue) areDependenciesReadyUnsafe(l log.Logger, e *Entry) bool {
 		if depEntry == nil {
 			l.Debugf("Dependency %s is not in queue, considering it ready", dep.Path())
 
+			continue
+		}
+
+		// Skip down-command (destroy) dependencies: they run in reverse order and must
+		// not block an up-command entry from proceeding. Mirrors UpdateBlocked.
+		if !depEntry.IsUp() {
 			continue
 		}
 
@@ -369,11 +377,19 @@ func (q *Queue) areDependenciesReadyUnsafe(l log.Logger, e *Entry) bool {
 }
 
 // areDependentsReadyUnsafe checks if all dependents of an entry are ready for "down" commands.
-// For down commands, all dependents must be in a succeeded state (or terminal if ignoring errors).
+// For down commands, only other down-command dependents must be in a succeeded state (or terminal
+// if ignoring errors). Up-command (plan/apply) dependents are skipped, mirroring
+// [Entry.UpdateBlocked]: a unit being planned or applied does not gate a unit being destroyed.
 // Should only be called when the caller already holds a read lock.
 func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
 	for _, other := range q.Entries {
 		if other == e || len(other.Component.Dependencies()) == 0 {
+			continue
+		}
+
+		// Skip up-command (plan/apply) dependents: they run in forward order and must
+		// not block a down-command entry from proceeding. Mirrors UpdateBlocked.
+		if other.IsUp() {
 			continue
 		}
 
