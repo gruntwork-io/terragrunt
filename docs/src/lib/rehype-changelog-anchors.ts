@@ -61,8 +61,12 @@ export function rehypeChangelogAnchors() {
       if (!HEADING_TAGS.has(node.tagName)) return;
       if (typeof index !== "number" || !parent) return;
 
-      const wrapperClass = Array.isArray(parent.properties?.className)
-        ? (parent.properties.className as string[])
+      // `parent` is a hast `Parents` union (Root, Element, MDX JSX nodes); only
+      // `Element` carries `properties`, so narrow before reading `className`.
+      const parentClassName =
+        parent.type === "element" ? parent.properties?.className : undefined;
+      const wrapperClass = Array.isArray(parentClassName)
+        ? (parentClassName as string[])
         : [];
       if (wrapperClass.includes("sl-heading-wrapper")) return;
 
