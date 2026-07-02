@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -24,6 +25,25 @@ const defaultDirPerms = 0o755
 
 func IsWindows() bool {
 	return runtime.GOOS == "windows"
+}
+
+// SymlinkUnsupported reports whether err is the host refusing to create a symlink at all,
+// rather than a genuine failure worth failing a test over. A test that needs a symlink can
+// attempt [os.Symlink] and skip on this, keeping every other error fatal so a real regression
+// still surfaces instead of hiding behind a blanket platform skip.
+//
+// Windows needs SeCreateSymbolicLinkPrivilege or Developer Mode to create a symlink, and
+// refuses with ERROR_PRIVILEGE_NOT_HELD otherwise. Go does not map that errno to
+// [fs.ErrPermission] or [errors.ErrUnsupported], so it is matched explicitly in
+// symlinkPrivilegeError, which is built per platform.
+func SymlinkUnsupported(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, errors.ErrUnsupported) ||
+		errors.Is(err, fs.ErrPermission) ||
+		symlinkPrivilegeError(err)
 }
 
 // MustAbs resolves rel against the Go test process working directory.
