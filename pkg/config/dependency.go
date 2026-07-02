@@ -559,6 +559,15 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 				return fmt.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
 			}
 
+			skipOutputs := pctx.SkipOutput
+
+			if pctx.TerraformCommand == tf.CommandNameValidate {
+				// When running `terraform validate` look at the `skip_outputs` attribute on the dependency block
+				// so that we can return a dynamic value for outputs when `skip_putputs` is true
+				// and `mock_outputs` are not set.
+				skipOutputs = dependencyConfig.SkipOutputs != nil && *dependencyConfig.SkipOutputs
+			}
+
 			if dependencyConfig.RenderedOutputs != nil {
 				lock.Lock()
 
@@ -567,7 +576,7 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 				lock.Unlock()
 
 				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
-			} else if pctx.SkipOutput {
+			} else if skipOutputs {
 				// During hcl validate, output resolution is skipped. Use cty.DynamicVal so that
 				// attribute access on dependency outputs (e.g. dependency.x.outputs.y) evaluates
 				// to unknown rather than producing an "Unsupported attribute" error.
@@ -578,7 +587,7 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 
 			if dependencyConfig.Inputs != nil {
 				dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
-			} else if pctx.SkipOutput {
+			} else if skipOutputs {
 				l.Debugf("Setting inputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
 
 				dependencyEncodingMap["inputs"] = cty.DynamicVal
