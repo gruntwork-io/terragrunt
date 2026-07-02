@@ -133,10 +133,6 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 		return aws.Config{}, fmt.Errorf("error loading AWS config: %w", err)
 	}
 
-	if createCredentialsFromEnv(b.env) != nil {
-		return cfg, nil
-	}
-
 	mergedIAMRoleOptions := getMergedIAMRoleOptions(b.sessionConfig, b.iamRoleOpts)
 	if mergedIAMRoleOptions.RoleARN == "" {
 		return cfg, nil
