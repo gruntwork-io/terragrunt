@@ -72,7 +72,7 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 
 	switch {
 	case !value.IsKnown():
-		return cty.StringVal(""), nil
+		return placeholderForUnknown(value.Type()), nil
 	case value.IsNull():
 		return value, nil
 	case value.Type().IsMapType(), value.Type().IsObjectType():
@@ -116,4 +116,14 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	}
 
 	return value, nil
+}
+
+// placeholderForUnknown returns a serializable placeholder for an unknown value of type t.
+func placeholderForUnknown(t cty.Type) cty.Value {
+	// A type-less unknown has no null representation, so keep the historical empty string.
+	if t == cty.String || t == cty.DynamicPseudoType || t == cty.NilType {
+		return cty.StringVal("")
+	}
+
+	return cty.NullVal(t)
 }
