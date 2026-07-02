@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -159,4 +160,105 @@ func TestStackDiscoveryFilters(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, selectedPaths)
 		})
 	}
+}
+
+// stackFileFixtureOpts returns the options a ListStackFilesWithExcludes call needs to discover
+// stack files under workingDir.
+func stackFileFixtureOpts(workingDir string) *options.TerragruntOptions {
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = workingDir
+	opts.RootWorkingDir = workingDir
+	opts.Parallelism = 1
+	opts.NoCAS = true
+
+	return opts
+}
+
+// TestListStackFilesKeepsSymlinkedStackFileDirectory reproduces the regression where a
+// symlinked terragrunt.stack.hcl had its directory rewritten to the symlink target's, so
+// read_terragrunt_config and other reads relative to get_terragrunt_dir() looked in the wrong
+// folder. Discovery canonicalises the stack file's directory, but the file must stay anchored
+// to the directory it lives in rather than resolving through the symlink to its target's.
+func TestListStackFilesKeepsSymlinkedStackFileDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Resolve the temp root up front so assertions are not confused by e.g. /var -> /private/var.
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	// The real stack file lives in a "source" directory that is NOT where terragrunt is invoked.
+	sourceDir := filepath.Join(base, "source")
+	require.NoError(t, os.MkdirAll(sourceDir, 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(sourceDir, "terragrunt.stack.hcl"), []byte("# stack\n"), 0o644),
+	)
+
+	// "live" holds only a symlink to the real stack file. Terragrunt runs here, so the
+	// discovered path must stay under liveDir for relative reads to resolve next to it.
+	liveDir := filepath.Join(base, "live")
+	require.NoError(t, os.MkdirAll(liveDir, 0o755))
+
+	if err := os.Symlink(
+		filepath.Join(sourceDir, "terragrunt.stack.hcl"),
+		filepath.Join(liveDir, "terragrunt.stack.hcl"),
+	); err != nil {
+		if helpers.SymlinkUnsupported(err) {
+			t.Skipf("host does not support creating symlinks: %v", err)
+		}
+
+		require.NoError(t, err)
+	}
+
+	found, _, err := generate.ListStackFilesWithExcludes(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		stackFileFixtureOpts(liveDir),
+		nil,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{filepath.Join(liveDir, "terragrunt.stack.hcl")}, found,
+		"a symlinked stack file must keep the directory it lives in, not its target's")
+}
+
+// TestListStackFilesDeduplicatesSymlinkedDirectory pins that a stack file reachable both
+// directly and through a symlinked directory yields one entry spelled as the real path. Keeping
+// the stack file anchored to its own directory must not weaken the directory canonicalisation
+// that makes two spellings of one location collapse into a single topology key.
+func TestListStackFilesDeduplicatesSymlinkedDirectory(t *testing.T) {
+	t.Parallel()
+
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	realDir := filepath.Join(base, "real")
+	require.NoError(t, os.MkdirAll(realDir, 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(realDir, "terragrunt.stack.hcl"), []byte("# stack\n"), 0o644),
+	)
+
+	// A sibling symlink offering a second spelling of realDir. Terragrunt runs at base, so the
+	// walk sees both "real" and "link" but must not report the stack file twice.
+	if err := os.Symlink(realDir, filepath.Join(base, "link")); err != nil {
+		if helpers.SymlinkUnsupported(err) {
+			t.Skipf("host does not support creating symlinks: %v", err)
+		}
+
+		require.NoError(t, err)
+	}
+
+	found, _, err := generate.ListStackFilesWithExcludes(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		stackFileFixtureOpts(base),
+		nil,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{filepath.Join(realDir, "terragrunt.stack.hcl")}, found,
+		"a symlinked directory must not add a second spelling of the same stack file")
 }
