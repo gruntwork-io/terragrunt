@@ -7,22 +7,31 @@ Experimental support for the Azure Storage (`azurerm`) remote state backend.
 
 ### `azure-backend` - What it does
 
-Terragrunt already recognizes `backend = "azurerm"` in `remote_state` blocks regardless
-of whether this experiment is enabled, and currently falls through to the native
-OpenTofu/Terraform `azurerm` backend. This experiment reserves the flag for the
-long-term goal of having Terragrunt manage Azure Storage accounts, blob containers,
-and state blobs in the same way it already manages S3 buckets and GCS buckets:
-automatic bootstrap, delete, migrate, and direct state reads for
-[`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state).
+Enabling this experiment turns on Terragrunt-managed lifecycle operations for the
+Azure Storage (`azurerm`) remote state backend, matching what Terragrunt already
+does for S3 buckets and GCS buckets:
 
-In its current form (initial registration) the experiment only:
+- Bootstrap: creates the resource group (when allowed), storage account, and blob
+  container backing the state, and converges blob versioning and optional soft
+  delete on both new and pre-existing accounts.
+- Delete: removes state blobs or entire containers, with confirmation prompts.
+- Migrate: moves state blobs within the same storage account (cross-account
+  migration is refused with guidance to migrate manually).
 
-- Reserves the `azure-backend` experiment name.
-- Reserves the `azurerm` backend slot in Terragrunt's remote state layer.
+Authentication supports six methods, resolved in order: SAS token, storage account
+access key, service principal, managed identity (MSI), OIDC / workload identity,
+and Azure AD (`use_azuread_auth` or the default credential chain, which honors
+`az login`). `ARM_*` and `AZURE_*` environment variable fallbacks are applied, and
+public, US Government, and China clouds are supported via the `environment` key.
 
-The flag itself currently has no behavioral effect: there is no Azure SDK code,
-authentication logic, or storage account management yet, and the backend is not
-gated on the flag. Functional behavior will land in subsequent releases.
+Without the experiment enabled, these lifecycle operations return an error naming
+the experiment; reading and writing the state itself is always handled by the
+native OpenTofu/Terraform `azurerm` backend. Direct state file reads for
+[`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state)
+are not implemented yet.
+
+See the [Azure Storage backend documentation](/features/units/state-backend#azure-storage-azurerm-backend)
+for configuration keys and troubleshooting.
 
 ### `azure-backend` - How to enable it
 
@@ -46,10 +55,11 @@ When reporting issues or providing feedback, please include:
 ### `azure-backend` - Criteria for stabilization
 To transition the `azure-backend` feature to a stable release, the following must be addressed, at a minimum:
 
-- [ ] `internal/azurehelper` package wrapping the Azure SDK with a builder pattern matching `awshelper`/`gcphelper`.
-- [ ] Bootstrap of storage accounts and blob containers, including versioning and optional RBAC role assignment for `use_azuread_auth`.
-- [ ] Delete and migrate operations for state blobs and containers with confirmation prompts.
+- [x] `internal/azurehelper` package wrapping the Azure SDK with a builder pattern matching `awshelper`/`gcphelper`.
+- [x] Bootstrap of storage accounts and blob containers, including versioning and soft delete convergence.
+- [ ] Optional RBAC role assignment for `use_azuread_auth` during bootstrap (the data-plane role must currently be granted manually).
+- [x] Delete and migrate operations for state blobs and containers with confirmation prompts.
 - [ ] Direct state file reads from Azure blobs for `--dependency-fetch-output-from-state`.
-- [ ] Documentation covering authentication methods, configuration keys, and troubleshooting.
+- [x] Documentation covering authentication methods, configuration keys, and troubleshooting.
 - [ ] Integration test coverage gated behind a build tag.
 - [ ] Community feedback on real-world usage.
