@@ -219,11 +219,11 @@ func Run(
 
 	var output *util.CmdOutput
 
-	runErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_run", map[string]any{
+	runErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_run", map[string]any{
 		"command":            execOptions.Command,
 		"cache_dir":          cacheDir,
 		"engine_initialized": found,
-	}, func(runCtx context.Context) error {
+	}, func(runCtx context.Context, l log.Logger) error {
 		var invokeErr error
 
 		output, invokeErr = invoke(runCtx, l, execOptions, instance.engineClient)
@@ -289,10 +289,10 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		return nil
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_download", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_download", map[string]any{
 		"source":  e.Source,
 		"version": e.Version,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		// If source is empty, we cannot download the engine
 		// This indicates an engine block was configured but source was not provided
 		if e.Source == "" {
@@ -767,11 +767,11 @@ func createEngine(
 		pluginClient *plugin.Client
 	)
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_create", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_create", map[string]any{
 		"source":    execOptions.EngineConfig.Source,
 		"version":   execOptions.EngineConfig.Version,
 		"cache_dir": execOptions.CacheDir,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		path, err := engineDir(execOptions)
 		if err != nil {
 			return err
@@ -890,10 +890,10 @@ func invoke(
 ) (*util.CmdOutput, error) {
 	var result *util.CmdOutput
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_invoke", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_invoke", map[string]any{
 		"command":   runOptions.Command,
 		"cache_dir": runOptions.CacheDir,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		l = l.WithField(placeholders.TFPathKeyName, "engine")
 
 		meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
@@ -1056,9 +1056,9 @@ var ErrEngineInitFailed = errors.New("engine init failed")
 
 // initialize engine for working directory
 func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_initialize", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_initialize", map[string]any{
 		"cache_dir": runOptions.CacheDir,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 		if err != nil {
 			return err
@@ -1129,9 +1129,9 @@ func shutdown(
 	runOptions *ExecutionOptions,
 	terragruntEngine *proto.EngineClient,
 ) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "engine_shutdown", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "engine_shutdown", map[string]any{
 		"cache_dir": runOptions.CacheDir,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 		if err != nil {
 			return err

@@ -52,10 +52,10 @@ func (provider *Provider) GetCredentials(
 
 	var creds *providers.Credentials
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "obtain_creds", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "obtain_creds", map[string]any{
 		"auth_provider_cmd": provider.authProviderCmd,
 		"provider":          "external_cmd",
-	}, func(credsCtx context.Context) error {
+	}, func(credsCtx context.Context, l log.Logger) error {
 		var fetchErr error
 
 		creds, fetchErr = provider.fetchCredentials(credsCtx, l, exec)

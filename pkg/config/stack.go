@@ -389,12 +389,12 @@ func generateUnits(ctx context.Context, l log.Logger, fs vfs.FS, opts *generateO
 
 			l.Infof("Generating unit %s from %s", unit.Name, util.RelPathForLog(opts.rootWorkingDir, opts.sourceFile, opts.logShowAbsPaths))
 
-			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_unit", map[string]any{
+			return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "stack_generate_unit", map[string]any{
 				"stack_file":  opts.sourceFile,
 				"unit_name":   unit.Name,
 				"unit_source": unit.Source,
 				"unit_path":   unit.Path,
-			}, func(ctx context.Context) error {
+			}, func(ctx context.Context, l log.Logger) error {
 				return generateComponent(ctx, l, fs, opts, &item)
 			})
 		})
@@ -423,12 +423,12 @@ func generateStacks(ctx context.Context, l log.Logger, fs vfs.FS, opts *generate
 
 			l.Infof("Generating stack %s from %s", stack.Name, util.RelPathForLog(opts.rootWorkingDir, opts.sourceFile, opts.logShowAbsPaths))
 
-			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_stack", map[string]any{
+			return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "stack_generate_stack", map[string]any{
 				"stack_file":   opts.sourceFile,
 				"stack_name":   stack.Name,
 				"stack_source": stack.Source,
 				"stack_path":   stack.Path,
-			}, func(ctx context.Context) error {
+			}, func(ctx context.Context, l log.Logger) error {
 				return generateComponent(ctx, l, fs, opts, &item)
 			})
 		})

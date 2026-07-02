@@ -115,10 +115,10 @@ func DownloadTerraformSource(
 			copyOpts = append(copyOpts, util.WithFastCopy())
 		}
 
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "copy_folder_contents", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "copy_folder_contents", map[string]any{
 			"src":  opts.UnitDir,
 			"dest": terraformSource.WorkingDir,
-		}, func(_ context.Context) error {
+		}, func(_ context.Context, l log.Logger) error {
 			return util.CopyFolderContents(l, opts.UnitDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
 		})
 		if err != nil {

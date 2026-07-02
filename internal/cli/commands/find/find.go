@@ -67,13 +67,13 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		discoverErr error
 	)
 
-	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
+	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "find_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
 		"no_hidden":    opts.NoHidden,
 		"dependencies": opts.Dependencies,
 		"mode":         opts.Mode,
 		"exclude":      opts.Exclude,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 		return discoverErr
 	})
@@ -85,10 +85,10 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	case ModeNormal:
 		components = components.Sort()
 	case ModeDAG:
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_mode_dag", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "find_mode_dag", map[string]any{
 			"working_dir":  opts.WorkingDir,
 			"config_count": len(components),
-		}, func(ctx context.Context) error {
+		}, func(ctx context.Context, l log.Logger) error {
 			q, queueErr := queue.NewQueue(components)
 			if queueErr != nil {
 				return queueErr
@@ -109,10 +109,10 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	var foundComponents FoundComponents
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discovered_to_found", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "find_discovered_to_found", map[string]any{
 		"working_dir":  opts.WorkingDir,
 		"config_count": len(components),
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		foundComponents = discoveredToFound(l, components, opts)
 
 		return nil

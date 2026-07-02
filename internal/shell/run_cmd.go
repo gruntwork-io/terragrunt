@@ -218,12 +218,12 @@ func RunCommandWithOutput(
 		commandDir = runOpts.WorkingDir
 	}
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+filepath.Base(command), map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "run_"+filepath.Base(command), map[string]any{
 		"binary":      filepath.Base(command),
 		"binary_path": command,
 		"args":        fmt.Sprintf("%v", args),
 		"dir":         commandDir,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		runErr := runCommand(ctx, l, e, runOpts, RunCommandOptions{
 			CommandDir:     commandDir,
 			SuppressStdout: suppressStdout,

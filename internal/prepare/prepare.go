@@ -145,9 +145,9 @@ func PrepareSource(
 
 	// Always download/copy source to cache directory for consistency.
 	// When no source is specified, sourceURL will be "." (current directory).
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "download_terraform_source", map[string]any{
 		"sourceUrl": sourceURL,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		updatedRunOpts, err = run.DownloadTerraformSource(ctx, l, v, sourceURL, runOpts, runCfg, r)
 		return err
 	})

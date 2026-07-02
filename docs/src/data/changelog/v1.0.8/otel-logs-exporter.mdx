@@ -1,0 +1,21 @@
+---
+version: "v1.0.8"
+category: "experiments-added"
+---
+
+#### `otel-logs` experiment exports logs to OpenTelemetry
+
+Terragrunt previously emitted only traces and metrics, so there was no way to ship its log output to an OpenTelemetry backend or correlate log lines with the spans of a failed run.
+
+Enable the new [`otel-logs`](/reference/experiments/active#otel-logs) experiment to add an OpenTelemetry logs signal, configured with `TG_TELEMETRY_LOGS_EXPORTER`:
+
+- `none` - no log exporting, the default.
+- `console` - write log records to the console as JSON.
+- `otlpHttp` - export logs to an OpenTelemetry collector over HTTP.
+- `otlpGrpc` - export logs to an OpenTelemetry collector over gRPC.
+
+```bash
+TG_TELEMETRY_LOGS_EXPORTER=otlpHttp terragrunt run --all --experiment otel-logs -- apply
+```
+
+The OTLP exporters read the endpoint from the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable. Set `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true` to skip server certificate validation when collecting locally. Exported records carry the active trace and span IDs, so a failed unit's logs link to its span in the backend. Without the experiment enabled, the logs exporter stays inert regardless of `TG_TELEMETRY_LOGS_EXPORTER`.

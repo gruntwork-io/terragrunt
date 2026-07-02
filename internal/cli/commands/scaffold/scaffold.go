@@ -250,9 +250,9 @@ func Prepare(
 
 	l.Debugf("Scaffolding a new Terragrunt module %s to %s", resolvedURL, outputDir)
 
-	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_module", map[string]any{
+	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "scaffold_get_module", map[string]any{
 		"module_url": resolvedURL,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL); getErr != nil {
 			return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
 		}
@@ -554,9 +554,9 @@ func downloadTemplate(
 	l.Debugf("Downloading template from %s into %s", baseURL.String(), templateDir)
 	// Downloading baseURL to support boilerplate dependencies and partials.
 	// Go-getter discards all but specified folder if one is provided.
-	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "scaffold_get_template", map[string]any{
+	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "scaffold_get_template", map[string]any{
 		"template_url": baseURL.String(),
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
 			return fmt.Errorf("downloading scaffold template from %s: %w", baseURL.String(), getErr)
 		}
