@@ -24,6 +24,7 @@ const (
 	testMultiLineErrors       = "fixtures/errors/multi-line"
 	testGetDefaultErrors      = "fixtures/errors/get-default-errors"
 	testNoAutoRetry           = "fixtures/errors/no-auto-retry"
+	testDependencyOutputRetry = "fixtures/errors/dependency-output-retry"
 )
 
 func TestErrorsHandling(t *testing.T) {
@@ -225,4 +226,39 @@ func TestNoAutoRetryFlag(t *testing.T) {
 	_, stderr2, err2 := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err2)
 	assert.Contains(t, stderr2, "Encountered retryable error")
+}
+
+func TestDependencyOutputRetryHonorsAutoRetry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("retries_dependency_output_errors", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testDependencyOutputRetry)
+		tmpEnvPath := helpers.CopyEnvironment(t, testDependencyOutputRetry)
+		rootPath := filepath.Join(tmpEnvPath, testDependencyOutputRetry)
+		appPath := filepath.Join(rootPath, "app")
+		tfPath := filepath.Join(rootPath, "fake-terraform.sh")
+		require.NoError(t, os.Chmod(tfPath, 0o755))
+
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --tf-path "+tfPath+" --non-interactive --working-dir "+appPath)
+		require.NoError(t, err)
+		assert.Contains(t, stderr, "Encountered retryable error: transient_dependency_output")
+	})
+
+	t.Run("no_auto_retry_disables_dependency_output_retries", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testDependencyOutputRetry)
+		tmpEnvPath := helpers.CopyEnvironment(t, testDependencyOutputRetry)
+		rootPath := filepath.Join(tmpEnvPath, testDependencyOutputRetry)
+		appPath := filepath.Join(rootPath, "app")
+		tfPath := filepath.Join(rootPath, "fake-terraform.sh")
+		require.NoError(t, os.Chmod(tfPath, 0o755))
+
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --tf-path "+tfPath+" --no-auto-retry --non-interactive --working-dir "+appPath)
+		require.Error(t, err)
+		assert.Contains(t, stderr, "Transient dependency output error")
+		assert.NotContains(t, stderr, "Encountered retryable error: transient_dependency_output")
+	})
 }

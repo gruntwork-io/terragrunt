@@ -76,6 +76,7 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.JSONLogFormat = opts.JSONLogFormat
 	pctx.Debug = opts.Debug
 	pctx.AutoInit = opts.AutoInit
+	pctx.AutoRetry = opts.AutoRetry
 	pctx.Headless = opts.Headless
 	pctx.BackendBootstrap = opts.BackendBootstrap
 	pctx.CheckDependentUnits = opts.CheckDependentUnits
