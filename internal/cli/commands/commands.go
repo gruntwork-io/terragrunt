@@ -461,6 +461,29 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.WorkingDir = filepath.Clean(opts.WorkingDir)
 
+	// Load .terragruntrc.json/.yaml/.yml early so that env vars it sets (e.g. TF_CLI_CONFIG_FILE)
+	// are visible before the provider cache server is initialized.
+	// rc-file values do not override variables already present in the environment.
+	rcConfig, err := util.FindAndLoadRCFile(opts.WorkingDir)
+	if err != nil {
+		return err
+	}
+
+	if rcConfig != nil {
+		for k, v := range rcConfig.Env {
+			if _, exists := opts.Env[k]; !exists {
+				if err := os.Setenv(k, v); err != nil {
+					return err
+				}
+
+				opts.Env[k] = v
+				l.Debugf(".terragruntrc: setting %s=%q", k, v)
+			} else {
+				l.Debugf(".terragruntrc: skipping %s (already set in environment)", k)
+			}
+		}
+	}
+
 	l = l.WithField(placeholders.WorkDirKeyName, opts.WorkingDir)
 
 	opts.RootWorkingDir = opts.WorkingDir

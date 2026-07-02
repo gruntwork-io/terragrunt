@@ -1539,3 +1539,171 @@ func benchmarkCopyFolderContents(b *testing.B, fastCopy bool) {
 
 func BenchmarkCopyFolderContents_Slow(b *testing.B) { benchmarkCopyFolderContents(b, false) }
 func BenchmarkCopyFolderContents_Fast(b *testing.B) { benchmarkCopyFolderContents(b, true) }
+
+func TestLoadRCFile(t *testing.T) {
+	t.Run("parses env section from json", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, util.TerragruntRCFilename), []byte(`{"env":{"FOO":"bar","BAZ":"qux"}}`), 0o644))
+
+		rc, err := util.FindAndLoadRCFile(dir)
+		require.NoError(t, err)
+		require.NotNil(t, rc)
+		assert.Equal(t, map[string]string{"FOO": "bar", "BAZ": "qux"}, rc.Env)
+	})
+
+	t.Run("parses env section from yaml", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, util.TerragruntRCFilenameYAML), []byte("env:\n  FOO: bar\n  BAZ: qux\n"), 0o644))
+
+		rc, err := util.FindAndLoadRCFile(dir)
+		require.NoError(t, err)
+		require.NotNil(t, rc)
+		assert.Equal(t, map[string]string{"FOO": "bar", "BAZ": "qux"}, rc.Env)
+	})
+
+	t.Run("parses env section from yml", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, util.TerragruntRCFilenameYML), []byte("env:\n  KEY: value\n"), 0o644))
+
+		rc, err := util.FindAndLoadRCFile(dir)
+		require.NoError(t, err)
+		require.NotNil(t, rc)
+		assert.Equal(t, "value", rc.Env["KEY"])
+	})
+
+	t.Run("expands env vars in values", func(t *testing.T) {
+		t.Setenv("TG_RC_TEST_VAR", "expanded")
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, util.TerragruntRCFilename), []byte(`{"env":{"KEY":"$TG_RC_TEST_VAR","KEY2":"${TG_RC_TEST_VAR}"}}`), 0o644))
+
+		rc, err := util.FindAndLoadRCFile(dir)
+		require.NoError(t, err)
+		require.NotNil(t, rc)
+		assert.Equal(t, "expanded", rc.Env["KEY"])
+		assert.Equal(t, "expanded", rc.Env["KEY2"])
+	})
+
+	t.Run("returns nil when file absent", func(t *testing.T) {
+		t.Parallel()
+
+		rc, err := util.FindAndLoadRCFile(t.TempDir())
+		require.NoError(t, err)
+		assert.Nil(t, rc)
+	})
+
+	t.Run("returns error for malformed json", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, util.TerragruntRCFilename), []byte(`{not json`), 0o644))
+
+		_, err := util.FindAndLoadRCFile(dir)
+		require.Error(t, err)
+	})
+
+	t.Run("returns error for malformed yaml", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, util.TerragruntRCFilenameYAML), []byte("env:\n  bad: [unclosed\n"), 0o644))
+
+		_, err := util.FindAndLoadRCFile(dir)
+		require.Error(t, err)
+	})
+
+	t.Run("empty env section is valid", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, util.TerragruntRCFilename), []byte(`{}`), 0o644))
+
+		rc, err := util.FindAndLoadRCFile(dir)
+		require.NoError(t, err)
+		require.NotNil(t, rc)
+		assert.Empty(t, rc.Env)
+	})
+
+	t.Run("resolves relative paths against rc file directory", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, util.TerragruntRCFilename), []byte(`{"env":{"A":"./foo.hcl","B":"../bar.hcl","C":"https://example.com/v1/","D":"token/xyz"}}`), 0o644))
+
+		rc, err := util.FindAndLoadRCFile(dir)
+		require.NoError(t, err)
+		require.NotNil(t, rc)
+
+		assert.Equal(t, filepath.Join(dir, "foo.hcl"), rc.Env["A"])
+		assert.Equal(t, filepath.Join(filepath.Dir(dir), "bar.hcl"), rc.Env["B"])
+		assert.Equal(t, "https://example.com/v1/", rc.Env["C"])
+		assert.Equal(t, "token/xyz", rc.Env["D"])
+	})
+}
+
+func TestFindAndLoadRCFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("finds json file in parent directory", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		child := filepath.Join(root, "a", "b")
+		require.NoError(t, os.MkdirAll(child, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, util.TerragruntRCFilename), []byte(`{"env":{"FROM":"root"}}`), 0o644))
+
+		rc, err := util.FindAndLoadRCFile(child)
+		require.NoError(t, err)
+		require.NotNil(t, rc)
+		assert.Equal(t, "root", rc.Env["FROM"])
+	})
+
+	t.Run("finds yaml file in parent directory", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		child := filepath.Join(root, "a", "b")
+		require.NoError(t, os.MkdirAll(child, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, util.TerragruntRCFilenameYAML), []byte("env:\n  FROM: yaml-root\n"), 0o644))
+
+		rc, err := util.FindAndLoadRCFile(child)
+		require.NoError(t, err)
+		require.NotNil(t, rc)
+		assert.Equal(t, "yaml-root", rc.Env["FROM"])
+	})
+
+	t.Run("nearest file wins", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		child := filepath.Join(root, "sub")
+		require.NoError(t, os.MkdirAll(child, 0o755))
+
+		require.NoError(t, os.WriteFile(filepath.Join(root, util.TerragruntRCFilename), []byte(`{"env":{"LEVEL":"root"}}`), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(child, util.TerragruntRCFilename), []byte(`{"env":{"LEVEL":"child"}}`), 0o644))
+
+		rc, err := util.FindAndLoadRCFile(child)
+		require.NoError(t, err)
+		require.NotNil(t, rc)
+		assert.Equal(t, "child", rc.Env["LEVEL"])
+	})
+
+	t.Run("json wins over yaml in same directory", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, util.TerragruntRCFilename), []byte(`{"env":{"FORMAT":"json"}}`), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, util.TerragruntRCFilenameYAML), []byte("env:\n  FORMAT: yaml\n"), 0o644))
+
+		rc, err := util.FindAndLoadRCFile(dir)
+		require.NoError(t, err)
+		require.NotNil(t, rc)
+		assert.Equal(t, "json", rc.Env["FORMAT"])
+	})
+}
