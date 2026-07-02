@@ -1,0 +1,23 @@
+---
+version: "v1.0.9"
+category: "new-features"
+---
+
+#### `gcs` backend: support `storage_custom_endpoint`
+
+The `gcs` remote state backend now accepts a `storage_custom_endpoint` setting to route Cloud Storage API calls to a custom endpoint instead of the default `https://storage.googleapis.com`.
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "gcs"
+
+  config = {
+    bucket                  = "my-tofu-state"
+    prefix                  = "terraform.tfstate"
+    storage_custom_endpoint = "https://storage.example.com"
+  }
+}
+```
+
+This is useful when reaching the bucket through [Private Service Connect (PSC)](https://cloud.google.com/vpc/docs/private-service-connect) or a Google Cloud dedicated universe such as S3NS. Terragrunt applies the endpoint to its own GCP storage operations (such as bucket creation and validation) and forwards it to OpenTofu/Terraform unchanged. Requires Terraform v1.6.0+ / OpenTofu, which added native support for this backend setting.

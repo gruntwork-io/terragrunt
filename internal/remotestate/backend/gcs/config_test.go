@@ -219,3 +219,17 @@ func TestParseExtendedGCSConfig_InvalidStringBool(t *testing.T) {
 	_, err := cfg.ParseExtendedGCSConfig()
 	require.Error(t, err)
 }
+
+func TestParseExtendedGCSConfig_CustomEndpoint(t *testing.T) {
+	t.Parallel()
+
+	cfg := gcs.Config{
+		"bucket":                  "my-bucket",
+		"storage_custom_endpoint": "https://custom-gcs.example.com",
+	}
+
+	extGCSCfg, err := cfg.ParseExtendedGCSConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "https://custom-gcs.example.com", extGCSCfg.RemoteStateConfigGCS.StorageCustomEndpoint)
+}
+

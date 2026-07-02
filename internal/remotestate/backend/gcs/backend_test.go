@@ -38,6 +38,19 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 			},
 		},
 		{
+			name: "gcs-custom-endpoint-preservation",
+			config: backend.Config{
+				"bucket":                  "my-bucket",
+				"prefix":                  "terraform/state",
+				"storage_custom_endpoint": "https://custom-gcs.example.com",
+			},
+			expected: map[string]any{
+				"bucket":                  "my-bucket",
+				"prefix":                  "terraform/state",
+				"storage_custom_endpoint": "https://custom-gcs.example.com",
+			},
+		},
+		{
 			name: "terragrunt-keys-filtered",
 			config: backend.Config{
 				"bucket":                    "my-bucket",

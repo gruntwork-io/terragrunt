@@ -496,6 +496,12 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `credentials`: Local path to Google Cloud Platform account credentials in JSON format.
 - `access_token`: A temporary [OAuth 2.0 access token] obtained from the Google Authorization server.
 
+<Since version="1.0.9">
+
+- `storage_custom_endpoint`: A custom endpoint to route Cloud Storage API calls to, instead of the default `https://storage.googleapis.com`. Terragrunt uses it for its own GCP storage operations and forwards it to OpenTofu/Terraform unchanged (requires Terraform v1.6.0+ / OpenTofu).
+
+</Since>
+
 Example with S3:
 
 ```hcl
