@@ -70,6 +70,27 @@ func DownloadTerraformSource(
 		return nil, err
 	}
 
+	// The source directory IS the working directory when no explicit `source` is configured
+	// (source="."). Computed early so it can drive both the version-hash copy filter below and the
+	// module-copy-skip optimization further down.
+	sourceIsWorkingDir := tf.IsLocalSource(terraformSource.CanonicalSourceURL) &&
+		filepath.Clean(terraformSource.CanonicalSourceURL.Path) == filepath.Clean(opts.UnitDir)
+
+	// EncodeSourceVersion must only hash files that the copy below would actually place in the
+	// cache, or an irrelevant file change (for example a stray hidden file) forces a needless
+	// re-init. https://github.com/gruntwork-io/terragrunt/issues/6443
+	hashIncludeInCopy := cfg.Terraform.IncludeInCopy
+	if sourceIsWorkingDir {
+		// The module copy below always force-includes .tflint.hcl when it copies from the unit
+		// dir. Mirror that here too: in this branch the hash is computed over that same
+		// directory, so a tflint-only edit must not be missed by the module-copy-skip
+		// optimization a few lines down.
+		hashIncludeInCopy = slices.Concat(hashIncludeInCopy, []string{tfLintConfig})
+	}
+
+	terraformSource.IncludeInCopy = hashIncludeInCopy
+	terraformSource.ExcludeFromCopy = cfg.Terraform.ExcludeFromCopy
+
 	// Serialize concurrent downloads to the same cache directory. Without this,
 	// manifest.Clean() in one goroutine can delete files while another goroutine
 	// is checking for them (e.g. during CheckFolderContainsTerraformCode).
@@ -93,8 +114,6 @@ func DownloadTerraformSource(
 	// When the source is a different directory (local or remote), the module copy
 	// overlays working-dir files on top of the downloaded source. These files may
 	// change independently of the source version hash, so the copy must always run.
-	sourceIsWorkingDir := tf.IsLocalSource(terraformSource.CanonicalSourceURL) &&
-		filepath.Clean(terraformSource.CanonicalSourceURL.Path) == filepath.Clean(opts.UnitDir)
 	needsModuleCopy := downloaded || !sourceIsWorkingDir
 
 	if needsModuleCopy {

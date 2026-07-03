@@ -1,0 +1,12 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### Local module source hash no longer includes files that are never copied to the cache
+
+For local module sources, Terragrunt computed the version hash used to decide whether to re-run `init` from every file under the source directory, including files that are never copied into `.terragrunt-cache`, such as dotfiles and anything matched by `exclude_from_copy`. Creating or touching one of these irrelevant files changed the hash and forced an unnecessary re-init on the next `plan` or `apply`, even though nothing that Terraform/OpenTofu actually runs against had changed.
+
+Terragrunt now computes the local source hash using the same file selection rules as the module copy step, honoring `include_in_copy` and `exclude_from_copy`. Only files that actually end up in the cache can change the hash, so unrelated files no longer trigger a re-init.
+
+Resolves [#6443](https://github.com/gruntwork-io/terragrunt/issues/6443).

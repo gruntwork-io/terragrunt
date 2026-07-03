@@ -80,6 +80,12 @@ type Source struct {
 	// The path to a file in DownloadDir that stores the version number of the code
 	VersionFile string
 
+	// IncludeInCopy holds glob patterns copied into the cache even if normally skipped (e.g. hidden files).
+	IncludeInCopy []string
+
+	// ExcludeFromCopy holds glob patterns that are always skipped when copying the source into the cache.
+	ExcludeFromCopy []string
+
 	// WalkDirWithSymlinks controls whether to walk symlinks in the downloaded source
 	WalkDirWithSymlinks bool
 }
@@ -94,13 +100,19 @@ func (src Source) String() string {
 // name and the query string (e.g. ?ref=v0.0.3) identifies the version. For local file paths, there is no query string,
 // so the same file path (/foo/bar) is always considered the same version. To detect changes the file path will be hashed
 // and returned as version. In case of hash error the default encoded source version will be returned.
+// Only files that util.NewCopyFilter would actually copy into the cache contribute to the hash.
 // See also the encodeSourceName and ProcessTerraformSource methods.
-func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
+func (src *Source) EncodeSourceVersion(l log.Logger) (string, error) {
 	if IsLocalSource(src.CanonicalSourceURL) {
 		sourceHash := sha256.New()
 		sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
 
-		var err error
+		shouldCopy, err := util.NewCopyFilter(l, sourceDir, src.IncludeInCopy, src.ExcludeFromCopy)
+		if err != nil {
+			l.WithError(err).Warnf("Could not encode version for local source")
+
+			return "", err
+		}
 
 		walkDir := filepath.WalkDir
 		if src.WalkDirWithSymlinks {
@@ -115,10 +127,23 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 
 			if d.IsDir() {
 				// We don't use any info from directories to calculate our hash
-				return util.SkipDirIfIgnorable(d.Name())
+				if skipErr := util.SkipDirIfIgnorable(d.Name()); skipErr != nil {
+					return skipErr
+				}
+
+				// An excluded directory has nothing underneath worth hashing either.
+				if path != sourceDir && !shouldCopy(path) {
+					return filepath.SkipDir
+				}
+
+				return nil
 			}
 			// avoid checking .terraform.lock.hcl file since contents is auto-generated
 			if d.Name() == util.TerraformLockFile {
+				return nil
+			}
+
+			if !shouldCopy(path) {
 				return nil
 			}
 
@@ -151,7 +176,7 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 // WriteVersionFile writes a file into the DownloadDir that contains
 // the version number of this source code. The version number is
 // calculated using the EncodeSourceVersion method.
-func (src Source) WriteVersionFile(l log.Logger) error {
+func (src *Source) WriteVersionFile(l log.Logger) error {
 	version, err := src.EncodeSourceVersion(l)
 	if err != nil {
 		// If we failed to calculate a SHA of the downloaded source, write a SHA of

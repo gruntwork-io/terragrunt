@@ -822,6 +822,66 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	assert.Equal(t, mainTfContent, string(cachedContent), "File contents should match")
 }
 
+// TestDownloadWithNoSourceIgnoresIrrelevantHiddenFile is a regression test for
+// https://github.com/gruntwork-io/terragrunt/issues/6443: EncodeSourceVersion hashed every
+// file under the source directory, including hidden files that CopyFolderContents (via
+// util.TerragruntExcludes) never copies into the cache. Creating such a file next to main.tf
+// changed the hash and forced a needless re-init on the next run, even though nothing that
+// actually reaches the cache had changed.
+func TestDownloadWithNoSourceIgnoresIrrelevantHiddenFile(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := helpers.TmpDirWOSymlinks(t)
+	defer os.RemoveAll(sourceDir)
+
+	mainTfContent := "# Test file for hidden-file cache reuse\n"
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "main.tf"), []byte(mainTfContent), 0644))
+
+	downloadDir := helpers.TmpDirWOSymlinks(t)
+	defer os.RemoveAll(downloadDir)
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(sourceDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.WorkingDir = sourceDir
+	opts.DownloadDir = downloadDir
+	opts.Experiments = experiment.NewExperiments()
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	// First run: populates the cache and writes the persisted version hash.
+	updatedOpts, err := run.DownloadTerraformSource(t.Context(), l, run.OSVenv(), ".", configbridge.NewRunOptions(opts), cfg, report.NewReport())
+	require.NoError(t, err)
+
+	initMarker := filepath.Join(updatedOpts.CacheDir, run.ModuleInitRequiredFile)
+	assert.NoFileExists(t, initMarker, "a fresh cache should not be marked as requiring re-init")
+
+	// A file terragrunt never copies into the cache (see util.TerragruntExcludes) is created
+	// alongside main.tf, mirroring `touch .this_file_does_not_matter` from the bug report.
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, ".this_file_does_not_matter"), []byte("noise"), 0644))
+
+	updatedOpts, err = run.DownloadTerraformSource(t.Context(), l, run.OSVenv(), ".", configbridge.NewRunOptions(opts), cfg, report.NewReport())
+	require.NoError(t, err)
+
+	assert.NoFileExists(
+		t,
+		filepath.Join(updatedOpts.CacheDir, ".this_file_does_not_matter"),
+		"the hidden file must never be copied into the cache",
+	)
+	assert.NoFileExists(
+		t,
+		initMarker,
+		"creating a file that is never copied into the cache must not force a re-init",
+	)
+}
+
 // TestDownloadSourceWithCASExperimentDisabled tests that CAS is not used when the experiment is disabled
 func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	t.Parallel()

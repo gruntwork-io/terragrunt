@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,8 +14,20 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
+
+// fileSourceURL builds a file:// CanonicalSourceURL pointing at dir, matching what
+// tf.NewSource produces for a local source.
+func fileSourceURL(t *testing.T, dir string) *url.URL {
+	t.Helper()
+
+	u, err := url.Parse("file://" + filepath.ToSlash(dir))
+	require.NoError(t, err)
+
+	return u
+}
 
 func TestSplitSourceUrl(t *testing.T) {
 	t.Parallel()
@@ -260,4 +273,182 @@ func TestRegressionCASRefNoSubdir(t *testing.T) {
 
 	assert.Equal(t, "cas::sha1:"+hash, src.CanonicalSourceURL.String())
 	assert.Equal(t, src.DownloadDir, src.WorkingDir)
+}
+
+// TestEncodeSourceVersionIgnoresFilesNeverCopied is a regression test for
+// https://github.com/gruntwork-io/terragrunt/issues/6443: EncodeSourceVersion hashed every file
+// under the source directory, including hidden files that util.CopyFolderContents (via
+// util.TerragruntExcludes) never copies into the cache. A file that can never reach the cache
+// must not be able to change the version hash.
+func TestEncodeSourceVersionIgnoresFilesNeverCopied(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "main.tf"), []byte("# main"), 0o644))
+
+	src := &tf.Source{CanonicalSourceURL: fileSourceURL(t, sourceDir)}
+	l := logger.CreateLogger()
+
+	before, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	// Mirrors `touch .this_file_does_not_matter` from the bug report.
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, ".this_file_does_not_matter"), []byte("noise"), 0o644))
+
+	after, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	assert.Equal(t, before, after, "creating a hidden file that is never copied must not change the source version hash")
+}
+
+// TestEncodeSourceVersionStillIgnoresLockFile pins the pre-existing behavior that the
+// terraform/tofu lock file never contributes to the hash, since its content is auto-generated.
+func TestEncodeSourceVersionStillIgnoresLockFile(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "main.tf"), []byte("# main"), 0o644))
+
+	src := &tf.Source{CanonicalSourceURL: fileSourceURL(t, sourceDir)}
+	l := logger.CreateLogger()
+
+	before, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, util.TerraformLockFile), []byte("# lock"), 0o644))
+
+	after, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	assert.Equal(t, before, after, "the lock file must never affect the hash")
+}
+
+// TestEncodeSourceVersionStillSkipsIgnorableDirs pins the pre-existing behavior that .git,
+// .terraform, and .terragrunt-cache are never descended into, regardless of the new copy-filter
+// check added alongside them.
+func TestEncodeSourceVersionStillSkipsIgnorableDirs(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "main.tf"), []byte("# main"), 0o644))
+
+	src := &tf.Source{CanonicalSourceURL: fileSourceURL(t, sourceDir)}
+	l := logger.CreateLogger()
+
+	before, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	for _, dir := range []string{util.GitDir, util.TerraformCacheDir, util.TerragruntCacheDir} {
+		dirPath := filepath.Join(sourceDir, dir)
+		require.NoError(t, os.MkdirAll(dirPath, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dirPath, "noise.txt"), []byte("noise"), 0o644))
+	}
+
+	after, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	assert.Equal(t, before, after, "files under .git, .terraform, and .terragrunt-cache must never affect the hash")
+}
+
+// TestEncodeSourceVersionDetectsVisibleFileChange is a no-regression baseline: a tracked,
+// non-hidden file's mtime change must still change the hash so a real init still runs.
+func TestEncodeSourceVersionDetectsVisibleFileChange(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := t.TempDir()
+	mainTfPath := filepath.Join(sourceDir, "main.tf")
+	require.NoError(t, os.WriteFile(mainTfPath, []byte("# main"), 0o644))
+
+	src := &tf.Source{CanonicalSourceURL: fileSourceURL(t, sourceDir)}
+	l := logger.CreateLogger()
+
+	before, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	future := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(mainTfPath, future, future))
+
+	after, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, before, after, "a visible tracked file's mtime change must still change the hash")
+}
+
+// TestEncodeSourceVersionRespectsIncludeInCopy checks that a hidden file matched by
+// IncludeInCopy still affects the hash, since util.CopyFolderContents will copy it into the
+// cache. Source.IncludeInCopy mirrors the terraform block's include_in_copy setting.
+func TestEncodeSourceVersionRespectsIncludeInCopy(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "main.tf"), []byte("# main"), 0o644))
+
+	src := &tf.Source{
+		CanonicalSourceURL: fileSourceURL(t, sourceDir),
+		IncludeInCopy:      []string{".tflint.hcl"},
+	}
+	l := logger.CreateLogger()
+
+	before, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, ".tflint.hcl"), []byte("config {}"), 0o644))
+
+	after, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, before, after, "a file matched by IncludeInCopy must still affect the hash")
+}
+
+// TestEncodeSourceVersionRespectsExcludeFromCopy checks that a visible file matched by
+// ExcludeFromCopy is excluded from the hash, since util.CopyFolderContents never copies it.
+// Source.ExcludeFromCopy mirrors the terraform block's exclude_from_copy setting.
+func TestEncodeSourceVersionRespectsExcludeFromCopy(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "main.tf"), []byte("# main"), 0o644))
+
+	src := &tf.Source{
+		CanonicalSourceURL: fileSourceURL(t, sourceDir),
+		ExcludeFromCopy:    []string{"*.bak"},
+	}
+	l := logger.CreateLogger()
+
+	before, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "notes.bak"), []byte("scratch"), 0o644))
+
+	after, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	assert.Equal(t, before, after, "a file matched by ExcludeFromCopy must not affect the hash")
+}
+
+// TestEncodeSourceVersionExcludeFromCopyDirectory checks that an entire directory matched by
+// ExcludeFromCopy is skipped, so files added underneath it never affect the hash.
+func TestEncodeSourceVersionExcludeFromCopyDirectory(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "main.tf"), []byte("# main"), 0o644))
+
+	src := &tf.Source{
+		CanonicalSourceURL: fileSourceURL(t, sourceDir),
+		ExcludeFromCopy:    []string{"scratch"},
+	}
+	l := logger.CreateLogger()
+
+	before, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	scratchDir := filepath.Join(sourceDir, "scratch")
+	require.NoError(t, os.MkdirAll(scratchDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(scratchDir, "file.txt"), []byte("noise"), 0o644))
+
+	after, err := src.EncodeSourceVersion(l)
+	require.NoError(t, err)
+
+	assert.Equal(t, before, after, "files under a directory matched by ExcludeFromCopy must not affect the hash")
 }

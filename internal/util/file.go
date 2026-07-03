@@ -382,17 +382,36 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 	source = filepath.ToSlash(source)
 	destination = filepath.ToSlash(destination)
 
-	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
-	// the copy filter. The expanded globs feed both the dest-inside-source
-	// assertion below and the filter passed to the slow-path implementation.
+	filter, err := NewCopyFilter(l, source, cfg.includeInCopy, cfg.excludeFromCopy)
+	if err != nil {
+		return err
+	}
+
+	if err := assertCopyPathsSafe(source, destination, filter); err != nil {
+		return err
+	}
+
+	if cfg.fastCopy {
+		return copyFolderContentsFast(l, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
+	}
+
+	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, filter)
+}
+
+// NewCopyFilter reports whether [CopyFolderContents] would copy a given path under source, so other callers can reuse the same rules.
+func NewCopyFilter(l log.Logger, source string, includeInCopy, excludeFromCopy []string) (func(absolutePath string) bool, error) {
+	source = filepath.ToSlash(source)
+
+	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so
+	// that they work in the filter below.
 	includeExpandedGlobs := []string{}
 
-	for _, includeGlob := range cfg.includeInCopy {
+	for _, includeGlob := range includeInCopy {
 		globPath := filepath.Join(source, includeGlob)
 
 		expandGlob, err := expandGlobPath(source, globPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		includeExpandedGlobs = append(includeExpandedGlobs, expandGlob...)
@@ -400,12 +419,12 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 
 	excludeExpandedGlobs := []string{}
 
-	for _, excludeGlob := range cfg.excludeFromCopy {
+	for _, excludeGlob := range excludeFromCopy {
 		globPath := filepath.Join(source, excludeGlob)
 
 		expandGlob, err := expandGlobPath(source, globPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
@@ -433,15 +452,7 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 		return !TerragruntExcludes(filepath.FromSlash(relativePath))
 	}
 
-	if err := assertCopyPathsSafe(source, destination, filter); err != nil {
-		return err
-	}
-
-	if cfg.fastCopy {
-		return copyFolderContentsFast(l, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
-	}
-
-	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, filter)
+	return filter, nil
 }
 
 // copyFolderContentsFast is the [CopyFolderContents] path used when the
