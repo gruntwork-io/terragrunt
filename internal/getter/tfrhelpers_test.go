@@ -231,6 +231,14 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 	})
 
 	mux.HandleFunc(
+		"/v1/modules/terraform-aws-modules/vpc/aws/1.2.3+build.5/download",
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip")
+			w.WriteHeader(http.StatusNoContent)
+		},
+	)
+
+	mux.HandleFunc(
 		"/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
 		func(w http.ResponseWriter, r *http.Request) {
 			// Resolve against the request host so the downloader hits the same

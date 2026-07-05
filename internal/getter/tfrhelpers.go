@@ -250,6 +250,41 @@ func GetLatestModuleVersion(
 	return latest.Original(), nil
 }
 
+// QueryValues returns the decoded value(s) for key in a raw query string.
+// Unlike url.ParseQuery, it treats '+' as a literal character rather than
+// an encoded space, so SemVer build metadata like ?version=1.2.3+build.4
+// survives.
+// Returns nil if key is absent.
+func QueryValues(rawQuery, key string) ([]string, error) {
+	var values []string
+
+	for _, pair := range strings.Split(rawQuery, "&") {
+		if pair == "" {
+			continue
+		}
+
+		k, v, _ := strings.Cut(pair, "=")
+
+		k, err := url.PathUnescape(k)
+		if err != nil {
+			return nil, err
+		}
+
+		if k != key {
+			continue
+		}
+
+		v, err = url.PathUnescape(v)
+		if err != nil {
+			return nil, err
+		}
+
+		values = append(values, v)
+	}
+
+	return values, nil
+}
+
 // moduleVersionsResponse is the registry API response for the list-versions endpoint.
 type moduleVersionsResponse struct {
 	Modules []moduleVersionsEntry `json:"modules"`

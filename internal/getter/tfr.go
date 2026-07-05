@@ -126,7 +126,10 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 		registryDomain = tfimpl.DefaultRegistryDomain(r.TofuImplementation)
 	}
 
-	queryValues := srcURL.Query()
+	versionList, err := QueryValues(srcURL.RawQuery, versionQueryKey)
+	if err != nil {
+		return err
+	}
 	modulePath, moduleSubDir := SourceDirSubdir(srcURL.Path)
 
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, r.Logger, r.HTTPClient, registryDomain)
@@ -134,7 +137,7 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
-	version, err := r.resolveVersion(ctx, queryValues, registryDomain, moduleRegistryBasePath, modulePath)
+	version, err := r.resolveVersion(ctx, versionList, registryDomain, moduleRegistryBasePath, modulePath)
 	if err != nil {
 		return err
 	}
@@ -251,10 +254,10 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 // latest stable version is resolved from the registry's list-versions endpoint.
 func (r *RegistryGetter) resolveVersion(
 	ctx context.Context,
-	queryValues url.Values,
+	versionList []string,
 	registryDomain, moduleRegistryBasePath, modulePath string,
 ) (string, error) {
-	versionList, hasVersion := queryValues[versionQueryKey]
+	hasVersion := len(versionList) > 0
 
 	if hasVersion && len(versionList) != 1 {
 		return "", MalformedRegistryURLErr{reason: "more than one version query"}

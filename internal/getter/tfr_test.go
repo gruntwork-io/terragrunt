@@ -181,6 +181,29 @@ func TestRegistryGetterEmptyVersion(t *testing.T) {
 	require.ErrorAs(t, err, &typed)
 }
 
+// TestRegistryGetterBuildMetadataVersion verifies that SemVer build metadata
+// is resolved correctly (e.g. ?version=1.2.3+build.5)
+func TestRegistryGetterBuildMetadataVersion(t *testing.T) {
+	t.Parallel()
+
+	server := newRegistryTestServer(t)
+
+	dstPath := helpers.TmpDirWOSymlinks(t)
+	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
+	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+
+	client := newRegistryTestClient(t, server.Client(), tfimpl.Terraform)
+
+	_, err := client.Get(t.Context(), &getter.Request{
+		Src:     "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws?version=1.2.3+build.5",
+		Dst:     moduleDestPath,
+		GetMode: getter.ModeDir,
+	})
+
+	require.NoError(t, err)
+	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+}
+
 // newRegistryTestClient builds a Client wired to the supplied http.Client so
 // it trusts the test server's self-signed TLS certificate, both for the
 // registry-protocol calls (via RegistryGetter.HTTPClient) and for the module

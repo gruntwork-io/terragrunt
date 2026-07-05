@@ -90,8 +90,8 @@ func (r *TFRResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		registryDomain = tfimpl.DefaultRegistryDomain(r.TofuImplementation)
 	}
 
-	versionList, hasVersion := srcURL.Query()[versionQueryKey]
-	if !hasVersion || len(versionList) != 1 || versionList[0] == "" {
+	versionList, err := QueryValues(srcURL.RawQuery, versionQueryKey)
+	if err != nil || len(versionList) != 1 || versionList[0] == "" {
 		return "", cas.ErrNoVersionMetadata
 	}
 

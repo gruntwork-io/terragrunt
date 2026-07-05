@@ -31,6 +31,24 @@ func TestTFRResolver_ProbeReturnsContentKey(t *testing.T) {
 	assert.Equal(t, expected, key)
 }
 
+func TestTFRResolver_ProbePreserveSemverMetadata(t *testing.T) {
+	t.Parallel()
+
+	server := newRegistryTestServer(t)
+
+	r := getter.NewTFRResolver().
+		WithHTTPClient(server.Client()).
+		WithLogger(logger.CreateLogger())
+
+	src := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws?version=1.2.3+build.5"
+
+	key, err := r.Probe(t.Context(), src)
+	require.NoError(t, err)
+
+	expected := cas.ContentKey("tfr-xtg", "https://"+server.Listener.Addr().String()+"/download/terraform-aws-vpc.zip")
+	assert.Equal(t, expected, key)
+}
+
 // TestTFRResolver_ProbeIsStable pins that two probes of the same URL
 // produce the same key, so the CAS hit path on a repeated run is
 // deterministic.
