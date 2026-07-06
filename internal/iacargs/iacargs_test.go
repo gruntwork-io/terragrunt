@@ -81,6 +81,27 @@ func TestNew(t *testing.T) {
 			wantArgs:  nil,
 		},
 		{
+			name:      "replace with space-separated value",
+			input:     []string{"plan", "-replace", "aws_instance.foo", "-out=tfplan"},
+			wantCmd:   "plan",
+			wantFlags: []string{"-replace", "aws_instance.foo", "-out=tfplan"},
+			wantArgs:  nil,
+		},
+		{
+			name:      "multiple replace flags space-separated",
+			input:     []string{"plan", "-replace", "aws_instance.a", "-replace", "aws_instance.b"},
+			wantCmd:   "plan",
+			wantFlags: []string{"-replace", "aws_instance.a", "-replace", "aws_instance.b"},
+			wantArgs:  nil,
+		},
+		{
+			name:      "replace with equals value",
+			input:     []string{"plan", "-replace=aws_instance.foo"},
+			wantCmd:   "plan",
+			wantFlags: []string{"-replace=aws_instance.foo"},
+			wantArgs:  nil,
+		},
+		{
 			// Unknown flags are treated as boolean. If a new Terraform flag needs
 			// space-separated values, add it to valueTakingFlags list.
 			name:      "unknown flag treated as boolean",
@@ -254,6 +275,11 @@ func TestIacArgsRoundTrip(t *testing.T) {
 			name:  "state mv subcommand preserves order",
 			input: []string{"state", "mv", "-lock=false", "aws_instance.a", "aws_instance.b"},
 			want:  []string{"state", "mv", "-lock=false", "aws_instance.a", "aws_instance.b"},
+		},
+		{
+			name:  "replace flags keep their space-separated values (#6418)",
+			input: []string{"apply", "-replace", "aws_instance.a", "-replace", "aws_instance.b", "-auto-approve"},
+			want:  []string{"apply", "-replace", "aws_instance.a", "-replace", "aws_instance.b", "-auto-approve"},
 		},
 	}
 
