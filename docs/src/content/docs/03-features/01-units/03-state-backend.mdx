@@ -167,7 +167,7 @@ The following backends are currently supported by `remote_state`:
 
 - [s3 backend](https://opentofu.org/docs/language/settings/backends/s3)
 - [gcs backend](https://opentofu.org/docs/language/settings/backends/gcs)
-- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (experimental; requires the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)
+- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (experimental; bootstrap, delete, and migrate require the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)
 
 For all other backends, the `remote_state` block operates in the same manner as `generate`, currently. If you are not intending for Terragrunt to automatically perform
 automated bootstrapping of remote state resources, you are advised to use `generate` blocks to configure the OpenTofu/Terraform backend instead.
@@ -380,26 +380,26 @@ remote_state {
 }
 ```
 
-When bootstrapping (`terragrunt backend bootstrap` or `--backend-bootstrap`), Terragrunt creates the resource group
-(unless it exists or creation is skipped), the storage account, and the blob container, then converges blob versioning
-and optional soft delete on both new and pre-existing accounts.
+When bootstrapping (`terragrunt backend bootstrap` or `--backend-bootstrap`), Terragrunt creates the resource group,
+storage account, and blob container when they do not exist (each step can be skipped with the `skip_*` options below),
+then enables blob versioning and, when requested, soft delete on both new and pre-existing accounts.
 
 The following config options are only valid for the `azurerm` backend and are used by Terragrunt; they are **not** passed on to OpenTofu/Terraform:
 
-- `location`
-- `account_kind`
-- `account_tier`
-- `account_replication_type`
-- `access_tier`
-- `tags`
-- `skip_resource_group_creation`
-- `skip_storage_account_creation`
-- `skip_container_creation`
-- `skip_versioning`
-- `enable_soft_delete`
-- `soft_delete_retention_days`
-- `allow_blob_public_access`
-- `msi_resource_id`
+- `location` - Azure region for the resource group and storage account (e.g. `eastus`). Required when Terragrunt creates them.
+- `account_kind` - Storage account kind. Defaults to `StorageV2`.
+- `account_tier` - Storage account tier, `Standard` or `Premium`. Defaults to `Standard`.
+- `account_replication_type` - Replication type, e.g. `LRS`, `GRS`, `ZRS`. Defaults to `LRS`.
+- `access_tier` - Blob access tier, `Hot`, `Cool`, `Cold`, or `Premium`. Defaults to `Hot`.
+- `tags` - Map of tags applied to the storage account on creation.
+- `skip_resource_group_creation` - When `true`, never create the resource group.
+- `skip_storage_account_creation` - When `true`, never create the storage account; it must already exist.
+- `skip_container_creation` - When `true`, never create the blob container; it must already exist.
+- `skip_versioning` - When `true`, do not enable blob versioning on the account.
+- `enable_soft_delete` - When `true`, enable blob and container soft delete.
+- `soft_delete_retention_days` - Soft delete retention in days, 1 to 365. Defaults to 7; out-of-range values are reset to 7.
+- `allow_blob_public_access` - When `true`, allow containers on the account to permit anonymous access. Defaults to `false`.
+- `msi_resource_id` - Resource ID of a user-assigned managed identity to use with `use_msi`.
 
 Authentication is resolved in the following order, with `ARM_*` and `AZURE_*` environment variable fallbacks applied
 to any values not set in the config:
@@ -411,11 +411,11 @@ to any values not set in the config:
 5. OIDC / workload identity (`use_oidc`, `oidc_token_file_path`)
 6. Azure AD (`use_azuread_auth`, or the default credential chain, which honors `az login`)
 
-Sovereign clouds are selected with the `environment` key (`public`, `usgovernment`, or `china`).
+The `environment` key selects the Azure cloud: `public` (the default), `usgovernment`, or `china`.
 
 <Aside type="note" title="Known limitations">
 - SAS token and access key authentication are data-plane only: Terragrunt can create the blob container but not the resource group or storage account, which must already exist.
-- With SAS token or access key authentication, Terragrunt cannot verify blob versioning (it is an ARM management-plane property), so `backend delete` and `backend migrate` treat the account as unversioned and require the `--force` flag even when versioning is enabled.
+- With SAS token or access key authentication, or when `resource_group_name` is not set, Terragrunt cannot verify blob versioning (it is an ARM management-plane property), so `backend delete` and `backend migrate` treat the account as unversioned and require the `--force` flag even when versioning is enabled.
 - With `use_azuread_auth`, reading and writing state requires the **Storage Blob Data Contributor** role on the storage account; the control-plane Contributor role alone is not sufficient. Terragrunt does not yet assign this role automatically.
 - State migration is supported within a single storage account; cross-account migration must be performed manually (init, state pull, state push).
 </Aside>

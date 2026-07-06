@@ -3,7 +3,6 @@
 package azurehelper_test
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -48,31 +47,20 @@ func TestNewResourceGroupClient_MissingCredential(t *testing.T) {
 	}
 }
 
-func newTestResourceGroupClient(t *testing.T, tr *stubTransport) *azurehelper.ResourceGroupClient {
-	t.Helper()
-
-	c, err := azurehelper.NewResourceGroupClient(cfgWithTransport(tr))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-
-	return c
-}
-
 func TestResourceGroup_RequiresName(t *testing.T) {
 	t.Parallel()
 
 	c := newTestResourceGroupClient(t, &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{})})
 
-	if _, err := c.Exists(context.Background(), ""); err == nil {
+	if _, err := c.Exists(t.Context(), ""); err == nil {
 		t.Error("Exists with empty name should error")
 	}
 
-	if err := c.EnsureResourceGroup(context.Background(), log.New(), "", "eastus"); err == nil {
+	if err := c.EnsureResourceGroup(t.Context(), log.New(), "", "eastus"); err == nil {
 		t.Error("EnsureResourceGroup with empty name should error")
 	}
 
-	if err := c.Delete(context.Background(), log.New(), ""); err == nil {
+	if err := c.Delete(t.Context(), log.New(), ""); err == nil {
 		t.Error("Delete with empty name should error")
 	}
 }
@@ -82,7 +70,7 @@ func TestResourceGroup_Exists_True(t *testing.T) {
 
 	c := newTestResourceGroupClient(t, &stubTransport{status: http.StatusNoContent, body: nil})
 
-	exists, err := c.Exists(context.Background(), "rg")
+	exists, err := c.Exists(t.Context(), "rg")
 	if err != nil {
 		t.Fatalf("Exists: %v", err)
 	}
@@ -99,7 +87,7 @@ func TestResourceGroup_Exists_False(t *testing.T) {
 		"error": map[string]any{"code": "ResourceGroupNotFound", "message": "not found"},
 	})})
 
-	exists, err := c.Exists(context.Background(), "rg")
+	exists, err := c.Exists(t.Context(), "rg")
 	if err != nil {
 		t.Fatalf("Exists: %v", err)
 	}
@@ -116,7 +104,7 @@ func TestResourceGroup_EnsureResourceGroup_RequiresLocation(t *testing.T) {
 		"error": map[string]any{"code": "ResourceGroupNotFound"},
 	})})
 
-	if err := c.EnsureResourceGroup(context.Background(), log.New(), "rg", ""); err == nil {
+	if err := c.EnsureResourceGroup(t.Context(), log.New(), "rg", ""); err == nil {
 		t.Error("EnsureResourceGroup with empty location on missing RG should error")
 	}
 }
@@ -126,7 +114,18 @@ func TestResourceGroup_EnsureResourceGroup_NoopWhenExists(t *testing.T) {
 	// 204 -> exists -> CreateOrUpdate must not be called, and missing location is fine.
 	c := newTestResourceGroupClient(t, &stubTransport{status: http.StatusNoContent, body: nil})
 
-	if err := c.EnsureResourceGroup(context.Background(), log.New(), "rg", ""); err != nil {
+	if err := c.EnsureResourceGroup(t.Context(), log.New(), "rg", ""); err != nil {
 		t.Errorf("EnsureResourceGroup on existing RG: %v", err)
 	}
+}
+
+func newTestResourceGroupClient(t *testing.T, tr *stubTransport) *azurehelper.ResourceGroupClient {
+	t.Helper()
+
+	c, err := azurehelper.NewResourceGroupClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	return c
 }

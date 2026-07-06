@@ -84,6 +84,12 @@ func armCapable(cfg *azurehelper.AzureConfig) bool {
 	return cfg.Method != azurehelper.AuthMethodSasToken && cfg.Method != azurehelper.AuthMethodAccessKey
 }
 
+// armWorkRequested reports whether the config asks for any ARM control-plane
+// work; a user-managed account with no policy convergence requires none.
+func armWorkRequested(extCfg *ExtendedRemoteStateConfigAzurerm) bool {
+	return !extCfg.SkipStorageAccountCreation || !extCfg.SkipVersioning || extCfg.EnableSoftDelete
+}
+
 // NeedsBootstrap returns true if the storage account or container backing the
 // state does not yet exist, or (when reachable) blob versioning is disabled.
 func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) (bool, error) {
@@ -98,7 +104,7 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfi
 
 	rs := &extCfg.RemoteStateConfigAzurerm
 
-	if armCapable(cfg) {
+	if armCapable(cfg) && armWorkRequested(extCfg) {
 		saClient, err := azurehelper.NewStorageAccountClient(cfg)
 		if err != nil {
 			return false, err
@@ -220,6 +226,11 @@ func (b *Backend) bootstrapAccount(
 	cfg *azurehelper.AzureConfig,
 	opts *backend.Options,
 ) error {
+	// A user-managed account with no policy work needs nothing from ARM.
+	if !armWorkRequested(extCfg) {
+		return nil
+	}
+
 	rs := &extCfg.RemoteStateConfigAzurerm
 
 	saClient, err := azurehelper.NewStorageAccountClient(cfg)
@@ -248,14 +259,15 @@ func (b *Backend) bootstrapAccount(
 
 		// The resource group must exist before the account; only create it when
 		// we are actually creating the account (an existing account already has
-		// its resource group).
-		if !extCfg.SkipResourceGroupCreation && rs.ResourceGroupName != "" {
+		// its resource group). cfg.ResourceGroup carries the env-resolved value
+		// the storage account client is bound to, so gate and create on it.
+		if !extCfg.SkipResourceGroupCreation && cfg.ResourceGroup != "" {
 			rgClient, err := azurehelper.NewResourceGroupClient(cfg)
 			if err != nil {
 				return err
 			}
 
-			if err := rgClient.EnsureResourceGroup(ctx, l, rs.ResourceGroupName, extCfg.Location); err != nil {
+			if err := rgClient.EnsureResourceGroup(ctx, l, cfg.ResourceGroup, extCfg.Location); err != nil {
 				return err
 			}
 		}
@@ -335,6 +347,14 @@ func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, bac
 
 	if !armCapable(cfg) {
 		l.Warnf("Cannot check blob versioning for %s backend with %s authentication; skipping.", b.Name(), cfg.Method)
+
+		return false, nil
+	}
+
+	// Versioning is an ARM management-plane property, unreachable without a
+	// resource group; degrade the same way as data-plane-only auth.
+	if cfg.ResourceGroup == "" {
+		l.Warnf("Cannot check blob versioning for %s backend without resource_group_name; skipping.", b.Name())
 
 		return false, nil
 	}

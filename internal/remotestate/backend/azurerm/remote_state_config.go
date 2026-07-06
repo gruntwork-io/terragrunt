@@ -94,7 +94,6 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) GetAzureSessionConfig() *azurehelpe
 		StorageAccountName: rs.StorageAccountName,
 		ResourceGroupName:  rs.ResourceGroupName,
 		ContainerName:      rs.ContainerName,
-		Location:           cfg.Location,
 		MSIResourceID:      rs.MSIResourceID,
 		SasToken:           rs.SasToken,
 		AccessKey:          rs.AccessKey,
@@ -112,17 +111,14 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) StorageAccountConfig() *azurehelper
 	rs := cfg.RemoteStateConfigAzurerm
 
 	return &azurehelper.StorageAccountConfig{
-		Name:              rs.StorageAccountName,
-		ResourceGroupName: rs.ResourceGroupName,
-		Location:          cfg.Location,
-		AccountKind:       cfg.AccountKind,
-		AccountTier:       cfg.AccountTier,
-		ReplicationType:   cfg.AccountReplicationType,
-		AccessTier:        cfg.AccessTier,
-		Tags:              cfg.Tags,
-		// EnableVersioning is intentionally left false here: bootstrapAccount
-		// converges versioning (and soft delete) on both new and pre-existing
-		// accounts, so setting it on Create too would be a redundant ARM call.
+		Name:                  rs.StorageAccountName,
+		ResourceGroupName:     rs.ResourceGroupName,
+		Location:              cfg.Location,
+		AccountKind:           cfg.AccountKind,
+		AccountTier:           cfg.AccountTier,
+		ReplicationType:       cfg.AccountReplicationType,
+		AccessTier:            cfg.AccessTier,
+		Tags:                  cfg.Tags,
 		AllowBlobPublicAccess: cfg.AllowBlobPublicAccess,
 	}
 }

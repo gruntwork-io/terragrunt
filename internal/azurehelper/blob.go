@@ -9,13 +9,11 @@ package azurehelper
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	azblobcontainer "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 )
@@ -174,7 +172,7 @@ func (c *BlobClient) CreateContainer(ctx context.Context, name string) error {
 		return nil
 	}
 
-	if respErr, ok := errors.AsType[*azcore.ResponseError](err); ok && strings.EqualFold(respErr.ErrorCode, "ContainerAlreadyExists") {
+	if isErrorCode(err, "ContainerAlreadyExists") {
 		return nil
 	}
 
@@ -370,6 +368,10 @@ func (c *BlobClient) ListBlobs(ctx context.Context, container string, opts ...Li
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("listing blobs in %s: %w", container, err)
+		}
+
+		if page.Segment == nil {
+			continue
 		}
 
 		for _, item := range page.Segment.BlobItems {

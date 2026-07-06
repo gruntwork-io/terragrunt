@@ -51,9 +51,7 @@ func TestNewBlobClient_NoCredentialForTokenMethod(t *testing.T) {
 
 func TestNewBlobClient_OIDCMissingTokenSource(t *testing.T) {
 	t.Parallel()
-	// A user that asks for OIDC auth but never wired a token source through
-	// the builder lands here with Method=OIDC and a nil Credential. The
-	// blob constructor must reject this rather than panic dereferencing.
+	// OIDC with a nil credential must be rejected, not panic.
 	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
 		Method:        azurehelper.AuthMethodOIDC,
 		AccountName:   testAccount,
@@ -218,11 +216,8 @@ func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
 	}
 }
 
-// TestBlob_LiveRoundTrip exercises BlobClient against a real Azure storage
-// account. Skipped unless TG_AZURE_TEST_STORAGE_ACCOUNT and
-// TG_AZURE_TEST_SUBSCRIPTION_ID are set. Auth uses the Azure AD default
-// credential chain (az login, MSI, env vars). Creates a temporary container,
-// writes a blob, reads it back, deletes the blob, then deletes the container.
+// TestBlob_LiveRoundTrip round-trips a blob against a real storage account;
+// skipped unless TG_AZURE_TEST_STORAGE_ACCOUNT and TG_AZURE_TEST_SUBSCRIPTION_ID are set.
 func TestBlob_LiveRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -259,8 +254,7 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 	require.NoError(t, bc.CreateContainer(ctx, container), "CreateContainer")
 
 	t.Cleanup(func() {
-		// t.Context() is cancelled by the time cleanup runs; use a fresh
-		// context so the teardown actually attempts to remove the container.
+		// Fresh context because t.Context() is already cancelled during cleanup.
 		_ = bc.EnsureContainerDeleted(context.Background(), container)
 	})
 

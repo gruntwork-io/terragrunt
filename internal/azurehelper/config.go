@@ -27,7 +27,6 @@ type AzureSessionConfig struct {
 	StorageAccountName string
 	ResourceGroupName  string
 	ContainerName      string
-	Location           string
 	MSIResourceID      string
 	SasToken           string
 	AccessKey          string
@@ -262,26 +261,34 @@ func buildAzureADConfig(
 	}
 
 	out.Method = AuthMethodAzureAD
-	out.Credential = defaultCred
-
-	// Prepend AzureCLICredential when it can be constructed (best-effort: on any
-	// construction error we log and keep DefaultAzureCredential alone, so an
-	// operator expecting `az login` precedence is not left guessing).
-	if cliCred, cliErr := azidentity.NewAzureCLICredential(&azidentity.AzureCLICredentialOptions{
-		TenantID: resolved.TenantID,
-	}); cliErr != nil {
-		l.Debugf("azurehelper: Azure CLI credential unavailable, using DefaultAzureCredential only: %v", cliErr)
-	} else if chain, chainErr := azidentity.NewChainedTokenCredential(
-		[]azcore.TokenCredential{cliCred, defaultCred}, nil,
-	); chainErr != nil {
-		l.Debugf("azurehelper: failed to build CLI credential chain, using DefaultAzureCredential only: %v", chainErr)
-	} else {
-		out.Credential = chain
-	}
+	out.Credential = chainedCredential(defaultCred, resolved.TenantID, l)
 
 	l.Debugf("azurehelper: using Azure AD authentication (%s)", reason)
 
 	return out, validate(out, resolved)
+}
+
+// chainedCredential prepends an Azure CLI credential to defaultCred when one
+// can be constructed; on any construction error it logs and keeps defaultCred
+// alone, so an operator expecting `az login` precedence is not left guessing.
+func chainedCredential(defaultCred azcore.TokenCredential, tenantID string, l log.Logger) azcore.TokenCredential {
+	cliCred, err := azidentity.NewAzureCLICredential(&azidentity.AzureCLICredentialOptions{
+		TenantID: tenantID,
+	})
+	if err != nil {
+		l.Debugf("azurehelper: Azure CLI credential unavailable, using DefaultAzureCredential only: %v", err)
+
+		return defaultCred
+	}
+
+	chain, err := azidentity.NewChainedTokenCredential([]azcore.TokenCredential{cliCred, defaultCred}, nil)
+	if err != nil {
+		l.Debugf("azurehelper: failed to build CLI credential chain, using DefaultAzureCredential only: %v", err)
+
+		return defaultCred
+	}
+
+	return chain
 }
 
 // BuildBlobClient is a convenience that calls Build and then constructs a
@@ -328,9 +335,9 @@ func (b *AzureConfigBuilder) BuildStorageAccountClient(ctx context.Context, l lo
 
 	switch {
 	case preflight.SasToken != "":
-		return nil, errors.New("storage account management requires a token credential, not a SAS token")
+		return nil, &UnsupportedAuthForOpError{Method: AuthMethodSasToken, Operation: "storage account operations"}
 	case preflight.AccessKey != "":
-		return nil, errors.New("storage account management requires a token credential, not an access key")
+		return nil, &UnsupportedAuthForOpError{Method: AuthMethodAccessKey, Operation: "storage account operations"}
 	}
 
 	cfg, err := b.Build(ctx, l)
@@ -361,10 +368,6 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 
 	if cfg.StorageAccountName == "" {
 		cfg.StorageAccountName = b.firstEnv("ARM_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT")
-	}
-
-	if cfg.Location == "" {
-		cfg.Location = b.firstEnv("ARM_LOCATION", "AZURE_LOCATION")
 	}
 
 	if cfg.TenantID == "" {

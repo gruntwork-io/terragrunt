@@ -1,7 +1,6 @@
 package azurerm_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -26,7 +25,7 @@ func TestExperimentGate(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx := context.Background()
+	ctx := t.Context()
 	bcfg := backend.Config(fullConfig())
 	opts := optsWithExperiment(t, false)
 	b := azurerm.NewBackend()
@@ -73,7 +72,7 @@ func TestExperimentEnabled_InvalidConfigSurfaces(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := optsWithExperiment(t, true)
 	b := azurerm.NewBackend()
 
@@ -108,7 +107,7 @@ func TestMigrate_CrossAccountRefused(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := optsWithExperiment(t, true)
 	b := azurerm.NewBackend()
 
@@ -123,6 +122,41 @@ func TestMigrate_CrossAccountRefused(t *testing.T) {
 	assert.Contains(t, err.Error(), "cross-account")
 }
 
+// TestNeedsBootstrap_SkipsArmPlaneWhenNoArmWork verifies a user-managed
+// account with all creation and policy work skipped needs no ARM access.
+func TestNeedsBootstrap_SkipsArmPlaneWhenNoArmWork(t *testing.T) {
+	t.Parallel()
+
+	needs, err := azurerm.NewBackend().NeedsBootstrap(
+		t.Context(), logger.CreateLogger(), backend.Config(rgLessSkipAllConfig()), optsWithExperiment(t, true))
+	require.NoError(t, err)
+	assert.False(t, needs)
+}
+
+// TestBootstrap_SkipsArmPlaneWhenNoArmWork verifies Bootstrap succeeds without
+// a resource group when the account is user-managed and nothing is converged.
+func TestBootstrap_SkipsArmPlaneWhenNoArmWork(t *testing.T) {
+	t.Parallel()
+
+	err := azurerm.NewBackend().Bootstrap(
+		t.Context(), logger.CreateLogger(), backend.Config(rgLessSkipAllConfig()), optsWithExperiment(t, true))
+	require.NoError(t, err)
+}
+
+// TestIsVersionControlEnabled_NoResourceGroupDegrades verifies the versioning
+// check degrades to false instead of erroring when no resource group is known.
+func TestIsVersionControlEnabled_NoResourceGroupDegrades(t *testing.T) {
+	t.Parallel()
+
+	cfg := fullConfig()
+	delete(cfg, "resource_group_name")
+
+	enabled, err := azurerm.NewBackend().IsVersionControlEnabled(
+		t.Context(), logger.CreateLogger(), backend.Config(cfg), optsWithExperiment(t, true))
+	require.NoError(t, err)
+	assert.False(t, enabled)
+}
+
 // optsWithExperiment returns backend.Options with the azure-backend experiment
 // enabled (or not), without touching real Azure.
 func optsWithExperiment(t *testing.T, enabled bool) *backend.Options {
@@ -133,5 +167,46 @@ func optsWithExperiment(t *testing.T, enabled bool) *backend.Options {
 		require.NoError(t, exps.EnableExperiment(experiment.AzureBackend))
 	}
 
-	return &backend.Options{Experiments: exps, NonInteractive: true}
+	return &backend.Options{Experiments: exps, NonInteractive: true, Env: isolatingEnv()}
+}
+
+// rgLessSkipAllConfig returns a config with no resource group and every
+// creation or policy step skipped, so no Azure call is required.
+func rgLessSkipAllConfig() azurerm.Config {
+	cfg := fullConfig()
+	delete(cfg, "resource_group_name")
+	delete(cfg, "enable_soft_delete")
+	delete(cfg, "soft_delete_retention_days")
+
+	cfg["skip_storage_account_creation"] = true
+	cfg["skip_versioning"] = true
+	cfg["skip_container_creation"] = true
+
+	return cfg
+}
+
+// isolatingEnv shields config resolution from the developer's ARM_*/AZURE_* shell values.
+func isolatingEnv() map[string]string {
+	keys := []string{
+		"ARM_SUBSCRIPTION_ID", "AZURE_SUBSCRIPTION_ID",
+		"ARM_RESOURCE_GROUP_NAME", "AZURE_RESOURCE_GROUP_NAME",
+		"ARM_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT",
+		"ARM_TENANT_ID", "AZURE_TENANT_ID",
+		"ARM_CLIENT_ID", "AZURE_CLIENT_ID",
+		"ARM_CLIENT_SECRET", "AZURE_CLIENT_SECRET",
+		"ARM_SAS_TOKEN", "AZURE_STORAGE_SAS_TOKEN",
+		"ARM_ACCESS_KEY", "AZURE_STORAGE_KEY",
+		"ARM_MSI_RESOURCE_ID", "AZURE_MSI_RESOURCE_ID",
+		"ARM_ENVIRONMENT", "AZURE_ENVIRONMENT",
+		"ARM_USE_MSI", "ARM_USE_OIDC",
+		"ARM_USE_AZUREAD", "ARM_USE_AZUREAD_AUTH",
+		"ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE",
+	}
+
+	m := make(map[string]string, len(keys))
+	for _, k := range keys {
+		m[k] = ""
+	}
+
+	return m
 }

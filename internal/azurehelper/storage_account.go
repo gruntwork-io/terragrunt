@@ -62,9 +62,6 @@ type StorageAccountConfig struct {
 	// AccessTier is "Hot" or "Cool". Default: Hot.
 	AccessTier string
 
-	// EnableVersioning configures blob versioning after the account exists.
-	EnableVersioning bool
-
 	// AllowBlobPublicAccess controls whether containers may permit anonymous access.
 	AllowBlobPublicAccess bool
 }
@@ -94,7 +91,7 @@ func NewStorageAccountClient(cfg *AzureConfig) (*StorageAccountClient, error) {
 	}
 
 	if cfg.Credential == nil {
-		return nil, errors.New("storage account management requires a token credential (SAS-token / access-key auth is data-plane only)")
+		return nil, &UnsupportedAuthForOpError{Method: cfg.Method, Operation: "storage account operations"}
 	}
 
 	if cfg.AccountName == "" {
@@ -126,12 +123,6 @@ func NewStorageAccountClient(cfg *AzureConfig) (*StorageAccountClient, error) {
 	}, nil
 }
 
-// AccountName returns the storage account name this client targets.
-func (c *StorageAccountClient) AccountName() string { return c.accountName }
-
-// ResourceGroup returns the resource group containing the account.
-func (c *StorageAccountClient) ResourceGroup() string { return c.resourceGroup }
-
 // Exists returns true if the storage account exists in the configured
 // resource group. A 404 from ARM yields (false, nil); any other error
 // is wrapped and returned.
@@ -154,9 +145,8 @@ func (c *StorageAccountClient) Exists(ctx context.Context) (bool, error) {
 // target a different account.
 //
 // The call blocks until ARM reports the create operation as complete.
-// If in.EnableVersioning is true, blob versioning is configured after the
-// account is created; a failure at that step returns an error but leaves
-// the (now-existing) account in place for the caller to retry or clean up.
+// Blob versioning and soft delete are configured separately via
+// EnableVersioning / EnableSoftDelete after the account exists.
 func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *StorageAccountConfig) error {
 	if in == nil {
 		return ErrStorageAccountConfigRequired
@@ -207,12 +197,6 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 
 	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
 		return fmt.Errorf("create storage account %q: %w", c.accountName, err)
-	}
-
-	if in.EnableVersioning {
-		if err := c.EnableVersioning(ctx, l); err != nil {
-			return err
-		}
 	}
 
 	return nil

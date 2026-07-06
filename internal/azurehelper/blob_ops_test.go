@@ -181,6 +181,26 @@ func TestBlobClient_CreateContainer_ToleratesExisting(t *testing.T) {
 	require.NoError(t, c.CreateContainer(t.Context(), "dupc"))
 }
 
+func TestBlobClient_ListBlobs_WithPrefix(t *testing.T) {
+	t.Parallel()
+
+	const listing = `<?xml version="1.0" encoding="utf-8"?>` +
+		`<EnumerationResults><Blobs><Blob><Name>state/a.tfstate</Name></Blob></Blobs><NextMarker /></EnumerationResults>`
+
+	rt := &routeTransport{routes: []stubRoute{
+		{method: http.MethodGet, pathSub: "/prefc", status: http.StatusOK, body: listing},
+	}}
+	c := newRoutedBlobClient(t, rt)
+
+	names, err := c.ListBlobs(t.Context(), "prefc", azurehelper.WithPrefix("state/"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"state/a.tfstate"}, names)
+
+	reqs := rt.requests()
+	require.NotEmpty(t, reqs)
+	assert.Contains(t, reqs[0].query, "prefix=state", "prefix option must reach the list request")
+}
+
 func TestBlobClient_EnsureContainer_CreatesWhenMissing(t *testing.T) {
 	t.Parallel()
 
@@ -215,6 +235,7 @@ type stubRoute struct {
 type recordedRequest struct {
 	method     string
 	path       string
+	query      string
 	copySource string
 	body       string
 }
@@ -234,6 +255,7 @@ func (rt *routeTransport) Do(req *http.Request) (*http.Response, error) {
 	rt.reqs = append(rt.reqs, recordedRequest{
 		method:     req.Method,
 		path:       req.URL.Path,
+		query:      req.URL.RawQuery,
 		copySource: req.Header.Get("x-ms-copy-source"),
 		body:       readRequestBody(req),
 	})
@@ -271,37 +293,17 @@ func (rt *routeTransport) sawMethodOnPath(method, pathSub string) bool {
 // firstIndexOf returns the arrival index of the first request matching method
 // and pathSub, or -1 when none matched.
 func (rt *routeTransport) firstIndexOf(method, pathSub string) int {
-	for i, r := range rt.requests() {
-		if r.method != method {
-			continue
-		}
-
-		if strings.Contains(r.path, pathSub) {
-			return i
-		}
-	}
-
-	return -1
+	return slices.IndexFunc(rt.requests(), func(r recordedRequest) bool {
+		return r.method == method && strings.Contains(r.path, pathSub)
+	})
 }
 
 // sawBodyOnPath reports whether any recorded request used method on a path
 // containing pathSub with exactly the given body.
 func (rt *routeTransport) sawBodyOnPath(method, pathSub, body string) bool {
-	for _, r := range rt.requests() {
-		if r.method != method {
-			continue
-		}
-
-		if !strings.Contains(r.path, pathSub) {
-			continue
-		}
-
-		if r.body == body {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(rt.requests(), func(r recordedRequest) bool {
+		return r.method == method && strings.Contains(r.path, pathSub) && r.body == body
+	})
 }
 
 // readRequestBody drains and returns the request body, empty when absent.
