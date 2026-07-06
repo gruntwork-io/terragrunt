@@ -167,10 +167,11 @@ func TestFindDAGWithMixedDependencies(t *testing.T) {
 	}
 }
 
-// TestFindDependenciesWithSourceReferencingDependency is a regression test for dependency discovery aborting when a
-// unit's terraform `source` mentions the `dependency` namespace in an untaken conditional branch. The source evaluates
-// to a concrete value, so the edge must still be reported rather than dropped.
-func TestFindDependenciesWithSourceReferencingDependency(t *testing.T) {
+// TestFindToleratesTerraformSourceReferencingDependency covers discovery of a unit whose terraform `source` references
+// the `dependency` namespace. Such a source is rejected (it must be resolvable before dependencies are evaluated), so
+// the unit's config cannot be parsed. Discovery must still not crash: it lists the unit, and the dependency edge that
+// would come from parsing its config is simply absent rather than aborting the whole run.
+func TestFindToleratesTerraformSourceReferencingDependency(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindSourceReferencesDependency)
@@ -182,7 +183,7 @@ func TestFindDependenciesWithSourceReferencingDependency(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
-	require.JSONEq(t, `[{"type":"unit","path":"app","dependencies":["upstream"]},{"type":"unit","path":"upstream"}]`, stdout)
+	require.JSONEq(t, `[{"type":"unit","path":"app"},{"type":"unit","path":"upstream"}]`, stdout)
 }
 
 // requireJSONEqualIgnoringArrayOrder compares two JSON strings for equivalence, ignoring the order of array elements.

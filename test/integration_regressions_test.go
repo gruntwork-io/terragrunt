@@ -46,7 +46,7 @@ const (
 	testFixtureDependencyRemoteStateOutput       = "fixtures/regressions/dependency-remote-state-output"
 	testFixtureDependencyGenuineError            = "fixtures/regressions/dependency-genuine-error"
 	testFixtureDependencyOutputLocalOptimization = "fixtures/regressions/dependency-output-local-optimization"
-	testFixtureDependencySourceOutput            = "fixtures/regressions/dependency-source-output"
+	testFixtureTerraformSourceRefsDependency     = "fixtures/regressions/terraform-source-references-dependency"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -1226,26 +1226,26 @@ func TestDependencyExtraArgsOutputResolution(t *testing.T) {
 	assert.Contains(t, stdout, "argocd")
 }
 
-// TestDependencySourceOutputWithSourceOverride pins that the output-resolution fallback recomputes a `--source`
-// override against the dependency it is resolving, not the unit the run started from. module-b's terraform source
-// consumes module-a's output, so resolving it for module-c takes the full-run fallback; with a --source override
-// active, the override's module subdir must be retargeted from module-c (the caller) to module-b. Without that, the
-// fallback reads module-b's outputs from the caller's stale module directory and module-c fails with a misleading
-// "detected no outputs" even though module-b applied and produced real outputs.
-func TestDependencySourceOutputWithSourceOverride(t *testing.T) {
+// TestTerraformSourceReferencesDependencyIsRejected pins that a unit whose terraform.source references a dependency
+// output is rejected with a clear, actionable error instead of a misleading downstream cascade. The module source is
+// consumed during discovery and queue construction, before any dependency output exists, so it can never be resolved
+// there. module-b's source consumes module-a's output; the run must fail up front naming module-b's source, not fail
+// later on module-c with a "detected no outputs" that sends the user chasing the wrong unit.
+func TestTerraformSourceReferencesDependencyIsRejected(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencySourceOutput)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencySourceOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTerraformSourceRefsDependency)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureTerraformSourceRefsDependency)
 	livePath := filepath.Join(rootPath, "live")
 	modulesPath := filepath.Join(rootPath, "modules")
 
-	// module-a <- module-b (terraform.source consumes module-a's output) <- module-c, run under a --source override.
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+livePath+" --source "+modulesPath+" -- apply")
-	require.NoError(t, err)
 
-	// module-b's real output must propagate to module-c's echo; a wrong-module read would leave it empty.
-	assert.Contains(t, stdout+stderr, "argocd")
+	// The error must name the offending terraform.source, not misattribute the failure to a downstream unit. The typed
+	// error is asserted in TestPartialParseTerraformSourceReferencingDependencyReturnsClearError; here it flows through
+	// the CLI as text, so match on the message and confirm the misleading downstream cascade is absent.
+	require.ErrorContains(t, err, "cannot reference dependency outputs")
+	assert.NotContains(t, stdout+stderr, "detected no outputs")
 }
 
 // TestDependencyRemoteStateOutputResolution checks a unit can resolve outputs of a dependency whose remote_state config references its own dependency.

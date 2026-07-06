@@ -1041,19 +1041,19 @@ dependency "upstream" {
 	l := logger.CreateLogger()
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	// SkipOutputsResolution mirrors discovery, where dependency outputs resolve to an unknown placeholder.
-	pctx = pctx.WithDecodeList(config.TerraformSource).WithSkipOutputsResolution()
+
+	pctx = pctx.WithDecodeList(config.TerraformSource)
+
 	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 
 	var srcErr config.TerraformSourceReferencesDependencyError
 	require.ErrorAs(t, err, &srcErr, "source referencing a dependency should return a clear typed error, not a cryptic decode error")
 }
 
-// TestPartialParseTerraformSourceDependencyInUntakenBranch mirrors discovery (SkipOutputsResolution with the relevant
-// subset of the discovery decode list) over a source whose dependency reference sits in an untaken conditional branch.
-// The source evaluates to a concrete value, so the parse must succeed and still surface the dependency edge rather than
-// aborting with TerraformSourceReferencesDependencyError.
-func TestPartialParseTerraformSourceDependencyInUntakenBranch(t *testing.T) {
+// TestPartialParseTerraformSourceDependencyInUntakenBranchIsRejected covers a source whose dependency reference sits
+// in an untaken conditional branch. The source is consumed during discovery and queue construction, before any
+// dependency output exists, so the reference is rejected outright even though the branch never evaluates.
+func TestPartialParseTerraformSourceDependencyInUntakenBranchIsRejected(t *testing.T) {
 	t.Parallel()
 
 	cfg := `
@@ -1069,45 +1069,31 @@ dependency "upstream" {
 	l := logger.CreateLogger()
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	pctx = pctx.WithDecodeList(
-		config.TerraformSource,
-		config.DependenciesBlock,
-		config.DependencyBlock,
-	).WithSkipOutputsResolution()
+	pctx = pctx.WithDecodeList(config.TerraformSource)
 
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
-	require.NoError(t, err, "a dependency reference in an untaken conditional branch must not be rejected")
+	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 
-	require.NotNil(t, terragruntConfig.Terraform)
-	require.NotNil(t, terragruntConfig.Terraform.Source)
-	assert.Equal(t, "./module", *terragruntConfig.Terraform.Source)
-
-	require.Len(t, terragruntConfig.TerragruntDependencies, 1)
-	assert.Equal(t, "upstream", terragruntConfig.TerragruntDependencies[0].Name)
+	var srcErr config.TerraformSourceReferencesDependencyError
+	require.ErrorAs(t, err, &srcErr, "a dependency reference anywhere in the source, even an untaken branch, must be rejected")
 }
 
-// TestPartialParseTerraformSourceUnrelatedDecodeErrorIsNotRebranded guards the gate that produces
-// TerraformSourceReferencesDependencyError: a source decode that fails for a reason unrelated to dependency
-// resolution must keep its own precise diagnostic, even when the source expression mentions the dependency namespace
-// in an untaken branch. Here the taken branch is a tuple, so the source fails to decode into a string; the dependency
-// reference is never evaluated, so the friendly error would be a misdiagnosis.
+// TestPartialParseTerraformSourceUnrelatedDecodeErrorIsNotRebranded guards against over-eager rebranding: a source
+// that does not reference the dependency namespace but fails to decode for another reason must keep its own precise
+// diagnostic rather than surfacing TerraformSourceReferencesDependencyError. Here the source is a tuple, so it fails
+// to decode into a string.
 func TestPartialParseTerraformSourceUnrelatedDecodeErrorIsNotRebranded(t *testing.T) {
 	t.Parallel()
 
 	cfg := `
 terraform {
-  source = true ? [1, 2, 3] : dependency.upstream.outputs.source
-}
-
-dependency "upstream" {
-  config_path = "../upstream"
+  source = [1, 2, 3]
 }
 `
 
 	l := logger.CreateLogger()
 
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	pctx = pctx.WithDecodeList(config.TerraformSource).WithSkipOutputsResolution()
+	pctx = pctx.WithDecodeList(config.TerraformSource)
 	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 
 	require.Error(t, err)

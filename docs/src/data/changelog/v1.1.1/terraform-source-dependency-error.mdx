@@ -3,6 +3,8 @@ version: "v1.1.1"
 category: "bug-fixes"
 ---
 
-#### Clearer error when `terraform.source` references a dependency
+#### Clear error when `terraform.source` references a dependency output
 
-A `terraform.source` that interpolates `${dependency.<name>.outputs.<key>}` now fails with a message explaining that the module source must be resolvable before dependencies are evaluated, rather than the cryptic `Unsuitable value type; value must be known`.
+A `terraform.source` that references `dependency.<name>.outputs.<key>` is now rejected with a message explaining that the module source must be resolvable before dependencies are evaluated.
+
+Terragrunt resolves the source while discovering units and building the run queue, before any dependency has run, so such a source can never be satisfied. Previously it surfaced a cryptic decode error.

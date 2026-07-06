@@ -3,7 +3,7 @@ version: "v1.1.1"
 category: "bug-fixes"
 ---
 
-#### Resolve `dependency` outputs for units that reference a dependency in their `terraform` or `remote_state` block
+#### Resolve `dependency` outputs for units that reference a dependency in a hook, `extra_arguments`, or `remote_state` block
 
 Resolving a unit's `dependency` outputs for a downstream unit no longer fails when that unit references its own dependency in:
 
