@@ -140,7 +140,10 @@ func InitGitRepoWithBranchRef(t *testing.T, dir, ref string) {
 func runGitCmd(t *testing.T, dir string, args ...string) {
 	t.Helper()
 
-	cmd := exec.CommandContext(t.Context(), "git", args...)
+	gitPath, err := exec.LookPath("git")
+	require.NoError(t, err)
+
+	cmd := exec.CommandContext(t.Context(), gitPath, args...)
 	cmd.Dir = dir
 
 	out, err := cmd.CombinedOutput()
