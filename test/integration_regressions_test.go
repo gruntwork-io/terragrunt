@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +43,13 @@ const (
 	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
 	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
 	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
+	testFixtureHclValidateDependencyNoMocks      = "fixtures/regressions/hcl-validate-dependency-no-mocks"
 	testFixtureDependencyHookOutput              = "fixtures/regressions/dependency-hook-output"
+
+	// maxModuleATerraformBlockParses caps how many times resolveOutputJSON decodes the dependency terraform block.
+	maxModuleATerraformBlockParses = 1
+	// terraformDecodeName is the decode list token emitted for resolveOutputJSON's terraform decode in parse spans.
+	terraformDecodeName = "terraform_extra_args"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -1162,6 +1170,27 @@ func findCachedFile(t *testing.T, cacheRoot, name string) string {
 	return found
 }
 
+// TestHclValidateDependencyWithoutMockOutputs checks that hcl validate succeeds for a dependency without mock_outputs
+func TestHclValidateDependencyWithoutMockOutputs(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclValidateDependencyNoMocks)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHclValidateDependencyNoMocks)
+
+	// consumer-arith uses a number-typed output; consumer-whole passes the whole outputs object
+	for _, consumer := range []string{"consumer-arith", "consumer-whole"} {
+		t.Run(consumer, func(t *testing.T) {
+			t.Parallel()
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --working-dir "+filepath.Join(rootPath, consumer))
+			require.NoError(t, err)
+			assert.NotContains(t, stderr, "Could not find Terragrunt configuration settings")
+			assert.NotContains(t, stderr, "that has no outputs, but mock outputs provided")
+			assert.NotContains(t, stdout, "Could not find Terragrunt configuration settings")
+		})
+	}
+}
+
 // TestDependencyExtraArgsEnvVarsResolveOutput checks that dependency output resolution honors extra_arguments env_vars
 func TestDependencyExtraArgsEnvVarsResolveOutput(t *testing.T) {
 	t.Parallel()
@@ -1183,6 +1212,105 @@ func TestDependencyExtraArgsEnvVarsResolveOutput(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -raw test_output --non-interactive --working-dir "+moduleBPath)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "hello from module-a")
+}
+
+// TestDependencyOutputResolutionParsesConfigOnce fails if a redundant terraform-block parse returns to resolveOutputJSON.
+func TestDependencyOutputResolutionParsesConfigOnce(t *testing.T) {
+	// Not parallel because this sets a process environment variable to enable the console trace exporter.
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyExtraArgsEnv)
+	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyExtraArgsEnv)
+	moduleAPath := filepath.Join(testPath, "module-a")
+	moduleBPath := filepath.Join(testPath, "module-b")
+
+	// apply the dependency so its state exists for module-b to resolve
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleAPath)
+	require.NoError(t, err)
+
+	// emit parse spans as console JSON on stdout so the test can inspect them
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
+
+	// applying module-b triggers dependency output resolution against module-a
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+moduleBPath)
+	require.NoError(t, err)
+
+	moduleAConfig := filepath.Join(moduleAPath, "terragrunt.hcl")
+	got := countTerraformBlockParses(t, stdout, moduleAConfig)
+
+	// A count of 0 means the parse spans were no longer observed, not that the redundant parse was removed.
+	require.Positivef(t, got,
+		"observed zero terraform-block parse spans for %q; the telemetry span format likely changed and "+
+			"countTerraformBlockParses can no longer see the parses this test relies on.",
+		moduleAConfig)
+
+	require.LessOrEqualf(t, got, maxModuleATerraformBlockParses,
+		"dependency output resolution parsed %q with the terraform block %d times (baseline %d). "+
+			"A redundant config parse was likely re-introduced in pkg/config/dependency.go resolveOutputJSON. "+
+			"COMBINE the parses by extending the existing WithDecodeList call instead of raising this baseline.",
+		moduleAConfig, got, maxModuleATerraformBlockParses)
+}
+
+// countTerraformBlockParses counts parse_config_file spans for configPath that decode the terraform block.
+func countTerraformBlockParses(t *testing.T, stdout, configPath string) int {
+	t.Helper()
+
+	type spanAttr struct {
+		Value struct {
+			Value any `json:"Value"`
+		} `json:"Value"`
+		Key string `json:"Key"`
+	}
+
+	type span struct {
+		Name       string     `json:"Name"`
+		Attributes []spanAttr `json:"Attributes"`
+	}
+
+	count := 0
+
+	for line := range strings.SplitSeq(stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "{") {
+			continue
+		}
+
+		var s span
+		if err := json.Unmarshal([]byte(line), &s); err != nil {
+			continue
+		}
+
+		if s.Name != config.TelemetryOpParseConfigFile {
+			continue
+		}
+
+		spanConfigPath := ""
+		decodeList := ""
+
+		for _, attr := range s.Attributes {
+			value, ok := attr.Value.Value.(string)
+			if !ok {
+				continue
+			}
+
+			switch attr.Key {
+			case config.AttrConfigPath:
+				spanConfigPath = value
+			case config.AttrDecodeList:
+				decodeList = value
+			}
+		}
+
+		if spanConfigPath != configPath {
+			continue
+		}
+
+		if !slices.Contains(strings.Split(decodeList, ","), terraformDecodeName) {
+			continue
+		}
+
+		count++
+	}
+
+	return count
 }
 
 // TestDependencyHookOutputResolution checks a unit can resolve outputs of a dependency whose before_hook references its own dependency.

@@ -1395,6 +1395,11 @@ func ParseConfig(
 	}
 
 	if terragruntConfigFile == nil {
+		// Surface the real decode errors instead of masking them with a generic message.
+		if len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
+
 		return nil, CouldNotResolveTerragruntConfigInFileError(file.ConfigPath)
 	}
 
@@ -1615,6 +1620,14 @@ func decodeAsTerragruntConfigFile(pctx *ParsingContext, l log.Logger, file *hclp
 	}
 
 	if terragruntConfig.Inputs != nil {
+		// During hcl validate, dependency outputs are unknown, so a wholly unknown inputs value cannot be serialized.
+		if pctx.SkipOutput && !terragruntConfig.Inputs.IsKnown() {
+			empty := cty.EmptyObjectVal
+			terragruntConfig.Inputs = &empty
+
+			return &terragruntConfig, nil
+		}
+
 		inputs, err := ctyhelper.UpdateUnknownCtyValValues(*terragruntConfig.Inputs)
 		if err != nil {
 			return nil, err
