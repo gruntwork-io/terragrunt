@@ -3,9 +3,7 @@
 package cas_test
 
 import (
-	"context"
 	"net/url"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -28,7 +26,9 @@ func TestCASGetterRefOptionInjection(t *testing.T) {
 	// ${IFS} avoids a literal space, which git rejects in a ref name.
 	injectedRef := "--upload-pack=touch${IFS}" + marker
 
-	repoDir := setupInjectionRepo(t, injectedRef)
+	repoDir := helpers.TmpDirWOSymlinks(t)
+	helpers.CreateFile(t, repoDir, "main.tf")
+	helpers.InitGitRepoWithBranchRef(t, repoDir, injectedRef)
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 
@@ -52,36 +52,4 @@ func TestCASGetterRefOptionInjection(t *testing.T) {
 	require.NoError(t, err)
 	require.FileExists(t, filepath.Join(dst, "main.tf"))
 	assert.NoFileExists(t, marker)
-}
-
-// setupInjectionRepo creates a file:// repo with one commit and a branch named injectedRef.
-func setupInjectionRepo(t *testing.T, injectedRef string) string {
-	t.Helper()
-
-	ctx := t.Context()
-
-	dir := helpers.TmpDirWOSymlinks(t)
-
-	runGit(t, ctx, dir, "init", "-b", "main")
-	runGit(t, ctx, dir, "config", "user.email", "test@example.com")
-	runGit(t, ctx, dir, "config", "user.name", "Terragrunt Test")
-	runGit(t, ctx, dir, "config", "commit.gpgsign", "false")
-
-	helpers.CreateFile(t, dir, "main.tf")
-
-	runGit(t, ctx, dir, "add", "-A")
-	runGit(t, ctx, dir, "commit", "-m", "initial commit")
-	runGit(t, ctx, dir, "update-ref", "refs/heads/"+injectedRef, "HEAD")
-
-	return dir
-}
-
-func runGit(t *testing.T, ctx context.Context, dir string, args ...string) {
-	t.Helper()
-
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = dir
-
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, "git %v failed: %s", args, string(out))
 }
