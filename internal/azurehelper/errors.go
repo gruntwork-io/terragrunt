@@ -20,7 +20,6 @@ var (
 	ErrCopyBlobArgsRequired         = errors.New("source and destination container/key are required")
 	ErrSubscriptionIDRequired       = errors.New("subscription_id is required")
 	ErrResourceGroupNameRequired    = errors.New("resource group name is required")
-	ErrScopePrincipalRoleArgs       = errors.New("scope, principal_id, and role_definition_id are required")
 	ErrStorageAccountConfigRequired = errors.New("storage account config is required")
 	ErrLocationRequiredForRG        = errors.New("location is required to create resource group")
 	ErrNoAccessKeysReturned         = errors.New("no access keys returned for storage account")
@@ -56,15 +55,6 @@ type UnsupportedAuthForOpError struct {
 
 func (e *UnsupportedAuthForOpError) Error() string {
 	return fmt.Sprintf("%s require a token credential (auth method %q is not supported)", e.Operation, e.Method)
-}
-
-// InvalidPrincipalIDError is returned when an RBAC principal_id is not a UUID.
-type InvalidPrincipalIDError struct {
-	PrincipalID string
-}
-
-func (e *InvalidPrincipalIDError) Error() string {
-	return fmt.Sprintf("principal_id must be a UUID, got %q", e.PrincipalID)
 }
 
 // UnknownCloudEnvironmentError is returned for an unrecognised CloudEnvironment string.
