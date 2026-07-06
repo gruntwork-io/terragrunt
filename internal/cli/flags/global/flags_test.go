@@ -1,7 +1,6 @@
 package global_test
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
@@ -29,7 +28,7 @@ func TestProfileFlagsRegistration(t *testing.T) {
 	for _, tc := range testCases {
 		flag := profileFlags.Get(tc.flagName)
 		require.NotNil(t, flag, "flag %s must be registered", tc.flagName)
-		assert.True(t, slices.Contains(flag.GetEnvVars(), tc.envName), "flag %s must declare the %s env var", tc.flagName, tc.envName)
+		assert.Contains(t, flag.GetEnvVars(), tc.envName, "flag %s must declare the %s env var", tc.flagName, tc.envName)
 	}
 }
 

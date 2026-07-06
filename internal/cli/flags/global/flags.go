@@ -320,8 +320,7 @@ func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli
 	}
 }
 
-// NewProfileFlags creates profiling related flags.
-// These populate opts.Profile* fields. The actual profiling is started if the "profiling" experiment is enabled.
+// NewProfileFlags creates the profiling flags backing the opts.Profile* fields.
 func NewProfileFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 

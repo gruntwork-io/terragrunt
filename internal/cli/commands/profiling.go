@@ -30,7 +30,6 @@ var ErrProfilingRequiresExperiment = errors.New(
 )
 
 // WrapWithProfiling wraps command actions with profile collection driven by the profiling flags.
-// It runs after flag parsing, so all flag forms and TG_PROFILE_* env vars are already bound to opts.
 func WrapWithProfiling(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -59,6 +58,13 @@ func WrapWithProfiling(
 	}
 }
 
+// profilePaths holds the resolved output path for each profile type.
+type profilePaths struct {
+	cpu       string
+	mem       string
+	goroutine string
+}
+
 // startProfiling starts the profiles configured via opts and returns a stop function that finalizes them.
 func startProfiling(l log.Logger, opts *options.TerragruntOptions) (func(), error) {
 	if opts.ProfileCPU == "" && opts.ProfileMem == "" && opts.ProfileGoroutine == "" && opts.ProfileDir == "" {
@@ -69,20 +75,35 @@ func startProfiling(l log.Logger, opts *options.TerragruntOptions) (func(), erro
 		return nil, ErrProfilingRequiresExperiment
 	}
 
-	cpuPath, memPath, goroutinePath, err := resolveProfilePaths(opts)
+	paths, err := resolveProfilePaths(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	cpuFile, err := startCPUProfile(cpuPath)
+	memFile, err := createNamedProfileFile(paths.mem, "memory")
 	if err != nil {
+		return nil, err
+	}
+
+	goroutineFile, err := createNamedProfileFile(paths.goroutine, "goroutine")
+	if err != nil {
+		closeProfileFile(l, "memory", memFile)
+
+		return nil, err
+	}
+
+	cpuFile, err := startCPUProfile(paths.cpu)
+	if err != nil {
+		closeProfileFile(l, "memory", memFile)
+		closeProfileFile(l, "goroutine", goroutineFile)
+
 		return nil, err
 	}
 
 	stop := func() {
 		stopCPUProfile(l, cpuFile)
-		writeMemProfile(l, memPath)
-		writeGoroutineProfile(l, goroutinePath)
+		writeMemProfile(l, memFile)
+		writeGoroutineProfile(l, goroutineFile)
 	}
 
 	return stop, nil
@@ -93,53 +114,50 @@ func noopStop() {
 	// No profiles were started, so there is nothing to finalize.
 }
 
-// resolveProfilePaths determines the output path for each profile type, filling in defaults under
-// opts.ProfileDir for any profile that wasn't given an explicit path.
-func resolveProfilePaths(opts *options.TerragruntOptions) (cpuPath, memPath, goroutinePath string, err error) {
-	cpuPath = opts.ProfileCPU
-	memPath = opts.ProfileMem
-	goroutinePath = opts.ProfileGoroutine
+// resolveProfilePaths resolves the output path for each profile type, filling in defaults under opts.ProfileDir.
+func resolveProfilePaths(opts *options.TerragruntOptions) (profilePaths, error) {
+	paths := profilePaths{
+		cpu:       opts.ProfileCPU,
+		mem:       opts.ProfileMem,
+		goroutine: opts.ProfileGoroutine,
+	}
 
 	if opts.ProfileDir == "" {
-		return cpuPath, memPath, goroutinePath, nil
+		return paths, nil
 	}
 
 	absDir, err := filepath.Abs(opts.ProfileDir)
 	if err != nil {
-		return "", "", "", fmt.Errorf("could not resolve profile directory: %w", err)
+		return profilePaths{}, fmt.Errorf("could not resolve profile directory: %w", err)
 	}
 
 	if err := util.EnsureDirectory(absDir); err != nil {
-		return "", "", "", fmt.Errorf("could not create profile directory: %w", err)
+		return profilePaths{}, fmt.Errorf("could not create profile directory: %w", err)
 	}
 
 	// Absolute paths keep downstream processes with different working directories in the same directory.
 	opts.ProfileDir = absDir
 
-	if cpuPath == "" {
-		cpuPath = filepath.Join(absDir, defaultCPUProfileName)
+	if paths.cpu == "" {
+		paths.cpu = filepath.Join(absDir, defaultCPUProfileName)
 	}
 
-	if memPath == "" {
-		memPath = filepath.Join(absDir, defaultMemProfileName)
+	if paths.mem == "" {
+		paths.mem = filepath.Join(absDir, defaultMemProfileName)
 	}
 
-	if goroutinePath == "" {
-		goroutinePath = filepath.Join(absDir, defaultGoroutineProfileName)
+	if paths.goroutine == "" {
+		paths.goroutine = filepath.Join(absDir, defaultGoroutineProfileName)
 	}
 
-	return cpuPath, memPath, goroutinePath, nil
+	return paths, nil
 }
 
-// startCPUProfile creates the CPU profile file and starts CPU profiling, if a path was given.
+// startCPUProfile creates the CPU profile file and starts CPU profiling, no-op when path is empty.
 func startCPUProfile(path string) (*os.File, error) {
-	if path == "" {
-		return nil, nil
-	}
-
-	f, err := createProfileFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("could not create CPU profile: %w", err)
+	f, err := createNamedProfileFile(path, "CPU")
+	if err != nil || f == nil {
+		return f, err
 	}
 
 	if err := pprof.StartCPUProfile(f); err != nil {
@@ -158,62 +176,67 @@ func stopCPUProfile(l log.Logger, cpuFile *os.File) {
 	}
 
 	pprof.StopCPUProfile()
-
-	if err := cpuFile.Close(); err != nil {
-		l.Warnf("Could not close CPU profile: %v", err)
-	}
+	closeProfileFile(l, "CPU", cpuFile)
 }
 
-// writeMemProfile writes a heap profile snapshot to the given path. A no-op if path is empty.
-func writeMemProfile(l log.Logger, path string) {
-	if path == "" {
+// writeMemProfile writes a heap profile snapshot to the given file, no-op when nil.
+func writeMemProfile(l log.Logger, f *os.File) {
+	if f == nil {
 		return
 	}
 
 	runtime.GC()
-
-	f, err := createProfileFile(path)
-	if err != nil {
-		l.Warnf("Could not create memory profile: %v", err)
-
-		return
-	}
-	defer f.Close() //nolint:errcheck
 
 	// Writes to a local file the user explicitly requested via --profile-mem/TG_PROFILE_MEM, gated
 	// behind the 'profiling' experiment; this is not a production debug endpoint (go:S4507 false positive).
 	if err := pprof.WriteHeapProfile(f); err != nil { //NOSONAR:go:S4507 -- local, user-requested profile dump
 		l.Warnf("Could not write memory profile: %v", err)
 	}
+
+	closeProfileFile(l, "memory", f)
 }
 
-// writeGoroutineProfile writes a goroutine profile to the given path. A no-op if path is empty.
-func writeGoroutineProfile(l log.Logger, path string) {
-	if path == "" {
-		return
-	}
-
-	f, err := createProfileFile(path)
-	if err != nil {
-		l.Warnf("Could not create goroutine profile: %v", err)
-
-		return
-	}
-	defer f.Close() //nolint:errcheck
-
-	p := pprof.Lookup("goroutine")
-	if p == nil {
+// writeGoroutineProfile writes a goroutine profile to the given file, no-op when nil.
+func writeGoroutineProfile(l log.Logger, f *os.File) {
+	if f == nil {
 		return
 	}
 
 	// Writes to a local file the user explicitly requested via --profile-goroutine/TG_PROFILE_GOROUTINE,
 	// gated behind the 'profiling' experiment; this is not a production debug endpoint (go:S4507 false positive).
-	if err := p.WriteTo(f, 0); err != nil { //NOSONAR:go:S4507 -- local, user-requested profile dump
+	if err := pprof.Lookup("goroutine").WriteTo(f, 0); err != nil { //NOSONAR:go:S4507 -- local, user-requested profile dump
 		l.Warnf("Could not write goroutine profile: %v", err)
 	}
+
+	closeProfileFile(l, "goroutine", f)
+}
+
+// createNamedProfileFile creates the output file for the named profile, nil when path is empty.
+func createNamedProfileFile(path, name string) (*os.File, error) {
+	if path == "" {
+		return nil, nil
+	}
+
+	f, err := createProfileFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("could not create %s profile: %w", name, err)
+	}
+
+	return f, nil
 }
 
 // createProfileFile creates a profile output file readable only by the owner.
 func createProfileFile(path string) (*os.File, error) {
-	return os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, profileFileMode)
+	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, profileFileMode)
+}
+
+// closeProfileFile closes a finished profile file, logging a warning if the final flush fails.
+func closeProfileFile(l log.Logger, name string, f *os.File) {
+	if f == nil {
+		return
+	}
+
+	if err := f.Close(); err != nil {
+		l.Warnf("Could not close %s profile: %v", name, err)
+	}
 }

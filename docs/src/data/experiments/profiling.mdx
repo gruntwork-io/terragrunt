@@ -22,7 +22,7 @@ terragrunt --experiment profiling --profile-dir /tmp/profiles run --all -- plan
 
 This is primarily intended for performance investigation and debugging of Terragrunt itself.
 
-Set `TG_EXPERIMENT=profiling` to use the environment variables instead of CLI flags.
+The experiment can also be enabled with `TG_EXPERIMENT=profiling`, which is convenient when driving profiling entirely through environment variables.
 
 ### `profiling` - How to provide feedback
 

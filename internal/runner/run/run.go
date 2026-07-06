@@ -253,7 +253,7 @@ func runTerragruntWithConfig(
 		return err
 	}
 
-	if err := setTofuCPUProfileEnv(opts); err != nil {
+	if err := setTofuCPUProfileEnv(l, opts); err != nil {
 		return err
 	}
 
@@ -801,17 +801,19 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 }
 
 // setTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.
-func setTofuCPUProfileEnv(opts *Options) error {
+func setTofuCPUProfileEnv(l log.Logger, opts *Options) error {
 	if opts.ProfileDir == "" {
 		return nil
 	}
 
 	if _, set := opts.Env[tf.EnvNameTofuCPUProfile]; set {
+		l.Debugf("TOFU_CPU_PROFILE is already set, skipping the per-unit OpenTofu profile path for %s", opts.UnitDir)
+
 		return nil
 	}
 
-	unitRelDir := filepath.Base(opts.UnitDir)
-	if relPath, err := filepath.Rel(opts.RootWorkingDir, opts.OriginalTerragruntConfigPath); err == nil && !strings.HasPrefix(relPath, "..") {
+	unitRelDir := filepath.Join("external", filepath.Base(opts.UnitDir)+"-"+util.EncodeBase64Sha1(opts.UnitDir))
+	if relPath, err := filepath.Rel(opts.RootWorkingDir, opts.OriginalTerragruntConfigPath); err == nil && filepath.IsLocal(relPath) {
 		unitRelDir = filepath.Dir(relPath)
 	}
 
