@@ -317,6 +317,57 @@ func TestGitRunner_FetchAndHasObject(t *testing.T) {
 	assert.True(t, has)
 }
 
+func TestGitRunner_FetchRejectsOptionInjectionRef(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	src := newCommittedRepo(t)
+
+	bareDir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(bareDir)
+	require.NoError(t, runner.InitBare(ctx))
+
+	marker := filepath.Join(helpers.TmpDirWOSymlinks(t), "injected")
+
+	// A ref beginning with a git option must not be parsed as one.
+	injectedRef := "--upload-pack=touch " + marker
+
+	err = runner.Fetch(ctx, "file://"+src, injectedRef, 1)
+	require.Error(t, err)
+
+	var wrappedErr *git.WrappedError
+	require.ErrorAs(t, err, &wrappedErr)
+	require.ErrorIs(t, wrappedErr.Err, git.ErrGitFetch)
+
+	assert.NoFileExists(t, marker)
+}
+
+func TestGitRunner_LsRemoteRejectsOptionInjectionRepo(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	src := newCommittedRepo(t)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	marker := filepath.Join(helpers.TmpDirWOSymlinks(t), "injected")
+
+	// A repo beginning with a git option must be treated as a positional.
+	injectedRepo := "--upload-pack=touch " + marker
+
+	_, err = runner.LsRemote(ctx, injectedRepo, "file://"+src)
+	require.Error(t, err)
+
+	assert.NoFileExists(t, marker)
+}
+
 func TestGitRunner_HasObjectSurfacesNonMissingFailures(t *testing.T) {
 	t.Parallel()
 
@@ -404,4 +455,27 @@ func TestGitRunner_AddCommitCheckoutConfig(t *testing.T) {
 	email, err := runner.Config(ctx, "user.email")
 	require.NoError(t, err)
 	assert.Equal(t, "test@example.com", email)
+}
+
+// newCommittedRepo creates a local repo with one commit for use as a file:// remote.
+func newCommittedRepo(t *testing.T) string {
+	t.Helper()
+
+	ctx := t.Context()
+
+	dir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(dir)
+
+	require.NoError(t, runner.Init(ctx))
+	require.NoError(t, runner.ConfigSet(ctx, "user.email", "test@example.com"))
+	require.NoError(t, runner.ConfigSet(ctx, "user.name", "Terragrunt Test"))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(""), 0o600))
+	require.NoError(t, runner.Add(ctx, "main.tf"))
+	require.NoError(t, runner.Commit(ctx, "initial commit"))
+
+	return dir
 }
