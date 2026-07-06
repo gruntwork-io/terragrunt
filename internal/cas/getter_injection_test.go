@@ -1,3 +1,5 @@
+//go:build !windows
+
 package cas_test
 
 import (
@@ -43,9 +45,12 @@ func TestCASGetterRefOptionInjection(t *testing.T) {
 
 	dst := helpers.TmpDirWOSymlinks(t)
 
-	// The injected command must never run, whether the fetch succeeds or fails.
-	_, _ = client.Get(ctx, &getter.Request{Src: src, Dst: dst})
+	_, err = client.Get(ctx, &getter.Request{Src: src, Dst: dst})
 
+	// The crafted ref is a real branch, so the download still succeeds and
+	// materializes the module, but the injected command must never run.
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(dst, "main.tf"))
 	assert.NoFileExists(t, marker)
 }
 

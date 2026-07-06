@@ -186,7 +186,7 @@ func TestGitResolver_ProbeSCPURLWithBranchUsesSeparateArgs(t *testing.T) {
 	_, err := r.Probe(t.Context(), "git@github.com:org/repo.git")
 	require.NoError(t, err)
 	assert.Equal(t,
-		[]string{"ls-remote", "git@github.com:org/repo.git", "main"},
+		[]string{"ls-remote", "--", "git@github.com:org/repo.git", "main"},
 		capturedArgs,
 		"SCP URL must reach git as-is with branch passed as a separate ls-remote argument",
 	)
@@ -211,7 +211,7 @@ func TestGitResolver_ProbeHTTPURLWithBranchUsesSeparateArgs(t *testing.T) {
 	_, err := r.Probe(t.Context(), "https://example.com/org/repo.git")
 	require.NoError(t, err)
 	assert.Equal(t,
-		[]string{"ls-remote", "https://example.com/org/repo.git", "main"},
+		[]string{"ls-remote", "--", "https://example.com/org/repo.git", "main"},
 		capturedArgs,
 		"HTTP URL must reach git without ?ref= glued on; branch is a separate argument",
 	)

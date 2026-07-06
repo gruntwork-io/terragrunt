@@ -1,3 +1,5 @@
+//go:build !windows
+
 package test_test
 
 import (
@@ -30,12 +32,14 @@ func TestCASGitSourceRefOptionInjection(t *testing.T) {
 	config := "terraform {\n  source = \"" + source + "\"\n}\n"
 	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.hcl"), []byte(config), 0o644))
 
-	// The injected command must never run, even if the download itself fails.
-	_, _, _ = helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt plan --source-update --non-interactive --working-dir "+liveDir,
 	)
 
+	// The crafted ref is a real branch, so the source downloads and plans, but
+	// the injected command must never run.
+	require.NoError(t, err)
 	assert.NoFileExists(t, marker)
 }
 
@@ -47,7 +51,8 @@ func buildInjectionSourceRepo(t *testing.T, injectedRef string) string {
 
 	dir := helpers.TmpDirWOSymlinks(t)
 
-	helpers.CreateFile(t, dir, "main.tf")
+	mainTF := "terraform {\n  required_version = \">= 1.0.0\"\n}\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(mainTF), 0o644))
 
 	runInjectionGit(t, ctx, dir, "init", "-b", "main")
 	runInjectionGit(t, ctx, dir, "config", "user.email", "test@example.com")
