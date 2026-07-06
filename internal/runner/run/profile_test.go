@@ -1,4 +1,4 @@
-package run
+package run_test
 
 import (
 	"maps"
@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -49,28 +50,28 @@ func TestSetTofuCPUProfileEnv(t *testing.T) {
 			unitDir:         filepath.Join(rootDir, "app1"),
 			configPath:      filepath.Join(rootDir, "app1", "terragrunt.hcl"),
 			withProfileDir:  true,
-			expectedRelPath: filepath.Join("app1", tofuCPUProfileName),
+			expectedRelPath: filepath.Join("app1", "tofu_cpu.prof"),
 		},
 		{
 			name:            "nested unit keeps its relative layout",
 			unitDir:         filepath.Join(rootDir, "prod", "app1"),
 			configPath:      filepath.Join(rootDir, "prod", "app1", "terragrunt.hcl"),
 			withProfileDir:  true,
-			expectedRelPath: filepath.Join("prod", "app1", tofuCPUProfileName),
+			expectedRelPath: filepath.Join("prod", "app1", "tofu_cpu.prof"),
 		},
 		{
 			name:            "unit at the root writes into the profile dir itself",
 			unitDir:         rootDir,
 			configPath:      filepath.Join(rootDir, "terragrunt.hcl"),
 			withProfileDir:  true,
-			expectedRelPath: tofuCPUProfileName,
+			expectedRelPath: "tofu_cpu.prof",
 		},
 		{
 			name:            "dot-prefixed dir name inside root is treated as local",
 			unitDir:         dotPrefixedDir,
 			configPath:      filepath.Join(dotPrefixedDir, "terragrunt.hcl"),
 			withProfileDir:  true,
-			expectedRelPath: filepath.Join("..cache", "app1", tofuCPUProfileName),
+			expectedRelPath: filepath.Join("..cache", "app1", "tofu_cpu.prof"),
 		},
 		{
 			name:           "external unit gets a hash-suffixed dir under external",
@@ -78,7 +79,7 @@ func TestSetTofuCPUProfileEnv(t *testing.T) {
 			configPath:     filepath.Join(externalDir, "terragrunt.hcl"),
 			withProfileDir: true,
 			expectedRelPath: filepath.Join(
-				"external", "vpc-"+util.EncodeBase64Sha1(externalDir), tofuCPUProfileName),
+				"external", "vpc-"+util.EncodeBase64Sha1(externalDir), "tofu_cpu.prof"),
 		},
 	}
 
@@ -86,7 +87,7 @@ func TestSetTofuCPUProfileEnv(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := NewOptions()
+			opts := run.NewOptions()
 			opts.RootWorkingDir = rootDir
 			opts.UnitDir = tc.unitDir
 			opts.OriginalTerragruntConfigPath = tc.configPath
@@ -102,7 +103,7 @@ func TestSetTofuCPUProfileEnv(t *testing.T) {
 
 			wantEnv := maps.Clone(opts.Env)
 
-			require.NoError(t, setTofuCPUProfileEnv(logger.CreateLogger(), opts))
+			require.NoError(t, run.SetTofuCPUProfileEnv(logger.CreateLogger(), opts))
 
 			if tc.expectedUntouched {
 				assert.Equal(t, wantEnv, opts.Env)
@@ -129,14 +130,14 @@ func TestSetTofuCPUProfileEnvExternalUnitsDoNotCollide(t *testing.T) {
 		filepath.Join(string(filepath.Separator), "team-a", "vpc"),
 		filepath.Join(string(filepath.Separator), "team-b", "vpc"),
 	} {
-		opts := NewOptions()
+		opts := run.NewOptions()
 		opts.RootWorkingDir = rootDir
 		opts.UnitDir = unitDir
 		opts.OriginalTerragruntConfigPath = filepath.Join(unitDir, "terragrunt.hcl")
 		opts.ProfileDir = profileDir
 		opts.Env = map[string]string{}
 
-		require.NoError(t, setTofuCPUProfileEnv(logger.CreateLogger(), opts))
+		require.NoError(t, run.SetTofuCPUProfileEnv(logger.CreateLogger(), opts))
 		paths[opts.Env[tf.EnvNameTofuCPUProfile]] = true
 	}
 
@@ -150,14 +151,14 @@ func TestSetTofuCPUProfileEnvDirCreationError(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "infra", "live")
 	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "app1"), []byte("x"), 0o600))
 
-	opts := NewOptions()
+	opts := run.NewOptions()
 	opts.RootWorkingDir = rootDir
 	opts.UnitDir = filepath.Join(rootDir, "app1")
 	opts.OriginalTerragruntConfigPath = filepath.Join(rootDir, "app1", "terragrunt.hcl")
 	opts.ProfileDir = profileDir
 	opts.Env = map[string]string{}
 
-	err := setTofuCPUProfileEnv(logger.CreateLogger(), opts)
+	err := run.SetTofuCPUProfileEnv(logger.CreateLogger(), opts)
 	require.ErrorContains(t, err, "could not create tofu profile directory")
 	assert.NotContains(t, opts.Env, tf.EnvNameTofuCPUProfile)
 }

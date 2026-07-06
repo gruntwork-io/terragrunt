@@ -80,33 +80,40 @@ func startProfiling(l log.Logger, opts *options.TerragruntOptions) (func(), erro
 		return nil, err
 	}
 
-	memFile, err := createNamedProfileFile(paths.mem, "memory")
-	if err != nil {
+	if err := validateProfilePath(paths.mem, "memory"); err != nil {
 		return nil, err
 	}
 
-	goroutineFile, err := createNamedProfileFile(paths.goroutine, "goroutine")
-	if err != nil {
-		closeProfileFile(l, "memory", memFile)
-
+	if err := validateProfilePath(paths.goroutine, "goroutine"); err != nil {
 		return nil, err
 	}
 
 	cpuFile, err := startCPUProfile(paths.cpu)
 	if err != nil {
-		closeProfileFile(l, "memory", memFile)
-		closeProfileFile(l, "goroutine", goroutineFile)
-
 		return nil, err
 	}
 
 	stop := func() {
 		stopCPUProfile(l, cpuFile)
-		writeMemProfile(l, memFile)
-		writeGoroutineProfile(l, goroutineFile)
+		writeMemProfile(l, paths.mem)
+		writeGoroutineProfile(l, paths.goroutine)
 	}
 
 	return stop, nil
+}
+
+// validateProfilePath verifies the named profile path is writable without holding the file open for the run.
+func validateProfilePath(path, name string) error {
+	f, err := createNamedProfileFile(path, name)
+	if err != nil || f == nil {
+		return err
+	}
+
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("could not create %s profile: %w", name, err)
+	}
+
+	return nil
 }
 
 // noopStop is returned when no profiling flags are configured.
@@ -179,13 +186,20 @@ func stopCPUProfile(l log.Logger, cpuFile *os.File) {
 	closeProfileFile(l, "CPU", cpuFile)
 }
 
-// writeMemProfile writes a heap profile snapshot to the given file, no-op when nil.
-func writeMemProfile(l log.Logger, f *os.File) {
-	if f == nil {
+// writeMemProfile writes a heap profile snapshot to the given path, no-op when empty.
+func writeMemProfile(l log.Logger, path string) {
+	if path == "" {
 		return
 	}
 
 	runtime.GC()
+
+	f, err := createProfileFile(path)
+	if err != nil {
+		l.Warnf("Could not create memory profile: %v", err)
+
+		return
+	}
 
 	// Writes to a local file the user explicitly requested via --profile-mem/TG_PROFILE_MEM, gated
 	// behind the 'profiling' experiment; this is not a production debug endpoint (go:S4507 false positive).
@@ -196,9 +210,16 @@ func writeMemProfile(l log.Logger, f *os.File) {
 	closeProfileFile(l, "memory", f)
 }
 
-// writeGoroutineProfile writes a goroutine profile to the given file, no-op when nil.
-func writeGoroutineProfile(l log.Logger, f *os.File) {
-	if f == nil {
+// writeGoroutineProfile writes a goroutine profile to the given path, no-op when empty.
+func writeGoroutineProfile(l log.Logger, path string) {
+	if path == "" {
+		return
+	}
+
+	f, err := createProfileFile(path)
+	if err != nil {
+		l.Warnf("Could not create goroutine profile: %v", err)
+
 		return
 	}
 

@@ -253,7 +253,7 @@ func runTerragruntWithConfig(
 		return err
 	}
 
-	if err := setTofuCPUProfileEnv(l, opts); err != nil {
+	if err := SetTofuCPUProfileEnv(l, opts); err != nil {
 		return err
 	}
 
@@ -800,8 +800,8 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 	return varFile, nil
 }
 
-// setTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.
-func setTofuCPUProfileEnv(l log.Logger, opts *Options) error {
+// SetTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.
+func SetTofuCPUProfileEnv(l log.Logger, opts *Options) error {
 	if opts.ProfileDir == "" {
 		return nil
 	}
