@@ -1,0 +1,34 @@
+---
+name: discovery-boundary
+description: Constrain dependent discovery to a directory subtree
+type: string
+env:
+  - TG_DISCOVERY_BOUNDARY
+---
+
+The `--discovery-boundary` flag constrains [dependent discovery](/features/filter/graph) to a chosen directory subtree.
+
+When a filter requests dependents (a leading `...`, such as `...{./some/unit}` or `...[main...HEAD]`), Terragrunt finds them by walking up the filesystem from the working directory, scanning and parsing every configuration it encounters, until it reaches a boundary. By default that boundary is the repository root.
+
+When a single repository hosts several independent Terragrunt roots, that walk can leave the root you are working in and traverse unrelated subtrees. Pointing `--discovery-boundary` at a directory restricts the walk to that subtree, so configurations outside it are never scanned, parsed, or returned. This applies both to in-place discovery and to Git-based filters that run inside temporary worktrees.
+
+When the flag is unset, behavior is unchanged: the walk extends to the repository root.
+
+## Usage
+
+```bash
+# Only consider dependents within the current directory subtree
+terragrunt find --filter '...{./some/unit}' --discovery-boundary "$PWD"
+
+# Works with Git-based dependent discovery as well
+terragrunt list --filter '...[main...HEAD]' --discovery-boundary ./infra
+```
+
+The value must be an existing directory. If it resolves outside the repository, dependent discovery has nothing in scope and no additional dependents are returned.
+
+## Supported Commands
+
+- [find](/reference/cli/commands/find)
+- [list](/reference/cli/commands/list)
+- [run](/reference/cli/commands/run)
+- [dag graph](/reference/cli/commands/dag/graph)

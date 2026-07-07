@@ -38,3 +38,15 @@ func TestNoHooksFlagAllowedWithExperiment(t *testing.T) {
 	require.NoError(t, flags.RunActions(context.Background(), &clihelper.Context{}))
 	assert.True(t, opts.NoRunHooks)
 }
+
+// TestDiscoveryBoundaryFlagParses asserts the shared --discovery-boundary flag is wired into
+// `run` and populates opts.DiscoveryBoundary.
+func TestDiscoveryBoundaryFlagParses(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	flags := runcommand.NewFlags(logger.CreateLogger(), opts, nil)
+
+	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "/some/boundary"}))
+	assert.Equal(t, "/some/boundary", opts.DiscoveryBoundary)
+}

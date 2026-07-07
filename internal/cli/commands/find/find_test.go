@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -637,4 +638,83 @@ func TestColorizer(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRunDiscoveryBoundaryExcludesOutOfBoundaryDependent runs `find` end-to-end and asserts
+// that --discovery-boundary (opts.DiscoveryBoundary) excludes a dependent living in a sibling
+// subtree outside the boundary, while a control run (no boundary) includes it.
+func TestRunDiscoveryBoundaryExcludesOutOfBoundaryDependent(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	helpers.InitTestGitRunner(t, tmpDir)
+
+	projDir := filepath.Join(tmpDir, "proj")
+	baseDir := filepath.Join(projDir, "base")
+	appDir := filepath.Join(projDir, "app")
+	consumerDir := filepath.Join(tmpDir, "consumer")
+
+	for _, dir := range []string{baseDir, appDir, consumerDir} {
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+	}
+
+	require.NoError(t, os.WriteFile(filepath.Join(baseDir, "terragrunt.hcl"), []byte(``), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+dependency "base" {
+  config_path = "../base"
+}
+`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(consumerDir, "terragrunt.hcl"), []byte(`
+dependency "base" {
+  config_path = "../proj/base"
+}
+`), 0o644))
+
+	run := func(boundary string) string {
+		tgOpts := options.NewTerragruntOptions()
+		tgOpts.WorkingDir = projDir
+		tgOpts.RootWorkingDir = projDir
+		tgOpts.DiscoveryBoundary = boundary
+
+		l := logger.CreateLogger()
+		l.Formatter().SetDisabledColors(true)
+
+		filters, err := filter.ParseFilterQueries(l, []string{`...{` + baseDir + `}`})
+		require.NoError(t, err)
+
+		opts := find.NewOptions(tgOpts)
+		opts.Filters = filters
+
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+
+		opts.Writers.Writer = w
+
+		require.NoError(t, find.Run(t.Context(), l, opts))
+		require.NoError(t, w.Close())
+
+		output, err := io.ReadAll(r)
+		require.NoError(t, err)
+
+		return string(output)
+	}
+
+	control := run("")
+	assert.Contains(t, control, "consumer", "control should include the out-of-boundary dependent")
+
+	bounded := run(projDir)
+	assert.Contains(t, bounded, "app", "in-boundary dependent should still be listed")
+	assert.NotContains(t, bounded, "consumer", "boundary should exclude the out-of-boundary dependent")
+}
+
+// TestDiscoveryBoundaryFlagParses asserts the shared --discovery-boundary flag is wired into
+// `find` and populates opts.DiscoveryBoundary.
+func TestDiscoveryBoundaryFlagParses(t *testing.T) {
+	t.Parallel()
+
+	tgOpts := options.NewTerragruntOptions()
+	cmdFlags := find.NewFlags(logger.CreateLogger(), find.NewOptions(tgOpts), nil)
+
+	require.NoError(t, cmdFlags.Parse(clihelper.Args{"--discovery-boundary", "/some/boundary"}))
+	assert.Equal(t, "/some/boundary", tgOpts.DiscoveryBoundary)
 }

@@ -14,6 +14,7 @@ import (
 // DiscoveryCommandOptions contains options for discovery commands like find and list.
 type DiscoveryCommandOptions struct {
 	WorkingDir        string
+	Boundary          string
 	QueueConstructAs  string
 	Filters           filter.Filters
 	NoHidden          bool
@@ -89,6 +90,10 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 			Cmd:        cmd,
 			Args:       args,
 		})
+	}
+
+	if opts.Boundary != "" {
+		d = d.WithBoundary(opts.Boundary)
 	}
 
 	if len(opts.Filters) > 0 {

@@ -27,6 +27,7 @@ import (
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
+		Boundary:          opts.DiscoveryBoundary,
 		QueueConstructAs:  opts.QueueConstructAs,
 		NoHidden:          opts.NoHidden,
 		WithRequiresParse: opts.Dependencies || opts.Mode == ModeDAG,

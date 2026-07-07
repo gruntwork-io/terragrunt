@@ -526,6 +526,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts)...)
 	cmdFlags = cmdFlags.Add(shared.NewParallelismFlag(opts))
 	cmdFlags = cmdFlags.Add(shared.NewCASFlags(opts, prefix)...)
+	cmdFlags = cmdFlags.Add(shared.NewDiscoveryBoundaryFlag(opts))
 
 	return cmdFlags.Sort()
 }

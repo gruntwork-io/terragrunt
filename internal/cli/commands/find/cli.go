@@ -41,7 +41,7 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	filterFlags := shared.NewFilterFlags(l, opts.TerragruntOptions)
 
-	const numLocalFlags = 11
+	const numLocalFlags = 12
 
 	result := make(clihelper.Flags, 0, numLocalFlags+len(filterFlags))
 	result = append(result,
@@ -139,6 +139,7 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 			Usage:       "Construct the queue as if a specific command was run.",
 			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
+		shared.NewDiscoveryBoundaryFlag(opts.TerragruntOptions),
 	)
 
 	return append(result, filterFlags...)
