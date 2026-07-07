@@ -304,6 +304,17 @@ func (err DependencyInvalidConfigPathError) Error() string {
 	return fmt.Sprintf("dependency %q has invalid config_path", err.DependencyName)
 }
 
+// TerraformSourceReferencesDependencyError is returned when the terraform `source` references the `dependency`
+// namespace. The module source must be resolvable before dependencies are evaluated, so the reference can never
+// be satisfied; without this the user only sees a cryptic "value must be known" decode error.
+type TerraformSourceReferencesDependencyError struct {
+	ConfigPath string
+}
+
+func (err TerraformSourceReferencesDependencyError) Error() string {
+	return fmt.Sprintf("terraform.source in %s cannot reference dependency outputs; the module source must be resolvable before dependencies are evaluated", err.ConfigPath)
+}
+
 // MaxParseDepthError is returned when config parsing exceeds the maximum allowed depth.
 type MaxParseDepthError struct {
 	Depth int
