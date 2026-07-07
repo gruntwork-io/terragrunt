@@ -1,0 +1,8 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### Fix a panic from concurrent writes to a shared output writer
+
+Terragrunt could panic with `slice bounds out of range` when a unit's stdout and stderr streams were combined into the same output writer, because the two goroutines draining those streams wrote to it concurrently without synchronization. Writes to a shared output writer are now serialized, so combined stdout/stderr output no longer races.

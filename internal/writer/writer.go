@@ -1,7 +1,10 @@
 // Package writer provides writer types for Terragrunt I/O.
 package writer
 
-import "io"
+import (
+	"io"
+	"sync"
+)
 
 // Writers groups the stdout/stderr handles that travel together across
 // TerragruntOptions, ParsingContext, shell.ShellOptions and
@@ -86,4 +89,29 @@ func ExtractOriginalWriter(w io.Writer) io.Writer {
 	}
 
 	return w
+}
+
+// SyncWriter wraps an io.Writer and serializes concurrent Write calls using a mutex.
+// This prevents data races when the same underlying writer is shared between goroutines
+// that each hold an independent logrus.Logger mutex.
+type SyncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+// NewSyncWriter returns a SyncWriter that guards w with a mutex.
+func NewSyncWriter(w io.Writer) *SyncWriter {
+	return &SyncWriter{w: w}
+}
+
+// Write implements io.Writer; concurrent calls are serialized by mu.
+func (sw *SyncWriter) Write(p []byte) (int, error) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.w.Write(p)
+}
+
+// Unwrap implements writerUnwrapper so ExtractOriginalWriter can traverse the chain.
+func (sw *SyncWriter) Unwrap() io.Writer {
+	return sw.w
 }
