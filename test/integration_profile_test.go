@@ -249,6 +249,8 @@ func TestProfileFlagsRequireExperiment(t *testing.T) {
 
 	profilePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "cpu_no_exp.prof")
 
+	t.Setenv("TG_EXPERIMENT", "")
+
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --profile-cpu "+profilePath+" version")
 	require.ErrorContains(t, err, "require the 'profiling' experiment")
 	assert.NoFileExists(t, profilePath, "profile should not be created without experiment")
@@ -261,6 +263,7 @@ func TestTGProfileCPUEnvRequiresExperiment(t *testing.T) {
 
 	profilePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "cpu_env_no_exp.prof")
 
+	t.Setenv("TG_EXPERIMENT", "")
 	t.Setenv("TG_PROFILE_CPU", profilePath)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt version")
@@ -275,6 +278,7 @@ func TestTGProfileDirEnvRequiresExperiment(t *testing.T) {
 
 	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles_no_exp")
 
+	t.Setenv("TG_EXPERIMENT", "")
 	t.Setenv("TG_PROFILE_DIR", profileDir)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt version")
