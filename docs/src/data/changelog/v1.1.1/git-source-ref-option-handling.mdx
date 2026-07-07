@@ -1,0 +1,10 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### Treat Git source `ref` values strictly as references
+
+Terragrunt now passes the `ref` from a Git module source to git strictly as a reference when downloading through content-addressable storage. Previously a source whose `ref` began with a git option (for example a value starting with `--`) could be interpreted by git as an option rather than a reference while fetching the source.
+
+Terragrunt now terminates git option parsing before the repository and reference arguments in its `fetch`, `clone`, and `ls-remote` invocations, so these values can only ever be read as the repository and reference they are meant to be. Normal refs, branches, tags, and commit SHAs continue to work unchanged.
