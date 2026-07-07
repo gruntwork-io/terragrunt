@@ -4,6 +4,7 @@ package backend
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -13,6 +14,7 @@ import (
 type Options struct {
 	Writers                      writer.Writers
 	Env                          map[string]string
+	Experiments                  experiment.Experiments
 	IAMRoleOptions               iam.RoleOptions
 	NonInteractive               bool
 	FailIfBucketCreationRequired bool
