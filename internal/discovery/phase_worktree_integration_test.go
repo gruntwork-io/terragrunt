@@ -720,6 +720,87 @@ unit "unit_to_be_untouched" {
 	assert.True(t, foundRemovedStack, "Removed stack should be discovered")
 }
 
+// TestWorktreePhase_Integration_StackSourceOnlyInOneRef reproduces the bug where a stack file
+// generated inside a git worktree resolved get_repo_root() against the original checkout rather
+// than the worktree. The unit source is renamed between refs, so each ref's source directory
+// exists only in that ref's worktree. Generation must run each stack file against its own
+// worktree; otherwise the "from" stack (which references a directory absent from the checked-out
+// ref) fails to fetch its source.
+func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	writeCatalogUnit := func(name, marker string) {
+		unitDir := filepath.Join(tmpDir, "catalog", "units", name)
+		require.NoError(t, os.MkdirAll(unitDir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# `+marker), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`# `+marker), 0o644))
+	}
+
+	stackDir := filepath.Join(tmpDir, "live")
+	require.NoError(t, os.MkdirAll(stackDir, 0o755))
+
+	writeStack := func(source string) {
+		contents := fmt.Sprintf(`unit "app" {
+	source = "${get_repo_root()}/catalog/units/%s"
+	path   = "app"
+}
+`, source)
+		require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(contents), 0o644))
+	}
+
+	// from ref (HEAD~1): source directory "app" exists and the stack points at it.
+	writeCatalogUnit("app", "from")
+	writeStack("app")
+	commitChanges(t, runner, "from: stack -> catalog/units/app")
+
+	// to ref (HEAD): the source directory is renamed, so "app" no longer exists in the checked-out
+	// tree. The stack change makes both refs' stacks eligible for worktree generation.
+	require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "catalog", "units", "app")))
+	writeCatalogUnit("new-app", "to")
+	writeStack("new-app")
+	commitChanges(t, runner, "to: stack -> catalog/units/new-app")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, wtOpts)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+
+	// The from-ref stack references catalog/units/app, which was removed from the checked-out
+	// tree; before the fix, get_repo_root() resolved to the original checkout and generation
+	// failed to fetch the source.
+	err = generate.WorktreeStacks(t.Context(), l, venv.OSVenv(), opts, w)
+	require.NoError(t, err)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	assert.DirExists(t, filepath.Join(pair.FromWorktree.Path, "live", ".terragrunt-stack", "app"),
+		"from-ref stack should generate its unit from the from-worktree's catalog/units/app")
+	assert.DirExists(t, filepath.Join(pair.ToWorktree.Path, "live", ".terragrunt-stack", "app"),
+		"to-ref stack should generate its unit from the to-worktree's catalog/units/new-app")
+}
+
 // TestWorktreePhase_Integration_FileRename tests that file renames are detected.
 func TestWorktreePhase_Integration_FileRename(t *testing.T) {
 	t.Parallel()
@@ -2978,4 +3059,113 @@ unit "myapp" {
 	// If the land-mine unit is parsed, run_cmd("exit 1") causes a fatal error.
 	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
 	require.NoError(t, err)
+}
+
+// TestWorktreePhase_Integration_WorktreeOnlyStackGeneration covers the find/list path
+// from https://github.com/gruntwork-io/terragrunt/issues/6347: a stack reads a config
+// file via read_terragrunt_config and only that config file changes. The reading-affected
+// stack must be surfaced by Git-based discovery, and the working tree must not gain a
+// generated .terragrunt-stack directory (find/list are read-only).
+func TestWorktreePhase_Integration_WorktreeOnlyStackGeneration(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Catalog unit the stack sources.
+	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
+	require.NoError(t, os.MkdirAll(legacyUnitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0o644))
+
+	commitChanges(t, runner, "Create catalog units")
+
+	// Stack that reads a sidecar config file via read_terragrunt_config.
+	stackDir := filepath.Join(tmpDir, "live", "stack")
+	require.NoError(t, os.MkdirAll(stackDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { version = "v1" }`), 0o644))
+
+	stackContent := `
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(stackContent), 0o644))
+
+	commitChanges(t, runner, "Create stack with read_terragrunt_config")
+
+	// Change only the sidecar config file, not the stack file.
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { version = "v2" }`), 0o644))
+
+	commitChanges(t, runner, "Update config file only")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
+
+	require.NoError(t, generate.WorktreeStacks(t.Context(), l, venv.OSVenv(), opts, w))
+
+	// The working tree must stay untouched: no stack was generated under it.
+	_, statErr := os.Stat(filepath.Join(stackDir, ".terragrunt-stack"))
+	assert.True(t, os.IsNotExist(statErr),
+		"worktree-only generation must not generate .terragrunt-stack in the working directory")
+
+	discoveryContext := &component.DiscoveryContext{
+		WorkingDir: tmpDir,
+		Cmd:        "plan",
+	}
+
+	filters := make(filter.Filters, 0, len(gitExpressions))
+	for _, gitExpr := range gitExpressions {
+		filters = append(filters, filter.NewFilter(gitExpr, gitExpr.String()))
+	}
+
+	disc := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(discoveryContext).
+		WithWorktrees(w).
+		WithFilters(filters)
+
+	components, err := disc.Discover(t.Context(), l, venv.OSVenv(), opts)
+	require.NoError(t, err)
+
+	require.Contains(t, w.WorktreePairs, "[HEAD~1...HEAD]")
+	toWorktree := w.WorktreePairs["[HEAD~1...HEAD]"].ToWorktree.Path
+
+	stackRel, err := filepath.Rel(tmpDir, stackDir)
+	require.NoError(t, err)
+
+	expectedStack := filepath.Join(toWorktree, stackRel)
+
+	componentPaths := make([]string, 0, len(components))
+	for _, c := range components {
+		componentPaths = append(componentPaths, c.Path())
+	}
+
+	assert.Contains(t, componentPaths, expectedStack,
+		"stack reading the changed config file should be discovered via the Git filter; got: %v", componentPaths)
 }

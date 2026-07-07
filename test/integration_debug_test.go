@@ -190,6 +190,38 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testin
 	helpers.RunTerragruntValidateInputs(t, rootPath, args, true)
 }
 
+// pins that hcl validate --inputs resolves get_original_terragrunt_dir() to the discovered unit
+func TestTerragruntHCLValidateInputsResolvesOriginalTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	fixture := "fixtures/hcl-validate-original-dir"
+	helpers.CleanupTerraformFolder(t, filepath.Join(fixture, "unit"))
+	tmpEnvPath := helpers.CopyEnvironment(t, fixture)
+	rootPath := filepath.Join(tmpEnvPath, fixture)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt hcl validate --inputs --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+}
+
+// pins the same for hcl validate without --inputs, which parses units through a separate path
+func TestTerragruntHCLValidateResolvesOriginalTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	fixture := "fixtures/hcl-validate-original-dir"
+	helpers.CleanupTerraformFolder(t, filepath.Join(fixture, "unit"))
+	tmpEnvPath := helpers.CopyEnvironment(t, fixture)
+	rootPath := filepath.Join(tmpEnvPath, fixture)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt hcl validate --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+}
+
 func TestRenderJSONConfig(t *testing.T) {
 	t.Parallel()
 

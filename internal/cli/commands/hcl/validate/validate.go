@@ -91,9 +91,8 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 
 	// Create discovery with filter support if experiment enabled
 	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir:  opts.WorkingDir,
-		Filters:     opts.Filters,
-		Experiments: opts.Experiments,
+		WorkingDir: opts.WorkingDir,
+		Filters:    opts.Filters,
 	})
 	if err != nil {
 		return processDiagnostics(l, opts, diags, err)
@@ -176,6 +175,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 		}
 
 		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
+		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
 		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
 		pctx = pctx.WithVenv(v.ToRoot())
@@ -250,9 +250,8 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 	opts.NonInteractive = true
 
 	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir:  opts.WorkingDir,
-		Filters:     opts.Filters,
-		Experiments: opts.Experiments,
+		WorkingDir: opts.WorkingDir,
+		Filters:    opts.Filters,
 	})
 	if err != nil {
 		return err
@@ -300,6 +299,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 		}
 
 		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
+		unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
 
 		prepared, err := prepare.PrepareConfig(ctx, l, v, unitOpts)
 		if err != nil {

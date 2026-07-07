@@ -138,7 +138,7 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 		ref = "HEAD"
 	}
 
-	args := []string{repo, ref}
+	args := []string{"--", repo, ref}
 
 	cmd := g.prepareCommand(ctx, "ls-remote", args...)
 
@@ -250,7 +250,7 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 		args = append(args, "--branch", branch)
 	}
 
-	args = append(args, repo, g.WorkDir)
+	args = append(args, "--", repo, g.WorkDir)
 
 	cmd := g.prepareCommand(ctx, "clone", args...)
 
@@ -308,7 +308,7 @@ func (g *GitRunner) Fetch(ctx context.Context, repo, ref string, depth int) erro
 		args = append(args, "--depth", strconv.Itoa(depth), "--no-tags")
 	}
 
-	args = append(args, repo, ref)
+	args = append(args, "--", repo, ref)
 
 	cmd := g.prepareCommand(ctx, "fetch", args...)
 

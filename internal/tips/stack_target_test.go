@@ -164,6 +164,40 @@ func TestGiveStackTargetTipFiresOnceAcrossCalls(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(output.String(), tips.StackTargetMissingTypeStack))
 }
 
+func TestGiveStackTargetTipSkipsWhenTipAbsent(t *testing.T) {
+	t.Parallel()
+
+	parsed, err := filter.Parse("./envs/prod")
+	require.NoError(t, err)
+
+	// A non-nil collection that lacks StackTargetMissingTypeStack: the lookup
+	// misses and the function returns before touching the filesystem.
+	allTips := tips.Tips{{Name: "unrelated", Message: "x"}}
+
+	l, output := newTestLogger()
+
+	tips.GiveStackTargetTip(l, vfs.NewMemMapFS(), "/work", filter.Filters{parsed}, allTips)
+
+	assert.Empty(t, output.String())
+}
+
+func TestGiveStackTargetTipSkipsOnStatError(t *testing.T) {
+	t.Parallel()
+
+	parsed, err := filter.Parse("./envs/prod")
+	require.NoError(t, err)
+
+	// The stack file does not exist, so the wrapper turns FileExists into an
+	// error, exercising filterTargetsStackDir's stat-error branch.
+	fs := &missingAsErrorFS{FS: vfs.NewMemMapFS(), err: errStatFault}
+
+	l, output := newTestLogger()
+
+	tips.GiveStackTargetTip(l, fs, "/work", filter.Filters{parsed}, tips.NewTips())
+
+	assert.NotContains(t, output.String(), tips.StackTargetMissingTypeStack)
+}
+
 // TestGiveStackTargetTipConcurrentWithRacing verifies that concurrent
 // invocations (as occur under `run --all`) don't race on the shared
 // Tip pointer.

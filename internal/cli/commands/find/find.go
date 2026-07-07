@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -35,7 +36,6 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 		Include:           opts.Include,
 		Reading:           opts.Reading,
 		Filters:           opts.Filters,
-		Experiments:       opts.Experiments,
 	})
 	if err != nil {
 		return err
@@ -60,6 +60,10 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 		}
 	}()
+
+	if err := generate.WorktreeStacks(ctx, l, v, opts.TerragruntOptions, worktrees); err != nil {
+		return err
+	}
 
 	d = d.WithWorktrees(worktrees)
 

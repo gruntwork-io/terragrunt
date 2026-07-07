@@ -73,7 +73,7 @@ func TestRun_NonOSBackedExecReturnsSentinel(t *testing.T) {
 			Version: "v0.0.0",
 			Type:    "test",
 		},
-		WorkingDir: t.TempDir(),
+		CacheDir: t.TempDir(),
 	}
 
 	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {

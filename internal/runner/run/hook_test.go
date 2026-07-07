@@ -403,7 +403,7 @@ func (r *recorder) snapshot() []vexec.Invocation {
 
 func newHookOpts() *run.Options {
 	return &run.Options{
-		WorkingDir:        "/work",
+		CacheDir:          "/work",
 		RootWorkingDir:    "/work",
 		TerraformCommand:  "plan",
 		TFPath:            "/fake/tofu",

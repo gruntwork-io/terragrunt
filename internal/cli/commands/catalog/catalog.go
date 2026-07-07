@@ -37,6 +37,9 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 		return err
 	}
 
+	tempDirs := tui.NewTempDirTracker(v.FS)
+	defer tempDirs.Cleanup(l)
+
 	return tui.Run(
 		ctx, l, v, opts, opts.Writers.ErrWriter,
 		func(
@@ -45,10 +48,10 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 			if repoURL != "" {
 				status("Loading " + repoURL + "...")
 
-				return tui.LoadURL(ctx, l, v, opts, repoURL, componentCh)
+				return tui.LoadURL(ctx, l, v, opts, tempDirs, repoURL, componentCh)
 			}
 
-			return discoverAndLoad(ctx, l, v, opts, status, componentCh)
+			return discoverAndLoad(ctx, l, v, opts, tempDirs, status, componentCh)
 		})
 }
 
@@ -56,6 +59,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 // distinct repo URL they surface into componentCh, bounded by parallelism.
 func discoverAndLoad(
 	ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions,
+	tempDirs *tui.TempDirTracker,
 	status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 ) error {
 	urlCh := make(chan string, urlChannelBufferSize)
@@ -104,7 +108,7 @@ func discoverAndLoad(
 		seen[repoURL] = struct{}{}
 
 		loaders.Go(func() error {
-			err := tui.LoadURL(loadCtx, l, v, opts, repoURL, componentCh)
+			err := tui.LoadURL(loadCtx, l, v, opts, tempDirs, repoURL, componentCh)
 			if err == nil {
 				return nil
 			}

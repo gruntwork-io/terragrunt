@@ -828,11 +828,11 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that the working directory was changed to the cache directory (inside downloadDir)
-	assert.NotEqual(t, sourceDir, updatedOpts.WorkingDir, "Working dir should be changed to cache")
-	assert.True(t, strings.HasPrefix(updatedOpts.WorkingDir, downloadDir), "Working dir should be under download dir")
+	assert.NotEqual(t, sourceDir, updatedOpts.CacheDir, "Working dir should be changed to cache")
+	assert.True(t, strings.HasPrefix(updatedOpts.CacheDir, downloadDir), "Working dir should be under download dir")
 
 	// Verify that the main.tf file was copied to the cache
-	cachedMainTf := filepath.Join(updatedOpts.WorkingDir, "main.tf")
+	cachedMainTf := filepath.Join(updatedOpts.CacheDir, "main.tf")
 	assert.FileExists(t, cachedMainTf, "main.tf should exist in cache directory")
 
 	// Verify the contents were copied correctly

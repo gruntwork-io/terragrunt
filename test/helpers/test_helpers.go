@@ -122,6 +122,34 @@ func CreateGitRepo(t *testing.T, path string) {
 	require.NoError(t, err, "git commit failed")
 }
 
+// InitGitRepoWithBranchRef initializes a git repo at dir, commits every file
+// already present, and creates a branch named ref pointing at the commit.
+// Callers write their fixture files into dir before calling this.
+func InitGitRepoWithBranchRef(t *testing.T, dir, ref string) {
+	t.Helper()
+
+	runGitCmd(t, dir, "init", "-b", "main")
+	runGitCmd(t, dir, "config", "user.email", "test@example.com")
+	runGitCmd(t, dir, "config", "user.name", "Terragrunt Test")
+	runGitCmd(t, dir, "config", "commit.gpgsign", "false")
+	runGitCmd(t, dir, "add", "-A")
+	runGitCmd(t, dir, "commit", "-m", "initial commit")
+	runGitCmd(t, dir, "update-ref", "refs/heads/"+ref, "HEAD")
+}
+
+func runGitCmd(t *testing.T, dir string, args ...string) {
+	t.Helper()
+
+	gitPath, err := exec.LookPath("git")
+	require.NoError(t, err)
+
+	cmd := exec.CommandContext(t.Context(), gitPath, args...)
+	cmd.Dir = dir
+
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git %v failed: %s", args, string(out))
+}
+
 // CloneGitRepo creates an isolated git clone for parallel testing.
 // Uses git clone --local --no-hardlinks to preserve file modes, symlinks,
 // and avoid worktree race conditions when multiple tests operate on same repo.

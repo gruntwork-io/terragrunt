@@ -187,16 +187,19 @@ func ParentPathHasSymlink(fsys FS, rootDir, rel string) (bool, error) {
 	return false, nil
 }
 
-// MkdirTemp creates a temporary directory on the given filesystem.
-func MkdirTemp(fs FS, dir, pattern string) (string, error) {
-	return afero.TempDir(fs, dir, pattern)
+// MkdirTemp creates a temporary directory on the given filesystem. Unlike
+// [os.MkdirTemp], prefix is always literal: the random component is appended and
+// a "*" in prefix is not treated as a placeholder.
+func MkdirTemp(fs FS, dir, prefix string) (string, error) {
+	return afero.TempDir(fs, dir, prefix)
 }
 
-// CreateTemp creates a temporary file on the given filesystem. The file's name
-// is prefix followed by a random string; prefix is not a pattern, so any "*" in
-// it is taken literally.
-func CreateTemp(fs FS, dir, prefix string) (File, error) {
-	return afero.TempFile(fs, dir, prefix)
+// CreateTemp creates a temporary file on the given filesystem, following the
+// same rule as [os.CreateTemp]: the last "*" in pattern is replaced by the
+// random component, or, when pattern has no "*", the random component is
+// appended.
+func CreateTemp(fs FS, dir, pattern string) (File, error) {
+	return afero.TempFile(fs, dir, pattern)
 }
 
 // Link creates a hard link. It delegates to LinkIfPossible for filesystems
@@ -800,18 +803,29 @@ type limitedReader struct {
 }
 
 func (r *limitedReader) Read(p []byte) (int, error) {
-	if r.remaining <= 0 {
+	if r.remaining > 0 {
+		if int64(len(p)) > r.remaining {
+			p = p[:r.remaining]
+		}
+
+		n, err := r.reader.Read(p)
+		r.remaining -= int64(n)
+
+		return n, err
+	}
+
+	var probe [1]byte
+
+	n, err := r.reader.Read(probe[:])
+	if n > 0 {
 		return 0, errors.New("decompressed size exceeds limit")
 	}
 
-	if int64(len(p)) > r.remaining {
-		p = p[:r.remaining]
+	if err == nil {
+		return 0, io.EOF
 	}
 
-	n, err := r.reader.Read(p)
-	r.remaining -= int64(n)
-
-	return n, err
+	return 0, err
 }
 
 // lstatIfPossible calls Lstat if the filesystem supports it, otherwise Stat.

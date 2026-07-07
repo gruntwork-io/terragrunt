@@ -182,6 +182,20 @@ func TestNewTips(t *testing.T) {
 	assert.Contains(t, tip.Message, "troubleshooting")
 }
 
+func TestTipsNamesEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, tips.Tips{}.Names())
+}
+
+func TestTipsDisableAllEmpty(t *testing.T) {
+	t.Parallel()
+
+	empty := tips.Tips{}
+
+	require.NotPanics(t, empty.DisableAll)
+}
+
 func newTestLogger() (log.Logger, *bytes.Buffer) {
 	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
 	output := new(bytes.Buffer)

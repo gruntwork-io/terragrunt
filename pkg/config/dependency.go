@@ -1014,6 +1014,26 @@ func extractFirstJSONObject(data []byte) ([]byte, error) {
 	return raw, nil
 }
 
+// adjustSourceForTargetModule rewrites a `--source` CLI override so it points at targetConfig's own module subdir
+// rather than the original unit's. The override carries only the module root ("everything before //"); the subdir
+// comes from the target's terraform source. A no-op when `--source` was not set or the target has no source.
+func adjustSourceForTargetModule(pctx *ParsingContext, targetConfig string, targetCfg *TerragruntConfig) error {
+	if pctx.Source == "" {
+		return nil
+	}
+
+	moduleURL, _ := getter.SourceDirSubdir(pctx.Source)
+
+	targetSource, err := GetTerragruntSourceForModule(moduleURL, filepath.Dir(targetConfig), targetCfg)
+	if err != nil {
+		return err
+	}
+
+	pctx.Source = targetSource
+
+	return nil
+}
+
 // resolveOutputJSON retrieves the outputs from the terraform state in the target configuration. It
 // attempts to optimize retrieval if the following conditions are true:
 //   - State backends are managed with a `remote_state` block.
@@ -1050,7 +1070,18 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		nil,
 	)
 	if err != nil {
-		return nil, "", err
+		// The config being parsed may reference dependency outputs that this lightweight parse can't resolve; the
+		// full output run can, so fall back instead of failing the dependent unit. That parse error is often the
+		// misleading "no variable named dependency" diagnostic, so it is logged for debugging but not returned; the
+		// full run is authoritative and reproduces any genuine error. runTerragruntOutputJSON retargets any `--source`
+		// override to the target module from its fully resolved source, so a stale subdir from the calling unit — even
+		// one whose source itself consumes a dependency output — is not carried into the run.
+		l.Debugf("Could not partially parse terraform block from target config %s: %v", pctx.TerragruntConfigPath, err)
+		l.Debugf("Falling back to terragrunt output.")
+
+		out, runErr := runTerragruntOutputJSON(ctx, pctx, l, targetConfig)
+
+		return out, "run", runErr
 	}
 
 	// Only override TFPath if it was not explicitly set by the user via CLI or environment variable
@@ -1062,18 +1093,8 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 	applyExtraArgsEnvVarsForOutput(pctx, partialTerragruntConfig.Terraform)
 
 	// If the Source is set, then we need to recompute it in the ctx of the target config.
-	if pctx.Source != "" {
-		// Update the source value to be everything before "//" so that it can be recomputed
-		moduleURL, _ := getter.SourceDirSubdir(pctx.Source)
-
-		// Finally, update the source to be the combined path between the terraform source in the target config, and the
-		// value before "//" in the original terragrunt options.
-		targetSource, err := GetTerragruntSourceForModule(moduleURL, filepath.Dir(targetConfig), partialTerragruntConfig)
-		if err != nil {
-			return nil, "", err
-		}
-
-		pctx.Source = targetSource
+	if err := adjustSourceForTargetModule(pctx, targetConfig, partialTerragruntConfig); err != nil {
+		return nil, "", err
 	}
 
 	// First attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is possible,
@@ -1094,9 +1115,9 @@ func resolveOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, 
 		targetConfig,
 		nil,
 	)
-	canGet := canGetRemoteState(remoteStateTGConfig.RemoteState)
-
-	if err != nil || !canGet {
+	// Check err before dereferencing the config: a remote_state block that references the dependency namespace makes
+	// this parse fail and return a nil config, so the short-circuit avoids a nil pointer panic.
+	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
 		l.Debugf("Could not parse remote_state block from target config %s", pctx.TerragruntConfigPath)
 		l.Debugf("Falling back to terragrunt output.")
 
@@ -1498,6 +1519,15 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		return nil, err
 	}
 
+	// A `--source` override carries the module subdir of whichever unit the run started from, not the dependency being
+	// resolved here, so retarget it to this module's own subdir before running. The full parse above resolves the
+	// target's real source even when it references a dependency output (which the lightweight parse in resolveOutputJSON
+	// cannot), making it the authoritative input. Without this, a dependency whose source consumes a dependency output
+	// would run against the caller's stale subdir and read the wrong module's outputs.
+	if err := adjustSourceForTargetModule(pctx, targetConfig, cfg); err != nil {
+		return nil, err
+	}
+
 	runCfg := cfg.ToRunConfig(l)
 
 	credsGetter := creds.NewGetter()
@@ -1521,7 +1551,8 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	runOpts.LogDisableErrorSummary = pctx.LogDisableErrorSummary
 	runOpts.TerragruntConfigPath = pctx.TerragruntConfigPath
 	runOpts.OriginalTerragruntConfigPath = pctx.OriginalTerragruntConfigPath
-	runOpts.WorkingDir = pctx.WorkingDir
+	runOpts.UnitDir = pctx.WorkingDir
+	runOpts.CacheDir = pctx.WorkingDir
 	runOpts.RootWorkingDir = pctx.RootWorkingDir
 	runOpts.DownloadDir = pctx.DownloadDir
 	runOpts.Source = pctx.Source

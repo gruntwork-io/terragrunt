@@ -166,7 +166,7 @@ func PrepareSource(
 		return nil, err
 	}
 
-	updatedTerragruntOptions.WorkingDir = updatedRunOpts.WorkingDir
+	updatedTerragruntOptions.WorkingDir = updatedRunOpts.CacheDir
 
 	return updatedTerragruntOptions, nil
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -312,6 +313,23 @@ func filterUnitsToComponents(units []*component.Unit) component.Components {
 	return result
 }
 
+// UnitsWithDependents returns the set of unit paths that at least one other unit in q
+// depends on. Run uses it to decide which units may have their engine shut down early.
+func UnitsWithDependents(q *queue.Queue) map[string]bool {
+	withDependents := make(map[string]bool)
+	if q == nil {
+		return withDependents
+	}
+
+	for _, entry := range q.Entries {
+		for _, dep := range entry.Component.Dependencies() {
+			withDependents[dep.Path()] = true
+		}
+	}
+
+	return withDependents
+}
+
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
 func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts *options.TerragruntOptions, r *report.Report) error {
@@ -410,6 +428,8 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 			}
 		}
 	}
+
+	withDependents := UnitsWithDependents(rnr.queue)
 
 	task := func(ctx context.Context, u *component.Unit) error {
 		// Build per-unit opts and logger on demand
@@ -511,6 +531,21 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 					credsGetter,
 				)
 			})
+
+			// This unit's terraform commands are all done, so release its engine now
+			// instead of holding it until the batch Shutdown. Skip units that another
+			// in-run unit depends on: that dependent re-reads this unit's outputs through
+			// engine.Run after this task ends, which would just re-spawn the engine we
+			// tore down.
+			if !withDependents[unitPath] {
+				noEngine := unitOpts.EngineOptions != nil && unitOpts.EngineOptions.NoEngine
+				if sErr := engine.ShutdownUnit(
+					childCtx, unitLogger, unitOpts.Experiments, noEngine,
+					unitOpts.WorkingDir,
+				); sErr != nil {
+					unitLogger.Errorf("Error shutting down engine for unit %s: %v", unitPath, sErr)
+				}
+			}
 
 			// Flush any remaining buffered output
 			if flushErr := unitWriter.Flush(); flushErr != nil && err == nil {

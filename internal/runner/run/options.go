@@ -62,7 +62,8 @@ type Options struct {
 	TofuImplementation           tfimpl.Type
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
-	WorkingDir                   string
+	UnitDir                      string
+	CacheDir                     string
 	DownloadDir                  string
 	RootWorkingDir               string
 	OriginalTerraformCommand     string
@@ -112,12 +113,13 @@ func (o *Options) CloneWithConfigPath(l log.Logger, configPath string) (log.Logg
 
 	workingDir := filepath.Dir(configPath)
 
-	if workingDir != o.WorkingDir {
+	if workingDir != o.CacheDir {
 		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 	}
 
 	newOpts.TerragruntConfigPath = configPath
-	newOpts.WorkingDir = workingDir
+	newOpts.UnitDir = workingDir
+	newOpts.CacheDir = workingDir
 
 	return l, newOpts, nil
 }
@@ -190,13 +192,14 @@ func (o *Options) DataDir(env map[string]string) string {
 		return tfDataDir
 	}
 
-	return filepath.Join(o.WorkingDir, tfDataDir)
+	return filepath.Join(o.CacheDir, tfDataDir)
 }
 
 // shellRunOptions builds a *shell.ShellOptions from this Options.
 func (o *Options) shellRunOptions() *shell.ShellOptions {
 	s := shell.NewShellOptions().
-		WithWorkingDir(o.WorkingDir).
+		WithWorkingDir(o.CacheDir).
+		WithUnitDir(o.UnitDir).
 		WithWriters(o.Writers).
 		WithTelemetry(o.Telemetry).
 		WithEngine(o.EngineConfig, o.EngineOptions).
@@ -243,7 +246,7 @@ func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
 		ShellOptions:         o.shellRunOptions(),
 		Writers:              o.Writers,
 		LogShowAbsPaths:      o.LogShowAbsPaths,
-		WorkingDir:           o.WorkingDir,
+		WorkingDir:           o.CacheDir,
 		RootWorkingDir:       o.RootWorkingDir,
 		TerragruntConfigPath: o.TerragruntConfigPath,
 		MaxFoldersToCheck:    o.MaxFoldersToCheck,
@@ -263,7 +266,7 @@ func (o *Options) RunWithErrorHandling(
 
 	currentAttempt := 1
 
-	reportWorkingDir := o.WorkingDir
+	reportWorkingDir := o.CacheDir
 	if o.OriginalTerragruntConfigPath != "" {
 		reportWorkingDir = filepath.Dir(o.OriginalTerragruntConfigPath)
 	}
@@ -361,7 +364,7 @@ func (o *Options) RunWithErrorHandling(
 }
 
 func (o *Options) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
-	signalsFile := filepath.Join(o.WorkingDir, defaultSignalsFile)
+	signalsFile := filepath.Join(o.CacheDir, defaultSignalsFile)
 
 	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
 	if err != nil {

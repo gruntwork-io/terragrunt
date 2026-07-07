@@ -109,7 +109,7 @@ func TestProcessHooks_PropagatesWorkingDir(t *testing.T) {
 	l := logger.CreateLogger()
 
 	opts := newHookOpts()
-	opts.WorkingDir = "/work/unit"
+	opts.CacheDir = "/work/unit"
 
 	hooks := []runcfg.Hook{
 		{
