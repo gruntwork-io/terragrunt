@@ -246,7 +246,12 @@ func runTerragruntWithConfig(
 
 		opts.InsertTerraformCliArgs(args...)
 
-		maps.Copy(opts.Env, filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg))
+		extraEnvVars := filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg)
+		if _, set := extraEnvVars[tf.EnvNameTofuCPUProfile]; set {
+			opts.TofuCPUProfileUserSet = true
+		}
+
+		maps.Copy(opts.Env, extraEnvVars)
 	}
 
 	if err := SetTerragruntInputsAsEnvVars(l, opts, cfg); err != nil {

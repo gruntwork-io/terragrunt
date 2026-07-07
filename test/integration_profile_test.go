@@ -7,13 +7,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const testFixtureProfileMultiUnit = "fixtures/profile/multi-unit"
+const (
+	testFixtureProfileMultiUnit    = "fixtures/profile/multi-unit"
+	testFixtureProfileExtraArgsEnv = "fixtures/profile/extra-args-env"
+)
 
 func TestTGProfileEnvVarsCreateProfileFiles(t *testing.T) {
 	testCases := []struct {
@@ -135,6 +137,29 @@ func TestTGProfileDirRespectsExplicitTofuProfileInsideDir(t *testing.T) {
 	assert.Empty(t, derived, "a user path inside the profile dir must still suppress derived per-unit paths")
 }
 
+func TestTGProfileDirRespectsExtraArgsTofuProfile(t *testing.T) {
+	if isTerraform(t.Context()) {
+		t.Skip("TOFU_CPU_PROFILE is only supported by OpenTofu")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureProfileExtraArgsEnv)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProfileExtraArgsEnv)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureProfileExtraArgsEnv)
+
+	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles")
+	t.Setenv("TG_EXPERIMENT", "profiling")
+	t.Setenv("TG_PROFILE_DIR", profileDir)
+
+	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
+
+	cacheWorkingDir := helpers.FindCacheWorkingDir(t, rootPath)
+	requireNonEmptyFile(t, filepath.Join(cacheWorkingDir, "extra_args_tofu.prof"))
+
+	derived, err := filepath.Glob(filepath.Join(profileDir, "tofu_cpu*"))
+	require.NoError(t, err)
+	assert.Empty(t, derived, "TOFU_CPU_PROFILE from extra_arguments env_vars must suppress derived per-unit paths")
+}
+
 func TestTGProfileDirCollectsProfiles(t *testing.T) {
 	if isTerraform(t.Context()) {
 		t.Skip("TOFU_CPU_PROFILE is only supported by OpenTofu")
@@ -225,7 +250,7 @@ func TestProfileFlagsRequireExperiment(t *testing.T) {
 	profilePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "cpu_no_exp.prof")
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --profile-cpu "+profilePath+" version")
-	require.ErrorIs(t, err, commands.ErrProfilingRequiresExperiment)
+	require.ErrorContains(t, err, "require the 'profiling' experiment")
 	assert.NoFileExists(t, profilePath, "profile should not be created without experiment")
 }
 
@@ -239,7 +264,7 @@ func TestTGProfileCPUEnvRequiresExperiment(t *testing.T) {
 	t.Setenv("TG_PROFILE_CPU", profilePath)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt version")
-	require.ErrorIs(t, err, commands.ErrProfilingRequiresExperiment)
+	require.ErrorContains(t, err, "require the 'profiling' experiment")
 	assert.NoFileExists(t, profilePath, "profile should not be created without experiment")
 }
 
@@ -253,7 +278,7 @@ func TestTGProfileDirEnvRequiresExperiment(t *testing.T) {
 	t.Setenv("TG_PROFILE_DIR", profileDir)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt version")
-	require.ErrorIs(t, err, commands.ErrProfilingRequiresExperiment)
+	require.ErrorContains(t, err, "require the 'profiling' experiment")
 	assert.NoDirExists(t, profileDir, "profile directory should not be created without experiment")
 }
 
