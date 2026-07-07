@@ -1,0 +1,8 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### Safer temporary clone directories for `terragrunt catalog`
+
+Terragrunt now creates a fresh temporary clone directory for each catalog load, rejects symlinked clone roots, and removes catalog clones when the TUI session exits.

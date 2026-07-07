@@ -21,8 +21,11 @@ package worker
 
 import (
 	"errors"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
+
+	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 )
 
 // Task represents a unit of work that can be executed
@@ -105,6 +108,11 @@ func (wp *Pool) Submit(task Task) {
 		wp.semaphore <- struct{}{}
 
 		defer func() { <-wp.semaphore }()
+		defer func() {
+			if rec := recover(); rec != nil {
+				wp.appendError(panicreport.NewRecoveredError(rec, debug.Stack()))
+			}
+		}()
 
 		err := task()
 		if err != nil {
