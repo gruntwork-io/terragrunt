@@ -23,15 +23,29 @@ examples:
       terragrunt browse --working-dir /path/to/working/dir
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+## Keybindings
+
+| Key(s)              | Action                                             |
+| ------------------- | -------------------------------------------------- |
+| `j` / `↓`           | Move the cursor down                               |
+| `k` / `↑`           | Move the cursor up                                 |
+| `l` / `→` / `enter` | Descend into the highlighted directory             |
+| `h` / `←`           | Return to the parent directory                     |
+| `/`                 | Search the current directory                       |
+| `n`                 | Jump to the next search match                      |
+| `N`                 | Jump to the previous search match                  |
+| `esc`               | Clear the search; quit when no search is active    |
+| `q` / `ctrl+c`      | Quit                                               |
+
+While the search input is open, keys edit the query instead; `ctrl+c` still quits.
 
 ## Navigation
 
-Move the cursor with `j`/`k` (or the `↑`/`↓` arrow keys), descend into a directory with `l`/`→`/`enter`, return to the parent with `h`/`←`, and quit with `q`. The highlighted entry is shown in blue, and its path is displayed along the top, abbreviated with `~` when it falls under your home directory.
+The highlighted entry is shown in blue, and its path is displayed along the top, abbreviated with `~` when it falls under your home directory.
 
 ## Search
 
-Press `/` to search the current directory. As you type, matching entries are marked, the cursor jumps to the first match, and a match count appears along the bottom. Press `enter` to keep the search applied, leaving the marks in place so `n`/`N` cycle forward and backward through the matches, or `esc` to clear it. The search also clears on its own when you move into another directory.
+A search matches entries in the current directory. As you type, matching entries are marked, the cursor jumps to the first match, and a match count appears along the bottom. Pressing `enter` keeps the search applied, leaving the marks in place so you can cycle through the matches. The search also clears on its own when you move into another directory.
 
 ## Detail Pane
 
