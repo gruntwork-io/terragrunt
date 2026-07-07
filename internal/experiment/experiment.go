@@ -77,6 +77,11 @@ const (
 	HookContextEnv = "hook-context-env"
 	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
 	OptionalHooks = "optional-hooks"
+	// BoundedFilter gates the inline "(dir)" graph boundary operand, which
+	// encloses graph discovery for a filter expression within a directory
+	// instead of the git repository root: dependencies and dependents resolving
+	// outside it are not discovered.
+	BoundedFilter = "bounded-filter"
 )
 
 const (
@@ -164,6 +169,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptionalHooks,
+		},
+		{
+			Name: BoundedFilter,
 		},
 	}
 }

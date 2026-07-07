@@ -362,3 +362,26 @@ func stackDependencyPaths(
 
 	return result, nil
 }
+
+// resolveGraphBoundary canonicalizes a raw "(dir)" boundary value against
+// the working directory and validates that it points at an existing directory.
+// Returns the resolved absolute path.
+func resolveGraphBoundary(fs vfs.FS, workingDir, boundary string) (string, error) {
+	resolved := boundary
+	if !filepath.IsAbs(resolved) {
+		resolved = filepath.Join(workingDir, resolved)
+	}
+
+	resolved = filepath.Clean(resolved)
+
+	info, err := fs.Stat(resolved)
+	if err != nil {
+		return "", NewFilterBoundaryDirError(resolved, err)
+	}
+
+	if !info.IsDir() {
+		return "", NewFilterBoundaryDirError(resolved, errors.New("not a directory"))
+	}
+
+	return resolved, nil
+}

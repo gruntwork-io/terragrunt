@@ -1,0 +1,17 @@
+---
+version: "v1.1.0"
+category: "experiments-added"
+---
+
+#### `bounded-filter` experiment encloses graph traversal within a directory
+
+Filter expressions that traverse the dependency graph reach beyond the working directory: dependents (`--filter '...{unit}'`) by walking up to the git repository root, dependencies (`--filter '{unit}...'`) by following declared paths. Either way, Terragrunt reads and parses every configuration it touches. In monorepos with isolated environments, that traversal can fail or do wasted work reading sibling environments.
+
+Enable the new [`bounded-filter`](/reference/experiments/active#bounded-filter) experiment to unlock an inline `(dir)` boundary operand. It occupies the same slot as a traversal depth, so it bounds discovery by location the way a number bounds it by graph hops:
+
+```bash
+cd environments/staging
+terragrunt run --all plan --experiment bounded-filter --filter '(.)...{vpc}'
+```
+
+Any configuration that resolves outside the boundary, whether a dependent or a dependency, is neither read nor parsed nor returned; configurations inside it are discovered as usual. The boundary must be an existing directory, resolved against the working directory.
