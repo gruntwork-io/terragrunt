@@ -1,0 +1,10 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### Fix `AccessDenied` fetching a `dependency`'s state across AWS accounts
+
+With `--experiment dependency-fetch-output-from-state` enabled, fetching a `dependency`'s state directly from its S3 backend could fail with `AccessDenied` when the dependency lives in a different AWS account or otherwise needs its own IAM role. Terragrunt now assumes the dependency's own role when fetching its state, including when the calling unit already has static AWS credentials in its environment.
+
+Resolves [#4979](https://github.com/gruntwork-io/terragrunt/issues/4979), superseding the credential-resolution approach attempted in [#5153](https://github.com/gruntwork-io/terragrunt/pull/5153).

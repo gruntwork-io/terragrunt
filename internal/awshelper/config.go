@@ -133,11 +133,22 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 		return aws.Config{}, fmt.Errorf("error loading AWS config: %w", err)
 	}
 
-	if createCredentialsFromEnv(b.env) != nil {
+	mergedIAMRoleOptions := getMergedIAMRoleOptions(b.sessionConfig, b.iamRoleOpts)
+
+	// If static credentials are present in the environment (e.g. temporary credentials from an
+	// IRSA/OIDC web-identity exchange or an external auth-provider-cmd) but no role needs to be
+	// assumed on top of them, those credentials are the final identity to use as-is.
+	//
+	// If a role IS configured, those same env credentials must still be used as the BASE identity
+	// for the sts:AssumeRole call below (config.WithCredentialsProvider already wired them into cfg
+	// above) rather than short-circuiting here. Returning early in that case silently skips role
+	// assumption entirely and every AWS call ends up using the calling identity's own credentials
+	// instead of the configured role -- e.g. an S3 GetObject against a cross-account dependency's
+	// remote state fails with AccessDenied instead of assuming that dependency's own IAM role.
+	if createCredentialsFromEnv(b.env) != nil && mergedIAMRoleOptions.RoleARN == "" {
 		return cfg, nil
 	}
 
-	mergedIAMRoleOptions := getMergedIAMRoleOptions(b.sessionConfig, b.iamRoleOpts)
 	if mergedIAMRoleOptions.RoleARN == "" {
 		return cfg, nil
 	}
