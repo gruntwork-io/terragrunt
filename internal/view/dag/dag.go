@@ -165,8 +165,11 @@ func NewTreeStyler(shouldColor bool) *TreeStyler {
 		shouldColor: shouldColor,
 		entryStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("8")).MarginRight(1),
 		// indenterStyle matches entryStyle's color for the vertical continuation
-		// bars, but without the right margin so the indent width is unchanged.
-		indenterStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("8")),
+		// bars. PaddingRight(1) mirrors lipgloss's default indenter style: the
+		// indenter must stay as wide as the enumerator column (4 cells), or
+		// nested levels shift one column left and colored output diverges from
+		// the no-color rendering.
+		indenterStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("8")).PaddingRight(1),
 		rootStyle:     lipgloss.NewStyle().Foreground(lipgloss.Color("35")),
 		colorizer:     colorizer,
 	}

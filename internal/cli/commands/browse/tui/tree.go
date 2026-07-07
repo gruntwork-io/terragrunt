@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
@@ -31,36 +32,18 @@ const (
 // also be a unit or stack) or a plain file. Units and stacks are colored by
 // kind; files are dimmed.
 type Node struct {
-	// parent is nil only for the root.
-	parent *Node
-	// component is non-nil once discovery has resolved this unit or stack. Its
-	// kind may be known earlier, from the cheap filesystem classification.
-	component component.Component
-	// name is the path segment used as the display label.
-	name string
-	// relPath is the path relative to the working dir, shown in the preview.
-	relPath string
-	// absPath is the absolute filesystem path this node represents.
-	absPath string
-	// preview caches the rendered, syntax-highlighted file preview. It's
-	// populated lazily and reused while previewWidth and previewDark still match
-	// the current pane width and terminal background.
-	preview string
-	// children are sorted alphabetically by name.
-	children []*Node
-	kind     Kind
-	// previewWidth is the pane interior width preview was rendered for; a resize
-	// past it invalidates the cache.
+	parent       *Node
+	component    component.Component
+	name         string
+	relPath      string
+	absPath      string
+	preview      string
+	children     []*Node
+	kind         Kind
 	previewWidth int
-	// othersLoaded records that this directory's filesystem entries have already
-	// been merged into its children, so we don't read it again.
 	othersLoaded bool
-	// previewReady records that preview has been rendered for previewWidth and
-	// previewDark.
 	previewReady bool
-	// previewDark is the terminal-background assumption preview was rendered
-	// under, so a background change invalidates the cache.
-	previewDark bool
+	previewDark  bool
 }
 
 // BuildTree builds the navigable tree from the discovered components.
@@ -220,7 +203,7 @@ func (m *Model) loadDir(n *Node) {
 			name:    name,
 			relPath: filepath.Join(n.relPath, name),
 			absPath: abs,
-			kind:    m.classify(entry, abs),
+			kind:    m.classify(n, entry, abs),
 		}
 
 		if c, ok := m.index[abs]; ok {
@@ -236,9 +219,16 @@ func (m *Model) loadDir(n *Node) {
 
 // classify determines a node's kind from the filesystem alone: directories are
 // inspected for a stack or unit config file, and everything else is a file.
-func (m *Model) classify(entry fs.DirEntry, abs string) Kind {
+// Directories discovery never scans (.git, .terraform, .terragrunt-cache, or
+// anything beneath them) stay plain directories even when they hold config
+// files, so cache copies don't masquerade as units discovery will never resolve.
+func (m *Model) classify(parent *Node, entry fs.DirEntry, abs string) Kind {
 	if !entry.IsDir() {
 		return KindFile
+	}
+
+	if inIgnorableDir(parent, entry.Name()) {
+		return KindDir
 	}
 
 	switch {
@@ -249,6 +239,24 @@ func (m *Model) classify(entry fs.DirEntry, abs string) Kind {
 	default:
 		return KindDir
 	}
+}
+
+// inIgnorableDir reports whether name, as a child of parent, is one of the
+// directories discovery skips, or lies beneath one. It shares discovery's
+// notion of "ignorable" via [util.SkipDirIfIgnorable] so the two layers can't
+// drift apart.
+func inIgnorableDir(parent *Node, name string) bool {
+	if util.SkipDirIfIgnorable(name) != nil {
+		return true
+	}
+
+	for n := parent; n != nil; n = n.parent {
+		if util.SkipDirIfIgnorable(n.name) != nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 // containsFile reports whether dir holds a file named name. A stat error means
@@ -279,9 +287,11 @@ func (m *Model) counts(n *Node) (units, stacks int) {
 
 		if c.Kind() == component.StackKind {
 			stacks++
-		} else {
-			units++
+
+			continue
 		}
+
+		units++
 	}
 
 	return units, stacks

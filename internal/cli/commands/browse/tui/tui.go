@@ -2,10 +2,9 @@ package tui
 
 import (
 	"context"
+	"errors"
 
 	tea "charm.land/bubbletea/v2"
-
-	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )

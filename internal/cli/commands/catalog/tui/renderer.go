@@ -2,6 +2,8 @@ package tui
 
 import (
 	"charm.land/glamour/v2"
+
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 // glamourDocumentMargin matches glamour's standard document.margin so
@@ -25,20 +27,12 @@ func (m Model) markdownRenderer() (Model, *glamour.TermRenderer, error) {
 		return m, m.mdRenderer, nil
 	}
 
-	style := "dark"
-	if !m.hasDarkBG {
-		style = "light"
-	}
-
 	wrap := m.width
 	if !m.softWrap {
 		wrap = noWrapColumnWidth
 	}
 
-	r, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle(style),
-		glamour.WithWordWrap(wrap),
-	)
+	r, err := viewtui.NewMarkdownRenderer(wrap, m.hasDarkBG)
 	if err != nil {
 		return m, nil, err
 	}

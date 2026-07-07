@@ -228,6 +228,10 @@ func (d *Discovery) Discover(
 
 	components = d.applyQueueFilters(opts, components)
 
+	if d.parseStackConfigs {
+		storeStackConfigs(ctx, l, opts, components)
+	}
+
 	return components, nil
 }
 

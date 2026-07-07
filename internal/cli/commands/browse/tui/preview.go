@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"charm.land/glamour/v2"
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/alecthomas/chroma/v2/lexers"
@@ -13,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 const (
@@ -33,6 +33,26 @@ const (
 	// widest-supported option that still carries the theme's colors.
 	chromaFormatter = "terminal256"
 )
+
+// ClipToPane trims rendered content to the pane interior: at most height lines,
+// each truncated to width columns with ANSI styling preserved. This keeps long
+// lines and tall files from overrunning the pane's border.
+func ClipToPane(s string, width, height int) string {
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+
+	lines := strings.Split(s, "\n")
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+
+	for i, line := range lines {
+		lines[i] = ansi.Truncate(line, width, "")
+	}
+
+	return strings.Join(lines, "\n")
+}
 
 // renderFilePreview reads and renders a file for the detail pane: Markdown
 // through glamour, everything else through chroma syntax highlighting. width is
@@ -85,15 +105,7 @@ func renderMarkdown(source string, width int, color, dark bool) string {
 		return source
 	}
 
-	style := "dark"
-	if !dark {
-		style = "light"
-	}
-
-	r, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle(style),
-		glamour.WithWordWrap(width),
-	)
+	r, err := viewtui.NewMarkdownRenderer(width, dark)
 	if err != nil {
 		return source
 	}
@@ -151,24 +163,4 @@ func highlightCode(name, source string, color, dark bool) string {
 	}
 
 	return strings.TrimRight(buf.String(), "\n")
-}
-
-// ClipToPane trims rendered content to the pane interior: at most height lines,
-// each truncated to width columns with ANSI styling preserved. This keeps long
-// lines and tall files from overrunning the pane's border.
-func ClipToPane(s string, width, height int) string {
-	if width <= 0 || height <= 0 {
-		return ""
-	}
-
-	lines := strings.Split(s, "\n")
-	if len(lines) > height {
-		lines = lines[:height]
-	}
-
-	for i, line := range lines {
-		lines[i] = ansi.Truncate(line, width, "")
-	}
-
-	return strings.Join(lines, "\n")
 }

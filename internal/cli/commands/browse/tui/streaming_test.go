@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 	"testing"
@@ -55,6 +56,23 @@ func TestDiscoveryResolvesCountsAndClearsLoading(t *testing.T) {
 	after := m.View().Content
 	assert.Contains(t, after, "Units: 1")
 	assert.NotContains(t, after, "discovering…")
+}
+
+func TestDiscoveryFailureSurfacedInFooter(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/group/db/terragrunt.hcl", nil, 0o644))
+
+	m := newModel(t, fs, tui.NewRoot("/repo"), false)
+
+	m = update(t, m, tui.DiscoveryResult{Err: errors.New("discovery blew up")})
+
+	// A failed discovery must not look like a clean, empty estate: the
+	// "discovering…" indicator clears but the footer flags the failure.
+	content := m.View().Content
+	assert.NotContains(t, content, "discovering…")
+	assert.Contains(t, content, "discovery failed")
 }
 
 func TestReadFilesHighlightedAfterDiscovery(t *testing.T) {

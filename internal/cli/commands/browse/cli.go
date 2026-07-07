@@ -9,13 +9,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const CommandName = "browse"
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
 	cmdOpts := NewOptions(opts)
 	prefix := flags.Prefix{CommandName}
 
@@ -34,7 +35,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 			return nil
 		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, cmdOpts)
+			return Run(ctx, l, v, cmdOpts)
 		},
 	}
 }

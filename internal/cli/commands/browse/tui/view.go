@@ -9,8 +9,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 // columnCount is the number of Miller columns: parent, current, preview.
@@ -26,11 +28,6 @@ const paneBorderHeight = 2
 const panePadWidth = 2
 
 const (
-	// selectedColor is the catalog TUI's selection blue, reused here so the
-	// highlighted entry matches the rest of Terragrunt's interactive UI.
-	selectedColor = "#63C5DA"
-	// selectedTextColor is the dark text drawn on the blue selection bar.
-	selectedTextColor = "#1D252F"
 	// itemColor renders unselected entries in bright white.
 	itemColor = "15"
 	// dimColor is used for borders, help text, and empty-state placeholders.
@@ -45,25 +42,26 @@ var (
 	appStyle      = lipgloss.NewStyle().Padding(1, 2) //nolint:mnd
 	itemStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(itemColor))
 	selectedStyle = lipgloss.NewStyle().Bold(true).
-			Foreground(lipgloss.Color(selectedTextColor)).
-			Background(lipgloss.Color(selectedColor))
+			Foreground(lipgloss.Color(viewtui.SelectionText)).
+			Background(lipgloss.Color(viewtui.SelectionBlue))
 	dependencyStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(dependencyColor))
 	dependentStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(dependentColor))
 	valueStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color(itemColor))
 	dimStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 	helpStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor)).Padding(1, 0, 0, 0)
-	headerStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(selectedColor)).Padding(0, 1, 1, 1)
+	headerStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(viewtui.SelectionBlue)).Padding(0, 1, 1, 1)
 )
 
-// paneStyle returns the rounded-border box style for a pane sized to the given
-// content width and height.
-func paneStyle(contentWidth, contentHeight int) lipgloss.Style {
+// paneStyle returns the rounded-border box style for a pane of the given total
+// width and height. Lipgloss counts the border inside Width and Height, so
+// these are the pane's full footprint on screen.
+func paneStyle(paneWidth, paneHeight int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(dimColor)).
 		Padding(0, 1).
-		Width(contentWidth).
-		Height(contentHeight)
+		Width(paneWidth).
+		Height(paneHeight)
 }
 
 // View implements tea.Model.
@@ -95,21 +93,29 @@ func (m Model) View() tea.View {
 	return v
 }
 
-// paneSizes returns the content width of a side pane (parent or current), the
-// content width of the preview pane, and the shared pane height, all derived
-// from the current terminal size. Each pane's border consumes paneBorderWidth
-// on top of its content width. The detail pane gets half the space; the parent
-// and current panes share the rest equally. Fixed ratios keep the layout stable
-// as you navigate.
+// paneSizes returns the total width of a side pane (parent or current), the
+// total width of the preview pane, and the shared total pane height, borders
+// included, all derived from the current terminal size. The preview pane gets
+// half the space; the parent and current panes share the rest equally. Fixed
+// ratios keep the layout stable as you navigate. Dimensions are clamped to
+// zero so a tiny terminal degrades to empty panes instead of garbled output.
 func (m Model) paneSizes() (sideWidth, previewWidth, paneHeight int) {
 	frameH, frameV := appStyle.GetFrameSize()
 
-	content := m.width - frameH - columnCount*paneBorderWidth
+	content := max(m.width-frameH, 0)
 	sideWidth = content / 4 //nolint:mnd
 	previewWidth = content - sideWidth*(columnCount-1)
-	paneHeight = m.height - frameV - paneBorderHeight - lipgloss.Height(m.headerView()) - lipgloss.Height(m.helpView())
+
+	footer := lipgloss.Height(helpStyle.Render(m.footerView()))
+	paneHeight = max(m.height-frameV-lipgloss.Height(m.headerView())-footer, 0)
 
 	return sideWidth, previewWidth, paneHeight
+}
+
+// paneInterior returns the text area inside a pane of the given total size,
+// once its border and padding are removed, clamped to zero.
+func paneInterior(paneWidth, paneHeight int) (width, height int) {
+	return max(paneWidth-paneBorderWidth-panePadWidth, 0), max(paneHeight-paneBorderHeight, 0)
 }
 
 // previewArea returns the interior width and height of the preview pane: the
@@ -117,31 +123,40 @@ func (m Model) paneSizes() (sideWidth, previewWidth, paneHeight int) {
 func (m Model) previewArea() (width, height int) {
 	_, previewWidth, paneHeight := m.paneSizes()
 
-	return previewWidth - panePadWidth, paneHeight
+	return paneInterior(previewWidth, paneHeight)
 }
 
 // renderColumn renders a list of nodes into a bordered, fixed-size pane,
-// highlighting the node at cursorIdx. When query is non-empty, every row gains a
-// gutter marking whether its name matches, so an active search shows its matches
-// at a glance.
-func (m Model) renderColumn(nodes []*Node, cursorIdx, contentWidth, contentHeight int, query string) string {
-	style := paneStyle(contentWidth, contentHeight)
+// highlighting the node at cursorIdx. Only a window of rows around the cursor
+// is rendered, so directories larger than the pane scroll instead of
+// overflowing it. When query is non-empty, every visible row gains a gutter
+// marking whether its name matches, so an active search shows its matches at a
+// glance.
+func (m Model) renderColumn(nodes []*Node, cursorIdx, paneWidth, paneHeight int, query string) string {
+	style := paneStyle(paneWidth, paneHeight)
+	rowWidth, rows := paneInterior(paneWidth, paneHeight)
 
-	if len(nodes) == 0 {
-		return style.Render(dimStyle.Render("(empty)"))
+	if rowWidth == 0 || rows == 0 {
+		return style.Render("")
 	}
 
-	// rowWidth is the text width inside the pane's padding; the selection bar
-	// spans it fully.
-	rowWidth := contentWidth - panePadWidth
+	if len(nodes) == 0 {
+		return style.Render(ansi.Truncate(dimStyle.Render("(empty)"), rowWidth, ""))
+	}
+
+	// The window centers on the cursor and clamps to the list's ends, computed
+	// fresh each render so no scroll state can drift.
+	offset := min(max(cursorIdx-rows/2, 0), max(len(nodes)-rows, 0))
+	visible := nodes[offset:min(offset+rows, len(nodes))]
 
 	showMarker := query != ""
 	q := strings.ToLower(query)
 
-	lines := make([]string, len(nodes))
-	for i, n := range nodes {
+	lines := make([]string, len(visible))
+	for i, n := range visible {
 		matched := showMarker && strings.Contains(strings.ToLower(n.name), q)
-		lines[i] = m.renderName(n, i == cursorIdx, showMarker, matched, rowWidth)
+		row := m.renderName(n, offset+i == cursorIdx, showMarker, matched, rowWidth)
+		lines[i] = ansi.Truncate(row, rowWidth, "")
 	}
 
 	return style.Render(strings.Join(lines, "\n"))
@@ -187,10 +202,10 @@ func (m Model) renderName(n *Node, selected, showMarker, matched bool, rowWidth 
 // renderPreview renders the bordered detail pane for the highlighted node:
 // metadata for directories and components, a syntax-highlighted preview for
 // files.
-func (m Model) renderPreview(contentWidth, contentHeight int) string {
-	inner := contentWidth - panePadWidth
+func (m Model) renderPreview(paneWidth, paneHeight int) string {
+	width, height := paneInterior(paneWidth, paneHeight)
 
-	return paneStyle(contentWidth, contentHeight).Render(m.previewContent(m.Selected(), inner, contentHeight))
+	return paneStyle(paneWidth, paneHeight).Render(m.previewContent(m.Selected(), width, height))
 }
 
 // headerView renders the path bar: the absolute path of the highlighted entry
@@ -222,13 +237,19 @@ func abbreviatePath(p string) string {
 		return p
 	}
 
-	return "~" + string(os.PathSeparator) + rel
+	return filepath.Join("~", rel)
 }
 
 // previewContent returns the detail-pane content for the given node: metadata
-// for directories and components, and the rendered file preview for files,
-// clipped to the given interior width and height.
+// for directories and components, and the rendered file preview for files.
+// Every variant is clipped to the given interior width and height so tall or
+// wide content can't overrun the pane.
 func (m Model) previewContent(n *Node, width, height int) string {
+	return ClipToPane(m.rawPreviewContent(n), width, height)
+}
+
+// rawPreviewContent returns the unclipped detail-pane content for a node.
+func (m Model) rawPreviewContent(n *Node) string {
 	if n == nil {
 		return dimStyle.Render("(empty)")
 	}
@@ -237,7 +258,7 @@ func (m Model) previewContent(n *Node, width, height int) string {
 	case KindUnit, KindStack:
 		return m.componentPreview(n)
 	case KindFile:
-		return ClipToPane(m.filePreview(n), width, height)
+		return m.filePreview(n)
 	case KindDir:
 		return m.dirPreview(n)
 	default:
@@ -268,9 +289,14 @@ func (m Model) componentPreview(n *Node) string {
 
 	c := n.component
 	if c == nil {
+		// After discovery, a component-less unit or stack means discovery excluded
+		// it; say so instead of presenting bare metadata-less fields.
+		suffix := dimStyle.Render("(not discovered)")
 		if !m.done {
-			lines = append(lines, "", loadingValue())
+			suffix = loadingValue()
 		}
+
+		lines = append(lines, "", suffix)
 
 		return strings.Join(lines, "\n")
 	}
@@ -460,8 +486,9 @@ func (m Model) section(label string, items []string) []string {
 
 // footerView renders the bottom line: the search input while typing, a status
 // line summarizing a committed search, and the navigation hint otherwise, with a
-// "discovering…" suffix while discovery is still running. Each is a single line,
-// so the layout doesn't shift between them.
+// "discovering…" suffix while discovery is still running and a failure notice
+// when it ended in an error. Each is a single line, so the layout doesn't shift
+// between them.
 func (m Model) footerView() string {
 	footer := m.helpView()
 
@@ -474,6 +501,12 @@ func (m Model) footerView() string {
 
 	if !m.done {
 		footer += "  •  discovering…"
+	}
+
+	if m.discoveryErr != nil {
+		// The full error is already logged at debug by the browse command; the
+		// footer just needs to flag that the tree may be incomplete.
+		footer += "  •  " + dimStyle.Render("discovery failed; showing partial results")
 	}
 
 	return footer
