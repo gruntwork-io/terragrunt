@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -67,7 +68,7 @@ func resolveConfig(
 
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(extCfg.GetAzureSessionConfig()).
-		WithEnv(opts.Env).
+		WithVenv(venv.Venv{Env: opts.Env}).
 		Build(l)
 	if err != nil {
 		return nil, nil, err

@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -52,14 +53,14 @@ type AzureSessionConfig struct {
 // Use NewAzureConfigBuilder to create, chain With* methods, then call Build().
 type AzureConfigBuilder struct {
 	sessionConfig *AzureSessionConfig
-	env           map[string]string
+	venv          venv.Venv
 }
 
 // NewAzureConfigBuilder creates a new builder for AzureConfig.
 func NewAzureConfigBuilder() *AzureConfigBuilder {
 	return &AzureConfigBuilder{
 		sessionConfig: &AzureSessionConfig{},
-		env:           make(map[string]string),
+		venv:          venv.Venv{}.WithEnv(nil),
 	}
 }
 
@@ -74,10 +75,11 @@ func (b *AzureConfigBuilder) WithSessionConfig(cfg *AzureSessionConfig) *AzureCo
 	return b
 }
 
-// WithEnv sets the environment map used for ARM_* / AZURE_* fallback
-// resolution; the builder never reads the process environment itself.
-func (b *AzureConfigBuilder) WithEnv(env map[string]string) *AzureConfigBuilder {
-	b.env = env
+// WithVenv sets the virtualized environment whose Env map feeds ARM_* /
+// AZURE_* fallback resolution; the builder never reads the process
+// environment itself.
+func (b *AzureConfigBuilder) WithVenv(v venv.Venv) *AzureConfigBuilder {
+	b.venv = v.WithEnv(v.Env)
 	return b
 }
 
@@ -395,11 +397,11 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 }
 
 // firstEnv returns the first non-empty value found for keys in the builder's
-// env map; the process environment is never consulted, so resolution stays
-// hermetic and fully caller-controlled.
+// venv environment; the process environment is never consulted, so resolution
+// stays hermetic and fully caller-controlled.
 func (b *AzureConfigBuilder) firstEnv(keys ...string) string {
 	for _, k := range keys {
-		if v := b.env[k]; v != "" {
+		if v := b.venv.Env[k]; v != "" {
 			return v
 		}
 	}

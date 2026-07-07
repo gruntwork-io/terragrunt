@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"io"
-	"os"
 	"testing"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -201,8 +201,9 @@ func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
 func TestBlob_LiveRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	account := os.Getenv("TG_AZURE_TEST_STORAGE_ACCOUNT")
-	sub := os.Getenv("TG_AZURE_TEST_SUBSCRIPTION_ID")
+	env := venv.OSVenv().Env
+	account := env["TG_AZURE_TEST_STORAGE_ACCOUNT"]
+	sub := env["TG_AZURE_TEST_SUBSCRIPTION_ID"]
 
 	if account == "" || sub == "" {
 		t.Skip("TG_AZURE_TEST_STORAGE_ACCOUNT and TG_AZURE_TEST_SUBSCRIPTION_ID are required for live test")
