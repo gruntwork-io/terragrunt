@@ -7,6 +7,8 @@ import "charm.land/bubbles/v2/key"
 type keyMap struct {
 	Up        key.Binding
 	Down      key.Binding
+	Top       key.Binding
+	Bottom    key.Binding
 	Ascend    key.Binding
 	Descend   key.Binding
 	Search    key.Binding
@@ -25,6 +27,15 @@ func newKeyMap() keyMap {
 		Down: key.NewBinding(
 			key.WithKeys("j", "down"),
 			key.WithHelp("j/↓", "down"),
+		),
+		// Top and Bottom are the vim gg/G jumps. They carry no help text on
+		// purpose: they're documented in the command docs but kept out of the
+		// footer hints.
+		Top: key.NewBinding(
+			key.WithKeys("g"),
+		),
+		Bottom: key.NewBinding(
+			key.WithKeys("G"),
 		),
 		Ascend: key.NewBinding(
 			key.WithKeys("h", "left"),
@@ -53,17 +64,7 @@ func newKeyMap() keyMap {
 	}
 }
 
-// ShortHelp satisfies help.KeyMap.
+// ShortHelp returns the bindings shown in the footer's help line.
 func (k keyMap) ShortHelp() []key.Binding {
 	return []key.Binding{k.Up, k.Down, k.Ascend, k.Descend, k.Search, k.Quit}
-}
-
-// FullHelp satisfies help.KeyMap.
-func (k keyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.Up, k.Down},
-		{k.Ascend, k.Descend},
-		{k.Search, k.NextMatch, k.PrevMatch},
-		{k.Quit},
-	}
 }

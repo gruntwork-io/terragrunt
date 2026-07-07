@@ -44,6 +44,11 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleSearchKey(msg)
 	}
 
+	// gg chord: the first g arms the jump, the second performs it, and any
+	// other key in between disarms it.
+	gPending := m.gPending
+	m.gPending = false
+
 	switch {
 	case m.lastQuery != "" && msg.Code == tea.KeyEscape:
 		// Escape clears a committed search before it quits the browser.
@@ -54,6 +59,12 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.startSearch()
 
 		return m, cmd
+	case key.Matches(msg, m.keys.Top) && gPending:
+		m.moveCursor(-len(m.current.children))
+	case key.Matches(msg, m.keys.Top):
+		m.gPending = true
+	case key.Matches(msg, m.keys.Bottom):
+		m.moveCursor(len(m.current.children))
 	case key.Matches(msg, m.keys.Up):
 		m.moveCursor(-1)
 	case key.Matches(msg, m.keys.Down):

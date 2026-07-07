@@ -80,6 +80,31 @@ func TestStackClassifiedFromFilesystem(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
+func TestIgnorableDirsClassifiedAsPlain(t *testing.T) {
+	t.Parallel()
+
+	// A terragrunt.hcl inside .terragrunt-cache is a cache copy discovery never
+	// scans; neither the cache dir nor anything beneath it may classify as a unit.
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/.terragrunt-cache/xyz/terragrunt.hcl", nil, 0o644))
+
+	m := newModel(t, fs, tui.NewRoot("/repo"), false)
+
+	children := m.Current().Children()
+	require.Len(t, children, 1)
+	require.Equal(t, ".terragrunt-cache", children[0].Name())
+	assert.Equal(t, tui.KindDir, children[0].Kind())
+
+	// Descending into the cache classifies its contents the same way.
+	m = press(t, m, 'l')
+	require.Equal(t, ".terragrunt-cache", m.Current().Name())
+
+	children = m.Current().Children()
+	require.Len(t, children, 1)
+	require.Equal(t, "xyz", children[0].Name())
+	assert.Equal(t, tui.KindDir, children[0].Kind())
+}
+
 func TestSurroundingEntriesLoadedOnce(t *testing.T) {
 	t.Parallel()
 
@@ -111,4 +136,36 @@ func TestSurroundingEntriesBestEffortOnError(t *testing.T) {
 	children := m.Current().Children()
 	require.Len(t, children, 1)
 	assert.Equal(t, "vpc", children[0].Name())
+}
+
+func TestJumpToTopAndBottom(t *testing.T) {
+	t.Parallel()
+
+	m := searchModel(t, "alpha", "bravo", "charlie", "delta")
+	require.Equal(t, "alpha", m.Selected().Name())
+
+	// The jumps are deliberately absent from the footer hints.
+	assert.NotContains(t, m.View().Content, "gg")
+
+	m = press(t, m, 'G')
+	assert.Equal(t, "delta", m.Selected().Name())
+
+	m = press(t, m, 'g')
+	m = press(t, m, 'g')
+	assert.Equal(t, "alpha", m.Selected().Name())
+}
+
+func TestPendingTopJumpDisarmsOnOtherKey(t *testing.T) {
+	t.Parallel()
+
+	m := searchModel(t, "alpha", "bravo", "charlie")
+
+	// A g followed by another key is not a jump: the j moves down as usual.
+	m = press(t, m, 'g')
+	m = press(t, m, 'j')
+	assert.Equal(t, "bravo", m.Selected().Name())
+
+	// The j also disarmed the chord, so a single g afterward does nothing.
+	m = press(t, m, 'g')
+	assert.Equal(t, "bravo", m.Selected().Name())
 }

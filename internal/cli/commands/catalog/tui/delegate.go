@@ -9,6 +9,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 // Pill and metadata color constants.
@@ -344,9 +346,9 @@ func metaPalette(kind ComponentKind, selected, dimmed bool) catalogMetaColors {
 
 // Color constants from the production delegate, reused here for consistency.
 const (
-	selectedTitleForegroundColorDark       = "#63C5DA"
-	selectedTitleBorderForegroundColorDark = "#63C5DA"
+	selectedTitleForegroundColorDark       = viewtui.SelectionBlue
+	selectedTitleBorderForegroundColorDark = viewtui.SelectionBlue
 
 	selectedDescForegroundColorDark       = "#8AA3B5"
-	selectedDescBorderForegroundColorDark = "#63C5DA"
+	selectedDescBorderForegroundColorDark = viewtui.SelectionBlue
 )

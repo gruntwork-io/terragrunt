@@ -20,20 +20,15 @@ type DiscoveryResult struct {
 
 // Model is the bubbletea model backing the Miller-columns browser.
 type Model struct {
-	fs        vfs.FS
-	current   *Node
-	cursor    map[*Node]int
-	colorizer *dag.Colorizer
-	root      *Node
-	// index maps an absolute path to its discovered component, populated when
-	// discovery completes. It backs both metadata annotation and unit/stack counts.
-	index map[string]component.Component
-	// readFiles is the set of absolute paths any unit reads. Discovery fills it so
-	// those files can be highlighted as relevant rather than dimmed.
-	readFiles map[string]struct{}
-	// resultCh delivers the single background discovery result, or is nil when
-	// there is no discovery to run.
+	fs           vfs.FS
+	current      *Node
+	cursor       map[*Node]int
+	colorizer    *dag.Colorizer
+	root         *Node
+	index        map[string]component.Component
+	readFiles    map[string]struct{}
 	resultCh     <-chan DiscoveryResult
+	discoveryErr error
 	lastQuery    string
 	keys         keyMap
 	searchInput  textinput.Model
@@ -41,12 +36,11 @@ type Model struct {
 	width        int
 	height       int
 	searching    bool
+	gPending     bool
 	shouldColor  bool
 	hasDarkBG    bool
 	ready        bool
-	// done reports whether discovery has finished. Until then, counts and
-	// component metadata render as "loading" placeholders.
-	done bool
+	done         bool
 }
 
 // NewModel builds a Model rooted at the given tree. shouldColor mirrors the
@@ -114,8 +108,11 @@ func (m Model) listenForResult() tea.Cmd {
 
 // applyDiscovery records the discovery result and annotates the loaded tree, so
 // later renders resolve counts, metadata, and read-file highlighting in place of
-// their loading placeholders.
+// their loading placeholders. A failed discovery still applies whatever partial
+// components it produced; the error is kept so the footer can flag the tree as
+// incomplete.
 func (m *Model) applyDiscovery(res DiscoveryResult) {
+	m.discoveryErr = res.Err
 	m.index = make(map[string]component.Component, len(res.Components))
 	m.readFiles = map[string]struct{}{}
 

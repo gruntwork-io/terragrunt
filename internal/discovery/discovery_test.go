@@ -600,3 +600,64 @@ func TestDiscovery_SingleUnitNoDuplicateError(t *testing.T) {
 	assert.Len(t, components, 1)
 	assert.Equal(t, component.UnitKind, components[0].Kind())
 }
+
+// TestDiscovery_ParsesStackConfigs verifies that WithParseStackConfigs stores
+// parsed stack configs on discovered stack components, and that parse failures
+// are skipped without failing discovery.
+func TestDiscovery_ParsesStackConfigs(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	stackDir := filepath.Join(tmpDir, "stack")
+	brokenDir := filepath.Join(tmpDir, "broken")
+
+	require.NoError(t, os.MkdirAll(stackDir, 0755))
+	require.NoError(t, os.MkdirAll(brokenDir, 0755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "terragrunt.stack.hcl"),
+		[]byte(`
+unit "app" {
+	source = "../units/app"
+	path   = "app"
+}
+`),
+		0644,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(brokenDir, "terragrunt.stack.hcl"),
+		[]byte("unit {\n"),
+		0644,
+	))
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir:     tmpDir,
+		RootWorkingDir: tmpDir,
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
+		WithParseStackConfigs()
+
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	stacks := make(map[string]*component.Stack)
+
+	for _, c := range components {
+		if s, ok := c.(*component.Stack); ok {
+			stacks[s.Path()] = s
+		}
+	}
+
+	parsed := stacks[stackDir]
+	require.NotNil(t, parsed, "stack component should be discovered")
+	require.NotNil(t, parsed.Config(), "stack config should be parsed and stored")
+	require.Len(t, parsed.Config().Units, 1)
+	assert.Equal(t, "app", parsed.Config().Units[0].Name)
+
+	broken := stacks[brokenDir]
+	require.NotNil(t, broken, "broken stack component should still be discovered")
+	assert.Nil(t, broken.Config(), "unparsable stack config should be skipped")
+}
