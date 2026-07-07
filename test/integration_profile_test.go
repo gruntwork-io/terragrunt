@@ -104,8 +104,10 @@ func TestTGProfileDirDoesNotOverrideExplicitTofuCPUProfile(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 
 	requireNonEmptyFile(t, tofuProfilePath)
-	assert.NoFileExists(t, filepath.Join(profileDir, "tofu_cpu.prof"),
-		"explicit TOFU_CPU_PROFILE should suppress the derived per-unit profile path")
+
+	derived, err := filepath.Glob(filepath.Join(profileDir, "tofu_cpu*"))
+	require.NoError(t, err)
+	assert.Empty(t, derived, "explicit TOFU_CPU_PROFILE should suppress the derived per-unit profile paths")
 }
 
 func TestTGProfileDirCollectsProfiles(t *testing.T) {
@@ -123,7 +125,7 @@ func TestTGProfileDirCollectsProfiles(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 
-	for _, name := range []string{"terragrunt_cpu.prof", "terragrunt_mem.prof", "terragrunt_goroutine.prof", "tofu_cpu.prof"} {
+	for _, name := range []string{"terragrunt_cpu.prof", "terragrunt_mem.prof", "terragrunt_goroutine.prof", "tofu_cpu_plan.prof"} {
 		requireNonEmptyFile(t, filepath.Join(profileDir, name))
 	}
 }
@@ -144,7 +146,7 @@ func TestTGProfileDirPerUnitTofuProfiles(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
 
 	for _, unit := range []string{"app1", "app2"} {
-		requireNonEmptyFile(t, filepath.Join(profileDir, unit, "tofu_cpu.prof"))
+		requireNonEmptyFile(t, filepath.Join(profileDir, unit, "tofu_cpu_plan.prof"))
 	}
 }
 

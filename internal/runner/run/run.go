@@ -806,7 +806,8 @@ func SetTofuCPUProfileEnv(l log.Logger, opts *Options) error {
 		return nil
 	}
 
-	if _, set := opts.Env[tf.EnvNameTofuCPUProfile]; set {
+	// A TOFU_CPU_PROFILE pointing outside opts.ProfileDir was set by the user and is never overridden.
+	if existing, set := opts.Env[tf.EnvNameTofuCPUProfile]; set && !strings.HasPrefix(existing, opts.ProfileDir+string(filepath.Separator)) {
 		l.Debugf("TOFU_CPU_PROFILE is already set, skipping the per-unit OpenTofu profile path for %s", opts.UnitDir)
 
 		return nil
@@ -822,7 +823,16 @@ func SetTofuCPUProfileEnv(l log.Logger, opts *Options) error {
 		return fmt.Errorf("could not create tofu profile directory: %w", err)
 	}
 
-	opts.Env[tf.EnvNameTofuCPUProfile] = filepath.Join(tofuProfileDir, tofuCPUProfileName)
+	opts.Env[tf.EnvNameTofuCPUProfile] = filepath.Join(tofuProfileDir, tofuCPUProfileFileName(opts.TerraformCommand))
 
 	return nil
+}
+
+// tofuCPUProfileFileName returns a per-command profile file name so auto-init and the main command do not overwrite each other.
+func tofuCPUProfileFileName(command string) string {
+	if command == "" {
+		return tofuCPUProfileName
+	}
+
+	return "tofu_cpu_" + command + ".prof"
 }

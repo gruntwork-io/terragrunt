@@ -210,9 +210,9 @@ Resulting layout (example):
 |-- terragrunt_mem.prof
 |-- terragrunt_goroutine.prof
 |-- modules/vpc/
-|   `-- tofu_cpu.prof            # One OpenTofu process per unit
+|   `-- tofu_cpu_plan.prof       # One OpenTofu process per command per unit
 `-- live/prod/app/
-    `-- tofu_cpu.prof
+    `-- tofu_cpu_plan.prof
 ```
 
 For more details on profiling and performance analysis, see the [Performance documentation](/troubleshooting/performance/#runtime-cpu-profiling-with-tg_profile_cpu).

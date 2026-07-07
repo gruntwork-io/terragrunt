@@ -118,6 +118,31 @@ func TestSetTofuCPUProfileEnv(t *testing.T) {
 	}
 }
 
+func TestSetTofuCPUProfileEnvAutoInitGetsOwnProfile(t *testing.T) {
+	t.Parallel()
+
+	rootDir := filepath.Join(string(filepath.Separator), "infra", "live")
+
+	opts := run.NewOptions()
+	opts.RootWorkingDir = rootDir
+	opts.UnitDir = filepath.Join(rootDir, "app1")
+	opts.OriginalTerragruntConfigPath = filepath.Join(rootDir, "app1", "terragrunt.hcl")
+	opts.ProfileDir = t.TempDir()
+	opts.TerraformCommand = "plan"
+	opts.Env = map[string]string{}
+
+	require.NoError(t, run.SetTofuCPUProfileEnv(logger.CreateLogger(), opts))
+	planPath := opts.Env[tf.EnvNameTofuCPUProfile]
+	assert.Equal(t, "tofu_cpu_plan.prof", filepath.Base(planPath))
+
+	opts.TerraformCommand = "init"
+
+	require.NoError(t, run.SetTofuCPUProfileEnv(logger.CreateLogger(), opts))
+	initPath := opts.Env[tf.EnvNameTofuCPUProfile]
+	assert.Equal(t, "tofu_cpu_init.prof", filepath.Base(initPath))
+	assert.NotEqual(t, planPath, initPath, "auto-init and the main command must not share a profile file")
+}
+
 func TestSetTofuCPUProfileEnvExternalUnitsDoNotCollide(t *testing.T) {
 	t.Parallel()
 

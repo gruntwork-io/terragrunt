@@ -62,8 +62,8 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *App {
 	app.ErrWriter = opts.Writers.ErrWriter
 	app.Flags = global.NewFlags(l, opts, nil)
 	app.Commands = terragruntCommands.
-		WrapAction(commands.WrapWithProfiling(l, opts)).
-		WrapAction(commands.WrapWithTelemetry(l, opts, v))
+		WrapAction(commands.WrapWithTelemetry(l, opts, v)).
+		WrapAction(commands.WrapWithProfiling(l, opts))
 	app.Before = beforeAction(opts)
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
