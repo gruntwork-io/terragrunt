@@ -803,18 +803,29 @@ type limitedReader struct {
 }
 
 func (r *limitedReader) Read(p []byte) (int, error) {
-	if r.remaining <= 0 {
+	if r.remaining > 0 {
+		if int64(len(p)) > r.remaining {
+			p = p[:r.remaining]
+		}
+
+		n, err := r.reader.Read(p)
+		r.remaining -= int64(n)
+
+		return n, err
+	}
+
+	var probe [1]byte
+
+	n, err := r.reader.Read(probe[:])
+	if n > 0 {
 		return 0, errors.New("decompressed size exceeds limit")
 	}
 
-	if int64(len(p)) > r.remaining {
-		p = p[:r.remaining]
+	if err == nil {
+		return 0, io.EOF
 	}
 
-	n, err := r.reader.Read(p)
-	r.remaining -= int64(n)
-
-	return n, err
+	return 0, err
 }
 
 // lstatIfPossible calls Lstat if the filesystem supports it, otherwise Stat.

@@ -1325,6 +1325,10 @@ func ParseConfig(
 		return nil, err
 	}
 
+	if terraformSourceReferencesDependency(file) {
+		return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
+	}
+
 	if includeFromChild != nil && includeFromChild.Path != "" && !filepath.IsAbs(includeFromChild.Path) {
 		includeFromChild.Path = filepath.Clean(filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includeFromChild.Path))
 	}
