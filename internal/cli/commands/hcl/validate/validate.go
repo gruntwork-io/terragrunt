@@ -179,6 +179,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 		}
 
 		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
+		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
 		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
 		pctx.Venv = v.ToRoot()
@@ -306,6 +307,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 		}
 
 		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
+		unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
 
 		prepared, err := prepare.PrepareConfig(ctx, l, v, unitOpts)
 		if err != nil {
