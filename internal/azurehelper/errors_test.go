@@ -27,17 +27,17 @@ func TestIsRetryable(t *testing.T) {
 		name string
 		want bool
 	}{
-		{nil, "nil", false},
-		{errors.New("dial tcp: timeout"), "non-azure (network)", true},
-		{context.Canceled, "context.Canceled", false},
-		{context.DeadlineExceeded, "context.DeadlineExceeded", false},
-		{fmt.Errorf("wrap: %w", context.Canceled), "wrapped context.Canceled", false},
-		{respErr(http.StatusUnauthorized, ""), "401", false},
-		{respErr(http.StatusNotFound, ""), "404", false},
-		{respErr(http.StatusTooManyRequests, ""), "429", true},
-		{respErr(http.StatusInternalServerError, ""), "500", true},
-		{respErr(http.StatusServiceUnavailable, ""), "503", true},
-		{respErr(http.StatusBadRequest, ""), "400", false},
+		{err: nil, name: "nil", want: false},
+		{err: errors.New("dial tcp: timeout"), name: "non-azure (network)", want: true},
+		{err: context.Canceled, name: "context.Canceled", want: false},
+		{err: context.DeadlineExceeded, name: "context.DeadlineExceeded", want: false},
+		{err: fmt.Errorf("wrap: %w", context.Canceled), name: "wrapped context.Canceled", want: false},
+		{err: respErr(http.StatusUnauthorized, ""), name: "401", want: false},
+		{err: respErr(http.StatusNotFound, ""), name: "404", want: false},
+		{err: respErr(http.StatusTooManyRequests, ""), name: "429", want: true},
+		{err: respErr(http.StatusInternalServerError, ""), name: "500", want: true},
+		{err: respErr(http.StatusServiceUnavailable, ""), name: "503", want: true},
+		{err: respErr(http.StatusBadRequest, ""), name: "400", want: false},
 	}
 
 	for _, tc := range tests {
@@ -57,13 +57,13 @@ func TestIsNotFound(t *testing.T) {
 		name string
 		want bool
 	}{
-		{nil, "nil", false},
-		{errors.New("nope"), "non-azure", false},
-		{respErr(http.StatusNotFound, ""), "404", true},
-		{respErr(http.StatusInternalServerError, "ResourceNotFound"), "ResourceNotFound code", true},
-		{respErr(http.StatusOK, "BlobNotFound"), "BlobNotFound code", true},
-		{respErr(http.StatusOK, "ContainerNotFound"), "ContainerNotFound code", true},
-		{respErr(http.StatusForbidden, ""), "403", false},
+		{err: nil, name: "nil", want: false},
+		{err: errors.New("nope"), name: "non-azure", want: false},
+		{err: respErr(http.StatusNotFound, ""), name: "404", want: true},
+		{err: respErr(http.StatusInternalServerError, "ResourceNotFound"), name: "ResourceNotFound code", want: true},
+		{err: respErr(http.StatusOK, "BlobNotFound"), name: "BlobNotFound code", want: true},
+		{err: respErr(http.StatusOK, "ContainerNotFound"), name: "ContainerNotFound code", want: true},
+		{err: respErr(http.StatusForbidden, ""), name: "403", want: false},
 	}
 
 	for _, tc := range tests {

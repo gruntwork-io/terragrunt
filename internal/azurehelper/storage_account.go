@@ -202,9 +202,9 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 	return nil
 }
 
-// Delete deletes the storage account. Returns nil if the account does
-// not exist (idempotent).
-func (c *StorageAccountClient) Delete(ctx context.Context, l log.Logger) error {
+// EnsureDeleted deletes the storage account. Idempotent: returns nil if the
+// account does not exist.
+func (c *StorageAccountClient) EnsureDeleted(ctx context.Context, l log.Logger) error {
 	l.Debugf("azurehelper: deleting storage account %q in %q", c.accountName, c.resourceGroup)
 
 	if _, err := c.accounts.Delete(ctx, c.resourceGroup, c.accountName, nil); err != nil {

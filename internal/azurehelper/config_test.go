@@ -106,7 +106,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 			got, err := azurehelper.NewAzureConfigBuilder().
 				WithSessionConfig(&tc.cfg).
 				WithEnv(isolatedEnv()).
-				Build(t.Context(), log.New())
+				Build(log.New())
 			if err != nil {
 				t.Fatalf("Build() error = %v", err)
 			}
@@ -137,7 +137,7 @@ func TestBuild_EnvFallbacks(t *testing.T) {
 			"ARM_SAS_TOKEN", "sv=test",
 			"ARM_SUBSCRIPTION_ID", "sub-from-env",
 		)).
-		Build(t.Context(), log.New())
+		Build(log.New())
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
@@ -157,7 +157,7 @@ func TestBuild_StorageAccountNameEnvFallback(t *testing.T) {
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{SasToken: testSASToken}).
 		WithEnv(isolatedEnv("AZURE_STORAGE_ACCOUNT", "acct-from-env")).
-		Build(t.Context(), log.New())
+		Build(log.New())
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
@@ -175,7 +175,7 @@ func TestBuild_SubscriptionRequired(t *testing.T) {
 			UseMSI: true,
 		}).
 		WithEnv(isolatedEnv()).
-		Build(t.Context(), log.New())
+		Build(log.New())
 	if err == nil {
 		t.Fatal("expected error when subscription_id missing for MSI auth")
 	}
@@ -189,7 +189,7 @@ func TestBuild_SasTokenWithoutAccountFails(t *testing.T) {
 			SasToken: "sv=test",
 		}).
 		WithEnv(isolatedEnv()).
-		Build(t.Context(), log.New())
+		Build(log.New())
 	if err == nil {
 		t.Fatal("expected error when storage_account_name missing for SAS auth")
 	}
@@ -204,7 +204,7 @@ func TestBuild_AccessKeyWithoutAccountFails(t *testing.T) {
 			AccessKey: "a2V5", // base64("key")
 		}).
 		WithEnv(isolatedEnv()).
-		Build(t.Context(), log.New())
+		Build(log.New())
 	if err == nil {
 		t.Fatal("expected error when storage_account_name missing for access-key auth")
 	}
@@ -236,7 +236,7 @@ func TestBuild_CloudEnvironmentMapping(t *testing.T) {
 					CloudEnvironment:   tc.env,
 				}).
 				WithEnv(isolatedEnv()).
-				Build(t.Context(), log.New())
+				Build(log.New())
 			if err != nil {
 				t.Fatalf("Build() error = %v", err)
 			}
@@ -254,7 +254,7 @@ func TestBuild_NilSessionConfig(t *testing.T) {
 
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithEnv(isolatedEnv("ARM_SUBSCRIPTION_ID", "sub")).
-		Build(t.Context(), log.New())
+		Build(log.New())
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
@@ -277,7 +277,7 @@ func TestBuildBlobClient_SasToken(t *testing.T) {
 			SasToken:           testSASToken,
 		}).
 		WithEnv(isolatedEnv()).
-		BuildBlobClient(t.Context(), log.New())
+		BuildBlobClient(log.New())
 	if err != nil {
 		t.Fatalf("BuildBlobClient: %v", err)
 	}
@@ -286,8 +286,8 @@ func TestBuildBlobClient_SasToken(t *testing.T) {
 		t.Fatal("BuildBlobClient returned nil client")
 	}
 
-	if bc.AccountName() != testAccount {
-		t.Errorf("AccountName() = %q, want %q", bc.AccountName(), testAccount)
+	if bc.AccountName != testAccount {
+		t.Errorf("AccountName() = %q, want %q", bc.AccountName, testAccount)
 	}
 }
 
@@ -297,29 +297,9 @@ func TestBuildBlobClient_PropagatesBuildError(t *testing.T) {
 	_, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{SasToken: testSASToken}).
 		WithEnv(isolatedEnv()).
-		BuildBlobClient(t.Context(), log.New())
+		BuildBlobClient(log.New())
 	if err == nil {
 		t.Fatal("expected error when storage account name missing")
-	}
-}
-
-func TestBuildBlobClient_BindsContainerFromSessionConfig(t *testing.T) {
-	t.Parallel()
-
-	bc, err := azurehelper.NewAzureConfigBuilder().
-		WithSessionConfig(&azurehelper.AzureSessionConfig{
-			StorageAccountName: testAccount,
-			SasToken:           testSASToken,
-			ContainerName:      "state",
-		}).
-		WithEnv(isolatedEnv()).
-		BuildBlobClient(t.Context(), log.New())
-	if err != nil {
-		t.Fatalf("BuildBlobClient: %v", err)
-	}
-
-	if got := bc.Container(); got != "state" {
-		t.Errorf("Container() = %q, want %q", got, "state")
 	}
 }
 
@@ -333,7 +313,7 @@ func TestBuild_RejectsUnknownCloudEnvironment(t *testing.T) {
 			CloudEnvironment:   "governmnt", // typo
 		}).
 		WithEnv(isolatedEnv()).
-		Build(t.Context(), log.New())
+		Build(log.New())
 	if err == nil {
 		t.Fatal("expected error for unknown cloud environment")
 	}
@@ -352,43 +332,16 @@ func TestBuildStorageAccountClient_RequiresArmFields(t *testing.T) {
 			SasToken:           testSASToken,
 		}).
 		WithEnv(isolatedEnv()).
-		BuildStorageAccountClient(t.Context(), log.New())
+		BuildStorageAccountClient(log.New())
 	if err == nil {
 		t.Fatal("expected error when ARM-plane fields missing for storage account client")
 	}
 }
 
-// isolatedEnv shields the resolver from every ARM_*/AZURE_* key the builder
-// reads; empty values suppress the os.Getenv fallback per key.
+// isolatedEnv builds a builder env map from (key, value) pairs; the builder
+// never reads the process environment, so resolution stays hermetic.
 func isolatedEnv(pairs ...string) map[string]string {
-	m := map[string]string{
-		"ARM_SUBSCRIPTION_ID":        "",
-		"AZURE_SUBSCRIPTION_ID":      "",
-		"ARM_RESOURCE_GROUP_NAME":    "",
-		"AZURE_RESOURCE_GROUP_NAME":  "",
-		"ARM_STORAGE_ACCOUNT_NAME":   "",
-		"AZURE_STORAGE_ACCOUNT":      "",
-		"ARM_TENANT_ID":              "",
-		"AZURE_TENANT_ID":            "",
-		"ARM_CLIENT_ID":              "",
-		"AZURE_CLIENT_ID":            "",
-		"ARM_CLIENT_SECRET":          "",
-		"AZURE_CLIENT_SECRET":        "",
-		"ARM_SAS_TOKEN":              "",
-		"AZURE_STORAGE_SAS_TOKEN":    "",
-		"ARM_ACCESS_KEY":             "",
-		"AZURE_STORAGE_KEY":          "",
-		"ARM_MSI_RESOURCE_ID":        "",
-		"AZURE_MSI_RESOURCE_ID":      "",
-		"ARM_ENVIRONMENT":            "",
-		"AZURE_ENVIRONMENT":          "",
-		"ARM_USE_MSI":                "",
-		"ARM_USE_OIDC":               "",
-		"ARM_USE_AZUREAD":            "",
-		"ARM_USE_AZUREAD_AUTH":       "",
-		"ARM_OIDC_TOKEN_FILE_PATH":   "",
-		"AZURE_FEDERATED_TOKEN_FILE": "",
-	}
+	m := make(map[string]string, len(pairs)/2)
 
 	for i := 0; i+1 < len(pairs); i += 2 {
 		m[pairs[i]] = pairs[i+1]

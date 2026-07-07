@@ -167,7 +167,7 @@ func optsWithExperiment(t *testing.T, enabled bool) *backend.Options {
 		require.NoError(t, exps.EnableExperiment(experiment.AzureBackend))
 	}
 
-	return &backend.Options{Experiments: exps, NonInteractive: true, Env: isolatingEnv()}
+	return &backend.Options{Experiments: exps, NonInteractive: true}
 }
 
 // rgLessSkipAllConfig returns a config with no resource group and every
@@ -183,30 +183,4 @@ func rgLessSkipAllConfig() azurerm.Config {
 	cfg["skip_container_creation"] = true
 
 	return cfg
-}
-
-// isolatingEnv shields config resolution from the developer's ARM_*/AZURE_* shell values.
-func isolatingEnv() map[string]string {
-	keys := []string{
-		"ARM_SUBSCRIPTION_ID", "AZURE_SUBSCRIPTION_ID",
-		"ARM_RESOURCE_GROUP_NAME", "AZURE_RESOURCE_GROUP_NAME",
-		"ARM_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT",
-		"ARM_TENANT_ID", "AZURE_TENANT_ID",
-		"ARM_CLIENT_ID", "AZURE_CLIENT_ID",
-		"ARM_CLIENT_SECRET", "AZURE_CLIENT_SECRET",
-		"ARM_SAS_TOKEN", "AZURE_STORAGE_SAS_TOKEN",
-		"ARM_ACCESS_KEY", "AZURE_STORAGE_KEY",
-		"ARM_MSI_RESOURCE_ID", "AZURE_MSI_RESOURCE_ID",
-		"ARM_ENVIRONMENT", "AZURE_ENVIRONMENT",
-		"ARM_USE_MSI", "ARM_USE_OIDC",
-		"ARM_USE_AZUREAD", "ARM_USE_AZUREAD_AUTH",
-		"ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE",
-	}
-
-	m := make(map[string]string, len(keys))
-	for _, k := range keys {
-		m[k] = ""
-	}
-
-	return m
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 func TestBlobClient_CopyBlob_StreamsThroughClient(t *testing.T) {
@@ -68,9 +69,11 @@ func TestBlobClient_MoveBlobIfNecessary_NoopWhenSourceAbsent(t *testing.T) {
 func TestBlobClient_MoveBlobIfNecessary_RefusesExistingDestination(t *testing.T) {
 	t.Parallel()
 
+	// The destination write is conditional, so an existing blob answers 409.
 	rt := &routeTransport{routes: []stubRoute{
 		{method: http.MethodHead, pathSub: "/srcc/src.tfstate", status: http.StatusOK},
-		{method: http.MethodHead, pathSub: "/dstc/dst.tfstate", status: http.StatusOK},
+		{method: http.MethodGet, pathSub: "/srcc/src.tfstate", status: http.StatusOK, body: "state-bytes"},
+		{method: http.MethodPut, pathSub: "/dstc/dst.tfstate", status: http.StatusConflict, code: "BlobAlreadyExists"},
 	}}
 	c := newRoutedBlobClient(t, rt)
 
@@ -78,7 +81,6 @@ func TestBlobClient_MoveBlobIfNecessary_RefusesExistingDestination(t *testing.T)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 
-	assert.False(t, rt.sawMethodOnPath(http.MethodPut, ""), "existing destination must not be overwritten")
 	assert.False(t, rt.sawMethodOnPath(http.MethodDelete, ""), "source must survive a refused move")
 }
 
@@ -87,7 +89,6 @@ func TestBlobClient_MoveBlobIfNecessary_MovesThenDeletesSource(t *testing.T) {
 
 	rt := &routeTransport{routes: []stubRoute{
 		{method: http.MethodHead, pathSub: "/srcc/src.tfstate", status: http.StatusOK},
-		{method: http.MethodHead, pathSub: "/dstc/dst.tfstate", status: http.StatusNotFound, code: "BlobNotFound"},
 		{method: http.MethodGet, pathSub: "/srcc/src.tfstate", status: http.StatusOK, body: "state-bytes"},
 		{method: http.MethodPut, pathSub: "/dstc/dst.tfstate", status: http.StatusCreated},
 		{method: http.MethodDelete, pathSub: "/srcc/src.tfstate", status: http.StatusAccepted},
@@ -107,6 +108,9 @@ func TestBlobClient_MoveBlobIfNecessary_MovesThenDeletesSource(t *testing.T) {
 	// Delete-before-copy would lose the state file, so the order is load-bearing.
 	assert.Less(t, getIdx, putIdx, "download must precede the upload")
 	assert.Less(t, putIdx, delIdx, "source delete must come after the copy is written")
+
+	// The conditional header is what prevents overwriting a concurrent writer.
+	assert.Equal(t, "*", rt.requests()[putIdx].ifNoneMatch, "destination write must carry If-None-Match")
 }
 
 func TestBlobClient_MoveBlobIfNecessary_KeepsSourceWhenCopyFails(t *testing.T) {
@@ -114,7 +118,6 @@ func TestBlobClient_MoveBlobIfNecessary_KeepsSourceWhenCopyFails(t *testing.T) {
 
 	rt := &routeTransport{routes: []stubRoute{
 		{method: http.MethodHead, pathSub: "/srcc/src.tfstate", status: http.StatusOK},
-		{method: http.MethodHead, pathSub: "/dstc/dst.tfstate", status: http.StatusNotFound, code: "BlobNotFound"},
 		{method: http.MethodGet, pathSub: "/srcc/src.tfstate", status: http.StatusOK, body: "state-bytes"},
 		{method: http.MethodPut, pathSub: "/dstc/dst.tfstate", status: http.StatusForbidden, code: "AuthorizationFailure"},
 	}}
@@ -192,7 +195,7 @@ func TestBlobClient_ListBlobs_WithPrefix(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	names, err := c.ListBlobs(t.Context(), "prefc", azurehelper.WithPrefix("state/"))
+	names, err := c.ListBlobs(t.Context(), log.New(), "prefc", azurehelper.WithPrefix("state/"))
 	require.NoError(t, err)
 	assert.Equal(t, []string{"state/a.tfstate"}, names)
 
@@ -233,11 +236,12 @@ type stubRoute struct {
 
 // recordedRequest captures the request facts the tests assert on.
 type recordedRequest struct {
-	method     string
-	path       string
-	query      string
-	copySource string
-	body       string
+	method      string
+	path        string
+	query       string
+	copySource  string
+	ifNoneMatch string
+	body        string
 }
 
 // routeTransport is a policy.Transporter that answers each request with the
@@ -253,11 +257,12 @@ func (rt *routeTransport) Do(req *http.Request) (*http.Response, error) {
 	defer rt.mu.Unlock()
 
 	rt.reqs = append(rt.reqs, recordedRequest{
-		method:     req.Method,
-		path:       req.URL.Path,
-		query:      req.URL.RawQuery,
-		copySource: req.Header.Get("x-ms-copy-source"),
-		body:       readRequestBody(req),
+		method:      req.Method,
+		path:        req.URL.Path,
+		query:       req.URL.RawQuery,
+		copySource:  req.Header.Get("x-ms-copy-source"),
+		ifNoneMatch: req.Header.Get("If-None-Match"),
+		body:        readRequestBody(req),
 	})
 
 	for _, r := range rt.routes {

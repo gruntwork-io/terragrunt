@@ -1,10 +1,8 @@
 package azurehelper
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -20,26 +18,34 @@ import (
 // from a remote_state backend block, with environment variable fallbacks applied
 // during Build.
 type AzureSessionConfig struct {
-	SubscriptionID     string
-	TenantID           string
-	ClientID           string
-	ClientSecret       string
+	// SubscriptionID is the Azure subscription hosting the storage account.
+	SubscriptionID string
+	// TenantID is the Azure AD tenant used by token-based auth methods.
+	TenantID string
+	// ClientID is the service principal or workload identity client id.
+	ClientID string
+	// ClientSecret is the service principal secret.
+	ClientSecret string
+	// StorageAccountName is the storage account holding the state.
 	StorageAccountName string
-	ResourceGroupName  string
-	ContainerName      string
-	MSIResourceID      string
-	SasToken           string
-	AccessKey          string
-	// OIDCTokenFilePath is the path to a federated identity token file used
-	// for OIDC / workload identity authentication. Falls back to
-	// ARM_OIDC_TOKEN_FILE_PATH or AZURE_FEDERATED_TOKEN_FILE.
+	// ResourceGroupName is the resource group containing the storage account.
+	ResourceGroupName string
+	// MSIResourceID selects a user-assigned managed identity for UseMSI.
+	MSIResourceID string
+	// SasToken authenticates data-plane calls without a token credential.
+	SasToken string
+	// AccessKey is the storage account shared key.
+	AccessKey string
+	// OIDCTokenFilePath points at a federated identity token file for UseOIDC.
 	OIDCTokenFilePath string
-	// CloudEnvironment selects a sovereign cloud. Accepted values:
-	// "" / "public" (default), "government" / "usgovernment", "china".
+	// CloudEnvironment selects the cloud: "" / "public", "usgovernment", "china".
 	CloudEnvironment string
-	UseAzureADAuth   bool
-	UseMSI           bool
-	UseOIDC          bool
+	// UseAzureADAuth selects the Azure AD default credential chain.
+	UseAzureADAuth bool
+	// UseMSI selects managed identity authentication.
+	UseMSI bool
+	// UseOIDC selects OIDC / workload identity authentication.
+	UseOIDC bool
 }
 
 // AzureConfigBuilder builds an AzureConfig using the builder pattern.
@@ -52,23 +58,26 @@ type AzureConfigBuilder struct {
 // NewAzureConfigBuilder creates a new builder for AzureConfig.
 func NewAzureConfigBuilder() *AzureConfigBuilder {
 	return &AzureConfigBuilder{
-		env: make(map[string]string),
+		sessionConfig: &AzureSessionConfig{},
+		env:           make(map[string]string),
 	}
 }
 
-// WithSessionConfig sets the Azure session configuration.
+// WithSessionConfig sets the Azure session configuration; nil is ignored.
 func (b *AzureConfigBuilder) WithSessionConfig(cfg *AzureSessionConfig) *AzureConfigBuilder {
+	if cfg == nil {
+		return b
+	}
+
 	b.sessionConfig = cfg
+
 	return b
 }
 
-// WithEnv sets environment variables used for credential and subscription resolution.
-// When non-nil, values from env take precedence over os.Getenv lookups.
+// WithEnv sets the environment map used for ARM_* / AZURE_* fallback
+// resolution; the builder never reads the process environment itself.
 func (b *AzureConfigBuilder) WithEnv(env map[string]string) *AzureConfigBuilder {
-	if env != nil {
-		b.env = env
-	}
-
+	b.env = env
 	return b
 }
 
@@ -129,13 +138,8 @@ type AzureConfig struct {
 // Environment variable fallbacks (ARM_* / AZURE_*) are applied to subscription,
 // tenant, client id, client secret, SAS token, and access key when the session
 // config leaves them empty.
-func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfig, error) {
-	cfg := b.sessionConfig
-	if cfg == nil {
-		cfg = &AzureSessionConfig{}
-	}
-
-	resolved := *cfg
+func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
+	resolved := *b.sessionConfig
 	b.applyEnvFallbacks(&resolved)
 
 	cloudCfg, err := cloudConfigForEnvironment(resolved.CloudEnvironment)
@@ -244,7 +248,7 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 // managed-identity) in CI. The CLI must come first because
 // DefaultAzureCredential can return a hard (non-"unavailable") error (e.g. an
 // IMDS probe that gets an unexpected response) which would halt the chain
-// before the CLI is reached. This matches Terraform azurerm's `use_cli` default.
+// before the CLI is reached. This matches OpenTofu azurerm's `use_cli` default.
 func buildAzureADConfig(
 	out *AzureConfig,
 	resolved *AzureSessionConfig,
@@ -292,26 +296,14 @@ func chainedCredential(defaultCred azcore.TokenCredential, tenantID string, l lo
 }
 
 // BuildBlobClient is a convenience that calls Build and then constructs a
-// BlobClient from the resulting AzureConfig. Most callers only need a
-// BlobClient and benefit from a single entry point. If the session config
-// carries a non-empty ContainerName, it is bound on the returned client so
-// callers can immediately use GetObject without an extra BindContainer call.
-func (b *AzureConfigBuilder) BuildBlobClient(ctx context.Context, l log.Logger) (*BlobClient, error) {
-	cfg, err := b.Build(ctx, l)
+// BlobClient from the resulting AzureConfig.
+func (b *AzureConfigBuilder) BuildBlobClient(l log.Logger) (*BlobClient, error) {
+	cfg, err := b.Build(l)
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := NewBlobClient(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	if b.sessionConfig != nil && b.sessionConfig.ContainerName != "" {
-		client.BindContainer(b.sessionConfig.ContainerName)
-	}
-
-	return client, nil
+	return NewBlobClient(cfg)
 }
 
 // BuildStorageAccountClient is a convenience that calls Build and then
@@ -322,15 +314,11 @@ func (b *AzureConfigBuilder) BuildBlobClient(ctx context.Context, l log.Logger) 
 // SAS-token and access-key auth methods are rejected up-front because they
 // cannot reach the ARM control plane; the rejection happens before Build
 // emits any auth-resolution debug logs, keeping the failure mode obvious.
-func (b *AzureConfigBuilder) BuildStorageAccountClient(ctx context.Context, l log.Logger) (*StorageAccountClient, error) {
+func (b *AzureConfigBuilder) BuildStorageAccountClient(l log.Logger) (*StorageAccountClient, error) {
 	// Pre-flight against env-resolved values as well, not just the explicitly
 	// supplied sessionConfig: ARM_SAS_TOKEN / ARM_ACCESS_KEY would otherwise
 	// reach Build and fail with a less obvious error from the ARM client.
-	preflight := AzureSessionConfig{}
-	if b.sessionConfig != nil {
-		preflight = *b.sessionConfig
-	}
-
+	preflight := *b.sessionConfig
 	b.applyEnvFallbacks(&preflight)
 
 	switch {
@@ -340,7 +328,7 @@ func (b *AzureConfigBuilder) BuildStorageAccountClient(ctx context.Context, l lo
 		return nil, &UnsupportedAuthForOpError{Method: AuthMethodAccessKey, Operation: "storage account operations"}
 	}
 
-	cfg, err := b.Build(ctx, l)
+	cfg, err := b.Build(l)
 	if err != nil {
 		return nil, err
 	}
@@ -348,9 +336,8 @@ func (b *AzureConfigBuilder) BuildStorageAccountClient(ctx context.Context, l lo
 	return NewStorageAccountClient(cfg)
 }
 
-// applyEnvFallbacks fills empty fields on cfg from environment variables
-// (the builder's env map first, then the process environment). Mirrors the
-// ARM_* and AZURE_* names used by Terraform's azurerm backend.
+// applyEnvFallbacks fills empty fields on cfg from the builder's env map.
+// Mirrors the ARM_* and AZURE_* names used by the OpenTofu azurerm backend.
 func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	// Treat whitespace-only explicit credentials as absent BEFORE the fallback
 	// checks below, so a stray space or newline in a config value does not both
@@ -358,48 +345,25 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	cfg.SasToken = strings.TrimSpace(cfg.SasToken)
 	cfg.AccessKey = strings.TrimSpace(cfg.AccessKey)
 
-	if cfg.SubscriptionID == "" {
-		cfg.SubscriptionID = b.firstEnv("ARM_SUBSCRIPTION_ID", "AZURE_SUBSCRIPTION_ID")
-	}
-
-	if cfg.ResourceGroupName == "" {
-		cfg.ResourceGroupName = b.firstEnv("ARM_RESOURCE_GROUP_NAME", "AZURE_RESOURCE_GROUP_NAME")
-	}
-
-	if cfg.StorageAccountName == "" {
-		cfg.StorageAccountName = b.firstEnv("ARM_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT")
-	}
-
-	if cfg.TenantID == "" {
-		cfg.TenantID = b.firstEnv("ARM_TENANT_ID", "AZURE_TENANT_ID")
-	}
-
-	if cfg.ClientID == "" {
-		cfg.ClientID = b.firstEnv("ARM_CLIENT_ID", "AZURE_CLIENT_ID")
-	}
-
-	if cfg.ClientSecret == "" {
-		cfg.ClientSecret = b.firstEnv("ARM_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
-	}
-
-	if cfg.SasToken == "" {
-		cfg.SasToken = b.firstEnv("ARM_SAS_TOKEN", "AZURE_STORAGE_SAS_TOKEN")
-	}
-
-	if cfg.AccessKey == "" {
-		cfg.AccessKey = b.firstEnv("ARM_ACCESS_KEY", "AZURE_STORAGE_KEY")
-	}
-
-	if cfg.MSIResourceID == "" {
-		cfg.MSIResourceID = b.firstEnv("ARM_MSI_RESOURCE_ID", "AZURE_MSI_RESOURCE_ID")
-	}
-
-	if cfg.OIDCTokenFilePath == "" {
-		cfg.OIDCTokenFilePath = b.firstEnv("ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE")
-	}
-
-	if cfg.CloudEnvironment == "" {
-		cfg.CloudEnvironment = b.firstEnv("ARM_ENVIRONMENT", "AZURE_ENVIRONMENT")
+	for _, fb := range []struct {
+		field *string
+		keys  []string
+	}{
+		{&cfg.SubscriptionID, []string{"ARM_SUBSCRIPTION_ID", "AZURE_SUBSCRIPTION_ID"}},
+		{&cfg.ResourceGroupName, []string{"ARM_RESOURCE_GROUP_NAME", "AZURE_RESOURCE_GROUP_NAME"}},
+		{&cfg.StorageAccountName, []string{"ARM_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT"}},
+		{&cfg.TenantID, []string{"ARM_TENANT_ID", "AZURE_TENANT_ID"}},
+		{&cfg.ClientID, []string{"ARM_CLIENT_ID", "AZURE_CLIENT_ID"}},
+		{&cfg.ClientSecret, []string{"ARM_CLIENT_SECRET", "AZURE_CLIENT_SECRET"}},
+		{&cfg.SasToken, []string{"ARM_SAS_TOKEN", "AZURE_STORAGE_SAS_TOKEN"}},
+		{&cfg.AccessKey, []string{"ARM_ACCESS_KEY", "AZURE_STORAGE_KEY"}},
+		{&cfg.MSIResourceID, []string{"ARM_MSI_RESOURCE_ID", "AZURE_MSI_RESOURCE_ID"}},
+		{&cfg.OIDCTokenFilePath, []string{"ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE"}},
+		{&cfg.CloudEnvironment, []string{"ARM_ENVIRONMENT", "AZURE_ENVIRONMENT"}},
+	} {
+		if *fb.field == "" {
+			*fb.field = b.firstEnv(fb.keys...)
+		}
 	}
 
 	if !cfg.UseMSI && parseBool(b.firstEnv("ARM_USE_MSI")) {
@@ -430,22 +394,12 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	cfg.AccessKey = strings.TrimSpace(cfg.AccessKey)
 }
 
-// firstEnv returns the first non-empty value found by looking up keys in the
-// builder's env map and falling back to os.Getenv. If a key is present in the
-// builder's env map (even with an empty value), that map value is returned
-// without consulting os.Getenv; this lets tests shield resolution from the
-// developer's shell environment by passing an explicit empty value.
+// firstEnv returns the first non-empty value found for keys in the builder's
+// env map; the process environment is never consulted, so resolution stays
+// hermetic and fully caller-controlled.
 func (b *AzureConfigBuilder) firstEnv(keys ...string) string {
 	for _, k := range keys {
-		if v, ok := b.env[k]; ok {
-			if v != "" {
-				return v
-			}
-
-			continue
-		}
-
-		if v := os.Getenv(k); v != "" {
+		if v := b.env[k]; v != "" {
 			return v
 		}
 	}
@@ -456,8 +410,8 @@ func (b *AzureConfigBuilder) firstEnv(keys ...string) string {
 // parseBool returns the boolean value of an env-var-style string using
 // strconv.ParseBool semantics ("1", "t", "T", "TRUE", "true", "True", and
 // their negations). Surrounding whitespace is tolerated. Any unrecognised
-// value yields false, matching the convention used by the Terraform azurerm
-// provider for ARM_USE_MSI / ARM_USE_OIDC.
+// value yields false, matching the convention used by the OpenTofu azurerm
+// backend for ARM_USE_MSI / ARM_USE_OIDC.
 func parseBool(s string) bool {
 	v, _ := strconv.ParseBool(strings.TrimSpace(s))
 	return v

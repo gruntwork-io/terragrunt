@@ -60,7 +60,7 @@ func TestResourceGroup_RequiresName(t *testing.T) {
 		t.Error("EnsureResourceGroup with empty name should error")
 	}
 
-	if err := c.Delete(t.Context(), log.New(), ""); err == nil {
+	if err := c.EnsureDeleted(t.Context(), log.New(), ""); err == nil {
 		t.Error("Delete with empty name should error")
 	}
 }

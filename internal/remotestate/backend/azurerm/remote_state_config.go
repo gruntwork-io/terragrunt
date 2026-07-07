@@ -93,7 +93,6 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) GetAzureSessionConfig() *azurehelpe
 		ClientSecret:       rs.ClientSecret,
 		StorageAccountName: rs.StorageAccountName,
 		ResourceGroupName:  rs.ResourceGroupName,
-		ContainerName:      rs.ContainerName,
 		MSIResourceID:      rs.MSIResourceID,
 		SasToken:           rs.SasToken,
 		AccessKey:          rs.AccessKey,

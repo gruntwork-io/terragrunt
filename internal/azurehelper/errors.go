@@ -16,8 +16,6 @@ var (
 	ErrStorageAccountRequired       = errors.New("storage account name is required")
 	ErrContainerNameRequired        = errors.New("container name is required")
 	ErrBlobKeyRequired              = errors.New("container name and blob key are required")
-	ErrNoContainerBound             = errors.New("BlobClient has no container bound; call BindContainer first or use GetBlob")
-	ErrCopyBlobArgsRequired         = errors.New("source and destination container/key are required")
 	ErrSubscriptionIDRequired       = errors.New("subscription_id is required")
 	ErrResourceGroupNameRequired    = errors.New("resource group name is required")
 	ErrStorageAccountConfigRequired = errors.New("storage account config is required")
@@ -55,6 +53,36 @@ type UnsupportedAuthForOpError struct {
 
 func (e *UnsupportedAuthForOpError) Error() string {
 	return fmt.Sprintf("%s require a token credential (auth method %q is not supported)", e.Operation, e.Method)
+}
+
+// MissingCopyBlobArgsError names every CopyBlob argument left empty.
+type MissingCopyBlobArgsError struct {
+	Missing []string
+}
+
+func (e *MissingCopyBlobArgsError) Error() string {
+	return "copy blob requires " + strings.Join(e.Missing, ", ")
+}
+
+// DestinationBlobExistsError is returned when a conditional copy refuses to
+// overwrite an existing destination blob.
+type DestinationBlobExistsError struct {
+	Container string
+	Key       string
+}
+
+func (e *DestinationBlobExistsError) Error() string {
+	return fmt.Sprintf("destination blob %s/%s already exists", e.Container, e.Key)
+}
+
+// UnknownAuthorityHostError is returned when the configured cloud's AAD
+// authority host does not map to a known blob endpoint suffix.
+type UnknownAuthorityHostError struct {
+	Host string
+}
+
+func (e *UnknownAuthorityHostError) Error() string {
+	return fmt.Sprintf("unknown Azure AD authority host %q; cannot derive a blob endpoint suffix", e.Host)
 }
 
 // UnknownCloudEnvironmentError is returned for an unrecognised CloudEnvironment string.

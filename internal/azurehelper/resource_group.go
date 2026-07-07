@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -90,7 +89,7 @@ func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Log
 	}
 
 	_, err = c.client.CreateOrUpdate(ctx, name, armresources.ResourceGroup{
-		Location: to.Ptr(location),
+		Location: &location,
 	}, nil)
 	if err != nil {
 		return fmt.Errorf("creating resource group %s: %w", name, err)
@@ -101,9 +100,10 @@ func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Log
 	return nil
 }
 
-// Delete deletes the named resource group and waits for the long-running
-// operation to complete. Missing resource groups return nil.
-func (c *ResourceGroupClient) Delete(ctx context.Context, l log.Logger, name string) error {
+// EnsureDeleted deletes the named resource group and waits for the
+// long-running operation to complete. Idempotent: missing resource groups
+// return nil.
+func (c *ResourceGroupClient) EnsureDeleted(ctx context.Context, l log.Logger, name string) error {
 	if name == "" {
 		return ErrResourceGroupNameRequired
 	}

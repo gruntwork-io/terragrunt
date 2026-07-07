@@ -107,7 +107,6 @@ func TestGetAzureSessionConfig_Mapping(t *testing.T) {
 
 	sess := ext.GetAzureSessionConfig()
 	assert.Equal(t, "tfstate1234", sess.StorageAccountName)
-	assert.Equal(t, "tfstate", sess.ContainerName)
 	assert.Equal(t, "rg-state", sess.ResourceGroupName)
 	assert.Equal(t, "00000000-0000-0000-0000-000000000000", sess.SubscriptionID)
 	assert.True(t, sess.UseAzureADAuth)

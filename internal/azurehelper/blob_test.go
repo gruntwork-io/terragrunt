@@ -71,8 +71,8 @@ func TestNewBlobClient_SasToken(t *testing.T) {
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, testAccount, c.AccountName())
-	assert.NotNil(t, c.AzClient())
+	assert.Equal(t, testAccount, c.AccountName)
+	assert.NotNil(t, c.Client)
 }
 
 func TestNewBlobClient_AccessKey(t *testing.T) {
@@ -86,7 +86,7 @@ func TestNewBlobClient_AccessKey(t *testing.T) {
 		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, testAccount, c.AccountName())
+	assert.Equal(t, testAccount, c.AccountName)
 }
 
 func TestNewBlobClient_AccessKeyInvalidBase64(t *testing.T) {
@@ -158,26 +158,6 @@ func TestNewBlobClient_ChinaCloud(t *testing.T) {
 	require.NoError(t, err, "china cloud client")
 }
 
-func TestBlobClient_BindAndGetObject(t *testing.T) {
-	t.Parallel()
-
-	c, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
-		Method:        azurehelper.AuthMethodSasToken,
-		SasToken:      testSASToken,
-		AccountName:   testAccount,
-		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	})
-	require.NoError(t, err)
-	assert.Empty(t, c.Container(), "Container() before bind should be empty")
-
-	// GetObject without bound container errors.
-	_, err = c.GetObject(t.Context(), "k")
-	require.Error(t, err, "GetObject without BindContainer should error")
-
-	c.BindContainer("state")
-	assert.Equal(t, "state", c.Container())
-}
-
 func TestBlobClient_ListBlobs_RequiresContainer(t *testing.T) {
 	t.Parallel()
 
@@ -189,7 +169,7 @@ func TestBlobClient_ListBlobs_RequiresContainer(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = c.ListBlobs(t.Context(), "")
+	_, err = c.ListBlobs(t.Context(), log.New(), "")
 	require.Error(t, err, "ListBlobs with empty container should error")
 }
 
@@ -237,7 +217,7 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 			StorageAccountName: account,
 			UseAzureADAuth:     true,
 		}).
-		Build(ctx, log.New())
+		Build(log.New())
 	require.NoError(t, err, "Build config")
 
 	bc, err := azurehelper.NewBlobClient(cfg)
@@ -272,19 +252,8 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 	require.NoError(t, err, "read body")
 	assert.Equal(t, payload, got, "payload mismatch")
 
-	// Exercise GetObject via bound container.
-	bc.BindContainer(container)
-
-	body2, err := bc.GetObject(ctx, key)
-	require.NoError(t, err, "GetObject")
-
-	got2, err := io.ReadAll(body2)
-	require.NoError(t, body2.Close(), "body2 close")
-	require.NoError(t, err, "read body2")
-	assert.Equal(t, payload, got2, "GetObject payload mismatch")
-
 	// Exercise ListBlobs and CopyBlob.
-	names, err := bc.ListBlobs(ctx, container)
+	names, err := bc.ListBlobs(ctx, log.New(), container)
 	require.NoError(t, err, "ListBlobs")
 	assert.Contains(t, names, key, "ListBlobs did not include %q", key)
 

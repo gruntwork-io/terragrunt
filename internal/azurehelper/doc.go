@@ -1,12 +1,8 @@
 // Package azurehelper provides Azure SDK client construction and helpers for
-// the azurerm remote state backend. It pattern-matches internal/awshelper and
-// internal/gcphelper: a flat package, a builder for credential resolution, and
-// concrete client types: no interfaces, factories, or adapter layers.
+// the azurerm remote state backend: a builder for credential resolution and
+// concrete client types for blobs, storage accounts, and resource groups.
 //
-// # Why this package is larger than awshelper/gcphelper
-//
-// Four Azure platform concepts require explicit code that has no AWS or GCP
-// equivalent in the existing helpers:
+// Four Azure platform concepts require explicit code here:
 //
 //  1. Resource groups. Every storage account belongs to a named resource
 //     group in a subscription. See resource_group.go.
@@ -19,12 +15,7 @@
 //     against BlobServiceProperties, independent of account creation.
 //     See storage_account.go (EnableSoftDelete, EnableVersioning).
 //
-// # Out of scope
-//
-// No distributed locking: Azure exposes blob leases but Terragrunt does not
-// wire them here. No backend bootstrap/delete/migrate orchestration: that
-// lives in internal/remotestate/backend/azurerm, which consumes this package.
-//
-// See docs/src/data/experiments/azure-backend.mdx for the experiment status
-// and the stabilization checklist.
+// Backend bootstrap/delete/migrate orchestration lives in
+// internal/remotestate/backend/azurerm, which consumes this package. See
+// docs/src/data/experiments/azure-backend.mdx for the experiment status.
 package azurehelper

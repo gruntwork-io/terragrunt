@@ -149,7 +149,7 @@ func TestStorageAccount_Delete_NotFoundIsNoop(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 
-	if err := sc.Delete(t.Context(), log.New()); err != nil {
+	if err := sc.EnsureDeleted(t.Context(), log.New()); err != nil {
 		t.Errorf("Delete on missing account should be no-op, got %v", err)
 	}
 }

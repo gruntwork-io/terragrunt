@@ -11,12 +11,12 @@ Enabling this experiment turns on Terragrunt-managed lifecycle operations for th
 Azure Storage (`azurerm`) remote state backend, matching what Terragrunt already
 does for S3 buckets and GCS buckets:
 
-- Bootstrap: creates the resource group (when allowed), storage account, and blob
-  container backing the state, and converges blob versioning and optional soft
-  delete on both new and pre-existing accounts.
-- Delete: removes state blobs or entire containers, with confirmation prompts.
-- Migrate: moves state blobs within the same storage account (cross-account
-  migration is refused with guidance to migrate manually).
+1. Bootstrap: creates the resource group (when allowed), storage account, and blob
+   container backing the state, and converges blob versioning and optional soft
+   delete on both new and pre-existing accounts.
+2. Delete: removes state blobs or entire containers, with confirmation prompts.
+3. Migrate: moves state blobs within the same storage account (cross-account
+   migration is refused with guidance to migrate manually).
 
 Authentication supports six methods, resolved in order: SAS token, storage account
 access key, service principal, managed identity (MSI), OIDC / workload identity,

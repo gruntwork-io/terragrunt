@@ -56,7 +56,6 @@ func checkExperiment(opts *backend.Options) error {
 // the given raw backend config, returning the parsed config and the resolved
 // azurehelper.AzureConfig (credentials + cloud).
 func resolveConfig(
-	ctx context.Context,
 	l log.Logger,
 	backendConfig backend.Config,
 	opts *backend.Options,
@@ -69,7 +68,7 @@ func resolveConfig(
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(extCfg.GetAzureSessionConfig()).
 		WithEnv(opts.Env).
-		Build(ctx, l)
+		Build(l)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -97,7 +96,7 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfi
 		return false, err
 	}
 
-	extCfg, cfg, err := resolveConfig(ctx, l, backendConfig, opts)
+	extCfg, cfg, err := resolveConfig(l, backendConfig, opts)
 	if err != nil {
 		return false, err
 	}
@@ -105,34 +104,13 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfi
 	rs := &extCfg.RemoteStateConfigAzurerm
 
 	if armCapable(cfg) && armWorkRequested(extCfg) {
-		saClient, err := azurehelper.NewStorageAccountClient(cfg)
+		needs, err := accountNeedsBootstrap(ctx, cfg, extCfg)
 		if err != nil {
 			return false, err
 		}
 
-		exists, err := saClient.Exists(ctx)
-		if err != nil {
-			return false, err
-		}
-
-		// A missing account needs bootstrap only when we are allowed to create
-		// it; under skip_storage_account_creation the user manages the account.
-		if !exists && !extCfg.SkipStorageAccountCreation {
+		if needs {
 			return true, nil
-		}
-
-		// An existing account is checked for versioning / soft-delete drift even
-		// under skip_storage_account_creation, since those policies are converged
-		// on pre-created accounts too.
-		if exists {
-			drift, err := accountPolicyDrift(ctx, saClient, extCfg)
-			if err != nil {
-				return false, err
-			}
-
-			if drift {
-				return true, nil
-			}
 		}
 	}
 
@@ -155,6 +133,31 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfi
 	return false, nil
 }
 
+// accountNeedsBootstrap reports whether the storage account is missing (and
+// creatable) or has versioning / soft-delete drift to converge.
+func accountNeedsBootstrap(ctx context.Context, cfg *azurehelper.AzureConfig, extCfg *ExtendedRemoteStateConfigAzurerm) (bool, error) {
+	saClient, err := azurehelper.NewStorageAccountClient(cfg)
+	if err != nil {
+		return false, err
+	}
+
+	exists, err := saClient.Exists(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	// A missing account needs bootstrap only when we are allowed to create
+	// it; under skip_storage_account_creation the user manages the account.
+	if !exists {
+		return !extCfg.SkipStorageAccountCreation, nil
+	}
+
+	// An existing account is checked for versioning / soft-delete drift even
+	// under skip_storage_account_creation, since those policies are converged
+	// on pre-created accounts too.
+	return accountPolicyDrift(ctx, saClient, extCfg)
+}
+
 // Bootstrap creates (if necessary) the resource group, storage account, and
 // blob container backing the state, and ensures blob versioning / soft delete.
 func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) error {
@@ -162,7 +165,7 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig bac
 		return err
 	}
 
-	extCfg, cfg, err := resolveConfig(ctx, l, backendConfig, opts)
+	extCfg, cfg, err := resolveConfig(l, backendConfig, opts)
 	if err != nil {
 		return err
 	}
@@ -187,34 +190,46 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig bac
 		}
 	}
 
-	if !extCfg.SkipContainerCreation {
-		blobClient, err := azurehelper.NewBlobClient(cfg)
-		if err != nil {
-			return err
-		}
-
-		exists, err := blobClient.ContainerExists(ctx, rs.ContainerName)
-		if err != nil {
-			return err
-		}
-
-		if !exists {
-			// The blob container is the true analog of a GCS/S3 bucket and the
-			// only creation step reachable by data-plane-only (SAS/access-key)
-			// auth, so the fail-if-creation-required gate must live here too.
-			if opts.FailIfBucketCreationRequired {
-				return backend.BucketCreationNotAllowed(rs.ContainerName)
-			}
-
-			if err := blobClient.CreateContainer(ctx, rs.ContainerName); err != nil {
-				return err
-			}
-		}
+	if err := ensureContainer(ctx, cfg, extCfg, opts); err != nil {
+		return err
 	}
 
 	b.MarkConfigInited(rs)
 
 	return nil
+}
+
+// ensureContainer creates the state container when it is missing and creation
+// is neither skipped nor forbidden.
+func ensureContainer(ctx context.Context, cfg *azurehelper.AzureConfig, extCfg *ExtendedRemoteStateConfigAzurerm, opts *backend.Options) error {
+	if extCfg.SkipContainerCreation {
+		return nil
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+
+	blobClient, err := azurehelper.NewBlobClient(cfg)
+	if err != nil {
+		return err
+	}
+
+	exists, err := blobClient.ContainerExists(ctx, rs.ContainerName)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		return nil
+	}
+
+	// The blob container is the true analog of a GCS/S3 bucket and the
+	// only creation step reachable by data-plane-only (SAS/access-key)
+	// auth, so the fail-if-creation-required gate must live here too.
+	if opts.FailIfBucketCreationRequired {
+		return backend.BucketCreationNotAllowed(rs.ContainerName)
+	}
+
+	return blobClient.CreateContainer(ctx, rs.ContainerName)
 }
 
 // bootstrapAccount ensures the resource group and storage account exist and are
@@ -230,8 +245,6 @@ func (b *Backend) bootstrapAccount(
 	if !armWorkRequested(extCfg) {
 		return nil
 	}
-
-	rs := &extCfg.RemoteStateConfigAzurerm
 
 	saClient, err := azurehelper.NewStorageAccountClient(cfg)
 	if err != nil {
@@ -251,28 +264,7 @@ func (b *Backend) bootstrapAccount(
 			return nil
 		}
 
-		// Refuse to provision anything (resource group or account) when the
-		// caller forbids creation.
-		if opts.FailIfBucketCreationRequired {
-			return backend.BucketCreationNotAllowed(rs.StorageAccountName)
-		}
-
-		// The resource group must exist before the account; only create it when
-		// we are actually creating the account (an existing account already has
-		// its resource group). cfg.ResourceGroup carries the env-resolved value
-		// the storage account client is bound to, so gate and create on it.
-		if !extCfg.SkipResourceGroupCreation && cfg.ResourceGroup != "" {
-			rgClient, err := azurehelper.NewResourceGroupClient(cfg)
-			if err != nil {
-				return err
-			}
-
-			if err := rgClient.EnsureResourceGroup(ctx, l, cfg.ResourceGroup, extCfg.Location); err != nil {
-				return err
-			}
-		}
-
-		if err := saClient.Create(ctx, l, extCfg.StorageAccountConfig()); err != nil {
+		if err := createAccount(ctx, l, saClient, extCfg, cfg, opts); err != nil {
 			return err
 		}
 	}
@@ -298,6 +290,40 @@ func (b *Backend) bootstrapAccount(
 	}
 
 	return nil
+}
+
+// createAccount provisions the resource group (when allowed) and the storage
+// account, honoring the fail-if-creation-required gate.
+func createAccount(
+	ctx context.Context,
+	l log.Logger,
+	saClient *azurehelper.StorageAccountClient,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+	cfg *azurehelper.AzureConfig,
+	opts *backend.Options,
+) error {
+	// Refuse to provision anything (resource group or account) when the
+	// caller forbids creation.
+	if opts.FailIfBucketCreationRequired {
+		return backend.BucketCreationNotAllowed(extCfg.RemoteStateConfigAzurerm.StorageAccountName)
+	}
+
+	// The resource group must exist before the account; only create it when
+	// we are actually creating the account (an existing account already has
+	// its resource group). cfg.ResourceGroup carries the env-resolved value
+	// the storage account client is bound to, so gate and create on it.
+	if !extCfg.SkipResourceGroupCreation && cfg.ResourceGroup != "" {
+		rgClient, err := azurehelper.NewResourceGroupClient(cfg)
+		if err != nil {
+			return err
+		}
+
+		if err := rgClient.EnsureResourceGroup(ctx, l, cfg.ResourceGroup, extCfg.Location); err != nil {
+			return err
+		}
+	}
+
+	return saClient.Create(ctx, l, extCfg.StorageAccountConfig())
 }
 
 // accountPolicyDrift reports whether the existing account's blob versioning or
@@ -340,7 +366,7 @@ func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, bac
 		return false, err
 	}
 
-	_, cfg, err := resolveConfig(ctx, l, backendConfig, opts)
+	_, cfg, err := resolveConfig(l, backendConfig, opts)
 	if err != nil {
 		return false, err
 	}
@@ -374,7 +400,7 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, d
 		return err
 	}
 
-	srcExtCfg, cfg, err := resolveConfig(ctx, l, srcBackendConfig, opts)
+	srcExtCfg, cfg, err := resolveConfig(l, srcBackendConfig, opts)
 	if err != nil {
 		return err
 	}
@@ -416,7 +442,7 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backen
 		return err
 	}
 
-	extCfg, cfg, err := resolveConfig(ctx, l, backendConfig, opts)
+	extCfg, cfg, err := resolveConfig(l, backendConfig, opts)
 	if err != nil {
 		return err
 	}
@@ -449,7 +475,7 @@ func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig 
 		return err
 	}
 
-	extCfg, cfg, err := resolveConfig(ctx, l, backendConfig, opts)
+	extCfg, cfg, err := resolveConfig(l, backendConfig, opts)
 	if err != nil {
 		return err
 	}
