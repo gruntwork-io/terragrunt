@@ -52,11 +52,11 @@ for SECRET in $SECRETS; do
 		continue
 	fi
 
-	printf "export %s='%s'\n" "$SECRET" "$value" >>"$ENV_FILE"
+	printf 'export %s=%q\n' "$SECRET" "$value" >>"$ENV_FILE"
 
 	# The GCP service key is also consumed under its legacy alias.
 	if [[ "$SECRET" == "GCLOUD_SERVICE_KEY" ]]; then
-		printf "export GOOGLE_SERVICE_ACCOUNT_JSON='%s'\n" "$value" >>"$ENV_FILE"
+		printf 'export GOOGLE_SERVICE_ACCOUNT_JSON=%q\n' "$value" >>"$ENV_FILE"
 	fi
 done
 
