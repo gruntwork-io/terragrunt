@@ -246,9 +246,20 @@ func createNamedProfileFile(path, name string) (*os.File, error) {
 	return f, nil
 }
 
-// createProfileFile creates a profile output file readable only by the owner.
+// createProfileFile creates a profile output file readable only by the owner, tightening permissions on pre-existing files.
 func createProfileFile(path string) (*os.File, error) {
-	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, profileFileMode)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, profileFileMode)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := f.Chmod(profileFileMode); err != nil {
+		f.Close() //nolint:errcheck
+
+		return nil, err
+	}
+
+	return f, nil
 }
 
 // closeProfileFile closes a finished profile file, logging a warning if the final flush fails.

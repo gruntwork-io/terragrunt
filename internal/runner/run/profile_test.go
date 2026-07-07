@@ -28,6 +28,7 @@ func TestSetTofuCPUProfileEnv(t *testing.T) {
 		configPath        string
 		expectedRelPath   string
 		withProfileDir    bool
+		userSet           bool
 		expectedUntouched bool
 	}{
 		{
@@ -43,6 +44,7 @@ func TestSetTofuCPUProfileEnv(t *testing.T) {
 			configPath:        filepath.Join(rootDir, "app1", "terragrunt.hcl"),
 			presetEnv:         map[string]string{tf.EnvNameTofuCPUProfile: "custom.prof"},
 			withProfileDir:    true,
+			userSet:           true,
 			expectedUntouched: true,
 		},
 		{
@@ -91,6 +93,7 @@ func TestSetTofuCPUProfileEnv(t *testing.T) {
 			opts.RootWorkingDir = rootDir
 			opts.UnitDir = tc.unitDir
 			opts.OriginalTerragruntConfigPath = tc.configPath
+			opts.TofuCPUProfileUserSet = tc.userSet
 			opts.Env = map[string]string{}
 
 			if tc.withProfileDir {
@@ -143,13 +146,33 @@ func TestSetTofuCPUProfileEnvAutoInitGetsOwnProfile(t *testing.T) {
 	assert.NotEqual(t, planPath, initPath, "auto-init and the main command must not share a profile file")
 }
 
+func TestSetTofuCPUProfileEnvUserPathInsideProfileDirRespected(t *testing.T) {
+	t.Parallel()
+
+	rootDir := filepath.Join(string(filepath.Separator), "infra", "live")
+
+	opts := run.NewOptions()
+	opts.RootWorkingDir = rootDir
+	opts.UnitDir = filepath.Join(rootDir, "app1")
+	opts.OriginalTerragruntConfigPath = filepath.Join(rootDir, "app1", "terragrunt.hcl")
+	opts.ProfileDir = t.TempDir()
+	opts.TofuCPUProfileUserSet = true
+
+	customPath := filepath.Join(opts.ProfileDir, "custom.prof")
+	opts.Env = map[string]string{tf.EnvNameTofuCPUProfile: customPath}
+
+	require.NoError(t, run.SetTofuCPUProfileEnv(logger.CreateLogger(), opts))
+	assert.Equal(t, customPath, opts.Env[tf.EnvNameTofuCPUProfile],
+		"a user-set TOFU_CPU_PROFILE must be respected even when it points inside the profile dir")
+}
+
 func TestSetTofuCPUProfileEnvExternalUnitsDoNotCollide(t *testing.T) {
 	t.Parallel()
 
 	profileDir := t.TempDir()
 	rootDir := filepath.Join(string(filepath.Separator), "infra", "live")
 
-	paths := make(map[string]bool)
+	paths := make(map[string]struct{})
 
 	for _, unitDir := range []string{
 		filepath.Join(string(filepath.Separator), "team-a", "vpc"),
@@ -163,7 +186,7 @@ func TestSetTofuCPUProfileEnvExternalUnitsDoNotCollide(t *testing.T) {
 		opts.Env = map[string]string{}
 
 		require.NoError(t, run.SetTofuCPUProfileEnv(logger.CreateLogger(), opts))
-		paths[opts.Env[tf.EnvNameTofuCPUProfile]] = true
+		paths[opts.Env[tf.EnvNameTofuCPUProfile]] = struct{}{}
 	}
 
 	assert.Len(t, paths, 2)

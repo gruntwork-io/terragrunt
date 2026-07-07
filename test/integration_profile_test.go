@@ -110,6 +110,31 @@ func TestTGProfileDirDoesNotOverrideExplicitTofuCPUProfile(t *testing.T) {
 	assert.Empty(t, derived, "explicit TOFU_CPU_PROFILE should suppress the derived per-unit profile paths")
 }
 
+func TestTGProfileDirRespectsExplicitTofuProfileInsideDir(t *testing.T) {
+	if isTerraform(t.Context()) {
+		t.Skip("TOFU_CPU_PROFILE is only supported by OpenTofu")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureInputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
+
+	profileDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "profiles")
+	customProfile := filepath.Join(profileDir, "custom_tofu.prof")
+
+	t.Setenv("TG_EXPERIMENT", "profiling")
+	t.Setenv("TG_PROFILE_DIR", profileDir)
+	t.Setenv("TOFU_CPU_PROFILE", customProfile)
+
+	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
+
+	requireNonEmptyFile(t, customProfile)
+
+	derived, err := filepath.Glob(filepath.Join(profileDir, "tofu_cpu*"))
+	require.NoError(t, err)
+	assert.Empty(t, derived, "a user path inside the profile dir must still suppress derived per-unit paths")
+}
+
 func TestTGProfileDirCollectsProfiles(t *testing.T) {
 	if isTerraform(t.Context()) {
 		t.Skip("TOFU_CPU_PROFILE is only supported by OpenTofu")

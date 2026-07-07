@@ -806,8 +806,7 @@ func SetTofuCPUProfileEnv(l log.Logger, opts *Options) error {
 		return nil
 	}
 
-	// A TOFU_CPU_PROFILE pointing outside opts.ProfileDir was set by the user and is never overridden.
-	if existing, set := opts.Env[tf.EnvNameTofuCPUProfile]; set && !strings.HasPrefix(existing, opts.ProfileDir+string(filepath.Separator)) {
+	if opts.TofuCPUProfileUserSet {
 		l.Debugf("TOFU_CPU_PROFILE is already set, skipping the per-unit OpenTofu profile path for %s", opts.UnitDir)
 
 		return nil

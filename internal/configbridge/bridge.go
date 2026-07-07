@@ -152,6 +152,7 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.CacheDir = opts.WorkingDir
 	runOpts.RootWorkingDir = opts.RootWorkingDir
 	runOpts.ProfileDir = opts.ProfileDir
+	_, runOpts.TofuCPUProfileUserSet = opts.Env[tf.EnvNameTofuCPUProfile]
 	runOpts.DownloadDir = opts.DownloadDir
 	runOpts.TerraformCommand = opts.TerraformCommand
 	runOpts.OriginalTerraformCommand = opts.OriginalTerraformCommand

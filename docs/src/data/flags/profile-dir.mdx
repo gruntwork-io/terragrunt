@@ -18,7 +18,7 @@ Collect CPU, memory, and goroutine profiles into the given directory using conve
 - `terragrunt_mem.prof`
 - `terragrunt_goroutine.prof`
 
-In addition, each unit's downstream OpenTofu process writes its own CPU profile to `tofu_cpu_<command>.prof` (for example `tofu_cpu_plan.prof`) inside a unit-specific subdirectory (supported by OpenTofu 1.11 or later; Terraform ignores it). Units outside the working directory are placed under an `external/` subdirectory so they never collide.
+In addition, each unit's downstream OpenTofu process writes its own CPU profile to `tofu_cpu_<command>.prof` (for example `tofu_cpu_plan.prof`) inside a unit-specific subdirectory (supported by OpenTofu 1.11 or later; Terraform ignores it). A unit at the working directory root writes directly into the profile directory, and units outside the working directory are placed under an `external/` subdirectory so they never collide.
 
 Example:
 

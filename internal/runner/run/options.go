@@ -79,6 +79,7 @@ type Options struct {
 	CASCloneDepth                int
 	NoCAS                        bool
 	NoHooks                      bool
+	TofuCPUProfileUserSet        bool
 	AutoRetry                    bool
 	Headless                     bool
 	NonInteractive               bool
