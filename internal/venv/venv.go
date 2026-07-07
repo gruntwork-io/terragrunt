@@ -16,6 +16,7 @@ package venv
 import (
 	"errors"
 	"io"
+	"maps"
 	"os"
 	"strings"
 
@@ -86,6 +87,14 @@ func (v Venv) WithEnv(env map[string]string) Venv {
 	v.Env = env
 
 	return v
+}
+
+// WithEnvCloned returns a copy of v whose Env is an independent clone. Fan-out
+// paths that process units one at a time hand each unit a clone so
+// per-unit mutations (obtained credentials, TF_VAR_* contributions) never
+// leak into sibling units. A nil Env becomes an empty map, per [Venv.WithEnv].
+func (v Venv) WithEnvCloned() Venv {
+	return v.WithEnv(maps.Clone(v.Env))
 }
 
 // RequireEnv panics with [ErrVenvEnvUnset] when Env is nil, guarding

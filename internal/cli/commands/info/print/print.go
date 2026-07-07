@@ -84,7 +84,9 @@ func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragr
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 
-		if err := runPrint(ctx, l, v, unitOpts); err != nil {
+		// Preparation writes obtained credentials into the env, so each
+		// unit gets its own clone to keep them from leaking to siblings.
+		if err := runPrint(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}

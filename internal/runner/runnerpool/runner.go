@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -468,10 +467,9 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 			unitOpts.Writers.Writer = unitWriter
 			unitRunner := common.NewUnitRunner(u)
 
-			// Clone v.Env so per-unit mutations (e.g. SetTerragruntInputsAsEnvVars
-			// writing TF_VAR_* in run.go) don't leak across concurrent units.
-			unitV := v
-			unitV.Env = maps.Clone(v.Env)
+			// Per-unit mutations (e.g. SetTerragruntInputsAsEnvVars writing
+			// TF_VAR_* in run.go) must not leak across concurrent units.
+			unitV := v.WithEnvCloned()
 
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
 			// get_aws_account_id() in locals need auth-provider credentials

@@ -55,6 +55,12 @@ func (v Venv) RequireEnv() {
 	}
 }
 
+// WithEnvCloned returns a copy of v whose Env is an independent clone, so
+// per-unit mutations never leak into sibling units. See [venv.Venv.WithEnvCloned].
+func (v Venv) WithEnvCloned() Venv {
+	return FromRoot(v.ToRoot().WithEnvCloned())
+}
+
 // WithWriter returns a copy of v whose primary writer is w.
 func (v Venv) WithWriter(w io.Writer) Venv {
 	v.Writers.Writer = w

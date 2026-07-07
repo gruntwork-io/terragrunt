@@ -1,10 +1,19 @@
 package validate_test
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,4 +71,89 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 			assert.Equal(t, tc.expectedVarFiles, varFiles)
 		})
 	}
+}
+
+// writeValidateInputsUnits lays out two units: unit-a satisfies its required
+// `region` input through an extra_arguments env_vars TF_VAR_region, while
+// unit-b requires `region` and never sets it (unless bInputs provides it).
+func writeValidateInputsUnits(t *testing.T, bInputs string) string {
+	t.Helper()
+
+	tmpDir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	moduleTF := `variable "region" {}` + "\n"
+	unitACfg := `terraform {
+  extra_arguments "set_region" {
+    commands = ["apply", "plan"]
+    env_vars = {
+      TF_VAR_region = "us-east-1"
+    }
+  }
+}
+`
+
+	for unit, files := range map[string]map[string]string{
+		"unit-a": {"terragrunt.hcl": unitACfg, "main.tf": moduleTF},
+		"unit-b": {"terragrunt.hcl": bInputs, "main.tf": moduleTF},
+	} {
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, unit), 0755))
+
+		for name, content := range files {
+			require.NoError(t, os.WriteFile(filepath.Join(tmpDir, unit, name), []byte(content), 0644))
+		}
+	}
+
+	return tmpDir
+}
+
+// TestRunValidateInputsDoesNotLeakEnvBetweenUnits pins per-unit env isolation:
+// unit-a's TF_VAR_region from extra_arguments must not satisfy unit-b's
+// required `region` input, and credentials obtained from the auth provider
+// during per-unit preparation must not escape into the shared environment.
+func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := writeValidateInputsUnits(t, "")
+
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if inv.Name == "fake-auth-provider" {
+			return vexec.Result{Stdout: []byte(`{"envs":{"AWS_ACCESS_KEY_ID":"fake-key"}}`)}
+		}
+
+		return vexec.Result{ExitCode: 127, Stderr: []byte("unexpected invocation: " + inv.Name)}
+	})
+
+	rootV := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	l := logger.CreateLogger()
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.AuthProviderCmd = "fake-auth-provider"
+
+	err = validate.RunValidateInputs(t.Context(), l, run.FromRoot(rootV), opts)
+	require.Error(t, err, "unit-b never sets region, so validation must fail even after unit-a merged TF_VAR_region into its own env")
+
+	assert.NotContains(t, rootV.Env, "TF_VAR_region")
+	assert.NotContains(t, rootV.Env, "AWS_ACCESS_KEY_ID")
+}
+
+// TestRunValidateInputsPassesWhenInputsDefined is the companion control: with
+// unit-b defining its own region input, the same setup validates cleanly, so
+// the error in the leak test above is unit-b's missing input rather than a
+// scaffolding failure.
+func TestRunValidateInputsPassesWhenInputsDefined(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := writeValidateInputsUnits(t, "inputs = {\n  region = \"eu-west-1\"\n}\n")
+
+	rootV := venvtest.New().WithFS(vfs.NewOSFS())
+	l := logger.CreateLogger()
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	err = validate.RunValidateInputs(t.Context(), l, run.FromRoot(rootV), opts)
+	require.NoError(t, err)
 }

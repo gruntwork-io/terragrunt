@@ -72,7 +72,9 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terrag
 			unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 			unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
 
-			if err := runBootstrap(ctx, l, v, unitOpts); err != nil {
+			// Parsing can write obtained credentials into the env, so each
+			// unit gets its own clone to keep them from leaking to siblings.
+			if err := runBootstrap(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
 				if opts.FailFast {
 					return err
 				}

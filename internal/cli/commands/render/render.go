@@ -63,7 +63,9 @@ func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error 
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 
-		prepared, err := prepare.PrepareConfig(ctx, l, v, unitOpts.TerragruntOptions)
+		// Preparation writes obtained credentials into the env, so each
+		// unit gets its own clone to keep them from leaking to siblings.
+		prepared, err := prepare.PrepareConfig(ctx, l, v.WithEnvCloned(), unitOpts.TerragruntOptions)
 		if err != nil {
 			errs = append(errs, err)
 			continue

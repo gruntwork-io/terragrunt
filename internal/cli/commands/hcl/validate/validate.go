@@ -129,12 +129,16 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 		parseOpts := opts.Clone()
 		parseOpts.WorkingDir = c.Path()
 
+		// Parsing can write obtained credentials into the env, so each
+		// component gets its own clone to keep them from leaking to siblings.
+		componentV := v.WithEnvCloned()
+
 		if _, ok := c.(*component.Stack); ok {
 			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
 			parseOpts.TerragruntConfigPath = stackFilePath
 
 			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parser = parser.WithVenv(v.ToRoot())
+			parser = parser.WithVenv(componentV.ToRoot())
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
@@ -178,7 +182,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
 		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
-		pctx = pctx.WithVenv(v.ToRoot())
+		pctx = pctx.WithVenv(componentV.ToRoot())
 
 		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
 			parseErrs = append(parseErrs, err)
@@ -301,26 +305,31 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 		unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
 
-		prepared, err := prepare.PrepareConfig(ctx, l, v, unitOpts)
+		// Preparation writes obtained credentials into the env, so each unit
+		// gets its own clone: env contributions from one unit must not mask
+		// missing inputs in the next.
+		unitV := v.WithEnvCloned()
+
+		prepared, err := prepare.PrepareConfig(ctx, l, unitV, unitOpts)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Download source
-		updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)
+		updatedOpts, err := prepare.PrepareSource(ctx, l, unitV, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Generate config
-		if err := prepare.PrepareGenerate(l, v, updatedOpts, prepared.Cfg.ToRunConfig(l)); err != nil {
+		if err := prepare.PrepareGenerate(l, unitV, updatedOpts, prepared.Cfg.ToRunConfig(l)); err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
-		if err := runValidateInputs(l, v.Env, updatedOpts, prepared.Cfg); err != nil {
+		if err := runValidateInputs(l, unitV.Env, updatedOpts, prepared.Cfg); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -464,7 +473,10 @@ func getDefinedTerragruntInputs(l log.Logger, env map[string]string, opts *optio
 // variables. This will return the list of names of variables that are set in this way by the given terragrunt
 // configuration.
 func getTerraformInputNamesFromEnvVar(env map[string]string, terragruntConfig *config.TerragruntConfig) []string {
-	envVars := env
+	// Merge into a fresh map: env belongs to the caller and the
+	// extra_arguments contributions below must not escape this lookup.
+	envVars := make(map[string]string, len(env))
+	maps.Copy(envVars, env)
 
 	// Make sure to check if there are configured env vars in the parsed terragrunt config.
 	if terragruntConfig.Terraform != nil {
