@@ -508,6 +508,10 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v run.Venv, stackOpts 
 				return err
 			}
 
+			if !unitOpts.TFPathExplicitlySet && cfg.TerraformBinary != "" {
+				unitOpts.TFPath = cfg.TerraformBinary
+			}
+
 			runCfg := cfg.ToRunConfig(unitLogger)
 
 			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, "unit_run", map[string]any{

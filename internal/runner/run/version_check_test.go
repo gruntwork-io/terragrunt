@@ -169,17 +169,13 @@ func TestCheckTerragruntVersionMeetsConstraintPrerelease(t *testing.T) {
 	testCheckTerragruntVersionMeetsConstraint(t, "v0.23.18-alpha202409013", ">= v0.23.18", true)
 }
 
-// TestPopulateTFVersionRespectsTFPath is a regression test for issue #6147:
-// when both tofu and terraform are installed and `terraform_binary = "terraform"`
-// is set in HCL, the default `tofu` binary was selected anyway. The root cause
-// was that the run-scoped version cache keyed only by workingDir and the
-// contents of any version-pinning files, so an early call (e.g. from
-// setupAutoProviderCacheDir) that resolved against `tofu` would poison the
-// cache for the later call made after `terraform_binary` had taken effect.
-//
-// The fix folds the resolved binary path into the cache key. This test feeds
-// distinct --version stdout per binary through a vexec.MemExec handler and
-// asserts the second call resolves Terraform, not the cached OpenTofu entry.
+// TestPopulateTFVersionRespectsTFPath verifies that the run-scoped version
+// cache is keyed by the resolved binary path. Two calls with the same working
+// directory but different binaries must resolve independently: an early call
+// that resolves against `tofu` must not poison the entry a later call reads
+// after `terraform_binary` has taken effect. The test feeds distinct --version
+// stdout per binary through a vexec.MemExec handler and asserts the second call
+// resolves Terraform, not the cached OpenTofu entry.
 func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	t.Parallel()
 
