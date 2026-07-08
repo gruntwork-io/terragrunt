@@ -341,13 +341,7 @@ func (b *AzureConfigBuilder) BuildStorageAccountClient(l log.Logger) (*StorageAc
 // applyEnvFallbacks fills empty fields on cfg from the builder's env map.
 // Mirrors the ARM_* and AZURE_* names used by the OpenTofu azurerm backend.
 func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
-	// Treat whitespace-only explicit credentials as absent BEFORE the fallback
-	// checks below, so a stray space or newline in a config value does not both
-	// suppress an otherwise-valid env fallback and then resolve to empty.
-	cfg.SasToken = strings.TrimSpace(cfg.SasToken)
-	cfg.AccessKey = strings.TrimSpace(cfg.AccessKey)
-
-	for _, fb := range []struct {
+	fallbacks := []struct {
 		field *string
 		keys  []string
 	}{
@@ -362,9 +356,17 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 		{&cfg.MSIResourceID, []string{"ARM_MSI_RESOURCE_ID", "AZURE_MSI_RESOURCE_ID"}},
 		{&cfg.OIDCTokenFilePath, []string{"ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE"}},
 		{&cfg.CloudEnvironment, []string{"ARM_ENVIRONMENT", "AZURE_ENVIRONMENT"}},
-	} {
+	}
+
+	// Trim first so a stray space or newline in a config value (common when CI
+	// injects secrets via naive shell redirection) does not suppress an
+	// otherwise-valid env fallback, then trim again after resolution so an
+	// env-sourced value with trailing whitespace does not fail opaquely.
+	for _, fb := range fallbacks {
+		*fb.field = strings.TrimSpace(*fb.field)
+
 		if *fb.field == "" {
-			*fb.field = b.firstEnv(fb.keys...)
+			*fb.field = strings.TrimSpace(b.firstEnv(fb.keys...))
 		}
 	}
 
@@ -388,12 +390,6 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	if !cfg.UseOIDC && !cfg.UseMSI && !cfg.UseAzureADAuth && cfg.OIDCTokenFilePath != "" {
 		cfg.UseOIDC = true
 	}
-
-	// Whitespace-only credentials (e.g. a CI secret that is just a newline) must
-	// not select a data-plane tier and then fail opaquely downstream; treat them
-	// as absent. Mirrors the TrimSpace already applied for parseBool/cloud env.
-	cfg.SasToken = strings.TrimSpace(cfg.SasToken)
-	cfg.AccessKey = strings.TrimSpace(cfg.AccessKey)
 }
 
 // firstEnv returns the first non-empty value found for keys in the builder's

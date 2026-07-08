@@ -74,7 +74,7 @@ func (c *BlobClient) ContainerExists(ctx context.Context, name string) (bool, er
 		return true, nil
 	}
 
-	if isErrorCode(err, "ContainerNotFound") {
+	if IsNotFound(err) || isErrorCode(err, "ContainerNotFound") {
 		return false, nil
 	}
 

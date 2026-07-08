@@ -160,6 +160,20 @@ func TestBlobClient_ContainerExists_Stubbed(t *testing.T) {
 		assert.False(t, exists)
 		assert.False(t, rt.sawMethodOnPath(http.MethodPut, ""), "existence check must not write")
 	})
+
+	t.Run("missing via ResourceNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		// Some API versions answer a missing container with ResourceNotFound.
+		rt := &routeTransport{routes: []stubRoute{
+			{method: http.MethodGet, pathSub: "/somec", status: http.StatusNotFound, code: "ResourceNotFound"},
+		}}
+		c := newRoutedBlobClient(t, rt)
+
+		exists, err := c.ContainerExists(t.Context(), "somec")
+		require.NoError(t, err)
+		assert.False(t, exists)
+	})
 }
 
 func TestBlobClient_EnsureBlobDeleted_IdempotentWhenMissing(t *testing.T) {

@@ -18,11 +18,17 @@ does for S3 buckets and GCS buckets:
 3. Migrate: moves state blobs within the same storage account (cross-account
    migration is refused with guidance to migrate manually).
 
-Authentication supports six methods, resolved in order: SAS token, storage account
-access key, service principal, managed identity (MSI), OIDC / workload identity,
-and Azure AD (`use_azuread_auth` or the default credential chain, which honors
-`az login`). `ARM_*` and `AZURE_*` environment variable fallbacks are applied, and
-public, US Government, and China clouds are supported via the `environment` key.
+Authentication supports six methods, resolved in the following order:
+
+1. SAS token
+2. Storage account access key
+3. Service principal
+4. Managed identity (MSI)
+5. OIDC / workload identity
+6. Azure AD (`use_azuread_auth` or the default credential chain, which honors `az login`)
+
+`ARM_*` and `AZURE_*` environment variable fallbacks are applied, and public, US
+Government, and China clouds are supported via the `environment` key.
 
 Without the experiment enabled, these lifecycle operations return an error naming
 the experiment; reading and writing the state itself is always handled by the
@@ -61,5 +67,5 @@ To transition the `azure-backend` feature to a stable release, the following mus
 - [x] Delete and migrate operations for state blobs and containers with confirmation prompts.
 - [ ] Direct state file reads from Azure blobs for `--dependency-fetch-output-from-state`.
 - [x] Documentation covering authentication methods, configuration keys, and troubleshooting.
-- [ ] Integration test coverage gated behind a build tag.
+- [ ] Live-resource integration test coverage against a real subscription (hermetic unit tests already ship behind the `azure` build tag).
 - [ ] Community feedback on real-world usage.

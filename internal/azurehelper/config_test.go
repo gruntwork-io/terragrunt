@@ -152,6 +152,22 @@ func TestBuild_EnvFallbacks(t *testing.T) {
 	}
 }
 
+func TestBuild_TrimsWhitespaceFromEnvValues(t *testing.T) {
+	t.Parallel()
+	// CI often injects secrets with a trailing newline; it must be trimmed.
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{StorageAccountName: testAccount, SasToken: testSASToken}).
+		WithVenv(isolatedEnv("ARM_SUBSCRIPTION_ID", "sub-from-env\n")).
+		Build(log.New())
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	if cfg.SubscriptionID != "sub-from-env" {
+		t.Errorf("SubscriptionID = %q, want trimmed %q", cfg.SubscriptionID, "sub-from-env")
+	}
+}
+
 func TestBuild_StorageAccountNameEnvFallback(t *testing.T) {
 	t.Parallel()
 	// SAS auth requires a storage account; supply it only via AZURE_STORAGE_ACCOUNT.

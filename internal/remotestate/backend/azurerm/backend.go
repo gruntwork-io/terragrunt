@@ -90,8 +90,15 @@ func armWorkRequested(extCfg *ExtendedRemoteStateConfigAzurerm) bool {
 	return !extCfg.SkipStorageAccountCreation || !extCfg.SkipVersioning || extCfg.EnableSoftDelete
 }
 
+// warnArmWorkSkipped logs that account creation or versioning/soft-delete
+// convergence was requested but cannot run under data-plane-only auth.
+func warnArmWorkSkipped(l log.Logger, name string, method azurehelper.AuthMethod) {
+	l.Warnf("Cannot manage the storage account for %s backend with %s authentication; skipping account creation and versioning/soft-delete convergence.", name, method)
+}
+
 // NeedsBootstrap returns true if the storage account or container backing the
-// state does not yet exist, or (when reachable) blob versioning is disabled.
+// state does not yet exist, or (when reachable) blob versioning or soft-delete
+// configuration has drifted from what the config requests.
 func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) (bool, error) {
 	if err := checkExperiment(opts); err != nil {
 		return false, err
@@ -103,6 +110,10 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfi
 	}
 
 	rs := &extCfg.RemoteStateConfigAzurerm
+
+	if armWorkRequested(extCfg) && !armCapable(cfg) {
+		warnArmWorkSkipped(l, b.Name(), cfg.Method)
+	}
 
 	if armCapable(cfg) && armWorkRequested(extCfg) {
 		needs, err := accountNeedsBootstrap(ctx, cfg, extCfg)
@@ -185,6 +196,10 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig bac
 		return nil
 	}
 
+	if armWorkRequested(extCfg) && !armCapable(cfg) {
+		warnArmWorkSkipped(l, b.Name(), cfg.Method)
+	}
+
 	if armCapable(cfg) {
 		if err := b.bootstrapAccount(ctx, l, extCfg, cfg, opts); err != nil {
 			return err
@@ -246,6 +261,15 @@ func (b *Backend) bootstrapAccount(
 	if !armWorkRequested(extCfg) {
 		return nil
 	}
+
+	// Blob versioning and soft delete are account-scoped, but the caller's
+	// mutex is keyed per container (account/container), so units sharing an
+	// account through different containers would race this read-modify-write.
+	// Serialize account-plane convergence per storage account. The lock order
+	// is always container-key then account-key, so this cannot deadlock.
+	accountMu := b.GetBucketMutex(extCfg.RemoteStateConfigAzurerm.StorageAccountName)
+	accountMu.Lock()
+	defer accountMu.Unlock()
 
 	saClient, err := azurehelper.NewStorageAccountClient(cfg)
 	if err != nil {
