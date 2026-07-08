@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -89,11 +90,14 @@ func (g *OCIGetter) Detect(req *getter.Request) (bool, error) {
 
 // Get fetches the OCI artifact at req.Src and extracts its module content into req.Dst.
 func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
-	srcURL := req.URL()
+	// go-getter's Client strips //subdir from Src before calling Get; direct
+	// callers (e.g. unit tests) may still carry it, so always strip here.
+	baseSrc, subDir := SourceDirSubdir(req.Src)
 
-	// Split path from subdir selector (the "//subdir" suffix used by go-getter).
-	rawPath, subDir := SourceDirSubdir(srcURL.Path)
-	srcURL.Path = rawPath
+	srcURL, err := url.Parse(baseSrc)
+	if err != nil {
+		return fmt.Errorf("oci: parsing source URL %q: %w", baseSrc, err)
+	}
 
 	ref := ociRefFromURL(srcURL)
 	g.Logger.Debugf("OCI getter: fetching %s", ref)
@@ -211,12 +215,25 @@ func (g *OCIGetter) newRepository(ref string) (*remote.Repository, error) {
 		return nil, err
 	}
 
+	repo.PlainHTTP = isLocalhostRegistry(repo.Reference.Registry)
 	repo.Client = &auth.Client{
 		Client:     g.HTTPClient,
 		Credential: g.credentialFunc(repo.Reference.Registry),
 	}
 
 	return repo, nil
+}
+
+// isLocalhostRegistry returns true for registries bound to the loopback interface.
+// oras-go v2 does not auto-detect plain HTTP, so callers must set PlainHTTP = true
+// for localhost test servers.
+func isLocalhostRegistry(registry string) bool {
+	host, _, _ := net.SplitHostPort(registry)
+	if host == "" {
+		host = registry
+	}
+
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 // credentialFunc returns an oras credential function for the given registry host.

@@ -58,8 +58,9 @@ func (r *OCIResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		return "", cas.ErrNoVersionMetadata
 	}
 
-	// Use the same credential resolution as OCIGetter.
+	// Use the same credential resolution and localhost detection as OCIGetter.
 	g := &OCIGetter{}
+	repo.PlainHTTP = isLocalhostRegistry(repo.Reference.Registry)
 	repo.Client = &auth.Client{
 		Credential: g.credentialFunc(repo.Reference.Registry),
 	}
