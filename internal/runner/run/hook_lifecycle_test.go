@@ -23,7 +23,7 @@ func TestProcessHooks_FiresHooksInDeclarationOrder(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
+	v := venvtest.New().WithHandler(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -64,7 +64,7 @@ func TestProcessHooks_AccumulatesErrorsAcrossHooks(t *testing.T) {
 		return vexec.Result{}
 	}
 
-	v := run.FromRoot(venvtest.New().WithHandler(h))
+	v := venvtest.New().WithHandler(h)
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -105,7 +105,7 @@ func TestProcessHooks_PropagatesWorkingDir(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
+	v := venvtest.New().WithHandler(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 
 	opts := newHookOpts()
@@ -170,7 +170,7 @@ func TestProcessErrorHooks_FiresAllMatchingHooks(t *testing.T) {
 		run.ProcessErrorHooks(
 			t.Context(),
 			l,
-			run.FromRoot(venvtest.New().WithExec(exec)),
+			venvtest.New().WithExec(exec),
 			hooks,
 			&runcfg.RunConfig{},
 			newHookOpts(),
@@ -212,7 +212,7 @@ func TestProcessErrorHooks_AccumulatesFailures(t *testing.T) {
 	err := run.ProcessErrorHooks(
 		t.Context(),
 		l,
-		run.FromRoot(venvtest.New().WithExec(exec)),
+		venvtest.New().WithExec(exec),
 		hooks,
 		&runcfg.RunConfig{},
 		newHookOpts(),

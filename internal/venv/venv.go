@@ -8,9 +8,9 @@
 // real bundle once at the top via [OSVenv]; tests construct an in-memory
 // bundle and drive the full CLI through it.
 //
-// Downstream packages (for example internal/runner/run and internal/tflint)
-// keep their own package-local Venv types so each owns its own contract.
-// They convert from this root via a FromRoot constructor.
+// This is the one Venv type threaded through the codebase. A package may
+// define its own local Venv only when its handle set genuinely differs
+// (for example internal/cas, which carries a filesystem and a Git runner).
 package venv
 
 import (

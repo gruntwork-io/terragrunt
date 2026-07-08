@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -64,7 +65,7 @@ type ProcessHooksParams struct {
 }
 
 // ProcessHooks processes a list of hooks, executing each one that matches the current command.
-func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParams) error {
+func ProcessHooks(ctx context.Context, l log.Logger, v venv.Venv, p ProcessHooksParams) error {
 	if len(p.Hooks) == 0 {
 		return nil
 	}
@@ -110,7 +111,7 @@ func ProcessHooks(ctx context.Context, l log.Logger, v Venv, p ProcessHooksParam
 func ProcessErrorHooks(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	hooks []runcfg.ErrorHook,
 	cfg *runcfg.RunConfig,
 	opts *Options,
@@ -154,14 +155,12 @@ func ProcessErrorHooks(
 				actionToExecute := curHook.Execute[0]
 				actionParams := curHook.Execute[1:]
 
-				hookV := v.ToRoot()
-
 				env, hookEnvErr := hookEnv(v.Env, opts, cfg, curHook.Name, HookTypeError)
 				if hookEnvErr != nil {
 					return hookEnvErr
 				}
 
-				hookV.Env = env
+				hookV := v.WithEnv(env)
 
 				_, possibleError := shell.RunCommandWithOutput(
 					ctx,
@@ -235,7 +234,7 @@ func shouldRunHook(
 func runHook(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,
@@ -253,14 +252,12 @@ func runHook(
 		return executeTFLint(ctx, l, v, opts, cfg, curHook, workingDir)
 	}
 
-	hookV := v.ToRoot()
-
 	env, err := hookEnv(v.Env, opts, cfg, curHook.Name, hookType)
 	if err != nil {
 		return err
 	}
 
-	hookV.Env = env
+	hookV := v.WithEnv(env)
 
 	_, possibleError := shell.RunCommandWithOutput(
 		ctx,
@@ -282,7 +279,7 @@ func runHook(
 func executeTFLint(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,
@@ -295,7 +292,7 @@ func executeTFLint(
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
-	err := tflint.RunTflintWithOpts(ctx, l, v.tflintVenv(), opts.tflintRunOptions(), cfg, curHook)
+	err := tflint.RunTflintWithOpts(ctx, l, v, opts.tflintRunOptions(), cfg, curHook)
 	if err != nil {
 		l.Errorf("%s", hookErrorMessage(curHook.Name, err))
 		return err

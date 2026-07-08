@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/google/shlex"
@@ -27,7 +28,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/view"
@@ -40,7 +40,7 @@ import (
 
 const splitCount = 2
 
-func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return fmt.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputsFlagName)
@@ -60,7 +60,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 	return RunValidate(ctx, l, v, opts)
 }
 
-func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func RunValidate(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	var diags diagnostic.Diagnostics
 
 	// Diagnostics handler to collect validation errors
@@ -116,7 +116,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 
 	d = d.WithWorktrees(worktrees)
 
-	components, err := d.Discover(ctx, l, v.ToRoot(), opts)
+	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
 		return processDiagnostics(l, opts, diags, err)
 	}
@@ -138,7 +138,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 			parseOpts.TerragruntConfigPath = stackFilePath
 
 			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parser = parser.WithVenv(componentV.ToRoot())
+			parser = parser.WithVenv(componentV)
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
@@ -182,7 +182,7 @@ func RunValidate(ctx context.Context, l log.Logger, v run.Venv, opts *options.Te
 		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
 		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
-		pctx = pctx.WithVenv(componentV.ToRoot())
+		pctx = pctx.WithVenv(componentV)
 
 		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
 			parseErrs = append(parseErrs, err)
@@ -247,7 +247,7 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 	return writer.Diagnostics(diags)
 }
 
-func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func RunValidateInputs(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	opts = opts.Clone()
 
 	opts.SkipOutput = true
@@ -279,7 +279,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, v run.Venv, opts *opti
 
 	d = d.WithWorktrees(worktrees)
 
-	components, err := d.Discover(ctx, l, v.ToRoot(), opts)
+	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
 		return err
 	}

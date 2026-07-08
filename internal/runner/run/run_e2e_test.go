@@ -61,7 +61,7 @@ func TestRunPipelineEndToEndPlan(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.FromRoot(venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS()))
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")
@@ -97,7 +97,7 @@ func TestRunPipelineEndToEndPropagatesPlanFailure(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.FromRoot(venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS()))
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")
@@ -137,7 +137,7 @@ func TestRunPipelineEndToEndFiresHooks(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := run.FromRoot(venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS()))
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")

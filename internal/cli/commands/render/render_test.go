@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -29,7 +29,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 	opts.Write = false
 
 	opts.Writers.Writer = &outputBuffer
-	err := render.Run(t.Context(), logger.CreateLogger(), run.OSVenv(), opts)
+	err := render.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	var result map[string]any
@@ -53,7 +53,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	opts.Write = false
 
 	opts.Writers.Writer = &outputBuffer
-	err := render.Run(t.Context(), logger.CreateLogger(), run.OSVenv(), opts)
+	err := render.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	var result map[string]any
@@ -76,7 +76,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	opts.OutputPath = outputPath
 
 	opts.Writers.Writer = io.Discard
-	err := render.Run(t.Context(), logger.CreateLogger(), run.OSVenv(), opts)
+	err := render.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Verify the file was created and contains valid JSON
@@ -99,7 +99,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 	opts.Format = "invalid"
 
 	opts.Writers.Writer = io.Discard
-	err := render.Run(t.Context(), logger.CreateLogger(), run.OSVenv(), opts)
+	err := render.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid format")
 }
@@ -113,7 +113,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	var renderedBuffer bytes.Buffer
 
 	opts.Writers.Writer = &renderedBuffer
-	err := render.Run(t.Context(), logger.CreateLogger(), run.OSVenv(), opts)
+	err := render.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	assert.Equal(t, testTerragruntConfigFixture, renderedBuffer.String())

@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,7 +101,7 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 				cfg.RemoteState = *remotestate.New(tc.remoteStateCfg)
 			}
 
-			err := prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), OSVenv(), opts, &cfg)
+			err := prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, &cfg)
 
 			require.NoError(t, err)
 

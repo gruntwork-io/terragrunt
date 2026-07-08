@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -359,8 +358,7 @@ func parseComponent(
 		// Clone v.Env so concurrent parseComponent goroutines launched by
 		// ParsePhase and RelationshipPhase don't race on the shared map when
 		// ObtainCredsForParsing writes auth-provider-cmd output into it.
-		parseV := v
-		parseV.Env = maps.Clone(v.Env)
+		parseV := v.WithEnvCloned()
 
 		shellOpts := configbridge.ShellRunOptsFromOpts(parseOpts)
 

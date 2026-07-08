@@ -7,7 +7,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 
 	"errors"
@@ -45,7 +44,7 @@ func Run(
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	rnr, err := runner.NewStackRunner(ctx, l, run.FromRoot(v), opts)
+	rnr, err := runner.NewStackRunner(ctx, l, v, opts)
 	if err != nil {
 		return err
 	}

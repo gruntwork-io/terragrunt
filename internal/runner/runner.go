@@ -9,7 +9,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -25,7 +24,7 @@ import (
 func NewStackRunner(
 	ctx context.Context,
 	l log.Logger,
-	v run.Venv,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	runnerOpts ...common.Option,
 ) (common.StackRunner, error) {
@@ -44,12 +43,12 @@ func BuildUnitOpts(l log.Logger, stackOpts *options.TerragruntOptions, unit *com
 func FindDependentUnits(
 	ctx context.Context,
 	l log.Logger,
-	v run.Venv,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []*component.Unit {
 	matchedUnitsMap := make(map[string]*component.Unit)
-	pathsToCheck := discoverPathsToCheck(ctx, l, v.ToRoot(), opts, cfg)
+	pathsToCheck := discoverPathsToCheck(ctx, l, v, opts, cfg)
 
 	for _, dir := range pathsToCheck {
 		maps.Copy(
@@ -93,7 +92,7 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, v venv.Venv, opts *
 }
 
 // findMatchingUnitsInPath builds the stack from the config directory and filters units by working dir dependencies.
-func findMatchingUnitsInPath(ctx context.Context, l log.Logger, v run.Venv, dir string, opts *options.TerragruntOptions) map[string]*component.Unit {
+func findMatchingUnitsInPath(ctx context.Context, l log.Logger, v venv.Venv, dir string, opts *options.TerragruntOptions) map[string]*component.Unit {
 	matchedUnitsMap := make(map[string]*component.Unit)
 
 	// Construct the full path to terragrunt.hcl in the directory

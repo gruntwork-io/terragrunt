@@ -48,14 +48,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	}
 
 	tgOpts := opts.OptionsFromContext(ctx)
-	rv := run.FromRoot(v)
 
 	if tgOpts.RunAll {
-		return runall.Run(ctx, l, rv, tgOpts)
+		return runall.Run(ctx, l, v, tgOpts)
 	}
 
 	if tgOpts.Graph {
-		return graph.Run(ctx, l, rv, tgOpts)
+		return graph.Run(ctx, l, v, tgOpts)
 	}
 
 	if opts.ReportSchemaFile != "" {
@@ -86,7 +85,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
 	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, rv.ToRoot(),
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v,
 		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts)),
 	); err != nil {
 		return err
@@ -98,7 +97,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	}
 
 	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx = pctx.WithVenv(rv.ToRoot())
+	pctx = pctx.WithVenv(v)
 
 	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
 	if err != nil {
@@ -106,7 +105,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 	}
 
 	if opts.CheckDependentUnits {
-		allowDestroy := confirmActionWithDependentUnits(ctx, l, rv, opts, cfg)
+		allowDestroy := confirmActionWithDependentUnits(ctx, l, v, opts, cfg)
 		if !allowDestroy {
 			return nil
 		}
@@ -146,7 +145,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v v
 		}
 	}()
 
-	runErr = run.Run(ctx, l, rv, configbridge.NewRunOptions(tgOpts), r, runCfg, credsGetter)
+	runErr = run.Run(ctx, l, v, configbridge.NewRunOptions(tgOpts), r, runCfg, credsGetter)
 
 	return runErr
 }
@@ -272,7 +271,7 @@ func getTerragruntConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *o
 func confirmActionWithDependentUnits(
 	ctx context.Context,
 	l log.Logger,
-	v run.Venv,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) bool {
@@ -308,7 +307,7 @@ func confirmActionWithDependentUnits(
 func findDependentUnits(
 	ctx context.Context,
 	l log.Logger,
-	v run.Venv,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []string {

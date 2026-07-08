@@ -291,7 +291,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
-		run.OSVenv(),
+		venv.OSVenv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -341,7 +341,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
-		run.OSVenv(),
+		venv.OSVenv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -504,7 +504,7 @@ func testDownloadTerraformSourceIfNecessary(
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
-		run.OSVenv(),
+		venv.OSVenv(),
 		terraformSource,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -700,7 +700,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 
 			client, err := run.BuildDownloadClient(
 				logger.CreateLogger(),
-				run.OSVenv(),
+				venv.OSVenv(),
 				configbridge.NewRunOptions(terragruntOptions),
 				tc.cfg,
 			)
@@ -729,7 +729,7 @@ func TestBuildDownloadClientHTTPNetrc(t *testing.T) {
 
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
-		run.OSVenv(),
+		venv.OSVenv(),
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
@@ -753,7 +753,7 @@ func TestBuildDownloadClientCoversDefaultSchemes(t *testing.T) {
 
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
-		run.OSVenv(),
+		venv.OSVenv(),
 		configbridge.NewRunOptions(terragruntOptions),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
@@ -819,7 +819,7 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	updatedOpts, err := run.DownloadTerraformSource(
 		t.Context(),
 		l,
-		run.OSVenv(),
+		venv.OSVenv(),
 		".",
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -876,7 +876,7 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		l,
-		run.OSVenv(),
+		venv.OSVenv(),
 		src,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -924,7 +924,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		l,
-		run.OSVenv(),
+		venv.OSVenv(),
 		src,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -971,7 +971,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		l,
-		run.OSVenv(),
+		venv.OSVenv(),
 		src,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -1017,7 +1017,7 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		l,
-		run.OSVenv(),
+		venv.OSVenv(),
 		src,
 		configbridge.NewRunOptions(opts),
 		cfg,
@@ -1061,7 +1061,7 @@ func TestDownloadSourceUpdateSourceWithCASRequiresCAS(t *testing.T) {
 	l.SetOptions(log.WithOutput(io.Discard))
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(), l, run.OSVenv(), src,
+		t.Context(), l, venv.OSVenv(), src,
 		configbridge.NewRunOptions(opts),
 		cfg, report.NewReport(),
 	)
@@ -1127,7 +1127,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 			_, err = run.DownloadTerraformSourceIfNecessary(
 				t.Context(),
 				l,
-				run.OSVenv(),
+				venv.OSVenv(),
 				src,
 				configbridge.NewRunOptions(opts),
 				cfg,
@@ -1185,7 +1185,7 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 
 	dst := filepath.Join(t.TempDir(), "module.tf")
 
-	client, err := run.BuildDownloadClient(logger.CreateLogger(), run.OSVenv(), configbridge.NewRunOptions(opts), cfg)
+	client, err := run.BuildDownloadClient(logger.CreateLogger(), venv.OSVenv(), configbridge.NewRunOptions(opts), cfg)
 	require.NoError(t, err)
 
 	_, err = client.Get(t.Context(), &getter.Request{
@@ -1218,7 +1218,7 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystem(t *testing.T) {
 	_, err = run.DownloadTerraformSource(
 		t.Context(),
 		l,
-		run.OSVenv(),
+		venv.OSVenv(),
 		".",
 		runOpts,
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
@@ -1244,7 +1244,7 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
-		run.OSVenv(),
+		venv.OSVenv(),
 		src,
 		runOpts,
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
@@ -1264,7 +1264,7 @@ func TestBuildDownloadClientRejectsNonOSFilesystem(t *testing.T) {
 
 	runOpts := configbridge.NewRunOptions(opts)
 
-	v := run.OSVenv()
+	v := venv.OSVenv()
 	v.FS = vfs.NewMemMapFS()
 
 	client, err := run.BuildDownloadClient(

@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -99,14 +98,14 @@ func RunGenerate(ctx context.Context, l log.Logger, v venv.Venv, opts *options.T
 }
 
 // Run executes the stack command.
-func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
 	opts.StackAction = "run"
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_run", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return RunGenerate(ctx, l, v.ToRoot(), opts)
+		return RunGenerate(ctx, l, v, opts)
 	})
 	if err != nil {
 		return err
@@ -116,7 +115,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 }
 
 // RunOutput stack output.
-func RunOutput(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions, index string) error {
+func RunOutput(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions, index string) error {
 	opts.StackAction = "output"
 	opts.TerraformCommand = "output" // required for discovery exclude action matching in StackOutput
 
@@ -127,7 +126,7 @@ func RunOutput(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terr
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		stackOutputs, err := output.StackOutput(ctx, l, v.ToRoot(), opts)
+		stackOutputs, err := output.StackOutput(ctx, l, v, opts)
 		outputs = stackOutputs
 
 		return err

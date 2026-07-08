@@ -15,15 +15,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-func Run(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
@@ -40,10 +40,10 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
 	return runRender(l, opts, prepared.Cfg)
 }
 
-func runAll(ctx context.Context, l log.Logger, v run.Venv, opts *Options) error {
+func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, v.ToRoot(), opts.TerragruntOptions)
+	components, err := d.Discover(ctx, l, v, opts.TerragruntOptions)
 	if err != nil {
 		return err
 	}

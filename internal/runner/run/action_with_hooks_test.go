@@ -25,10 +25,10 @@ func TestRunActionWithHooks_FiresBeforeActionAfterInOrder(t *testing.T) {
 
 	var order []string
 
-	v := run.FromRoot(venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		order = append(order, inv.Name)
 		return vexec.Result{}
-	}))
+	})
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -79,7 +79,7 @@ func TestRunActionWithHooks_BeforeHookFailureSkipsAction(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.FromRoot(venvtest.New().WithExec(exec))
+	v := venvtest.New().WithExec(exec)
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -128,7 +128,7 @@ func TestRunActionWithHooks_ActionFailureTriggersErrorHook(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.FromRoot(venvtest.New().WithExec(exec))
+	v := venvtest.New().WithExec(exec)
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -175,7 +175,7 @@ func TestRunActionWithHooks_AfterHooksSkipOnActionFailure(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.FromRoot(venvtest.New().WithExec(exec))
+	v := venvtest.New().WithExec(exec)
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -216,7 +216,7 @@ func TestRunActionWithHooks_NoHooksRunsActionDirectly(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := run.FromRoot(venvtest.New().WithExec(exec))
+	v := venvtest.New().WithExec(exec)
 	l := logger.CreateLogger()
 
 	actionFired := 0

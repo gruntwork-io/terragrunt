@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
@@ -474,7 +475,7 @@ func runWithOpts(
 		MaxFoldersToCheck: 5,
 	}
 
-	venv := tflint.Venv{
+	venv := venv.Venv{
 		Exec:    exec,
 		FS:      fs,
 		Env:     map[string]string{},

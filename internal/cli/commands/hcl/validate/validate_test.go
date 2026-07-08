@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -124,7 +123,7 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 		return vexec.Result{ExitCode: 127, Stderr: []byte("unexpected invocation: " + inv.Name)}
 	})
 
-	rootV := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
@@ -132,11 +131,11 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 
 	opts.AuthProviderCmd = "fake-auth-provider"
 
-	err = validate.RunValidateInputs(t.Context(), l, run.FromRoot(rootV), opts)
+	err = validate.RunValidateInputs(t.Context(), l, v, opts)
 	require.Error(t, err, "unit-b never sets region, so validation must fail even after unit-a merged TF_VAR_region into its own env")
 
-	assert.NotContains(t, rootV.Env, "TF_VAR_region")
-	assert.NotContains(t, rootV.Env, "AWS_ACCESS_KEY_ID")
+	assert.NotContains(t, v.Env, "TF_VAR_region")
+	assert.NotContains(t, v.Env, "AWS_ACCESS_KEY_ID")
 }
 
 // TestRunValidateInputsPassesWhenInputsDefined is the companion control: with
@@ -148,12 +147,12 @@ func TestRunValidateInputsPassesWhenInputsDefined(t *testing.T) {
 
 	tmpDir := writeValidateInputsUnits(t, "inputs = {\n  region = \"eu-west-1\"\n}\n")
 
-	rootV := venvtest.New().WithFS(vfs.NewOSFS())
+	v := venvtest.New().WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	err = validate.RunValidateInputs(t.Context(), l, run.FromRoot(rootV), opts)
+	err = validate.RunValidateInputs(t.Context(), l, v, opts)
 	require.NoError(t, err)
 }

@@ -25,7 +25,7 @@ func TestProcessHooks_DispatchesCommandsForMatchingTerraformCommand(t *testing.T
 	t.Parallel()
 
 	rec := &recorder{}
-	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
+	v := venvtest.New().WithHandler(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -60,7 +60,7 @@ func TestProcessHooks_SkipsHookWhenIfFalse(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
+	v := venvtest.New().WithHandler(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -84,7 +84,7 @@ func TestProcessHooks_SkipsHooksWhenNoHooksSet(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
+	v := venvtest.New().WithHandler(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 	opts := newHookOpts()
 	opts.NoHooks = true
@@ -139,7 +139,7 @@ func TestProcessHooks_RunOnErrorGate(t *testing.T) {
 			t.Parallel()
 
 			rec := &recorder{}
-			v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
+			v := venvtest.New().WithHandler(rec.handler(vexec.Result{}))
 			l := logger.CreateLogger()
 
 			require.NoError(t, run.ProcessHooks(t.Context(), l, v, run.ProcessHooksParams{
@@ -159,7 +159,7 @@ func TestProcessHooks_InjectsHookContextEnv(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{})))
+	v := venvtest.New().WithHandler(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 
 	opts := newHookOpts()
@@ -199,7 +199,7 @@ func TestProcessHooks_PropagatesFailures(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := run.FromRoot(venvtest.New().WithHandler(rec.handler(vexec.Result{ExitCode: 7, Stderr: []byte("boom")})))
+	v := venvtest.New().WithHandler(rec.handler(vexec.Result{ExitCode: 7, Stderr: []byte("boom")}))
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -245,7 +245,7 @@ func TestProcessHooks_TflintActionRoutesThroughTflint(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fs, "/work/.tflint.hcl", []byte("config {}"), 0o644))
 
-	v := run.FromRoot(venvtest.New().WithHandler(h).WithFS(fs))
+	v := venvtest.New().WithHandler(h).WithFS(fs)
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -283,7 +283,7 @@ func TestProcessErrorHooks_NoopWhenNoPriorErrors(t *testing.T) {
 		run.ProcessErrorHooks(
 			t.Context(),
 			l,
-			run.FromRoot(venvtest.New().WithExec(exec)),
+			venvtest.New().WithExec(exec),
 			hooks,
 			&runcfg.RunConfig{},
 			newHookOpts(),
@@ -311,7 +311,7 @@ func TestProcessErrorHooks_SkipsHooksWhenNoHooksSet(t *testing.T) {
 		run.ProcessErrorHooks(
 			t.Context(),
 			l,
-			run.FromRoot(venvtest.New().WithExec(exec)),
+			venvtest.New().WithExec(exec),
 			hooks,
 			&runcfg.RunConfig{},
 			opts,
@@ -356,7 +356,7 @@ func TestProcessErrorHooks_MatchesOnErrorsRegex(t *testing.T) {
 		run.ProcessErrorHooks(
 			t.Context(),
 			l,
-			run.FromRoot(venvtest.New().WithExec(exec)),
+			venvtest.New().WithExec(exec),
 			hooks,
 			&runcfg.RunConfig{},
 			newHookOpts(),
