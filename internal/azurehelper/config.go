@@ -195,9 +195,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger) (*AzureConfig, error) {
 
 	case resolved.UseMSI:
 		opts := &azidentity.ManagedIdentityCredentialOptions{ClientOptions: clientOpts}
-		if resolved.MSIResourceID != "" {
-			opts.ID = azidentity.ResourceID(resolved.MSIResourceID)
-		}
+		opts.ID = managedIdentityID(&resolved)
 
 		cred, err := azidentity.NewManagedIdentityCredential(opts)
 		if err != nil {
@@ -431,6 +429,21 @@ func cloudConfigForEnvironment(name string) (cloud.Configuration, error) {
 	default:
 		return cloud.Configuration{}, &UnknownCloudEnvironmentError{Name: name}
 	}
+}
+
+// managedIdentityID selects the user-assigned managed identity to authenticate.
+// A resource id takes precedence over a client id; when neither is set the
+// credential falls back to the system-assigned identity (nil).
+func managedIdentityID(cfg *AzureSessionConfig) azidentity.ManagedIDKind {
+	if cfg.MSIResourceID != "" {
+		return azidentity.ResourceID(cfg.MSIResourceID)
+	}
+
+	if cfg.ClientID != "" {
+		return azidentity.ClientID(cfg.ClientID)
+	}
+
+	return nil
 }
 
 // validate returns an error if required fields are missing for the chosen method.

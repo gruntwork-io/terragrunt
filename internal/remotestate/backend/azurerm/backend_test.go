@@ -102,8 +102,8 @@ func TestGetTFInitArgs_Backend(t *testing.T) {
 }
 
 // TestMigrate_CrossAccountRefused verifies the azurerm backend refuses a
-// cross-storage-account migration (its server-side copy is account-scoped)
-// instead of silently writing state into the source account.
+// cross-storage-account migration (its blob client is bound to a single
+// account) instead of silently writing state into the source account.
 func TestMigrate_CrossAccountRefused(t *testing.T) {
 	t.Parallel()
 
@@ -121,6 +121,7 @@ func TestMigrate_CrossAccountRefused(t *testing.T) {
 	err := b.Migrate(ctx, l, venv.Venv{}, srcCfg, dstCfg, opts)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cross-account")
+	assert.NotContains(t, err.Error(), "server-side", "copy is client-side streaming, not server-side")
 }
 
 // TestNeedsBootstrap_SkipsArmPlaneWhenNoArmWork verifies a user-managed

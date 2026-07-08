@@ -284,6 +284,54 @@ func TestStorageAccount_IsVersioningEnabled(t *testing.T) {
 	}
 }
 
+func TestStorageAccount_SoftDeleteRetention(t *testing.T) {
+	t.Parallel()
+
+	// Enabled policies must surface their day counts so drift detection can
+	// compare them against the desired retention.
+	on := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{
+			"deleteRetentionPolicy":          map[string]any{"enabled": true, "days": 30},
+			"containerDeleteRetentionPolicy": map[string]any{"enabled": true, "days": 30},
+		},
+	})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(on))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	blobDays, containerDays, err := sc.SoftDeleteRetention(t.Context())
+	if err != nil {
+		t.Fatalf("SoftDeleteRetention: %v", err)
+	}
+
+	if blobDays != 30 || containerDays != 30 {
+		t.Errorf("SoftDeleteRetention = (%d, %d), want (30, 30)", blobDays, containerDays)
+	}
+
+	// A disabled (or absent) policy reports 0 days, i.e. soft delete is off.
+	off := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{
+			"deleteRetentionPolicy": map[string]any{"enabled": false},
+		},
+	})}
+
+	sc, err = azurehelper.NewStorageAccountClient(cfgWithTransport(off))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	blobDays, containerDays, err = sc.SoftDeleteRetention(t.Context())
+	if err != nil {
+		t.Fatalf("SoftDeleteRetention (off): %v", err)
+	}
+
+	if blobDays != 0 || containerDays != 0 {
+		t.Errorf("SoftDeleteRetention (off) = (%d, %d), want (0, 0)", blobDays, containerDays)
+	}
+}
+
 func TestStorageAccount_EnableSoftDelete_ClampsOutOfRange(t *testing.T) {
 	t.Parallel()
 

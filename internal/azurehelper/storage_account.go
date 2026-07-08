@@ -276,29 +276,33 @@ func (c *StorageAccountClient) IsVersioningEnabled(ctx context.Context) (bool, e
 	return v != nil && *v, nil
 }
 
-// IsSoftDeleteEnabled returns true only if BOTH soft-delete policies that
-// EnableSoftDelete configures are enabled: the blob DeleteRetentionPolicy and
-// the ContainerDeleteRetentionPolicy. Returning true when only one is enabled
-// would let NeedsBootstrap skip a partially-configured account.
-func (c *StorageAccountClient) IsSoftDeleteEnabled(ctx context.Context) (bool, error) {
+// SoftDeleteRetention returns the effective blob and container soft-delete
+// retention, in days, that EnableSoftDelete configures. A policy that is
+// absent or disabled reports 0 days, so a caller can treat 0 as "off" and
+// compare a non-zero count against the desired retention to detect drift.
+func (c *StorageAccountClient) SoftDeleteRetention(ctx context.Context) (blobDays, containerDays int32, err error) {
 	resp, err := c.blobServices.GetServiceProperties(ctx, c.resourceGroup, c.accountName, nil)
 	if err != nil {
-		return false, fmt.Errorf("get blob service properties for %q: %w", c.accountName, err)
+		return 0, 0, fmt.Errorf("get blob service properties for %q: %w", c.accountName, err)
 	}
 
 	props := resp.BlobServiceProperties.BlobServiceProperties
 	if props == nil {
-		return false, nil
+		return 0, 0, nil
 	}
 
-	return retentionPolicyEnabled(props.DeleteRetentionPolicy) &&
-		retentionPolicyEnabled(props.ContainerDeleteRetentionPolicy), nil
+	return retentionPolicyDays(props.DeleteRetentionPolicy),
+		retentionPolicyDays(props.ContainerDeleteRetentionPolicy), nil
 }
 
-// retentionPolicyEnabled reports whether a delete-retention policy is non-nil
-// and enabled.
-func retentionPolicyEnabled(p *armstorage.DeleteRetentionPolicy) bool {
-	return p != nil && p.Enabled != nil && *p.Enabled
+// retentionPolicyDays returns the configured retention days when a
+// delete-retention policy is non-nil and enabled, or 0 otherwise.
+func retentionPolicyDays(p *armstorage.DeleteRetentionPolicy) int32 {
+	if p == nil || p.Enabled == nil || !*p.Enabled || p.Days == nil {
+		return 0
+	}
+
+	return *p.Days
 }
 
 // EnableSoftDelete configures container and blob soft-delete with the

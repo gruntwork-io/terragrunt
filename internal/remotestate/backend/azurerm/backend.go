@@ -304,12 +304,7 @@ func (b *Backend) bootstrapAccount(
 	}
 
 	if extCfg.EnableSoftDelete {
-		days := extCfg.SoftDeleteRetentionDays
-		if days == 0 {
-			days = defaultSoftDeleteRetentionDays
-		}
-
-		if err := saClient.EnableSoftDelete(ctx, l, days); err != nil {
+		if err := saClient.EnableSoftDelete(ctx, l, int(effectiveSoftDeleteDays(extCfg))); err != nil {
 			return err
 		}
 	}
@@ -370,17 +365,33 @@ func accountPolicyDrift(
 	}
 
 	if extCfg.EnableSoftDelete {
-		enabled, err := saClient.IsSoftDeleteEnabled(ctx)
+		blobDays, containerDays, err := saClient.SoftDeleteRetention(ctx)
 		if err != nil {
 			return false, err
 		}
 
-		if !enabled {
+		// Drift when soft delete is off (0 days) or either policy's retention
+		// differs from what bootstrap would apply, so a changed
+		// soft_delete_retention_days is reconciled instead of silently skipped.
+		desired := effectiveSoftDeleteDays(extCfg)
+		if blobDays != desired || containerDays != desired {
 			return true, nil
 		}
 	}
 
 	return false, nil
+}
+
+// effectiveSoftDeleteDays returns the retention that bootstrap actually applies
+// for the requested count: unset (0) and out-of-range values collapse to
+// defaultSoftDeleteRetentionDays, mirroring StorageAccountClient.EnableSoftDelete.
+func effectiveSoftDeleteDays(extCfg *ExtendedRemoteStateConfigAzurerm) int32 {
+	days := extCfg.SoftDeleteRetentionDays
+	if days < 1 || days > 365 {
+		return int32(defaultSoftDeleteRetentionDays)
+	}
+
+	return int32(days)
 }
 
 // IsVersionControlEnabled returns true if blob versioning is enabled on the
@@ -438,14 +449,15 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, v venv.Venv, srcBac
 	src := &srcExtCfg.RemoteStateConfigAzurerm
 	dst := &dstExtCfg.RemoteStateConfigAzurerm
 
-	// The blob client is bound to a single storage account (the source). Azure's
-	// server-side copy here cannot cross accounts with this client, so refuse a
-	// cross-account migration loudly rather than silently writing into the source
-	// account. This same-backend Migrate has no automatic pull/push fallback; the
-	// user must migrate cross-account state manually (init/pull/push).
+	// The blob client is bound to a single storage account (the source), so it
+	// cannot copy across accounts. Refuse a cross-account migration loudly
+	// rather than silently writing into the source account. This same-backend
+	// Migrate has no automatic pull/push fallback; the user must migrate
+	// cross-account state manually (init/pull/push).
 	if !strings.EqualFold(src.StorageAccountName, dst.StorageAccountName) {
 		return fmt.Errorf(
-			"cross-account state migration from storage account %q to %q is not supported by the azurerm backend's server-side copy; "+
+			"cross-account state migration from storage account %q to %q is not supported by the azurerm backend "+
+				"(its blob client is bound to a single storage account); "+
 				"migrate via separate init/pull/push or keep both units on the same storage account",
 			src.StorageAccountName, dst.StorageAccountName,
 		)
