@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -75,7 +76,7 @@ func TestDiscoveryFailureSurfacedAsToast(t *testing.T) {
 	assert.Contains(t, content, "discovery failed")
 
 	// The failure toast expires like any other toast.
-	m = update(t, m, tui.ToastExpired{ID: 1})
+	m = update(t, m, viewtui.ToastExpired{ID: 1})
 	assert.NotContains(t, m.View().Content, "discovery failed")
 }
 

@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"io"
 	"runtime"
 	"slices"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -74,9 +76,17 @@ func runTUI(
 	tempDirs := tui.NewTempDirTracker(v.FS)
 	defer tempDirs.Cleanup(l)
 
+	// While the TUI owns the alt screen, anything the background loaders write
+	// to the log stream would draw over it, so they get a muted clone of the
+	// logger and their warn-or-worse entries surface as toasts in the TUI. The
+	// original logger stays with the TUI itself for work that runs while the
+	// terminal is released (scaffolding) and for post-exit messages.
+	warnCh := make(chan viewtui.Warning, viewtui.WarnChannelBuffer)
+	loadLogger := l.WithOptions(log.WithOutput(io.Discard), log.WithHooks(viewtui.NewWarnHook(warnCh)))
+
 	return tui.Run(
-		ctx, l, v, opts, v.Writers.ErrWriter,
-		newLoadFunc(l, v, opts, tempDirs, repoURL),
+		ctx, l, v, opts, v.Writers.ErrWriter, warnCh,
+		newLoadFunc(loadLogger, v, opts, tempDirs, repoURL),
 	)
 }
 
