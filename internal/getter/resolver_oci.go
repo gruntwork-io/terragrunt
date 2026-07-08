@@ -3,13 +3,13 @@ package getter
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
-	"oras.land/oras-go/v2/registry/remote/credentials"
 )
 
 // ociResolverTimeout caps the registry probe so a slow registry can't stall
@@ -24,7 +24,16 @@ const ociResolverTimeout = 10 * time.Second
 // cache key, so two requests for the same tag share one CAS entry only when
 // the tag still points at the same digest — a re-push under the same tag
 // correctly busts the cache.
-type OCIResolver struct{}
+type OCIResolver struct {
+	// HTTPClient is used for all registry requests. When nil, http.DefaultClient
+	// is used. Set this to inject a custom transport (e.g. a TLS-configured
+	// client for a test server).
+	HTTPClient *http.Client
+	// PlainHTTP forces plain HTTP for all resolver requests. Loopback registries
+	// (localhost, 127.0.0.1, ::1) use plain HTTP automatically regardless of
+	// this setting.
+	PlainHTTP bool
+}
 
 // NewOCIResolver returns an [OCIResolver].
 func NewOCIResolver() *OCIResolver { return &OCIResolver{} }
@@ -58,11 +67,10 @@ func (r *OCIResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		return "", cas.ErrNoVersionMetadata
 	}
 
-	// Use the same credential resolution and localhost detection as OCIGetter.
-	g := &OCIGetter{}
-	repo.PlainHTTP = isLocalhostRegistry(repo.Reference.Registry)
+	repo.PlainHTTP = r.PlainHTTP || isLocalhostRegistry(repo.Reference.Registry)
 	repo.Client = &auth.Client{
-		Credential: g.credentialFunc(repo.Reference.Registry),
+		Client:     r.HTTPClient,
+		Credential: ociCredentialFunc(repo.Reference.Registry, nil),
 	}
 
 	desc, err := repo.Resolve(ctx, repo.Reference.Reference)
@@ -72,15 +80,4 @@ func (r *OCIResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 
 	// The digest is content-addressed and immutable — it is the ideal CAS key.
 	return cas.ContentKey("oci", fmt.Sprintf("%s@%s", ref, desc.Digest)), nil
-}
-
-// credentialFunc mirrors OCIGetter.credentialFunc but without a logger
-// (probes should be quiet).
-func (r *OCIResolver) credentialFunc(registry string) auth.CredentialFunc {
-	store, err := credentials.NewStoreFromDocker(credentials.StoreOptions{AllowPlaintextPut: false})
-	if err == nil {
-		return credentials.Credential(store)
-	}
-
-	return auth.StaticCredential(registry, auth.Credential{})
 }

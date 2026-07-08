@@ -56,8 +56,13 @@ var ociMediaTypes = []string{
 //  4. Unauthenticated (public registries)
 type OCIGetter struct {
 	HTTPClient *http.Client
-	Logger     log.Logger
-	FS         vfs.FS
+	// PlainHTTP forces plain HTTP for all requests to the registry. When false
+	// (the default), HTTPS is used for all non-loopback registries; loopback
+	// addresses (localhost, 127.0.0.1, ::1) use HTTP automatically to support
+	// local development registries (kind, k3d, airgap mirrors).
+	PlainHTTP bool
+	Logger    log.Logger
+	FS        vfs.FS
 }
 
 // NewOCIGetter returns an [OCIGetter] configured with sensible defaults.
@@ -215,18 +220,19 @@ func (g *OCIGetter) newRepository(ref string) (*remote.Repository, error) {
 		return nil, err
 	}
 
-	repo.PlainHTTP = isLocalhostRegistry(repo.Reference.Registry)
+	repo.PlainHTTP = g.PlainHTTP || isLocalhostRegistry(repo.Reference.Registry)
 	repo.Client = &auth.Client{
 		Client:     g.HTTPClient,
-		Credential: g.credentialFunc(repo.Reference.Registry),
+		Credential: ociCredentialFunc(repo.Reference.Registry, g.Logger),
 	}
 
 	return repo, nil
 }
 
-// isLocalhostRegistry returns true for registries bound to the loopback interface.
-// oras-go v2 does not auto-detect plain HTTP, so callers must set PlainHTTP = true
-// for localhost test servers.
+// isLocalhostRegistry returns true for loopback-address registries.
+// oras-go v2 defaults to HTTPS for all registries; loopback addresses are
+// treated as plain HTTP so that local dev registries (kind, k3d, airgap
+// mirrors) work without TLS configuration.
 func isLocalhostRegistry(registry string) bool {
 	host, _, _ := net.SplitHostPort(registry)
 	if host == "" {
@@ -236,9 +242,10 @@ func isLocalhostRegistry(registry string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-// credentialFunc returns an oras credential function for the given registry host.
+// ociCredentialFunc returns an oras credential function for the given registry host.
 // Resolution order: TG_OCI_TOKEN → TG_OCI_USERNAME/PASSWORD → Docker config → anonymous.
-func (g *OCIGetter) credentialFunc(registry string) auth.CredentialFunc {
+// l may be nil; debug messages are suppressed when it is.
+func ociCredentialFunc(registry string, l log.Logger) auth.CredentialFunc {
 	if tok := os.Getenv("TG_OCI_TOKEN"); tok != "" {
 		return auth.StaticCredential(registry, auth.Credential{AccessToken: tok})
 	}
@@ -257,8 +264,8 @@ func (g *OCIGetter) credentialFunc(registry string) auth.CredentialFunc {
 		return credentials.Credential(store)
 	}
 
-	if g.Logger != nil {
-		g.Logger.Debugf("OCI getter: Docker credential store unavailable (%v); trying anonymous", err)
+	if l != nil {
+		l.Debugf("OCI getter: Docker credential store unavailable (%v); trying anonymous", err)
 	}
 
 	return auth.StaticCredential(registry, auth.Credential{})
@@ -353,6 +360,18 @@ func extractTarEntry(r io.Reader, hdr *tar.Header, dst string) error {
 
 		if _, err := io.Copy(f, r); err != nil { //nolint:gosec
 			return fmt.Errorf("oci: writing %s: %w", target, err)
+		}
+
+	case tar.TypeLink:
+		// Hard link: the link target must have been extracted earlier in the archive.
+		linkTarget := filepath.Join(dst, filepath.Clean("/"+hdr.Linkname)) //nolint:gosec
+
+		if err := os.MkdirAll(filepath.Dir(target), dirPerms); err != nil {
+			return fmt.Errorf("oci: creating parent for hard link %s: %w", target, err)
+		}
+
+		if err := os.Link(linkTarget, target); err != nil {
+			return fmt.Errorf("oci: creating hard link %s → %s: %w", target, linkTarget, err)
 		}
 	}
 
