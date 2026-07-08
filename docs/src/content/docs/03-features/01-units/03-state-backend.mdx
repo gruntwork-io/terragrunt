@@ -427,7 +427,7 @@ The following config options are only valid for the `azurerm` backend and are us
 - `skip_container_creation` - When `true`, never create the blob container; it must already exist.
 - `skip_versioning` - When `true`, do not enable blob versioning on the account.
 - `enable_soft_delete` - When `true`, enable blob and container soft delete.
-- `soft_delete_retention_days` - Soft delete retention in days, 1 to 365. Defaults to 7; out-of-range values are reset to 7.
+- `soft_delete_retention_days` - Soft delete retention in days, 1 to 365. Defaults to 7 when unset; values outside 1 to 365 are clamped to 7 at bootstrap (a warning is logged).
 - `allow_blob_public_access` - When `true`, allow containers on the account to permit anonymous access. Defaults to `false`.
 - `msi_resource_id` - Resource ID of a user-assigned managed identity to use with `use_msi`.
 
