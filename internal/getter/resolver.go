@@ -41,5 +41,6 @@ func DefaultSourceResolvers(opts ...GenericFetcherOption) map[string]SourceResol
 		SchemeGCS:   NewGCSResolver(),
 		SchemeHg:    NewHgResolver(),
 		SchemeTFR:   tfr,
+		SchemeOCI:   NewOCIResolver(),
 	}
 }

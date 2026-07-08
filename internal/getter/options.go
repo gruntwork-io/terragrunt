@@ -76,6 +76,12 @@ func WithCustomGettersPrepended(g ...Getter) Option {
 	return func(b *builder) { b.prepended = append(b.prepended, g...) }
 }
 
+// WithOCIRegistry registers the supplied OCIGetter for oci:// sources.
+// Use NewOCIGetter to build one with sensible defaults.
+func WithOCIRegistry(g *OCIGetter) Option {
+	return func(b *builder) { b.ociGetter = g }
+}
+
 // builder accumulates Options before they're realized into a *Client by
 // NewClient. It is unexported because callers should always pass options
 // rather than poke at the builder directly.
@@ -84,6 +90,7 @@ type builder struct {
 
 	fileCopy         *FileCopyGetter
 	tfRegistry       *RegistryGetter
+	ociGetter        *OCIGetter
 	casStore         *cas.CAS
 	casCloneOpts     *cas.CloneOptions
 	casVenv          cas.Venv

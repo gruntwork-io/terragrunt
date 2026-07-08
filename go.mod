@@ -298,6 +298,7 @@ require (
 	google.golang.org/genproto v0.0.0-20260615183401-62b3387ff324 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260615183401-62b3387ff324 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260615183401-62b3387ff324 // indirect
+	oras.land/oras-go/v2 v2.6.1 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 

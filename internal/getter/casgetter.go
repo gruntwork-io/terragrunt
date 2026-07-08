@@ -299,7 +299,7 @@ func (g *CASGetter) matchGenericScheme(req *getter.Request) (string, string, boo
 
 	scheme := strings.ToLower(u.Scheme)
 	switch scheme {
-	case SchemeHTTP, SchemeHTTPS, SchemeTFR:
+	case SchemeHTTP, SchemeHTTPS, SchemeTFR, SchemeOCI:
 		if canonical, ok := canonicalAWSS3HTTPSURL(u); ok {
 			if _, fok := g.fetchers[SchemeS3]; fok {
 				return SchemeS3, canonical, true

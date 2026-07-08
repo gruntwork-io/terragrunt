@@ -492,6 +492,7 @@ func BuildDownloadClient(l log.Logger, v Venv, opts *Options, cfg *runcfg.RunCon
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
 			WithTofuImplementation(opts.TofuImplementation)),
+		getter.WithOCIRegistry(getter.NewOCIGetter(l, v.FS)),
 	), nil
 }
 

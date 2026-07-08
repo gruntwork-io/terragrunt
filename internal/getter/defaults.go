@@ -22,6 +22,7 @@ const (
 	SchemeHg    = "hg"
 	SchemeSMB   = "smb"
 	SchemeTFR   = "tfr"
+	SchemeOCI   = "oci"
 )
 
 // GenericFetcherOption configures the generic-dispatch defaults consumed
@@ -34,6 +35,8 @@ type genericFetcherConfig struct {
 	tfrLogger  log.Logger
 	tfrFS      vfs.FS
 	tfrImpl    tfimpl.Type
+	ociLogger  log.Logger
+	ociFS      vfs.FS
 }
 
 // WithHTTPExtraHeaders attaches header to the bare http getter so
@@ -62,6 +65,16 @@ func WithTFRConfig(l log.Logger, impl tfimpl.Type, fs vfs.FS) GenericFetcherOpti
 	}
 }
 
+// WithOCIConfig registers the dependencies the oci:// fetcher needs.
+// When unset, oci:// sources fall through to the bare protocol set (where
+// no getter claims them) and the CAS path is unavailable for OCI sources.
+func WithOCIConfig(l log.Logger, fs vfs.FS) GenericFetcherOption {
+	return func(c *genericFetcherConfig) {
+		c.ociLogger = l
+		c.ociFS = fs
+	}
+}
+
 // DefaultGenericFetchers returns the per-scheme bare getters CASGetter
 // uses on a cache miss. Exported so callers that build dedicated
 // CAS-only clients (the CAS-experiment path in
@@ -85,6 +98,10 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 		m[SchemeTFR] = NewRegistryGetter(cfg.tfrLogger, cfg.tfrFS).WithTofuImplementation(cfg.tfrImpl)
 	}
 
+	if cfg.ociLogger != nil {
+		m[SchemeOCI] = NewOCIGetter(cfg.ociLogger, cfg.ociFS)
+	}
+
 	return m
 }
 
@@ -93,13 +110,15 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 //
 //  1. tfr (Terraform Registry): must precede git so tfr:// wins forced
 //     detection.
-//  2. CAS protocol getter (when CAS is enabled): resolves `cas::`
+//  2. oci (OCI registry): must precede http(s) so oci:// wins scheme
+//     detection over any fallback.
+//  3. CAS protocol getter (when CAS is enabled): resolves `cas::`
 //     source references produced by `update_source_with_cas` stack
 //     rewrites.
-//  3. CAS getter (when CAS is enabled): intercepts git, s3, gcs,
-//     http(s), hg, and smb sources ahead of the bare protocol getters.
-//  4. Caller-prepended getters (tests).
-//  5. The default protocol set: git, hg, smb, http(s), s3, gcs, file.
+//  4. CAS getter (when CAS is enabled): intercepts git, s3, gcs,
+//     http(s), hg, smb, and oci sources ahead of the bare protocol getters.
+//  5. Caller-prepended getters (tests).
+//  6. The default protocol set: git, hg, smb, http(s), s3, gcs, file.
 //
 // file goes last so it does not claim sources another detector
 // recognizes.
@@ -132,6 +151,10 @@ func buildGetters(b *builder) []Getter {
 		out = append(out, b.tfRegistry)
 	}
 
+	if b.ociGetter != nil {
+		out = append(out, b.ociGetter)
+	}
+
 	if b.casStore != nil {
 		fetchers := map[string]getter.Getter{
 			SchemeS3:    s3Getter,
@@ -147,6 +170,11 @@ func buildGetters(b *builder) []Getter {
 		if b.tfRegistry != nil {
 			fetchers[SchemeTFR] = b.tfRegistry
 			resolverOpts = append(resolverOpts, WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation, b.tfRegistry.FS))
+		}
+
+		if b.ociGetter != nil {
+			fetchers[SchemeOCI] = b.ociGetter
+			resolverOpts = append(resolverOpts, WithOCIConfig(b.ociGetter.Logger, b.ociGetter.FS))
 		}
 
 		out = append(out,
