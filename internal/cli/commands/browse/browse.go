@@ -12,15 +12,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
-
-// warnBufferSize is the warning channel's buffer. The hook drops entries
-// rather than block when the browser falls behind draining it.
-const warnBufferSize = 32
 
 // Run runs the browse command. It opens the browser immediately over a tree the
 // TUI fills from the filesystem, and runs discovery in the background so unit and
@@ -52,14 +49,14 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 	defer cancel()
 
 	resultCh := make(chan tui.DiscoveryResult, 1)
-	warnCh := make(chan tui.Warning, warnBufferSize)
+	warnCh := make(chan viewtui.Warning, viewtui.WarnChannelBuffer)
 	done := make(chan struct{})
 
 	// While the browser owns the alt screen, anything discovery writes to the
 	// log stream would draw over it, so discovery gets a muted clone of the
 	// logger and its warn-or-worse entries surface as toasts in the browser
 	// instead.
-	discoveryLogger := l.WithOptions(log.WithOutput(io.Discard), log.WithHooks(tui.NewWarnHook(warnCh)))
+	discoveryLogger := l.WithOptions(log.WithOutput(io.Discard), log.WithHooks(viewtui.NewWarnHook(warnCh)))
 
 	var res tui.DiscoveryResult
 

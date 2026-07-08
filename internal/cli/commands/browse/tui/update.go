@@ -3,6 +3,8 @@ package tui
 import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 // Update implements tea.Model.
@@ -32,14 +34,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			// The full error is logged at debug by the browse command once the
 			// browser exits; the toast just flags that the tree may be incomplete.
-			return m, m.pushToast("discovery failed; showing partial results")
+			return m, m.toasts.Push("discovery failed; showing partial results")
 		}
 
 		return m, nil
-	case Warning:
-		return m, tea.Batch(m.pushToast(msg.Message), m.listenForWarnings())
-	case ToastExpired:
-		m.dropToast(msg.ID)
+	case viewtui.Warning:
+		return m, tea.Batch(m.toasts.Push(msg.Message), viewtui.ListenForWarnings(m.warnCh))
+	case viewtui.ToastExpired:
+		m.toasts.Drop(msg.ID)
 
 		return m, nil
 	case tea.KeyPressMsg:

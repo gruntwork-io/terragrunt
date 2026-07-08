@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +21,7 @@ func TestWarningSurfacesAsToast(t *testing.T) {
 
 	m := newModel(t, fs, tui.NewRoot("/repo"), false)
 
-	m = update(t, m, tui.Warning{Message: "cycle detected in dependency graph"})
+	m = update(t, m, viewtui.Warning{Message: "cycle detected in dependency graph"})
 
 	// The toast floats over the layout: the warning is visible and the view
 	// keeps the terminal's height without overflowing its width. (Compositing
@@ -38,7 +39,7 @@ func TestWarningSchedulesExpiryAndKeepsListening(t *testing.T) {
 
 	// The command carries the toast's expiry tick and the re-armed listener;
 	// without it the toast would never dismiss and later warnings would be lost.
-	_, cmd := m.Update(tui.Warning{Message: "boom"})
+	_, cmd := m.Update(viewtui.Warning{Message: "boom"})
 	assert.NotNil(t, cmd)
 }
 
@@ -47,11 +48,11 @@ func TestToastExpires(t *testing.T) {
 
 	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), false)
 
-	m = update(t, m, tui.Warning{Message: "transient warning"})
+	m = update(t, m, viewtui.Warning{Message: "transient warning"})
 	require.Contains(t, m.View().Content, "transient warning")
 
 	// Toast IDs are assigned sequentially from 1.
-	m = update(t, m, tui.ToastExpired{ID: 1})
+	m = update(t, m, viewtui.ToastExpired{ID: 1})
 
 	assert.NotContains(t, m.View().Content, "transient warning")
 }
@@ -61,9 +62,9 @@ func TestExpiryOfDismissedToastIsNoop(t *testing.T) {
 
 	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), false)
 
-	m = update(t, m, tui.Warning{Message: "one"})
-	m = update(t, m, tui.ToastExpired{ID: 1})
-	m = update(t, m, tui.ToastExpired{ID: 1})
+	m = update(t, m, viewtui.Warning{Message: "one"})
+	m = update(t, m, viewtui.ToastExpired{ID: 1})
+	m = update(t, m, viewtui.ToastExpired{ID: 1})
 
 	assert.NotContains(t, m.View().Content, "one")
 }
@@ -74,7 +75,7 @@ func TestToastStackDropsOldestPastCap(t *testing.T) {
 	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), false)
 
 	for _, msg := range []string{"first", "second", "third", "fourth"} {
-		m = update(t, m, tui.Warning{Message: msg})
+		m = update(t, m, viewtui.Warning{Message: msg})
 	}
 
 	content := m.View().Content
@@ -89,7 +90,7 @@ func TestLongToastMessageIsClipped(t *testing.T) {
 
 	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), false)
 
-	m = update(t, m, tui.Warning{Message: strings.Repeat("very long warning ", 50)})
+	m = update(t, m, viewtui.Warning{Message: strings.Repeat("very long warning ", 50)})
 
 	// One pathological warning wraps into a capped box instead of covering the
 	// screen, and the view keeps the terminal's dimensions.

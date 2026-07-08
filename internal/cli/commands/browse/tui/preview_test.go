@@ -61,14 +61,3 @@ func TestFilePreviewBinary(t *testing.T) {
 	assert.Equal(t, "blob", sel.Name())
 	assert.Contains(t, sel.Preview(), "binary")
 }
-
-func TestClipToPane(t *testing.T) {
-	t.Parallel()
-
-	// Height clips the line count.
-	assert.Equal(t, "a\nb", tui.ClipToPane("a\nb\nc\nd", 10, 2))
-	// Width truncates each line.
-	assert.Equal(t, "hello", tui.ClipToPane("hello world", 5, 10))
-	// Non-positive dimensions yield no content.
-	assert.Empty(t, tui.ClipToPane("anything", 0, 0))
-}

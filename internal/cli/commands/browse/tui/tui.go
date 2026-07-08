@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 // Run launches the Miller-columns browser over the given tree, blocking until
@@ -20,7 +21,7 @@ func Run(
 	root *Node,
 	shouldColor bool,
 	resultCh <-chan DiscoveryResult,
-	warnCh <-chan Warning,
+	warnCh <-chan viewtui.Warning,
 ) error {
 	_, err := tea.NewProgram(NewModel(fs, root, shouldColor, resultCh, warnCh), tea.WithContext(ctx)).Run()
 	if err == nil {

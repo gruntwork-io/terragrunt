@@ -7,9 +7,9 @@ import (
 )
 
 // WarnHook is a logrus hook that forwards warn-or-worse log entries as
-// [Warning] messages, so warnings raised while the browser owns the screen
-// surface as toasts instead of being written over the display. Sends never
-// block: when the channel's buffer is full, the entry is dropped rather than
+// [Warning] messages, so warnings raised while a TUI owns the screen surface
+// as toasts instead of being written over the display. Sends never block:
+// when the channel's buffer is full, the entry is dropped rather than
 // stalling the goroutine that logged it.
 type WarnHook struct {
 	ch chan<- Warning

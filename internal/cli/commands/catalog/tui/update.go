@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -145,7 +146,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 					}
 				}
 			default:
-				m.logger.Warnf("Unknown button pressed: %s", currentAction)
+				cmds = append(cmds, m.toasts.Push(fmt.Sprintf("Unknown button pressed: %s", currentAction)))
 			}
 
 		case key.Matches(msg, m.pagerKeys.ScaffoldInteractive):
@@ -208,6 +209,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loadErr = msg.Err
 			m.exitMessage = formatSourceFailureNotice(msg.Err, valuesBoxAccentYellow)
 		}
+
+		return m, nil
+	case viewtui.Warning:
+		return m, tea.Batch(m.toasts.Push(msg.Message), viewtui.ListenForWarnings(m.warnCh))
+	case viewtui.ToastExpired:
+		m.toasts.Drop(msg.ID)
 
 		return m, nil
 	case tea.BackgroundColorMsg:

@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/browser"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -86,8 +87,10 @@ type WelcomeModel struct {
 	componentCh      chan *ComponentEntry
 	errCh            chan error
 	opts             *options.TerragruntOptions
+	warnCh           <-chan viewtui.Warning
 	statusText       string
 	spinner          spinner.Model
+	toasts           viewtui.ToastStack
 	state            welcomeState
 	width            int
 	height           int
@@ -128,20 +131,23 @@ func NewWelcomeModel(
 
 // Run launches the catalog experience. It shows a loading screen immediately
 // while discovery runs in the background, then transitions to the component
-// list if components are found. Post-exit messages are written to errWriter
-// after the tea program restores the main terminal.
+// list if components are found. warnCh carries warnings captured from the
+// background loaders, surfaced as toasts. Post-exit messages are written to
+// errWriter after the tea program restores the main terminal.
 func Run(
 	ctx context.Context,
 	l log.Logger,
 	v venv.Venv,
 	opts *options.TerragruntOptions,
 	errWriter io.Writer,
+	warnCh <-chan viewtui.Warning,
 	loadFunc LoadFunc,
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	model := NewWelcomeModel(ctx, l, v, opts, loadFunc)
+	model.warnCh = warnCh
 
 	finalModel, err := tea.NewProgram(model, tea.WithContext(ctx)).Run()
 
@@ -177,13 +183,16 @@ func sessionErr(finalModel tea.Model) error {
 	return nil
 }
 
-// Init implements tea.Model. It starts the spinner and kicks off discovery.
+// Init implements tea.Model. It starts the spinner, kicks off discovery, and
+// arms the session's single warning listener; the models it hands off to
+// re-arm it as warnings arrive.
 func (m WelcomeModel) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,
 		m.startDiscovery(),
 		m.listenForStatus(),
 		m.listenForComponent(),
+		viewtui.ListenForWarnings(m.warnCh),
 	)
 }
 
@@ -198,6 +207,12 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusText = string(msg)
 
 		return m, m.listenForStatus()
+	case viewtui.Warning:
+		return m, tea.Batch(m.toasts.Push(msg.Message), viewtui.ListenForWarnings(m.warnCh))
+	case viewtui.ToastExpired:
+		m.toasts.Drop(msg.ID)
+
+		return m, nil
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "q", "esc", "ctrl+c":
@@ -205,7 +220,7 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "h":
 			if m.state == welcomeNoSources {
 				if err := m.openURL(welcomeDocsURL); err != nil {
-					m.logger.Warnf("Could not open docs URL: %v", err)
+					return m, m.toasts.Push("Could not open docs URL: " + err.Error())
 				}
 			}
 		}
@@ -242,7 +257,7 @@ func (m WelcomeModel) View() tea.View {
 		content = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 	}
 
-	v := tea.NewView(content)
+	v := tea.NewView(m.toasts.Overlay(content, m.width, m.height))
 	v.AltScreen = true
 
 	return v
@@ -345,6 +360,14 @@ func (m WelcomeModel) handleComponentMsg(msg componentMsg) (tea.Model, tea.Cmd) 
 		m.componentCh,
 		m.errCh,
 	)
+
+	// The warning listener armed by Init keeps running across the model swap;
+	// carrying the channel and active toasts over lets the list model re-arm
+	// it and keep rendering them.
+	newModel.warnCh = m.warnCh
+	newModel.toasts = m.toasts
+
+
 	width, height := m.width, m.height
 
 	initCmds := []tea.Cmd{newModel.Init()}

@@ -1,9 +1,7 @@
 package tui
 
 import (
-	"slices"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -11,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 // DiscoveryResult carries the outcome of the background discovery pass. The
@@ -19,34 +18,6 @@ type DiscoveryResult struct {
 	Err        error
 	Components component.Components
 }
-
-// Warning is a warn-or-worse log entry captured while background discovery
-// runs. The model receives it as a message and surfaces it as a toast.
-type Warning struct {
-	Message string
-}
-
-// ToastExpired dismisses the toast with the given ID. Each toast schedules
-// its own expiry when pushed.
-type ToastExpired struct {
-	ID int
-}
-
-// toast is a single on-screen notification, identified so its scheduled
-// expiry can dismiss it.
-type toast struct {
-	message string
-	id      int
-}
-
-const (
-	// toastTTL is how long a toast stays on screen before it expires.
-	toastTTL = 5 * time.Second
-
-	// maxToasts caps how many toasts are shown at once; pushing past the cap
-	// drops the oldest.
-	maxToasts = 3
-)
 
 // Model is the bubbletea model backing the Miller-columns browser.
 type Model struct {
@@ -58,12 +29,11 @@ type Model struct {
 	index        map[string]component.Component
 	readFiles    map[string]struct{}
 	resultCh     <-chan DiscoveryResult
-	warnCh       <-chan Warning
+	warnCh       <-chan viewtui.Warning
 	lastQuery    string
-	toasts       []toast
+	toasts       viewtui.ToastStack
 	keys         keyMap
 	searchInput  textinput.Model
-	lastToastID  int
 	searchOrigin int
 	width        int
 	height       int
@@ -80,7 +50,13 @@ type Model struct {
 // fs backs the on-demand reads of surrounding entries and file previews.
 // resultCh delivers the background discovery result, and warnCh the warnings
 // logged while it runs; either is nil when there is none.
-func NewModel(fs vfs.FS, root *Node, shouldColor bool, resultCh <-chan DiscoveryResult, warnCh <-chan Warning) Model {
+func NewModel(
+	fs vfs.FS,
+	root *Node,
+	shouldColor bool,
+	resultCh <-chan DiscoveryResult,
+	warnCh <-chan viewtui.Warning,
+) Model {
 	search := textinput.New()
 	search.Prompt = "/"
 
@@ -111,8 +87,8 @@ func (m Model) Init() tea.Cmd {
 		cmds = append(cmds, m.listenForResult())
 	}
 
-	if m.warnCh != nil {
-		cmds = append(cmds, m.listenForWarnings())
+	if cmd := viewtui.ListenForWarnings(m.warnCh); cmd != nil {
+		cmds = append(cmds, cmd)
 	}
 
 	return tea.Batch(cmds...)
@@ -142,48 +118,6 @@ func (m Model) listenForResult() tea.Cmd {
 	return func() tea.Msg {
 		return <-ch
 	}
-}
-
-// listenForWarnings blocks on the warnings channel and delivers the next
-// warning as a message. Unlike the discovery result, warnings keep coming, so
-// the Warning handler re-arms this Cmd after each one. A closed channel
-// delivers nothing and stops the re-arming.
-func (m Model) listenForWarnings() tea.Cmd {
-	ch := m.warnCh
-
-	return func() tea.Msg {
-		w, ok := <-ch
-		if !ok {
-			return nil
-		}
-
-		return w
-	}
-}
-
-// pushToast adds a toast with the given message, dropping the oldest once the
-// stack is full. The returned command schedules the toast's expiry.
-func (m *Model) pushToast(message string) tea.Cmd {
-	m.lastToastID++
-	m.toasts = append(m.toasts, toast{id: m.lastToastID, message: message})
-
-	if len(m.toasts) > maxToasts {
-		m.toasts = m.toasts[len(m.toasts)-maxToasts:]
-	}
-
-	id := m.lastToastID
-
-	return tea.Tick(toastTTL, func(time.Time) tea.Msg {
-		return ToastExpired{ID: id}
-	})
-}
-
-// dropToast removes the toast with the given ID; expiry of an already-dropped
-// toast is a no-op.
-func (m *Model) dropToast(id int) {
-	m.toasts = slices.DeleteFunc(m.toasts, func(t toast) bool {
-		return t.id == id
-	})
 }
 
 // applyDiscovery records the discovery result and annotates the loaded tree, so
