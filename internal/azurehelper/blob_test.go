@@ -23,41 +23,44 @@ import (
 func TestNewBlobClient_NilConfig(t *testing.T) {
 	t.Parallel()
 
-	_, err := azurehelper.NewBlobClient(nil)
-	require.Error(t, err, "expected error for nil config")
+	// Config presence is a caller invariant, so it panics.
+	assert.Panics(t, func() { _, _ = azurehelper.NewBlobClient(nil) })
 }
 
 func TestNewBlobClient_MissingAccountName(t *testing.T) {
 	t.Parallel()
 
-	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
-		Method:        azurehelper.AuthMethodSasToken,
-		SasToken:      testSASToken,
-		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
+	assert.Panics(t, func() {
+		_, _ = azurehelper.NewBlobClient(&azurehelper.AzureConfig{
+			Method:        azurehelper.AuthMethodSasToken,
+			SasToken:      testSASToken,
+			ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
+		})
 	})
-	require.Error(t, err, "expected error for missing storage account name")
 }
 
 func TestNewBlobClient_NoCredentialForTokenMethod(t *testing.T) {
 	t.Parallel()
 
-	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
-		Method:        azurehelper.AuthMethodAzureAD,
-		AccountName:   testAccount,
-		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
+	assert.Panics(t, func() {
+		_, _ = azurehelper.NewBlobClient(&azurehelper.AzureConfig{
+			Method:        azurehelper.AuthMethodAzureAD,
+			AccountName:   testAccount,
+			ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
+		})
 	})
-	require.Error(t, err, "expected error when token-method config has no credential")
 }
 
 func TestNewBlobClient_OIDCMissingTokenSource(t *testing.T) {
 	t.Parallel()
-	// OIDC with a nil credential must be rejected, not panic.
-	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
-		Method:        azurehelper.AuthMethodOIDC,
-		AccountName:   testAccount,
-		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
+	// OIDC with a nil credential is a resolved-config invariant, so it panics.
+	assert.Panics(t, func() {
+		_, _ = azurehelper.NewBlobClient(&azurehelper.AzureConfig{
+			Method:        azurehelper.AuthMethodOIDC,
+			AccountName:   testAccount,
+			ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
+		})
 	})
-	require.Error(t, err, "expected error when OIDC config has no credential")
 }
 
 func TestNewBlobClient_SasToken(t *testing.T) {
@@ -114,22 +117,16 @@ func TestBlobMethods_RequireNames(t *testing.T) {
 
 	ctx := t.Context()
 
-	_, err = c.ContainerExists(ctx, "")
-	require.Error(t, err, "ContainerExists(\"\") should error")
-
-	require.Error(t, c.CreateContainer(ctx, ""), "CreateContainer(\"\") should error")
-	require.Error(t, c.EnsureContainerDeleted(ctx, ""), "EnsureContainerDeleted(\"\") should error")
-
-	_, err = c.GetBlob(ctx, "", "k")
-	require.Error(t, err, "GetBlob with empty container should error")
-
-	_, err = c.GetBlob(ctx, "c", "")
-	require.Error(t, err, "GetBlob with empty key should error")
-
-	require.Error(t, c.PutBlob(ctx, "", "k", nil), "PutBlob with empty container should error")
-	require.Error(t, c.PutBlobFromReader(ctx, "c", "", nil), "PutBlobFromReader with empty key should error")
-	require.Error(t, c.EnsureBlobDeleted(ctx, "", "k"), "EnsureBlobDeleted with empty container should error")
-	require.Error(t, c.EnsureContainer(ctx, ""), "EnsureContainer(\"\") should error")
+	// Empty container/key values are caller invariants, so each method panics.
+	assert.Panics(t, func() { _, _ = c.ContainerExists(ctx, "") })
+	assert.Panics(t, func() { _ = c.CreateContainer(ctx, "") })
+	assert.Panics(t, func() { _ = c.EnsureContainerDeleted(ctx, "") })
+	assert.Panics(t, func() { _, _ = c.GetBlob(ctx, "", "k") })
+	assert.Panics(t, func() { _, _ = c.GetBlob(ctx, "c", "") })
+	assert.Panics(t, func() { _ = c.PutBlob(ctx, "", "k", nil) })
+	assert.Panics(t, func() { _ = c.PutBlobFromReader(ctx, "c", "", nil) })
+	assert.Panics(t, func() { _ = c.EnsureBlobDeleted(ctx, "", "k") })
+	assert.Panics(t, func() { _ = c.EnsureContainer(ctx, "") })
 }
 
 func TestNewBlobClient_GovernmentCloud(t *testing.T) {
@@ -169,8 +166,7 @@ func TestBlobClient_ListBlobs_RequiresContainer(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = c.ListBlobs(t.Context(), log.New(), "")
-	require.Error(t, err, "ListBlobs with empty container should error")
+	assert.Panics(t, func() { _, _ = c.ListBlobs(t.Context(), log.New(), "") })
 }
 
 func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
@@ -192,7 +188,7 @@ func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		require.Error(t, c.CopyBlob(t.Context(), tc[0], tc[1], tc[2], tc[3]), "CopyBlob%v should error", tc)
+		assert.Panics(t, func() { _ = c.CopyBlob(t.Context(), tc[0], tc[1], tc[2], tc[3]) }, "CopyBlob%v should panic", tc)
 	}
 }
 

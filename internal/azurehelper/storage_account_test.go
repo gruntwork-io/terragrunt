@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -23,33 +24,32 @@ import (
 func TestNewStorageAccountClient_Validation(t *testing.T) {
 	t.Parallel()
 
-	if _, err := azurehelper.NewStorageAccountClient(nil); err == nil {
-		t.Fatal("expected error for nil config")
-	}
+	// Each field is a resolved-config invariant, so a missing one panics.
+	assert.Panics(t, func() { _, _ = azurehelper.NewStorageAccountClient(nil) })
 
-	if _, err := azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
-		Credential: fakeCredential{}, ResourceGroup: "rg", AccountName: testAccount,
-	}); err == nil {
-		t.Fatal("expected error for missing subscription")
-	}
+	assert.Panics(t, func() {
+		_, _ = azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
+			Credential: fakeCredential{}, ResourceGroup: "rg", AccountName: testAccount,
+		})
+	})
 
-	if _, err := azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
-		SubscriptionID: testSub, ResourceGroup: "rg", AccountName: testAccount,
-	}); err == nil {
-		t.Fatal("expected error for missing credential")
-	}
+	assert.Panics(t, func() {
+		_, _ = azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
+			SubscriptionID: testSub, ResourceGroup: "rg", AccountName: testAccount,
+		})
+	})
 
-	if _, err := azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
-		SubscriptionID: testSub, Credential: fakeCredential{}, ResourceGroup: "rg",
-	}); err == nil {
-		t.Fatal("expected error for missing account name")
-	}
+	assert.Panics(t, func() {
+		_, _ = azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
+			SubscriptionID: testSub, Credential: fakeCredential{}, ResourceGroup: "rg",
+		})
+	})
 
-	if _, err := azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
-		SubscriptionID: testSub, Credential: fakeCredential{}, AccountName: testAccount,
-	}); err == nil {
-		t.Fatal("expected error for missing resource group")
-	}
+	assert.Panics(t, func() {
+		_, _ = azurehelper.NewStorageAccountClient(&azurehelper.AzureConfig{
+			SubscriptionID: testSub, Credential: fakeCredential{}, AccountName: testAccount,
+		})
+	})
 }
 
 func TestStorageAccount_Exists_True(t *testing.T) {
@@ -164,9 +164,7 @@ func TestStorageAccount_Create_RequiresLocation(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 
-	if err := sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{}); err == nil {
-		t.Fatal("expected error when Location is empty")
-	}
+	assert.Panics(t, func() { _ = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{}) })
 }
 
 func TestStorageAccount_Create_NameMismatch(t *testing.T) {
@@ -179,13 +177,12 @@ func TestStorageAccount_Create_NameMismatch(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 
-	err = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
-		Name:     "different-name",
-		Location: "eastus",
+	assert.Panics(t, func() {
+		_ = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+			Name:     "different-name",
+			Location: "eastus",
+		})
 	})
-	if err == nil {
-		t.Fatal("expected error when Name does not match client")
-	}
 }
 
 func TestStorageAccount_Create_NilConfig(t *testing.T) {
@@ -198,9 +195,7 @@ func TestStorageAccount_Create_NilConfig(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 
-	if err := sc.Create(t.Context(), log.New(), nil); err == nil {
-		t.Fatal("expected error for nil config")
-	}
+	assert.Panics(t, func() { _ = sc.Create(t.Context(), log.New(), nil) })
 }
 
 func TestStorageAccount_Create_RejectsUnknownAccessTier(t *testing.T) {
@@ -213,18 +208,13 @@ func TestStorageAccount_Create_RejectsUnknownAccessTier(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 
-	err = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
-		Name:       testAccount,
-		Location:   "eastus",
-		AccessTier: "Frozen",
+	assert.PanicsWithError(t, `unknown access tier "Frozen" (want Hot, Cool, Cold, or Premium)`, func() {
+		_ = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+			Name:       testAccount,
+			Location:   "eastus",
+			AccessTier: "Frozen",
+		})
 	})
-	if err == nil {
-		t.Fatal("expected error for unknown access tier")
-	}
-
-	if !strings.Contains(err.Error(), "access tier") {
-		t.Errorf("error %q should mention access tier", err)
-	}
 }
 
 func TestStorageAccount_GetKeys_FiltersEmptyValues(t *testing.T) {

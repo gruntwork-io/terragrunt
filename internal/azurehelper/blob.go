@@ -38,11 +38,11 @@ type BlobClient struct {
 // cfg.CloudConfig.
 func NewBlobClient(cfg *AzureConfig) (*BlobClient, error) {
 	if cfg == nil {
-		return nil, ErrAzureConfigRequired
+		panic(ErrAzureConfigRequired)
 	}
 
 	if cfg.AccountName == "" {
-		return nil, ErrStorageAccountRequired
+		panic(ErrStorageAccountRequired)
 	}
 
 	suffix, err := endpointSuffixForCloud(cfg)
@@ -66,7 +66,7 @@ func NewBlobClient(cfg *AzureConfig) (*BlobClient, error) {
 // are returned wrapped.
 func (c *BlobClient) ContainerExists(ctx context.Context, name string) (bool, error) {
 	if name == "" {
-		return false, ErrContainerNameRequired
+		panic(ErrContainerNameRequired)
 	}
 
 	_, err := c.Client.ServiceClient().NewContainerClient(name).GetProperties(ctx, nil)
@@ -85,7 +85,7 @@ func (c *BlobClient) ContainerExists(ctx context.Context, name string) (bool, er
 // nil (no-op). Other errors are returned wrapped.
 func (c *BlobClient) CreateContainer(ctx context.Context, name string) error {
 	if name == "" {
-		return ErrContainerNameRequired
+		panic(ErrContainerNameRequired)
 	}
 
 	_, err := c.Client.CreateContainer(ctx, name, nil)
@@ -119,7 +119,7 @@ func (c *BlobClient) EnsureContainer(ctx context.Context, name string) error {
 // nil if the container is already gone (ContainerNotFound).
 func (c *BlobClient) EnsureContainerDeleted(ctx context.Context, name string) error {
 	if name == "" {
-		return ErrContainerNameRequired
+		panic(ErrContainerNameRequired)
 	}
 
 	_, err := c.Client.ServiceClient().NewContainerClient(name).Delete(ctx, nil)
@@ -134,7 +134,7 @@ func (c *BlobClient) EnsureContainerDeleted(ctx context.Context, name string) er
 // must Close the returned reader.
 func (c *BlobClient) GetBlob(ctx context.Context, container, key string) (io.ReadCloser, error) {
 	if container == "" || key == "" {
-		return nil, ErrBlobKeyRequired
+		panic(ErrBlobKeyRequired)
 	}
 
 	resp, err := c.Client.DownloadStream(ctx, container, key, nil)
@@ -148,7 +148,7 @@ func (c *BlobClient) GetBlob(ctx context.Context, container, key string) (io.Rea
 // PutBlob uploads data to a block blob, overwriting any existing blob.
 func (c *BlobClient) PutBlob(ctx context.Context, container, key string, data []byte) error {
 	if container == "" || key == "" {
-		return ErrBlobKeyRequired
+		panic(ErrBlobKeyRequired)
 	}
 
 	blockBlob := c.Client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(key)
@@ -163,7 +163,7 @@ func (c *BlobClient) PutBlob(ctx context.Context, container, key string, data []
 // the full payload into memory.
 func (c *BlobClient) PutBlobFromReader(ctx context.Context, container, key string, reader io.Reader) error {
 	if container == "" || key == "" {
-		return ErrBlobKeyRequired
+		panic(ErrBlobKeyRequired)
 	}
 
 	blockBlob := c.Client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(key)
@@ -178,7 +178,7 @@ func (c *BlobClient) PutBlobFromReader(ctx context.Context, container, key strin
 // blob is already gone (BlobNotFound).
 func (c *BlobClient) EnsureBlobDeleted(ctx context.Context, container, key string) error {
 	if container == "" || key == "" {
-		return ErrBlobKeyRequired
+		panic(ErrBlobKeyRequired)
 	}
 
 	_, err := c.Client.DeleteBlob(ctx, container, key, nil)
@@ -192,7 +192,7 @@ func (c *BlobClient) EnsureBlobDeleted(ctx context.Context, container, key strin
 // BlobExists reports whether the named blob exists in container.
 func (c *BlobClient) BlobExists(ctx context.Context, container, key string) (bool, error) {
 	if container == "" || key == "" {
-		return false, ErrBlobKeyRequired
+		panic(ErrBlobKeyRequired)
 	}
 
 	bc := c.Client.ServiceClient().NewContainerClient(container).NewBlobClient(key)
@@ -249,7 +249,7 @@ func WithPrefix(prefix string) ListBlobsOption {
 // number of blobs.
 func (c *BlobClient) ListBlobs(ctx context.Context, l log.Logger, container string, opts ...ListBlobsOption) ([]string, error) {
 	if container == "" {
-		return nil, ErrContainerNameRequired
+		panic(ErrContainerNameRequired)
 	}
 
 	o := &listBlobsOptions{}
@@ -302,9 +302,7 @@ func (c *BlobClient) ListBlobs(ctx context.Context, l log.Logger, container stri
 // overwritten; a DestinationBlobExistsError is returned instead. Both blobs
 // must live in the storage account this client is bound to.
 func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstContainer, dstKey string) error {
-	if err := validateCopyBlobArgs(srcContainer, srcKey, dstContainer, dstKey); err != nil {
-		return err
-	}
+	assertCopyBlobArgs(srcContainer, srcKey, dstContainer, dstKey)
 
 	body, err := c.GetBlob(ctx, srcContainer, srcKey)
 	if err != nil {
@@ -333,9 +331,10 @@ func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstCont
 	return nil
 }
 
-// validateCopyBlobArgs returns a MissingCopyBlobArgsError naming every empty
-// CopyBlob argument, or nil when all four are present.
-func validateCopyBlobArgs(srcContainer, srcKey, dstContainer, dstKey string) error {
+// assertCopyBlobArgs panics with a MissingCopyBlobArgsError naming every empty
+// CopyBlob argument. The four names come from already-validated config, so an
+// empty value is a caller bug rather than a user error.
+func assertCopyBlobArgs(srcContainer, srcKey, dstContainer, dstKey string) {
 	var missing []string
 
 	for _, arg := range []struct {
@@ -353,10 +352,8 @@ func validateCopyBlobArgs(srcContainer, srcKey, dstContainer, dstKey string) err
 	}
 
 	if len(missing) > 0 {
-		return &MissingCopyBlobArgsError{Missing: missing}
+		panic(&MissingCopyBlobArgsError{Missing: missing})
 	}
-
-	return nil
 }
 
 // newAzblobClient dispatches azblob client construction by auth method,
@@ -396,7 +393,7 @@ func newAzblobClient(cfg *AzureConfig, suffix string) (*azblob.Client, error) {
 		return client, nil
 	case AuthMethodServicePrincipal, AuthMethodOIDC, AuthMethodMSI, AuthMethodAzureAD:
 		if cfg.Credential == nil {
-			return nil, &CredentialMissingError{Method: cfg.Method}
+			panic(&CredentialMissingError{Method: cfg.Method})
 		}
 
 		client, err := azblob.NewClient(serviceURL, cfg.Credential, clientOpts)
@@ -406,7 +403,7 @@ func newAzblobClient(cfg *AzureConfig, suffix string) (*azblob.Client, error) {
 
 		return client, nil
 	default:
-		return nil, &UnsupportedAuthMethodError{Method: cfg.Method}
+		panic(&UnsupportedAuthMethodError{Method: cfg.Method})
 	}
 }
 

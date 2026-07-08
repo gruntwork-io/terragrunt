@@ -83,23 +83,23 @@ type StorageAccountClient struct {
 // the ARM control plane).
 func NewStorageAccountClient(cfg *AzureConfig) (*StorageAccountClient, error) {
 	if cfg == nil {
-		return nil, ErrAzureConfigRequired
-	}
-
-	if cfg.SubscriptionID == "" {
-		return nil, ErrSubscriptionIDRequired
-	}
-
-	if cfg.Credential == nil {
-		return nil, &UnsupportedAuthForOpError{Method: cfg.Method, Operation: "storage account operations"}
+		panic(ErrAzureConfigRequired)
 	}
 
 	if cfg.AccountName == "" {
-		return nil, ErrStorageAccountRequired
+		panic(ErrStorageAccountRequired)
+	}
+
+	if cfg.SubscriptionID == "" {
+		panic(ErrSubscriptionIDRequired)
+	}
+
+	if cfg.Credential == nil {
+		panic(&UnsupportedAuthForOpError{Method: cfg.Method, Operation: "storage account operations"})
 	}
 
 	if cfg.ResourceGroup == "" {
-		return nil, ErrResourceGroupNameRequired
+		panic(ErrResourceGroupNameRequired)
 	}
 
 	armOpts := &arm.ClientOptions{ClientOptions: cfg.ClientOptions}
@@ -149,19 +149,19 @@ func (c *StorageAccountClient) Exists(ctx context.Context) (bool, error) {
 // EnableVersioning / EnableSoftDelete after the account exists.
 func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *StorageAccountConfig) error {
 	if in == nil {
-		return ErrStorageAccountConfigRequired
+		panic(ErrStorageAccountConfigRequired)
 	}
 
 	if in.Name != "" && in.Name != c.accountName {
-		return fmt.Errorf("storage account name %q does not match client account name %q", in.Name, c.accountName)
+		panic(fmt.Errorf("storage account name %q does not match client account name %q", in.Name, c.accountName))
 	}
 
 	if in.ResourceGroupName != "" && in.ResourceGroupName != c.resourceGroup {
-		return fmt.Errorf("storage account resource group %q does not match client resource group %q", in.ResourceGroupName, c.resourceGroup)
+		panic(fmt.Errorf("storage account resource group %q does not match client resource group %q", in.ResourceGroupName, c.resourceGroup))
 	}
 
 	if in.Location == "" {
-		return fmt.Errorf("location is required to create storage account %q", c.accountName)
+		panic(fmt.Errorf("location is required to create storage account %q", c.accountName))
 	}
 
 	// Operate on a copy so the caller's StorageAccountConfig is not mutated by
@@ -172,10 +172,7 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 	skuName := armstorage.SKUName(cfg.AccountTier + "_" + cfg.ReplicationType)
 	kind := armstorage.Kind(cfg.AccountKind)
 
-	accessTier, err := accessTierValue(cfg.AccessTier)
-	if err != nil {
-		return err
-	}
+	accessTier := accessTierValue(cfg.AccessTier)
 
 	params := armstorage.AccountCreateParameters{
 		Kind:     &kind,
@@ -395,19 +392,19 @@ func (in *StorageAccountConfig) withDefaults() {
 
 // accessTierValue maps a string to the SDK's AccessTier enum. An empty
 // input yields the package default (Hot); any other unrecognised value
-// returns an error so callers cannot silently land on an unintended tier.
-func accessTierValue(s string) (*armstorage.AccessTier, error) {
+// panics so callers cannot silently land on an unintended tier.
+func accessTierValue(s string) *armstorage.AccessTier {
 	switch s {
 	case "", "Hot":
-		return to.Ptr(armstorage.AccessTierHot), nil
+		return to.Ptr(armstorage.AccessTierHot)
 	case "Cool":
-		return to.Ptr(armstorage.AccessTierCool), nil
+		return to.Ptr(armstorage.AccessTierCool)
 	case "Cold":
-		return to.Ptr(armstorage.AccessTierCold), nil
+		return to.Ptr(armstorage.AccessTierCold)
 	case "Premium":
-		return to.Ptr(armstorage.AccessTierPremium), nil
+		return to.Ptr(armstorage.AccessTierPremium)
 	default:
-		return nil, &UnknownAccessTierError{Tier: s}
+		panic(&UnknownAccessTierError{Tier: s})
 	}
 }
 

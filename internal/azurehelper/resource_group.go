@@ -26,15 +26,15 @@ type ResourceGroupClient struct {
 // token credential; SAS-token and access-key configs are data-plane only.
 func NewResourceGroupClient(cfg *AzureConfig) (*ResourceGroupClient, error) {
 	if cfg == nil {
-		return nil, ErrAzureConfigRequired
+		panic(ErrAzureConfigRequired)
 	}
 
 	if cfg.SubscriptionID == "" {
-		return nil, ErrSubscriptionIDRequired
+		panic(ErrSubscriptionIDRequired)
 	}
 
 	if cfg.Credential == nil {
-		return nil, &UnsupportedAuthForOpError{Method: cfg.Method, Operation: "resource group operations"}
+		panic(&UnsupportedAuthForOpError{Method: cfg.Method, Operation: "resource group operations"})
 	}
 
 	client, err := armresources.NewResourceGroupsClient(cfg.SubscriptionID, cfg.Credential, &arm.ClientOptions{
@@ -48,9 +48,10 @@ func NewResourceGroupClient(cfg *AzureConfig) (*ResourceGroupClient, error) {
 }
 
 // Exists reports whether the named resource group exists in the subscription.
+// name is always the resolved config value, so an empty name is a caller bug.
 func (c *ResourceGroupClient) Exists(ctx context.Context, name string) (bool, error) {
 	if name == "" {
-		return false, ErrResourceGroupNameRequired
+		panic(ErrResourceGroupNameRequired)
 	}
 
 	resp, err := c.client.CheckExistence(ctx, name, nil)
@@ -71,7 +72,7 @@ func (c *ResourceGroupClient) Exists(ctx context.Context, name string) (bool, er
 // geographic default, mirroring StorageAccountClient.Create.
 func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Logger, name, location string) error {
 	if name == "" {
-		return ErrResourceGroupNameRequired
+		panic(ErrResourceGroupNameRequired)
 	}
 
 	exists, err := c.Exists(ctx, name)
@@ -85,7 +86,7 @@ func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Log
 	}
 
 	if location == "" {
-		return fmt.Errorf("%w %q", ErrLocationRequiredForRG, name)
+		panic(fmt.Errorf("%w %q", ErrLocationRequiredForRG, name))
 	}
 
 	_, err = c.client.CreateOrUpdate(ctx, name, armresources.ResourceGroup{
@@ -105,7 +106,7 @@ func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Log
 // return nil.
 func (c *ResourceGroupClient) EnsureDeleted(ctx context.Context, l log.Logger, name string) error {
 	if name == "" {
-		return ErrResourceGroupNameRequired
+		panic(ErrResourceGroupNameRequired)
 	}
 
 	poller, err := c.client.BeginDelete(ctx, name, nil)
