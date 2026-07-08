@@ -70,21 +70,14 @@ func DownloadTerraformSource(
 		return nil, err
 	}
 
-	// The source directory IS the working directory when no explicit `source` is configured
-	// (source="."). Computed early so it can drive both the version-hash copy filter below and the
-	// module-copy-skip optimization further down.
+	// Computed early: source="." means the source dir is also the working dir.
 	sourceIsWorkingDir := tf.IsLocalSource(terraformSource.CanonicalSourceURL) &&
 		filepath.Clean(terraformSource.CanonicalSourceURL.Path) == filepath.Clean(opts.UnitDir)
 
-	// EncodeSourceVersion must only hash files that the copy below would actually place in the
-	// cache, or an irrelevant file change (for example a stray hidden file) forces a needless
-	// re-init. https://github.com/gruntwork-io/terragrunt/issues/6443
+	// The hash must only cover files the copy below would actually place in the cache.
 	hashIncludeInCopy := cfg.Terraform.IncludeInCopy
 	if sourceIsWorkingDir {
-		// The module copy below always force-includes .tflint.hcl when it copies from the unit
-		// dir. Mirror that here too: in this branch the hash is computed over that same
-		// directory, so a tflint-only edit must not be missed by the module-copy-skip
-		// optimization a few lines down.
+		// Mirrors the module copy, which always force-includes .tflint.hcl from the unit dir.
 		hashIncludeInCopy = slices.Concat(hashIncludeInCopy, []string{tfLintConfig})
 	}
 

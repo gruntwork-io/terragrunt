@@ -822,12 +822,7 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	assert.Equal(t, mainTfContent, string(cachedContent), "File contents should match")
 }
 
-// TestDownloadWithNoSourceIgnoresIrrelevantHiddenFile is a regression test for
-// https://github.com/gruntwork-io/terragrunt/issues/6443: EncodeSourceVersion hashed every
-// file under the source directory, including hidden files that CopyFolderContents (via
-// util.TerragruntExcludes) never copies into the cache. Creating such a file next to main.tf
-// changed the hash and forced a needless re-init on the next run, even though nothing that
-// actually reaches the cache had changed.
+// TestDownloadWithNoSourceIgnoresIrrelevantHiddenFile: an uncopied file must not change the version hash.
 func TestDownloadWithNoSourceIgnoresIrrelevantHiddenFile(t *testing.T) {
 	t.Parallel()
 
@@ -863,8 +858,7 @@ func TestDownloadWithNoSourceIgnoresIrrelevantHiddenFile(t *testing.T) {
 	initMarker := filepath.Join(updatedOpts.CacheDir, run.ModuleInitRequiredFile)
 	assert.NoFileExists(t, initMarker, "a fresh cache should not be marked as requiring re-init")
 
-	// A file terragrunt never copies into the cache (see util.TerragruntExcludes) is created
-	// alongside main.tf, mirroring `touch .this_file_does_not_matter` from the bug report.
+	// A file terragrunt never copies into the cache (see util.TerragruntExcludes).
 	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, ".this_file_does_not_matter"), []byte("noise"), 0644))
 
 	updatedOpts, err = run.DownloadTerraformSource(t.Context(), l, run.OSVenv(), ".", configbridge.NewRunOptions(opts), cfg, report.NewReport())

@@ -18,8 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
-// fileSourceURL builds a file:// CanonicalSourceURL pointing at dir, matching what
-// tf.NewSource produces for a local source.
+// fileSourceURL builds a file:// CanonicalSourceURL pointing at dir, as tf.NewSource does for a local source.
 func fileSourceURL(t *testing.T, dir string) *url.URL {
 	t.Helper()
 
@@ -275,11 +274,7 @@ func TestRegressionCASRefNoSubdir(t *testing.T) {
 	assert.Equal(t, src.DownloadDir, src.WorkingDir)
 }
 
-// TestEncodeSourceVersionIgnoresFilesNeverCopied is a regression test for
-// https://github.com/gruntwork-io/terragrunt/issues/6443: EncodeSourceVersion hashed every file
-// under the source directory, including hidden files that util.CopyFolderContents (via
-// util.TerragruntExcludes) never copies into the cache. A file that can never reach the cache
-// must not be able to change the version hash.
+// TestEncodeSourceVersionIgnoresFilesNeverCopied ensures an uncopied file cannot change the hash.
 func TestEncodeSourceVersionIgnoresFilesNeverCopied(t *testing.T) {
 	t.Parallel()
 
@@ -292,7 +287,7 @@ func TestEncodeSourceVersionIgnoresFilesNeverCopied(t *testing.T) {
 	before, err := src.EncodeSourceVersion(l)
 	require.NoError(t, err)
 
-	// Mirrors `touch .this_file_does_not_matter` from the bug report.
+	// A dotfile that util.CopyFolderContents never copies into the cache.
 	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, ".this_file_does_not_matter"), []byte("noise"), 0o644))
 
 	after, err := src.EncodeSourceVersion(l)
@@ -301,8 +296,7 @@ func TestEncodeSourceVersionIgnoresFilesNeverCopied(t *testing.T) {
 	assert.Equal(t, before, after, "creating a hidden file that is never copied must not change the source version hash")
 }
 
-// TestEncodeSourceVersionStillIgnoresLockFile pins the pre-existing behavior that the
-// terraform/tofu lock file never contributes to the hash, since its content is auto-generated.
+// TestEncodeSourceVersionStillIgnoresLockFile pins that the auto-generated lock file never affects the hash.
 func TestEncodeSourceVersionStillIgnoresLockFile(t *testing.T) {
 	t.Parallel()
 
@@ -323,9 +317,7 @@ func TestEncodeSourceVersionStillIgnoresLockFile(t *testing.T) {
 	assert.Equal(t, before, after, "the lock file must never affect the hash")
 }
 
-// TestEncodeSourceVersionStillSkipsIgnorableDirs pins the pre-existing behavior that .git,
-// .terraform, and .terragrunt-cache are never descended into, regardless of the new copy-filter
-// check added alongside them.
+// TestEncodeSourceVersionStillSkipsIgnorableDirs pins that .git/.terraform/.terragrunt-cache are never hashed.
 func TestEncodeSourceVersionStillSkipsIgnorableDirs(t *testing.T) {
 	t.Parallel()
 
@@ -350,8 +342,7 @@ func TestEncodeSourceVersionStillSkipsIgnorableDirs(t *testing.T) {
 	assert.Equal(t, before, after, "files under .git, .terraform, and .terragrunt-cache must never affect the hash")
 }
 
-// TestEncodeSourceVersionDetectsVisibleFileChange is a no-regression baseline: a tracked,
-// non-hidden file's mtime change must still change the hash so a real init still runs.
+// TestEncodeSourceVersionDetectsVisibleFileChange pins that a tracked file's mtime change still changes the hash.
 func TestEncodeSourceVersionDetectsVisibleFileChange(t *testing.T) {
 	t.Parallel()
 
@@ -374,9 +365,7 @@ func TestEncodeSourceVersionDetectsVisibleFileChange(t *testing.T) {
 	assert.NotEqual(t, before, after, "a visible tracked file's mtime change must still change the hash")
 }
 
-// TestEncodeSourceVersionRespectsIncludeInCopy checks that a hidden file matched by
-// IncludeInCopy still affects the hash, since util.CopyFolderContents will copy it into the
-// cache. Source.IncludeInCopy mirrors the terraform block's include_in_copy setting.
+// TestEncodeSourceVersionRespectsIncludeInCopy ensures a file matched by IncludeInCopy still affects the hash.
 func TestEncodeSourceVersionRespectsIncludeInCopy(t *testing.T) {
 	t.Parallel()
 
@@ -400,9 +389,7 @@ func TestEncodeSourceVersionRespectsIncludeInCopy(t *testing.T) {
 	assert.NotEqual(t, before, after, "a file matched by IncludeInCopy must still affect the hash")
 }
 
-// TestEncodeSourceVersionRespectsExcludeFromCopy checks that a visible file matched by
-// ExcludeFromCopy is excluded from the hash, since util.CopyFolderContents never copies it.
-// Source.ExcludeFromCopy mirrors the terraform block's exclude_from_copy setting.
+// TestEncodeSourceVersionRespectsExcludeFromCopy ensures a file matched by ExcludeFromCopy never affects the hash.
 func TestEncodeSourceVersionRespectsExcludeFromCopy(t *testing.T) {
 	t.Parallel()
 
@@ -426,8 +413,7 @@ func TestEncodeSourceVersionRespectsExcludeFromCopy(t *testing.T) {
 	assert.Equal(t, before, after, "a file matched by ExcludeFromCopy must not affect the hash")
 }
 
-// TestEncodeSourceVersionExcludeFromCopyDirectory checks that an entire directory matched by
-// ExcludeFromCopy is skipped, so files added underneath it never affect the hash.
+// TestEncodeSourceVersionExcludeFromCopyDirectory ensures files under an excluded directory are never hashed.
 func TestEncodeSourceVersionExcludeFromCopyDirectory(t *testing.T) {
 	t.Parallel()
 
