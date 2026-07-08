@@ -29,6 +29,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyDiscovery(msg)
 		m.ensurePreview()
 
+		if msg.Err != nil {
+			// The full error is logged at debug by the browse command once the
+			// browser exits; the toast just flags that the tree may be incomplete.
+			return m, m.pushToast("discovery failed; showing partial results")
+		}
+
+		return m, nil
+	case Warning:
+		return m, tea.Batch(m.pushToast(msg.Message), m.listenForWarnings())
+	case ToastExpired:
+		m.dropToast(msg.ID)
+
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -63,8 +75,14 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.moveCursor(-len(m.current.children))
 	case key.Matches(msg, m.keys.Top):
 		m.gPending = true
+	case key.Matches(msg, m.keys.Home):
+		m.moveCursor(-len(m.current.children))
 	case key.Matches(msg, m.keys.Bottom):
 		m.moveCursor(len(m.current.children))
+	case key.Matches(msg, m.keys.PageUp):
+		m.moveCursor(-m.pageSize())
+	case key.Matches(msg, m.keys.PageDown):
+		m.moveCursor(m.pageSize())
 	case key.Matches(msg, m.keys.Up):
 		m.moveCursor(-1)
 	case key.Matches(msg, m.keys.Down):

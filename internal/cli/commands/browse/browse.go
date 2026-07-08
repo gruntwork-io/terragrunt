@@ -2,6 +2,7 @@ package browse
 
 import (
 	"context"
+	"io"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
@@ -16,6 +17,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// warnBufferSize is the warning channel's buffer. The hook drops entries
+// rather than block when the browser falls behind draining it.
+const warnBufferSize = 32
 
 // Run runs the browse command. It opens the browser immediately over a tree the
 // TUI fills from the filesystem, and runs discovery in the background so unit and
@@ -47,27 +52,45 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 	defer cancel()
 
 	resultCh := make(chan tui.DiscoveryResult, 1)
+	warnCh := make(chan tui.Warning, warnBufferSize)
 	done := make(chan struct{})
+
+	// While the browser owns the alt screen, anything discovery writes to the
+	// log stream would draw over it, so discovery gets a muted clone of the
+	// logger and its warn-or-worse entries surface as toasts in the browser
+	// instead.
+	discoveryLogger := l.WithOptions(log.WithOutput(io.Discard), log.WithHooks(tui.NewWarnHook(warnCh)))
+
+	var res tui.DiscoveryResult
 
 	go func() {
 		defer close(done)
 
-		resultCh <- runDiscovery(discoverCtx, l, v, opts, d)
+		res = runDiscovery(discoverCtx, discoveryLogger, v, opts, d)
+		resultCh <- res
 	}()
 
 	root := tui.NewRoot(opts.WorkingDir)
 
-	err = tui.Run(ctx, vfs.NewOSFS(), root, stdout.ShouldColor(l), resultCh)
+	err = tui.Run(ctx, vfs.NewOSFS(), root, stdout.ShouldColor(l), resultCh, warnCh)
 
 	cancel()
 	<-done
+	close(warnCh)
+
+	// Deferred until the browser has released the screen so the full error
+	// lands on the log stream instead of drawing over the TUI.
+	if res.Err != nil {
+		l.Debugf("Errors encountered while discovering components:\n%s", res.Err)
+	}
 
 	return err
 }
 
 // runDiscovery runs the full discovery pass, returning the components for the
-// browser to annotate its tree with. Errors are logged and the partial results
-// returned, matching the browser's best-effort display.
+// browser to annotate its tree with. Errors ride back on the result alongside
+// the partial components, matching the browser's best-effort display; the
+// caller logs them once the browser has released the screen.
 func runDiscovery(
 	ctx context.Context,
 	l log.Logger,
@@ -91,9 +114,6 @@ func runDiscovery(
 
 		return discoverErr
 	})
-	if err != nil {
-		l.Debugf("Errors encountered while discovering components:\n%s", err)
-	}
 
 	components = components.Sort()
 

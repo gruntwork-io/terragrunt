@@ -58,7 +58,7 @@ func TestDiscoveryResolvesCountsAndClearsLoading(t *testing.T) {
 	assert.NotContains(t, after, "discovering…")
 }
 
-func TestDiscoveryFailureSurfacedInFooter(t *testing.T) {
+func TestDiscoveryFailureSurfacedAsToast(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
@@ -69,10 +69,14 @@ func TestDiscoveryFailureSurfacedInFooter(t *testing.T) {
 	m = update(t, m, tui.DiscoveryResult{Err: errors.New("discovery blew up")})
 
 	// A failed discovery must not look like a clean, empty estate: the
-	// "discovering…" indicator clears but the footer flags the failure.
+	// "discovering…" indicator clears and a toast flags the failure.
 	content := m.View().Content
 	assert.NotContains(t, content, "discovering…")
 	assert.Contains(t, content, "discovery failed")
+
+	// The failure toast expires like any other toast.
+	m = update(t, m, tui.ToastExpired{ID: 1})
+	assert.NotContains(t, m.View().Content, "discovery failed")
 }
 
 func TestReadFilesHighlightedAfterDiscovery(t *testing.T) {

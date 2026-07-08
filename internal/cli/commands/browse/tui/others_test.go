@@ -153,6 +153,13 @@ func TestJumpToTopAndBottom(t *testing.T) {
 	m = press(t, m, 'g')
 	m = press(t, m, 'g')
 	assert.Equal(t, "alpha", m.Selected().Name())
+
+	// end and home jump the same way, and home does so on a single press.
+	m = typeKey(t, m, tea.KeyEnd)
+	assert.Equal(t, "delta", m.Selected().Name())
+
+	m = typeKey(t, m, tea.KeyHome)
+	assert.Equal(t, "alpha", m.Selected().Name())
 }
 
 func TestPendingTopJumpDisarmsOnOtherKey(t *testing.T) {
@@ -168,4 +175,26 @@ func TestPendingTopJumpDisarmsOnOtherKey(t *testing.T) {
 	// The j also disarmed the chord, so a single g afterward does nothing.
 	m = press(t, m, 'g')
 	assert.Equal(t, "bravo", m.Selected().Name())
+}
+
+func TestHiddenDirectoriesDimmed(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/repo/.github", 0o755))
+	require.NoError(t, fs.MkdirAll("/repo/avisible", 0o755))
+	require.NoError(t, fs.MkdirAll("/repo/bvisible", 0o755))
+	require.NoError(t, vfs.WriteFile(fs, "/repo/zz.txt", nil, 0o644))
+
+	m := newModel(t, fs, tui.NewRoot("/repo"), false)
+
+	// The hidden directory sorts first and starts out selected; move off it so
+	// its own style is visible.
+	m = press(t, m, 'j')
+
+	content := m.View().Content
+	assert.Equal(t, styleBefore(t, content, "zz.txt"), styleBefore(t, content, ".github/"),
+		"a hidden directory should be dimmed like a plain file")
+	assert.NotEqual(t, styleBefore(t, content, "bvisible/"), styleBefore(t, content, ".github/"),
+		"a hidden directory should not render like a visible one")
 }

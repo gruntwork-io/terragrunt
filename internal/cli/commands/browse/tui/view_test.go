@@ -67,3 +67,28 @@ func TestTinyTerminalRendersWithoutGarbling(t *testing.T) {
 	content := m.View().Content
 	assert.NotContains(t, content, "dir-000/")
 }
+
+func TestPageKeysMoveByAPage(t *testing.T) {
+	t.Parallel()
+
+	m := crowdedModel(t, 100)
+
+	// A page is the column's visible rows: forward lands between the ends,
+	// not one entry down and not on the bottom.
+	m = typeKey(t, m, tea.KeyPgDown)
+	afterPage := m.Selected().Name()
+	require.NotEqual(t, "dir-000", afterPage)
+	require.NotEqual(t, "dir-001", afterPage)
+	require.NotEqual(t, "dir-099", afterPage)
+
+	// Paging back clamps at the top.
+	m = typeKey(t, m, tea.KeyPgUp)
+	assert.Equal(t, "dir-000", m.Selected().Name())
+
+	// Repeated paging clamps at the bottom.
+	for range 20 {
+		m = typeKey(t, m, tea.KeyPgDown)
+	}
+
+	assert.Equal(t, "dir-099", m.Selected().Name())
+}

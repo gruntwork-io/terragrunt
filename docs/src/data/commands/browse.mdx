@@ -29,8 +29,9 @@ examples:
 | ------------------- | -------------------------------------------------- |
 | `j` / `↓`           | Move the cursor down                               |
 | `k` / `↑`           | Move the cursor up                                 |
-| `gg`                | Jump to the first entry in the directory           |
-| `G`                 | Jump to the last entry in the directory            |
+| `gg` / `home`       | Jump to the first entry in the directory           |
+| `G` / `end`         | Jump to the last entry in the directory            |
+| `pgup` / `pgdn`     | Move the cursor up or down a page                  |
 | `l` / `→` / `enter` | Descend into the highlighted directory             |
 | `h` / `←`           | Return to the parent directory                     |
 | `/`                 | Search the current directory                       |
@@ -55,6 +56,8 @@ The detail pane shows metadata for the highlighted entry: its kind, path, module
 
 ## Discovery
 
-The browser opens immediately, reading the filesystem to fill the columns, while discovery runs in the background. Unit and stack metadata and the directory counts show a `loading` placeholder until discovery completes, and a `discovering…` hint appears along the bottom while it runs. Files a unit reads are highlighted rather than dimmed once discovered, marking them as relevant to your infrastructure.
+The browser opens immediately, reading the filesystem to fill the columns, while discovery runs in the background. Unit and stack metadata and the directory counts show a `…` placeholder until discovery completes, and a `discovering…` hint appears along the bottom while it runs. Files a unit reads are highlighted rather than dimmed once discovered, marking them as relevant to your infrastructure.
+
+Warnings raised during discovery (a dependency cycle, for example) appear briefly as a toast in the top-right corner instead of being written to the log stream, which would draw over the browser. A discovery failure surfaces the same way, and the browser keeps showing whatever partial results discovery produced.
 
 `browse` reuses the same discovery the other discovery commands rely on, so the configurations it shows match what `find` and `list` discover.

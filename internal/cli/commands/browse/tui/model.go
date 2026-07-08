@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"slices"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -18,6 +20,34 @@ type DiscoveryResult struct {
 	Components component.Components
 }
 
+// Warning is a warn-or-worse log entry captured while background discovery
+// runs. The model receives it as a message and surfaces it as a toast.
+type Warning struct {
+	Message string
+}
+
+// ToastExpired dismisses the toast with the given ID. Each toast schedules
+// its own expiry when pushed.
+type ToastExpired struct {
+	ID int
+}
+
+// toast is a single on-screen notification, identified so its scheduled
+// expiry can dismiss it.
+type toast struct {
+	message string
+	id      int
+}
+
+const (
+	// toastTTL is how long a toast stays on screen before it expires.
+	toastTTL = 5 * time.Second
+
+	// maxToasts caps how many toasts are shown at once; pushing past the cap
+	// drops the oldest.
+	maxToasts = 3
+)
+
 // Model is the bubbletea model backing the Miller-columns browser.
 type Model struct {
 	fs           vfs.FS
@@ -28,10 +58,12 @@ type Model struct {
 	index        map[string]component.Component
 	readFiles    map[string]struct{}
 	resultCh     <-chan DiscoveryResult
-	discoveryErr error
+	warnCh       <-chan Warning
 	lastQuery    string
+	toasts       []toast
 	keys         keyMap
 	searchInput  textinput.Model
+	lastToastID  int
 	searchOrigin int
 	width        int
 	height       int
@@ -46,8 +78,9 @@ type Model struct {
 // NewModel builds a Model rooted at the given tree. shouldColor mirrors the
 // command's color decision so the TUI matches the rest of Terragrunt's output.
 // fs backs the on-demand reads of surrounding entries and file previews.
-// resultCh delivers the background discovery result, or is nil when there is none.
-func NewModel(fs vfs.FS, root *Node, shouldColor bool, resultCh <-chan DiscoveryResult) Model {
+// resultCh delivers the background discovery result, and warnCh the warnings
+// logged while it runs; either is nil when there is none.
+func NewModel(fs vfs.FS, root *Node, shouldColor bool, resultCh <-chan DiscoveryResult, warnCh <-chan Warning) Model {
 	search := textinput.New()
 	search.Prompt = "/"
 
@@ -62,6 +95,7 @@ func NewModel(fs vfs.FS, root *Node, shouldColor bool, resultCh <-chan Discovery
 		index:       map[string]component.Component{},
 		readFiles:   map[string]struct{}{},
 		resultCh:    resultCh,
+		warnCh:      warnCh,
 		shouldColor: shouldColor,
 		hasDarkBG:   true,
 	}
@@ -69,12 +103,16 @@ func NewModel(fs vfs.FS, root *Node, shouldColor bool, resultCh <-chan Discovery
 
 // Init implements tea.Model. It asks the terminal for its background color so
 // the preview's syntax-highlight theme can match it, and starts listening for
-// the background discovery result when there is one.
+// the background discovery result and warnings when there are any.
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{tea.RequestBackgroundColor}
 
 	if m.resultCh != nil {
 		cmds = append(cmds, m.listenForResult())
+	}
+
+	if m.warnCh != nil {
+		cmds = append(cmds, m.listenForWarnings())
 	}
 
 	return tea.Batch(cmds...)
@@ -106,13 +144,53 @@ func (m Model) listenForResult() tea.Cmd {
 	}
 }
 
+// listenForWarnings blocks on the warnings channel and delivers the next
+// warning as a message. Unlike the discovery result, warnings keep coming, so
+// the Warning handler re-arms this Cmd after each one. A closed channel
+// delivers nothing and stops the re-arming.
+func (m Model) listenForWarnings() tea.Cmd {
+	ch := m.warnCh
+
+	return func() tea.Msg {
+		w, ok := <-ch
+		if !ok {
+			return nil
+		}
+
+		return w
+	}
+}
+
+// pushToast adds a toast with the given message, dropping the oldest once the
+// stack is full. The returned command schedules the toast's expiry.
+func (m *Model) pushToast(message string) tea.Cmd {
+	m.lastToastID++
+	m.toasts = append(m.toasts, toast{id: m.lastToastID, message: message})
+
+	if len(m.toasts) > maxToasts {
+		m.toasts = m.toasts[len(m.toasts)-maxToasts:]
+	}
+
+	id := m.lastToastID
+
+	return tea.Tick(toastTTL, func(time.Time) tea.Msg {
+		return ToastExpired{ID: id}
+	})
+}
+
+// dropToast removes the toast with the given ID; expiry of an already-dropped
+// toast is a no-op.
+func (m *Model) dropToast(id int) {
+	m.toasts = slices.DeleteFunc(m.toasts, func(t toast) bool {
+		return t.id == id
+	})
+}
+
 // applyDiscovery records the discovery result and annotates the loaded tree, so
 // later renders resolve counts, metadata, and read-file highlighting in place of
 // their loading placeholders. A failed discovery still applies whatever partial
-// components it produced; the error is kept so the footer can flag the tree as
-// incomplete.
+// components it produced; the caller flags the failure as a toast.
 func (m *Model) applyDiscovery(res DiscoveryResult) {
-	m.discoveryErr = res.Err
 	m.index = make(map[string]component.Component, len(res.Components))
 	m.readFiles = map[string]struct{}{}
 
