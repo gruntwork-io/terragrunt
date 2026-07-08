@@ -50,3 +50,19 @@ func TestParseEnviron(t *testing.T) {
 		})
 	}
 }
+
+func TestWithEnvClonedIsolatesMutations(t *testing.T) {
+	t.Parallel()
+
+	v := venv.Venv{Env: map[string]string{"FOO": "bar"}}
+
+	clone := v.WithEnvCloned()
+	clone.Env["AWS_ACCESS_KEY_ID"] = "leaked"
+	clone.Env["FOO"] = "changed"
+
+	assert.Equal(t, map[string]string{"FOO": "bar"}, v.Env)
+
+	v.Env["BAZ"] = "qux"
+
+	assert.NotContains(t, clone.Env, "BAZ")
+}

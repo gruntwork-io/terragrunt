@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -79,12 +80,18 @@ type Client struct {
 	failIfBucketCreationRequired bool
 }
 
-func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateConfigS3, opts *backend.Options) (*Client, error) {
+func NewClient(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	config *ExtendedRemoteStateConfigS3,
+	opts *backend.Options,
+) (*Client, error) {
 	awsConfig := config.GetAwsSessionConfig()
 
 	builder := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(awsConfig).
-		WithEnv(opts.Env).
+		WithEnv(v.Env).
 		WithIAMRoleOptions(opts.IAMRoleOptions)
 
 	cfg, err := builder.Build(ctx, l)
@@ -123,7 +130,13 @@ func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateCon
 
 // CreateS3BucketIfNecessary prompts the user to create the given bucket if it doesn't already exist and if the user
 // confirms, creates the bucket and enables versioning for it.
-func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logger, bucketName string, opts *backend.Options) error {
+func (client *Client) CreateS3BucketIfNecessary(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	bucketName string,
+	opts *backend.Options,
+) error {
 	if client.ExtendedRemoteStateConfigS3 == nil {
 		return errors.New("client configuration is nil - cannot create S3 bucket if necessary")
 	}
@@ -138,7 +151,10 @@ func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logge
 		return backend.BucketCreationNotAllowed(bucketName)
 	}
 
-	prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", bucketName)
+	prompt := fmt.Sprintf(
+		"Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?",
+		bucketName,
+	)
 
 	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
 	if err != nil {
@@ -154,24 +170,38 @@ func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logge
 		// been performed should be a no-op.
 		description := "Create S3 bucket with retry " + bucketName
 
-		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-			err := client.CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx, l, opts)
-			if err != nil {
-				if isBucketErrorRetriable(l, err) {
-					return err
+		return util.DoWithRetry(
+			ctx,
+			description,
+			s3MaxRetries,
+			s3SleepBetweenRetries,
+			l,
+			log.DebugLevel,
+			func(ctx context.Context) error {
+				err := client.CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx, l, v, opts)
+				if err != nil {
+					if isBucketErrorRetriable(l, err) {
+						return err
+					}
+					// return FatalError so that retry loop will not continue
+					return util.FatalError{Underlying: err}
 				}
-				// return FatalError so that retry loop will not continue
-				return util.FatalError{Underlying: err}
-			}
 
-			return nil
-		})
+				return nil
+			},
+		)
 	}
 
 	return nil
 }
 
-func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logger, bucketName string, opts *backend.Options) error {
+func (client *Client) UpdateS3BucketIfNecessary(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	bucketName string,
+	opts *backend.Options,
+) error {
 	if exists, err := client.DoesS3BucketExistWithLogging(ctx, l, bucketName); err != nil {
 		return err
 	} else if !exists && opts.FailIfBucketCreationRequired {
@@ -188,7 +218,10 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 		return nil
 	}
 
-	prompt := fmt.Sprintf("Remote state S3 bucket %s is out of date. Would you like Terragrunt to update it?", bucketName)
+	prompt := fmt.Sprintf(
+		"Remote state S3 bucket %s is out of date. Would you like Terragrunt to update it?",
+		bucketName,
+	)
 
 	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
 	if err != nil {
@@ -201,18 +234,27 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	if bucketUpdatesRequired.Versioning {
 		if client.SkipBucketVersioning {
-			l.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", bucketName)
+			l.Debugf(
+				"Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.",
+				bucketName,
+			)
 		} else if err := client.EnableVersioningForS3Bucket(ctx, l, bucketName); err != nil {
 			return err
 		}
 	}
 
 	if bucketUpdatesRequired.SSEEncryption {
-		msg := fmt.Sprintf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", bucketName)
+		msg := fmt.Sprintf(
+			"Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!",
+			bucketName,
+		)
 
 		if client.SkipBucketSSEncryption {
 			l.Debug(msg)
-			l.Debugf("Server-Side Encryption enabling is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", bucketName)
+			l.Debugf(
+				"Server-Side Encryption enabling is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.",
+				bucketName,
+			)
 
 			return nil
 		} else {
@@ -222,7 +264,12 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 		l.Infof("Enabling Server-Side Encryption for the remote state AWS S3 bucket %s.", bucketName)
 
 		if err := client.EnableSSEForS3BucketWide(ctx, l, bucketName, client.FetchEncryptionAlgorithm()); err != nil {
-			l.Errorf("Failed to enable Server-Side Encryption for the remote state AWS S3 bucket %s: %v", bucketName, err)
+			l.Errorf(
+				"Failed to enable Server-Side Encryption for the remote state AWS S3 bucket %s: %v",
+				bucketName,
+				err,
+			)
+
 			return err
 		}
 
@@ -231,7 +278,10 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	if bucketUpdatesRequired.RootAccess {
 		if client.SkipBucketRootAccess {
-			l.Debugf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", bucketName)
+			l.Debugf(
+				"Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.",
+				bucketName,
+			)
 		} else if err := client.EnableRootAccesstoS3Bucket(ctx, l); err != nil {
 			return err
 		}
@@ -239,7 +289,10 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	if bucketUpdatesRequired.EnforcedTLS {
 		if client.SkipBucketEnforcedTLS {
-			l.Debugf("Enforced TLS is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_enforced_tls' config.", bucketName)
+			l.Debugf(
+				"Enforced TLS is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_enforced_tls' config.",
+				bucketName,
+			)
 		} else if err := client.EnableEnforcedTLSAccesstoS3Bucket(ctx, l, bucketName); err != nil {
 			return err
 		}
@@ -247,10 +300,13 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	if bucketUpdatesRequired.AccessLogging {
 		if client.SkipBucketAccessLogging {
-			l.Debugf("Access logging is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_access_logging' config.", bucketName)
+			l.Debugf(
+				"Access logging is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_access_logging' config.",
+				bucketName,
+			)
 		} else {
 			if client.AccessLoggingBucketName != "" {
-				if err := client.configureAccessLogBucket(ctx, l, opts); err != nil {
+				if err := client.configureAccessLogBucket(ctx, l, v, opts); err != nil {
 					return err
 				}
 			} else {
@@ -261,7 +317,10 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	if bucketUpdatesRequired.PublicAccess {
 		if client.SkipBucketPublicAccessBlocking {
-			l.Debugf("Public access blocking is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_public_access_blocking' config.", bucketName)
+			l.Debugf(
+				"Public access blocking is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_public_access_blocking' config.",
+				bucketName,
+			)
 		} else if err := client.EnablePublicAccessBlockingForS3Bucket(ctx, l, bucketName); err != nil {
 			return err
 		}
@@ -271,17 +330,31 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 }
 
 // configureAccessLogBucket - configure access log bucket.
-func (client *Client) configureAccessLogBucket(ctx context.Context, l log.Logger, opts *backend.Options) error {
+func (client *Client) configureAccessLogBucket(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *backend.Options,
+) error {
 	if client.ExtendedRemoteStateConfigS3 == nil {
 		return errors.New("client configuration is nil - cannot configure access log bucket")
 	}
 
 	cfg := &client.ExtendedRemoteStateConfigS3.RemoteStateConfigS3
 
-	l.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", cfg.Bucket, client.AccessLoggingBucketName)
+	l.Debugf(
+		"Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s",
+		cfg.Bucket,
+		client.AccessLoggingBucketName,
+	)
 
-	if err := client.CreateLogsS3BucketIfNecessary(ctx, l, client.AccessLoggingBucketName, opts); err != nil {
-		l.Errorf("Could not create logs bucket %s for AWS S3 bucket %s\n%s", client.AccessLoggingBucketName, cfg.Bucket, err.Error())
+	if err := client.CreateLogsS3BucketIfNecessary(ctx, l, v, client.AccessLoggingBucketName, opts); err != nil {
+		l.Errorf(
+			"Could not create logs bucket %s for AWS S3 bucket %s\n%s",
+			client.AccessLoggingBucketName,
+			cfg.Bucket,
+			err.Error(),
+		)
 
 		return err
 	}
@@ -317,7 +390,10 @@ func (client *Client) configureAccessLogBucket(ctx context.Context, l log.Logger
 	}
 
 	if client.SkipBucketVersioning {
-		l.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", client.AccessLoggingBucketName)
+		l.Debugf(
+			"Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.",
+			client.AccessLoggingBucketName,
+		)
 	} else if err := client.EnableVersioningForS3Bucket(ctx, l, client.AccessLoggingBucketName); err != nil {
 		return err
 	}
@@ -334,7 +410,11 @@ type S3BucketUpdatesRequired struct {
 	PublicAccess  bool
 }
 
-func (client *Client) checkIfS3BucketNeedsUpdate(ctx context.Context, l log.Logger, bucketName string) (bool, S3BucketUpdatesRequired, error) {
+func (client *Client) checkIfS3BucketNeedsUpdate(
+	ctx context.Context,
+	l log.Logger,
+	bucketName string,
+) (bool, S3BucketUpdatesRequired, error) {
 	var (
 		updates  []string
 		toUpdate S3BucketUpdatesRequired
@@ -450,7 +530,11 @@ func (client *Client) CheckIfVersioningEnabled(ctx context.Context, l log.Logger
 	// NOTE: There must be a bug in the AWS SDK since res == nil when versioning is not enabled. In the future,
 	// check the AWS SDK for updates to see if we can remove "res == nil ||".
 	if res == nil || res.Status != types.BucketVersioningStatusEnabled {
-		l.Warnf("Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your OpenTofu/Terraform state in case of error.", bucketName)
+		l.Warnf(
+			"Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your OpenTofu/Terraform state in case of error.",
+			bucketName,
+		)
+
 		return false, nil
 	}
 
@@ -458,7 +542,12 @@ func (client *Client) CheckIfVersioningEnabled(ctx context.Context, l log.Logger
 }
 
 // CreateS3BucketWithVersioningSSEncryptionAndAccessLogging creates the given S3 bucket and enable versioning for it.
-func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx context.Context, l log.Logger, opts *backend.Options) error {
+func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *backend.Options,
+) error {
 	if client.ExtendedRemoteStateConfigS3 == nil {
 		return errors.New("client configuration is nil - cannot create S3 bucket")
 	}
@@ -474,7 +563,11 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 		}
 
 		if isBucketAlreadyOwnedByYouError(err) {
-			l.Debugf("Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.", cfg.Bucket)
+			l.Debugf(
+				"Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.",
+				cfg.Bucket,
+			)
+
 			return client.WaitUntilS3BucketExists(ctx, l, cfg.Bucket)
 		}
 
@@ -486,19 +579,28 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 	}
 
 	if client.SkipBucketRootAccess {
-		l.Debugf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", cfg.Bucket)
+		l.Debugf(
+			"Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.",
+			cfg.Bucket,
+		)
 	} else if err := client.EnableRootAccesstoS3Bucket(ctx, l); err != nil {
 		return err
 	}
 
 	if client.SkipBucketEnforcedTLS {
-		l.Debugf("TLS enforcement is disabled for the remote state S3 bucket %s using 'skip_bucket_enforced_tls' config.", cfg.Bucket)
+		l.Debugf(
+			"TLS enforcement is disabled for the remote state S3 bucket %s using 'skip_bucket_enforced_tls' config.",
+			cfg.Bucket,
+		)
 	} else if err := client.EnableEnforcedTLSAccesstoS3Bucket(ctx, l, cfg.Bucket); err != nil {
 		return err
 	}
 
 	if client.SkipBucketPublicAccessBlocking {
-		l.Debugf("Public access blocking is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_public_access_blocking' config.", cfg.Bucket)
+		l.Debugf(
+			"Public access blocking is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_public_access_blocking' config.",
+			cfg.Bucket,
+		)
 	} else if err := client.EnablePublicAccessBlockingForS3Bucket(ctx, l, cfg.Bucket); err != nil {
 		return err
 	}
@@ -508,23 +610,33 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 	}
 
 	if client.SkipBucketVersioning {
-		l.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", cfg.Bucket)
+		l.Debugf(
+			"Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.",
+			cfg.Bucket,
+		)
 	} else if err := client.EnableVersioningForS3Bucket(ctx, l, cfg.Bucket); err != nil {
 		return err
 	}
 
 	if client.SkipBucketSSEncryption {
-		l.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", cfg.Bucket)
+		l.Debugf(
+			"Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.",
+			cfg.Bucket,
+		)
 	} else if err := client.EnableSSEForS3BucketWide(ctx, l, cfg.Bucket, client.FetchEncryptionAlgorithm()); err != nil {
 		return err
 	}
 
 	if client.SkipBucketAccessLogging {
-		l.Warnf("Terragrunt configuration option 'skip_bucket_accesslogging' is now deprecated. Access logging for the state bucket %s is disabled by default. To enable access logging for bucket %s, please provide property `accesslogging_bucket_name` in the terragrunt config file. For more details, please refer to the Terragrunt documentation.", cfg.Bucket, cfg.Bucket)
+		l.Warnf(
+			"Terragrunt configuration option 'skip_bucket_accesslogging' is now deprecated. Access logging for the state bucket %s is disabled by default. To enable access logging for bucket %s, please provide property `accesslogging_bucket_name` in the terragrunt config file. For more details, please refer to the Terragrunt documentation.",
+			cfg.Bucket,
+			cfg.Bucket,
+		)
 	}
 
 	if client.AccessLoggingBucketName != "" {
-		if err := client.configureAccessLogBucket(ctx, l, opts); err != nil {
+		if err := client.configureAccessLogBucket(ctx, l, v, opts); err != nil {
 			return err
 		}
 	} else {
@@ -538,7 +650,13 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 	return nil
 }
 
-func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.Logger, logsBucketName string, opts *backend.Options) error {
+func (client *Client) CreateLogsS3BucketIfNecessary(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	logsBucketName string,
+	opts *backend.Options,
+) error {
 	if exists, err := client.DoesS3BucketExistWithLogging(ctx, l, logsBucketName); err != nil || exists {
 		return err
 	}
@@ -547,7 +665,10 @@ func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.L
 		return backend.BucketCreationNotAllowed(logsBucketName)
 	}
 
-	prompt := fmt.Sprintf("Logs S3 bucket %s for the remote state does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", logsBucketName)
+	prompt := fmt.Sprintf(
+		"Logs S3 bucket %s for the remote state does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?",
+		logsBucketName,
+	)
 
 	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
 	if err != nil {
@@ -555,7 +676,12 @@ func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.L
 	}
 
 	if shouldCreateBucket {
-		return client.CreateS3BucketWithRetry(ctx, l, logsBucketName, CreateS3BucketOpts{Tags: client.AccessLoggingBucketTags})
+		return client.CreateS3BucketWithRetry(
+			ctx,
+			l,
+			logsBucketName,
+			CreateS3BucketOpts{Tags: client.AccessLoggingBucketTags},
+		)
 	}
 
 	return nil
@@ -689,7 +815,12 @@ type CreateS3BucketOpts struct {
 }
 
 // CreateS3Bucket creates the S3 bucket specified in the given config.
-func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket string, opts ...CreateS3BucketOpts) error {
+func (client *Client) CreateS3Bucket(
+	ctx context.Context,
+	l log.Logger,
+	bucket string,
+	opts ...CreateS3BucketOpts,
+) error {
 	if client.s3Client == nil {
 		return fmt.Errorf("S3 client is nil - cannot create S3 bucket %s", bucket)
 	}
@@ -737,26 +868,43 @@ func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket s
 // - Retry logic for transient errors
 // - Concurrent creation handling (BucketAlreadyOwnedByYou)
 // - Eventual consistency waiting after creation
-func (client *Client) CreateS3BucketWithRetry(ctx context.Context, l log.Logger, bucketName string, opts ...CreateS3BucketOpts) error {
+func (client *Client) CreateS3BucketWithRetry(
+	ctx context.Context,
+	l log.Logger,
+	bucketName string,
+	opts ...CreateS3BucketOpts,
+) error {
 	description := "Create S3 bucket '" + bucketName + "' with retry"
 
-	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-		err := client.CreateS3Bucket(ctx, l, bucketName, opts...)
-		if err != nil {
-			if isBucketAlreadyOwnedByYouError(err) {
-				l.Debugf("Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.", bucketName)
-				return client.WaitUntilS3BucketExists(ctx, l, bucketName)
+	return util.DoWithRetry(
+		ctx,
+		description,
+		s3MaxRetries,
+		s3SleepBetweenRetries,
+		l,
+		log.DebugLevel,
+		func(ctx context.Context) error {
+			err := client.CreateS3Bucket(ctx, l, bucketName, opts...)
+			if err != nil {
+				if isBucketAlreadyOwnedByYouError(err) {
+					l.Debugf(
+						"Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.",
+						bucketName,
+					)
+
+					return client.WaitUntilS3BucketExists(ctx, l, bucketName)
+				}
+
+				if isBucketErrorRetriable(l, err) {
+					return err
+				}
+
+				return util.FatalError{Underlying: err}
 			}
 
-			if isBucketErrorRetriable(l, err) {
-				return err
-			}
-
-			return util.FatalError{Underlying: err}
-		}
-
-		return client.WaitUntilS3BucketExists(ctx, l, bucketName)
-	})
+			return client.WaitUntilS3BucketExists(ctx, l, bucketName)
+		},
+	)
 }
 
 // or is in progress. This usually happens when running many tests in parallel or xxx-all commands.
@@ -773,7 +921,8 @@ func isBucketAlreadyOwnedByYouError(err error) bool {
 func isBucketErrorRetriable(l log.Logger, err error) bool {
 	var apiErr smithy.APIError
 	if errors.As(err, &apiErr) {
-		unrecoverable := apiErr.ErrorCode() == "InternalError" || apiErr.ErrorCode() == "OperationAborted" || apiErr.ErrorCode() == "InvalidParameter"
+		unrecoverable := apiErr.ErrorCode() == "InternalError" || apiErr.ErrorCode() == "OperationAborted" ||
+			apiErr.ErrorCode() == "InvalidParameter"
 
 		if !unrecoverable {
 			l.Debugf(
@@ -981,7 +1130,11 @@ func (client *Client) EnableEnforcedTLSAccesstoS3Bucket(ctx context.Context, l l
 	return nil
 }
 
-func (client *Client) EnablePublicAccessBlockingForS3Bucket(ctx context.Context, l log.Logger, bucketName string) error {
+func (client *Client) EnablePublicAccessBlockingForS3Bucket(
+	ctx context.Context,
+	l log.Logger,
+	bucketName string,
+) error {
 	input := &s3.PutPublicAccessBlockInput{
 		Bucket: aws.String(bucketName),
 		PublicAccessBlockConfiguration: &types.PublicAccessBlockConfiguration{
@@ -1013,20 +1166,37 @@ func (client *Client) EnableAccessLoggingForS3BucketWide(ctx context.Context, l 
 	logsBucketPrefix := cfg.AccessLoggingTargetPrefix
 
 	if logsBucket == "" {
-		return fmt.Errorf("AccessLoggingBucketName is required for bucket-wide Access Logging on AWS S3 bucket %s", cfg.RemoteStateConfigS3.Bucket)
+		return fmt.Errorf(
+			"AccessLoggingBucketName is required for bucket-wide Access Logging on AWS S3 bucket %s",
+			cfg.RemoteStateConfigS3.Bucket,
+		)
 	}
 
 	if !client.SkipAccessLoggingBucketACL {
 		if err := client.configureBucketAccessLoggingACL(ctx, l, logsBucket); err != nil {
-			return fmt.Errorf("error configuring bucket access logging ACL on S3 bucket %s: %w", cfg.RemoteStateConfigS3.Bucket, err)
+			return fmt.Errorf(
+				"error configuring bucket access logging ACL on S3 bucket %s: %w",
+				cfg.RemoteStateConfigS3.Bucket,
+				err,
+			)
 		}
 	}
 
 	loggingInput := client.CreateS3LoggingInput()
-	l.Debugf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s\n%v", bucket, logsBucket, logsBucketPrefix, loggingInput)
+	l.Debugf(
+		"Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s\n%v",
+		bucket,
+		logsBucket,
+		logsBucketPrefix,
+		loggingInput,
+	)
 
 	if _, err := client.s3Client.PutBucketLogging(ctx, &loggingInput); err != nil {
-		return fmt.Errorf("error enabling bucket-wide Access Logging on AWS S3 bucket %s: %w", cfg.RemoteStateConfigS3.Bucket, err)
+		return fmt.Errorf(
+			"error enabling bucket-wide Access Logging on AWS S3 bucket %s: %w",
+			cfg.RemoteStateConfigS3.Bucket,
+			err,
+		)
 	}
 
 	l.Debugf("Enabled bucket-wide Access Logging on AWS S3 bucket %s", bucket)
@@ -1035,7 +1205,11 @@ func (client *Client) EnableAccessLoggingForS3BucketWide(ctx context.Context, l 
 }
 
 func (client *Client) configureBucketAccessLoggingACL(ctx context.Context, l log.Logger, bucketName string) error {
-	l.Debugf("Granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s. This is required for access logging.", s3LogDeliveryGranteeURI, bucketName)
+	l.Debugf(
+		"Granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s. This is required for access logging.",
+		s3LogDeliveryGranteeURI,
+		bucketName,
+	)
 
 	uri := "uri=" + s3LogDeliveryGranteeURI
 	aclInput := s3.PutBucketAclInput{
@@ -1045,7 +1219,12 @@ func (client *Client) configureBucketAccessLoggingACL(ctx context.Context, l log
 	}
 
 	if _, err := client.s3Client.PutBucketAcl(ctx, &aclInput); err != nil {
-		return fmt.Errorf("error granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s: %w", s3LogDeliveryGranteeURI, bucketName, err)
+		return fmt.Errorf(
+			"error granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s: %w",
+			s3LogDeliveryGranteeURI,
+			bucketName,
+			err,
+		)
 	}
 
 	return client.waitUntilBucketHasAccessLoggingACL(ctx, l, bucketName)
@@ -1082,7 +1261,11 @@ func (client *Client) waitUntilBucketHasAccessLoggingACL(ctx context.Context, l 
 			return nil
 		}
 
-		l.Debugf("Bucket %s still does not have the ACL permissions for access logging. Will sleep for %v and check again.", bucketName, s3TimeBetweenRetries)
+		l.Debugf(
+			"Bucket %s still does not have the ACL permissions for access logging. Will sleep for %v and check again.",
+			bucketName,
+			s3TimeBetweenRetries,
+		)
 		time.Sleep(s3TimeBetweenRetries)
 	}
 
@@ -1113,18 +1296,26 @@ func (client *Client) DeleteS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	description := fmt.Sprintf("Delete S3 bucket %s with retry", bucketName)
 
-	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-		err := client.DeleteS3BucketWithAllObjects(ctx, l, bucketName)
-		if err == nil {
-			return nil
-		}
+	return util.DoWithRetry(
+		ctx,
+		description,
+		s3MaxRetries,
+		s3SleepBetweenRetries,
+		l,
+		log.DebugLevel,
+		func(ctx context.Context) error {
+			err := client.DeleteS3BucketWithAllObjects(ctx, l, bucketName)
+			if err == nil {
+				return nil
+			}
 
-		if isBucketErrorRetriable(l, err) {
-			return err
-		}
-		// return FatalError so that retry loop will not continue
-		return util.FatalError{Underlying: err}
-	})
+			if isBucketErrorRetriable(l, err) {
+				return err
+			}
+			// return FatalError so that retry loop will not continue
+			return util.FatalError{Underlying: err}
+		},
+	)
 }
 
 // DeleteS3BucketWithAllObjects deletes the given S3 bucket with all its objects.
@@ -1139,7 +1330,12 @@ func (client *Client) DeleteS3BucketWithAllObjects(ctx context.Context, l log.Lo
 }
 
 // DeleteS3BucketObject deletes S3 bucket object by the given key.
-func (client *Client) DeleteS3BucketObject(ctx context.Context, l log.Logger, bucketName, key string, versionID *string) error {
+func (client *Client) DeleteS3BucketObject(
+	ctx context.Context,
+	l log.Logger,
+	bucketName, key string,
+	versionID *string,
+) error {
 	objectInput := &s3.DeleteObjectInput{
 		Bucket:    aws.String(bucketName),
 		Key:       aws.String(key),
@@ -1186,7 +1382,12 @@ func (client *Client) DeleteS3BucketV2Objects(ctx context.Context, l log.Logger,
 }
 
 // DeleteS3BucketVersionObjects deletes S3 bucket object versions by the given key.
-func (client *Client) DeleteS3BucketVersionObjects(ctx context.Context, l log.Logger, bucketName string, keys ...string) error {
+func (client *Client) DeleteS3BucketVersionObjects(
+	ctx context.Context,
+	l log.Logger,
+	bucketName string,
+	keys ...string,
+) error {
 	var versionsInput = &s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)}
 
 	for {
@@ -1302,17 +1503,25 @@ func (client *Client) DeleteS3ObjectIfNecessary(ctx context.Context, l log.Logge
 
 	description := fmt.Sprintf("Delete S3 object %s in bucket %s with retry", key, bucketName)
 
-	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-		if err := client.DeleteS3BucketObject(ctx, l, bucketName, key, nil); err != nil {
-			if isBucketErrorRetriable(l, err) {
-				return err
+	return util.DoWithRetry(
+		ctx,
+		description,
+		s3MaxRetries,
+		s3SleepBetweenRetries,
+		l,
+		log.DebugLevel,
+		func(ctx context.Context) error {
+			if err := client.DeleteS3BucketObject(ctx, l, bucketName, key, nil); err != nil {
+				if isBucketErrorRetriable(l, err) {
+					return err
+				}
+				// return FatalError so that retry loop will not continue
+				return util.FatalError{Underlying: err}
 			}
-			// return FatalError so that retry loop will not continue
-			return util.FatalError{Underlying: err}
-		}
 
-		return nil
-	})
+			return nil
+		},
+	)
 }
 
 // DoesS3ObjectExist returns true if the specified S3 object exists otherwise false.
@@ -1336,7 +1545,11 @@ func (client *Client) DoesS3ObjectExist(ctx context.Context, bucketName, key str
 	return true, nil
 }
 
-func (client *Client) DoesS3ObjectExistWithLogging(ctx context.Context, l log.Logger, bucketName, key string) (bool, error) {
+func (client *Client) DoesS3ObjectExistWithLogging(
+	ctx context.Context,
+	l log.Logger,
+	bucketName, key string,
+) (bool, error) {
 	if client.s3Client == nil {
 		return false, fmt.Errorf("S3 client is nil - cannot check if S3 bucket %s exists", bucketName)
 	}
@@ -1347,13 +1560,22 @@ func (client *Client) DoesS3ObjectExistWithLogging(ctx context.Context, l log.Lo
 		return exists, err
 	}
 
-	l.Debugf("Remote state S3 bucket %s object %s does not exist or you don't have permissions to access it.", bucketName, key)
+	l.Debugf(
+		"Remote state S3 bucket %s object %s does not exist or you don't have permissions to access it.",
+		bucketName,
+		key,
+	)
 
 	return false, nil
 }
 
 // CreateLockTableIfNecessary creates the lock table in DynamoDB if it doesn't already exist.
-func (client *Client) CreateLockTableIfNecessary(ctx context.Context, l log.Logger, tableName string, tags map[string]string) error {
+func (client *Client) CreateLockTableIfNecessary(
+	ctx context.Context,
+	l log.Logger,
+	tableName string,
+	tags map[string]string,
+) error {
 	tableExists, err := client.DoesLockTableExistAndIsActive(ctx, tableName)
 	if err != nil {
 		return err
@@ -1429,12 +1651,18 @@ func (client *Client) LockTableCheckSSEncryptionIsOn(ctx context.Context, tableN
 		return false, err
 	}
 
-	return output.Table.SSEDescription != nil && string(output.Table.SSEDescription.Status) == string(dynamodbtypes.SSEStatusEnabled), nil
+	return output.Table.SSEDescription != nil &&
+		string(output.Table.SSEDescription.Status) == string(dynamodbtypes.SSEStatusEnabled), nil
 }
 
 // CreateLockTable creates a lock table in DynamoDB and wait until it is in "active" state.
 // If the table already exists, merely wait until it is in "active" state.
-func (client *Client) CreateLockTable(ctx context.Context, l log.Logger, tableName string, tags map[string]string) error {
+func (client *Client) CreateLockTable(
+	ctx context.Context,
+	l log.Logger,
+	tableName string,
+	tags map[string]string,
+) error {
 	tableCreateDeleteSemaphore.Acquire()
 	defer tableCreateDeleteSemaphore.Release()
 
@@ -1462,18 +1690,28 @@ func (client *Client) CreateLockTable(ctx context.Context, l log.Logger, tableNa
 	createTableOutput, err := client.dynamoClient.CreateTable(ctx, input)
 	if err != nil {
 		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
-			l.Debugf("Looks like someone created table %s at the same time. Will wait for it to be in active state.", tableName)
+			l.Debugf(
+				"Looks like someone created table %s at the same time. Will wait for it to be in active state.",
+				tableName,
+			)
 		} else {
 			return err
 		}
 	}
 
-	err = client.waitForTableToBeActive(ctx, l, tableName, MaxRetriesWaitingForTableToBeActive, SleepBetweenTableStatusChecks)
+	err = client.waitForTableToBeActive(
+		ctx,
+		l,
+		tableName,
+		MaxRetriesWaitingForTableToBeActive,
+		SleepBetweenTableStatusChecks,
+	)
 	if err != nil {
 		return err
 	}
 
-	if createTableOutput != nil && createTableOutput.TableDescription != nil && createTableOutput.TableDescription.TableArn != nil {
+	if createTableOutput != nil && createTableOutput.TableDescription != nil &&
+		createTableOutput.TableDescription.TableArn != nil {
 		// Do not tag in case somebody else had created the table
 		err = client.tagTableIfTagsGiven(ctx, l, tags, createTableOutput.TableDescription.TableArn)
 		if err != nil {
@@ -1484,7 +1722,12 @@ func (client *Client) CreateLockTable(ctx context.Context, l log.Logger, tableNa
 	return nil
 }
 
-func (client *Client) tagTableIfTagsGiven(ctx context.Context, l log.Logger, tags map[string]string, tableArn *string) error {
+func (client *Client) tagTableIfTagsGiven(
+	ctx context.Context,
+	l log.Logger,
+	tags map[string]string,
+	tableArn *string,
+) error {
 	if len(tags) == 0 {
 		l.Debugf("No tags for lock table given.")
 		return nil
@@ -1534,7 +1777,13 @@ func (client *Client) DeleteTable(ctx context.Context, l log.Logger, tableName s
 
 		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
 			if i < maxRetries-1 {
-				l.Debugf("Table %s is still being updated (likely tags). Will retry deletion after %s (attempt %d/%d)", tableName, delay, i+1, maxRetries)
+				l.Debugf(
+					"Table %s is still being updated (likely tags). Will retry deletion after %s (attempt %d/%d)",
+					tableName,
+					delay,
+					i+1,
+					maxRetries,
+				)
 				time.Sleep(delay)
 
 				continue
@@ -1559,15 +1808,35 @@ func isTableAlreadyBeingCreatedOrUpdatedError(err error) bool {
 
 // Wait for the given DynamoDB table to be in the "active" state. If it's not in "active" state, sleep for the
 // specified amount of time, and try again, up to a maximum of maxRetries retries.
-func (client *Client) waitForTableToBeActive(ctx context.Context, l log.Logger, tableName string, maxRetries int, sleepBetweenRetries time.Duration) error {
-	return client.WaitForTableToBeActiveWithRandomSleep(ctx, l, tableName, maxRetries, sleepBetweenRetries, sleepBetweenRetries)
+func (client *Client) waitForTableToBeActive(
+	ctx context.Context,
+	l log.Logger,
+	tableName string,
+	maxRetries int,
+	sleepBetweenRetries time.Duration,
+) error {
+	return client.WaitForTableToBeActiveWithRandomSleep(
+		ctx,
+		l,
+		tableName,
+		maxRetries,
+		sleepBetweenRetries,
+		sleepBetweenRetries,
+	)
 }
 
 // WaitForTableToBeActiveWithRandomSleep waits for the given table as described above,
 // but sleeps a random amount of time greater than sleepBetweenRetriesMin
 // and less than sleepBetweenRetriesMax between tries. This is to avoid an AWS issue where all waiting requests fire at
 // the same time, which continually triggered AWS's "subscriber limit exceeded" API error.
-func (client *Client) WaitForTableToBeActiveWithRandomSleep(ctx context.Context, l log.Logger, tableName string, maxRetries int, sleepBetweenRetriesMin time.Duration, sleepBetweenRetriesMax time.Duration) error {
+func (client *Client) WaitForTableToBeActiveWithRandomSleep(
+	ctx context.Context,
+	l log.Logger,
+	tableName string,
+	maxRetries int,
+	sleepBetweenRetriesMin time.Duration,
+	sleepBetweenRetriesMax time.Duration,
+) error {
 	for range maxRetries {
 		tableReady, err := client.DoesLockTableExistAndIsActive(ctx, tableName)
 		if err != nil {
@@ -1588,7 +1857,11 @@ func (client *Client) WaitForTableToBeActiveWithRandomSleep(ctx context.Context,
 }
 
 // UpdateLockTableSetSSEncryptionOnIfNecessary encrypts the TFState Lock table - If Necessary
-func (client *Client) UpdateLockTableSetSSEncryptionOnIfNecessary(ctx context.Context, l log.Logger, tableName string) error {
+func (client *Client) UpdateLockTableSetSSEncryptionOnIfNecessary(
+	ctx context.Context,
+	l log.Logger,
+	tableName string,
+) error {
 	tableSSEncrypted, err := client.LockTableCheckSSEncryptionIsOn(ctx, tableName)
 	if err != nil {
 		return err
@@ -1614,7 +1887,10 @@ func (client *Client) UpdateLockTableSetSSEncryptionOnIfNecessary(ctx context.Co
 
 	if _, err := client.dynamoClient.UpdateTable(ctx, input); err != nil {
 		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
-			l.Debugf("Looks like someone is already updating table %s at the same time. Will wait for that update to complete.", tableName)
+			l.Debugf(
+				"Looks like someone is already updating table %s at the same time. Will wait for that update to complete.",
+				tableName,
+			)
 		} else {
 			return err
 		}
@@ -1624,7 +1900,13 @@ func (client *Client) UpdateLockTableSetSSEncryptionOnIfNecessary(ctx context.Co
 		return err
 	}
 
-	return client.waitForTableToBeActive(ctx, l, tableName, MaxRetriesWaitingForTableToBeActive, SleepBetweenTableStatusChecks)
+	return client.waitForTableToBeActive(
+		ctx,
+		l,
+		tableName,
+		MaxRetriesWaitingForTableToBeActive,
+		SleepBetweenTableStatusChecks,
+	)
 }
 
 // Wait until encryption is enabled for the given table
@@ -1642,7 +1924,11 @@ func (client *Client) waitForEncryptionToBeEnabled(ctx context.Context, l log.Lo
 			return nil
 		}
 
-		l.Debugf("Encryption is still not enabled for table %s. Will sleep for %v and try again.", tableName, sleepBetweenRetriesWaitingForEncryption)
+		l.Debugf(
+			"Encryption is still not enabled for table %s. Will sleep for %v and try again.",
+			tableName,
+			sleepBetweenRetriesWaitingForEncryption,
+		)
 		time.Sleep(sleepBetweenRetriesWaitingForEncryption)
 	}
 
@@ -1657,17 +1943,25 @@ func (client *Client) DeleteTableItemIfNecessary(ctx context.Context, l log.Logg
 
 	description := fmt.Sprintf("Delete DynamoDB table %s item %s", tableName, key)
 
-	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-		if err := client.DeleteTableItem(ctx, l, tableName, key); err != nil {
-			if isBucketErrorRetriable(l, err) {
-				return err
+	return util.DoWithRetry(
+		ctx,
+		description,
+		s3MaxRetries,
+		s3SleepBetweenRetries,
+		l,
+		log.DebugLevel,
+		func(ctx context.Context) error {
+			if err := client.DeleteTableItem(ctx, l, tableName, key); err != nil {
+				if isBucketErrorRetriable(l, err) {
+					return err
+				}
+				// return FatalError so that retry loop will not continue
+				return util.FatalError{Underlying: err}
 			}
-			// return FatalError so that retry loop will not continue
-			return util.FatalError{Underlying: err}
-		}
 
-		return nil
-	})
+			return nil
+		},
+	)
 }
 
 // DeleteTableItem deletes the given DynamoDB table key.
@@ -1716,7 +2010,11 @@ func (client *Client) DoesTableItemExist(ctx context.Context, tableName, key str
 }
 
 // MoveS3Object copies the S3 object at the specified srcKey to dstKey and then removes srcKey.
-func (client *Client) MoveS3Object(ctx context.Context, l log.Logger, srcBucketName, srcKey, dstBucketName, dstKey string) error {
+func (client *Client) MoveS3Object(
+	ctx context.Context,
+	l log.Logger,
+	srcBucketName, srcKey, dstBucketName, dstKey string,
+) error {
 	if err := client.CopyS3BucketObject(ctx, l, srcBucketName, srcKey, dstBucketName, dstKey); err != nil {
 		return err
 	}
@@ -1762,7 +2060,12 @@ func (client *Client) EnableVersioningForS3Bucket(ctx context.Context, l log.Log
 }
 
 // EnableSSEForS3BucketWide enables server-side encryption for the S3 bucket specified in the given config.
-func (client *Client) EnableSSEForS3BucketWide(ctx context.Context, l log.Logger, bucketName string, algorithm string) error {
+func (client *Client) EnableSSEForS3BucketWide(
+	ctx context.Context,
+	l log.Logger,
+	bucketName string,
+	algorithm string,
+) error {
 	l.Debugf("Enabling server-side encryption for S3 bucket %s", bucketName)
 
 	accountID, err := awshelper.GetAWSAccountID(ctx, &client.awsConfig)
@@ -1791,7 +2094,9 @@ func (client *Client) EnableSSEForS3BucketWide(ctx context.Context, l log.Logger
 
 	// If using KMS encryption and a specific KMS key ID is configured, set it
 	if algorithm == string(types.ServerSideEncryptionAwsKms) && client.BucketSSEKMSKeyID != "" {
-		input.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID = aws.String(client.BucketSSEKMSKeyID)
+		input.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID = aws.String(
+			client.BucketSSEKMSKeyID,
+		)
 	}
 
 	_, err = client.s3Client.PutBucketEncryption(ctx, input)
@@ -1852,7 +2157,10 @@ func (client *Client) checkIfSSEForS3MatchesConfig(ctx context.Context, bucketNa
 }
 
 // checkIfBucketPolicyStatementExists checks if a specific policy statement exists in the bucket policy
-func (client *Client) checkIfBucketPolicyStatementExists(ctx context.Context, bucketName, statementSid string) (bool, error) {
+func (client *Client) checkIfBucketPolicyStatementExists(
+	ctx context.Context,
+	bucketName, statementSid string,
+) (bool, error) {
 	policyOutput, err := client.s3Client.GetBucketPolicy(ctx, &s3.GetBucketPolicyInput{
 		Bucket: aws.String(bucketName),
 	})
@@ -1967,8 +2275,16 @@ func (client *Client) checkIfS3PublicAccessBlockingEnabled(ctx context.Context, 
 }
 
 // CopyS3BucketObject copies the S3 object at the specified srcBucketName and srcKey to dstBucketName and dstKey.
-func (client *Client) CopyS3BucketObject(ctx context.Context, l log.Logger, srcBucketName, srcKey, dstBucketName, dstKey string) error {
-	l.Debugf("Copying S3 bucket object from %s to %s", path.Join(srcBucketName, srcKey), path.Join(dstBucketName, dstKey))
+func (client *Client) CopyS3BucketObject(
+	ctx context.Context,
+	l log.Logger,
+	srcBucketName, srcKey, dstBucketName, dstKey string,
+) error {
+	l.Debugf(
+		"Copying S3 bucket object from %s to %s",
+		path.Join(srcBucketName, srcKey),
+		path.Join(dstBucketName, dstKey),
+	)
 
 	input := &s3.CopyObjectInput{
 		Bucket:     aws.String(dstBucketName),
@@ -1983,7 +2299,11 @@ func (client *Client) CopyS3BucketObject(ctx context.Context, l log.Logger, srcB
 }
 
 // MoveS3ObjectIfNecessary moves the S3 object at the specified srcBucketName and srcKey to dstBucketName and dstKey, only if it exists and does not already exist at the destination.
-func (client *Client) MoveS3ObjectIfNecessary(ctx context.Context, l log.Logger, srcBucketName, srcKey, dstBucketName, dstKey string) error {
+func (client *Client) MoveS3ObjectIfNecessary(
+	ctx context.Context,
+	l log.Logger,
+	srcBucketName, srcKey, dstBucketName, dstKey string,
+) error {
 	exists, err := client.DoesS3ObjectExistWithLogging(ctx, l, srcBucketName, srcKey)
 	if err != nil || !exists {
 		return err
@@ -1996,19 +2316,31 @@ func (client *Client) MoveS3ObjectIfNecessary(ctx context.Context, l log.Logger,
 		return fmt.Errorf("destination S3 bucket %s object %s already exists", dstBucketName, dstKey)
 	}
 
-	description := fmt.Sprintf("Move S3 bucket object from %s to %s", path.Join(srcBucketName, srcKey), path.Join(dstBucketName, dstKey))
+	description := fmt.Sprintf(
+		"Move S3 bucket object from %s to %s",
+		path.Join(srcBucketName, srcKey),
+		path.Join(dstBucketName, dstKey),
+	)
 
-	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-		if err := client.MoveS3Object(ctx, l, srcBucketName, srcKey, dstBucketName, dstKey); err != nil {
-			if isBucketErrorRetriable(l, err) {
-				return err
+	return util.DoWithRetry(
+		ctx,
+		description,
+		s3MaxRetries,
+		s3SleepBetweenRetries,
+		l,
+		log.DebugLevel,
+		func(ctx context.Context) error {
+			if err := client.MoveS3Object(ctx, l, srcBucketName, srcKey, dstBucketName, dstKey); err != nil {
+				if isBucketErrorRetriable(l, err) {
+					return err
+				}
+				// return FatalError so that retry loop will not continue
+				return util.FatalError{Underlying: err}
 			}
-			// return FatalError so that retry loop will not continue
-			return util.FatalError{Underlying: err}
-		}
 
-		return nil
-	})
+			return nil
+		},
+	)
 }
 
 // CreateTableItemIfNecessary creates the DynamoDB table item with the specified key, only if it does not already exist.
@@ -2022,17 +2354,25 @@ func (client *Client) CreateTableItemIfNecessary(ctx context.Context, l log.Logg
 
 	description := fmt.Sprintf("Create DynamoDB table %s item %s", tableName, key)
 
-	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-		if err := client.CreateTableItem(ctx, l, tableName, key); err != nil {
-			if isBucketErrorRetriable(l, err) {
-				return err
+	return util.DoWithRetry(
+		ctx,
+		description,
+		s3MaxRetries,
+		s3SleepBetweenRetries,
+		l,
+		log.DebugLevel,
+		func(ctx context.Context) error {
+			if err := client.CreateTableItem(ctx, l, tableName, key); err != nil {
+				if isBucketErrorRetriable(l, err) {
+					return err
+				}
+				// return FatalError so that retry loop will not continue
+				return util.FatalError{Underlying: err}
 			}
-			// return FatalError so that retry loop will not continue
-			return util.FatalError{Underlying: err}
-		}
 
-		return nil
-	})
+			return nil
+		},
+	)
 }
 
 // GetDynamoDBClient returns the DynamoDB client for testing purposes.
@@ -2056,7 +2396,11 @@ func isAWSResourceNotFoundError(err error) bool {
 func handleS3TaggingMethodNotAllowed(err error, l log.Logger, bucketName string) bool {
 	var apiErr smithy.APIError
 	if errors.As(err, &apiErr) && apiErr.ErrorCode() == "MethodNotAllowed" {
-		l.Warnf("S3 bucket tagging is not supported for bucket %s - skipping tagging (this is normal for some AWS configurations)", bucketName)
+		l.Warnf(
+			"S3 bucket tagging is not supported for bucket %s - skipping tagging (this is normal for some AWS configurations)",
+			bucketName,
+		)
+
 		return true
 	}
 

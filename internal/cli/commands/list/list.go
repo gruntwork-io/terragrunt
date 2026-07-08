@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -28,7 +29,7 @@ import (
 )
 
 // Run runs the list command.
-func Run(ctx context.Context, l log.Logger, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
@@ -61,7 +62,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		}
 	}()
 
-	if err := generate.WorktreeStacks(ctx, l, opts.TerragruntOptions, worktrees); err != nil {
+	if err := generate.WorktreeStacks(ctx, l, v, opts.TerragruntOptions, worktrees); err != nil {
 		return err
 	}
 
@@ -78,7 +79,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"no_hidden":    opts.NoHidden,
 		"dependencies": opts.Dependencies || opts.Mode == ModeDAG,
 	}, func(ctx context.Context) error {
-		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
+		components, discoverErr = d.Discover(ctx, l, v, opts.TerragruntOptions)
 
 		if span := trace.SpanFromContext(ctx); span.IsRecording() {
 			span.SetAttributes(attribute.Int("component_count", len(components)))

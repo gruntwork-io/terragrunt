@@ -59,7 +59,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.Writers = opts.Writers
 	pctx.LogShowAbsPaths = opts.LogShowAbsPaths
 	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
-	pctx.Env = opts.Env
 	pctx.IAMRoleOptions = opts.IAMRoleOptions
 	pctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
 	pctx.UsePartialParseConfigCache = opts.UsePartialParseConfigCache
@@ -92,7 +91,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 	s := shell.NewShellOptions().
 		WithWorkingDir(opts.WorkingDir).
-		WithEnv(opts.Env).
 		WithWriters(opts.Writers).
 		WithTelemetry(opts.Telemetry).
 		WithEngine(opts.EngineConfig, opts.EngineOptions).
@@ -111,7 +109,6 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
 		Writers:                      opts.Writers,
-		Env:                          opts.Env,
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		NonInteractive:               opts.NonInteractive,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
@@ -157,7 +154,6 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.TerraformCliArgs = opts.TerraformCliArgs
 	runOpts.Source = opts.Source
 	runOpts.SourceMap = opts.SourceMap
-	runOpts.Env = opts.Env
 	runOpts.IAMRoleOptions = opts.IAMRoleOptions
 	runOpts.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
 	runOpts.EngineConfig = opts.EngineConfig

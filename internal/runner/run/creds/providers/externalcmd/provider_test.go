@@ -6,7 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ func TestGetCredentialsHandlesJSONNullResponse(t *testing.T) {
 
 	provider := externalcmd.NewProvider(l, "printf null", opts)
 
-	creds, err := provider.GetCredentials(t.Context(), l, vexec.NewOSExec())
+	creds, err := provider.GetCredentials(t.Context(), l, venv.OSVenv())
 
 	require.NoError(t, err)
 	require.NotNil(t, creds)

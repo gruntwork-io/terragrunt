@@ -464,7 +464,7 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, err
 
 // CatFile writes the contents of a git object
 // to a given writer.
-func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) error {
+func (g *GitRunner) CatFile(ctx context.Context, hash string, w io.Writer) error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}
@@ -473,7 +473,7 @@ func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) err
 
 	cmd := g.prepareCommand(ctx, "cat-file", "-p", hash)
 
-	cmd.SetStdout(out)
+	cmd.SetStdout(w)
 	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {

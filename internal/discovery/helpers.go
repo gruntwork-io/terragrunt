@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -303,11 +304,13 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	fs vfs.FS,
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+	pctx = pctx.WithVenv(v)
 
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
 	funcsFor := inthclparse.StackFuncFactory(func(stackDir string) (map[string]function.Function, error) {

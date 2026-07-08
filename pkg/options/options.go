@@ -98,8 +98,6 @@ type TerragruntOptions struct {
 	Errors *errorconfig.Config
 	// Map to replace terraform source locations.
 	SourceMap map[string]string
-	// Environment variables at runtime
-	Env map[string]string
 	// StackAction is the action that should be performed on the stack.
 	StackAction string
 	// IAM Role options that should be used when authenticating to AWS.
@@ -336,7 +334,6 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		AutoInit:                 true,
 		RunAllAutoApprove:        true,
 		DiscoveryAuthProviderCmd: true,
-		Env:                      map[string]string{},
 		SourceMap:                map[string]string{},
 		TerraformCliArgs:         iacargs.New(),
 		MaxFoldersToCheck:        DefaultMaxFoldersToCheck,
@@ -545,19 +542,21 @@ func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	}
 }
 
-// TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
-func (opts *TerragruntOptions) TerraformDataDir() string {
-	if tfDataDir, ok := opts.Env["TF_DATA_DIR"]; ok {
+// TerraformDataDir returns the Terraform data directory (.terraform by
+// default, overridden by the TF_DATA_DIR entry in env).
+func (opts *TerragruntOptions) TerraformDataDir(env map[string]string) string {
+	if tfDataDir, ok := env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
 
 	return DefaultTFDataDir
 }
 
-// DataDir returns the Terraform data directory prepended with the working directory path,
-// or just the Terraform data directory if it is an absolute path.
-func (opts *TerragruntOptions) DataDir() string {
-	tfDataDir := opts.TerraformDataDir()
+// DataDir returns the Terraform data directory prepended with the working
+// directory path, or just the Terraform data directory if it is an absolute
+// path.
+func (opts *TerragruntOptions) DataDir(env map[string]string) string {
+	tfDataDir := opts.TerraformDataDir(env)
 	if filepath.IsAbs(tfDataDir) {
 		return tfDataDir
 	}

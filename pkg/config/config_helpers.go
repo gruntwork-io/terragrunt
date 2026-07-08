@@ -287,12 +287,12 @@ func getPlatform(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 
 // Return the repository root as an absolute path
 func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	return shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
+	return shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
 }
 
 // Return the path from the repository root
 func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -307,7 +307,7 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 // Return the path to the repository root
 func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
@@ -470,7 +470,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	cmdOutput, err := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		pctx.Venv.Exec,
+		pctx.Venv,
 		shellRunOptsFromPctx(pctx),
 		currentPath,
 		true,
@@ -520,7 +520,7 @@ func getEnvironmentVariable(ctx context.Context, pctx *ParsingContext, l log.Log
 		return "", fmt.Errorf("parsing get_env parameters: %w", err)
 	}
 
-	envValue, exists := pctx.Env[parameterMap.Name]
+	envValue, exists := pctx.Venv.Env[parameterMap.Name]
 	if !exists {
 		if parameterMap.IsRequired {
 			return "", EnvVarNotFoundError{EnvVar: parameterMap.Name}
@@ -740,7 +740,7 @@ func getDefaultRetryableErrors(ctx context.Context, pctx *ParsingContext, l log.
 // It builds an AWS config from the parsing context, then calls fetchFn to get the value.
 func getAWSField(ctx context.Context, pctx *ParsingContext, l log.Logger, fetchFn func(context.Context, *aws.Config) (string, error)) (string, error) {
 	awsConfig, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(pctx.Env).
+		WithEnv(pctx.Venv.Env).
 		WithIAMRoleOptions(pctx.IAMRoleOptions).
 		Build(ctx, l)
 	if err != nil {
@@ -1050,12 +1050,12 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 		return val, nil
 	}
 
-	// Set env vars from opts.Env that are missing from process env.
+	// Set env vars from the venv environment that are missing from process env.
 	// Auth-provider credentials (e.g., AWS_SESSION_TOKEN) may not exist
 	// in process env yet — SOPS needs them for KMS auth.
 	// Existing process env vars are preserved to avoid overriding real
 	// credentials with empty auth-provider values.
-	env := pctx.Env
+	env := pctx.Venv.Env
 
 	setKeys := make([]string, 0, len(env))
 
@@ -1338,7 +1338,7 @@ func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		// Default to the enclosing Git repository root. GitTopLevelDir errors
 		// when the working directory is not inside a repository (or git is
 		// unavailable); treat that as "no boundary" rather than a failure.
-		if repoRoot, repoErr := shell.GitTopLevelDir(ctx, l, pctx.Venv.Exec, pctx.Env, pctx.WorkingDir); repoErr == nil {
+		if repoRoot, repoErr := shell.GitTopLevelDir(ctx, l, pctx.Venv, pctx.WorkingDir); repoErr == nil {
 			boundary = repoRoot
 		}
 	}

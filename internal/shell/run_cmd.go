@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -42,7 +42,6 @@ type ShellOptions struct {
 	EngineOptions *engine.EngineOptions
 	EngineConfig  *engine.EngineConfig
 	Telemetry     *telemetry.Options
-	Env           map[string]string
 
 	RootWorkingDir         string
 	WorkingDir             string
@@ -63,7 +62,6 @@ type ShellOptions struct {
 // Use the With* methods to override any of these.
 func NewShellOptions() *ShellOptions {
 	opts := &ShellOptions{
-		Env: make(map[string]string),
 		Writers: writer.Writers{
 			Writer:    os.Stdout,
 			ErrWriter: os.Stderr,
@@ -88,13 +86,6 @@ func (o *ShellOptions) WithWorkingDir(dir string) *ShellOptions {
 // WithUnitDir sets the logical unit directory the command belongs to.
 func (o *ShellOptions) WithUnitDir(dir string) *ShellOptions {
 	o.UnitDir = dir
-
-	return o
-}
-
-// WithEnv sets the environment variables for command execution.
-func (o *ShellOptions) WithEnv(env map[string]string) *ShellOptions {
-	o.Env = env
 
 	return o
 }
@@ -176,32 +167,30 @@ func (o *ShellOptions) NoEngine() bool {
 	return o.EngineOptions != nil && o.EngineOptions.NoEngine
 }
 
-// RunCommand runs the given shell command using the provided vexec.Exec.
-// Pass vexec.NewMemExec from tests and fuzzers to intercept subprocess
-// invocations so external binaries like tofu/terraform are never forked.
-func RunCommand(
-	ctx context.Context,
-	l log.Logger,
-	e vexec.Exec,
-	runOpts *ShellOptions,
-	command string,
-	args ...string,
-) error {
-	_, err := RunCommandWithOutput(ctx, l, e, runOpts, "", false, false, command, args...)
+// RunCommand runs the given shell command. The shell environment and process
+// executor come from v; tests can substitute a venv whose Exec is a
+// [vexec.NewMemExec] so external binaries like tofu/terraform are never forked.
+//
+// Requires a non-nil v.Env.
+func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *ShellOptions, command string, args ...string) error {
+	_, err := RunCommandWithOutput(ctx, l, v, runOpts, "", false, false, command, args...)
 
 	return err
 }
 
-// RunCommandWithOutput runs the specified shell command using the provided
-// vexec.Exec and captures stdout/stderr in addition to streaming.
+// RunCommandWithOutput runs the specified shell command and captures
+// stdout/stderr in addition to streaming. The shell environment and process
+// executor come from v.
 //
 // Connect the command's stdin, stdout, and stderr to
 // the currently running app. The command can be executed in a custom working directory by using the parameter
 // `workingDir`. Terragrunt working directory will be assumed if empty string.
+//
+// Requires a non-nil v.Env.
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
-	e vexec.Exec,
+	v venv.Venv,
 	runOpts *ShellOptions,
 	workingDir string,
 	suppressStdout bool,
@@ -224,7 +213,7 @@ func RunCommandWithOutput(
 		"args":        fmt.Sprintf("%v", args),
 		"dir":         commandDir,
 	}, func(ctx context.Context) error {
-		runErr := runCommand(ctx, l, e, runOpts, RunCommandOptions{
+		runErr := runCommand(ctx, l, v, runOpts, RunCommandOptions{
 			CommandDir:     commandDir,
 			SuppressStdout: suppressStdout,
 			NeedsPTY:       needsPTY,
@@ -269,13 +258,17 @@ type RunCommandOptions struct {
 
 // runCommand contains the actual subprocess execution logic, separated to keep
 // RunCommandWithOutput focused on telemetry framing.
+//
+// Requires v.Env: the traceparent is written into it before the child forks.
 func runCommand(
 	ctx context.Context,
 	l log.Logger,
-	e vexec.Exec,
+	v venv.Venv,
 	runOpts *ShellOptions,
 	cmdOpts RunCommandOptions,
 ) error {
+	v.RequireEnv()
+
 	l.Debugf("Running command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
 
 	var (
@@ -286,7 +279,7 @@ func runCommand(
 	// Pass the traceparent to the child process if it is available in the context.
 	if traceParent := telemetry.TraceParentFromContext(ctx, runOpts.Telemetry); traceParent != "" {
 		l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", cmdOpts.Command, cmdOpts.Args))
-		runOpts.Env[telemetry.TraceParentEnv] = traceParent
+		v.Env[telemetry.TraceParentEnv] = traceParent
 	}
 
 	if cmdOpts.SuppressStdout {
@@ -300,7 +293,7 @@ func runCommand(
 		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
 			l.Debugf("Using engine to run command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
 
-			cmdOutput, err := engine.Run(ctx, l, e, &engine.ExecutionOptions{
+			cmdOutput, err := engine.Run(ctx, l, v, &engine.ExecutionOptions{
 				Writers: writer.Writers{
 					Writer:    writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
 					ErrWriter: writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
@@ -309,7 +302,6 @@ func runCommand(
 				LogDisableErrorSummary: runOpts.LogDisableErrorSummary,
 				EngineOptions:          runOpts.EngineOptions,
 				EngineConfig:           runOpts.EngineConfig,
-				Env:                    runOpts.Env,
 				UnitDir:                runOpts.UnitDir,
 				CacheDir:               cmdOpts.CommandDir,
 				RootWorkingDir:         runOpts.RootWorkingDir,
@@ -336,13 +328,13 @@ func runCommand(
 		forwardSignalDelay = SignalForwardingDelay
 	}
 
-	cmd := exec.Command(ctx, e, cmdOpts.Command, cmdOpts.Args...)
+	cmd := exec.Command(ctx, v.Exec, cmdOpts.Command, cmdOpts.Args...)
 	cmd.SetDir(cmdOpts.CommandDir)
 	cmd.SetStdout(cmdStdout)
 	cmd.SetStderr(cmdStderr)
 	cmd.Configure(
 		exec.WithUsePTY(cmdOpts.NeedsPTY),
-		exec.WithEnv(runOpts.Env),
+		exec.WithEnv(v.Env),
 		exec.WithForwardSignalDelay(forwardSignalDelay),
 	)
 

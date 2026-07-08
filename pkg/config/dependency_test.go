@@ -5,7 +5,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -122,7 +123,7 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	err = pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 	require.NoError(t, err)
 
-	pctx.Env = util.EnvironMap()
+	pctx.Venv.Env = venv.OSVenv().Env
 	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
@@ -276,7 +277,8 @@ func TestExposedIncludeFullParseSurfacesNoOutputsError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, pctx := newTestParsingContext(t, childPath)
-	pctx.Env = util.EnvironMap()
+	pctx.Venv.Env = venv.OSVenv().Env
+	pctx.Venv.FS = vfs.NewOSFS()
 
 	_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), childPath, nil)
 	require.Error(t, err)
