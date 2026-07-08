@@ -3,7 +3,7 @@ module github.com/gruntwork-io/terragrunt
 go 1.26
 
 require (
-	cloud.google.com/go/storage v1.62.3
+	cloud.google.com/go/storage v1.63.0
 	dario.cat/mergo v1.0.2
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/aws/aws-sdk-go-v2 v1.42.0
@@ -60,25 +60,25 @@ require (
 	golang.org/x/sync v0.21.0
 	golang.org/x/sys v0.46.0
 	golang.org/x/term v0.44.0
-	golang.org/x/text v0.38.0
-	google.golang.org/api v0.286.0
-	google.golang.org/grpc v1.81.1
+	golang.org/x/text v0.39.0
+	google.golang.org/api v0.287.0
+	google.golang.org/grpc v1.82.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/ini.v1 v1.67.3
 )
 
 require (
 	charm.land/bubbles/v2 v2.1.0
-	charm.land/bubbletea/v2 v2.0.6
-	charm.land/glamour/v2 v2.0.0
-	charm.land/lipgloss/v2 v2.0.3
-	github.com/aws/aws-sdk-go-v2/config v1.32.25
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.24
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.59.0
-	github.com/aws/aws-sdk-go-v2/service/iam v1.54.5
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.43.3
-	github.com/aws/smithy-go v1.27.2
+	charm.land/bubbletea/v2 v2.0.7
+	charm.land/glamour/v2 v2.0.1
+	charm.land/lipgloss/v2 v2.0.4
+	github.com/aws/aws-sdk-go-v2/config v1.32.26
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.25
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.59.1
+	github.com/aws/aws-sdk-go-v2/service/iam v1.54.6
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.1
+	github.com/aws/aws-sdk-go-v2/service/sts v1.43.4
+	github.com/aws/smithy-go v1.27.3
 	github.com/charlievieth/fastwalk v1.0.14
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/charmbracelet/x/term v0.2.2
@@ -91,7 +91,7 @@ require (
 	github.com/mattn/go-shellwords v1.0.13
 	github.com/rogpeppe/go-internal v1.15.0
 	github.com/spf13/afero v1.15.0
-	github.com/testcontainers/testcontainers-go v0.42.0
+	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/wI2L/jsondiff v0.7.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.uber.org/mock v0.6.0
@@ -147,11 +147,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.12.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.29 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.29 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.30 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kms v1.51.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.2.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.31.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.2.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.31.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.7 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
@@ -200,7 +200,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-jsonnet v0.21.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.16 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.17 // indirect
 	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/goware/prefixer v0.0.0-20160118172347-395022866408 // indirect
@@ -259,7 +259,7 @@ require (
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.4 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.5 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.7.0 // indirect
@@ -294,10 +294,10 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.45.0 // indirect
+	golang.org/x/tools v0.47.0 // indirect
 	google.golang.org/genproto v0.0.0-20260615183401-62b3387ff324 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260615183401-62b3387ff324 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260615183401-62b3387ff324 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260622175928-b703f567277d // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
