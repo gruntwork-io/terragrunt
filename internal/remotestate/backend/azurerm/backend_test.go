@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,36 +33,36 @@ func TestExperimentGate(t *testing.T) {
 
 	t.Run("Bootstrap", func(t *testing.T) {
 		t.Parallel()
-		require.ErrorIs(t, b.Bootstrap(ctx, l, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
+		require.ErrorIs(t, b.Bootstrap(ctx, l, venv.Venv{}, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
 	})
 
 	t.Run("NeedsBootstrap", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := b.NeedsBootstrap(ctx, l, bcfg, opts)
+		_, err := b.NeedsBootstrap(ctx, l, venv.Venv{}, bcfg, opts)
 		require.ErrorIs(t, err, azurerm.ErrAzureBackendExperimentRequired)
 	})
 
 	t.Run("IsVersionControlEnabled", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := b.IsVersionControlEnabled(ctx, l, bcfg, opts)
+		_, err := b.IsVersionControlEnabled(ctx, l, venv.Venv{}, bcfg, opts)
 		require.ErrorIs(t, err, azurerm.ErrAzureBackendExperimentRequired)
 	})
 
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
-		require.ErrorIs(t, b.Delete(ctx, l, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
+		require.ErrorIs(t, b.Delete(ctx, l, venv.Venv{}, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
 	})
 
 	t.Run("DeleteBucket", func(t *testing.T) {
 		t.Parallel()
-		require.ErrorIs(t, b.DeleteBucket(ctx, l, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
+		require.ErrorIs(t, b.DeleteBucket(ctx, l, venv.Venv{}, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
 	})
 
 	t.Run("Migrate", func(t *testing.T) {
 		t.Parallel()
-		require.ErrorIs(t, b.Migrate(ctx, l, bcfg, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
+		require.ErrorIs(t, b.Migrate(ctx, l, venv.Venv{}, bcfg, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
 	})
 }
 
@@ -77,7 +78,7 @@ func TestExperimentEnabled_InvalidConfigSurfaces(t *testing.T) {
 	b := azurerm.NewBackend()
 
 	// Missing required keys -> validation error, NOT the experiment error.
-	_, err := b.NeedsBootstrap(ctx, l, backend.Config{}, opts)
+	_, err := b.NeedsBootstrap(ctx, l, venv.Venv{}, backend.Config{}, opts)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, azurerm.ErrAzureBackendExperimentRequired)
 }
@@ -117,7 +118,7 @@ func TestMigrate_CrossAccountRefused(t *testing.T) {
 	dstRaw["storage_account_name"] = "differentaccount"
 	dstCfg := backend.Config(dstRaw)
 
-	err := b.Migrate(ctx, l, srcCfg, dstCfg, opts)
+	err := b.Migrate(ctx, l, venv.Venv{}, srcCfg, dstCfg, opts)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cross-account")
 }
@@ -128,7 +129,7 @@ func TestNeedsBootstrap_SkipsArmPlaneWhenNoArmWork(t *testing.T) {
 	t.Parallel()
 
 	needs, err := azurerm.NewBackend().NeedsBootstrap(
-		t.Context(), logger.CreateLogger(), backend.Config(rgLessSkipAllConfig()), optsWithExperiment(t, true))
+		t.Context(), logger.CreateLogger(), venv.Venv{}, backend.Config(rgLessSkipAllConfig()), optsWithExperiment(t, true))
 	require.NoError(t, err)
 	assert.False(t, needs)
 }
@@ -139,7 +140,7 @@ func TestBootstrap_SkipsArmPlaneWhenNoArmWork(t *testing.T) {
 	t.Parallel()
 
 	err := azurerm.NewBackend().Bootstrap(
-		t.Context(), logger.CreateLogger(), backend.Config(rgLessSkipAllConfig()), optsWithExperiment(t, true))
+		t.Context(), logger.CreateLogger(), venv.Venv{}, backend.Config(rgLessSkipAllConfig()), optsWithExperiment(t, true))
 	require.NoError(t, err)
 }
 
@@ -152,7 +153,7 @@ func TestIsVersionControlEnabled_NoResourceGroupDegrades(t *testing.T) {
 	delete(cfg, "resource_group_name")
 
 	enabled, err := azurerm.NewBackend().IsVersionControlEnabled(
-		t.Context(), logger.CreateLogger(), backend.Config(cfg), optsWithExperiment(t, true))
+		t.Context(), logger.CreateLogger(), venv.Venv{}, backend.Config(cfg), optsWithExperiment(t, true))
 	require.NoError(t, err)
 	assert.False(t, enabled)
 }

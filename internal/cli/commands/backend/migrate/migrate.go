@@ -7,7 +7,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 
 	"errors"
@@ -45,7 +44,7 @@ func Run(
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	rnr, err := runner.NewStackRunner(ctx, l, run.FromRoot(v), opts)
+	rnr, err := runner.NewStackRunner(ctx, l, v, opts)
 	if err != nil {
 		return err
 	}
@@ -71,7 +70,7 @@ func Run(
 	}
 
 	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
-	srcPctx.Venv = v
+	srcPctx = srcPctx.WithVenv(v)
 
 	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
 	if err != nil {
@@ -88,7 +87,7 @@ func Run(
 	srcOpts.WorkingDir = srcPctx.WorkingDir
 
 	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstOpts)
-	dstPctx.Venv = v
+	dstPctx = dstPctx.WithVenv(v)
 
 	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
 	if err != nil {
@@ -103,7 +102,7 @@ func Run(
 	dstOpts.WorkingDir = dstPctx.WorkingDir
 
 	if !opts.ForceBackendMigrate {
-		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, configbridge.RemoteStateOptsFromOpts(srcOpts))
+		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, v, configbridge.RemoteStateOptsFromOpts(srcOpts))
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -118,7 +117,7 @@ func Run(
 
 	return srcRemoteState.Migrate(
 		ctx, l,
-		v.Exec,
+		v,
 		configbridge.RemoteStateOptsFromOpts(srcOpts),
 		configbridge.RemoteStateOptsFromOpts(dstOpts),
 		dstRemoteState,

@@ -58,8 +58,8 @@ func checkExperiment(opts *backend.Options) error {
 // azurehelper.AzureConfig (credentials + cloud).
 func resolveConfig(
 	l log.Logger,
+	v venv.Venv,
 	backendConfig backend.Config,
-	opts *backend.Options,
 ) (*ExtendedRemoteStateConfigAzurerm, *azurehelper.AzureConfig, error) {
 	extCfg, err := Config(backendConfig).ExtendedAzurermConfig()
 	if err != nil {
@@ -68,7 +68,7 @@ func resolveConfig(
 
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(extCfg.GetAzureSessionConfig()).
-		WithVenv(venv.Venv{Env: opts.Env}).
+		WithVenv(v).
 		Build(l)
 	if err != nil {
 		return nil, nil, err
@@ -99,12 +99,12 @@ func warnArmWorkSkipped(l log.Logger, name string, method azurehelper.AuthMethod
 // NeedsBootstrap returns true if the storage account or container backing the
 // state does not yet exist, or (when reachable) blob versioning or soft-delete
 // configuration has drifted from what the config requests.
-func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) (bool, error) {
+func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
 	if err := checkExperiment(opts); err != nil {
 		return false, err
 	}
 
-	extCfg, cfg, err := resolveConfig(l, backendConfig, opts)
+	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return false, err
 	}
@@ -172,12 +172,12 @@ func accountNeedsBootstrap(ctx context.Context, cfg *azurehelper.AzureConfig, ex
 
 // Bootstrap creates (if necessary) the resource group, storage account, and
 // blob container backing the state, and ensures blob versioning / soft delete.
-func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
 	if err := checkExperiment(opts); err != nil {
 		return err
 	}
 
-	extCfg, cfg, err := resolveConfig(l, backendConfig, opts)
+	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return err
 	}
@@ -386,12 +386,12 @@ func accountPolicyDrift(
 // IsVersionControlEnabled returns true if blob versioning is enabled on the
 // storage account. Data-plane-only auth (SAS / access key) cannot query this
 // via ARM and returns false.
-func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) (bool, error) {
+func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
 	if err := checkExperiment(opts); err != nil {
 		return false, err
 	}
 
-	_, cfg, err := resolveConfig(l, backendConfig, opts)
+	_, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return false, err
 	}
@@ -420,12 +420,12 @@ func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, bac
 
 // Migrate copies the state blob from the source backend config to the
 // destination backend config within the same storage account.
-func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) Migrate(ctx context.Context, l log.Logger, v venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
 	if err := checkExperiment(opts); err != nil {
 		return err
 	}
 
-	srcExtCfg, cfg, err := resolveConfig(l, srcBackendConfig, opts)
+	srcExtCfg, cfg, err := resolveConfig(l, v, srcBackendConfig)
 	if err != nil {
 		return err
 	}
@@ -462,12 +462,12 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, d
 }
 
 // Delete deletes the Terraform state blob (config "key") from its container.
-func (b *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) Delete(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
 	if err := checkExperiment(opts); err != nil {
 		return err
 	}
 
-	extCfg, cfg, err := resolveConfig(l, backendConfig, opts)
+	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return err
 	}
@@ -495,12 +495,12 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backen
 }
 
 // DeleteBucket deletes the entire blob container backing the state.
-func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
 	if err := checkExperiment(opts); err != nil {
 		return err
 	}
 
-	extCfg, cfg, err := resolveConfig(l, backendConfig, opts)
+	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return err
 	}

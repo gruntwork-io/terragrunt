@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +49,11 @@ func TestGetTFInitArgs(t *testing.T) {
 	args := remotestate.New(cfg).GetTFInitArgs()
 
 	// must not contain s3_bucket_tags or dynamodb_table_tags or accesslogging_bucket_tags or skip_bucket_versioning
-	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=force_path_style=true -backend-config=shared_credentials_file=my-file")
+	assertTerraformInitArgsEqual(
+		t,
+		args,
+		"-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=force_path_style=true -backend-config=shared_credentials_file=my-file",
+	)
 }
 
 func TestGetTFInitArgsForGCS(t *testing.T) {
@@ -76,7 +81,11 @@ func TestGetTFInitArgsForGCS(t *testing.T) {
 	args := remotestate.New(cfg).GetTFInitArgs()
 
 	// must not contain project, location gcs_bucket_labels or skip_bucket_versioning
-	assertTerraformInitArgsEqual(t, args, "-backend-config=bucket=my-bucket -backend-config=prefix=terraform.tfstate -backend-config=credentials=my-file -backend-config=access_token=xxxxxxxx")
+	assertTerraformInitArgsEqual(
+		t,
+		args,
+		"-backend-config=bucket=my-bucket -backend-config=prefix=terraform.tfstate -backend-config=credentials=my-file -backend-config=access_token=xxxxxxxx",
+	)
 }
 
 func TestGetTFInitArgsUnknownBackend(t *testing.T) {
@@ -93,7 +102,11 @@ func TestGetTFInitArgsUnknownBackend(t *testing.T) {
 	args := remotestate.New(cfg).GetTFInitArgs()
 
 	// no Backend initializer available, but command line args should still be passed on
-	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
+	assertTerraformInitArgsEqual(
+		t,
+		args,
+		"-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1",
+	)
 }
 
 func TestGetTFInitArgsInitDisabled(t *testing.T) {
@@ -110,7 +123,11 @@ func TestGetTFInitArgsInitDisabled(t *testing.T) {
 	}
 	args := remotestate.New(cfg).GetTFInitArgs()
 
-	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
+	assertTerraformInitArgsEqual(
+		t,
+		args,
+		"-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1",
+	)
 }
 
 func TestGetTFInitArgsNoBackendConfigs(t *testing.T) {
@@ -281,7 +298,12 @@ func TestNeedsBootstrapDisableInit(t *testing.T) {
 	}
 
 	remote := remotestate.New(cfg)
-	needsBootstrap, err := remote.NeedsBootstrap(t.Context(), logger.CreateLogger(), &remotestate.Options{})
+	needsBootstrap, err := remote.NeedsBootstrap(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.New(),
+		&remotestate.Options{},
+	)
 
 	require.NoError(t, err)
 	assert.False(t, needsBootstrap, "NeedsBootstrap must return false when DisableInit=true")

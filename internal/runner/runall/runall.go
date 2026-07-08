@@ -9,10 +9,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -48,7 +48,7 @@ var runAllDisabledCommands = map[string]string{
 // Run executes the configured terraform command across every unit in the
 // stack. v is the virtualized environment threaded through the runner pool
 // into each unit's run pipeline.
-func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) (err error) {
+func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (err error) {
 	// --filter sets RunAll, so the CLI layer dispatches here without going
 	// through the single-unit run path. Emit the tip here as well; the
 	// underlying sync.Once dedupes if both paths fire.
@@ -163,7 +163,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
-			return gen.GenerateStacks(ctx, l, opts, wts)
+			return gen.GenerateStacks(ctx, l, v, opts, wts)
 		})
 
 		// Handle any errors during stack generation
@@ -195,7 +195,7 @@ func Run(ctx context.Context, l log.Logger, v run.Venv, opts *options.Terragrunt
 func RunAllOnStack(
 	ctx context.Context,
 	l log.Logger,
-	v run.Venv,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	rnr common.StackRunner,
 	r *report.Report,

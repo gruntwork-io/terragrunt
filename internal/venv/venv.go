@@ -8,14 +8,15 @@
 // real bundle once at the top via [OSVenv]; tests construct an in-memory
 // bundle and drive the full CLI through it.
 //
-// Downstream packages (for example internal/runner/run and internal/tflint)
-// keep their own package-local Venv types so each owns its own contract.
-// They convert from this root via a FromRoot constructor.
+// This is the one Venv type threaded through the codebase. A package may
+// define its own local Venv only when its handle set genuinely differs
+// (for example internal/cas, which carries a filesystem and a Git runner).
 package venv
 
 import (
 	"errors"
 	"io"
+	"maps"
 	"os"
 	"strings"
 
@@ -86,6 +87,14 @@ func (v Venv) WithEnv(env map[string]string) Venv {
 	v.Env = env
 
 	return v
+}
+
+// WithEnvCloned returns a copy of v whose Env is an independent clone. Fan-out
+// paths that process units one at a time hand each unit a clone so
+// per-unit mutations (obtained credentials, TF_VAR_* contributions) never
+// leak into sibling units. A nil Env becomes an empty map, per [Venv.WithEnv].
+func (v Venv) WithEnvCloned() Venv {
+	return v.WithEnv(maps.Clone(v.Env))
 }
 
 // RequireEnv panics with [ErrVenvEnvUnset] when Env is nil, guarding

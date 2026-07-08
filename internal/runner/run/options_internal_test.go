@@ -16,7 +16,6 @@ func TestRemoteStateOptsPropagatesExperiments(t *testing.T) {
 
 	o := &Options{
 		Experiments:                  exps,
-		Env:                          map[string]string{"ARM_SUBSCRIPTION_ID": "sub"},
 		TerragruntConfigPath:         "/work/terragrunt.hcl",
 		NonInteractive:               true,
 		FailIfBucketCreationRequired: true,
@@ -26,7 +25,6 @@ func TestRemoteStateOptsPropagatesExperiments(t *testing.T) {
 	got := o.remoteStateOpts()
 
 	assert.True(t, got.Experiments.Evaluate(experiment.AzureBackend), "enabled experiments must reach backend options")
-	assert.Equal(t, o.Env, got.Env)
 	assert.True(t, got.NonInteractive)
 	assert.True(t, got.FailIfBucketCreationRequired)
 	assert.True(t, got.DisableBucketUpdate)
@@ -34,6 +32,4 @@ func TestRemoteStateOptsPropagatesExperiments(t *testing.T) {
 	// TFRunOpts feeds migrate state pull/push, so its threading is load-bearing.
 	require.NotNil(t, got.TFRunOpts)
 	assert.Equal(t, o.TerragruntConfigPath, got.TFRunOpts.TerragruntConfigPath)
-	require.NotNil(t, got.TFRunOpts.ShellOptions)
-	assert.Equal(t, o.Env, got.TFRunOpts.ShellOptions.Env, "env must reach the tofu process")
 }

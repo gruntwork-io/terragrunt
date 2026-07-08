@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -58,7 +58,13 @@ func TestDebugGeneratedInputs(t *testing.T) {
 
 	require.NoError(
 		t,
-		tf.RunCommand(t.Context(), l, vexec.NewOSExec(), configbridge.TFRunOptsFromOpts(mockOptions), "apply", "-auto-approve", "-var-file", debugFile),
+		tf.RunCommand(
+			t.Context(),
+			l,
+			venv.OSVenv(),
+			configbridge.TFRunOptsFromOpts(mockOptions),
+			"apply", "-auto-approve", "-var-file", debugFile,
+		),
 	)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(

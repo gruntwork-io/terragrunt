@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -69,6 +70,7 @@ const (
 func WorktreeStacks(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
@@ -76,7 +78,7 @@ func WorktreeStacks(
 		return nil
 	}
 
-	if err := NewGenerator().generateStacks(ctx, l, opts, wts, worktreeStacksOnly); err != nil {
+	if err := NewGenerator().generateStacks(ctx, l, v, opts, wts, worktreeStacksOnly); err != nil {
 		return fmt.Errorf("failed to generate stacks in worktrees: %w", err)
 	}
 
@@ -89,10 +91,11 @@ func WorktreeStacks(
 func (g *Generator) GenerateStacks(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
-	return g.generateStacks(ctx, l, opts, wts, allStacks)
+	return g.generateStacks(ctx, l, v, opts, wts, allStacks)
 }
 
 // generateStacks generates the stack files using topological ordering to prevent race conditions.
@@ -101,6 +104,7 @@ func (g *Generator) GenerateStacks(
 func (g *Generator) generateStacks(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 	scope stackScope,
@@ -113,7 +117,7 @@ func (g *Generator) generateStacks(
 	g.locks.Lock(workingDir)
 	defer g.locks.Unlock(workingDir)
 
-	foundFiles, err := ListStackFiles(ctx, l, opts, wts, scope)
+	foundFiles, err := ListStackFiles(ctx, l, v, opts, wts, scope)
 	if err != nil {
 		return fmt.Errorf("failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
@@ -147,11 +151,11 @@ func (g *Generator) generateStacks(
 
 		warnOnRepeatedClaims(l, levelNodes, claimedBy)
 
-		if err := generateLevel(ctx, l, opts, level, levelNodes, generatedFiles); err != nil {
+		if err := generateLevel(ctx, l, v, opts, level, levelNodes, generatedFiles); err != nil {
 			return err
 		}
 
-		err := discoverAndAddNewNodes(ctx, l, opts, wts, workingDir, stackTrees, generatedFiles, level+1, scope)
+		err := discoverAndAddNewNodes(ctx, l, v, opts, wts, workingDir, stackTrees, generatedFiles, level+1, scope)
 		if err != nil {
 			return err
 		}
@@ -188,6 +192,7 @@ func warnOnRepeatedClaims(l log.Logger, levelNodes []*StackNode, claimedBy map[s
 func generateLevel(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	level int,
 	levelNodes []*StackNode,
@@ -212,6 +217,7 @@ func generateLevel(
 
 		wp.Submit(func() error {
 			_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+			pctx = pctx.WithVenv(v)
 
 			scopedLogger, scopedPctx, err := pctx.WithConfigPath(l, node.FilePath)
 			if err != nil {
@@ -232,6 +238,7 @@ func generateLevel(
 func discoverAndAddNewNodes(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 	workingDir string,
@@ -240,7 +247,7 @@ func discoverAndAddNewNodes(
 	minLevel int,
 	scope stackScope,
 ) error {
-	newFiles, listErr := ListStackFiles(ctx, l, opts, worktrees, scope)
+	newFiles, listErr := ListStackFiles(ctx, l, v, opts, worktrees, scope)
 	if listErr != nil {
 		return fmt.Errorf("failed to list stack files after level %d: %w", minLevel-1, listErr)
 	}
@@ -377,6 +384,7 @@ func addNewNodesToGraph(
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 	scope stackScope,
@@ -392,13 +400,13 @@ func ListStackFiles(
 			return nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
 		}
 
-		discoveredComponents, err = d.Discover(ctx, l, opts)
+		discoveredComponents, err = d.Discover(ctx, l, v, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to discover stack files: %w", err)
 		}
 	}
 
-	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees)
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, v, opts, worktrees)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get worktree stacks to generate: %w", err)
 	}
@@ -426,6 +434,7 @@ func ListStackFiles(
 func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
@@ -439,12 +448,12 @@ func ListStackFilesWithExcludes(
 
 	d = d.WithParseExclude().WithSuppressParseErrors()
 
-	discoveredComponents, err := d.Discover(ctx, l, opts)
+	discoveredComponents, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to discover stack files: %w", err)
 	}
 
-	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees)
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, v, opts, worktrees)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get worktree stacks to generate: %w", err)
 	}
@@ -528,6 +537,7 @@ func appendStackFilePaths(
 func worktreeStacksToGenerate(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	w *worktrees.Worktrees,
 ) (component.Components, error) {
@@ -624,14 +634,14 @@ func worktreeStacksToGenerate(
 				mu.Unlock()
 			}
 
-			allFromStacks, err := discoverStacks(ctx, l, opts, pair.FromWorktree, len(deletedReadFilters) > 0)
+			allFromStacks, err := discoverStacks(ctx, l, v, opts, pair.FromWorktree, len(deletedReadFilters) > 0)
 			if err != nil {
 				recordErr(err)
 
 				return nil
 			}
 
-			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, len(toReadFilters) > 0)
+			allToStacks, err := discoverStacks(ctx, l, v, opts, pair.ToWorktree, len(toReadFilters) > 0)
 			if err != nil {
 				recordErr(err)
 
@@ -715,6 +725,7 @@ func worktreeStacksToGenerate(
 func discoverStacks(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
 	readFiles bool,
@@ -729,7 +740,7 @@ func discoverStacks(
 		d = d.WithReadFiles()
 	}
 
-	components, err := d.Discover(ctx, l, opts)
+	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
 	}

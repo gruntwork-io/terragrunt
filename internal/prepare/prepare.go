@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -37,18 +38,18 @@ type Config struct {
 
 // PrepareConfig reads and parses the terragrunt configuration, fetches credentials,
 // and performs version constraint checks. This is the first stage of preparation.
-func PrepareConfig(ctx context.Context, l log.Logger, v run.Venv, opts *options.TerragruntOptions) (*Config, error) {
+func PrepareConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (*Config, error) {
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
 	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
 	provider := externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts))
 
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.Exec, opts.Env, provider); err != nil {
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider); err != nil {
 		return nil, err
 	}
 
 	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx.Venv = v.ToRoot()
+	pctx = pctx.WithVenv(v)
 
 	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
 	if err != nil {
@@ -66,7 +67,7 @@ func PrepareConfig(ctx context.Context, l log.Logger, v run.Venv, opts *options.
 func PrepareSource(
 	ctx context.Context,
 	l log.Logger,
-	v run.Venv,
+	v venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 	r *report.Report,
@@ -119,9 +120,8 @@ func PrepareSource(
 	credsGetter := creds.NewGetter()
 
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return credsGetter.ObtainAndUpdateEnvIfNecessary(
-			ctx, l, v.Exec, opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env),
-		)
+		provider := amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env)
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider)
 	}); err != nil {
 		return nil, err
 	}
@@ -134,7 +134,12 @@ func PrepareSource(
 		opts.DownloadDir = runCfg.DownloadDir
 	}
 
-	sourceURL, err := runcfg.GetTerraformSourceURL(opts.Source, opts.SourceMap, opts.OriginalTerragruntConfigPath, runCfg)
+	sourceURL, err := runcfg.GetTerraformSourceURL(
+		opts.Source,
+		opts.SourceMap,
+		opts.OriginalTerragruntConfigPath,
+		runCfg,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -169,13 +174,13 @@ func PrepareSource(
 
 // PrepareGenerate handles code generation configs, both generate blocks and generate attribute of remote_state.
 // It requires PrepareSource to have been called first.
-func PrepareGenerate(l log.Logger, v run.Venv, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
+func PrepareGenerate(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
 	return run.GenerateConfig(l, v.FS, configbridge.NewRunOptions(opts), cfg)
 }
 
 // PrepareInputsAsEnvVars sets terragrunt inputs as environment variables.
 // It requires PrepareGenerate to have been called first.
-func PrepareInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
+func PrepareInputsAsEnvVars(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
 	runOpts := configbridge.NewRunOptions(opts)
 
 	// Check for terraform code
@@ -183,7 +188,7 @@ func PrepareInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *
 		return err
 	}
 
-	return run.SetTerragruntInputsAsEnvVars(l, runOpts, cfg)
+	return run.SetTerragruntInputsAsEnvVars(l, v.Env, cfg)
 }
 
 // PrepareInit runs terraform init if needed. This is the final preparation stage.
@@ -191,7 +196,7 @@ func PrepareInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *
 func PrepareInit(
 	ctx context.Context,
 	l log.Logger,
-	v run.Venv,
+	v venv.Venv,
 	originalOpts, opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
@@ -203,7 +208,7 @@ func PrepareInit(
 		return err
 	}
 
-	if err := run.SetTerragruntInputsAsEnvVars(l, runOpts, cfg); err != nil {
+	if err := run.SetTerragruntInputsAsEnvVars(l, v.Env, cfg); err != nil {
 		return err
 	}
 
