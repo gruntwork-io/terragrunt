@@ -12,6 +12,7 @@ import tailwindcss from "@tailwindcss/vite";
 import starlightLinksValidator from "starlight-links-validator";
 import starlightLlmsTxt from "starlight-llms-txt";
 import d2 from "astro-d2";
+import rehypeExternalLinks from "rehype-external-links";
 
 import { sidebar } from "./src/data/sidebar.ts";
 import { rehypeChangelogAnchors } from "./src/lib/rehype-changelog-anchors.ts";
@@ -29,28 +30,38 @@ const isVercel = globalThis.process?.env?.VERCEL;
  * inside an Astro integration's `astro:config:setup` hook. We intercept the
  * `addIntegration` call, then wrap that integration's `injectRoute` to drop the
  * single `/llms.txt` pattern and pass every other route through untouched.
+ *
+ * @param {Parameters<typeof starlightLlmsTxt>[0]} [opts]
  */
 function starlightLlmsTxtWithoutIndex(opts) {
   const plugin = starlightLlmsTxt(opts);
   const originalSetup = plugin.hooks.setup;
+  // `setup` is typed as optional on a Starlight plugin; the wrapped plugin
+  // always defines it, but bail out gracefully (and narrow the type) if not.
+  if (!originalSetup) return plugin;
   return {
     ...plugin,
     hooks: {
       ...plugin.hooks,
+      /** @param {Parameters<NonNullable<typeof originalSetup>>[0]} setupContext */
       setup(setupContext) {
         return originalSetup({
           ...setupContext,
+          /** @param {Parameters<typeof setupContext.addIntegration>[0]} integration */
           addIntegration(integration) {
             const configSetup = integration.hooks?.["astro:config:setup"];
             if (configSetup) {
-              integration.hooks["astro:config:setup"] = (configContext) =>
-                configSetup({
-                  ...configContext,
-                  injectRoute(route) {
-                    if (route.pattern === "/llms.txt") return;
-                    return configContext.injectRoute(route);
-                  },
-                });
+              integration.hooks["astro:config:setup"] =
+                /** @param {Parameters<NonNullable<typeof configSetup>>[0]} configContext */
+                (configContext) =>
+                  configSetup({
+                    ...configContext,
+                    /** @param {Parameters<typeof configContext.injectRoute>[0]} route */
+                    injectRoute(route) {
+                      if (route.pattern === "/llms.txt") return;
+                      return configContext.injectRoute(route);
+                    },
+                  });
             }
             return setupContext.addIntegration(integration);
           },
@@ -150,14 +161,20 @@ export default defineConfig({
             "/reference/cli/commands/list/#*",
             "/reference/cli/commands/find#*",
             "/reference/cli/commands/find/#*",
+            "/reference/cli/global-flags#*",
+            "/reference/cli/global-flags/#*",
 
             // Custom .astro pages — can't be validated statically
             "/reference/experiments/active",
             "/reference/experiments/active#*",
+            "/reference/experiments/active/#*",
             "/reference/experiments/completed",
             "/reference/experiments/completed#*",
+            "/reference/experiments/completed/#*",
             "/reference/strict-controls/active#*",
+            "/reference/strict-controls/active/#*",
             "/reference/strict-controls/completed#*",
+            "/reference/strict-controls/completed/#*",
             "/process/changelog#*",
             "/process/changelog/*#*",
 
@@ -200,8 +217,29 @@ export default defineConfig({
   ],
   markdown: {
     // A custom `processor` still receives the integration-injected plugins (Starlight's syntax
-    // highlighting, etc.) merged in automatically, so we only register our own rehype plugin here.
-    processor: unified({ rehypePlugins: [rehypeChangelogAnchors] }),
+    // highlighting, etc.) merged in automatically, so we only register our own rehype plugins
+    // here. Both plugins must live inside the processor: Astro's top-level
+    // `markdown.rehypePlugins` is deprecated and is ignored when a custom `processor` is set.
+    processor: unified({
+      rehypePlugins: [
+        rehypeChangelogAnchors,
+        [
+          rehypeExternalLinks,
+          {
+            target: "_blank",
+            rel: ["noopener", "noreferrer"],
+            // Treat http(s) URLs not on docs.terragrunt.com as external.
+            /** @param {import('hast').Element} element */
+            test: (element) => {
+              const href = element.properties?.href;
+              if (typeof href !== "string") return false;
+              if (!/^https?:\/\//i.test(href)) return false;
+              return !/^https?:\/\/(?:[^/]*\.)?docs\.terragrunt\.com(?:[/?#]|$)/i.test(href);
+            },
+          },
+        ],
+      ],
+    }),
   },
   // Note that some redirects are handled in vercel.json instead.
   //

@@ -7,13 +7,19 @@ import { sidebar as sidebarTemplate } from '../../../data/sidebar';
 
 type SidebarItem = NonNullable<StarlightUserConfig["sidebar"]>[number];
 
-function createCommandSidebarItem(command: CollectionEntry<'commands'>): SidebarItem & { originalPath: string } {
+// Command entries are always internal links (a content-collection `slug`), tagged with their
+// source path so they can be grouped. Narrowing to the slug member — instead of the full
+// `SidebarItem` union, which includes bare-string slug shorthands — is what lets us assign
+// `badge` and strip `originalPath` via rest-destructuring without TS errors.
+type CommandSidebarItem = Extract<SidebarItem, { slug: string }> & { originalPath: string };
+
+function createCommandSidebarItem(command: CollectionEntry<'commands'>): CommandSidebarItem {
   const data = command.data;
   const sidebarItem = {
     label: data.name,
     slug: `reference/cli/commands/${data.path}`,
     originalPath: data.path,
-  } as SidebarItem & { originalPath: string };
+  } as CommandSidebarItem;
 
   if (data.experiment) {
     sidebarItem.badge = {
@@ -25,7 +31,7 @@ function createCommandSidebarItem(command: CollectionEntry<'commands'>): Sidebar
   return sidebarItem;
 }
 
-function organizeCommandsIntoGroups(flatCommandItems: (SidebarItem & { originalPath: string })[]): SidebarItem[] {
+function organizeCommandsIntoGroups(flatCommandItems: CommandSidebarItem[]): SidebarItem[] {
   const commandItems: SidebarItem[] = [];
   const groupedCommands: Record<string, SidebarItem[]> = {};
 
