@@ -200,6 +200,32 @@ func TestTGProfileDirPerUnitTofuProfiles(t *testing.T) {
 	}
 }
 
+func TestTGProfileDirRelativePathResolvesAgainstCwd(t *testing.T) {
+	if isTerraform(t.Context()) {
+		t.Skip("TOFU_CPU_PROFILE is only supported by OpenTofu")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureProfileMultiUnit)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProfileMultiUnit)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureProfileMultiUnit)
+
+	cwd := helpers.TmpDirWOSymlinks(t)
+	t.Chdir(cwd)
+
+	t.Setenv("TG_EXPERIMENT", "profiling")
+	t.Setenv("TG_PROFILE_DIR", "profiles")
+
+	helpers.RunTerragrunt(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
+
+	resolvedDir := filepath.Join(cwd, "profiles")
+	for _, unit := range []string{"app1", "app2"} {
+		requireNonEmptyFile(t, filepath.Join(resolvedDir, unit, "tofu_cpu_plan.prof"))
+	}
+
+	assert.Empty(t, findProfileFiles(t, rootPath),
+		"a relative --profile-dir must resolve against the invocation cwd, not scatter profiles into the cache tree")
+}
+
 func TestTGProfileDirWithExplicitTGProfileCPU(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profileDir := filepath.Join(tmpDir, "profiles")

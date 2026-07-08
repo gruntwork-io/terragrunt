@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
@@ -64,4 +65,31 @@ func TestWrapWithProfilingWritesProfile(t *testing.T) {
 	info, err := os.Stat(opts.ProfileGoroutine)
 	require.NoError(t, err)
 	assert.Positive(t, info.Size(), "goroutine profile should be non-empty")
+
+	if runtime.GOOS != "windows" {
+		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "profile files must be owner-only")
+	}
+}
+
+func TestWrapWithProfilingTightensExistingFilePermissions(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are not enforced on Windows")
+	}
+
+	opts := options.NewTerragruntOptions()
+	opts.ProfileGoroutine = filepath.Join(t.TempDir(), "goroutine.prof")
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Profiling))
+
+	require.NoError(t, os.WriteFile(opts.ProfileGoroutine, []byte("stale"), 0o644))
+
+	err := commands.WrapWithProfiling(logger.CreateLogger(), opts)(context.Background(), nil, func(_ context.Context, _ *clihelper.Context) error {
+		return nil
+	})
+	require.NoError(t, err)
+
+	info, err := os.Stat(opts.ProfileGoroutine)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "a pre-existing profile file must be tightened to owner-only")
 }
