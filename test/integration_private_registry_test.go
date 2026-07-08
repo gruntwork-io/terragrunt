@@ -65,6 +65,38 @@ func TestPrivateRegistryWithConfgFileToken(t *testing.T) {
 	require.Contains(t, err.Error(), "hashicorp/null", "Error accessing the private registry")
 }
 
+// TestPrivateRegistrySubDomainWithConfigFileToken verifies that a credentials block configured for a parent
+// domain (e.g. "example.com") is used to authenticate requests to a subdomain of that domain (e.g.
+// "app.example.com"). This mirrors registries like Spacelift, where you authenticate against "spacelift.io"
+// but modules are downloaded from "app.spacelift.io". For this test to exercise that path, PRIVATE_REGISTRY_URL
+// must point at a host with a subdomain (at least three labels, e.g. "app.example.com").
+func TestPrivateRegistrySubDomainWithConfigFileToken(t *testing.T) {
+	rootPath, host, token := setupPrivateRegistryTest(t)
+
+	hostParts := strings.Split(host, ".")
+	if len(hostParts) < 3 {
+		t.Skipf("Skipping test because PRIVATE_REGISTRY_URL host %q has no subdomain to test suffix matching against; use a host like \"app.example.com\"", host)
+	}
+
+	// Strip the leftmost label so the credentials block is configured for the parent domain rather than the
+	// exact host used to download the module. Terragrunt should still find these credentials via the
+	// ForHostSuffix fallback.
+	parentHost := strings.Join(hostParts[1:], ".")
+
+	helpers.CopyAndFillMapPlaceholders(t, filepath.Join(privateRegistryFixturePath, "env.tfrc"), filepath.Join(rootPath, "env.tfrc"), map[string]string{
+		"__registry_token__": token,
+		"__registry_host__":  parentHost,
+	})
+
+	t.Setenv("TF_CLI_CONFIG_FILE", filepath.Join(rootPath, "env.tfrc"))
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --log-level=trace --working-dir="+rootPath)
+
+	// the hashicorp/null provider errors on install, but that indicates that the private tfr module was downloaded
+	// using credentials matched by suffix against the parent domain, not an exact host match.
+	require.Contains(t, err.Error(), "hashicorp/null", "Error accessing the private registry")
+}
+
 func TestPrivateRegistryWithEnvToken(t *testing.T) {
 	rootPath, host, token := setupPrivateRegistryTest(t)
 

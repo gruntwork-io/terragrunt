@@ -273,7 +273,15 @@ func applyHostToken(req *http.Request) (*http.Request, error) {
 		return nil, err
 	}
 
+	// first try to find the exact hostname for the token
+	// then try to match the host suffix for the token
+	// finally fall back to the TG_TF_REGISTRY_TOKEN
 	if creds := cliCfg.CredentialsSource().ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
+		creds.PrepareRequest(req)
+		return req, nil
+	}
+
+	if creds := cliCfg.CredentialsSource().ForHostSuffix(svchost.Hostname(req.URL.Hostname())); creds != nil {
 		creds.PrepareRequest(req)
 		return req, nil
 	}
