@@ -36,6 +36,22 @@ const (
 	dependencyColor = "#A6E22E"
 	// dependentColor marks entries that depend on the highlighted component.
 	dependentColor = "#FD971F"
+	// warningColor is the yellow used for warning toasts.
+	warningColor = "#E6DB74"
+)
+
+const (
+	// toastMaxWidth is a toast's maximum total width, border included.
+	toastMaxWidth = 48
+
+	// toastMaxLines caps a toast message's wrapped lines, so one long warning
+	// can't cover the screen.
+	toastMaxLines = 3
+
+	// toastMarginX and toastMarginY inset the toast stack from the terminal's
+	// top-right corner, mirroring the app frame's padding.
+	toastMarginX = 2
+	toastMarginY = 1
 )
 
 var (
@@ -50,6 +66,11 @@ var (
 	dimStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 	helpStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor)).Padding(1, 0, 0, 0)
 	headerStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(viewtui.SelectionBlue)).Padding(0, 1, 1, 1)
+	toastStyle      = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(warningColor)).
+			Foreground(lipgloss.Color(warningColor)).
+			Padding(0, 1)
 )
 
 // paneStyle returns the rounded-border box style for a pane of the given total
@@ -87,10 +108,50 @@ func (m Model) View() tea.View {
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, left, middle, right)
 	body := lipgloss.JoinVertical(lipgloss.Left, header, columns, helpStyle.Render(m.footerView()))
 
-	v := tea.NewView(appStyle.Render(body))
+	content := appStyle.Render(body)
+	if len(m.toasts) > 0 {
+		content = m.overlayToasts(content)
+	}
+
+	v := tea.NewView(content)
 	v.AltScreen = true
 
 	return v
+}
+
+// overlayToasts composites the toast stack over the rendered view, floating in
+// the top-right corner, so warnings surface without shifting the layout.
+func (m Model) overlayToasts(content string) string {
+	stack := m.renderToasts()
+	if stack == "" {
+		return content
+	}
+
+	x := max(m.width-lipgloss.Width(stack)-toastMarginX, 0)
+
+	return lipgloss.NewCompositor(
+		lipgloss.NewLayer(content),
+		lipgloss.NewLayer(stack).X(x).Y(toastMarginY).Z(1),
+	).Render()
+}
+
+// renderToasts renders the active toasts as bordered boxes stacked oldest to
+// newest, right edges aligned. It returns "" when the terminal is too narrow
+// to fit a toast's frame.
+func (m Model) renderToasts() string {
+	innerWidth := min(toastMaxWidth, m.width-toastMarginX*2) - paneBorderWidth - panePadWidth
+	if innerWidth <= 0 {
+		return ""
+	}
+
+	boxes := make([]string, 0, len(m.toasts))
+
+	for _, t := range m.toasts {
+		wrapped := lipgloss.NewStyle().Width(innerWidth).Render("⚠ " + t.message)
+		boxes = append(boxes, toastStyle.Render(ClipToPane(wrapped, innerWidth, toastMaxLines)))
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Right, boxes...)
 }
 
 // paneSizes returns the total width of a side pane (parent or current), the
@@ -124,6 +185,16 @@ func (m Model) previewArea() (width, height int) {
 	_, previewWidth, paneHeight := m.paneSizes()
 
 	return paneInterior(previewWidth, paneHeight)
+}
+
+// pageSize returns how many rows a column shows at once: the distance the
+// pgup/pgdown keys move the cursor. At least 1, so paging still moves on a
+// terminal too short to fit a single row.
+func (m Model) pageSize() int {
+	sideWidth, _, paneHeight := m.paneSizes()
+	_, rows := paneInterior(sideWidth, paneHeight)
+
+	return max(rows, 1)
 }
 
 // renderColumn renders a list of nodes into a bordered, fixed-size pane,
@@ -165,9 +236,10 @@ func (m Model) renderColumn(nodes []*Node, cursorIdx, paneWidth, paneHeight int,
 // renderName renders a node's label, colored by kind: units blue, stacks green,
 // plain directories bold white, and files dimmed. A file a unit reads is shown
 // white once discovery reports it, marking it as relevant to the estate.
-// Directories carry a trailing slash. The highlighted row is a full-width blue
-// bar. While a search is active, showMarker reserves a gutter and matched
-// entries are flagged with a marker.
+// Hidden directories are dimmed like files: discovery skips or rarely cares
+// about them, so they stay out of the way. Directories carry a trailing slash.
+// The highlighted row is a full-width blue bar. While a search is active,
+// showMarker reserves a gutter and matched entries are flagged with a marker.
 func (m Model) renderName(n *Node, selected, showMarker, matched bool, rowWidth int) string {
 	label := n.name
 	if n.kind != KindFile {
@@ -193,6 +265,8 @@ func (m Model) renderName(n *Node, selected, showMarker, matched bool, rowWidth 
 			return itemStyle.Render(label)
 		}
 
+		return dimStyle.Render(label)
+	case strings.HasPrefix(n.name, "."):
 		return dimStyle.Render(label)
 	default:
 		return itemStyle.Render(label)
@@ -486,9 +560,8 @@ func (m Model) section(label string, items []string) []string {
 
 // footerView renders the bottom line: the search input while typing, a status
 // line summarizing a committed search, and the navigation hint otherwise, with a
-// "discovering…" suffix while discovery is still running and a failure notice
-// when it ended in an error. Each is a single line, so the layout doesn't shift
-// between them.
+// "discovering…" suffix while discovery is still running. Each is a single
+// line, so the layout doesn't shift between them.
 func (m Model) footerView() string {
 	footer := m.helpView()
 
@@ -501,12 +574,6 @@ func (m Model) footerView() string {
 
 	if !m.done {
 		footer += "  •  discovering…"
-	}
-
-	if m.discoveryErr != nil {
-		// The full error is already logged at debug by the browse command; the
-		// footer just needs to flag that the tree may be incomplete.
-		footer += "  •  " + dimStyle.Render("discovery failed; showing partial results")
 	}
 
 	return footer

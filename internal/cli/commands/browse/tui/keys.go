@@ -8,7 +8,10 @@ type keyMap struct {
 	Up        key.Binding
 	Down      key.Binding
 	Top       key.Binding
+	Home      key.Binding
 	Bottom    key.Binding
+	PageUp    key.Binding
+	PageDown  key.Binding
 	Ascend    key.Binding
 	Descend   key.Binding
 	Search    key.Binding
@@ -28,14 +31,24 @@ func newKeyMap() keyMap {
 			key.WithKeys("j", "down"),
 			key.WithHelp("j/↓", "down"),
 		),
-		// Top and Bottom are the vim gg/G jumps. They carry no help text on
-		// purpose: they're documented in the command docs but kept out of the
-		// footer hints.
+		// The jump and paging bindings carry no help text on purpose: they're
+		// documented in the command docs but kept out of the footer hints.
+		// Top is the vim gg chord, so home lives on its own binding: it jumps
+		// on a single press rather than arming the chord.
 		Top: key.NewBinding(
 			key.WithKeys("g"),
 		),
+		Home: key.NewBinding(
+			key.WithKeys("home"),
+		),
 		Bottom: key.NewBinding(
-			key.WithKeys("G"),
+			key.WithKeys("G", "end"),
+		),
+		PageUp: key.NewBinding(
+			key.WithKeys("pgup"),
+		),
+		PageDown: key.NewBinding(
+			key.WithKeys("pgdown"),
 		),
 		Ascend: key.NewBinding(
 			key.WithKeys("h", "left"),

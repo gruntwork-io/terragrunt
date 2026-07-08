@@ -22,7 +22,7 @@ const (
 func newModel(t *testing.T, fs vfs.FS, root *tui.Node, shouldColor bool) tui.Model {
 	t.Helper()
 
-	m := tui.NewModel(fs, root, shouldColor, nil)
+	m := tui.NewModel(fs, root, shouldColor, nil, nil)
 
 	return update(t, m, tea.WindowSizeMsg{Width: testWidth, Height: testHeight})
 }
