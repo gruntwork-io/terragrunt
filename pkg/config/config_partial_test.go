@@ -1024,3 +1024,80 @@ dependency "upstream" {
 	require.Len(t, terragruntConfig.TerragruntDependencies, 1)
 	assert.Equal(t, "upstream", terragruntConfig.TerragruntDependencies[0].Name)
 }
+
+func TestPartialParseTerraformSourceReferencingDependencyReturnsClearError(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = "./module-${dependency.upstream.outputs.cluster_id}"
+}
+
+dependency "upstream" {
+  config_path = "../upstream"
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	pctx = pctx.WithDecodeList(config.TerraformSource)
+
+	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+
+	var srcErr config.TerraformSourceReferencesDependencyError
+	require.ErrorAs(t, err, &srcErr, "source referencing a dependency should return a clear typed error, not a cryptic decode error")
+}
+
+// TestPartialParseTerraformSourceDependencyInUntakenBranchIsRejected covers a source whose dependency reference sits
+// in an untaken conditional branch. The source is consumed during discovery and queue construction, before any
+// dependency output exists, so the reference is rejected outright even though the branch never evaluates.
+func TestPartialParseTerraformSourceDependencyInUntakenBranchIsRejected(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = true ? "./module" : dependency.upstream.outputs.source
+}
+
+dependency "upstream" {
+  config_path = "../upstream"
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.TerraformSource)
+
+	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+
+	var srcErr config.TerraformSourceReferencesDependencyError
+	require.ErrorAs(t, err, &srcErr, "a dependency reference anywhere in the source, even an untaken branch, must be rejected")
+}
+
+// TestPartialParseTerraformSourceUnrelatedDecodeErrorIsNotRebranded guards against over-eager rebranding: a source
+// that does not reference the dependency namespace but fails to decode for another reason must keep its own precise
+// diagnostic rather than surfacing TerraformSourceReferencesDependencyError. Here the source is a tuple, so it fails
+// to decode into a string.
+func TestPartialParseTerraformSourceUnrelatedDecodeErrorIsNotRebranded(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+terraform {
+  source = [1, 2, 3]
+}
+`
+
+	l := logger.CreateLogger()
+
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.TerraformSource)
+	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+
+	require.Error(t, err)
+
+	var srcErr config.TerraformSourceReferencesDependencyError
+	require.NotErrorAs(t, err, &srcErr, "an unrelated source decode error must not be rebranded as a dependency reference error")
+}

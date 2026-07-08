@@ -23,6 +23,7 @@ const (
 	testFixtureFindInclude                     = "fixtures/find/include"
 	testFixtureFindReadTerragruntConfig        = "fixtures/find/read-terragrunt-config"
 	testFixtureFindDynamicDependencyConfigPath = "fixtures/find/dynamic-dependency-config-path"
+	testFixtureFindSourceReferencesDependency  = "fixtures/find/source-references-dependency"
 )
 
 func TestFindBasic(t *testing.T) {
@@ -158,7 +159,7 @@ func TestFindDAGWithMixedDependencies(t *testing.T) {
 			assert.Empty(t, stderr)
 
 			if strings.Contains(tc.args, "--json") {
-				jsonStringsEqual(t, tc.expected, stdout)
+				requireJSONEqualIgnoringArrayOrder(t, tc.expected, stdout)
 			} else {
 				assert.Equal(t, tc.expected, stdout)
 			}
@@ -166,8 +167,29 @@ func TestFindDAGWithMixedDependencies(t *testing.T) {
 	}
 }
 
-// jsonStringsEqual compares two JSON strings for equivalence, ignoring the order of nested arrays.
-func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...any) bool {
+// TestFindToleratesTerraformSourceReferencingDependency covers discovery of a unit whose terraform `source` references
+// the `dependency` namespace. Such a source is rejected (it must be resolvable before dependencies are evaluated), so
+// the unit's config cannot be parsed. Discovery must still not crash: it lists the unit, and the dependency edge that
+// would come from parsing its config is simply absent rather than aborting the whole run.
+func TestFindToleratesTerraformSourceReferencingDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFindSourceReferencesDependency)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+testFixtureFindSourceReferencesDependency+" --dependencies --json",
+	)
+	require.NoError(t, err)
+
+	assert.Empty(t, stderr)
+	require.JSONEq(t, `[{"type":"unit","path":"app"},{"type":"unit","path":"upstream"}]`, stdout)
+}
+
+// requireJSONEqualIgnoringArrayOrder compares two JSON strings for equivalence, ignoring the order of array elements.
+// Use it instead of require.JSONEq only when the output's array ordering is not guaranteed (e.g. the order of a unit's
+// dependencies, or of units that share a DAG level); prefer require.JSONEq when the order is deterministic.
+func requireJSONEqualIgnoringArrayOrder(t *testing.T, expected, actual string, msgAndArgs ...any) bool {
 	t.Helper()
 
 	patch, err := jsondiff.CompareJSON([]byte(expected), []byte(actual), jsondiff.Equivalent())
@@ -423,7 +445,7 @@ func TestFindWithReadTerragruntConfig(t *testing.T) {
 			assert.Empty(t, stderr, "stderr should be empty - no parse errors should occur")
 
 			// Verify the JSON output matches expected
-			jsonStringsEqual(t, tc.expected, stdout)
+			requireJSONEqualIgnoringArrayOrder(t, tc.expected, stdout)
 		})
 	}
 }
@@ -463,7 +485,7 @@ func TestFindWithDynamicDependencyConfigPath(t *testing.T) {
 			assert.Empty(t, stderr)
 
 			if strings.Contains(tc.args, "--json") {
-				jsonStringsEqual(t, tc.expected, stdout)
+				requireJSONEqualIgnoringArrayOrder(t, tc.expected, stdout)
 			} else {
 				assert.Equal(t, tc.expected, stdout)
 			}
