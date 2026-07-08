@@ -268,7 +268,9 @@ func createInstance(
 		engineClient: terragruntEngine,
 		client:       client,
 		execOptions:  execOptions,
-		v:            v,
+		// Snapshot the env so a later in-place mutation of the caller's venv
+		// cannot change what Shutdown addresses.
+		v: v.WithEnvCloned(),
 	}, nil
 }
 

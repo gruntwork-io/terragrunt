@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -282,7 +281,7 @@ func (p *GraphPhase) discoverDependencies(
 		return err
 	}
 
-	depPaths, err = stackDependencyPaths(ctx, l, v, vfs.NewOSFS(), state.opts, depPaths)
+	depPaths, err = stackDependencyPaths(ctx, l, v, state.opts, depPaths)
 	if err != nil {
 		return err
 	}
@@ -670,7 +669,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	var stackErr error
 
-	deps, stackErr = stackDependencyPaths(ctx, l, v, vfs.NewOSFS(), state.graphTraversalState.opts, deps)
+	deps, stackErr = stackDependencyPaths(ctx, l, v, state.graphTraversalState.opts, deps)
 	if stackErr != nil {
 		state.errMu.Lock()
 		*state.errs = append(*state.errs, stackErr)
