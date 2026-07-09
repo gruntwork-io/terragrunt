@@ -107,7 +107,7 @@ func isBinary(data []byte) bool {
 // renderMarkdown renders Markdown source to styled terminal output wrapped at
 // width. With color off, or on any renderer error, it returns the raw source.
 func renderMarkdown(source string, width int, theme previewTheme) string {
-	if theme == previewPlain || width <= 0 {
+	if theme == previewPlain {
 		return source
 	}
 
@@ -132,31 +132,9 @@ func highlightCode(name, source string, theme previewTheme) string {
 		return source
 	}
 
-	lexer := lexers.Match(name)
-	if lexer == nil {
-		lexer = lexers.Analyse(source)
-	}
-
-	if lexer == nil {
-		lexer = lexers.Fallback
-	}
-
-	lexer = chroma.Coalesce(lexer)
-
-	styleName := chromaDarkStyle
-	if theme == previewLight {
-		styleName = chromaLightStyle
-	}
-
-	style := styles.Get(styleName)
-	if style == nil {
-		style = styles.Fallback
-	}
-
-	formatter := formatters.Get(chromaFormatter)
-	if formatter == nil {
-		formatter = formatters.Fallback
-	}
+	lexer := chroma.Coalesce(lexerFor(name, source))
+	style := styleFor(theme)
+	formatter := previewFormatter()
 
 	iterator, err := lexer.Tokenise(nil, source)
 	if err != nil {
@@ -169,4 +147,43 @@ func highlightCode(name, source string, theme previewTheme) string {
 	}
 
 	return strings.TrimRight(buf.String(), "\n")
+}
+
+// lexerFor picks a chroma lexer for a file: by filename first, then by content
+// analysis, falling back to the plain-text lexer when neither matches.
+func lexerFor(name, source string) chroma.Lexer {
+	if lexer := lexers.Match(name); lexer != nil {
+		return lexer
+	}
+
+	if lexer := lexers.Analyse(source); lexer != nil {
+		return lexer
+	}
+
+	return lexers.Fallback
+}
+
+// styleFor returns the chroma style matching the preview theme, falling back to
+// chroma's default when the configured theme isn't registered.
+func styleFor(theme previewTheme) *chroma.Style {
+	name := chromaDarkStyle
+	if theme == previewLight {
+		name = chromaLightStyle
+	}
+
+	if style := styles.Get(name); style != nil {
+		return style
+	}
+
+	return styles.Fallback
+}
+
+// previewFormatter returns chroma's terminal formatter, falling back to the
+// default when it isn't registered.
+func previewFormatter() chroma.Formatter {
+	if formatter := formatters.Get(chromaFormatter); formatter != nil {
+		return formatter
+	}
+
+	return formatters.Fallback
 }
