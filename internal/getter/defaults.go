@@ -22,6 +22,7 @@ const (
 	SchemeHg    = "hg"
 	SchemeSMB   = "smb"
 	SchemeTFR   = "tfr"
+	SchemeOCI   = "oci"
 )
 
 // GenericFetcherOption configures the generic-dispatch defaults consumed
