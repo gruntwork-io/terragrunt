@@ -640,7 +640,7 @@ unit "app" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithParseStackConfigs()
 
-	components, err := d.Discover(t.Context(), l, opts)
+	components, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	stacks := make(map[string]*component.Stack)
