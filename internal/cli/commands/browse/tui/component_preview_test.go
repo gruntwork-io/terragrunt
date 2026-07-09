@@ -35,7 +35,6 @@ func TestUnitPreviewShowsMetadataAndRelationships(t *testing.T) {
 	assert.Contains(t, content, "Dependents:")
 	assert.Contains(t, content, "../app")
 	assert.Contains(t, content, "Reading:")
-	// Read files are shown relative to the unit's own directory.
 	assert.Contains(t, content, "terragrunt.hcl")
 	assert.Contains(t, content, "../common.hcl")
 }
@@ -81,8 +80,6 @@ func TestComponentPreviewLoadsThenReportsNotDiscovered(t *testing.T) {
 	require.Equal(t, tui.KindUnit, m.Selected().Kind())
 	assert.NotContains(t, m.View().Content, "(not discovered)")
 
-	// Discovery finishes without resolving vpc, so its bare classification is
-	// flagged rather than presented as complete metadata.
 	m = update(t, m, tui.DiscoveryResult{})
 	assert.Contains(t, m.View().Content, "(not discovered)")
 }

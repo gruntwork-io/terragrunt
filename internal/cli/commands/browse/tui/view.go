@@ -238,7 +238,7 @@ func (m Model) renderName(n *Node, sel selection, gutter matchGutter, rowWidth i
 	case n.kind == KindUnit, n.kind == KindStack:
 		return m.colorizer.ColorizeKind(label, componentKind(n.kind))
 	case n.kind == KindFile:
-		if _, read := m.readFiles[n.absPath]; read {
+		if m.disc.isRead(n.absPath) {
 			return itemStyle.Render(label)
 		}
 
@@ -342,7 +342,7 @@ func (m Model) componentPreview(n *Node) string {
 		// After discovery, a component-less unit or stack means discovery excluded
 		// it; say so instead of presenting bare metadata-less fields.
 		suffix := dimStyle.Render("(not discovered)")
-		if !m.done {
+		if !m.disc.done {
 			suffix = loadingValue()
 		}
 
@@ -393,14 +393,14 @@ func relativeReadPaths(c component.Component) []string {
 // dirPreview renders a summary of a plain directory: the number of units and
 // stacks beneath it, or a loading placeholder until discovery reports them.
 func (m Model) dirPreview(n *Node) string {
-	if !m.done {
+	if !m.disc.done {
 		return strings.Join([]string{
 			m.field("Units", loadingValue()),
 			m.field("Stacks", loadingValue()),
 		}, "\n")
 	}
 
-	units, stacks := m.counts(n)
+	units, stacks := m.disc.counts(n)
 
 	return strings.Join([]string{
 		m.field("Units", strconv.Itoa(units)),
@@ -538,7 +538,7 @@ func (m Model) footerView() string {
 		footer = m.searchStatus()
 	}
 
-	if !m.done {
+	if !m.disc.done {
 		footer += "  •  discovering…"
 	}
 
