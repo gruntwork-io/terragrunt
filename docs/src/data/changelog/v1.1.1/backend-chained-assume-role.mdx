@@ -1,0 +1,10 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### Chained role assumption for the S3 backend
+
+When AWS credentials were supplied through `--auth-provider-cmd` or environment variables, Terragrunt ignored the `assume_role` attribute of the `remote_state` block for its own backend operations, such as bootstrapping the state bucket. In cross-account setups this caused access errors, even though OpenTofu/Terraform itself assumed the role correctly during runs.
+
+Terragrunt now uses the supplied credentials as the source identity and assumes the configured role on top of them. The same applies to roles configured via the `iam_role` attribute or the `--iam-assume-role` flag, and to fetching dependency outputs directly from S3 state.
