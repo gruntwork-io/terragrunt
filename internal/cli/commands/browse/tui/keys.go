@@ -21,6 +21,9 @@ type keyMap struct {
 }
 
 // newKeyMap returns the default navigation bindings.
+//
+// Some of these don't have help because they aren't given hints in the TUI.
+// This is to avoid cluttering the UI. They're documented in the docs instead.
 func newKeyMap() keyMap {
 	return keyMap{
 		Up: key.NewBinding(
@@ -31,10 +34,6 @@ func newKeyMap() keyMap {
 			key.WithKeys("j", "down"),
 			key.WithHelp("j/↓", "down"),
 		),
-		// The jump and paging bindings carry no help text on purpose: they're
-		// documented in the command docs but kept out of the footer hints.
-		// Top is the vim gg chord, so home lives on its own binding: it jumps
-		// on a single press rather than arming the chord.
 		Top: key.NewBinding(
 			key.WithKeys("g"),
 		),

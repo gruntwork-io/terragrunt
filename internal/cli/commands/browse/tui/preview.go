@@ -33,12 +33,37 @@ const (
 	chromaFormatter = "terminal256"
 )
 
+// previewTheme selects how a file preview is colored: no color at all, or a
+// syntax theme matched to the terminal background.
+type previewTheme int
+
+const (
+	// previewPlain renders the raw source with no coloring.
+	previewPlain previewTheme = iota
+	// previewDark colors the source for a dark terminal.
+	previewDark
+	// previewLight colors the source for a light terminal.
+	previewLight
+)
+
+// themeFor maps the color setting and terminal background to a preview theme.
+func themeFor(color, dark bool) previewTheme {
+	switch {
+	case !color:
+		return previewPlain
+	case dark:
+		return previewDark
+	default:
+		return previewLight
+	}
+}
+
 // renderFilePreview reads and renders a file for the detail pane: Markdown
 // through glamour, everything else through chroma syntax highlighting. width is
-// the pane's interior width, used for Markdown word-wrap. color and dark mirror
-// the color setting and terminal background. It returns a short dimmed
-// placeholder for files that can't or shouldn't be previewed.
-func renderFilePreview(fs vfs.FS, n *Node, width int, color, dark bool) string {
+// the pane's interior width, used for Markdown word-wrap. theme mirrors the
+// color setting and terminal background. It returns a short dimmed placeholder
+// for files that can't or shouldn't be previewed.
+func renderFilePreview(fs vfs.FS, n *Node, width int, theme previewTheme) string {
 	info, err := fs.Stat(n.absPath)
 	if err != nil {
 		return dimStyle.Render("(unreadable)")
@@ -61,9 +86,9 @@ func renderFilePreview(fs vfs.FS, n *Node, width int, color, dark bool) string {
 
 	switch strings.ToLower(filepath.Ext(n.name)) {
 	case ".md", ".markdown":
-		return renderMarkdown(source, width, color, dark)
+		return renderMarkdown(source, width, theme)
 	default:
-		return highlightCode(n.name, source, color, dark)
+		return highlightCode(n.name, source, theme)
 	}
 }
 
@@ -79,12 +104,12 @@ func isBinary(data []byte) bool {
 
 // renderMarkdown renders Markdown source to styled terminal output wrapped at
 // width. With color off, or on any renderer error, it returns the raw source.
-func renderMarkdown(source string, width int, color, dark bool) string {
-	if !color || width <= 0 {
+func renderMarkdown(source string, width int, theme previewTheme) string {
+	if theme == previewPlain || width <= 0 {
 		return source
 	}
 
-	r, err := viewtui.NewMarkdownRenderer(width, dark)
+	r, err := viewtui.NewMarkdownRenderer(width, theme == previewDark)
 	if err != nil {
 		return source
 	}
@@ -100,8 +125,8 @@ func renderMarkdown(source string, width int, color, dark bool) string {
 // highlightCode syntax-highlights source for terminal output, choosing a lexer
 // by filename and falling back to content analysis. With color off, or on any
 // error, it returns the raw source.
-func highlightCode(name, source string, color, dark bool) string {
-	if !color {
+func highlightCode(name, source string, theme previewTheme) string {
+	if theme == previewPlain {
 		return source
 	}
 
@@ -117,7 +142,7 @@ func highlightCode(name, source string, color, dark bool) string {
 	lexer = chroma.Coalesce(lexer)
 
 	styleName := chromaDarkStyle
-	if !dark {
+	if theme == previewLight {
 		styleName = chromaLightStyle
 	}
 

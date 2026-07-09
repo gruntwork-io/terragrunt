@@ -69,7 +69,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 
 	root := tui.NewRoot(opts.WorkingDir)
 
-	err = tui.Run(ctx, vfs.NewOSFS(), root, stdout.ShouldColor(l), resultCh, warnCh)
+	err = tui.Run(ctx, l, vfs.NewOSFS(), root, stdout.ShouldColor(l), resultCh, warnCh)
 
 	cancel()
 	<-done

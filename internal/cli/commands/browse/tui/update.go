@@ -94,9 +94,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Descend):
 		m.descend()
 	case key.Matches(msg, m.keys.NextMatch):
-		m.nextMatch(1)
+		m.nextMatch(searchForward)
 	case key.Matches(msg, m.keys.PrevMatch):
-		m.nextMatch(-1)
+		m.nextMatch(searchBackward)
 	}
 
 	m.ensurePreview()
@@ -183,7 +183,7 @@ func (m *Model) ensurePreview() {
 		return
 	}
 
-	sel.preview = renderFilePreview(m.fs, sel, width, m.shouldColor, m.hasDarkBG)
+	sel.preview = renderFilePreview(m.fs, sel, width, themeFor(m.shouldColor, m.hasDarkBG))
 	sel.previewWidth = width
 	sel.previewDark = m.hasDarkBG
 	sel.previewReady = true

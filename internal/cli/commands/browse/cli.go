@@ -14,8 +14,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
+// CommandName is the name of the browse command.
 const CommandName = "browse"
 
+// NewCommand returns the browse command, gated behind the browse-tui experiment.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
 	cmdOpts := NewOptions(opts)
 	prefix := flags.Prefix{CommandName}

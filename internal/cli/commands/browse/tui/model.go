@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -10,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // DiscoveryResult carries the outcome of the background discovery pass. The
@@ -28,8 +31,10 @@ type Model struct {
 	root         *Node
 	index        map[string]component.Component
 	readFiles    map[string]struct{}
+	dirCounts    map[string]dirCount
 	resultCh     <-chan DiscoveryResult
 	warnCh       <-chan viewtui.Warning
+	home         string
 	lastQuery    string
 	toasts       viewtui.ToastStack
 	keys         keyMap
@@ -51,6 +56,7 @@ type Model struct {
 // resultCh delivers the background discovery result, and warnCh the warnings
 // logged while it runs; either is nil when there is none.
 func NewModel(
+	l log.Logger,
 	fs vfs.FS,
 	root *Node,
 	shouldColor bool,
@@ -59,6 +65,13 @@ func NewModel(
 ) Model {
 	search := textinput.New()
 	search.Prompt = "/"
+
+	// Resolve the home directory once; the path bar abbreviates against it on
+	// every render. An error leaves it empty, which disables abbreviation.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		l.Debugf("Could not resolve home directory for path abbreviation: %v", err)
+	}
 
 	return Model{
 		root:        root,
@@ -70,8 +83,10 @@ func NewModel(
 		searchInput: search,
 		index:       map[string]component.Component{},
 		readFiles:   map[string]struct{}{},
+		dirCounts:   map[string]dirCount{},
 		resultCh:    resultCh,
 		warnCh:      warnCh,
+		home:        home,
 		shouldColor: shouldColor,
 		hasDarkBG:   true,
 	}
@@ -137,6 +152,7 @@ func (m *Model) applyDiscovery(res DiscoveryResult) {
 	}
 
 	m.attachComponents(m.root)
+	m.computeCounts()
 	m.done = true
 }
 
@@ -224,17 +240,21 @@ func (m Model) activeQuery() string {
 	return m.lastQuery
 }
 
+// nameMatches reports whether name contains query case-insensitively.
+func nameMatches(name, query string) bool {
+	return strings.Contains(strings.ToLower(name), strings.ToLower(query))
+}
+
 // matchCount returns how many entries in the current directory match query.
 func (m Model) matchCount(query string) int {
 	if query == "" {
 		return 0
 	}
 
-	q := strings.ToLower(query)
 	count := 0
 
 	for _, n := range m.current.children {
-		if strings.Contains(strings.ToLower(n.name), q) {
+		if nameMatches(n.name, query) {
 			count++
 		}
 	}
@@ -242,10 +262,18 @@ func (m Model) matchCount(query string) int {
 	return count
 }
 
+// searchDirection is the direction nextMatch scans for the next matching entry.
+type searchDirection int
+
+const (
+	searchForward  searchDirection = 1
+	searchBackward searchDirection = -1
+)
+
 // nextMatch moves the cursor to the next entry matching the last committed
-// query, scanning in direction dir (+1 forward, -1 backward) and wrapping around
-// the current directory. It's a no-op when no search has been committed.
-func (m *Model) nextMatch(dir int) {
+// query, scanning in direction dir and wrapping around the current directory.
+// It's a no-op when no search has been committed.
+func (m *Model) nextMatch(dir searchDirection) {
 	if m.lastQuery == "" {
 		return
 	}
@@ -257,12 +285,11 @@ func (m *Model) nextMatch(dir int) {
 		return
 	}
 
-	query := strings.ToLower(m.lastQuery)
 	cur := m.cursor[m.current]
 
 	for i := 1; i <= count; i++ {
-		idx := ((cur+dir*i)%count + count) % count
-		if strings.Contains(strings.ToLower(children[idx].name), query) {
+		idx := ((cur+int(dir)*i)%count + count) % count
+		if nameMatches(children[idx].name, m.lastQuery) {
 			m.cursor[m.current] = idx
 
 			return
@@ -273,13 +300,7 @@ func (m *Model) nextMatch(dir int) {
 // firstMatch returns the index of the first child whose name contains query,
 // case-insensitively, or -1 when none match.
 func (m Model) firstMatch(query string) int {
-	q := strings.ToLower(query)
-
-	for i, n := range m.current.children {
-		if strings.Contains(strings.ToLower(n.name), q) {
-			return i
-		}
-	}
-
-	return -1
+	return slices.IndexFunc(m.current.children, func(n *Node) bool {
+		return nameMatches(n.name, query)
+	})
 }

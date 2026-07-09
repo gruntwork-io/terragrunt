@@ -71,8 +71,9 @@ func (m Model) View() tea.View {
 	}
 
 	header := m.headerView()
+	footer := helpStyle.Render(m.footerView())
 
-	sideWidth, previewWidth, paneHeight := m.paneSizes()
+	sideWidth, previewWidth, paneHeight := m.paneSizes(header, footer)
 
 	left := paneStyle(sideWidth, paneHeight).Render("")
 
@@ -85,7 +86,7 @@ func (m Model) View() tea.View {
 	right := m.renderPreview(previewWidth, paneHeight)
 
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, left, middle, right)
-	body := lipgloss.JoinVertical(lipgloss.Left, header, columns, helpStyle.Render(m.footerView()))
+	body := lipgloss.JoinVertical(lipgloss.Left, header, columns, footer)
 
 	content := m.toasts.Overlay(appStyle.Render(body), m.width, m.height)
 
@@ -101,17 +102,24 @@ func (m Model) View() tea.View {
 // half the space; the parent and current panes share the rest equally. Fixed
 // ratios keep the layout stable as you navigate. Dimensions are clamped to
 // zero so a tiny terminal degrades to empty panes instead of garbled output.
-func (m Model) paneSizes() (sideWidth, previewWidth, paneHeight int) {
+// The rendered header and footer are passed in so a single View() renders them
+// once and reuses them for both measurement and display.
+func (m Model) paneSizes(header, footer string) (sideWidth, previewWidth, paneHeight int) {
 	frameH, frameV := appStyle.GetFrameSize()
 
 	content := max(m.width-frameH, 0)
 	sideWidth = content / 4 //nolint:mnd
 	previewWidth = content - sideWidth*(columnCount-1)
 
-	footer := lipgloss.Height(helpStyle.Render(m.footerView()))
-	paneHeight = max(m.height-frameV-lipgloss.Height(m.headerView())-footer, 0)
+	paneHeight = max(m.height-frameV-lipgloss.Height(header)-lipgloss.Height(footer), 0)
 
 	return sideWidth, previewWidth, paneHeight
+}
+
+// measuredPaneSizes renders the header and footer solely to measure the pane
+// height, for the Update-path callers that need sizes outside a View() render.
+func (m Model) measuredPaneSizes() (sideWidth, previewWidth, paneHeight int) {
+	return m.paneSizes(m.headerView(), helpStyle.Render(m.footerView()))
 }
 
 // paneInterior returns the text area inside a pane of the given total size,
@@ -123,7 +131,7 @@ func paneInterior(paneWidth, paneHeight int) (width, height int) {
 // previewArea returns the interior width and height of the preview pane: the
 // space left for content once the pane's border and padding are removed.
 func (m Model) previewArea() (width, height int) {
-	_, previewWidth, paneHeight := m.paneSizes()
+	_, previewWidth, paneHeight := m.measuredPaneSizes()
 
 	return paneInterior(previewWidth, paneHeight)
 }
@@ -132,7 +140,7 @@ func (m Model) previewArea() (width, height int) {
 // pgup/pgdown keys move the cursor. At least 1, so paging still moves on a
 // terminal too short to fit a single row.
 func (m Model) pageSize() int {
-	sideWidth, _, paneHeight := m.paneSizes()
+	sideWidth, _, paneHeight := m.measuredPaneSizes()
 	_, rows := paneInterior(sideWidth, paneHeight)
 
 	return max(rows, 1)
@@ -161,35 +169,63 @@ func (m Model) renderColumn(nodes []*Node, cursorIdx, paneWidth, paneHeight int,
 	offset := min(max(cursorIdx-rows/2, 0), max(len(nodes)-rows, 0))
 	visible := nodes[offset:min(offset+rows, len(nodes))]
 
-	showMarker := query != ""
-	q := strings.ToLower(query)
+	searching := query != ""
 
 	lines := make([]string, len(visible))
 	for i, n := range visible {
-		matched := showMarker && strings.Contains(strings.ToLower(n.name), q)
-		row := m.renderName(n, offset+i == cursorIdx, showMarker, matched, rowWidth)
-		lines[i] = ansi.Truncate(row, rowWidth, "")
+		gutter := gutterNone
+		if searching {
+			gutter = gutterMiss
+			if nameMatches(n.name, query) {
+				gutter = gutterHit
+			}
+		}
+
+		sel := unselected
+		if offset+i == cursorIdx {
+			sel = selected
+		}
+
+		lines[i] = ansi.Truncate(m.renderName(n, sel, gutter, rowWidth), rowWidth, "")
 	}
 
 	return style.Render(strings.Join(lines, "\n"))
 }
+
+// selection marks whether a rendered row is the highlighted one.
+type selection int
+
+const (
+	unselected selection = iota
+	selected
+)
+
+// matchGutter is the search gutter a row carries: none when no search is active,
+// or a marker showing whether the row matches the active query.
+type matchGutter int
+
+const (
+	gutterNone matchGutter = iota
+	gutterMiss
+	gutterHit
+)
 
 // renderName renders a node's label, colored by kind: units blue, stacks green,
 // plain directories bold white, and files dimmed. A file a unit reads is shown
 // white once discovery reports it, marking it as relevant to the estate.
 // Hidden directories are dimmed like files: discovery skips or rarely cares
 // about them, so they stay out of the way. Directories carry a trailing slash.
-// The highlighted row is a full-width blue bar. While a search is active,
-// showMarker reserves a gutter and matched entries are flagged with a marker.
-func (m Model) renderName(n *Node, selected, showMarker, matched bool, rowWidth int) string {
+// The highlighted row is a full-width blue bar. While a search is active, the
+// gutter reserves space and matched entries are flagged with a marker.
+func (m Model) renderName(n *Node, sel selection, gutter matchGutter, rowWidth int) string {
 	label := n.name
 	if n.kind != KindFile {
 		label += "/"
 	}
 
-	if showMarker {
+	if gutter != gutterNone {
 		marker := "  "
-		if matched {
+		if gutter == gutterHit {
 			marker = "▸ "
 		}
 
@@ -197,7 +233,7 @@ func (m Model) renderName(n *Node, selected, showMarker, matched bool, rowWidth 
 	}
 
 	switch {
-	case selected:
+	case sel == selected:
 		return selectedStyle.Width(rowWidth).Render(label)
 	case n.kind == KindUnit, n.kind == KindStack:
 		return m.colorizer.ColorizeKind(label, componentKind(n.kind))
@@ -232,14 +268,13 @@ func (m Model) headerView() string {
 		target = sel
 	}
 
-	return headerStyle.Render(abbreviatePath(target.absPath))
+	return headerStyle.Render(abbreviatePath(m.home, target.absPath))
 }
 
-// abbreviatePath replaces a leading home directory with ~. Paths outside the
-// home directory are returned unchanged.
-func abbreviatePath(p string) string {
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
+// abbreviatePath replaces a leading home directory with ~. An empty home or a
+// path outside the home directory is returned unchanged.
+func abbreviatePath(home, p string) string {
+	if home == "" {
 		return p
 	}
 
@@ -277,7 +312,7 @@ func (m Model) rawPreviewContent(n *Node) string {
 	case KindDir:
 		return m.dirPreview(n)
 	default:
-		return m.dirPreview(n)
+		panic("browse: unhandled node kind " + strconv.Itoa(int(n.kind)))
 	}
 }
 
@@ -353,16 +388,6 @@ func relativeReadPaths(c component.Component) []string {
 	}
 
 	return paths
-}
-
-// relTo returns target relative to base, falling back to target when a relative
-// path can't be computed (e.g. paths on different volumes).
-func relTo(base, target string) string {
-	if rel, err := filepath.Rel(base, target); err == nil {
-		return rel
-	}
-
-	return target
 }
 
 // dirPreview renders a summary of a plain directory: the number of units and
