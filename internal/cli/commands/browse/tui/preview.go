@@ -23,9 +23,11 @@ const (
 	// decide a file is binary and skip previewing it.
 	binarySniffLen = 1024
 
-	// chromaDarkStyle and chromaLightStyle are the chroma syntax themes used for
-	// the file preview on dark and light terminals.
-	chromaDarkStyle  = "monokai"
+	// chromaDarkStyle is the chroma syntax theme used for the file preview on
+	// dark terminals.
+	chromaDarkStyle = "monokai"
+	// chromaLightStyle is the chroma syntax theme used for the file preview on
+	// light terminals.
 	chromaLightStyle = "github"
 
 	// chromaFormatter is chroma's 256-color terminal formatter: the

@@ -44,9 +44,9 @@ const (
 	// can't cover the screen.
 	toastMaxLines = 3
 
-	// toastMarginX and toastMarginY inset the toast stack from the terminal's
-	// top-right corner.
+	// toastMarginX insets the toast stack from the terminal's right edge.
 	toastMarginX = 2
+	// toastMarginY insets the toast stack from the terminal's top edge.
 	toastMarginY = 1
 
 	// toastFrameWidth is the horizontal space a toast's border and padding
