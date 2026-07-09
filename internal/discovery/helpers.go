@@ -16,7 +16,6 @@ import (
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -305,7 +304,6 @@ func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
 	v venv.Venv,
-	fs vfs.FS,
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {
@@ -324,7 +322,7 @@ func stackDependencyPaths(
 		// Stat upfront so a non-directory dep path (e.g. another-name.hcl) is preserved instead of
 		// being passed to the parser, which would reject it as ENOTDIR. The duplication of work is
 		// intentional.
-		info, statErr := fs.Stat(depPath)
+		info, statErr := v.FS.Stat(depPath)
 		// Real I/O errors (permission denied, etc.) must surface so a malformed DAG isn't silently
 		// produced; only ENOENT is treated as "keep the raw path".
 		if statErr != nil && !errors.Is(statErr, iofs.ErrNotExist) {
@@ -336,7 +334,7 @@ func stackDependencyPaths(
 			continue
 		}
 
-		unitPaths, err := inthclparse.UnitPathsFromStackDir(fs, depPath, funcsFor)
+		unitPaths, err := inthclparse.UnitPathsFromStackDir(v.FS, depPath, funcsFor)
 		if err != nil {
 			return nil, NewStackDependencyExpansionError(depPath, err)
 		}

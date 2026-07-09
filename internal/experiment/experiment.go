@@ -77,6 +77,8 @@ const (
 	HookContextEnv = "hook-context-env"
 	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
 	OptionalHooks = "optional-hooks"
+	// OCI gates downloading modules from OCI Distribution registries via oci:// sources.
+	OCI = "oci"
 )
 
 const (
@@ -164,6 +166,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OptionalHooks,
+		},
+		{
+			Name: OCI,
 		},
 	}
 }

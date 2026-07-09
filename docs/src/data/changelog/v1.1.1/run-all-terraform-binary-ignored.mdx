@@ -1,0 +1,10 @@
+---
+version: "v1.1.1"
+category: "bug-fixes"
+---
+
+#### `terraform_binary` respected by `run --all` when both `tofu` and `terraform` are on `PATH`
+
+`run --all` ignored a unit's `terraform_binary` setting and fell back to the auto-detected default (OpenTofu when both binaries are on `PATH`). The per-unit options used to execute each unit are cloned from the stack options, whose binary path is the auto-detected default, and the configured value was never applied to them.
+
+Each unit now honors its own `terraform_binary`, matching the behavior of a single `run`. Setting `--tf-path` or `TG_TF_PATH` still takes precedence over the config value.

@@ -19,8 +19,10 @@ import (
 )
 
 // Run migrates Terraform/OpenTofu state from srcPath to dstPath. v is the
-// virtualized environment used for the underlying stack runner build and
-// the state pull/push terraform invocations.
+// virtualized environment used to build the stack runner; the source and
+// destination each parse and run under their own Env clone of it so a
+// migration between two accounts of the same cloud can carry distinct
+// credentials on each side.
 func Run(
 	ctx context.Context,
 	l log.Logger,
@@ -69,8 +71,15 @@ func Run(
 		return fmt.Errorf("failed to build opts for dst unit %s: %w", dstPath, err)
 	}
 
+	// Source and destination each get an independent Env clone so per-unit
+	// contributions during parsing (auth-provider-cmd credentials, TF_VAR_*)
+	// stay on their own side instead of clobbering one another, and so the
+	// pull and push below run under the correct environment.
+	srcV := v.WithEnvCloned()
+	dstV := v.WithEnvCloned()
+
 	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
-	srcPctx = srcPctx.WithVenv(v)
+	srcPctx = srcPctx.WithVenv(srcV)
 
 	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
 	if err != nil {
@@ -87,7 +96,7 @@ func Run(
 	srcOpts.WorkingDir = srcPctx.WorkingDir
 
 	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstOpts)
-	dstPctx = dstPctx.WithVenv(v)
+	dstPctx = dstPctx.WithVenv(dstV)
 
 	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
 	if err != nil {
@@ -102,7 +111,7 @@ func Run(
 	dstOpts.WorkingDir = dstPctx.WorkingDir
 
 	if !opts.ForceBackendMigrate {
-		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, v, configbridge.RemoteStateOptsFromOpts(srcOpts))
+		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, srcV, configbridge.RemoteStateOptsFromOpts(srcOpts))
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -117,7 +126,7 @@ func Run(
 
 	return srcRemoteState.Migrate(
 		ctx, l,
-		v,
+		srcV, dstV,
 		configbridge.RemoteStateOptsFromOpts(srcOpts),
 		configbridge.RemoteStateOptsFromOpts(dstOpts),
 		dstRemoteState,

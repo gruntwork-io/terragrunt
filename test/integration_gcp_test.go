@@ -608,6 +608,8 @@ func validateGCSBucketExistsAndIsLabeled(
 	)
 	require.NoError(t, err, "Error creating GCS client")
 
+	defer gcsClient.Close()
+
 	// verify the bucket exists
 	assert.True(
 		t,
@@ -680,6 +682,8 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 	gcsClient, err := gcsbackend.NewClient(ctx, venv.OSVenv(), extGCSCfg, configbridge.BackendOptsFromOpts(opts))
 	require.NoError(t, err, "Error creating GCS client")
 
+	defer gcsClient.Close()
+
 	bucket := gcsClient.Bucket(bucketName)
 
 	handle := bucket.Object(objectName)
@@ -723,6 +727,8 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 	gcsClient, err := gcsbackend.NewClient(ctx, venv.OSVenv(), extGCSCfg, configbridge.BackendOptsFromOpts(opts))
 	require.NoError(t, err, "Error creating GCS client")
 
+	defer gcsClient.Close()
+
 	t.Logf("Creating test GCS bucket %s in project %s, location %s", bucketName, projectID, location)
 
 	bucket := gcsClient.Bucket(bucketName)
@@ -750,6 +756,8 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 
 	gcsClient, err := gcsbackend.NewClient(ctx, venv.OSVenv(), extGCSCfg, configbridge.BackendOptsFromOpts(opts))
 	require.NoError(t, err, "Error creating GCS client")
+
+	defer gcsClient.Close()
 
 	t.Logf("Deleting test GCS bucket %s", bucketName)
 
