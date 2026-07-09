@@ -105,7 +105,7 @@ func TestEarlyStackParseFunctions_GetEnvReadsPctxEnv(t *testing.T) {
 
 	baseDir := t.TempDir()
 	pctx := newStackParsePctx(t, baseDir)
-	pctx.Env = map[string]string{"PLAN_KEY": "plan_value"}
+	pctx.Venv.Env = map[string]string{"PLAN_KEY": "plan_value"}
 
 	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, pctx)
 	require.NoError(t, err)

@@ -30,6 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -82,12 +83,17 @@ var sourceChangeLocks = sync.Map{}
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	opts *Options,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
 	credsGetter *creds.Getter,
 ) error {
+	// A TOFU_CPU_PROFILE present in the environment before Terragrunt derives one was set by the user.
+	if _, set := v.Env[tf.EnvNameTofuCPUProfile]; set {
+		opts.TofuCPUProfileUserSet = true
+	}
+
 	engine, err := cfg.EngineOptions()
 	if err != nil {
 		return err
@@ -132,7 +138,10 @@ func Run(
 	)
 
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v.Exec, opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env))
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(
+			ctx, l, v,
+			amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env),
+		)
 	}); err != nil {
 		return err
 	}
@@ -174,7 +183,7 @@ func Run(
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
 	if updatedOpts.Debug {
-		if err := WriteTerragruntDebugFile(l, updatedOpts, cfg); err != nil {
+		if err := WriteTerragruntDebugFile(l, v.Env, updatedOpts, cfg); err != nil {
 			return err
 		}
 	}
@@ -229,12 +238,14 @@ func GenerateConfig(l log.Logger, fs vfs.FS, opts *Options, cfg *runcfg.RunConfi
 func runTerragruntWithConfig(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
+	v.RequireEnv()
+
 	if cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
 		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.CacheDir)
 
@@ -251,19 +262,15 @@ func runTerragruntWithConfig(
 			opts.TofuCPUProfileUserSet = true
 		}
 
-		maps.Copy(opts.Env, extraEnvVars)
+		maps.Copy(v.Env, extraEnvVars)
 	}
 
-	if err := SetTerragruntInputsAsEnvVars(l, opts, cfg); err != nil {
-		return err
-	}
-
-	if err := SetTofuCPUProfileEnv(l, opts); err != nil {
+	if err := SetTerragruntInputsAsEnvVars(l, v.Env, cfg); err != nil {
 		return err
 	}
 
 	if opts.TerraformCliArgs.First() == tf.CommandNameInit {
-		if err := prepareInitCommandRunCfg(ctx, l, opts, cfg); err != nil {
+		if err := prepareInitCommandRunCfg(ctx, l, v, opts, cfg); err != nil {
 			return err
 		}
 	} else {
@@ -292,8 +299,16 @@ func runTerragruntWithConfig(
 	}
 
 	return RunActionWithHooks(ctx, l, v, "terraform", opts, cfg, r, func(childCtx context.Context) error {
+		// Set the per-command downstream profile path here so auto-init and the main command, which share v.Env, do not clobber each other.
+		if err := SetTofuCPUProfileEnv(l, v, opts); err != nil {
+			return err
+		}
+
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, v.Exec, opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...)
+		out, runTerraformError := tf.RunCommandWithOutput(
+			childCtx, l, v,
+			opts.tfRunOptions(), opts.TerraformCliArgs.Slice()...,
+		)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, &cfg.Terraform) {
@@ -357,7 +372,7 @@ func ShouldCopyLockFile(args *iacargs.IacArgs, terraformConfig *runcfg.Terraform
 func RunActionWithHooks(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	description string,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -395,29 +410,32 @@ func RunActionWithHooks(
 		allErrors = append(allErrors, postHookErrors)
 	}
 
-	if errorHookErrors := ProcessErrorHooks(ctx, l, v.Exec, cfg.Terraform.ErrorHooks, cfg, opts, allErrors); errorHookErrors != nil {
+	if errorHookErrors := ProcessErrorHooks(ctx, l, v, cfg.Terraform.ErrorHooks, cfg, opts, allErrors); errorHookErrors != nil {
 		allErrors = append(allErrors, errorHookErrors)
 	}
 
 	return multierror.Join(allErrors...)
 }
 
-// SetTerragruntInputsAsEnvVars sets the inputs from Terragrunt configurations to TF_VAR_* environment variables for
-// OpenTofu/Terraform.
-func SetTerragruntInputsAsEnvVars(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
+// SetTerragruntInputsAsEnvVars merges the inputs from Terragrunt
+// configurations into env as TF_VAR_* entries, preserving any keys
+// already present.
+//
+// Requires a non-nil env: it is the destination the entries are written into.
+func SetTerragruntInputsAsEnvVars(l log.Logger, env map[string]string, cfg *runcfg.RunConfig) error {
+	if env == nil {
+		panic(venv.ErrVenvEnvUnset)
+	}
+
 	asEnvVars, err := ToTerraformEnvVars(l, cfg.Inputs)
 	if err != nil {
 		return err
 	}
 
-	if opts.Env == nil {
-		opts.Env = map[string]string{}
-	}
-
 	for key, value := range asEnvVars {
 		// Don't override any env vars the user has already set
-		if _, envVarAlreadySet := opts.Env[key]; !envVarAlreadySet {
-			opts.Env[key] = value
+		if _, envVarAlreadySet := env[key]; !envVarAlreadySet {
+			env[key] = value
 		}
 	}
 
@@ -473,9 +491,9 @@ func checkTerraformCodeDefinesBackend(fs vfs.FS, opts *Options, backendType stri
 }
 
 // Returns true if we need to run `terraform init` to download providers
-func providersNeedInit(opts *Options) bool {
-	pluginsPath := filepath.Join(opts.DataDir(), "plugins")
-	providersPath := filepath.Join(opts.DataDir(), "providers")
+func providersNeedInit(opts *Options, env map[string]string) bool {
+	pluginsPath := filepath.Join(opts.DataDir(env), "plugins")
+	providersPath := filepath.Join(opts.DataDir(env), "providers")
 	terraformLockPath := filepath.Join(opts.CacheDir, tf.TerraformLockFile)
 
 	return (!util.FileExists(pluginsPath) && !util.FileExists(providersPath)) || !util.FileExists(terraformLockPath)
@@ -512,8 +530,8 @@ func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, erro
 // Note that to keep the logic in this code very simple, this code ONLY detects the case where you haven't downloaded
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
-func modulesNeedInit(opts *Options) (bool, error) {
-	modulesPath := filepath.Join(opts.DataDir(), "modules")
+func modulesNeedInit(opts *Options, env map[string]string) (bool, error) {
+	modulesPath := filepath.Join(opts.DataDir(env), "modules")
 	if util.FileExists(modulesPath) {
 		return false, nil
 	}
@@ -536,6 +554,7 @@ func modulesNeedInit(opts *Options) (bool, error) {
 func remoteStateNeedsInit(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	remoteState *remotestate.RemoteState,
 	opts *Options,
 ) (bool, error) {
@@ -552,7 +571,7 @@ func remoteStateNeedsInit(
 		return false, nil
 	}
 
-	if ok, err := remoteState.NeedsBootstrap(ctx, l, opts.remoteStateOpts()); err != nil || !ok {
+	if ok, err := remoteState.NeedsBootstrap(ctx, l, v, opts.remoteStateOpts()); err != nil || !ok {
 		return false, err
 	}
 
@@ -641,7 +660,7 @@ func filterTerraformEnvVarsFromExtraArgsRunCfg(opts *Options, cfg *runcfg.RunCon
 }
 
 // prepareInitCommandRunCfg prepares for terraform init using runcfg types.
-func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
+func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, v venv.Venv, opts *Options, cfg *runcfg.RunConfig) error {
 	if cfg.RemoteState.Config == nil {
 		return nil
 	}
@@ -655,7 +674,7 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *Options, 
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, opts.remoteStateOpts()); err != nil {
+	if err := cfg.RemoteState.Bootstrap(ctx, l, v, opts.remoteStateOpts()); err != nil {
 		return err
 	}
 
@@ -666,13 +685,13 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *Options, 
 func PrepareNonInitCommand(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
-	needsInit, err := needsInitRunCfg(ctx, l, opts, cfg)
+	needsInit, err := needsInitRunCfg(ctx, l, v, opts, cfg)
 	if err != nil {
 		return err
 	}
@@ -687,7 +706,7 @@ func PrepareNonInitCommand(
 }
 
 // needsInitRunCfg determines if terraform init is needed using runcfg types.
-func needsInitRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runcfg.RunConfig) (bool, error) {
+func needsInitRunCfg(ctx context.Context, l log.Logger, v venv.Venv, opts *Options, cfg *runcfg.RunConfig) (bool, error) {
 	if slices.Contains(TerraformCommandsThatDoNotNeedInit, opts.TerraformCliArgs.First()) {
 		return false, nil
 	}
@@ -698,11 +717,11 @@ func needsInitRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runc
 		return true, nil
 	}
 
-	if providersNeedInit(opts) {
+	if providersNeedInit(opts, v.Env) {
 		return true, nil
 	}
 
-	modulesNeedsInit, err := modulesNeedInit(opts)
+	modulesNeedsInit, err := modulesNeedInit(opts, v.Env)
 	if err != nil {
 		return false, err
 	}
@@ -715,14 +734,14 @@ func needsInitRunCfg(ctx context.Context, l log.Logger, opts *Options, cfg *runc
 		return false, nil
 	}
 
-	return remoteStateNeedsInit(ctx, l, &cfg.RemoteState, opts)
+	return remoteStateNeedsInit(ctx, l, v, &cfg.RemoteState, opts)
 }
 
 // runTerraformInitRunCfg runs terraform init using runcfg types.
 func runTerraformInitRunCfg(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	originalOpts *Options,
 	opts *Options,
 	cfg *runcfg.RunConfig,
@@ -806,7 +825,7 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 }
 
 // SetTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.
-func SetTofuCPUProfileEnv(l log.Logger, opts *Options) error {
+func SetTofuCPUProfileEnv(l log.Logger, v venv.Venv, opts *Options) error {
 	if opts.ProfileDir == "" {
 		return nil
 	}
@@ -816,6 +835,8 @@ func SetTofuCPUProfileEnv(l log.Logger, opts *Options) error {
 
 		return nil
 	}
+
+	v.RequireEnv()
 
 	unitRelDir := filepath.Join("external", filepath.Base(opts.UnitDir)+"-"+util.EncodeBase64Sha1(opts.UnitDir))
 	if relPath, err := filepath.Rel(opts.RootWorkingDir, opts.OriginalTerragruntConfigPath); err == nil && filepath.IsLocal(relPath) {
@@ -827,7 +848,7 @@ func SetTofuCPUProfileEnv(l log.Logger, opts *Options) error {
 		return fmt.Errorf("could not create tofu profile directory: %w", err)
 	}
 
-	opts.Env[tf.EnvNameTofuCPUProfile] = filepath.Join(tofuProfileDir, tofuCPUProfileFileName(opts.TerraformCommand))
+	v.Env[tf.EnvNameTofuCPUProfile] = filepath.Join(tofuProfileDir, tofuCPUProfileFileName(opts.TerraformCommand))
 
 	return nil
 }

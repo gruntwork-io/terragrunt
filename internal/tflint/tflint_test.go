@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
@@ -468,17 +469,18 @@ func runWithOpts(
 	t.Helper()
 
 	opts := &tflint.TFLintOptions{
-		ShellOptions: shell.NewShellOptions().WithWriters(writer.Writers{
-			Writer:    io.Discard,
-			ErrWriter: io.Discard,
-		}),
-		Writers:           writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		ShellOptions:      shell.NewShellOptions(),
 		WorkingDir:        "/work/unit",
 		RootWorkingDir:    "/work",
 		MaxFoldersToCheck: 5,
 	}
 
-	venv := tflint.Venv{Exec: exec, FS: fs}
+	venv := venv.Venv{
+		Exec:    exec,
+		FS:      fs,
+		Env:     map[string]string{},
+		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+	}
 
 	l := logger.CreateLogger()
 

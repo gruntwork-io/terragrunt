@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -41,7 +42,7 @@ const (
 func RunTflintWithOpts(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	opts *TFLintOptions,
 	cfg *runcfg.RunConfig,
 	hook *runcfg.Hook,
@@ -84,7 +85,7 @@ func RunTflintWithOpts(
 	initArgs := []string{"tflint", "--init", "--config", configFileRel, "--chdir", chdirRel}
 	l.Debugf("Running external tflint init with args %v", initArgs)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, v.Exec, opts.ShellOptions, opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, v, opts.ShellOptions, opts.RootWorkingDir, false, false,
 		initArgs[0], initArgs[1:]...)
 	if err != nil {
 		return ErrorRunningTflint{Args: initArgs, Err: err}
@@ -103,7 +104,7 @@ func RunTflintWithOpts(
 
 	l.Debugf("Running external tflint with args %v", args)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, v.Exec, opts.ShellOptions, opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, v, opts.ShellOptions, opts.RootWorkingDir, false, false,
 		args[0], args[1:]...)
 	if err != nil {
 		return ErrorRunningTflint{Args: args, Err: err}

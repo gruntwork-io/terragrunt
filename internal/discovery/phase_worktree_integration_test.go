@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -403,7 +404,7 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 
 			discovery = discovery.WithFilters(filters)
 
-			components, err := discovery.Discover(t.Context(), l, opts)
+			components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
 
 			if tt.expectError {
 				require.Error(t, err, "Expected error for: %s", tt.description)
@@ -642,7 +643,7 @@ unit "unit_to_be_untouched" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -664,7 +665,7 @@ unit "unit_to_be_untouched" {
 
 	discovery = discovery.WithFilters(filters)
 
-	components, err := discovery.Discover(t.Context(), l, opts)
+	components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Verify that components were discovered
@@ -788,7 +789,7 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 	// The from-ref stack references catalog/units/app, which was removed from the checked-out
 	// tree; before the fix, get_repo_root() resolved to the original checkout and generation
 	// failed to fetch the source.
-	err = generate.WorktreeStacks(t.Context(), l, opts, w)
+	err = generate.WorktreeStacks(t.Context(), l, venv.OSVenv(), opts, w)
 	require.NoError(t, err)
 
 	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
@@ -1088,7 +1089,7 @@ locals {
 				WithWorktrees(w).
 				WithFilters(filters)
 
-			components, err := discovery.Discover(t.Context(), l, opts)
+			components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
 			require.NoError(t, err)
 
 			// Filter results by type
@@ -1186,7 +1187,7 @@ locals {
 		WithWorktrees(w).
 		WithFilters(filters)
 
-	components, err := discovery.Discover(t.Context(), l, opts)
+	components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Filter results by type
@@ -1455,7 +1456,7 @@ locals {
 				WithWorktrees(w).
 				WithFilters(filters)
 
-			components, err := discovery.Discover(t.Context(), l, opts)
+			components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
 			require.NoError(t, err)
 
 			// Filter results by type
@@ -1556,7 +1557,7 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 				WithWorktrees(w).
 				WithFilters(filters)
 
-			components, err := discovery.Discover(t.Context(), l, opts)
+			components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
 			require.NoError(t, err)
 
 			// Filter results by type
@@ -1713,7 +1714,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1735,7 +1736,7 @@ unit "app" {
 
 	disc = disc.WithFilters(filters)
 
-	components, err := disc.Discover(t.Context(), l, opts)
+	components, err := disc.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Get worktree paths
@@ -1878,7 +1879,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1900,7 +1901,7 @@ unit "app" {
 
 	disc = disc.WithFilters(filters)
 
-	components, err := disc.Discover(t.Context(), l, opts)
+	components, err := disc.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Get worktree pair path
@@ -2037,7 +2038,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -2059,7 +2060,7 @@ unit "app" {
 
 	disc = disc.WithFilters(filters)
 
-	components, err := disc.Discover(t.Context(), l, opts)
+	components, err := disc.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Get worktree paths
@@ -2191,7 +2192,7 @@ unit "myapp" {
 
 	// Generate stacks — using tmpDir as working directory so that only
 	// worktreeStacksToGenerate can cause generation inside worktrees.
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
 	require.NoError(t, err)
 
 	// Verify: no .terragrunt-stack directories should exist in the worktrees,
@@ -2314,7 +2315,7 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	// Generate stacks
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — the land-mine stack should not have been parsed.
@@ -2427,7 +2428,7 @@ unit "myapp" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — negation should prevent parsing
@@ -2483,7 +2484,7 @@ func runWorktreeDiscovery(
 		WithWorktrees(w).
 		WithFilters(filters)
 
-	components, err := discovery.Discover(t.Context(), l, opts)
+	components, err := discovery.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	return components, w
@@ -2582,13 +2583,13 @@ unit "myapp" {
 		fromOpts := opts.Clone()
 		fromOpts.WorkingDir = pair.FromWorktree.Path
 		fromOpts.RootWorkingDir = pair.FromWorktree.Path
-		err = generate.NewGenerator().GenerateStacks(t.Context(), l, fromOpts, w)
+		err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), fromOpts, w)
 		require.NoError(t, err)
 
 		toOpts := opts.Clone()
 		toOpts.WorkingDir = pair.ToWorktree.Path
 		toOpts.RootWorkingDir = pair.ToWorktree.Path
-		err = generate.NewGenerator().GenerateStacks(t.Context(), l, toOpts, w)
+		err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), toOpts, w)
 		require.NoError(t, err)
 	}
 
@@ -2610,7 +2611,7 @@ unit "myapp" {
 
 	d = d.WithFilters(filters)
 
-	components, err := d.Discover(t.Context(), l, opts)
+	components, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	// Collect component paths and kinds for debugging
@@ -2709,7 +2710,7 @@ unit "app" {
 	opts.Experiments = experiment.NewExperiments()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
 
-	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w))
+	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w))
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
 
@@ -2796,7 +2797,7 @@ unit "app" {
 	opts.Experiments = experiment.NewExperiments()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
 
-	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w))
+	require.NoError(t, generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w))
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
 
@@ -2882,7 +2883,7 @@ locals {
 		WithRelationships().
 		WithFilters(filters)
 
-	components, err := d.Discover(t.Context(), l, opts)
+	components, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	unitPaths := components.Filter(component.UnitKind).Paths()
@@ -2959,7 +2960,7 @@ locals {
 		WithFilters(filters)
 
 	// If the land-mine unit is parsed, run_cmd("exit 1") causes a fatal error.
-	components, err := d.Discover(t.Context(), l, opts)
+	components, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	unitPaths := components.Filter(component.UnitKind).Paths()
@@ -3056,7 +3057,7 @@ unit "myapp" {
 
 	// GenerateStacks internally calls discoverStacks with reading filters.
 	// If the land-mine unit is parsed, run_cmd("exit 1") causes a fatal error.
-	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, venv.OSVenv(), opts, w)
 	require.NoError(t, err)
 }
 
@@ -3127,7 +3128,7 @@ unit "app" {
 	opts.Experiments = experiment.NewExperiments()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
 
-	require.NoError(t, generate.WorktreeStacks(t.Context(), l, opts, w))
+	require.NoError(t, generate.WorktreeStacks(t.Context(), l, venv.OSVenv(), opts, w))
 
 	// The working tree must stay untouched: no stack was generated under it.
 	_, statErr := os.Stat(filepath.Join(stackDir, ".terragrunt-stack"))
@@ -3149,7 +3150,7 @@ unit "app" {
 		WithWorktrees(w).
 		WithFilters(filters)
 
-	components, err := disc.Discover(t.Context(), l, opts)
+	components, err := disc.Discover(t.Context(), l, venv.OSVenv(), opts)
 	require.NoError(t, err)
 
 	require.Contains(t, w.WorktreePairs, "[HEAD~1...HEAD]")

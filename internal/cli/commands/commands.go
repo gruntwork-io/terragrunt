@@ -22,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -95,8 +94,8 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 	)
 
 	discoveryCommands := clihelper.Commands{
-		find.NewCommand(l, opts), // find
-		list.NewCommand(l, opts), // list
+		find.NewCommand(l, opts, v), // find
+		list.NewCommand(l, opts, v), // list
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  DiscoveryCommandsCategoryName,
@@ -107,7 +106,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.C
 	configurationCommands := clihelper.Commands{
 		hcl.NewCommand(l, opts, v),              // hcl
 		info.NewCommand(l, opts, v),             // info
-		dag.NewCommand(l, opts),                 // dag
+		dag.NewCommand(l, opts, v),              // dag
 		render.NewCommand(l, opts, v),           // render
 		helpcmd.NewCommand(l, opts),             // help (hidden)
 		versioncmd.NewCommand(),                 // version (hidden)
@@ -261,7 +260,7 @@ func RunAction(
 
 	// Set up automatic provider caching if enabled
 	if !opts.NoAutoProviderCacheDir {
-		if err := setupAutoProviderCacheDir(ctx, l, opts, v.Exec); err != nil {
+		if err := setupAutoProviderCacheDir(ctx, l, opts, v); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}
 	}
@@ -271,7 +270,7 @@ func RunAction(
 		v.FS,
 		runtime.GOOS,
 		opts.Tips,
-		opts.Env,
+		v.Env,
 		opts.ProviderCacheOptions.Enabled,
 		opts.TofuImplementation,
 		opts.TerraformVersion,
@@ -332,19 +331,25 @@ const minTofuVersionForAutoProviderCacheDir = "1.10.0"
 // setupAutoProviderCacheDir configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
 //
 // Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
-func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, exec vexec.Exec) error {
+//
+// Panics if v.Env is nil, as it mutates it.
+func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v venv.Venv) error {
+	if v.Env == nil {
+		panic("setupAutoProviderCacheDir: venv environment map is nil")
+	}
+
 	// Set TF_PLUGIN_CACHE_DIR environment variable
-	if opts.Env[tf.EnvNameTFPluginCacheDir] != "" {
+	if v.Env[tf.EnvNameTFPluginCacheDir] != "" {
 		l.Debugf(
 			"TF_PLUGIN_CACHE_DIR already set to %s, skipping auto provider cache dir",
-			opts.Env[tf.EnvNameTFPluginCacheDir],
+			v.Env[tf.EnvNameTFPluginCacheDir],
 		)
 
 		return nil
 	}
 
 	if opts.TerraformVersion == nil {
-		_, ver, impl, err := run.PopulateTFVersion(ctx, l, exec, run.PopulateTFVersionInput{
+		_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
 			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
 			WorkingDir:   opts.WorkingDir,
 			VersionFiles: opts.VersionManagerFileName,
@@ -404,12 +409,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 		return fmt.Errorf("failed to create provider cache directory: %w", err)
 	}
 
-	// Initialize environment variables map if it's nil
-	if opts.Env == nil {
-		opts.Env = make(map[string]string)
-	}
-
-	opts.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
+	v.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
 
 	l.Debugf("Auto provider cache dir enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
 
@@ -449,8 +449,6 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.TerraformCommand = cmdName
 	opts.TerraformCliArgs = iacargs.New(args...)
-
-	opts.Env = util.EnvironMap()
 
 	// --- Working Dir
 	if opts.WorkingDir == "" {

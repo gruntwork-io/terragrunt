@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -59,6 +60,8 @@ func benchmarkPathExpression(b *testing.B, n int) {
 	filterQueries, err := filter.ParseFilterQueries(l, []string{"./apps/app-0000", "./apps/app-0001"})
 	require.NoError(b, err)
 
+	v := venv.OSVenv()
+
 	b.ResetTimer()
 
 	for b.Loop() {
@@ -67,7 +70,7 @@ func benchmarkPathExpression(b *testing.B, n int) {
 			WithFilters(filterQueries).
 			WithSuppressParseErrors()
 
-		components, err := d.Discover(b.Context(), l, opts)
+		components, err := d.Discover(b.Context(), l, v, opts)
 		require.NoError(b, err)
 		require.Len(b, components, 2)
 	}
@@ -87,6 +90,8 @@ func benchmarkGraphExpression(b *testing.B, n int) {
 	filterQueries, err := filter.ParseFilterQueries(l, []string{"infra-0001..."})
 	require.NoError(b, err)
 
+	v := venv.OSVenv()
+
 	b.ResetTimer()
 
 	for b.Loop() {
@@ -95,7 +100,7 @@ func benchmarkGraphExpression(b *testing.B, n int) {
 			WithFilters(filterQueries).
 			WithSuppressParseErrors()
 
-		components, err := d.Discover(b.Context(), l, opts)
+		components, err := d.Discover(b.Context(), l, v, opts)
 		require.NoError(b, err)
 		require.Len(b, components, 2)
 	}
@@ -115,6 +120,8 @@ func benchmarkPathAndGraphExpression(b *testing.B, n int) {
 	filterQueries, err := filter.ParseFilterQueries(l, []string{"./apps/app-0000", "./apps/app-0001", "infra-0001..."})
 	require.NoError(b, err)
 
+	v := venv.OSVenv()
+
 	b.ResetTimer()
 
 	for b.Loop() {
@@ -123,7 +130,7 @@ func benchmarkPathAndGraphExpression(b *testing.B, n int) {
 			WithFilters(filterQueries).
 			WithSuppressParseErrors()
 
-		components, err := d.Discover(b.Context(), l, opts)
+		components, err := d.Discover(b.Context(), l, v, opts)
 		require.NoError(b, err)
 		require.Len(b, components, 4)
 	}

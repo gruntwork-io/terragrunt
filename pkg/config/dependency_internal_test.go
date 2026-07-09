@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -217,16 +218,6 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 			want: map[string]string{},
 		},
 		{
-			name:    "nil env map is initialized before applying",
-			initial: nil,
-			terraform: &TerraformConfig{
-				ExtraArgs: []TerraformExtraArguments{
-					{Name: "secrets", Commands: []string{"output"}, EnvVars: envVars(map[string]string{"KEY": "value"})},
-				},
-			},
-			want: map[string]string{"KEY": "value"},
-		},
-		{
 			name:    "later block wins on overlapping keys",
 			initial: map[string]string{},
 			terraform: &TerraformConfig{
@@ -253,9 +244,9 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			pctx := &ParsingContext{Env: tc.initial}
+			pctx := &ParsingContext{Venv: venv.OSVenv().WithEnv(tc.initial)}
 			applyExtraArgsEnvVarsForOutput(pctx, tc.terraform)
-			assert.Equal(t, tc.want, pctx.Env)
+			assert.Equal(t, tc.want, pctx.Venv.Env)
 		})
 	}
 }
