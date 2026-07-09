@@ -132,7 +132,7 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v venv.Venv,
 			return false, err
 		}
 
-		exists, err := blobClient.ContainerExists(ctx, rs.ContainerName)
+		exists, err := blobClient.Container(rs.ContainerName).Exists(ctx)
 		if err != nil {
 			return false, err
 		}
@@ -229,7 +229,7 @@ func ensureContainer(ctx context.Context, cfg *azurehelper.AzureConfig, extCfg *
 		return err
 	}
 
-	exists, err := blobClient.ContainerExists(ctx, rs.ContainerName)
+	exists, err := blobClient.Container(rs.ContainerName).Exists(ctx)
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func ensureContainer(ctx context.Context, cfg *azurehelper.AzureConfig, extCfg *
 		return backend.BucketCreationNotAllowed(rs.ContainerName)
 	}
 
-	return blobClient.CreateContainer(ctx, rs.ContainerName)
+	return blobClient.Container(rs.ContainerName).Create(ctx)
 }
 
 // bootstrapAccount ensures the resource group and storage account exist and are
@@ -470,7 +470,7 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, v venv.Venv, srcBac
 
 	// Move (copy + delete source), mirroring the S3 and GCS backends: refuse to
 	// overwrite an existing destination and leave no stale state at the old key.
-	return blobClient.MoveBlobIfNecessary(ctx, src.ContainerName, src.Key, dst.ContainerName, dst.Key)
+	return blobClient.Container(src.ContainerName).MoveBlobIfNecessary(ctx, src.Key, blobClient.Container(dst.ContainerName), dst.Key)
 }
 
 // Delete deletes the Terraform state blob (config "key") from its container.
@@ -503,7 +503,7 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, v venv.Venv, backend
 		return nil
 	}
 
-	return blobClient.EnsureBlobDeleted(ctx, rs.ContainerName, rs.Key)
+	return blobClient.Container(rs.ContainerName).EnsureBlobDeleted(ctx, rs.Key)
 }
 
 // DeleteBucket deletes the entire blob container backing the state.
@@ -536,7 +536,7 @@ func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v venv.Venv, b
 		return nil
 	}
 
-	return blobClient.EnsureContainerDeleted(ctx, rs.ContainerName)
+	return blobClient.Container(rs.ContainerName).EnsureDeleted(ctx)
 }
 
 // GetTFInitArgs returns the subset of config forwarded to `tofu init -backend-config`.

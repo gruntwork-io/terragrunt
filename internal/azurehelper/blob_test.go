@@ -117,16 +117,17 @@ func TestBlobMethods_RequireNames(t *testing.T) {
 
 	ctx := t.Context()
 
-	// Empty container/key values are caller invariants, so each method panics.
-	assert.Panics(t, func() { _, _ = c.ContainerExists(ctx, "") })
-	assert.Panics(t, func() { _ = c.CreateContainer(ctx, "") })
-	assert.Panics(t, func() { _ = c.EnsureContainerDeleted(ctx, "") })
-	assert.Panics(t, func() { _, _ = c.GetBlob(ctx, "", "k") })
-	assert.Panics(t, func() { _, _ = c.GetBlob(ctx, "c", "") })
-	assert.Panics(t, func() { _ = c.PutBlob(ctx, "", "k", nil) })
-	assert.Panics(t, func() { _ = c.PutBlobFromReader(ctx, "c", "", nil) })
-	assert.Panics(t, func() { _ = c.EnsureBlobDeleted(ctx, "", "k") })
-	assert.Panics(t, func() { _ = c.EnsureContainer(ctx, "") })
+	// An empty container name is a caller invariant, so Container panics.
+	assert.Panics(t, func() { _ = c.Container("") })
+
+	// Blob operations on a valid container reject an empty key by panicking.
+	cc := c.Container("c")
+
+	assert.Panics(t, func() { _, _ = cc.GetBlob(ctx, "") })
+	assert.Panics(t, func() { _ = cc.PutBlob(ctx, "", nil) })
+	assert.Panics(t, func() { _ = cc.PutBlobFromReader(ctx, "", nil) })
+	assert.Panics(t, func() { _ = cc.EnsureBlobDeleted(ctx, "") })
+	assert.Panics(t, func() { _, _ = cc.BlobExists(ctx, "") })
 }
 
 func TestNewBlobClient_GovernmentCloud(t *testing.T) {
@@ -155,20 +156,6 @@ func TestNewBlobClient_ChinaCloud(t *testing.T) {
 	require.NoError(t, err, "china cloud client")
 }
 
-func TestBlobClient_ListBlobs_RequiresContainer(t *testing.T) {
-	t.Parallel()
-
-	c, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
-		Method:        azurehelper.AuthMethodSasToken,
-		SasToken:      testSASToken,
-		AccountName:   testAccount,
-		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
-	})
-	require.NoError(t, err)
-
-	assert.Panics(t, func() { _, _ = c.ListBlobs(t.Context(), log.New(), "") })
-}
-
 func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
 	t.Parallel()
 
@@ -188,7 +175,7 @@ func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		assert.Panics(t, func() { _ = c.CopyBlob(t.Context(), tc[0], tc[1], tc[2], tc[3]) }, "CopyBlob%v should panic", tc)
+		assert.Panics(t, func() { _ = c.Container(tc[0]).CopyBlob(t.Context(), tc[1], c.Container(tc[2]), tc[3]) }, "CopyBlob%v should panic", tc)
 	}
 }
 
@@ -228,20 +215,22 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 	key := "roundtrip.txt"
 	payload := []byte("hello from terragrunt azurehelper integration test")
 
-	require.NoError(t, bc.CreateContainer(ctx, container), "CreateContainer")
+	cc := bc.Container(container)
+
+	require.NoError(t, cc.Create(ctx), "Create")
 
 	t.Cleanup(func() {
 		// Fresh context because t.Context() is already cancelled during cleanup.
-		_ = bc.EnsureContainerDeleted(context.Background(), container)
+		_ = cc.EnsureDeleted(context.Background())
 	})
 
-	exists, err := bc.ContainerExists(ctx, container)
-	require.NoError(t, err, "ContainerExists after create")
-	require.True(t, exists, "ContainerExists after create should be true")
+	exists, err := cc.Exists(ctx)
+	require.NoError(t, err, "Exists after create")
+	require.True(t, exists, "Exists after create should be true")
 
-	require.NoError(t, bc.PutBlob(ctx, container, key, payload), "PutBlob")
+	require.NoError(t, cc.PutBlob(ctx, key, payload), "PutBlob")
 
-	body, err := bc.GetBlob(ctx, container, key)
+	body, err := cc.GetBlob(ctx, key)
 	require.NoError(t, err, "GetBlob")
 
 	got, err := io.ReadAll(body)
@@ -250,18 +239,18 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 	assert.Equal(t, payload, got, "payload mismatch")
 
 	// Exercise ListBlobs and CopyBlob.
-	names, err := bc.ListBlobs(ctx, log.New(), container)
+	names, err := cc.ListBlobs(ctx, log.New())
 	require.NoError(t, err, "ListBlobs")
 	assert.Contains(t, names, key, "ListBlobs did not include %q", key)
 
 	copyKey := "roundtrip-copy.txt"
-	require.NoError(t, bc.CopyBlob(ctx, container, key, container, copyKey), "CopyBlob")
+	require.NoError(t, cc.CopyBlob(ctx, key, cc, copyKey), "CopyBlob")
 
-	if err := bc.EnsureBlobDeleted(ctx, container, copyKey); err != nil {
+	if err := cc.EnsureBlobDeleted(ctx, copyKey); err != nil {
 		t.Logf("cleanup EnsureBlobDeleted(copy): %v", err)
 	}
 
-	require.NoError(t, bc.EnsureBlobDeleted(ctx, container, key), "EnsureBlobDeleted")
+	require.NoError(t, cc.EnsureBlobDeleted(ctx, key), "EnsureBlobDeleted")
 	// Idempotent delete of already-deleted blob should succeed.
-	require.NoError(t, bc.EnsureBlobDeleted(ctx, container, key), "EnsureBlobDeleted (idempotent)")
+	require.NoError(t, cc.EnsureBlobDeleted(ctx, key), "EnsureBlobDeleted (idempotent)")
 }

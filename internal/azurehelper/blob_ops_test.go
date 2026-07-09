@@ -26,7 +26,7 @@ func TestBlobClient_CopyBlob_StreamsThroughClient(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	require.NoError(t, c.CopyBlob(t.Context(), "srcc", "src.tfstate", "dstc", "dst.tfstate"))
+	require.NoError(t, c.Container("srcc").CopyBlob(t.Context(), "src.tfstate", c.Container("dstc"), "dst.tfstate"))
 
 	assert.True(t, rt.sawMethodOnPath(http.MethodGet, "/srcc/src.tfstate"), "source must be downloaded through the client")
 	assert.True(t, rt.sawMethodOnPath(http.MethodPut, "/dstc/dst.tfstate"), "destination must be uploaded through the client")
@@ -46,7 +46,7 @@ func TestBlobClient_CopyBlob_SourceMissing(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	err := c.CopyBlob(t.Context(), "srcc", "src.tfstate", "dstc", "dst.tfstate")
+	err := c.Container("srcc").CopyBlob(t.Context(), "src.tfstate", c.Container("dstc"), "dst.tfstate")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "downloading blob")
 }
@@ -59,7 +59,7 @@ func TestBlobClient_MoveBlobIfNecessary_NoopWhenSourceAbsent(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	require.NoError(t, c.MoveBlobIfNecessary(t.Context(), "srcc", "src.tfstate", "dstc", "dst.tfstate"))
+	require.NoError(t, c.Container("srcc").MoveBlobIfNecessary(t.Context(), "src.tfstate", c.Container("dstc"), "dst.tfstate"))
 
 	assert.False(t, rt.sawMethodOnPath(http.MethodGet, ""), "absent source must not be downloaded")
 	assert.False(t, rt.sawMethodOnPath(http.MethodPut, ""), "absent source must not trigger an upload")
@@ -77,7 +77,7 @@ func TestBlobClient_MoveBlobIfNecessary_RefusesExistingDestination(t *testing.T)
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	err := c.MoveBlobIfNecessary(t.Context(), "srcc", "src.tfstate", "dstc", "dst.tfstate")
+	err := c.Container("srcc").MoveBlobIfNecessary(t.Context(), "src.tfstate", c.Container("dstc"), "dst.tfstate")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 
@@ -95,7 +95,7 @@ func TestBlobClient_MoveBlobIfNecessary_MovesThenDeletesSource(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	require.NoError(t, c.MoveBlobIfNecessary(t.Context(), "srcc", "src.tfstate", "dstc", "dst.tfstate"))
+	require.NoError(t, c.Container("srcc").MoveBlobIfNecessary(t.Context(), "src.tfstate", c.Container("dstc"), "dst.tfstate"))
 
 	getIdx := rt.firstIndexOf(http.MethodGet, "/srcc/src.tfstate")
 	putIdx := rt.firstIndexOf(http.MethodPut, "/dstc/dst.tfstate")
@@ -123,7 +123,7 @@ func TestBlobClient_MoveBlobIfNecessary_KeepsSourceWhenCopyFails(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	require.Error(t, c.MoveBlobIfNecessary(t.Context(), "srcc", "src.tfstate", "dstc", "dst.tfstate"))
+	require.Error(t, c.Container("srcc").MoveBlobIfNecessary(t.Context(), "src.tfstate", c.Container("dstc"), "dst.tfstate"))
 	assert.False(t, rt.sawMethodOnPath(http.MethodDelete, ""), "source must survive a failed copy")
 }
 
@@ -138,7 +138,7 @@ func TestBlobClient_ContainerExists_Stubbed(t *testing.T) {
 		}}
 		c := newRoutedBlobClient(t, rt)
 
-		exists, err := c.ContainerExists(t.Context(), "somec")
+		exists, err := c.Container("somec").Exists(t.Context())
 		require.NoError(t, err)
 		assert.True(t, exists)
 
@@ -155,7 +155,7 @@ func TestBlobClient_ContainerExists_Stubbed(t *testing.T) {
 		}}
 		c := newRoutedBlobClient(t, rt)
 
-		exists, err := c.ContainerExists(t.Context(), "somec")
+		exists, err := c.Container("somec").Exists(t.Context())
 		require.NoError(t, err)
 		assert.False(t, exists)
 		assert.False(t, rt.sawMethodOnPath(http.MethodPut, ""), "existence check must not write")
@@ -170,7 +170,7 @@ func TestBlobClient_ContainerExists_Stubbed(t *testing.T) {
 		}}
 		c := newRoutedBlobClient(t, rt)
 
-		exists, err := c.ContainerExists(t.Context(), "somec")
+		exists, err := c.Container("somec").Exists(t.Context())
 		require.NoError(t, err)
 		assert.False(t, exists)
 	})
@@ -184,7 +184,7 @@ func TestBlobClient_EnsureBlobDeleted_IdempotentWhenMissing(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	require.NoError(t, c.EnsureBlobDeleted(t.Context(), "somec", "gone.tfstate"))
+	require.NoError(t, c.Container("somec").EnsureBlobDeleted(t.Context(), "gone.tfstate"))
 }
 
 func TestBlobClient_CreateContainer_ToleratesExisting(t *testing.T) {
@@ -195,7 +195,7 @@ func TestBlobClient_CreateContainer_ToleratesExisting(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	require.NoError(t, c.CreateContainer(t.Context(), "dupc"))
+	require.NoError(t, c.Container("dupc").Create(t.Context()))
 }
 
 func TestBlobClient_ListBlobs_WithPrefix(t *testing.T) {
@@ -209,7 +209,7 @@ func TestBlobClient_ListBlobs_WithPrefix(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	names, err := c.ListBlobs(t.Context(), log.New(), "prefc", azurehelper.WithPrefix("state/"))
+	names, err := c.Container("prefc").ListBlobs(t.Context(), log.New(), azurehelper.WithPrefix("state/"))
 	require.NoError(t, err)
 	assert.Equal(t, []string{"state/a.tfstate"}, names)
 
@@ -228,7 +228,7 @@ func TestBlobClient_EnsureContainer_CreatesWhenMissing(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	require.NoError(t, c.EnsureContainer(t.Context(), "newc"))
+	require.NoError(t, c.Container("newc").Ensure(t.Context()))
 
 	probeIdx := rt.firstIndexOf(http.MethodGet, "/newc")
 	createIdx := rt.firstIndexOf(http.MethodPut, "/newc")
