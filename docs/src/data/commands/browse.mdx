@@ -46,18 +46,26 @@ While the search input is open, keys edit the query instead; `ctrl+c` still quit
 
 The highlighted entry is shown in blue, and its path is displayed along the top, abbreviated with `~` when it falls under your home directory.
 
+![browse navigation](../../assets/img/screenshots/browse-navigation.gif)
+
 ## Search
 
 A search matches entries in the current directory. As you type, matching entries are marked, the cursor jumps to the first match, and a match count appears along the bottom. Pressing `enter` keeps the search applied, leaving the marks in place so you can cycle through the matches. The search also clears on its own when you move into another directory.
+
+![browse search](../../assets/img/screenshots/browse-search.gif)
 
 ## Detail Pane
 
 The detail pane shows metadata for the highlighted entry: its kind, path, module source, and its dependencies, dependents, and the files it reads (shown relative to the unit). Plain directories show a count of the units and stacks they contain.
 
+![browse detail pane](../../assets/img/screenshots/browse-detail-pane.gif)
+
 ## Discovery
 
-The browser opens immediately, reading the filesystem to fill the columns, while discovery runs in the background. Unit and stack metadata and the directory counts show a `…` placeholder until discovery completes, and a `discovering…` hint appears along the bottom while it runs. Files a unit reads are highlighted rather than dimmed once discovered, marking them as relevant to your infrastructure.
+The browser opens immediately, reading the filesystem to fill the columns, while discovery runs in the background.
 
-Warnings raised during discovery (a dependency cycle, for example) appear briefly as a toast in the top-right corner instead of being written to the log stream, which would draw over the browser. A discovery failure surfaces the same way, and the browser keeps showing whatever partial results discovery produced.
+Warnings raised during discovery (a dependency cycle, for example) appear briefly as a toast in the top-right corner. A discovery failure surfaces the same way, and the browser keeps showing whatever partial results discovery produced.
+
+![browse discovery toast](../../assets/img/screenshots/browse-discovery.gif)
 
 `browse` reuses the same discovery the other discovery commands rely on, so the configurations it shows match what `find` and `list` discover.
