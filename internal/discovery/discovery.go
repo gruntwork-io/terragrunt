@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
@@ -539,7 +538,7 @@ func (d *Discovery) buildComponentDependencies(
 		return err
 	}
 
-	depPaths, err = stackDependencyPaths(ctx, l, v, vfs.NewOSFS(), opts, depPaths)
+	depPaths, err = stackDependencyPaths(ctx, l, v, opts, depPaths)
 	if err != nil {
 		return err
 	}

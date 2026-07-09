@@ -99,20 +99,27 @@ func (remote *RemoteState) Bootstrap(ctx context.Context, l log.Logger, v venv.V
 }
 
 // Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
+//
+// The source and destination each get their own venv, srcV and dstV, so the
+// state pull runs under the source environment and the push under the
+// destination environment. Migrating between two accounts of the same cloud
+// (for example two AWS accounts selected by AWS_PROFILE) needs the same
+// variable set to different values on each side, which a single shared Env
+// cannot represent.
 func (remote *RemoteState) Migrate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	srcV, dstV venv.Venv,
 	opts, dstOpts *Options,
 	dstRemote *RemoteState,
 ) error {
 	l.Debugf("Migrate remote state for the %s backend", remote.BackendName)
 
 	if remote.BackendName == dstRemote.BackendName {
-		return remote.backend.Migrate(ctx, l, v, remote.BackendConfig, dstRemote.BackendConfig, &opts.Options)
+		return remote.backend.Migrate(ctx, l, srcV, remote.BackendConfig, dstRemote.BackendConfig, &opts.Options)
 	}
 
-	stateFile, err := remote.pullState(ctx, l, v, opts.TFRunOpts)
+	stateFile, err := remote.pullState(ctx, l, srcV, opts.TFRunOpts)
 	if err != nil {
 		return err
 	}
@@ -123,7 +130,7 @@ func (remote *RemoteState) Migrate(
 		}
 	}()
 
-	return dstRemote.pushState(ctx, l, v, dstOpts.TFRunOpts, stateFile)
+	return dstRemote.pushState(ctx, l, dstV, dstOpts.TFRunOpts, stateFile)
 }
 
 // NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:
