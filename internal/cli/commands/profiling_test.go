@@ -4,14 +4,15 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,11 +20,14 @@ import (
 func TestWrapWithProfilingRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.New()
+
 	opts := options.NewTerragruntOptions()
 	opts.ProfileCPU = filepath.Join(t.TempDir(), "cpu.prof")
 
 	called := false
-	err := commands.WrapWithProfiling(logger.CreateLogger(), opts)(context.Background(), nil, func(_ context.Context, _ *clihelper.Context) error {
+	wrapped := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)
+	err := wrapped(t.Context(), &clihelper.Context{}, func(_ context.Context, _ *clihelper.Context) error {
 		called = true
 
 		return nil
@@ -31,16 +35,21 @@ func TestWrapWithProfilingRequiresExperiment(t *testing.T) {
 
 	require.ErrorIs(t, err, commands.ErrProfilingRequiresExperiment)
 	assert.False(t, called, "the wrapped action must not run when the experiment gate fails")
-	assert.NoFileExists(t, opts.ProfileCPU)
+
+	_, statErr := v.FS.Stat(opts.ProfileCPU)
+	assert.True(t, os.IsNotExist(statErr), "profile file must not be created without the experiment")
 }
 
 func TestWrapWithProfilingNoFlagsRunsAction(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.New()
+
 	opts := options.NewTerragruntOptions()
 
 	called := false
-	err := commands.WrapWithProfiling(logger.CreateLogger(), opts)(context.Background(), nil, func(_ context.Context, _ *clihelper.Context) error {
+	wrapped := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)
+	err := wrapped(t.Context(), &clihelper.Context{}, func(_ context.Context, _ *clihelper.Context) error {
 		called = true
 
 		return nil
@@ -53,43 +62,42 @@ func TestWrapWithProfilingNoFlagsRunsAction(t *testing.T) {
 func TestWrapWithProfilingWritesProfile(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.New()
+
 	opts := options.NewTerragruntOptions()
 	opts.ProfileGoroutine = filepath.Join(t.TempDir(), "goroutine.prof")
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Profiling))
 
-	err := commands.WrapWithProfiling(logger.CreateLogger(), opts)(context.Background(), nil, func(_ context.Context, _ *clihelper.Context) error {
+	wrapped := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)
+	err := wrapped(t.Context(), &clihelper.Context{}, func(_ context.Context, _ *clihelper.Context) error {
 		return nil
 	})
 	require.NoError(t, err)
 
-	info, err := os.Stat(opts.ProfileGoroutine)
+	info, err := v.FS.Stat(opts.ProfileGoroutine)
 	require.NoError(t, err)
 	assert.Positive(t, info.Size(), "goroutine profile should be non-empty")
-
-	if runtime.GOOS != "windows" {
-		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "profile files must be owner-only")
-	}
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "profile files must be owner-only")
 }
 
 func TestWrapWithProfilingTightensExistingFilePermissions(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
-		t.Skip("file permission bits are not enforced on Windows")
-	}
+	v := venvtest.New()
 
 	opts := options.NewTerragruntOptions()
 	opts.ProfileGoroutine = filepath.Join(t.TempDir(), "goroutine.prof")
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Profiling))
 
-	require.NoError(t, os.WriteFile(opts.ProfileGoroutine, []byte("stale"), 0o644))
+	require.NoError(t, vfs.WriteFile(v.FS, opts.ProfileGoroutine, []byte("stale"), 0o644))
 
-	err := commands.WrapWithProfiling(logger.CreateLogger(), opts)(context.Background(), nil, func(_ context.Context, _ *clihelper.Context) error {
+	wrapped := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)
+	err := wrapped(t.Context(), &clihelper.Context{}, func(_ context.Context, _ *clihelper.Context) error {
 		return nil
 	})
 	require.NoError(t, err)
 
-	info, err := os.Stat(opts.ProfileGoroutine)
+	info, err := v.FS.Stat(opts.ProfileGoroutine)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "a pre-existing profile file must be tightened to owner-only")
 }

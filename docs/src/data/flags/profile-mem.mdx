@@ -12,7 +12,7 @@ import { Aside } from '@astrojs/starlight/components';
 This flag is gated behind the [`profiling`](/reference/experiments/active#profiling) experiment. Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
 
-Write a memory (heap) profile of the Terragrunt process at the end of the run (after forcing a GC).
+Write a memory (heap) profile of the Terragrunt process at the end of the run (after forcing garbage collection). Forcing garbage collection pauses Terragrunt briefly, so enabling memory profiling can degrade performance at the end of the run.
 
 This profiles the Terragrunt process only. There is no equivalent for downstream OpenTofu/Terraform.
 

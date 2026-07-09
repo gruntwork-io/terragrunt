@@ -2,13 +2,13 @@ package run_test
 
 import (
 	"maps"
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -115,7 +115,10 @@ func TestSetTofuCPUProfileEnv(t *testing.T) {
 
 			expected := filepath.Join(opts.ProfileDir, tc.expectedRelPath)
 			assert.Equal(t, expected, v.Env[tf.EnvNameTofuCPUProfile])
-			assert.DirExists(t, filepath.Dir(expected))
+
+			info, err := v.FS.Stat(filepath.Dir(expected))
+			require.NoError(t, err, "the tofu profile directory should be created")
+			assert.True(t, info.IsDir())
 		})
 	}
 }
@@ -200,9 +203,9 @@ func TestSetTofuCPUProfileEnvDirCreationError(t *testing.T) {
 
 	profileDir := t.TempDir()
 	rootDir := filepath.Join(string(filepath.Separator), "infra", "live")
-	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "app1"), []byte("x"), 0o600))
 
-	v := venvtest.New()
+	v := venvtest.New().WithFS(vfs.NewOSFS())
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(profileDir, "app1"), []byte("x"), 0o600))
 
 	opts := run.NewOptions()
 	opts.RootWorkingDir = rootDir

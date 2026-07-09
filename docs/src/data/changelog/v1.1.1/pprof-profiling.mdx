@@ -5,7 +5,9 @@ category: "experiments-added"
 
 #### `profiling` experiment adds pprof collection for Terragrunt runs
 
-Enable the new [`profiling`](/reference/experiments/active#profiling) experiment to collect CPU profiles, memory (heap) profiles, and goroutine profiles (stack traces of all goroutines) using CLI flags:
+Enable the new [`profiling`](/reference/experiments/active#profiling) experiment to collect CPU profiles, memory (heap) profiles, and goroutine profiles (stack traces of all goroutines) using CLI flags. Profiling is intended for debugging the performance of Terragrunt itself, and for exploring ways to optimize Terragrunt as an application; it will not help with improving the performance of the infrastructure Terragrunt manages.
+
+Example:
 
 ```bash
 terragrunt --experiment profiling --profile-cpu cpu.prof --profile-mem mem.prof --profile-goroutine goroutine.prof run -- plan

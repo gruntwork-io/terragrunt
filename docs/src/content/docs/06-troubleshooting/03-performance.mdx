@@ -399,7 +399,7 @@ You can capture a heap memory profile of the Terragrunt process by setting:
 TG_PROFILE_MEM=terragrunt_mem.prof terragrunt run -- plan
 ```
 
-This is a snapshot taken at the end of the run after forcing a GC. Unlike CPU profiling, memory profiles are not collected from OpenTofu because there is no `TOFU_MEM_PROFILE` equivalent.
+This is a snapshot taken at the end of the run after forcing garbage collection. Forcing garbage collection pauses Terragrunt briefly, so enabling memory profiling can degrade performance at the end of the run. Unlike CPU profiling, memory profiles are not collected from OpenTofu because there is no `TOFU_MEM_PROFILE` equivalent.
 
 For `run --all`, use `TG_PROFILE_DIR`:
 

@@ -40,6 +40,7 @@ const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
 	tofuCPUProfileName              = "tofu_cpu.prof"
+	tofuProfileDirMode              = 0o700
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -844,7 +845,7 @@ func SetTofuCPUProfileEnv(l log.Logger, v venv.Venv, opts *Options) error {
 	}
 
 	tofuProfileDir := filepath.Join(opts.ProfileDir, unitRelDir)
-	if err := util.EnsureDirectory(tofuProfileDir); err != nil {
+	if err := v.FS.MkdirAll(tofuProfileDir, tofuProfileDirMode); err != nil {
 		return fmt.Errorf("could not create tofu profile directory: %w", err)
 	}
 
