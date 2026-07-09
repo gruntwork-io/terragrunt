@@ -24,8 +24,8 @@ func Test_computeVersionFilesCacheKey(t *testing.T) {
 			want:         "H2PcpB8dh-BE5Dz-LiSD1hykSfk", // "tofu|no-version-files"
 		},
 		{
-			// Same inputs as the previous case except for the binary. The key
-			// must differ. That is the property issue #6147 turned on.
+			// Same inputs as the previous case except for the binary, so the
+			// cache key must differ: the binary is part of what the key scopes.
 			name:         "no version files, terraform binary",
 			workingDir:   "",
 			tfPath:       "terraform",
