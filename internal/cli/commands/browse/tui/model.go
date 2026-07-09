@@ -41,9 +41,7 @@ type Model struct {
 	cursor       map[*Node]int
 	colorizer    *dag.Colorizer
 	root         *Node
-	index        map[string]component.Component
-	readFiles    map[string]struct{}
-	dirCounts    map[string]dirCount
+	disc         discovered
 	resultCh     <-chan DiscoveryResult
 	warnCh       <-chan viewtui.Warning
 	home         string
@@ -59,7 +57,6 @@ type Model struct {
 	color        ColorMode
 	hasDarkBG    bool
 	ready        bool
-	done         bool
 }
 
 // ErrChannelsRequired is the panic value NewModel raises when its result or
@@ -103,9 +100,6 @@ func NewModel(
 		fs:          fs,
 		keys:        newKeyMap(),
 		searchInput: search,
-		index:       map[string]component.Component{},
-		readFiles:   map[string]struct{}{},
-		dirCounts:   map[string]dirCount{},
 		resultCh:    resultCh,
 		warnCh:      warnCh,
 		home:        home,
@@ -148,40 +142,6 @@ func (m Model) listenForResult() tea.Cmd {
 
 	return func() tea.Msg {
 		return <-ch
-	}
-}
-
-// applyDiscovery records the discovery result and annotates the loaded tree, so
-// later renders resolve counts, metadata, and read-file highlighting in place of
-// their loading placeholders. A failed discovery still applies whatever partial
-// components it produced; the caller flags the failure as a toast.
-func (m *Model) applyDiscovery(res DiscoveryResult) {
-	m.index = make(map[string]component.Component, len(res.Components))
-	m.readFiles = map[string]struct{}{}
-
-	for _, c := range res.Components {
-		m.index[c.Path()] = c
-
-		for _, f := range c.Reading() {
-			m.readFiles[f] = struct{}{}
-		}
-	}
-
-	m.attachComponents(m.root)
-	m.computeCounts()
-	m.done = true
-}
-
-// attachComponents walks the loaded tree and attaches each node's discovered
-// component, refining its kind to discovery's authority.
-func (m *Model) attachComponents(n *Node) {
-	if c, ok := m.index[n.absPath]; ok {
-		n.component = c
-		n.kind = kindForComponent(c)
-	}
-
-	for _, child := range n.children {
-		m.attachComponents(child)
 	}
 }
 

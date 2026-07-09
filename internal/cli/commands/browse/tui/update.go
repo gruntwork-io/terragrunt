@@ -28,7 +28,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case DiscoveryResult:
-		m.applyDiscovery(msg)
+		m.disc.apply(msg, m.root)
 		m.ensurePreview()
 
 		if msg.Err != nil {
