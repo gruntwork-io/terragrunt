@@ -102,7 +102,7 @@ func startProfiling(l log.Logger, opts *options.TerragruntOptions) (func(), erro
 	return stop, nil
 }
 
-// validateProfilePath verifies the named profile path is writable without holding the file open for the run.
+// validateProfilePath verifies the named profile path is writable without leaving a probe file behind.
 func validateProfilePath(path, name string) error {
 	f, err := createNamedProfileFile(path, name)
 	if err != nil || f == nil {
@@ -111,6 +111,10 @@ func validateProfilePath(path, name string) error {
 
 	if err := f.Close(); err != nil {
 		return fmt.Errorf("could not create %s profile: %w", name, err)
+	}
+
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("could not clean up %s profile: %w", name, err)
 	}
 
 	return nil

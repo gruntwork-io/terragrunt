@@ -8,6 +8,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
 
 ## Support
 
@@ -185,21 +186,27 @@ we should be golden!
 
 ## Profiling
 
-If you need to diagnose performance bottlenecks, enable the `profiling` experiment to collect CPU, memory, and goroutine profiles:
+<Since version="v1.1.1">
+
+<Aside type="tip" title="Experimental">
+Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
+</Aside>
+
+If you need to diagnose performance bottlenecks, collect CPU, memory, and goroutine profiles:
 
 ```bash
 # CPU profiling (Terragrunt process)
-TG_EXPERIMENT=profiling TG_PROFILE_CPU=terragrunt_cpu.prof terragrunt run -- plan
+TG_PROFILE_CPU=terragrunt_cpu.prof terragrunt run -- plan
 
 # Memory profiling (Terragrunt process, snapshot at the end of the run)
-TG_EXPERIMENT=profiling TG_PROFILE_MEM=terragrunt_mem.prof terragrunt run -- plan
+TG_PROFILE_MEM=terragrunt_mem.prof terragrunt run -- plan
 ```
 
 When using `terragrunt run --all`, prefer `TG_PROFILE_DIR`. It tells Terragrunt to create a directory and automatically place profiles in a hierarchy that mirrors your units, including CPU profiles from downstream OpenTofu processes (OpenTofu 1.11 or later):
 
 ```bash
 # Recommended for run --all
-TG_EXPERIMENT=profiling TG_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
+TG_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
 ```
 
 Resulting layout (example):
@@ -217,13 +224,15 @@ Resulting layout (example):
 
 For more details on profiling and performance analysis, see the [Performance documentation](/troubleshooting/performance/#runtime-cpu-profiling-with-tg_profile_cpu).
 
-You can also use CLI flags when the `profiling` experiment is enabled:
+You can also use CLI flags:
 
 ```bash
-terragrunt --experiment profiling --profile-dir /tmp/profiles run -- plan
+terragrunt --profile-dir /tmp/profiles run -- plan
 ```
 
 See the [Performance documentation](/troubleshooting/performance) for the full list of flags and environment variables.
+
+</Since>
 
 ## Additional OpenTofu/Terraform Debugging
 
