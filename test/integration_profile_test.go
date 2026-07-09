@@ -3,10 +3,14 @@ package test_test
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -325,20 +329,28 @@ func requireNonEmptyFile(t *testing.T, path string) {
 func findProfileFiles(t *testing.T, root string) []string {
 	t.Helper()
 
-	var profiles []string
+	var (
+		mu       sync.Mutex
+		profiles []string
+	)
 
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	err := vfs.WalkDirParallel(vfs.NewOSFS(), root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		if !d.IsDir() && filepath.Ext(path) == ".prof" {
+			mu.Lock()
+			defer mu.Unlock()
+
 			profiles = append(profiles, path)
 		}
 
 		return nil
 	})
 	require.NoError(t, err)
+
+	slices.Sort(profiles)
 
 	return profiles
 }

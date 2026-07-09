@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -329,30 +330,40 @@ func NewProfileFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihe
 			Name:        ProfileCPUFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProfileCPUFlagName),
 			Destination: &opts.ProfileCPU,
-			Usage:       "Write a CPU profile to the given path. Requires the 'profiling' experiment.",
+			Usage:       profileFlagUsage(opts, "Write a CPU profile to the given path."),
 		}),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProfileMemFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProfileMemFlagName),
 			Destination: &opts.ProfileMem,
-			Usage:       "Write a memory (heap) profile to the given path. Requires the 'profiling' experiment.",
+			Usage:       profileFlagUsage(opts, "Write a memory (heap) profile to the given path."),
 		}),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProfileGoroutineFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProfileGoroutineFlagName),
 			Destination: &opts.ProfileGoroutine,
-			Usage:       "Write a goroutine profile to the given path. Requires the 'profiling' experiment.",
+			Usage:       profileFlagUsage(opts, "Write a goroutine profile to the given path."),
 		}),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProfileDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProfileDirFlagName),
 			Destination: &opts.ProfileDir,
-			Usage:       "Directory to write profile files (cpu, mem, goroutine). Requires the 'profiling' experiment.",
+			Usage:       profileFlagUsage(opts, "Directory to write profile files (cpu, mem, goroutine)."),
 		}),
 	}
+}
+
+// profileFlagUsage appends the experiment requirement to the usage text while the profiling experiment is ongoing.
+func profileFlagUsage(opts *options.TerragruntOptions, usage string) string {
+	exp := opts.Experiments.Find(experiment.Profiling)
+	if exp == nil || exp.Status != experiment.StatusOngoing {
+		return usage
+	}
+
+	return usage + " Requires the 'profiling' experiment."
 }
 
 func NewLogLevelFlag(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
