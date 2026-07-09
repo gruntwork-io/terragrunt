@@ -24,14 +24,14 @@ func TestSurroundingEntriesAreShown(t *testing.T) {
 
 	m := newModel(t, fs, root, false)
 
-	// The initial window-size event reads the working directory: the README file
-	// and scripts dir appear alongside vpc, which a cheap stat classifies as a
-	// unit from its terragrunt.hcl, all sorted by name.
 	type entry struct {
 		name string
 		kind tui.Kind
 	}
 
+	// The initial window-size event reads the working directory: the README file
+	// and scripts dir appear alongside vpc, which a cheap stat classifies as a
+	// unit from its terragrunt.hcl, all sorted by name.
 	want := []entry{
 		{name: "README.md", kind: tui.KindFile},
 		{name: "scripts", kind: tui.KindDir},

@@ -7,12 +7,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	// testWidth and testHeight are a generous terminal size, large enough that
-	// the preview pane has room to render.
 	testWidth  = 120
 	testHeight = 40
 )
@@ -22,7 +21,7 @@ const (
 func newModel(t *testing.T, fs vfs.FS, root *tui.Node, shouldColor bool) tui.Model {
 	t.Helper()
 
-	m := tui.NewModel(fs, root, shouldColor, nil, nil)
+	m := tui.NewModel(logger.CreateLogger(), fs, root, shouldColor, nil, nil)
 
 	return update(t, m, tea.WindowSizeMsg{Width: testWidth, Height: testHeight})
 }

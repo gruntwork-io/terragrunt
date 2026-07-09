@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Run launches the Miller-columns browser over the given tree, blocking until
@@ -17,13 +18,14 @@ import (
 // shown as toasts. A cancelled context is treated as a clean exit.
 func Run(
 	ctx context.Context,
+	l log.Logger,
 	fs vfs.FS,
 	root *Node,
 	shouldColor bool,
 	resultCh <-chan DiscoveryResult,
 	warnCh <-chan viewtui.Warning,
 ) error {
-	_, err := tea.NewProgram(NewModel(fs, root, shouldColor, resultCh, warnCh), tea.WithContext(ctx)).Run()
+	_, err := tea.NewProgram(NewModel(l, fs, root, shouldColor, resultCh, warnCh), tea.WithContext(ctx)).Run()
 	if err == nil {
 		return nil
 	}

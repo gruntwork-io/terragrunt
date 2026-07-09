@@ -107,7 +107,7 @@ func ensureDir(workingDir, absPath string, root *Node, index map[string]*Node) *
 	n := &Node{
 		parent:  parent,
 		name:    filepath.Base(absPath),
-		relPath: relPath(workingDir, absPath),
+		relPath: relTo(workingDir, absPath),
 		absPath: absPath,
 		kind:    KindDir,
 	}
@@ -141,7 +141,7 @@ func placeComponents(workingDir string, components component.Components, root *N
 			parent:    parent,
 			component: c,
 			name:      filepath.Base(abs),
-			relPath:   relPath(workingDir, abs),
+			relPath:   relTo(workingDir, abs),
 			absPath:   abs,
 			kind:      kind,
 		}
@@ -276,33 +276,63 @@ func kindForComponent(c component.Component) Kind {
 	return KindUnit
 }
 
-// counts returns the number of discovered units and stacks at or below the
-// node's path. It draws on the discovery index rather than the lazily loaded
-// tree, so a directory's totals are correct even before it's been expanded.
-func (m *Model) counts(n *Node) (units, stacks int) {
-	for path, c := range m.index {
-		if path != n.absPath && !strings.HasPrefix(path, n.absPath+string(filepath.Separator)) {
-			continue
-		}
-
-		if c.Kind() == component.StackKind {
-			stacks++
-
-			continue
-		}
-
-		units++
-	}
-
-	return units, stacks
+// dirCount is a directory's tally of discovered units and stacks at or below it.
+type dirCount struct {
+	units  int
+	stacks int
 }
 
-// relPath returns absPath relative to workingDir, falling back to absPath when
-// a relative path can't be computed.
-func relPath(workingDir, absPath string) string {
-	rel, err := filepath.Rel(workingDir, absPath)
+// computeCounts tallies, for every directory, the units and stacks discovered at
+// or below it, so a directory's totals resolve with a single map lookup per
+// render instead of a full scan of the discovery index. It draws on the index
+// rather than the lazily loaded tree, so totals are correct even for directories
+// that haven't been expanded.
+func (m *Model) computeCounts() {
+	counts := make(map[string]dirCount)
+
+	for path, c := range m.index {
+		isStack := c.Kind() == component.StackKind
+
+		// Attribute the component to its own directory and every ancestor up to
+		// the root, walking with filepath.Dir so the filesystem root is handled
+		// without the trailing-separator special case a prefix test would need.
+		for p := path; ; p = filepath.Dir(p) {
+			dc := counts[p]
+			if isStack {
+				dc.stacks++
+			} else {
+				dc.units++
+			}
+
+			counts[p] = dc
+
+			if p == m.root.absPath {
+				break
+			}
+
+			if parent := filepath.Dir(p); parent == p {
+				break
+			}
+		}
+	}
+
+	m.dirCounts = counts
+}
+
+// counts returns the number of discovered units and stacks at or below the
+// node's path, from the tally computed once discovery completes.
+func (m *Model) counts(n *Node) (units, stacks int) {
+	dc := m.dirCounts[n.absPath]
+
+	return dc.units, dc.stacks
+}
+
+// relTo returns target relative to base, falling back to target when a relative
+// path can't be computed (e.g. paths on different volumes).
+func relTo(base, target string) string {
+	rel, err := filepath.Rel(base, target)
 	if err != nil {
-		return absPath
+		return target
 	}
 
 	return rel

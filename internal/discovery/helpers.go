@@ -317,21 +317,28 @@ func storeStackConfigs(
 	opts *options.TerragruntOptions,
 	components component.Components,
 ) {
-	var pctx *config.ParsingContext
-
 	for _, c := range components {
 		stack, ok := c.(*component.Stack)
 		if !ok {
 			continue
 		}
 
-		if pctx == nil {
-			_, pctx = configbridge.NewParsingContext(ctx, l, opts)
+		stackDir := stack.Path()
+		stackFile := filepath.Join(stackDir, stack.ConfigFile())
+
+		// A fresh context per stack scopes it to that stack's file and values, so
+		// a config referencing values.* parses instead of failing on missing
+		// values (and shows its definitions in consumers like browse).
+		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+		values, err := config.ReadValues(ctx, pctx, l, stackDir)
+		if err != nil {
+			l.Debugf("Skipping stack config %s: %v", stackFile, err)
+
+			continue
 		}
 
-		stackFile := filepath.Join(stack.Path(), stack.ConfigFile())
-
-		cfg, err := config.ReadStackConfigFile(ctx, l, pctx, stackFile, nil)
+		cfg, err := config.ReadStackConfigFile(ctx, l, pctx, stackFile, values)
 		if err != nil {
 			l.Debugf("Skipping stack config %s: %v", stackFile, err)
 
