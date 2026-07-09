@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"os"
 	"slices"
 	"strings"
@@ -21,6 +22,17 @@ type DiscoveryResult struct {
 	Err        error
 	Components component.Components
 }
+
+// ColorMode selects whether the browser colorizes its output. It mirrors the
+// command's color decision so the TUI matches the rest of Terragrunt's output.
+type ColorMode bool
+
+const (
+	// ColorDisabled renders the browser without ANSI color.
+	ColorDisabled ColorMode = false
+	// ColorEnabled renders the browser with ANSI color.
+	ColorEnabled ColorMode = true
+)
 
 // Model is the bubbletea model backing the Miller-columns browser.
 type Model struct {
@@ -44,25 +56,35 @@ type Model struct {
 	height       int
 	searching    bool
 	gPending     bool
-	shouldColor  bool
+	color        ColorMode
 	hasDarkBG    bool
 	ready        bool
 	done         bool
 }
 
-// NewModel builds a Model rooted at the given tree. shouldColor mirrors the
-// command's color decision so the TUI matches the rest of Terragrunt's output.
-// fs backs the on-demand reads of surrounding entries and file previews.
-// resultCh delivers the background discovery result, and warnCh the warnings
-// logged while it runs; either is nil when there is none.
+// ErrChannelsRequired is the panic value NewModel raises when its result or
+// warning channel is nil. The browse command always supplies both, and the
+// background listeners deadlock on a nil channel, so a nil here points at a
+// caller (typically a test) that skipped the wiring rather than a runtime
+// condition.
+var ErrChannelsRequired = errors.New("browse: result and warning channels must not be nil")
+
+// NewModel builds a Model rooted at the given tree. fs backs the on-demand reads
+// of surrounding entries and file previews. resultCh delivers the background
+// discovery result, and warnCh the warnings logged while it runs; both are
+// required, and NewModel panics if either is nil.
 func NewModel(
 	l log.Logger,
 	fs vfs.FS,
 	root *Node,
-	shouldColor bool,
+	color ColorMode,
 	resultCh <-chan DiscoveryResult,
 	warnCh <-chan viewtui.Warning,
 ) Model {
+	if resultCh == nil || warnCh == nil {
+		panic(ErrChannelsRequired)
+	}
+
 	search := textinput.New()
 	search.Prompt = "/"
 
@@ -77,7 +99,7 @@ func NewModel(
 		root:        root,
 		current:     root,
 		cursor:      map[*Node]int{},
-		colorizer:   dag.NewColorizer(shouldColor),
+		colorizer:   dag.NewColorizer(bool(color)),
 		fs:          fs,
 		keys:        newKeyMap(),
 		searchInput: search,
@@ -87,26 +109,20 @@ func NewModel(
 		resultCh:    resultCh,
 		warnCh:      warnCh,
 		home:        home,
-		shouldColor: shouldColor,
+		color:       color,
 		hasDarkBG:   true,
 	}
 }
 
 // Init implements tea.Model. It asks the terminal for its background color so
 // the preview's syntax-highlight theme can match it, and starts listening for
-// the background discovery result and warnings when there are any.
+// the background discovery result and the warnings logged while it runs.
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tea.RequestBackgroundColor}
-
-	if m.resultCh != nil {
-		cmds = append(cmds, m.listenForResult())
-	}
-
-	if cmd := viewtui.ListenForWarnings(m.warnCh); cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
-	return tea.Batch(cmds...)
+	return tea.Batch(
+		tea.RequestBackgroundColor,
+		m.listenForResult(),
+		viewtui.ListenForWarnings(m.warnCh),
+	)
 }
 
 // Current returns the directory whose contents fill the focused column.

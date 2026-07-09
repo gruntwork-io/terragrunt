@@ -183,7 +183,7 @@ func (m *Model) ensurePreview() {
 		return
 	}
 
-	sel.preview = renderFilePreview(m.fs, sel, width, themeFor(m.shouldColor, m.hasDarkBG))
+	sel.preview = renderFilePreview(m.fs, sel, width, themeFor(m.color, m.hasDarkBG))
 	sel.previewWidth = width
 	sel.previewDark = m.hasDarkBG
 	sel.previewReady = true

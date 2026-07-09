@@ -22,7 +22,7 @@ func TestSurroundingEntriesAreShown(t *testing.T) {
 
 	root := tui.NewRoot("/repo")
 
-	m := newModel(t, fs, root, false)
+	m := newModel(t, fs, root, tui.ColorDisabled)
 
 	type entry struct {
 		name string
@@ -56,7 +56,7 @@ func TestStackClassifiedFromFilesystem(t *testing.T) {
 	require.NoError(t, vfs.WriteFile(fs, "/repo/db/terragrunt.hcl", nil, 0o644))
 	require.NoError(t, fs.MkdirAll("/repo/plain", 0o755))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), false)
+	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	// With no discovery, kinds come from the cheap stat alone.
 	type entry struct {
@@ -88,7 +88,7 @@ func TestIgnorableDirsClassifiedAsPlain(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fs, "/repo/.terragrunt-cache/xyz/terragrunt.hcl", nil, 0o644))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), false)
+	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	children := m.Current().Children()
 	require.Len(t, children, 1)
@@ -114,7 +114,7 @@ func TestSurroundingEntriesLoadedOnce(t *testing.T) {
 
 	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
 
-	m := newModel(t, fs, root, false)
+	m := newModel(t, fs, root, tui.ColorDisabled)
 	first := len(m.Current().Children())
 
 	// A second window-size event must not duplicate the loaded entries.
@@ -131,7 +131,7 @@ func TestSurroundingEntriesBestEffortOnError(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	root := tui.BuildTree("/missing", component.Components{component.NewUnit("/missing/vpc")})
 
-	m := newModel(t, fs, root, false)
+	m := newModel(t, fs, root, tui.ColorDisabled)
 
 	children := m.Current().Children()
 	require.Len(t, children, 1)
@@ -186,7 +186,7 @@ func TestHiddenDirectoriesDimmed(t *testing.T) {
 	require.NoError(t, fs.MkdirAll("/repo/bvisible", 0o755))
 	require.NoError(t, vfs.WriteFile(fs, "/repo/zz.txt", nil, 0o644))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), false)
+	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	// The hidden directory sorts first and starts out selected; move off it so
 	// its own style is visible.

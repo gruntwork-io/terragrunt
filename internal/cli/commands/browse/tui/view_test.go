@@ -23,7 +23,7 @@ func crowdedModel(t *testing.T, count int) tui.Model {
 		require.NoError(t, fs.MkdirAll(fmt.Sprintf("/repo/dir-%03d", i), 0o755))
 	}
 
-	return newModel(t, fs, tui.NewRoot("/repo"), false)
+	return newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
 }
 
 func TestViewFillsTerminalExactly(t *testing.T) {

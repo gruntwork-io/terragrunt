@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
@@ -17,11 +18,17 @@ const (
 )
 
 // newModel builds a Model over root and feeds it an initial window size, the
-// point at which the TUI becomes ready and loads the surrounding entries.
-func newModel(t *testing.T, fs vfs.FS, root *tui.Node, shouldColor bool) tui.Model {
+// point at which the TUI becomes ready and loads the surrounding entries. These
+// models are driven through Update directly and never call Init, so the required
+// channels are wired but never read; tests that stream discovery inject a
+// [tui.DiscoveryResult] as a message instead.
+func newModel(t *testing.T, fs vfs.FS, root *tui.Node, color tui.ColorMode) tui.Model {
 	t.Helper()
 
-	m := tui.NewModel(logger.CreateLogger(), fs, root, shouldColor, nil, nil)
+	resultCh := make(chan tui.DiscoveryResult, 1)
+	warnCh := make(chan viewtui.Warning)
+
+	m := tui.NewModel(logger.CreateLogger(), fs, root, color, resultCh, warnCh)
 
 	return update(t, m, tea.WindowSizeMsg{Width: testWidth, Height: testHeight})
 }
