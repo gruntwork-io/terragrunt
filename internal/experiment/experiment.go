@@ -79,6 +79,8 @@ const (
 	OptionalHooks = "optional-hooks"
 	// Profiling enables collecting runtime profiles (CPU, memory/heap, goroutine) via CLI flags or env vars.
 	Profiling = "profiling"
+	// OCI gates downloading modules from OCI Distribution registries via oci:// sources.
+	OCI = "oci"
 )
 
 const (
@@ -169,6 +171,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: Profiling,
+		},
+		{
+			Name: OCI,
 		},
 	}
 }

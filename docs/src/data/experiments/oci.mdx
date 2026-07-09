@@ -1,0 +1,56 @@
+---
+name: oci
+since: "1.1.1"
+---
+
+Experimental support for downloading modules from OCI Distribution registries using `oci://` sources.
+
+### `oci` - What it does
+
+OpenTofu 1.10 can download modules from an OCI Distribution registry using an
+`oci://` source, but Terragrunt currently fails to resolve the same source in a
+`terraform { source = "..." }` block because no getter claims the `oci` scheme.
+This experiment reserves the flag for native Terragrunt support of `oci://`
+module sources, so a single source string works the same way in both `tofu` and
+Terragrunt against registries such as Amazon ECR, GitHub Container Registry,
+Azure Container Registry, Google Artifact Registry, and self-hosted or air-gapped
+registries.
+
+In its current form (initial registration) the experiment only reserves the
+`oci` experiment name. The experiment has no behavioral effect yet: there is no
+getter for the `oci` scheme, and `oci://` sources still fail to download.
+Functional behavior will land in subsequent releases, gated by this experiment.
+
+### `oci` - How to enable it
+
+```bash
+# Via CLI flag
+terragrunt --experiment oci run -- plan
+
+# Via environment variable
+export TG_EXPERIMENT=oci
+terragrunt run -- plan
+```
+
+### `oci` - How to provide feedback
+
+Track and discuss this experiment in [gruntwork-io/terragrunt#4555](https://github.com/gruntwork-io/terragrunt/issues/4555).
+When reporting issues or providing feedback, please include:
+
+- The registry you are using (ECR, GHCR, ACR, GAR, self-hosted).
+- The authentication method (static credentials, ambient Docker config, or a credential helper such as `ecr-login`).
+- The full `oci://` source string, and whether you pin by `tag` or `digest`.
+- Any errors encountered during module download.
+
+### `oci` - Criteria for stabilization
+
+To transition the `oci` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] A getter that resolves `oci://` sources, selecting the `application/vnd.opentofu.modulepkg` artifact and its `archive/zip` layer, with blob digest verification.
+- [ ] Static and ambient Docker-config credential discovery matching OpenTofu's search order.
+- [ ] Credential-helper support (`docker-credential-*`, `ecr-login`) so ECR and other helper-backed registries work with per-run token minting.
+- [ ] Content-addressable caching keyed on the resolved manifest digest, with correct re-resolution of mutable tags.
+- [ ] A portability guarantee that one source string produces an identical module via `tofu` and Terragrunt.
+- [ ] Documentation covering the source syntax, authentication tiers, and publishing contract.
+- [ ] Integration test coverage against a real registry, gated behind a build tag.
+- [ ] Community feedback on real-world usage.
