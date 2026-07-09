@@ -49,9 +49,9 @@ const (
 )
 
 // themeFor maps the color setting and terminal background to a preview theme.
-func themeFor(color, dark bool) previewTheme {
+func themeFor(color ColorMode, dark bool) previewTheme {
 	switch {
-	case !color:
+	case color == ColorDisabled:
 		return previewPlain
 	case dark:
 		return previewDark

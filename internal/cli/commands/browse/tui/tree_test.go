@@ -111,7 +111,7 @@ func TestNavigation(t *testing.T) {
 	// An empty filesystem is enough: these components have no on-disk files, so
 	// loading surrounding entries finds nothing and navigation falls back to the
 	// discovered tree.
-	m := newModel(t, vfs.NewMemMapFS(), root, false)
+	m := newModel(t, vfs.NewMemMapFS(), root, tui.ColorDisabled)
 
 	// Descending from the root enters the prod directory.
 	m = press(t, m, 'l')

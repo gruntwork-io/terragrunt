@@ -24,7 +24,7 @@ func searchModel(t *testing.T, names ...string) tui.Model {
 		comps[i] = component.NewUnit(filepath.Join("/work", name))
 	}
 
-	return newModel(t, vfs.NewMemMapFS(), tui.BuildTree("/work", comps), false)
+	return newModel(t, vfs.NewMemMapFS(), tui.BuildTree("/work", comps), tui.ColorDisabled)
 }
 
 // typeKey sends a non-rune key such as enter or escape.
@@ -43,7 +43,6 @@ func TestSearchJumpsToFirstMatch(t *testing.T) {
 	m = press(t, m, '/')
 	m = press(t, m, 'c')
 
-	// "charlie" is the first (and only) entry containing "c".
 	assert.Equal(t, "charlie", m.Selected().Name())
 }
 
@@ -52,8 +51,6 @@ func TestSearchCapturesNavigationKeys(t *testing.T) {
 
 	m := searchModel(t, "alpha", "bravo", "charlie", "delta")
 
-	// While searching, "j" is part of the query, not a down-navigation. No entry
-	// contains "j", so the cursor stays where the search began.
 	m = press(t, m, '/')
 	m = press(t, m, 'j')
 
@@ -71,7 +68,6 @@ func TestSearchEscapeRestoresCursor(t *testing.T) {
 
 	m = typeKey(t, m, tea.KeyEscape)
 
-	// Escape abandons the search and returns to the pre-search entry.
 	assert.Equal(t, "alpha", m.Selected().Name())
 }
 
@@ -84,7 +80,6 @@ func TestSearchBackspaceToEmptyRestoresCursor(t *testing.T) {
 	m = press(t, m, 'd')
 	require.Equal(t, "delta", m.Selected().Name())
 
-	// Deleting the query back to empty returns the cursor to the origin.
 	m = typeKey(t, m, tea.KeyBackspace)
 
 	assert.Equal(t, "alpha", m.Selected().Name())
@@ -183,7 +178,7 @@ func TestNavigatingClearsSearch(t *testing.T) {
 		component.NewUnit(filepath.Join("/work", "env", "db")),
 	})
 
-	m := newModel(t, vfs.NewMemMapFS(), root, false)
+	m := newModel(t, vfs.NewMemMapFS(), root, tui.ColorDisabled)
 
 	// Descend into env, then search and commit within it.
 	m = press(t, m, 'l')
@@ -192,7 +187,6 @@ func TestNavigatingClearsSearch(t *testing.T) {
 	m = typeKey(t, m, tea.KeyEnter)
 	require.Contains(t, m.View().Content, "match")
 
-	// Ascending to the parent leaves the searched directory, clearing the search.
 	m = press(t, m, 'h')
 
 	assert.NotContains(t, m.View().Content, "n/N cycle")
@@ -219,7 +213,6 @@ func TestNextMatchNoopWithoutCommittedSearch(t *testing.T) {
 
 	m := searchModel(t, "alpha", "bravo", "charlie")
 
-	// No search has been committed, so n does nothing.
 	m = press(t, m, 'n')
 
 	assert.Equal(t, "alpha", m.Selected().Name())

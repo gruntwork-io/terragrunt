@@ -40,7 +40,7 @@ func TestDiscoveryResolvesCountsAndClearsLoading(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fs, "/repo/group/db/terragrunt.hcl", nil, 0o644))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), false)
+	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	// Before discovery the selected group directory's counts are placeholders and
 	// the footer advertises that discovery is still running.
@@ -65,7 +65,7 @@ func TestDiscoveryFailureSurfacedAsToast(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fs, "/repo/group/db/terragrunt.hcl", nil, 0o644))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), false)
+	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	m = update(t, m, tui.DiscoveryResult{Err: errors.New("discovery blew up")})
 
@@ -92,7 +92,7 @@ func TestReadFilesHighlightedAfterDiscovery(t *testing.T) {
 	// unselected and their preview free of the read-file name.
 	require.NoError(t, fs.MkdirAll("/repo/aaa", 0o755))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), false)
+	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	// Before discovery, a read file and an unrelated file are both dimmed like
 	// files, distinct from the white plain directory.

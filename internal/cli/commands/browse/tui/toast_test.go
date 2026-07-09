@@ -19,7 +19,7 @@ func TestWarningSurfacesAsToast(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", nil, 0o644))
 
-	m := newModel(t, fs, tui.NewRoot("/repo"), false)
+	m := newModel(t, fs, tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	m = update(t, m, viewtui.Warning{Message: "cycle detected in dependency graph"})
 
@@ -35,7 +35,7 @@ func TestWarningSurfacesAsToast(t *testing.T) {
 func TestWarningSchedulesExpiryAndKeepsListening(t *testing.T) {
 	t.Parallel()
 
-	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), false)
+	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	// The command carries the toast's expiry tick and the re-armed listener;
 	// without it the toast would never dismiss and later warnings would be lost.
@@ -46,7 +46,7 @@ func TestWarningSchedulesExpiryAndKeepsListening(t *testing.T) {
 func TestToastExpires(t *testing.T) {
 	t.Parallel()
 
-	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), false)
+	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	m = update(t, m, viewtui.Warning{Message: "transient warning"})
 	require.Contains(t, m.View().Content, "transient warning")
@@ -60,7 +60,7 @@ func TestToastExpires(t *testing.T) {
 func TestExpiryOfDismissedToastIsNoop(t *testing.T) {
 	t.Parallel()
 
-	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), false)
+	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	m = update(t, m, viewtui.Warning{Message: "one"})
 	m = update(t, m, viewtui.ToastExpired{ID: 1})
@@ -72,7 +72,7 @@ func TestExpiryOfDismissedToastIsNoop(t *testing.T) {
 func TestToastStackDropsOldestPastCap(t *testing.T) {
 	t.Parallel()
 
-	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), false)
+	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	for _, msg := range []string{"first", "second", "third", "fourth"} {
 		m = update(t, m, viewtui.Warning{Message: msg})
@@ -88,7 +88,7 @@ func TestToastStackDropsOldestPastCap(t *testing.T) {
 func TestLongToastMessageIsClipped(t *testing.T) {
 	t.Parallel()
 
-	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), false)
+	m := newModel(t, vfs.NewMemMapFS(), tui.NewRoot("/repo"), tui.ColorDisabled)
 
 	m = update(t, m, viewtui.Warning{Message: strings.Repeat("very long warning ", 50)})
 
