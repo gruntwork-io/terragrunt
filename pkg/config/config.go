@@ -930,13 +930,17 @@ func (cfg *TerraformConfig) ValidateHooks() error {
 	return nil
 }
 
-// ValidateVersion checks the optional version attribute against the terraform
-// source. A version constraint only has meaning for a tfr:// registry source,
-// and it must not duplicate a constraint already pinned inline via ?version= on
-// that source.
-func (cfg *TerraformConfig) ValidateVersion() error {
+// ValidateVersion checks the optional version attribute. The attribute is
+// gated behind the version-attribute experiment, and once enabled a version
+// constraint only has meaning for a tfr:// registry source and must not
+// duplicate a constraint already pinned inline via ?version= on that source.
+func (cfg *TerraformConfig) ValidateVersion(experiments experiment.Experiments, configPath string) error {
 	if cfg == nil || cfg.Version == nil {
 		return nil
+	}
+
+	if !experiments.Evaluate(experiment.VersionAttribute) {
+		return VersionAttributeRequiresExperimentError{ConfigPath: configPath}
 	}
 
 	var source string
@@ -1750,7 +1754,7 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 		errs = append(errs, err)
 	}
 
-	if err := terragruntConfigFromFile.Terraform.ValidateVersion(); err != nil {
+	if err := terragruntConfigFromFile.Terraform.ValidateVersion(pctx.Experiments, pctx.TerragruntConfigPath); err != nil {
 		errs = append(errs, err)
 	}
 
