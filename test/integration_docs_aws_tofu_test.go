@@ -42,8 +42,12 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 
 	region := "us-east-1"
 
-	// Defer cleanup of state bucket
+	// Defer cleanup of the state bucket and the static-asset buckets the guide's
+	// modules provision. The walkthrough removes these via `terragrunt destroy`,
+	// but a step that fails earlier never reaches it, so clean them up directly.
 	defer helpers.DeleteS3Bucket(t, region, stateBucketName)
+	defer helpers.DeleteS3Bucket(t, region, name+"-static-assets")
+	defer helpers.DeleteS3Bucket(t, region, name+"-dev-static-assets")
 
 	func() {
 		t.Log("Running step 0 - Setup")

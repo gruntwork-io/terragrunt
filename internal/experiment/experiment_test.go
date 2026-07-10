@@ -57,6 +57,19 @@ func TestProfilingIsOngoing(t *testing.T) {
 	assert.False(t, got.Evaluate(), "profiling must be disabled by default")
 }
 
+func TestVersionAttributeIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.VersionAttribute)
+	require.NotNil(t, got, "version-attribute experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "version-attribute must be ongoing")
+	assert.False(t, got.Evaluate(), "version-attribute must be disabled by default")
+
+	require.NoError(t, exps.EnableExperiment(experiment.VersionAttribute))
+	assert.True(t, got.Evaluate(), "version-attribute must be enabled once explicitly requested")
+}
+
 func TestEvaluate(t *testing.T) {
 	t.Parallel()
 

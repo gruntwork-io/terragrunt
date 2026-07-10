@@ -81,6 +81,9 @@ const (
 	Profiling = "profiling"
 	// OCI gates downloading modules from OCI Distribution registries via oci:// sources.
 	OCI = "oci"
+	// VersionAttribute gates resolving a tfr:// registry module from a version
+	// constraint expressed through the version attribute on the terraform block.
+	VersionAttribute = "version-attribute"
 )
 
 const (
@@ -174,6 +177,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OCI,
+		},
+		{
+			Name: VersionAttribute,
 		},
 	}
 }
