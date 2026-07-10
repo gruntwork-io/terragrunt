@@ -762,8 +762,7 @@ func (p *GraphPhase) resolveDependency(
 
 	depComponent := componentFromDependencyPath(depPath, threadSafeComponents)
 
-	addedComponent, created := threadSafeComponents.EnsureComponent(depComponent)
-	if created {
+	if dctx := depComponent.DiscoveryContext(); dctx == nil || dctx.WorkingDir == "" {
 		copiedCtx := parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
 
 		// Clear the Ref and related args for graph-discovered dependencies.
@@ -775,13 +774,15 @@ func (p *GraphPhase) resolveDependency(
 		})
 
 		depComponent.SetDiscoveryContext(copiedCtx)
-	}
 
-	if isExternal(parentCtx.WorkingDir, depPath) {
-		if ext, ok := addedComponent.(*component.Unit); ok {
-			ext.SetExternal()
+		if isExternal(parentCtx.WorkingDir, depPath) {
+			if ext, ok := depComponent.(*component.Unit); ok {
+				ext.SetExternal()
+			}
 		}
 	}
+
+	addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
 
 	parent.AddDependency(addedComponent)
 
