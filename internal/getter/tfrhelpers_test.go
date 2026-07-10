@@ -7,10 +7,63 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPinModuleVersion(t *testing.T) {
+	t.Parallel()
+
+	server := newRegistryTestServer(t)
+	source := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws"
+
+	pinned, err := getter.PinModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(), tfimpl.OpenTofu, source, "~> 3.0",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, source+"?version=3.3.0", pinned)
+}
+
+func TestSourceHasVersionConstraint(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		source string
+		want   bool
+	}{
+		{
+			name:   "exact pin",
+			source: "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws?version=3.3.0",
+			want:   false,
+		},
+		{
+			name:   "constraint",
+			source: "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws?version=~> 3.3",
+			want:   true,
+		},
+		{
+			name:   "no version query",
+			source: "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws",
+			want:   false,
+		},
+		{
+			name:   "non-tfr source",
+			source: "git::https://github.com/foo/bar.git?ref=v1.0.0",
+			want:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, getter.SourceHasVersionConstraint(tc.source))
+		})
+	}
+}
 
 func TestGetModuleRegistryURLBasePath(t *testing.T) {
 	t.Parallel()
