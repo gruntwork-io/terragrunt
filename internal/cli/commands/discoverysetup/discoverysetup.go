@@ -33,7 +33,9 @@ func Worktrees(
 		Experiments:    opts.Experiments,
 	})
 	if err != nil {
-		return d, func(context.Context) {}, fmt.Errorf("failed to create worktrees: %w", err)
+		return d, func(context.Context) {
+			// No-op
+		}, fmt.Errorf("failed to create worktrees: %w", err)
 	}
 
 	cleanup := func(ctx context.Context) {

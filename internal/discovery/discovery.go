@@ -229,7 +229,15 @@ func (d *Discovery) Discover(
 	components = d.applyQueueFilters(opts, components)
 
 	if d.parseStackConfigs {
-		storeStackConfigs(ctx, l, opts, components)
+		if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_phase_stack_configs", map[string]any{
+			"components_in": len(components),
+		}, func(childCtx context.Context) error {
+			storeStackConfigs(childCtx, l, opts, components)
+
+			return nil
+		}); err != nil {
+			return components, err
+		}
 	}
 
 	return components, nil
