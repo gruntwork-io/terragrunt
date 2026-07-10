@@ -1,0 +1,80 @@
+OSS-3923 spike validation run
+Date: 2026-07-10
+Host: linux/amd64, go1.26.0, docker 29.5.2, oras CLI v1.3.2, OpenTofu 1.10.6 (mise)
+Spike source: spike/oss-3923-oras-oci/ (this directory), built as-is from the branch
+
+Conventions:
+  $ command
+  <output>
+
+============================================================
+[1/6] Build spike from the repo branch
+============================================================
+$ cd spike/oss-3923-oras-oci && go build -o $VAL/spike .
+BUILD_OK
+
+============================================================
+[2/6] Fresh self-signed cert + registry:3 container with TLS
+============================================================
+$ openssl req -x509 -newkey rsa:2048 -nodes -keyout $VAL/certs/registry.key -out $VAL/certs/registry.crt -days 2 -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+$ docker run -d --name oci-validate -p 127.0.0.1:5000:5000 -v $VAL/certs:/certs:ro -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/registry.crt -e REGISTRY_HTTP_TLS_KEY=/certs/registry.key registry:3
+$ curl -s --cacert $VAL/certs/registry.crt -o /dev/null -w "registry TLS: HTTP %{http_code}\n" https://127.0.0.1:5000/v2/
+registry TLS: HTTP 200
+
+============================================================
+[3/6] Publish module zip with the OpenTofu artifact type
+============================================================
+$ printf 'output "spike" {\n  value = "validate"\n}\n' > $VAL/module/main.tf
+$ printf 'output "sub" {\n  value = "validate-sub"\n}\n' > $VAL/module/subdir/main.tf
+$ cd $VAL/module && zip -q -r ../module.zip . && cd $VAL
+$ oras push --ca-file certs/registry.crt 127.0.0.1:5000/validate/vpc:2.0.0 --artifact-type application/vnd.opentofu.modulepkg module.zip:archive/zip
+Pushed [registry] 127.0.0.1:5000/validate/vpc:2.0.0
+Digest: sha256:b38cfb5f31d005b9dcb6793a40432671ad2a91ef23fc59f7820aeea59bd496c1
+
+============================================================
+[4/6] Behavioral oracle: OpenTofu 1.10.6 consumes the artifact
+============================================================
+$ printf 'module "m" {\n  source = "oci://127.0.0.1:5000/validate/vpc?tag=2.0.0"\n}\n' > $VAL/tofu/main.tf
+$ cd $VAL/tofu && SSL_CERT_FILE=$VAL/certs/registry.crt mise x opentofu@1.10.6 -- tofu init -input=false -no-color
+Downloading oci://127.0.0.1:5000/validate/vpc?tag=2.0.0 for m...
+OpenTofu has been successfully initialized!
+
+============================================================
+[5/6] Spike pulls (clean-room oras-go v2.5.0) + errdef check
+============================================================
+$ $VAL/spike -ca $VAL/certs/registry.crt -domain 127.0.0.1:5000 -repo validate/vpc -ref 2.0.0 -dst $VAL/out-tag
+{
+  "artifactType": "application/vnd.opentofu.modulepkg",
+  "digestVerified": true,
+  "extractedTo": "$VAL/out-tag",
+  "layerDigest": "sha256:...",
+  "manifestDigest": "sha256:b38cfb5f31d005b9dcb6793a40432671ad2a91ef23fc59f7820aeea59bd496c1",
+  "manifestMediaType": "application/vnd.oci.image.manifest.v1+json",
+  "zipLayerCount": 1
+}
+
+$ $VAL/spike -ca $VAL/certs/registry.crt -domain 127.0.0.1:5000 -repo validate/vpc -ref sha256:b38cfb5f31d005b9dcb6793a40432671ad2a91ef23fc59f7820aeea59bd496c1 -dst $VAL/out-digest
+  "digestVerified": true,
+
+$ $VAL/spike -ca $VAL/certs/registry.crt -domain 127.0.0.1:5000 -repo validate/vpc -errdef-check
+errdef check: err=127.0.0.1:5000/validate/vpc:no-such-tag: not found
+errors.Is(err, errdef.ErrNotFound) = true
+
+============================================================
+[6/6] Portability proof: byte-diff spike tree vs tofu tree
+============================================================
+$ diff -r $VAL/out-tag $VAL/tofu/.terraform/modules/m
+TREES IDENTICAL (tag)
+$ diff -r $VAL/out-digest $VAL/tofu/.terraform/modules/m
+TREES IDENTICAL (digest)
+
+$ docker rm -f oci-validate
+registry container removed
+
+============================================================
+Result: PASS on all 6 steps.
+The branch copy of the spike reproduces OpenTofu 1.10.6 output
+byte-identically by tag and by digest, verifies blob digests,
+and classifies missing refs via errdef.ErrNotFound.
+Full behavioral findings: FINDINGS.md in this directory.
+============================================================
