@@ -35,7 +35,12 @@ func TestGetTerraformGetHeader(t *testing.T) {
 		Path:   "/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
 	}
 
-	header, err := getter.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), server.Client(), &moduleURL)
+	header, err := getter.GetTerraformGetHeader(
+		t.Context(),
+		logger.CreateLogger(),
+		server.Client(),
+		&moduleURL,
+	)
 	require.NoError(t, err)
 	assert.Contains(t, header, "/download/terraform-aws-vpc.zip")
 }
@@ -179,7 +184,10 @@ func TestGetLatestModuleVersionSkipsPrereleases(t *testing.T) {
 func TestGetLatestModuleVersionAllPrereleases(t *testing.T) {
 	t.Parallel()
 
-	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"1.0.0-alpha"},{"version":"2.0.0-rc1"}]}]}`)
+	server := newVersionsTestServer(
+		t,
+		`{"modules":[{"versions":[{"version":"1.0.0-alpha"},{"version":"2.0.0-rc1"}]}]}`,
+	)
 
 	_, err := getter.GetLatestModuleVersion(
 		t.Context(), logger.CreateLogger(), server.Client(),
@@ -194,7 +202,10 @@ func TestGetLatestModuleVersionAllPrereleases(t *testing.T) {
 func TestGetLatestModuleVersionSkipsUnparsable(t *testing.T) {
 	t.Parallel()
 
-	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"not-a-version"},{"version":"1.0.0"}]}]}`)
+	server := newVersionsTestServer(
+		t,
+		`{"modules":[{"versions":[{"version":"not-a-version"},{"version":"1.0.0"}]}]}`,
+	)
 
 	latest, err := getter.GetLatestModuleVersion(
 		t.Context(), logger.CreateLogger(), server.Client(),
@@ -250,7 +261,10 @@ func TestGetMatchingModuleVersion(t *testing.T) {
 func TestGetMatchingModuleVersionPrereleaseOptIn(t *testing.T) {
 	t.Parallel()
 
-	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"3.4.0"},{"version":"4.0.0-rc1"}]}]}`)
+	server := newVersionsTestServer(
+		t,
+		`{"modules":[{"versions":[{"version":"3.4.0"},{"version":"4.0.0-rc1"}]}]}`,
+	)
 
 	got, err := getter.GetMatchingModuleVersion(
 		t.Context(), logger.CreateLogger(), server.Client(),
@@ -265,7 +279,10 @@ func TestGetMatchingModuleVersionPrereleaseOptIn(t *testing.T) {
 func TestGetMatchingModuleVersionNoMatch(t *testing.T) {
 	t.Parallel()
 
-	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"1.0.0"},{"version":"2.0.0"}]}]}`)
+	server := newVersionsTestServer(
+		t,
+		`{"modules":[{"versions":[{"version":"1.0.0"},{"version":"2.0.0"}]}]}`,
+	)
 
 	_, err := getter.GetMatchingModuleVersion(
 		t.Context(), logger.CreateLogger(), server.Client(),
@@ -316,11 +333,18 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 
 	// Serve the list-versions endpoint so TestRegistryGetterWithoutVersion can
 	// resolve the latest version without a ?version= query parameter.
-	mux.HandleFunc("/v1/modules/terraform-aws-modules/vpc/aws/versions", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, err := w.Write([]byte(`{"modules":[{"versions":[{"version":"3.3.0"},{"version":"2.0.0"},{"version":"1.0.0"}]}]}`))
-		assert.NoError(t, err)
-	})
+	mux.HandleFunc(
+		"/v1/modules/terraform-aws-modules/vpc/aws/versions",
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, err := w.Write(
+				[]byte(
+					`{"modules":[{"versions":[{"version":"3.3.0"},{"version":"2.0.0"},{"version":"1.0.0"}]}]}`,
+				),
+			)
+			assert.NoError(t, err)
+		},
+	)
 
 	mux.HandleFunc(
 		"/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
@@ -353,11 +377,14 @@ func newVersionsTestServer(t *testing.T, body string) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/modules/foo/bar/baz/versions", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, err := w.Write([]byte(body))
-		assert.NoError(t, err)
-	})
+	mux.HandleFunc(
+		"/v1/modules/foo/bar/baz/versions",
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, err := w.Write([]byte(body))
+			assert.NoError(t, err)
+		},
+	)
 
 	server := httptest.NewTLSServer(mux)
 	t.Cleanup(server.Close)

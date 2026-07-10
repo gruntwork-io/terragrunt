@@ -121,7 +121,9 @@ func GetModuleRegistryURLBasePath(
 
 	var respJSON RegistryServicePath
 	if err := json.Unmarshal(bodyData, &respJSON); err != nil {
-		return "", ServiceDiscoveryErr{reason: fmt.Sprintf("Error parsing response body %s: %s", string(bodyData), err)}
+		return "", ServiceDiscoveryErr{
+			reason: fmt.Sprintf("Error parsing response body %s: %s", string(bodyData), err),
+		}
 	}
 
 	if respJSON.ModulesPath == "" {
@@ -133,7 +135,12 @@ func GetModuleRegistryURLBasePath(
 
 // GetTerraformGetHeader makes a GET against `url` and returns the value of
 // the X-Terraform-Get header (or the body's `location` field as a fallback).
-func GetTerraformGetHeader(ctx context.Context, l log.Logger, httpClient *http.Client, url *url.URL) (string, error) {
+func GetTerraformGetHeader(
+	ctx context.Context,
+	l log.Logger,
+	httpClient *http.Client,
+	url *url.URL,
+) (string, error) {
 	body, header, err := httpGETAndGetResponse(ctx, l, httpClient, url)
 	if err != nil {
 		return "", ModuleDownloadErr{sourceURL: url.String(), details: "error receiving HTTP data"}
@@ -180,7 +187,9 @@ func GetDownloadURLFromHeader(moduleURL *url.URL, terraformGet string) (string, 
 }
 
 // BuildRequestURL constructs the registry download URL for the given module.
-func BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, version string) (*url.URL, error) {
+func BuildRequestURL(
+	registryDomain, moduleRegistryBasePath, modulePath, version string,
+) (*url.URL, error) {
 	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
 	modulePath = strings.TrimSuffix(modulePath, "/")
 	modulePath = strings.TrimPrefix(modulePath, "/")
@@ -211,7 +220,14 @@ func GetLatestModuleVersion(
 	httpClient *http.Client,
 	registryDomain, moduleRegistryBasePath, modulePath string,
 ) (string, error) {
-	versions, err := listModuleVersions(ctx, l, httpClient, registryDomain, moduleRegistryBasePath, modulePath)
+	versions, err := listModuleVersions(
+		ctx,
+		l,
+		httpClient,
+		registryDomain,
+		moduleRegistryBasePath,
+		modulePath,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -259,7 +275,14 @@ func GetMatchingModuleVersion(
 		return "", ConstraintParseErr{constraint: constraint, err: err}
 	}
 
-	versions, err := listModuleVersions(ctx, l, httpClient, registryDomain, moduleRegistryBasePath, modulePath)
+	versions, err := listModuleVersions(
+		ctx,
+		l,
+		httpClient,
+		registryDomain,
+		moduleRegistryBasePath,
+		modulePath,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -273,7 +296,11 @@ func GetMatchingModuleVersion(
 	}
 
 	if len(matching) == 0 {
-		return "", NoMatchingVersionErr{constraint: constraint, modulePath: modulePath, registryDomain: registryDomain}
+		return "", NoMatchingVersionErr{
+			constraint:     constraint,
+			modulePath:     modulePath,
+			registryDomain: registryDomain,
+		}
 	}
 
 	match := slices.MaxFunc(matching, func(a, b *goversion.Version) int { return a.Compare(b) })
@@ -322,11 +349,19 @@ func listModuleVersions(
 
 	var versionsResp moduleVersionsResponse
 	if err := json.Unmarshal(bodyData, &versionsResp); err != nil {
-		return nil, fmt.Errorf("failed to parse module versions response for %s: %w", modulePath, err)
+		return nil, fmt.Errorf(
+			"failed to parse module versions response for %s: %w",
+			modulePath,
+			err,
+		)
 	}
 
 	if len(versionsResp.Modules) == 0 || len(versionsResp.Modules[0].Versions) == 0 {
-		return nil, fmt.Errorf("no versions found for module %s on registry %s", modulePath, registryDomain)
+		return nil, fmt.Errorf(
+			"no versions found for module %s on registry %s",
+			modulePath,
+			registryDomain,
+		)
 	}
 
 	parsed := make([]*goversion.Version, 0, len(versionsResp.Modules[0].Versions))
@@ -367,7 +402,8 @@ func applyHostToken(req *http.Request) (*http.Request, error) {
 		return nil, err
 	}
 
-	if creds := cliCfg.CredentialsSource().ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
+	if creds := cliCfg.CredentialsSource().
+		ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
 		creds.PrepareRequest(req)
 		return req, nil
 	}
