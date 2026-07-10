@@ -4,7 +4,6 @@ on:
     - cron: "0 * * * *" # Runs every hour
   workflow_dispatch:
 
-
 jobs:
   run_cloud_nuke:
     permissions:
@@ -18,15 +17,15 @@ jobs:
 
       - name: Install cloud-nuke
         run: |
-            wget -O /usr/local/bin/cloud-nuke \
-                --header="Authorization: Bearer ${GITHUB_TOKEN}" \
-                "https://github.com/gruntwork-io/cloud-nuke/releases/download/v${VERSION}/cloud-nuke_linux_amd64"
+          wget -O /usr/local/bin/cloud-nuke \
+              --header="Authorization: Bearer ${GITHUB_TOKEN}" \
+              "https://github.com/gruntwork-io/cloud-nuke/releases/download/v${VERSION}/cloud-nuke_linux_amd64"
 
-            chmod +x /usr/local/bin/cloud-nuke
+          chmod +x /usr/local/bin/cloud-nuke
         env:
-            # Authenticate to reduce the likelihood of hitting rate limit issues.
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            VERSION: 0.49.0
+          # Authenticate to reduce the likelihood of hitting rate limit issues.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: 0.49.0
 
       - name: Authenticate to AWS
         uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6
@@ -36,14 +35,15 @@ jobs:
 
       - name: Run cloud-nuke
         run: |
-            cloud-nuke aws \
-                --force \
-                --log-level debug \
-                --resource-type s3 \
-                --resource-type vpc \
-                --resource-type ec2 \
-                --resource-type dynamodb \
-                --region us-east-1 \
-                --region us-west-2 \
-                --older-than 1h \
-                --config .github/cloud-nuke/config.yml
+          cloud-nuke aws \
+              --force \
+              --log-level debug \
+              --resource-type s3 \
+              --resource-type vpc \
+              --resource-type ec2 \
+              --resource-type dynamodb \
+              --region us-east-1 \
+              --region us-west-2 \
+              --region global \
+              --older-than 1h \
+              --config .github/cloud-nuke/config.yml
