@@ -891,6 +891,23 @@ unit "vpc" {
 	assert.Len(t, cycleErr.Names, 2)
 }
 
+func TestParseStackFile_EmptyLocalsBlock(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+}
+
 func TestParseStackFile_LocalsCannotReferenceUnit(t *testing.T) {
 	t.Parallel()
 
