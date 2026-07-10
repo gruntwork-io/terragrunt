@@ -723,25 +723,20 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	canonicalCandidate, created := state.graphTraversalState.threadSafeComponents.EnsureComponent(
+	if dCtx := state.target.DiscoveryContext(); dCtx != nil {
+		copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
+
+		copiedCtx.Ref = ""
+		copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
+			return arg == "-destroy"
+		})
+
+		candidate.SetDiscoveryContext(copiedCtx)
+	}
+
+	canonicalCandidate, _ := state.graphTraversalState.threadSafeComponents.EnsureComponent(
 		candidate,
 	)
-	if created {
-		dCtx := state.target.DiscoveryContext()
-		if dCtx != nil {
-			copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
-
-			// Clear the Ref and related args for graph-discovered components.
-			// They shouldn't inherit the git ref from the target, as this would
-			// cause them to match git filters and become targets themselves.
-			copiedCtx.Ref = ""
-			copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-				return arg == "-destroy"
-			})
-
-			canonicalCandidate.SetDiscoveryContext(copiedCtx)
-		}
-	}
 
 	dependsOnTarget := false
 

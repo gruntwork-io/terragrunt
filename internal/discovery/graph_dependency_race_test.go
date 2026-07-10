@@ -198,3 +198,87 @@ func TestGraphPhase_ConcurrentUpstreamDownstreamSharedDependencyWithRacing(t *te
 		)
 	}
 }
+
+// TestGraphPhase_UpstreamCandidatePublishBeforeContextWithRacing pins that graph
+// dependency discovery never publishes an upstream candidate to the shared set
+// before assigning its discovery context. processUpstreamCandidate is the only
+// path that can, and the context accessors are unlocked, so a goroutine reaching
+// the component as a dependency reads the field while the candidate's own
+// goroutine writes it.
+//
+// To collide, nodes must be candidates in the same upstream walk pass and must
+// not be pre-discovered by the working-directory walk, which would reach them
+// through the safe assign-before-publish path first. A clique in the git root,
+// above the working directory, satisfies both: every node is created during the
+// upstream walk and reached as a dependency by every other node at once.
+func TestGraphPhase_UpstreamCandidatePublishBeforeContextWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	// Parent of the working dir, so the upstream walk climbs one level into the clique.
+	gitRoot := tmpDir
+	workingDir := filepath.Join(tmpDir, "root")
+
+	const cliqueSize = 16
+
+	writeUnit := func(baseDir, name string, deps ...string) {
+		dir := filepath.Join(baseDir, name)
+		require.NoError(t, os.MkdirAll(dir, 0755))
+
+		var hcl strings.Builder
+
+		hcl.WriteString("# " + name + "\n")
+
+		for i, dep := range deps {
+			fmt.Fprintf(&hcl, "dependency \"d%d\" {\n  config_path = %q\n}\n", i, dep)
+		}
+
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(hcl.String()), 0644),
+		)
+	}
+
+	// The ...A expansion drives the upstream walk, which climbs to the git root
+	// even though A has no dependents.
+	writeUnit(workingDir, "A")
+
+	names := make([]string, cliqueSize)
+	for i := range cliqueSize {
+		names[i] = fmt.Sprintf("node%02d", i)
+	}
+
+	for i, name := range names {
+		deps := make([]string, 0, cliqueSize-1)
+
+		for j, other := range names {
+			if i == j {
+				continue
+			}
+
+			deps = append(deps, "../"+other)
+		}
+
+		writeUnit(gitRoot, name, deps...)
+	}
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir:     workingDir,
+		RootWorkingDir: workingDir,
+	}
+
+	filters, err := filter.ParseFilterQueries(l, []string{
+		"...{" + filepath.Join(workingDir, "A") + "}",
+	})
+	require.NoError(t, err)
+
+	d := discovery.NewDiscovery(workingDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
+		WithGitRoot(gitRoot).
+		WithFilters(filters)
+
+	_, err = d.Discover(t.Context(), l, venv.OSVenv(), opts)
+	require.NoError(t, err)
+}
