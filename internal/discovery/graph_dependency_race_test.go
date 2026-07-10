@@ -51,7 +51,10 @@ func TestGraphPhase_ConcurrentDependencyDiscoveryWithRacing(t *testing.T) {
 			fmt.Fprintf(&hcl, "dependency \"d%d\" {\n  config_path = %q\n}\n", i, dep)
 		}
 
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(hcl.String()), 0644))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(hcl.String()), 0644),
+		)
 	}
 
 	// The dependency closure (parents, mid, leaf) lives under ext/, outside the
@@ -90,4 +93,108 @@ func TestGraphPhase_ConcurrentDependencyDiscoveryWithRacing(t *testing.T) {
 	paths := components.Paths()
 	require.Contains(t, paths, filepath.Join(extDir, "mid"))
 	require.Contains(t, paths, filepath.Join(extDir, "leaf"))
+}
+
+// TestGraphPhase_ConcurrentUpstreamDownstreamSharedDependencyWithRacing pins that
+// a dependency reached by both the upstream (dependents) and downstream
+// (dependencies) traversals never becomes visible without a discovery context.
+//
+// Two targets are processed concurrently: one expanded through its dependents
+// (...A) and one through its dependencies (B...). The upstream walk assigns
+// dependency components to the shared set while checking whether each candidate
+// depends on the target, and the downstream walk reaches the same components from
+// the other side. Both sides converge on "shared" at once, so if a component is
+// published before its working directory is set, a downstream reach writes its
+// context while an upstream reach touches it, which the race detector flags.
+//
+// "shared" lives under ext/, outside the working directory, so it is created
+// during traversal rather than pre-discovered with a context by the filesystem
+// walk.
+func TestGraphPhase_ConcurrentUpstreamDownstreamSharedDependencyWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	workingDir := filepath.Join(tmpDir, "root")
+	extDir := filepath.Join(tmpDir, "ext")
+
+	const (
+		upFanOut   = 24
+		downFanOut = 24
+	)
+
+	writeUnit := func(baseDir, name string, deps ...string) {
+		dir := filepath.Join(baseDir, name)
+		require.NoError(t, os.MkdirAll(dir, 0755))
+
+		var hcl strings.Builder
+
+		hcl.WriteString("# " + name + "\n")
+
+		for i, dep := range deps {
+			fmt.Fprintf(&hcl, "dependency \"d%d\" {\n  config_path = %q\n}\n", i, dep)
+		}
+
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte(hcl.String()), 0644),
+		)
+	}
+
+	// "shared" lives outside the working directory so it is not pre-discovered.
+	writeUnit(extDir, "shared")
+
+	// Target A (dependents side): many units depend on A and also pull in "shared".
+	// The upstream walk publishes "shared" while checking each of these dependents.
+	writeUnit(workingDir, "A")
+
+	for i := range upFanOut {
+		writeUnit(workingDir, fmt.Sprintf("up%02d", i), "../A", "../../ext/shared")
+	}
+
+	// Target B (dependencies side): fans out to many parents that all reach
+	// "shared" from the downstream direction at the same time.
+	downParents := make([]string, 0, downFanOut)
+	for j := range downFanOut {
+		name := fmt.Sprintf("p%02d", j)
+		writeUnit(workingDir, name, "../../ext/shared")
+		downParents = append(downParents, "../"+name)
+	}
+
+	writeUnit(workingDir, "B", downParents...)
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir:     workingDir,
+		RootWorkingDir: workingDir,
+	}
+
+	filters, err := filter.ParseFilterQueries(l, []string{
+		"...{" + filepath.Join(workingDir, "A") + "}",
+		"{" + filepath.Join(workingDir, "B") + "}...",
+	})
+	require.NoError(t, err)
+
+	d := discovery.NewDiscovery(workingDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
+		WithGitRoot(workingDir).
+		WithFilters(filters)
+
+	components, err := d.Discover(t.Context(), l, venv.OSVenv(), opts)
+	require.NoError(t, err)
+
+	require.Contains(t, components.Paths(), filepath.Join(extDir, "shared"))
+
+	// Every discovered component must carry a working directory; a component
+	// published before its context was assigned would surface here as empty.
+	for _, c := range components {
+		dctx := c.DiscoveryContext()
+		require.NotNilf(t, dctx, "component %s has no discovery context", c.Path())
+		require.NotEmptyf(
+			t,
+			dctx.WorkingDir,
+			"component %s has an empty working directory",
+			c.Path(),
+		)
+	}
 }
