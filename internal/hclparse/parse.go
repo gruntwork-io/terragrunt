@@ -250,12 +250,12 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	remaining := maps.Clone(attrs)
 
 	for range maxLocalsIterations {
-		if !attemptEvaluateLocals(remaining, evaluated, evalCtx) {
-			return reportUnresolvedLocals(remaining, evalCtx)
-		}
-
 		if len(remaining) == 0 {
 			return nil
+		}
+
+		if !attemptEvaluateLocals(remaining, evaluated, evalCtx) {
+			return reportUnresolvedLocals(remaining, evalCtx)
 		}
 	}
 
