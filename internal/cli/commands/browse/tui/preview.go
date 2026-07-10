@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	// previewByteLimit caps how much of a file is read and highlighted, bounding
-	// the cost of previewing a large file.
+	// previewByteLimit caps how many leading bytes of a file are read and
+	// highlighted. The detail pane only ever shows the head of a file, so a
+	// larger file is previewed from its first previewByteLimit bytes rather than
+	// refused; the rest is never read.
 	previewByteLimit = 256 << 10
 
 	// binarySniffLen is how many leading bytes are scanned for a NUL byte to
@@ -63,19 +65,11 @@ func themeFor(color ColorMode, dark bool) previewTheme {
 // renderFilePreview reads and renders a file for the detail pane: Markdown
 // through glamour, everything else through chroma syntax highlighting. width is
 // the pane's interior width, used for Markdown word-wrap. theme mirrors the
-// color setting and terminal background. It returns a short dimmed placeholder
-// for files that can't or shouldn't be previewed.
+// color setting and terminal background. Only the file's first previewByteLimit
+// bytes are read, since the pane shows just its head. It returns a short dimmed
+// placeholder for files that can't or shouldn't be previewed.
 func renderFilePreview(fs vfs.FS, n *Node, width int, theme previewTheme) string {
-	info, err := fs.Stat(n.absPath)
-	if err != nil {
-		return dimStyle.Render("(unreadable)")
-	}
-
-	if info.Size() > previewByteLimit {
-		return dimStyle.Render("(file too large to preview)")
-	}
-
-	data, err := vfs.ReadFile(fs, n.absPath)
+	data, err := vfs.ReadFileLimit(fs, n.absPath, previewByteLimit)
 	if err != nil {
 		return dimStyle.Render("(unreadable)")
 	}

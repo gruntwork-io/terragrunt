@@ -140,6 +140,24 @@ func ReadFile(fs FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fs, filename)
 }
 
+// ReadFileLimit reads up to limit bytes from the start of a file on the given
+// filesystem, for callers that only need a bounded prefix (such as previewing
+// the head of a possibly-large file) rather than the whole thing.
+func ReadFileLimit(fs FS, filename string, limit int64) (data []byte, err error) {
+	f, err := fs.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+
+	return io.ReadAll(io.LimitReader(f, limit))
+}
+
 // EvalSymlinks returns path after evaluating symlinks using the supplied filesystem.
 func EvalSymlinks(fsys FS, path string) (string, error) {
 	if evaluator, ok := fsys.(symlinkEvaluator); ok {
