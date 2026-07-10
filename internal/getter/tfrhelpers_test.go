@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
@@ -12,6 +14,53 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// TestVersionResolverMemoizesWithRacing pins that concurrent and repeated
+// resolutions for the same module and constraint query the registry's
+// list-versions endpoint exactly once.
+func TestVersionResolverMemoizesWithRacing(t *testing.T) {
+	t.Parallel()
+
+	var versionsHits atomic.Int64
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{"modules.v1":"/v1/modules/"}`))
+		assert.NoError(t, err)
+	})
+	mux.HandleFunc("/v1/modules/foo/bar/baz/versions", func(w http.ResponseWriter, _ *http.Request) {
+		versionsHits.Add(1)
+
+		_, err := w.Write([]byte(`{"modules":[{"versions":[{"version":"3.3.0"},{"version":"2.0.0"}]}]}`))
+		assert.NoError(t, err)
+	})
+
+	server := httptest.NewTLSServer(mux)
+	t.Cleanup(server.Close)
+
+	resolver := getter.NewVersionResolver()
+	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
+
+	var wg sync.WaitGroup
+
+	for range 10 {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			pinned, err := resolver.Pin(
+				t.Context(), logger.CreateLogger(), server.Client(), tfimpl.OpenTofu, source, "~> 3.0",
+			)
+			assert.NoError(t, err)
+			assert.Equal(t, source+"?version=3.3.0", pinned)
+		}()
+	}
+
+	wg.Wait()
+
+	assert.Equal(t, int64(1), versionsHits.Load())
+}
 
 func TestPinModuleVersion(t *testing.T) {
 	t.Parallel()
