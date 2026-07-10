@@ -344,6 +344,10 @@ func storeStackConfigs(
 	components component.Components,
 ) {
 	for _, c := range components {
+		if ctx.Err() != nil {
+			return
+		}
+
 		stack, ok := c.(*component.Stack)
 		if !ok {
 			continue
