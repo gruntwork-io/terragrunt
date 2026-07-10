@@ -574,6 +574,10 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 		val = ctyObjectAddField(val, "mutable", goboolToCty(*config.Mutable))
 	}
 
+	if config.Version != nil {
+		val = ctyObjectAddField(val, "version", gostringToCty(*config.Version))
+	}
+
 	return val, nil
 }
 

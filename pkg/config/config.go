@@ -868,6 +868,7 @@ func (conf *ErrorHook) String() string {
 // well.
 type TerraformConfig struct {
 	Source              *string `hcl:"source,attr"`
+	Version             *string `hcl:"version,attr"`
 	UpdateSourceWithCAS *bool   `hcl:"update_source_with_cas,attr"`
 	Mutable             *bool   `hcl:"mutable,attr"`
 
@@ -924,6 +925,32 @@ func (cfg *TerraformConfig) ValidateHooks() error {
 		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
 			return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute'.", curHook.Name))
 		}
+	}
+
+	return nil
+}
+
+// ValidateVersion checks the optional version attribute against the terraform
+// source. A version constraint only has meaning for a tfr:// registry source,
+// and it must not duplicate a constraint already pinned inline via ?version= on
+// that source.
+func (cfg *TerraformConfig) ValidateVersion() error {
+	if cfg == nil || cfg.Version == nil {
+		return nil
+	}
+
+	var source string
+	if cfg.Source != nil {
+		source = *cfg.Source
+	}
+
+	sourceURL, err := url.Parse(source)
+	if err != nil || sourceURL.Scheme != "tfr" {
+		return VersionAttributeNonRegistrySourceError{Source: source}
+	}
+
+	if sourceURL.Query().Has("version") {
+		return VersionAttributeSourceConstraintConflictError{Source: source}
 	}
 
 	return nil
@@ -1720,6 +1747,10 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	}
 
 	if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := terragruntConfigFromFile.Terraform.ValidateVersion(); err != nil {
 		errs = append(errs, err)
 	}
 
