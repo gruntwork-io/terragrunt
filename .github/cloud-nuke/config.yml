@@ -3,6 +3,7 @@ S3:
   include:
     names_regex:
       - "^terragrunt-test-[a-zA-Z0-9]{6}.*"
+      - "^terragrunt-test-bucket-[a-zA-Z0-9]{6}.*"
       - "^terragrunt-terralith-tfstate-[a-zA-Z0-9]{6}.*"
       - "^terragrunt-terralith-project-[a-zA-Z0-9]{6}.*"
       - "^terragrunt-getter-test-[a-zA-Z0-9]{6}.*"
