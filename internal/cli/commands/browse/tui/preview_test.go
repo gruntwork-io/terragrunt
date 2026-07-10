@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
@@ -59,6 +60,28 @@ func TestFilePreviewBinary(t *testing.T) {
 	require.NotNil(t, sel)
 	assert.Equal(t, "blob", sel.Name())
 	assert.Contains(t, sel.Preview(), "binary")
+}
+
+func TestFilePreviewReadsHeadOfLargeFile(t *testing.T) {
+	t.Parallel()
+
+	const head = "first line of a big file\n"
+
+	// Comfortably past previewByteLimit (256 KiB), so the whole file is never read.
+	big := head + strings.Repeat("A", 300<<10)
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/big.txt", []byte(big), 0o644))
+
+	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+
+	m := newModel(t, fs, root, tui.ColorDisabled)
+	m = press(t, m, 'l')
+
+	sel := m.Selected()
+	require.Equal(t, "big.txt", sel.Name())
+	assert.Contains(t, sel.Preview(), head)
+	assert.Less(t, len(sel.Preview()), len(big), "only the head should be read, not the whole file")
 }
 
 func TestMarkdownPreviewIsStyled(t *testing.T) {
