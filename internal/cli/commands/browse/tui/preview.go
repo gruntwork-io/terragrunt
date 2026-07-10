@@ -78,7 +78,9 @@ func (m Model) renderFilePreview(n *Node, width int) string {
 		return dimStyle.Render("(binary file)")
 	}
 
-	source := string(data)
+	// The Markdown and syntax renderers, and the lipgloss display path, panic on
+	// invalid UTF-8, so coerce hostile file bytes before any of them see it.
+	source := strings.ToValidUTF8(string(data), "�")
 	theme := themeFor(m.color, m.hasDarkBG)
 
 	switch strings.ToLower(filepath.Ext(n.name)) {
