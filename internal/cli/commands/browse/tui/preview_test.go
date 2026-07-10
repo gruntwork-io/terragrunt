@@ -1,7 +1,6 @@
 package tui_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
@@ -62,26 +61,37 @@ func TestFilePreviewBinary(t *testing.T) {
 	assert.Contains(t, sel.Preview(), "binary")
 }
 
-func TestFilePreviewReadsHeadOfLargeFile(t *testing.T) {
+func TestFilePreviewTreatsNulPastSniffWindowAsText(t *testing.T) {
 	t.Parallel()
 
-	const head = "first line of a big file\n"
-
-	// Comfortably past previewByteLimit (256 KiB), so the whole file is never read.
-	big := head + strings.Repeat("A", 300<<10)
-
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/big.txt", []byte(big), 0o644))
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/log.txt", []byte("ok\x00"), 0o644))
 
 	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
 
-	m := newModel(t, fs, root, tui.ColorDisabled)
+	m := newModel(t, fs, root, tui.ColorDisabled, tui.WithBinarySniffLen(2))
+	m = press(t, m, 'l')
+
+	sel := m.Selected()
+	require.Equal(t, "log.txt", sel.Name())
+	assert.Contains(t, sel.Preview(), "ok")
+	assert.NotContains(t, sel.Preview(), "binary")
+}
+
+func TestFilePreviewReadsAtMostTheByteLimit(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/big.txt", []byte("HEADtail"), 0o644))
+
+	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+
+	m := newModel(t, fs, root, tui.ColorDisabled, tui.WithPreviewByteLimit(4))
 	m = press(t, m, 'l')
 
 	sel := m.Selected()
 	require.Equal(t, "big.txt", sel.Name())
-	assert.Contains(t, sel.Preview(), head)
-	assert.Less(t, len(sel.Preview()), len(big), "only the head should be read, not the whole file")
+	assert.Equal(t, "HEAD", sel.Preview())
 }
 
 func TestMarkdownPreviewIsStyled(t *testing.T) {

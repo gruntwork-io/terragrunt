@@ -49,6 +49,8 @@ type Model struct {
 	toasts       viewtui.ToastStack
 	keys         keyMap
 	searchInput  textinput.Model
+	previewLimit int64
+	sniffLen     int
 	searchOrigin int
 	width        int
 	height       int
@@ -77,6 +79,7 @@ func NewModel(
 	color ColorMode,
 	resultCh <-chan DiscoveryResult,
 	warnCh <-chan viewtui.Warning,
+	opts ...Option,
 ) Model {
 	if resultCh == nil || warnCh == nil {
 		panic(ErrChannelsRequired)
@@ -92,20 +95,44 @@ func NewModel(
 		l.Debugf("Could not resolve home directory for path abbreviation: %v", err)
 	}
 
-	return Model{
-		root:        root,
-		current:     root,
-		cursor:      map[*Node]int{},
-		colorizer:   dag.NewColorizer(bool(color)),
-		fs:          fs,
-		keys:        newKeyMap(),
-		searchInput: search,
-		resultCh:    resultCh,
-		warnCh:      warnCh,
-		home:        home,
-		color:       color,
-		hasDarkBG:   true,
+	m := Model{
+		root:         root,
+		current:      root,
+		cursor:       map[*Node]int{},
+		colorizer:    dag.NewColorizer(bool(color)),
+		fs:           fs,
+		keys:         newKeyMap(),
+		searchInput:  search,
+		previewLimit: previewByteLimit,
+		sniffLen:     binarySniffLen,
+		resultCh:     resultCh,
+		warnCh:       warnCh,
+		home:         home,
+		color:        color,
+		hasDarkBG:    true,
 	}
+
+	for _, opt := range opts {
+		opt(&m)
+	}
+
+	return m
+}
+
+// Option customizes a Model at construction. Options exist mainly so tests can
+// dial limits down to a size that's practical to exercise.
+type Option func(*Model)
+
+// WithPreviewByteLimit overrides how many leading bytes of a file the detail
+// pane reads and highlights.
+func WithPreviewByteLimit(limit int64) Option {
+	return func(m *Model) { m.previewLimit = limit }
+}
+
+// WithBinarySniffLen overrides how many leading bytes the preview scans for a
+// NUL to decide a file is binary.
+func WithBinarySniffLen(n int) Option {
+	return func(m *Model) { m.sniffLen = n }
 }
 
 // Init implements tea.Model. It asks the terminal for its background color so

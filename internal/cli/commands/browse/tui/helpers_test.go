@@ -22,13 +22,13 @@ const (
 // models are driven through Update directly and never call Init, so the required
 // channels are wired but never read; tests that stream discovery inject a
 // [tui.DiscoveryResult] as a message instead.
-func newModel(t *testing.T, fs vfs.FS, root *tui.Node, color tui.ColorMode) tui.Model {
+func newModel(t *testing.T, fs vfs.FS, root *tui.Node, color tui.ColorMode, opts ...tui.Option) tui.Model {
 	t.Helper()
 
 	resultCh := make(chan tui.DiscoveryResult, 1)
 	warnCh := make(chan viewtui.Warning)
 
-	m := tui.NewModel(logger.CreateLogger(), fs, root, color, resultCh, warnCh)
+	m := tui.NewModel(logger.CreateLogger(), fs, root, color, resultCh, warnCh, opts...)
 
 	return update(t, m, tea.WindowSizeMsg{Width: testWidth, Height: testHeight})
 }

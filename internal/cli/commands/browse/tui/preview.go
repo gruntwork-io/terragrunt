@@ -22,7 +22,8 @@ const (
 	previewByteLimit = 256 << 10
 
 	// binarySniffLen is how many leading bytes are scanned for a NUL byte to
-	// decide a file is binary and skip previewing it.
+	// decide a file is binary and skip previewing it. Judging from the head lets a
+	// large mostly-text file with a stray NUL deep inside still preview.
 	binarySniffLen = 1024
 
 	// chromaDarkStyle is the chroma syntax theme used for the file preview on
@@ -64,21 +65,21 @@ func themeFor(color ColorMode, dark bool) previewTheme {
 
 // renderFilePreview reads and renders a file for the detail pane: Markdown
 // through glamour, everything else through chroma syntax highlighting. width is
-// the pane's interior width, used for Markdown word-wrap. theme mirrors the
-// color setting and terminal background. Only the file's first previewByteLimit
-// bytes are read, since the pane shows just its head. It returns a short dimmed
-// placeholder for files that can't or shouldn't be previewed.
-func renderFilePreview(fs vfs.FS, n *Node, width int, theme previewTheme) string {
-	data, err := vfs.ReadFileLimit(fs, n.absPath, previewByteLimit)
+// the pane's interior width, used for Markdown word-wrap. Only the file's first
+// previewLimit bytes are read, since the pane shows just its head. It returns a
+// short dimmed placeholder for files that can't or shouldn't be previewed.
+func (m Model) renderFilePreview(n *Node, width int) string {
+	data, err := vfs.ReadFileLimit(m.fs, n.absPath, m.previewLimit)
 	if err != nil {
 		return dimStyle.Render("(unreadable)")
 	}
 
-	if isBinary(data) {
+	if isBinary(data, m.sniffLen) {
 		return dimStyle.Render("(binary file)")
 	}
 
 	source := string(data)
+	theme := themeFor(m.color, m.hasDarkBG)
 
 	switch strings.ToLower(filepath.Ext(n.name)) {
 	case ".md", ".markdown":
@@ -88,11 +89,11 @@ func renderFilePreview(fs vfs.FS, n *Node, width int, theme previewTheme) string
 	}
 }
 
-// isBinary reports whether data looks like a binary file, sniffing the leading
-// bytes for a NUL.
-func isBinary(data []byte) bool {
-	if len(data) > binarySniffLen {
-		data = data[:binarySniffLen]
+// isBinary reports whether data looks like a binary file, sniffing up to its
+// first sniffLen bytes for a NUL.
+func isBinary(data []byte, sniffLen int) bool {
+	if len(data) > sniffLen {
+		data = data[:sniffLen]
 	}
 
 	return bytes.IndexByte(data, 0) >= 0
