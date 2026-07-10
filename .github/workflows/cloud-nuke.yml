@@ -47,3 +47,16 @@ jobs:
               --region global \
               --older-than 1h \
               --config .github/cloud-nuke/config.yml
+
+      # cloud-nuke's S3 client only reaches buckets in one region; second pass covers us-west-2
+      - name: Run cloud-nuke (S3 in us-west-2)
+        run: |
+          cloud-nuke aws \
+              --force \
+              --log-level debug \
+              --resource-type s3 \
+              --region global \
+              --older-than 1h \
+              --config .github/cloud-nuke/config.yml
+        env:
+          CLOUD_NUKE_AWS_GLOBAL_REGION: us-west-2
