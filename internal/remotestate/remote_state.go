@@ -68,7 +68,7 @@ func (remote *RemoteState) String() string {
 func (remote *RemoteState) IsVersionControlEnabled(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 ) (bool, error) {
 	l.Debugf("Checking if version control is enabled for the %s backend", remote.BackendName)
@@ -80,7 +80,7 @@ func (remote *RemoteState) IsVersionControlEnabled(
 func (remote *RemoteState) Delete(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 ) error {
 	l.Debugf("Deleting remote state for the %s backend", remote.BackendName)
@@ -92,7 +92,7 @@ func (remote *RemoteState) Delete(
 func (remote *RemoteState) DeleteBucket(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 ) error {
 	l.Debugf("Deleting the entire bucket for the %s backend", remote.BackendName)
@@ -105,7 +105,7 @@ func (remote *RemoteState) DeleteBucket(
 func (remote *RemoteState) Bootstrap(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 ) error {
 	l.Debugf("Bootstrapping remote state for the %s backend", remote.BackendName)
@@ -124,7 +124,7 @@ func (remote *RemoteState) Bootstrap(
 func (remote *RemoteState) Migrate(
 	ctx context.Context,
 	l log.Logger,
-	srcV, dstV venv.Venv,
+	srcV, dstV *venv.Venv,
 	opts, dstOpts *Options,
 	dstRemote *RemoteState,
 ) error {
@@ -141,7 +141,7 @@ func (remote *RemoteState) Migrate(
 		)
 	}
 
-	stateFile, err := remote.pullState(ctx, l, &srcV, opts.TFRunOpts)
+	stateFile, err := remote.pullState(ctx, l, srcV, opts.TFRunOpts)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func (remote *RemoteState) Migrate(
 		}
 	}()
 
-	return dstRemote.pushState(ctx, l, &dstV, dstOpts.TFRunOpts, stateFile)
+	return dstRemote.pushState(ctx, l, dstV, dstOpts.TFRunOpts, stateFile)
 }
 
 // NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:
@@ -164,7 +164,7 @@ func (remote *RemoteState) Migrate(
 func (remote *RemoteState) NeedsBootstrap(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 ) (bool, error) {
 	if opts.DisableBucketUpdate {

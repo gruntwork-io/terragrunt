@@ -304,7 +304,7 @@ func runCommand(
 				WithWriter(writer.NewWrappedWriter(cmdStdout, v.Writers.Writer)).
 				WithErrWriter(writer.NewWrappedWriter(cmdStderr, v.Writers.ErrWriter))
 
-			cmdOutput, err := engine.Run(ctx, l, engineV, &engine.ExecutionOptions{
+			cmdOutput, err := engine.Run(ctx, l, &engineV, &engine.ExecutionOptions{
 				LogShowAbsPaths:        runOpts.LogShowAbsPaths,
 				LogDisableErrorSummary: runOpts.LogDisableErrorSummary,
 				EngineOptions:          runOpts.EngineOptions,

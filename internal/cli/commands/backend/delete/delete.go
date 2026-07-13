@@ -44,7 +44,7 @@ func runDelete(
 		enabled, err := remoteState.IsVersionControlEnabled(
 			ctx,
 			l,
-			*v,
+			v,
 			configbridge.RemoteStateOptsFromOpts(opts),
 		)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
@@ -64,7 +64,7 @@ func runDelete(
 		return fmt.Errorf("flag -%s is not supported yet", BucketFlagName)
 	}
 
-	return remoteState.Delete(ctx, l, *v, configbridge.RemoteStateOptsFromOpts(opts))
+	return remoteState.Delete(ctx, l, v, configbridge.RemoteStateOptsFromOpts(opts))
 }
 
 func runAll(

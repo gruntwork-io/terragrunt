@@ -99,7 +99,7 @@ type engineInstance struct {
 	execOptions  *ExecutionOptions
 	// v carries the env the plugin was started with so Shutdown can address
 	// the same environment long after Run returned.
-	v venv.Venv
+	v *venv.Venv
 }
 
 // engineEntry single-flights one cache dir's engine creation: the builder writes instance and
@@ -202,7 +202,7 @@ func (c *engineClients) takeUnit(unitDir string) *engineEntry {
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	execOptions *ExecutionOptions,
 ) (*util.CmdOutput, error) {
 	engineClients, err := engineClientsFromContext(ctx)
@@ -249,7 +249,7 @@ func Run(
 func createInstance(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	execOptions *ExecutionOptions,
 ) (*engineInstance, error) {
 	if err := downloadEngine(ctx, l, execOptions); err != nil {
@@ -273,7 +273,7 @@ func createInstance(
 		execOptions:  execOptions,
 		// Snapshot the env so a later in-place mutation of the caller's venv
 		// cannot change what Shutdown addresses.
-		v: v.WithEnvCloned(),
+		v: new(v.WithEnvCloned()),
 	}, nil
 }
 
@@ -910,7 +910,7 @@ func createEngine(
 func invoke(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOptions *ExecutionOptions,
 	client *proto.EngineClient,
 ) (*util.CmdOutput, error) {
@@ -1092,7 +1092,7 @@ var ErrEngineInitFailed = errors.New("engine init failed")
 func initialize(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOptions *ExecutionOptions,
 	client *proto.EngineClient,
 ) error {
@@ -1171,7 +1171,7 @@ var ErrEngineShutdownFailed = errors.New("engine shutdown failed")
 func shutdown(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOptions *ExecutionOptions,
 	terragruntEngine *proto.EngineClient,
 ) error {
@@ -1257,7 +1257,7 @@ type outputFn func() (*OutputLine, error)
 
 // ReadEngineOutput reads the output from the engine, since grpc plugins don't have common type,
 // use lambda function to read bytes from the stream
-func ReadEngineOutput(v venv.Venv, forceStdErr bool, output outputFn) error {
+func ReadEngineOutput(v *venv.Venv, forceStdErr bool, output outputFn) error {
 	cmdStdout := v.Writers.Writer
 	cmdStderr := v.Writers.ErrWriter
 
