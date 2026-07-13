@@ -35,7 +35,12 @@ func TestGetTerraformGetHeader(t *testing.T) {
 		Path:   "/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
 	}
 
-	header, err := getter.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), server.Client(), &moduleURL)
+	header, err := getter.GetTerraformGetHeader(
+		t.Context(),
+		logger.CreateLogger(),
+		server.Client(),
+		&moduleURL,
+	)
 	require.NoError(t, err)
 	assert.Contains(t, header, "/download/terraform-aws-vpc.zip")
 }
@@ -179,7 +184,10 @@ func TestGetLatestModuleVersionSkipsPrereleases(t *testing.T) {
 func TestGetLatestModuleVersionAllPrereleases(t *testing.T) {
 	t.Parallel()
 
-	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"1.0.0-alpha"},{"version":"2.0.0-rc1"}]}]}`)
+	server := newVersionsTestServer(
+		t,
+		`{"modules":[{"versions":[{"version":"1.0.0-alpha"},{"version":"2.0.0-rc1"}]}]}`,
+	)
 
 	_, err := getter.GetLatestModuleVersion(
 		t.Context(), logger.CreateLogger(), server.Client(),
@@ -194,7 +202,10 @@ func TestGetLatestModuleVersionAllPrereleases(t *testing.T) {
 func TestGetLatestModuleVersionSkipsUnparsable(t *testing.T) {
 	t.Parallel()
 
-	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"not-a-version"},{"version":"1.0.0"}]}]}`)
+	server := newVersionsTestServer(
+		t,
+		`{"modules":[{"versions":[{"version":"not-a-version"},{"version":"1.0.0"}]}]}`,
+	)
 
 	latest, err := getter.GetLatestModuleVersion(
 		t.Context(), logger.CreateLogger(), server.Client(),
@@ -202,6 +213,104 @@ func TestGetLatestModuleVersionSkipsUnparsable(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "1.0.0", latest)
+}
+
+// matchVersionsBody is a list-versions response spanning several minor and
+// patch lines plus a prerelease, letting the constraint resolver tests exercise
+// pessimistic, range, exact and prerelease-exclusion semantics off one fixture.
+const matchVersionsBody = `{"modules":[{"versions":[` +
+	`{"version":"1.0.0"},{"version":"1.5.0"},{"version":"1.9.0"},` +
+	`{"version":"2.0.0"},{"version":"3.3.0"},{"version":"3.3.5"},` +
+	`{"version":"3.4.0"},{"version":"4.0.0-rc1"}]}]}`
+
+func TestGetMatchingModuleVersion(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		constraint string
+		want       string
+	}{
+		{name: "pessimistic patch", constraint: "~> 3.3.0", want: "3.3.5"},
+		{name: "pessimistic minor", constraint: "~> 3.3", want: "3.4.0"},
+		{name: "range", constraint: ">= 1.0.0, < 2.0.0", want: "1.9.0"},
+		{name: "exact as constraint", constraint: "2.0.0", want: "2.0.0"},
+		{name: "prerelease excluded", constraint: ">= 3.0.0", want: "3.4.0"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := newVersionsTestServer(t, matchVersionsBody)
+
+			got, err := getter.GetMatchingModuleVersion(
+				t.Context(), logger.CreateLogger(), server.Client(),
+				server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", tc.constraint,
+			)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestGetMatchingModuleVersionPrereleaseOptIn pins the opt-in half of the
+// prerelease policy: a constraint naming a prerelease admits prerelease
+// versions sharing its base, so >= 4.0.0-rc1 resolves to 4.0.0-rc1 even though
+// the only other version sorts lower.
+func TestGetMatchingModuleVersionPrereleaseOptIn(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(
+		t,
+		`{"modules":[{"versions":[{"version":"3.4.0"},{"version":"4.0.0-rc1"}]}]}`,
+	)
+
+	got, err := getter.GetMatchingModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(),
+		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", ">= 4.0.0-rc1",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "4.0.0-rc1", got)
+}
+
+// TestGetMatchingModuleVersionNoMatch pins the typed error returned when the
+// registry publishes versions but none satisfy the constraint.
+func TestGetMatchingModuleVersionNoMatch(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(
+		t,
+		`{"modules":[{"versions":[{"version":"1.0.0"},{"version":"2.0.0"}]}]}`,
+	)
+
+	_, err := getter.GetMatchingModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(),
+		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", ">= 9.0.0",
+	)
+	require.Error(t, err)
+
+	var typed getter.NoMatchingVersionErr
+
+	require.ErrorAs(t, err, &typed)
+}
+
+// TestGetMatchingModuleVersionUnparsableConstraint pins the typed error
+// returned when the constraint itself does not parse, before any registry call.
+func TestGetMatchingModuleVersionUnparsableConstraint(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"1.0.0"}]}]}`)
+
+	_, err := getter.GetMatchingModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(),
+		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", "not a constraint",
+	)
+	require.Error(t, err)
+
+	var typed getter.ConstraintParseErr
+
+	require.ErrorAs(t, err, &typed)
 }
 
 // newRegistryTestServer stands up an httptest TLS server that speaks enough of
@@ -224,11 +333,18 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 
 	// Serve the list-versions endpoint so TestRegistryGetterWithoutVersion can
 	// resolve the latest version without a ?version= query parameter.
-	mux.HandleFunc("/v1/modules/terraform-aws-modules/vpc/aws/versions", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, err := w.Write([]byte(`{"modules":[{"versions":[{"version":"3.3.0"},{"version":"2.0.0"},{"version":"1.0.0"}]}]}`))
-		assert.NoError(t, err)
-	})
+	mux.HandleFunc(
+		"/v1/modules/terraform-aws-modules/vpc/aws/versions",
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, err := w.Write(
+				[]byte(
+					`{"modules":[{"versions":[{"version":"3.3.0"},{"version":"2.0.0"},{"version":"1.0.0"}]}]}`,
+				),
+			)
+			assert.NoError(t, err)
+		},
+	)
 
 	mux.HandleFunc(
 		"/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
@@ -261,11 +377,14 @@ func newVersionsTestServer(t *testing.T, body string) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/modules/foo/bar/baz/versions", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, err := w.Write([]byte(body))
-		assert.NoError(t, err)
-	})
+	mux.HandleFunc(
+		"/v1/modules/foo/bar/baz/versions",
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, err := w.Write([]byte(body))
+			assert.NoError(t, err)
+		},
+	)
 
 	server := httptest.NewTLSServer(mux)
 	t.Cleanup(server.Close)
