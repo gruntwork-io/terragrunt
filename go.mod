@@ -89,6 +89,7 @@ require (
 	github.com/hashicorp/go-getter/s3/v2 v2.2.3
 	github.com/invopop/jsonschema v0.14.0
 	github.com/mattn/go-shellwords v1.0.13
+	github.com/opencontainers/image-spec v1.1.1
 	github.com/rogpeppe/go-internal v1.15.0
 	github.com/spf13/afero v1.15.0
 	github.com/testcontainers/testcontainers-go v0.43.0
@@ -249,7 +250,6 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/oklog/run v1.2.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20250313105119-ba97887b0a25 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
