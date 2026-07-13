@@ -484,6 +484,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 			currentDir,
 			boundaryRoot,
 		)
+
 		return nil
 	}
 
