@@ -150,6 +150,16 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}}},
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], ExcludeFromCopy: &[]string{"abc"}}},
 		},
+		{
+			config:         &config.TerragruntConfig{Terraform: &config.TerraformConfig{Version: new("~> 4.0")}},
+			includedConfig: &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"), Version: new("~> 3.3")}},
+			expected:       &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"), Version: new("~> 4.0")}},
+		},
+		{
+			config:         &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws")}},
+			includedConfig: &config.TerragruntConfig{Terraform: &config.TerraformConfig{Version: new("~> 3.3")}},
+			expected:       &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"), Version: new("~> 3.3")}},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -300,6 +310,18 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
 			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}}},
 			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], ExcludeFromCopy: &[]string{"abc"}}},
+		},
+		{
+			name:     "terraform version overridden by source config",
+			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{Version: new("~> 4.0")}},
+			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"), Version: new("~> 3.3")}},
+			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"), Version: new("~> 4.0")}},
+		},
+		{
+			name:     "terraform version kept from target config",
+			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws")}},
+			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{Version: new("~> 3.3")}},
+			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"), Version: new("~> 3.3")}},
 		},
 	}
 
