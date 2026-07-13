@@ -349,3 +349,47 @@ type DeepMergeRequiresExperimentError struct {
 func (err DeepMergeRequiresExperimentError) Error() string {
 	return fmt.Sprintf("deep_merge in %s requires the 'deep-merge' experiment to be enabled", err.ConfigPath)
 }
+
+// VersionAttributeRequiresExperimentError is returned when the terraform block sets the
+// version attribute without the version-attribute experiment enabled.
+type VersionAttributeRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err VersionAttributeRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"the terraform block in %s sets the version attribute, which requires the 'version-attribute' experiment; enable it with --experiment version-attribute",
+		err.ConfigPath,
+	)
+}
+
+// VersionAttributeNonRegistrySourceError is returned when the terraform block sets the
+// version attribute but its source is not a tfr:// registry URL, where a version
+// constraint has no meaning.
+type VersionAttributeNonRegistrySourceError struct {
+	Source     string
+	ConfigPath string
+}
+
+func (err VersionAttributeNonRegistrySourceError) Error() string {
+	return fmt.Sprintf(
+		"the terraform block in %s sets version but its source %q is not a tfr:// registry URL; the version attribute only applies to registry (tfr://) sources",
+		err.ConfigPath,
+		err.Source,
+	)
+}
+
+// VersionAttributeSourceConstraintConflictError is returned when the terraform block sets
+// both the version attribute and an inline ?version= constraint on its tfr:// source.
+type VersionAttributeSourceConstraintConflictError struct {
+	Source     string
+	ConfigPath string
+}
+
+func (err VersionAttributeSourceConstraintConflictError) Error() string {
+	return fmt.Sprintf(
+		"the terraform block in %s sets both the version attribute and an inline ?version= on its source %q; specify the version in only one place",
+		err.ConfigPath,
+		err.Source,
+	)
+}

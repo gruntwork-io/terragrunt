@@ -47,6 +47,11 @@ func translateTerraformConfig(tf *TerraformConfig, l log.Logger) runcfg.Terrafor
 		source = *tf.Source
 	}
 
+	var version string
+	if tf.Version != nil {
+		version = *tf.Version
+	}
+
 	var includeInCopy []string
 	if tf.IncludeInCopy != nil {
 		includeInCopy = *tf.IncludeInCopy
@@ -74,6 +79,7 @@ func translateTerraformConfig(tf *TerraformConfig, l log.Logger) runcfg.Terrafor
 
 	return runcfg.TerraformConfig{
 		Source:                  source,
+		Version:                 version,
 		IncludeInCopy:           includeInCopy,
 		ExcludeFromCopy:         excludeFromCopy,
 		NoCopyTerraformLockFile: noCopyTerraformLockFile,
