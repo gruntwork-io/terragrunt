@@ -29,8 +29,9 @@ const (
 // directories, so single-file downloads are not supported.
 var ErrOCIGetFileUnsupported = errors.New("GetFile is not supported for the OCI Getter")
 
-// ErrOCIStoreNotConfigured reports an OCIGetter used without a NewStore seam.
-var ErrOCIStoreNotConfigured = errors.New("oci getter has no repository store configured")
+// ErrOCIGetterNotConfigured reports an OCIGetter used without its NewStore
+// seam, logger, or filesystem.
+var ErrOCIGetterNotConfigured = errors.New("oci getter requires a repository store, a logger, and a filesystem")
 
 // ErrOCIMissingRegistryDomain reports an oci source without a registry host.
 var ErrOCIMissingRegistryDomain = errors.New("oci source is missing a registry domain")
@@ -154,8 +155,8 @@ func (g *OCIGetter) Detect(req *getter.Request) (bool, error) {
 // type, streams the single [MediaTypeModuleZip] layer with digest
 // verification, and extracts it, honoring a //SUBDIR selector.
 func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
-	if g.NewStore == nil {
-		return ErrOCIStoreNotConfigured
+	if g.NewStore == nil || g.Logger == nil || g.FS == nil {
+		return ErrOCIGetterNotConfigured
 	}
 
 	srcURL := req.URL()
