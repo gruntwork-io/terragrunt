@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
 // httpResolverTimeout caps the HEAD request so a slow remote can't stall
@@ -18,21 +19,26 @@ const httpResolverTimeout = 10 * time.Second
 
 // HTTPResolver is a [cas.SourceResolver] for HTTP and HTTPS URLs.
 type HTTPResolver struct {
-	// Client overrides the http.Client used for the HEAD probe.
-	// Nil means a copy of http.DefaultClient with httpResolverTimeout.
-	Client *http.Client
+	// Client performs the HEAD probe. The constructors set it to a
+	// [vhttp.NewOSClientWithTimeout] capped at httpResolverTimeout;
+	// tests may swap in a [vhttp.NewMemClient].
+	Client vhttp.Client
 	// scheme is what Scheme() reports; set by [NewHTTPResolver] and
 	// [NewHTTPSResolver].
 	scheme string
 }
 
 // NewHTTPResolver returns a resolver for the http scheme.
-func NewHTTPResolver() *HTTPResolver { return &HTTPResolver{scheme: "http"} }
+func NewHTTPResolver() *HTTPResolver {
+	return &HTTPResolver{scheme: "http", Client: vhttp.NewOSClientWithTimeout(httpResolverTimeout)}
+}
 
 // NewHTTPSResolver returns a resolver for the https scheme. The same
 // type handles both; separate constructors keep the [SourceResolver]
 // Scheme() contract honest for each instance.
-func NewHTTPSResolver() *HTTPResolver { return &HTTPResolver{scheme: "https"} }
+func NewHTTPSResolver() *HTTPResolver {
+	return &HTTPResolver{scheme: "https", Client: vhttp.NewOSClientWithTimeout(httpResolverTimeout)}
+}
 
 // Scheme returns the URL scheme this resolver handles ("http" or
 // "https").
@@ -52,13 +58,6 @@ func (r *HTTPResolver) Scheme() string {
 // from server-assigned tokens. Network errors and non-2xx responses
 // surface as [cas.ErrNoVersionMetadata].
 func (r *HTTPResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	client := r.Client
-	if client == nil {
-		c := *http.DefaultClient
-		c.Timeout = httpResolverTimeout
-		client = &c
-	}
-
 	// The outer client strips these before invoking the HTTP getter,
 	// so probing with them attached would split cache entries that
 	// resolve to the same fetched bytes.
@@ -69,7 +68,7 @@ func (r *HTTPResolver) Probe(ctx context.Context, rawURL string) (string, error)
 		return "", fmt.Errorf("build HEAD request for %s: %w", rawURL, err)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := r.Client.Do(req)
 	if err != nil {
 		return "", cas.ErrNoVersionMetadata
 	}
