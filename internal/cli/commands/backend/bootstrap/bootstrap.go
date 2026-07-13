@@ -39,7 +39,7 @@ func runBootstrap(ctx context.Context, l log.Logger, v *venv.Venv, opts *options
 			return err
 		}
 
-		return remoteState.Bootstrap(ctx, l, *v, configbridge.RemoteStateOptsFromOpts(opts))
+		return remoteState.Bootstrap(ctx, l, v, configbridge.RemoteStateOptsFromOpts(opts))
 	})
 }
 

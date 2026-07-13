@@ -34,7 +34,7 @@ type Client struct {
 // NewClient inits GCS client.
 func NewClient(
 	ctx context.Context,
-	v venv.Venv,
+	v *venv.Venv,
 	config *ExtendedRemoteStateConfigGCS,
 	opts *backend.Options,
 ) (*Client, error) {
@@ -56,7 +56,7 @@ func NewClient(
 
 // CreateGCSBucketIfNecessary prompts the user to create the given bucket if it doesn't already exist and if the user
 // confirms, creates the bucket and enables versioning for it.
-func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, l log.Logger, v venv.Venv, bucketName string, opts *backend.Options) error {
+func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, l log.Logger, v *venv.Venv, bucketName string, opts *backend.Options) error {
 	if client.DoesGCSBucketExist(ctx, bucketName) {
 		return nil
 	}

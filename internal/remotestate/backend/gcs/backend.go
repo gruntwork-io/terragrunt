@@ -37,7 +37,7 @@ func NewBackend() *Backend {
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured GCS bucket does not exist
-func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
+func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
 	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return false, err
@@ -68,7 +68,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v venv
 
 // Bootstrap the remote state GCS bucket specified in the given config. This function will validate the config
 // parameters, create the GCS bucket if it doesn't already exist, and check that versioning is enabled.
-func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
 	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return err
@@ -121,7 +121,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, v venv.Venv
 }
 
 // IsVersionControlEnabled returns true if version control for gcs bucket is enabled.
-func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
+func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
 	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return false, err
@@ -137,7 +137,7 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 	return client.CheckIfGCSVersioningEnabled(ctx, l, bucketName)
 }
 
-func (backend *Backend) Migrate(ctx context.Context, l log.Logger, v venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
+func (backend *Backend) Migrate(ctx context.Context, l log.Logger, v *venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
 	srcExtGCSCfg, err := Config(srcBackendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, v venv.Venv, 
 }
 
 // Delete deletes the remote state specified in the given config.
-func (backend *Backend) Delete(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+func (backend *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
 	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return err
@@ -192,7 +192,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, v venv.Venv, b
 }
 
 // DeleteBucket deletes the entire bucket specified in the given config.
-func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, v venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
 	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return err

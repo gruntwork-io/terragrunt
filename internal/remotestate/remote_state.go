@@ -68,7 +68,7 @@ func (remote *RemoteState) String() string {
 func (remote *RemoteState) IsVersionControlEnabled(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 ) (bool, error) {
 	l.Debugf("Checking if version control is enabled for the %s backend", remote.BackendName)
@@ -77,14 +77,14 @@ func (remote *RemoteState) IsVersionControlEnabled(
 }
 
 // Delete deletes the remote state.
-func (remote *RemoteState) Delete(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
+func (remote *RemoteState) Delete(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	l.Debugf("Deleting remote state for the %s backend", remote.BackendName)
 
 	return remote.backend.Delete(ctx, l, v, remote.BackendConfig, &opts.Options)
 }
 
 // DeleteBucket deletes the entire bucket.
-func (remote *RemoteState) DeleteBucket(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
+func (remote *RemoteState) DeleteBucket(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	l.Debugf("Deleting the entire bucket for the %s backend", remote.BackendName)
 
 	return remote.backend.DeleteBucket(ctx, l, v, remote.BackendConfig, &opts.Options)
@@ -92,7 +92,7 @@ func (remote *RemoteState) DeleteBucket(ctx context.Context, l log.Logger, v ven
 
 // Bootstrap performs any actions necessary to bootstrap remote state before it's used for storage. For example, if you're
 // using S3 or GCS for remote state storage, this may create the bucket if it doesn't exist already.
-func (remote *RemoteState) Bootstrap(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
+func (remote *RemoteState) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	l.Debugf("Bootstrapping remote state for the %s backend", remote.BackendName)
 
 	return remote.backend.Bootstrap(ctx, l, v, remote.BackendConfig, &opts.Options)
@@ -109,7 +109,7 @@ func (remote *RemoteState) Bootstrap(ctx context.Context, l log.Logger, v venv.V
 func (remote *RemoteState) Migrate(
 	ctx context.Context,
 	l log.Logger,
-	srcV, dstV venv.Venv,
+	srcV, dstV *venv.Venv,
 	opts, dstOpts *Options,
 	dstRemote *RemoteState,
 ) error {
@@ -119,7 +119,7 @@ func (remote *RemoteState) Migrate(
 		return remote.backend.Migrate(ctx, l, srcV, remote.BackendConfig, dstRemote.BackendConfig, &opts.Options)
 	}
 
-	stateFile, err := remote.pullState(ctx, l, &srcV, opts.TFRunOpts)
+	stateFile, err := remote.pullState(ctx, l, srcV, opts.TFRunOpts)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func (remote *RemoteState) Migrate(
 		}
 	}()
 
-	return dstRemote.pushState(ctx, l, &dstV, dstOpts.TFRunOpts, stateFile)
+	return dstRemote.pushState(ctx, l, dstV, dstOpts.TFRunOpts, stateFile)
 }
 
 // NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:
@@ -139,7 +139,7 @@ func (remote *RemoteState) Migrate(
 // 2. Remote state has not already been configured.
 // 3. Remote state has been configured, but with a different configuration.
 // 4. The remote state bootstrapper for this backend type, if there is one, says bootstrap is necessary.
-func (remote *RemoteState) NeedsBootstrap(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) (bool, error) {
+func (remote *RemoteState) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) (bool, error) {
 	if opts.DisableBucketUpdate {
 		l.Debug("Skipping remote state bootstrap")
 		return false, nil

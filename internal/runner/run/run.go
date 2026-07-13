@@ -556,7 +556,7 @@ func remoteStateNeedsInit(
 		return false, nil
 	}
 
-	if ok, err := remoteState.NeedsBootstrap(ctx, l, *v, opts.remoteStateOpts()); err != nil || !ok {
+	if ok, err := remoteState.NeedsBootstrap(ctx, l, v, opts.remoteStateOpts()); err != nil || !ok {
 		return false, err
 	}
 
@@ -659,7 +659,7 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, v *venv.Venv, o
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, *v, opts.remoteStateOpts()); err != nil {
+	if err := cfg.RemoteState.Bootstrap(ctx, l, v, opts.remoteStateOpts()); err != nil {
 		return err
 	}
 

@@ -75,11 +75,11 @@ func Run(
 	// contributions during parsing (auth-provider-cmd credentials, TF_VAR_*)
 	// stay on their own side instead of clobbering one another, and so the
 	// pull and push below run under the correct environment.
-	srcV := v.WithEnvCloned()
-	dstV := v.WithEnvCloned()
+	srcV := new(v.WithEnvCloned())
+	dstV := new(v.WithEnvCloned())
 
 	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
-	srcPctx = srcPctx.WithVenv(&srcV)
+	srcPctx = srcPctx.WithVenv(srcV)
 
 	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
 	if err != nil {
@@ -96,7 +96,7 @@ func Run(
 	srcOpts.WorkingDir = srcPctx.WorkingDir
 
 	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstOpts)
-	dstPctx = dstPctx.WithVenv(&dstV)
+	dstPctx = dstPctx.WithVenv(dstV)
 
 	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
 	if err != nil {
