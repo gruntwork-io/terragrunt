@@ -213,24 +213,30 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 		return fmt.Errorf("downloading registry module archive from %s: %w", sourceURL, err)
 	}
 
-	sourcePath, err := SubdirGlob(tempdirPath, subDir)
+	return copySubdirContents(l, r.FS, tempdirPath, subDir, dstPath, sourceURL)
+}
+
+// copySubdirContents resolves subDir under srcRoot and copies its contents
+// into dstPath, replacing whatever was there. source only labels errors.
+func copySubdirContents(l log.Logger, fs vfs.FS, srcRoot, subDir, dstPath, source string) error {
+	sourcePath, err := SubdirGlob(srcRoot, subDir)
 	if err != nil {
-		return fmt.Errorf("resolving registry module subdir %q: %w", subDir, err)
+		return fmt.Errorf("resolving module subdir %q: %w", subDir, err)
 	}
 
-	if _, err := r.FS.Stat(sourcePath); err != nil {
+	if _, err := fs.Stat(sourcePath); err != nil {
 		return ModuleDownloadErr{
-			sourceURL: sourceURL,
+			sourceURL: source,
 			details:   fmt.Sprintf("could not stat download path %s: %s", sourcePath, err),
 		}
 	}
 
-	if err := r.FS.RemoveAll(dstPath); err != nil {
+	if err := fs.RemoveAll(dstPath); err != nil {
 		return fmt.Errorf("clearing destination path %s: %w", dstPath, err)
 	}
 
 	const ownerWriteGlobalReadExecutePerms = 0755
-	if err := r.FS.MkdirAll(dstPath, ownerWriteGlobalReadExecutePerms); err != nil {
+	if err := fs.MkdirAll(dstPath, ownerWriteGlobalReadExecutePerms); err != nil {
 		return fmt.Errorf("creating destination path %s: %w", dstPath, err)
 	}
 
@@ -238,7 +244,7 @@ func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, s
 	manifestPath := filepath.Join(dstPath, manifestFname)
 
 	defer func(name string) {
-		if err := r.FS.Remove(name); err != nil {
+		if err := fs.Remove(name); err != nil {
 			l.Warnf("Error removing temporary directory %s: %v", name, err)
 		}
 	}(manifestPath)
