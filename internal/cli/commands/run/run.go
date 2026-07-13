@@ -277,13 +277,13 @@ func confirmActionWithDependentUnits(
 ) bool {
 	units := findDependentUnits(ctx, l, v, opts, cfg)
 	if len(units) != 0 {
-		if _, err := opts.Writers.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
+		if _, err := v.Writers.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
 			l.Error(err)
 			return false
 		}
 
 		for _, unit := range units {
-			if _, err := opts.Writers.ErrWriter.Write([]byte(unit + "\n")); err != nil {
+			if _, err := v.Writers.ErrWriter.Write([]byte(unit + "\n")); err != nil {
 				l.Error(err)
 				return false
 			}
@@ -291,7 +291,7 @@ func confirmActionWithDependentUnits(
 
 		prompt := "WARNING: Are you sure you want to continue?"
 
-		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
+		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, v.Writers.ErrWriter)
 		if err != nil {
 			l.Error(err)
 			return false

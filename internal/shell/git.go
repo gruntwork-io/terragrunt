@@ -69,11 +69,12 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v venv.Venv, path string)
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitRunOpts := NewShellOptions().
-		WithWorkingDir(path).
-		WithWriters(writer.Writers{Writer: &stdout, ErrWriter: &stderr})
+	gitV := v
+	gitV.Writers = writer.Writers{Writer: &stdout, ErrWriter: &stderr}
 
-	cmd, err := RunCommandWithOutput(ctx, l, v, gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
+	gitRunOpts := NewShellOptions().WithWorkingDir(path)
+
+	cmd, err := RunCommandWithOutput(ctx, l, gitV, gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
@@ -180,11 +181,12 @@ func GitRepoTags(ctx context.Context, l log.Logger, v venv.Venv, workingDir stri
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitRunOpts := NewShellOptions().
-		WithWorkingDir(workingDir).
-		WithWriters(writer.Writers{Writer: &stdout, ErrWriter: &stderr})
+	gitV := v
+	gitV.Writers = writer.Writers{Writer: &stdout, ErrWriter: &stderr}
 
-	output, err := RunCommandWithOutput(ctx, l, v, gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	gitRunOpts := NewShellOptions().WithWorkingDir(workingDir)
+
+	output, err := RunCommandWithOutput(ctx, l, gitV, gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {
 		return nil, err
 	}

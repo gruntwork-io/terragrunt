@@ -27,7 +27,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
@@ -56,7 +55,6 @@ type Options struct {
 	Telemetry                    *telemetry.Options
 	FS                           vfs.FS
 	SourceMap                    map[string]string
-	Writers                      writer.Writers
 	TFPath                       string
 	TerraformCommand             string
 	TofuImplementation           tfimpl.Type
@@ -200,7 +198,6 @@ func (o *Options) shellRunOptions() *shell.ShellOptions {
 	s := shell.NewShellOptions().
 		WithWorkingDir(o.CacheDir).
 		WithUnitDir(o.UnitDir).
-		WithWriters(o.Writers).
 		WithTelemetry(o.Telemetry).
 		WithEngine(o.EngineConfig, o.EngineOptions).
 		WithTFPath(o.TFPath).
@@ -230,7 +227,6 @@ func (o *Options) tfRunOptions() *tf.TFOptions {
 func (o *Options) remoteStateOpts() *remotestate.Options {
 	return &remotestate.Options{
 		Options: backend.Options{
-			Writers:                      o.Writers,
 			IAMRoleOptions:               o.IAMRoleOptions,
 			NonInteractive:               o.NonInteractive,
 			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
@@ -244,7 +240,6 @@ func (o *Options) remoteStateOpts() *remotestate.Options {
 func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
 	return &tflint.TFLintOptions{
 		ShellOptions:         o.shellRunOptions(),
-		Writers:              o.Writers,
 		LogShowAbsPaths:      o.LogShowAbsPaths,
 		WorkingDir:           o.CacheDir,
 		RootWorkingDir:       o.RootWorkingDir,

@@ -41,7 +41,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	defer tempDirs.Cleanup(l)
 
 	return tui.Run(
-		ctx, l, v, opts, opts.Writers.ErrWriter,
+		ctx, l, v, opts, v.Writers.ErrWriter,
 		func(
 			ctx context.Context, status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 		) error {
