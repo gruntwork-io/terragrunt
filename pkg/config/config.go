@@ -930,10 +930,12 @@ func (cfg *TerraformConfig) ValidateHooks() error {
 	return nil
 }
 
-// ValidateVersion checks the optional version attribute. The attribute is
-// gated behind the version-attribute experiment, and once enabled a version
-// constraint only has meaning for a tfr:// registry source and must not
-// duplicate a constraint already pinned inline via ?version= on that source.
+// ValidateVersion checks the optional version attribute. The attribute is gated behind
+// the version-attribute experiment, and once enabled a version constraint only has
+// meaning for a tfr:// registry source and must not duplicate a constraint already
+// pinned inline via ?version= on that source. version and the source it constrains can
+// come from different files via include, so this must run on the merged config rather
+// than per file.
 func (cfg *TerraformConfig) ValidateVersion(experiments experiment.Experiments, configPath string) error {
 	if cfg == nil || cfg.Version == nil {
 		return nil
@@ -950,11 +952,11 @@ func (cfg *TerraformConfig) ValidateVersion(experiments experiment.Experiments, 
 
 	sourceURL, err := url.Parse(source)
 	if err != nil || sourceURL.Scheme != "tfr" {
-		return VersionAttributeNonRegistrySourceError{Source: source}
+		return VersionAttributeNonRegistrySourceError{Source: source, ConfigPath: configPath}
 	}
 
 	if sourceURL.Query().Has("version") {
-		return VersionAttributeSourceConstraintConflictError{Source: source}
+		return VersionAttributeSourceConstraintConflictError{Source: source, ConfigPath: configPath}
 	}
 
 	return nil
@@ -1479,7 +1481,15 @@ func ParseConfig(
 			mergedConfig.Exclude = config.Exclude
 		}
 
-		return mergedConfig, errors.Join(errs...)
+		config = mergedConfig
+	}
+
+	// A non-nil includeFromChild means this parse is itself an included parent, not a
+	// final config; the including child validates the merged result.
+	if includeFromChild == nil && config != nil {
+		if err := config.Terraform.ValidateVersion(pctx.Experiments, file.ConfigPath); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	return config, errors.Join(errs...)
@@ -1751,10 +1761,6 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	}
 
 	if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {
-		errs = append(errs, err)
-	}
-
-	if err := terragruntConfigFromFile.Terraform.ValidateVersion(pctx.Experiments, pctx.TerragruntConfigPath); err != nil {
 		errs = append(errs, err)
 	}
 

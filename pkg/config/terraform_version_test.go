@@ -1,6 +1,8 @@
 package config_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -36,6 +38,120 @@ terraform {
 	runConfig := terragruntConfig.ToRunConfig(l)
 	require.NotNil(t, runConfig)
 	assert.Equal(t, "~> 3.3", runConfig.Terraform.Version)
+}
+
+// TestParseTerraformVersionAttributeWithInclude pins how the version attribute behaves
+// across include merges: it follows the same child-overrides-parent rule as source, and
+// it is validated against the merged config, so version and source may come from
+// different files.
+func TestParseTerraformVersionAttributeWithInclude(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		expectedErr     any
+		name            string
+		rootCfg         string
+		childCfg        string
+		expectedVersion string
+	}{
+		{
+			name: "parent version survives child terraform block",
+			rootCfg: `
+terraform {
+	source  = "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"
+	version = "~> 3.3"
+}
+`,
+			childCfg: `
+terraform {
+	copy_terraform_lock_file = false
+}
+`,
+			expectedVersion: "~> 3.3",
+		},
+		{
+			name: "child version overrides parent",
+			rootCfg: `
+terraform {
+	source  = "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"
+	version = "~> 3.3"
+}
+`,
+			childCfg: `
+terraform {
+	version = "~> 4.0"
+}
+`,
+			expectedVersion: "~> 4.0",
+		},
+		{
+			name: "version and source split across parent and child",
+			rootCfg: `
+terraform {
+	version = "~> 3.3"
+}
+`,
+			childCfg: `
+terraform {
+	source = "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"
+}
+`,
+			expectedVersion: "~> 3.3",
+		},
+		{
+			name: "child source override invalidates parent version",
+			rootCfg: `
+terraform {
+	source  = "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"
+	version = "~> 3.3"
+}
+`,
+			childCfg: `
+terraform {
+	source = "github.com/terraform-aws-modules/terraform-aws-vpc"
+}
+`,
+			expectedErr: &config.VersionAttributeNonRegistrySourceError{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			rootPath := filepath.Join(tmpDir, "root.hcl")
+			childDir := filepath.Join(tmpDir, "child")
+			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
+
+			include := `
+include "root" {
+	path = "` + filepath.ToSlash(rootPath) + `"
+}
+`
+
+			require.NoError(t, os.WriteFile(rootPath, []byte(tc.rootCfg), 0644))
+			require.NoError(t, os.MkdirAll(childDir, 0755))
+			require.NoError(t, os.WriteFile(childPath, []byte(include+tc.childCfg), 0644))
+
+			l := logger.CreateLogger()
+
+			ctx, pctx := newTestParsingContext(t, childPath)
+			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
+
+			terragruntConfig, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+
+			if tc.expectedErr != nil {
+				require.ErrorAs(t, err, tc.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, terragruntConfig.Terraform)
+			require.NotNil(t, terragruntConfig.Terraform.Version)
+			assert.Equal(t, tc.expectedVersion, *terragruntConfig.Terraform.Version)
+		})
+	}
 }
 
 // TestTerraformConfigValidateVersionRequiresExperiment pins that the version
