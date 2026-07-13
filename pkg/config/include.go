@@ -331,6 +331,10 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 				cfg.Terraform.Source = sourceConfig.Terraform.Source
 			}
 
+			if sourceConfig.Terraform.Version != nil {
+				cfg.Terraform.Version = sourceConfig.Terraform.Version
+			}
+
 			if sourceConfig.Terraform.CopyTerraformLockFile != nil {
 				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
 			}
@@ -513,6 +517,10 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		} else {
 			if sourceConfig.Terraform.Source != nil {
 				cfg.Terraform.Source = sourceConfig.Terraform.Source
+			}
+
+			if sourceConfig.Terraform.Version != nil {
+				cfg.Terraform.Version = sourceConfig.Terraform.Version
 			}
 
 			if sourceConfig.Terraform.CopyTerraformLockFile != nil {
