@@ -23,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-cleanhttp"
 )
 
 // ErrNonOSFilesystem is returned by DownloadTerraformSource when Options.FS
@@ -168,17 +167,6 @@ func DownloadTerraformSource(
 	return updatedOpts, nil
 }
 
-var (
-	// moduleVersionResolver memoizes tfr:// constraint resolution for the
-	// process so that units sharing a source and constraint query the registry
-	// once instead of once each.
-	moduleVersionResolver = getter.NewVersionResolver()
-
-	// moduleVersionClient is shared across resolutions so they reuse a single
-	// connection pool.
-	moduleVersionClient = cleanhttp.DefaultClient()
-)
-
 // resolveTerraformModuleVersion rewrites a config-provided tfr:// source to pin
 // the exact version that satisfies the terraform block's `version` constraint.
 // A --source / TG_SOURCE override is a bare URL that must carry an exact pin
@@ -218,10 +206,9 @@ func resolveTerraformModuleVersion(
 		return source, nil
 	}
 
-	pinned, err := moduleVersionResolver.Pin(
+	pinned, err := ModuleVersionResolverFromContext(ctx).Pin(
 		ctx,
 		l,
-		moduleVersionClient,
 		opts.TofuImplementation,
 		source,
 		constraint,
