@@ -5,13 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const testHashValue = "abcdef123456"
@@ -24,7 +25,7 @@ func TestContent_Store(t *testing.T) {
 	t.Run("store new content", func(t *testing.T) {
 		t.Parallel()
 
-		v := newMemVenv(t)
+		v := venvtest.New()
 		require.NoError(t, v.FS.MkdirAll("/store", 0755))
 
 		store := cas.NewStore("/store")
@@ -47,7 +48,7 @@ func TestContent_Store(t *testing.T) {
 	t.Run("ensure existing content", func(t *testing.T) {
 		t.Parallel()
 
-		v := newMemVenv(t)
+		v := venvtest.New()
 		require.NoError(t, v.FS.MkdirAll("/store", 0755))
 
 		store := cas.NewStore("/store")
@@ -74,7 +75,7 @@ func TestContent_Store(t *testing.T) {
 	t.Run("overwrite existing content", func(t *testing.T) {
 		t.Parallel()
 
-		v := newMemVenv(t)
+		v := venvtest.New()
 		require.NoError(t, v.FS.MkdirAll("/store", 0755))
 
 		store := cas.NewStore("/store")
@@ -107,7 +108,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("create new link", func(t *testing.T) {
 		t.Parallel()
 
-		v := newMemVenv(t)
+		v := venvtest.New()
 		require.NoError(t, v.FS.MkdirAll("/store", 0755))
 		require.NoError(t, v.FS.MkdirAll("/target", 0755))
 
@@ -136,8 +137,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("create hard link on real filesystem", func(t *testing.T) {
 		t.Parallel()
 
-		v, err := cas.OSVenv()
-		require.NoError(t, err)
+		v := venv.OSVenv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()
@@ -147,7 +147,7 @@ func TestContent_Link(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		err = content.Store(l, v, testHash, testData)
+		err := content.Store(l, v, testHash, testData)
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "test.txt")
@@ -166,8 +166,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("force copy creates independent inode on real filesystem", func(t *testing.T) {
 		t.Parallel()
 
-		v, err := cas.OSVenv()
-		require.NoError(t, err)
+		v := venv.OSVenv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()
@@ -177,7 +176,7 @@ func TestContent_Link(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		err = content.Store(l, v, testHash, testData)
+		err := content.Store(l, v, testHash, testData)
 		require.NoError(t, err)
 
 		targetPath := filepath.Join(targetDir, "test.txt")
@@ -213,8 +212,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("default path strips write bit from non-executable", func(t *testing.T) {
 		t.Parallel()
 
-		v, err := cas.OSVenv()
-		require.NoError(t, err)
+		v := venv.OSVenv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()
@@ -240,8 +238,7 @@ func TestContent_Link(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			v, err := cas.OSVenv()
-			require.NoError(t, err)
+			v := venv.OSVenv()
 
 			storeDir := t.TempDir()
 			targetDir := t.TempDir()
@@ -277,8 +274,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("default path falls back to copy on perm collision", func(t *testing.T) {
 		t.Parallel()
 
-		v, err := cas.OSVenv()
-		require.NoError(t, err)
+		v := venv.OSVenv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()
@@ -311,8 +307,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("force copy preserves executable bits", func(t *testing.T) {
 		t.Parallel()
 
-		v, err := cas.OSVenv()
-		require.NoError(t, err)
+		v := venv.OSVenv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()
@@ -339,7 +334,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("link to existing file overwrites stale content", func(t *testing.T) {
 		t.Parallel()
 
-		v := newMemVenv(t)
+		v := venvtest.New()
 		require.NoError(t, v.FS.MkdirAll("/store", 0755))
 		require.NoError(t, v.FS.MkdirAll("/target", 0755))
 
@@ -372,8 +367,7 @@ func TestContent_Link(t *testing.T) {
 	t.Run("copy path recovers from a stale read-only temp file", func(t *testing.T) {
 		t.Parallel()
 
-		v, err := cas.OSVenv()
-		require.NoError(t, err)
+		v := venv.OSVenv()
 
 		storeDir := t.TempDir()
 		targetDir := t.TempDir()
@@ -410,7 +404,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("content already exists", func(t *testing.T) {
 		t.Parallel()
 
-		v := newMemVenv(t)
+		v := venvtest.New()
 		require.NoError(t, v.FS.MkdirAll("/store", 0755))
 
 		store := cas.NewStore("/store")
@@ -438,7 +432,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("content doesn't exist", func(t *testing.T) {
 		t.Parallel()
 
-		v := newMemVenv(t)
+		v := venvtest.New()
 		require.NoError(t, v.FS.MkdirAll("/store", 0755))
 
 		store := cas.NewStore("/store")
@@ -462,7 +456,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("concurrent writes - optimization", func(t *testing.T) {
 		t.Parallel()
 
-		v := newMemVenv(t)
+		v := venvtest.New()
 		require.NoError(t, v.FS.MkdirAll("/store", 0755))
 
 		store := cas.NewStore("/store")
@@ -507,13 +501,4 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []byte("process 1 data"), storedData)
 	})
-}
-
-func newMemVenv(t *testing.T) cas.Venv {
-	t.Helper()
-
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
-
-	return cas.Venv{FS: vfs.NewMemMapFS(), Git: runner}
 }

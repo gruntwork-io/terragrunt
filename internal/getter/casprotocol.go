@@ -6,9 +6,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // CASProtocolGetter resolves cas::<algorithm>:<hash> references by
@@ -16,17 +18,17 @@ import (
 type CASProtocolGetter struct {
 	CAS     *cas.CAS
 	Logger  log.Logger
-	Venv    cas.Venv
+	Venv    venv.Venv
 	Mutable bool
 }
 
 // NewCASProtocolGetter creates a new CASProtocolGetter.
 //
 // Requires v.FS: Get dispatches to [cas.CAS.MaterializeTree], which
-// reads and links through v.FS. v.Git is not consulted because
+// reads and links through v.FS. v.Exec is not consulted because
 // materialization is a pure FS operation. Panics with
-// [cas.ErrVenvFSUnset] when v.FS is nil.
-func NewCASProtocolGetter(l log.Logger, c *cas.CAS, v cas.Venv) *CASProtocolGetter {
+// [venv.ErrVenvFSUnset] when v.FS is nil.
+func NewCASProtocolGetter(l log.Logger, c *cas.CAS, v venv.Venv) *CASProtocolGetter {
 	v.RequireFS()
 
 	return &CASProtocolGetter{

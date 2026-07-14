@@ -5,14 +5,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func TestCASGetterDetect_GitForcedPrefix(t *testing.T) {
@@ -348,8 +350,7 @@ func TestCASGetterDetect_SchemeNotInRegistryFallsThrough(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	// No generic dispatch wired: only the git+file paths are active.
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
@@ -375,25 +376,25 @@ func TestNewCASGetter_PanicsOnNilVenvFS(t *testing.T) {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	require.PanicsWithValue(t, tgcas.ErrVenvFSUnset, func() {
-		getter.NewCASGetter(logger.CreateLogger(), c, tgcas.Venv{}, &tgcas.CloneOptions{})
+	require.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
+		getter.NewCASGetter(logger.CreateLogger(), c, venv.Venv{}, &tgcas.CloneOptions{})
 	})
 }
 
-// TestNewCASGetter_PanicsOnNilVenvGit pins the constructor-time
-// rejection of a Venv with FS set but Git missing. CASGetter routes
-// through git for any git source, so a missing runner would otherwise
-// nil-deref deep inside the clone path.
-func TestNewCASGetter_PanicsOnNilVenvGit(t *testing.T) {
+// TestNewCASGetter_PanicsOnNilVenvExec pins the constructor-time
+// rejection of a Venv with FS set but Exec missing. CASGetter derives
+// a git runner from Exec for any git source, so a missing executor
+// would otherwise nil-deref deep inside the clone path.
+func TestNewCASGetter_PanicsOnNilVenvExec(t *testing.T) {
 	t.Parallel()
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := tgcas.Venv{FS: vfs.NewOSFS()}
+	v := venv.Venv{FS: vfs.NewOSFS()}
 
-	require.PanicsWithValue(t, tgcas.ErrVenvGitUnset, func() {
+	require.PanicsWithValue(t, venv.ErrVenvExecUnset, func() {
 		getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
 	})
 }
@@ -412,11 +413,11 @@ func TestCASGetterDetect_PanicsOnNilVenvFS(t *testing.T) {
 		CAS:       c,
 		Logger:    logger.CreateLogger(),
 		Opts:      &tgcas.CloneOptions{},
-		Venv:      tgcas.Venv{},
+		Venv:      venv.Venv{},
 		Detectors: []getter.Detector{new(getter.FileDetector)},
 	}
 
-	require.PanicsWithValue(t, tgcas.ErrVenvFSUnset, func() {
+	require.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
 		_, _ = g.Detect(&gogetter.Request{Src: "./some/local/path", Pwd: t.TempDir()})
 	})
 }
@@ -472,8 +473,7 @@ func newCASGetterForDetect(t *testing.T) *getter.CASGetter {
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v, err := tgcas.OSVenv()
-	require.NoError(t, err)
+	v := venv.OSVenv()
 
 	return getter.NewCASGetter(
 		logger.CreateLogger(),

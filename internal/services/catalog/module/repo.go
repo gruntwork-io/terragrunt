@@ -14,14 +14,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gitsight/go-vcsurl"
+	"gopkg.in/ini.v1"
+
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	gitpkg "github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"gopkg.in/ini.v1"
 )
 
 const (
@@ -74,12 +76,12 @@ type RepoOpts struct {
 }
 
 // NewRepo constructs a Repo, cloning if needed and parsing .git metadata via
-// fsys. Pass vfs.NewOSFS() for normal operation; tests that pre-populate a
-// fake repo (with .git/config and .git/HEAD) in memory may pass
-// vfs.NewMemMapFS(). Note that performing an actual remote clone (i.e.
-// CloneURL is a URL, not a local path) requires the OS filesystem because
-// the underlying go-getter writes through the real OS.
-func NewRepo(ctx context.Context, l log.Logger, fsys vfs.FS, opts *RepoOpts) (*Repo, error) {
+// v.FS. Thread the root [venv.Venv] for normal operation; tests that
+// pre-populate a fake repo (with .git/config and .git/HEAD) in memory may
+// pass an in-memory bundle. Note that performing an actual remote clone
+// (i.e. CloneURL is a URL, not a local path) requires the OS filesystem
+// because the underlying go-getter writes through the real OS.
+func NewRepo(ctx context.Context, l log.Logger, v venv.Venv, opts *RepoOpts) (*Repo, error) {
 	if opts == nil {
 		opts = &RepoOpts{}
 	}
@@ -95,15 +97,15 @@ func NewRepo(ctx context.Context, l log.Logger, fsys vfs.FS, opts *RepoOpts) (*R
 		rootWorkingDir:   opts.RootWorkingDir,
 	}
 
-	if err := repo.clone(ctx, l, fsys); err != nil {
+	if err := repo.clone(ctx, l, v); err != nil {
 		return nil, err
 	}
 
-	if err := repo.parseRemoteURL(l, fsys); err != nil {
+	if err := repo.parseRemoteURL(l, v.FS); err != nil {
 		return nil, err
 	}
 
-	if err := repo.parseBranchName(fsys); err != nil {
+	if err := repo.parseBranchName(v.FS); err != nil {
 		return nil, err
 	}
 
@@ -306,15 +308,15 @@ type CloneOptions struct {
 	TargetPath string
 }
 
-func (repo *Repo) clone(ctx context.Context, l log.Logger, fsys vfs.FS) error {
+func (repo *Repo) clone(ctx context.Context, l log.Logger, v venv.Venv) error {
 	cloneURL := repo.resolveCloneURL()
 
 	// Handle local directory case
-	if isDir(fsys, cloneURL) {
+	if isDir(v.FS, cloneURL) {
 		return repo.handleLocalDir(l, cloneURL)
 	}
 
-	if err := repo.prepareCloneDirectory(l, fsys); err != nil {
+	if err := repo.prepareCloneDirectory(l, v.FS); err != nil {
 		return err
 	}
 
@@ -325,13 +327,13 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger, fsys vfs.FS) error {
 		Context:    ctx,
 	}
 
-	if repo.cloneCompleted(fsys) {
+	if repo.cloneCompleted(v.FS) {
 		l.Debugf("The repo dir exists and %q exists. Skipping cloning.", cloneCompleteSentinel)
 
 		return nil
 	}
 
-	return repo.performClone(ctx, l, fsys, &opts)
+	return repo.performClone(ctx, l, v, &opts)
 }
 
 func (repo *Repo) resolveCloneURL() string {
@@ -467,7 +469,7 @@ func (repo *Repo) cloneCompleted(fsys vfs.FS) bool {
 func (repo *Repo) performClone(
 	ctx context.Context,
 	l log.Logger,
-	fsys vfs.FS,
+	v venv.Venv,
 	opts *CloneOptions,
 ) error {
 	var clientOpts []getter.Option
@@ -487,8 +489,7 @@ func (repo *Repo) performClone(
 			return err
 		}
 
-		venv, err := cas.OSVenv()
-		if err != nil {
+		if _, err := gitpkg.NewGitRunner(v.Exec); err != nil {
 			return err
 		}
 
@@ -497,7 +498,7 @@ func (repo *Repo) performClone(
 			IncludedGitFiles: includedGitFiles,
 		}
 
-		clientOpts = append(clientOpts, getter.WithCAS(c, venv, &cloneOpts))
+		clientOpts = append(clientOpts, getter.WithCAS(c, v, &cloneOpts))
 	}
 
 	client := getter.NewClient(clientOpts...)
@@ -544,7 +545,7 @@ func (repo *Repo) performClone(
 	}
 
 	// Create the sentinel file to indicate that the clone is complete
-	f, err := fsys.Create(filepath.Join(repo.path, cloneCompleteSentinel))
+	f, err := v.FS.Create(filepath.Join(repo.path, cloneCompleteSentinel))
 	if err != nil {
 		return err
 	}

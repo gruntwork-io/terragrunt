@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -26,11 +27,11 @@ const DefaultLocalHashAlgorithm = HashSHA256
 // StoreLocalDirectory persists all content from a local source directory into the CAS
 // and then links the persisted files to the target directory.
 //
-// Requires v.FS. v.Git is not used.
+// Requires v.FS. v.Exec is not used.
 func (c *CAS) StoreLocalDirectory(
 	ctx context.Context,
 	l log.Logger,
-	v Venv,
+	v venv.Venv,
 	sourceDir, targetDir string,
 	opts ...LinkTreeOption,
 ) error {
@@ -67,8 +68,8 @@ func (c *CAS) StoreLocalDirectory(
 // The same file-content hashes are used both inside the root-hash and as blob
 // hashes in the synthetic tree, so blob lookups and tree lookups stay consistent.
 //
-// Requires v.FS. v.Git is not used.
-func (c *CAS) ComputeLocalRootHash(v Venv, dir string, alg HashAlgorithm) (string, error) {
+// Requires v.FS. v.Exec is not used.
+func (c *CAS) ComputeLocalRootHash(v venv.Venv, dir string, alg HashAlgorithm) (string, error) {
 	v.RequireFS()
 
 	hash, _, err := c.buildLocalTree(v, dir, alg)
@@ -84,7 +85,7 @@ func (c *CAS) ComputeLocalRootHash(v Venv, dir string, alg HashAlgorithm) (strin
 // link target string, matching git's symlink representation. Targets that
 // escape dir are rejected at ingest time so the CAS cannot store a tree that
 // would resolve outside the destination at materialize time.
-func (c *CAS) buildLocalTree(v Venv, dir string, alg HashAlgorithm) (string, []byte, error) {
+func (c *CAS) buildLocalTree(v venv.Venv, dir string, alg HashAlgorithm) (string, []byte, error) {
 	var (
 		treeData []byte
 		rootBuf  []byte

@@ -6,12 +6,14 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // testRepoDir and testWorkingDir are stable in-memory paths used across the
@@ -63,11 +65,16 @@ func newFakeRepo(t *testing.T, fsys vfs.FS, repoDir string) *module.Repo {
 		vfs.WriteFile(fsys, filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644),
 	)
 
-	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), fsys, &module.RepoOpts{
-		CloneURL:       repoDir,
-		Path:           repoDir,
-		RootWorkingDir: repoDir,
-	})
+	repo, err := module.NewRepo(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.New().WithFS(fsys),
+		&module.RepoOpts{
+			CloneURL:       repoDir,
+			Path:           repoDir,
+			RootWorkingDir: repoDir,
+		},
+	)
 	require.NoError(t, err)
 
 	return repo

@@ -9,6 +9,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"golang.org/x/term"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
@@ -23,8 +26,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -41,7 +42,7 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 	_, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
-		vfs.NewOSFS(),
+		venv.OSVenv(),
 		&module.RepoOpts{
 			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
 			Path:     tempDir,
@@ -52,7 +53,7 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 	_, err = module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
-		vfs.NewOSFS(),
+		venv.OSVenv(),
 		&module.RepoOpts{
 			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
 			Path:     tempDir,
@@ -71,7 +72,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 	repo, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
-		vfs.NewOSFS(),
+		venv.OSVenv(),
 		&module.RepoOpts{
 			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
 			Path:     tempDir,
@@ -94,7 +95,7 @@ func TestScaffoldGitModule(t *testing.T) {
 	repo, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
-		vfs.NewOSFS(),
+		venv.OSVenv(),
 		&module.RepoOpts{
 			CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules.git",
 			Path:     tempDir,
@@ -153,7 +154,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	repo, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
-		vfs.NewOSFS(),
+		venv.OSVenv(),
 		&module.RepoOpts{
 			CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules",
 			Path:     tempDir,
@@ -367,7 +368,7 @@ func TestCatalogDiscoveryWithIgnoreFiles(t *testing.T) {
 
 	seedFakeGit(t, repoDir)
 
-	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{
+	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), venv.OSVenv(), &module.RepoOpts{
 		CloneURL:       repoDir,
 		Path:           repoDir,
 		RootWorkingDir: repoDir,
