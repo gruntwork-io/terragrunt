@@ -23,6 +23,7 @@ import (
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -50,9 +51,9 @@ func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: parallelt
 	c, err := tgcas.New(tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := *venv.OSVenv()
 
-	resolvers := tggetter.DefaultSourceResolvers()
+	resolvers := tggetter.DefaultSourceResolvers(tggetter.WithHTTPClient(vhttp.NewOSClient()))
 	resolvers[tggetter.SchemeS3] = newRustFSS3Resolver(t, endpoint)
 
 	g := tggetter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
