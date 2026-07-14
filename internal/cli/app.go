@@ -116,6 +116,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx = engine.WithEngineValues(ctx)
 
 	ctx = run.WithRunVersionCache(ctx)
+	ctx = run.WithModuleVersionResolver(ctx)
 
 	defer func(ctx context.Context) {
 		if err := engine.Shutdown(ctx, app.l, app.opts.Experiments, app.opts.EngineOptions.NoEngine); err != nil {

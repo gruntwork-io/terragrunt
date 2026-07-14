@@ -245,7 +245,7 @@ func copySubdirContents(l log.Logger, fs vfs.FS, srcRoot, subDir, dstPath, sourc
 
 	defer func(name string) {
 		if err := fs.Remove(name); err != nil {
-			l.Warnf("Error removing temporary directory %s: %v", name, err)
+			l.Warnf("Error removing manifest file %s: %v", name, err)
 		}
 	}(manifestPath)
 

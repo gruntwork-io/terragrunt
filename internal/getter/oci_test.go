@@ -255,22 +255,42 @@ func TestOCIGetterGetDigestMismatch(t *testing.T) {
 	assert.Equal(t, layer.Digest.String(), digestErr.Digest)
 }
 
-func TestOCIGetterGetStoreNotConfigured(t *testing.T) {
+func TestOCIGetterGetNotConfigured(t *testing.T) {
 	t.Parallel()
 
-	g := &getter.OCIGetter{
-		Logger: logger.CreateLogger(),
-		FS:     vfs.NewOSFS(),
+	testCases := []struct {
+		getter *getter.OCIGetter
+		name   string
+	}{
+		{
+			name:   "missing store",
+			getter: &getter.OCIGetter{Logger: logger.CreateLogger(), FS: vfs.NewOSFS()},
+		},
+		{
+			name:   "missing logger",
+			getter: &getter.OCIGetter{NewStore: staticStore(nil), FS: vfs.NewOSFS()},
+		},
+		{
+			name:   "missing filesystem",
+			getter: &getter.OCIGetter{NewStore: staticStore(nil), Logger: logger.CreateLogger()},
+		},
 	}
-	dst := filepath.Join(t.TempDir(), "module")
 
-	_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
-		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
-		Dst:     dst,
-		GetMode: gogetter.ModeDir,
-	})
-	require.Error(t, err)
-	assert.ErrorIs(t, err, getter.ErrOCIStoreNotConfigured)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dst := filepath.Join(t.TempDir(), "module")
+
+			_, err := newOCITestClient(tc.getter).Get(t.Context(), &gogetter.Request{
+				Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+				Dst:     dst,
+				GetMode: gogetter.ModeDir,
+			})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, getter.ErrOCIGetterNotConfigured)
+		})
+	}
 }
 
 func TestOCIGetterGetStoreError(t *testing.T) {

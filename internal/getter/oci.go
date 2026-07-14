@@ -23,14 +23,21 @@ const (
 	// ociDefaultTag is the tag used when the source pins neither a tag nor a
 	// digest, matching OpenTofu.
 	ociDefaultTag = "latest"
+	// ociLayerSizeWarnThreshold is the declared layer size above which the
+	// getter warns before downloading, pending a hard limit.
+	ociLayerSizeWarnThreshold = 1 << 30
 )
 
 // ErrOCIGetFileUnsupported reports that oci sources always resolve to module
 // directories, so single-file downloads are not supported.
 var ErrOCIGetFileUnsupported = errors.New("GetFile is not supported for the OCI Getter")
 
-// ErrOCIStoreNotConfigured reports an OCIGetter used without a NewStore seam.
-var ErrOCIStoreNotConfigured = errors.New("oci getter has no repository store configured")
+// ErrOCIGetterNotConfigured reports an OCIGetter used without its NewStore
+// seam, logger, or filesystem.
+var ErrOCIGetterNotConfigured = errors.New(
+	"oci getter is not fully configured (missing repository store, logger, or filesystem); " +
+		"this is a bug in Terragrunt, please open an issue",
+)
 
 // ErrOCIMissingRegistryDomain reports an oci source without a registry host.
 var ErrOCIMissingRegistryDomain = errors.New("oci source is missing a registry domain")
@@ -154,8 +161,8 @@ func (g *OCIGetter) Detect(req *getter.Request) (bool, error) {
 // type, streams the single [MediaTypeModuleZip] layer with digest
 // verification, and extracts it, honoring a //SUBDIR selector.
 func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
-	if g.NewStore == nil {
-		return ErrOCIStoreNotConfigured
+	if g.NewStore == nil || g.Logger == nil || g.FS == nil {
+		return ErrOCIGetterNotConfigured
 	}
 
 	srcURL := req.URL()
@@ -183,6 +190,13 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 	layer, err := resolveModuleZipLayer(ctx, store, ref)
 	if err != nil {
 		return err
+	}
+
+	if layer.Size > ociLayerSizeWarnThreshold {
+		g.Logger.Warnf(
+			"OCI layer %s declares %d bytes, above the %d byte threshold; downloading it may be slow",
+			layer.Digest, layer.Size, ociLayerSizeWarnThreshold,
+		)
 	}
 
 	// Hand extraction a temp parent so a partial download never lands in
