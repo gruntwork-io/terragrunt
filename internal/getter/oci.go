@@ -7,14 +7,16 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
+	"github.com/opencontainers/go-digest"
 	ociv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/content"
+	"oras.land/oras-go/v2/registry"
 )
 
 const (
@@ -23,14 +25,18 @@ const (
 	// ociDefaultTag is the tag used when the source pins neither a tag nor a
 	// digest, matching OpenTofu.
 	ociDefaultTag = "latest"
+	// ociMaxManifestSize bounds manifest downloads so a registry cannot force
+	// an unbounded allocation, matching OpenTofu.
+	ociMaxManifestSize = 4 << 20
 )
 
 // ErrOCIGetFileUnsupported reports that oci sources always resolve to module
 // directories, so single-file downloads are not supported.
 var ErrOCIGetFileUnsupported = errors.New("GetFile is not supported for the OCI Getter")
 
-// ErrOCIStoreNotConfigured reports an OCIGetter used without a NewStore seam.
-var ErrOCIStoreNotConfigured = errors.New("oci getter has no repository store configured")
+// ErrOCIGetterNotConfigured reports an OCIGetter used without its NewStore
+// seam, logger, or filesystem.
+var ErrOCIGetterNotConfigured = errors.New("oci getter requires a repository store, a logger, and a filesystem")
 
 // ErrOCIMissingRegistryDomain reports an oci source without a registry host.
 var ErrOCIMissingRegistryDomain = errors.New("oci source is missing a registry domain")
@@ -51,6 +57,76 @@ type OCIUnsupportedQueryParamError struct {
 
 func (err OCIUnsupportedQueryParamError) Error() string {
 	return fmt.Sprintf("unsupported argument %q", err.Param)
+}
+
+// OCIDuplicateQueryParamError reports a query parameter given more than once
+// on an oci source.
+type OCIDuplicateQueryParamError struct {
+	Param string
+}
+
+func (err OCIDuplicateQueryParamError) Error() string {
+	return fmt.Sprintf("argument %q must not be repeated", err.Param)
+}
+
+// OCIEmptyQueryParamError reports a query parameter with an empty value on an
+// oci source.
+type OCIEmptyQueryParamError struct {
+	Param string
+}
+
+func (err OCIEmptyQueryParamError) Error() string {
+	return fmt.Sprintf("argument %q must not be empty", err.Param)
+}
+
+// OCIInvalidDigestError reports a digest pin that does not parse as an OCI
+// digest, so it can never be mistaken for a mutable tag.
+type OCIInvalidDigestError struct {
+	Err   error
+	Value string
+}
+
+func (err OCIInvalidDigestError) Error() string {
+	return fmt.Sprintf("invalid digest %q: %s", err.Value, err.Err)
+}
+
+func (err OCIInvalidDigestError) Unwrap() error {
+	return err.Err
+}
+
+// OCIInvalidTagError reports a tag pin that does not satisfy the OCI tag
+// grammar.
+type OCIInvalidTagError struct {
+	Err   error
+	Value string
+}
+
+func (err OCIInvalidTagError) Error() string {
+	return fmt.Sprintf("invalid tag %q: %s", err.Value, err.Err)
+}
+
+func (err OCIInvalidTagError) Unwrap() error {
+	return err.Err
+}
+
+// OCIManifestMediaTypeError reports a manifest descriptor or document whose
+// media type is not the OCI image manifest type.
+type OCIManifestMediaTypeError struct {
+	MediaType string
+}
+
+func (err OCIManifestMediaTypeError) Error() string {
+	return fmt.Sprintf("unexpected manifest media type %q, expected %q", err.MediaType, ociv1.MediaTypeImageManifest)
+}
+
+// OCIManifestSizeError reports a manifest descriptor whose declared size is
+// not positive or exceeds [ociMaxManifestSize].
+type OCIManifestSizeError struct {
+	Size int64
+}
+
+func (err OCIManifestSizeError) Error() string {
+	return fmt.Sprintf("manifest size %d is outside the accepted range (0, %d]", err.Size, ociMaxManifestSize)
 }
 
 // OCIArtifactTypeError reports a manifest whose artifact type is not the
@@ -154,8 +230,8 @@ func (g *OCIGetter) Detect(req *getter.Request) (bool, error) {
 // type, streams the single [MediaTypeModuleZip] layer with digest
 // verification, and extracts it, honoring a //SUBDIR selector.
 func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
-	if g.NewStore == nil {
-		return ErrOCIStoreNotConfigured
+	if g.NewStore == nil || g.Logger == nil || g.FS == nil {
+		return ErrOCIGetterNotConfigured
 	}
 
 	srcURL := req.URL()
@@ -203,16 +279,15 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
-	if subDir == "" {
-		return (&getter.ZipDecompressor{}).Decompress(req.Dst, zipPath, true, req.Umask)
-	}
-
-	unzipPath := filepath.Join(parent, "unzip")
+	// Extract into a staging directory and replace req.Dst only after full
+	// success, so a malformed archive never corrupts an existing destination
+	// and files removed between module versions do not survive.
+	unzipPath := path.Join(parent, "unzip")
 	if err := (&getter.ZipDecompressor{}).Decompress(unzipPath, zipPath, true, req.Umask); err != nil {
-		return err
+		return fmt.Errorf("extracting OCI module archive: %w", err)
 	}
 
-	return copySubdirContents(g.Logger, g.FS, unzipPath, subDir, req.Dst, req.Src)
+	return copySubdirContents(g.Logger, g.FS, parent, path.Join("unzip", subDir), req.Dst, req.Src)
 }
 
 // GetFile always fails, per [ErrOCIGetFileUnsupported].
@@ -222,27 +297,47 @@ func (g *OCIGetter) GetFile(_ context.Context, _ *getter.Request) error {
 
 // ociRefFromQuery validates the source query and returns the reference to
 // resolve: the digest when pinned, the tag otherwise, defaulting to
-// [ociDefaultTag] when neither is set.
+// [ociDefaultTag] when neither key is present. Each key must appear at most
+// once with a non-empty value that satisfies its grammar, so a typo can
+// never silently resolve a different reference.
 func ociRefFromQuery(queryValues url.Values) (string, error) {
-	for param := range queryValues {
+	for param, values := range queryValues {
 		if param != ociTagQueryKey && param != ociDigestQueryKey {
 			return "", OCIUnsupportedQueryParamError{Param: param}
 		}
+
+		if len(values) > 1 {
+			return "", OCIDuplicateQueryParamError{Param: param}
+		}
+
+		if values[0] == "" {
+			return "", OCIEmptyQueryParamError{Param: param}
+		}
 	}
 
-	tag := queryValues.Get(ociTagQueryKey)
-	digest := queryValues.Get(ociDigestQueryKey)
+	_, hasTag := queryValues[ociTagQueryKey]
+	_, hasDigest := queryValues[ociDigestQueryKey]
 
-	if tag != "" && digest != "" {
+	if hasTag && hasDigest {
 		return "", ErrOCITagDigestExclusive
 	}
 
-	if digest != "" {
-		return digest, nil
+	if hasDigest {
+		value := queryValues.Get(ociDigestQueryKey)
+		if _, err := digest.Parse(value); err != nil {
+			return "", OCIInvalidDigestError{Value: value, Err: err}
+		}
+
+		return value, nil
 	}
 
-	if tag != "" {
-		return tag, nil
+	if hasTag {
+		value := queryValues.Get(ociTagQueryKey)
+		if err := (registry.Reference{Reference: value}).ValidateReferenceAsTag(); err != nil {
+			return "", OCIInvalidTagError{Value: value, Err: err}
+		}
+
+		return value, nil
 	}
 
 	return ociDefaultTag, nil
@@ -256,6 +351,14 @@ func resolveModuleZipLayer(ctx context.Context, store OCIRepositoryStore, ref st
 		return ociv1.Descriptor{}, fmt.Errorf("resolving OCI reference %q: %w", ref, err)
 	}
 
+	if manifestDesc.MediaType != ociv1.MediaTypeImageManifest {
+		return ociv1.Descriptor{}, OCIManifestMediaTypeError{MediaType: manifestDesc.MediaType}
+	}
+
+	if manifestDesc.Size <= 0 || manifestDesc.Size > ociMaxManifestSize {
+		return ociv1.Descriptor{}, OCIManifestSizeError{Size: manifestDesc.Size}
+	}
+
 	manifestBytes, err := content.FetchAll(ctx, store, manifestDesc)
 	if err != nil {
 		return ociv1.Descriptor{}, fmt.Errorf("fetching OCI manifest %s: %w", manifestDesc.Digest, err)
@@ -264,6 +367,10 @@ func resolveModuleZipLayer(ctx context.Context, store OCIRepositoryStore, ref st
 	var manifest ociv1.Manifest
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 		return ociv1.Descriptor{}, fmt.Errorf("parsing OCI manifest %s: %w", manifestDesc.Digest, err)
+	}
+
+	if manifest.MediaType != "" && manifest.MediaType != ociv1.MediaTypeImageManifest {
+		return ociv1.Descriptor{}, OCIManifestMediaTypeError{MediaType: manifest.MediaType}
 	}
 
 	if manifest.ArtifactType != ArtifactTypeModulePkg {

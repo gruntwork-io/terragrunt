@@ -8,23 +8,31 @@ Experimental support for downloading modules from OCI Distribution registries us
 ### `oci` - What it does
 
 OpenTofu 1.10 can download modules from an OCI Distribution registry using an
-`oci://` source, but Terragrunt currently fails to resolve the same source in a
-`terraform { source = "..." }` block because no getter claims the `oci` scheme.
-This experiment reserves the flag for native Terragrunt support of `oci://`
-module sources, so a single source string works the same way in both `tofu` and
+`oci://` source. This experiment gates Terragrunt's native support for the
+same sources, so a single source string works the same way in both `tofu` and
 Terragrunt against registries such as Amazon ECR, GitHub Container Registry,
-Azure Container Registry, Google Artifact Registry, and self-hosted or air-gapped
-registries.
+Azure Container Registry, Google Artifact Registry, and self-hosted or
+air-gapped registries.
 
-With the experiment enabled, Terragrunt downloads `oci://` sources: pinned by
-`tag` or `digest` (mutually exclusive, defaulting to the `latest` tag), with
-`//subdir` selectors supported. Authentication covers static credentials via
-the interim `TG_TMP_OCI_*` environment variables and read-only ambient
-discovery of Docker and containers auth files, in the same search order
-OpenTofu uses. Credential helpers (such as `ecr-login`) are not invoked yet,
-so registries that need per-run token minting only work while an externally
-obtained login is present in an ambient file. Without the experiment,
-`oci://` sources fail to download, unchanged.
+With the experiment enabled, Terragrunt accepts `oci://` source URLs in
+`terraform { source = "..." }` blocks. For example:
+
+```hcl
+terraform {
+  source = "oci://ghcr.io/acme/terraform-modules/vpc?tag=1.0.0"
+}
+```
+
+Specify either `tag` or `digest`; omitting both selects the `latest` tag.
+`//subdir` selectors are supported. Authentication covers static credentials
+via the interim `TG_TMP_OCI_*` environment variables and read-only ambient
+discovery of Docker and containers auth files, following the containers-auth
+search order OpenTofu uses. The static variables apply to every registry the
+process contacts, not a single host, so do not set them when talking to
+unrelated or untrusted registries. Credential helpers (such as `ecr-login`)
+are not invoked yet, so registries that need per-run token minting only work
+while an externally obtained login is present in an ambient file. When the
+experiment is disabled, `oci://` sources remain unsupported.
 
 ### `oci` - How to enable it
 
@@ -51,8 +59,8 @@ When reporting issues or providing feedback, please include:
 
 To transition the `oci` feature to a stable release, the following must be addressed, at a minimum:
 
-- [ ] A getter that resolves `oci://` sources, selecting the `application/vnd.opentofu.modulepkg` artifact and its `archive/zip` layer, with blob digest verification.
-- [ ] Static and ambient Docker-config credential discovery matching OpenTofu's search order.
+- [x] A getter that resolves `oci://` sources, selecting the `application/vnd.opentofu.modulepkg` artifact and its `archive/zip` layer, with blob digest verification.
+- [x] Static and ambient Docker-config credential discovery matching OpenTofu's search order.
 - [ ] Credential-helper support (`docker-credential-*`, `ecr-login`) so ECR and other helper-backed registries work with per-run token minting.
 - [ ] Content-addressable caching keyed on the resolved manifest digest, with correct re-resolution of mutable tags.
 - [ ] A portability guarantee that one source string produces an identical module via `tofu` and Terragrunt.

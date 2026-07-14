@@ -255,22 +255,135 @@ func TestOCIGetterGetDigestMismatch(t *testing.T) {
 	assert.Equal(t, layer.Digest.String(), digestErr.Digest)
 }
 
-func TestOCIGetterGetStoreNotConfigured(t *testing.T) {
+func TestOCIGetterGetNotConfigured(t *testing.T) {
 	t.Parallel()
 
-	g := &getter.OCIGetter{
-		Logger: logger.CreateLogger(),
-		FS:     vfs.NewOSFS(),
+	testCases := []struct {
+		getter *getter.OCIGetter
+		name   string
+	}{
+		{
+			name:   "missing store",
+			getter: &getter.OCIGetter{Logger: logger.CreateLogger(), FS: vfs.NewOSFS()},
+		},
+		{
+			name:   "missing logger",
+			getter: &getter.OCIGetter{NewStore: staticStore(nil), FS: vfs.NewOSFS()},
+		},
+		{
+			name:   "missing filesystem",
+			getter: &getter.OCIGetter{NewStore: staticStore(nil), Logger: logger.CreateLogger()},
+		},
 	}
-	dst := filepath.Join(t.TempDir(), "module")
 
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dst := filepath.Join(t.TempDir(), "module")
+
+			_, err := newOCITestClient(tc.getter).Get(t.Context(), &gogetter.Request{
+				Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+				Dst:     dst,
+				GetMode: gogetter.ModeDir,
+			})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, getter.ErrOCIGetterNotConfigured)
+		})
+	}
+}
+
+func TestOCIGetterGetQueryValidation(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	testCases := []struct {
+		wantErrIs error
+		name      string
+		src       string
+	}{
+		{
+			name:      "duplicate tag",
+			src:       "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0&tag=2.0.0",
+			wantErrIs: getter.OCIDuplicateQueryParamError{Param: "tag"},
+		},
+		{
+			name: "duplicate digest",
+			src: "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" +
+				manifestDesc.Digest.String() + "&digest=" + manifestDesc.Digest.String(),
+			wantErrIs: getter.OCIDuplicateQueryParamError{Param: "digest"},
+		},
+		{
+			name:      "empty tag",
+			src:       "oci://127.0.0.1:5000/terraform-modules/vpc?tag=",
+			wantErrIs: getter.OCIEmptyQueryParamError{Param: "tag"},
+		},
+		{
+			name:      "empty digest",
+			src:       "oci://127.0.0.1:5000/terraform-modules/vpc?digest=",
+			wantErrIs: getter.OCIEmptyQueryParamError{Param: "digest"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			g := newTestOCIGetter(staticStore(store))
+			dst := filepath.Join(t.TempDir(), "module")
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     tc.src,
+				Dst:     dst,
+				GetMode: gogetter.ModeDir,
+			})
+			require.ErrorIs(t, err, tc.wantErrIs)
+			assert.Empty(t, store.gotRefs, "validation must fail before any resolution")
+		})
+	}
+}
+
+func TestOCIGetterGetInvalidRefValues(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+	g := newTestOCIGetter(staticStore(store))
+
+	// A digest value that does not parse must never be resolved as a ref,
+	// since a registry could interpret it as a mutable tag.
 	_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
-		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
-		Dst:     dst,
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?digest=prod",
+		Dst:     filepath.Join(t.TempDir(), "module"),
 		GetMode: gogetter.ModeDir,
 	})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, getter.ErrOCIStoreNotConfigured)
+
+	var digestErr getter.OCIInvalidDigestError
+
+	require.ErrorAs(t, err, &digestErr)
+	assert.Equal(t, "prod", digestErr.Value)
+	assert.Empty(t, store.gotRefs)
+
+	_, err = newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=.invalid",
+		Dst:     filepath.Join(t.TempDir(), "module"),
+		GetMode: gogetter.ModeDir,
+	})
+	require.Error(t, err)
+
+	var tagErr getter.OCIInvalidTagError
+
+	require.ErrorAs(t, err, &tagErr)
+	assert.Equal(t, ".invalid", tagErr.Value)
+	assert.Empty(t, store.gotRefs)
 }
 
 func TestOCIGetterGetStoreError(t *testing.T) {
@@ -299,6 +412,141 @@ func TestOCIGetterGetFileUnsupported(t *testing.T) {
 	err := g.GetFile(t.Context(), &gogetter.Request{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, getter.ErrOCIGetFileUnsupported)
+}
+
+func TestOCIGetterGetManifestHardening(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	wrongDescMediaType := manifestDesc
+	wrongDescMediaType.MediaType = "application/vnd.example.other"
+
+	oversized := manifestDesc
+	oversized.Size = 5 << 20
+
+	negativeSize := manifestDesc
+	negativeSize.Size = -1
+
+	mismatchedManifest := ociv1.Manifest{
+		Versioned:    specs.Versioned{SchemaVersion: 2},
+		MediaType:    "application/vnd.example.other",
+		ArtifactType: getter.ArtifactTypeModulePkg,
+		Config:       ociv1.DescriptorEmptyJSON,
+		Layers:       []ociv1.Descriptor{layer},
+	}
+	mismatchedBytes, err := json.Marshal(mismatchedManifest)
+	require.NoError(t, err)
+
+	mismatchedDesc := ociv1.Descriptor{
+		MediaType: ociv1.MediaTypeImageManifest,
+		Digest:    digest.FromBytes(mismatchedBytes),
+		Size:      int64(len(mismatchedBytes)),
+	}
+
+	testCases := []struct { //nolint:govet // fieldalignment: keyed literals; readability over 8 bytes
+		wantErrIs     error
+		name          string
+		manifestBytes []byte
+		manifestDesc  ociv1.Descriptor
+	}{
+
+		{
+			name:          "descriptor media type rejected before fetch",
+			manifestBytes: manifestBytes,
+			manifestDesc:  wrongDescMediaType,
+			wantErrIs:     getter.OCIManifestMediaTypeError{MediaType: "application/vnd.example.other"},
+		},
+		{
+			name:          "oversized manifest rejected before fetch",
+			manifestBytes: manifestBytes,
+			manifestDesc:  oversized,
+			wantErrIs:     getter.OCIManifestSizeError{Size: 5 << 20},
+		},
+		{
+			name:          "negative manifest size rejected before fetch",
+			manifestBytes: manifestBytes,
+			manifestDesc:  negativeSize,
+			wantErrIs:     getter.OCIManifestSizeError{Size: -1},
+		},
+		{
+			name:          "decoded media type must match the descriptor",
+			manifestBytes: mismatchedBytes,
+			manifestDesc:  mismatchedDesc,
+			wantErrIs:     getter.OCIManifestMediaTypeError{MediaType: "application/vnd.example.other"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(tc.manifestBytes, &tc.manifestDesc, zipBytes, &layer)
+			g := newTestOCIGetter(staticStore(store))
+			dst := filepath.Join(t.TempDir(), "module")
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+				Dst:     dst,
+				GetMode: gogetter.ModeDir,
+			})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, tc.wantErrIs)
+		})
+	}
+}
+
+func TestOCIGetterGetRemovesStaleFiles(t *testing.T) {
+	t.Parallel()
+
+	dst := filepath.Join(t.TempDir(), "module")
+
+	fetch := func(files map[string]string) {
+		zipBytes := moduleZipBytes(t, files)
+		layer := zipLayerDesc(zipBytes)
+		manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+		store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+
+		_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+			Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+			Dst:     dst,
+			GetMode: gogetter.ModeDir,
+		})
+		require.NoError(t, err)
+	}
+
+	fetch(map[string]string{"main.tf": `output "v1" {}`, "obsolete.tf": `output "gone" {}`})
+	require.FileExists(t, filepath.Join(dst, "obsolete.tf"))
+
+	fetch(map[string]string{"main.tf": `output "v2" {}`})
+	assert.FileExists(t, filepath.Join(dst, "main.tf"))
+	assert.NoFileExists(t, filepath.Join(dst, "obsolete.tf"), "files removed between versions must not survive")
+}
+
+func TestOCIGetterGetMalformedArchivePreservesDestination(t *testing.T) {
+	t.Parallel()
+
+	dst := filepath.Join(t.TempDir(), "module")
+	sentinel := filepath.Join(dst, "keep.tf")
+	require.NoError(t, os.MkdirAll(dst, 0o755))
+	require.NoError(t, os.WriteFile(sentinel, []byte(`output "keep" {}`), 0o644))
+
+	// The blob digest matches, but the bytes are not a zip archive, so
+	// extraction fails in staging and the destination must stay intact.
+	notAZip := []byte("not a zip archive")
+	layer := zipLayerDesc(notAZip)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+	store := newFakeStore(manifestBytes, &manifestDesc, notAZip, &layer)
+
+	_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.Error(t, err)
+	assert.FileExists(t, sentinel, "a failed extraction must not corrupt the destination")
 }
 
 func TestNewClientWithOCIDetectOrdering(t *testing.T) {

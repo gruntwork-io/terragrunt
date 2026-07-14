@@ -532,6 +532,12 @@ func tryCASDownload(
 	opts *Options,
 	mutable bool,
 ) (bool, error) {
+	// The CAS matcher cannot claim oci:// sources yet, so skip the attempt
+	// instead of logging a guaranteed fallback on every oci download.
+	if src.CanonicalSourceURL.Scheme == getter.SchemeOCI {
+		return false, nil
+	}
+
 	canonicalSourceURL := src.CanonicalSourceURL.String()
 
 	l.Debugf(

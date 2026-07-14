@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"oras.land/oras-go/v2/registry/remote"
@@ -120,14 +122,20 @@ func ociStaticCredential() (auth.Credential, bool, error) {
 
 // ociAmbientCredentialFunc chains read-only file stores over the ambient
 // credential files that exist, in [ociAmbientCredentialPaths] order. File
-// stores parse credentials only; credential helpers are never invoked.
+// stores parse credentials only; credential helpers are never invoked. Only
+// a missing candidate is skipped: any other filesystem error surfaces as a
+// typed error instead of silently falling through to weaker credentials.
 func ociAmbientCredentialFunc(fs vfs.FS) (auth.CredentialFunc, error) {
 	candidates := ociAmbientCredentialPaths()
 	stores := make([]credentials.Store, 0, len(candidates))
 
 	for _, path := range candidates {
 		if _, err := fs.Stat(path); err != nil {
-			continue
+			if errors.Is(err, iofs.ErrNotExist) {
+				continue
+			}
+
+			return nil, OCICredentialFileError{Path: path, Err: err}
 		}
 
 		store, err := credentials.NewFileStore(path)
@@ -148,23 +156,32 @@ func ociAmbientCredentialFunc(fs vfs.FS) (auth.CredentialFunc, error) {
 }
 
 // ociAmbientCredentialPaths returns the ambient credential file candidates
-// in OpenTofu's search order, part of the portability contract: a source
-// string authenticating via ambient files must resolve the same credentials
-// under tofu and Terragrunt.
+// in the containers-auth search order OpenTofu follows, part of the
+// portability contract: a source string authenticating via ambient files
+// must resolve the same credentials under tofu and Terragrunt. The runtime
+// directory applies to Linux only, and a set XDG_CONFIG_HOME replaces the
+// default ~/.config location rather than being searched alongside it.
 func ociAmbientCredentialPaths() []string {
 	var paths []string
 
-	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
-		paths = append(paths, filepath.Join(dir, "containers", "auth.json"))
+	if runtime.GOOS == "linux" {
+		if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
+			paths = append(paths, filepath.Join(dir, "containers", "auth.json"))
+		}
 	}
 
-	home := os.Getenv("HOME")
-	if home != "" {
-		paths = append(paths, filepath.Join(home, ".config", "containers", "auth.json"))
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = ""
 	}
 
-	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
-		paths = append(paths, filepath.Join(dir, "containers", "auth.json"))
+	configDir := os.Getenv("XDG_CONFIG_HOME")
+	if configDir == "" && home != "" {
+		configDir = filepath.Join(home, ".config")
+	}
+
+	if configDir != "" {
+		paths = append(paths, filepath.Join(configDir, "containers", "auth.json"))
 	}
 
 	if home != "" {

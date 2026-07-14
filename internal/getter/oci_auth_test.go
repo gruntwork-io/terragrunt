@@ -107,9 +107,10 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 	)
 
 	testCases := []struct {
-		name     string
-		wantUser string
-		files    []string
+		name              string
+		wantUser          string
+		files             []string
+		unsetXDGConfigDir bool
 	}{
 		{
 			name:     "xdg runtime containers auth wins over everything",
@@ -117,19 +118,26 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 			wantUser: xdgRuntimeAuth,
 		},
 		{
-			name:     "home config containers auth wins over xdg config home",
-			files:    []string{homeConfigAuth, xdgConfigHomeAuth, dockerConfigAuth},
-			wantUser: homeConfigAuth,
-		},
-		{
 			name:     "xdg config home wins over docker config",
-			files:    []string{xdgConfigHomeAuth, dockerConfigAuth},
+			files:    []string{homeConfigAuth, xdgConfigHomeAuth, dockerConfigAuth},
 			wantUser: xdgConfigHomeAuth,
 		},
 		{
-			name:     "docker config used when no containers auth exists",
-			files:    []string{dockerConfigAuth},
+			name:     "set xdg config home replaces home config",
+			files:    []string{homeConfigAuth, dockerConfigAuth},
 			wantUser: dockerConfigAuth,
+		},
+		{
+			name:              "home config used when xdg config home is unset",
+			files:             []string{homeConfigAuth, dockerConfigAuth},
+			unsetXDGConfigDir: true,
+			wantUser:          homeConfigAuth,
+		},
+		{
+			name:              "docker config used when no containers auth exists",
+			files:             []string{dockerConfigAuth},
+			unsetXDGConfigDir: true,
+			wantUser:          dockerConfigAuth,
 		},
 	}
 
@@ -142,6 +150,10 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 			setHermeticCredentialEnv(t, home)
 			t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
 			t.Setenv("XDG_CONFIG_HOME", configHome)
+
+			if tc.unsetXDGConfigDir {
+				t.Setenv("XDG_CONFIG_HOME", "")
+			}
 
 			authFilePaths := map[string]string{
 				xdgRuntimeAuth:    filepath.Join(runtimeDir, "containers", "auth.json"),
@@ -163,6 +175,33 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 			assert.Equal(t, tc.wantUser, cred.Username)
 		})
 	}
+}
+
+func TestOCIAmbientCredentialStatErrorSurfaces(t *testing.T) {
+	home := t.TempDir()
+	setHermeticCredentialEnv(t, home)
+
+	// An unreadable parent directory makes Stat fail with a permission
+	// error, which must surface instead of silently selecting weaker
+	// credentials.
+	dockerDir := filepath.Join(home, ".docker")
+	require.NoError(t, os.MkdirAll(dockerDir, 0o755))
+	writeAuthFile(t, filepath.Join(dockerDir, "config.json"), testRegistry, "blocked-user", "blocked-pass")
+	require.NoError(t, os.Chmod(dockerDir, 0o000))
+
+	t.Cleanup(func() {
+		if err := os.Chmod(dockerDir, 0o755); err != nil {
+			t.Logf("restoring permissions on %s: %v", dockerDir, err)
+		}
+	})
+
+	_, err := getter.NewOCIRepositoryStore(vfs.NewOSFS())(t.Context(), testRegistry, "modules/vpc")
+	require.Error(t, err)
+
+	var fileErr getter.OCICredentialFileError
+
+	require.ErrorAs(t, err, &fileErr)
+	assert.Equal(t, filepath.Join(dockerDir, "config.json"), fileErr.Path)
 }
 
 func TestOCIAmbientCredentialScopedToRegistry(t *testing.T) {
