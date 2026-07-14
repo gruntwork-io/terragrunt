@@ -737,6 +737,7 @@ func (c *CAS) storeSubmodules(
 				"cas: gitlink %s has no .gitmodules entry, leaving an empty directory",
 				entry.Path,
 			)
+
 			continue
 		}
 

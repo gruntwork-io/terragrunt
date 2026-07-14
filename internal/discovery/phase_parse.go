@@ -422,6 +422,7 @@ func parseComponent(
 							"Skipping missing config during discovery: %s",
 							parseOpts.TerragruntConfigPath,
 						)
+
 						return nil
 					}
 				}

@@ -1784,6 +1784,7 @@ func (client *Client) CreateLockTableIfNecessary(
 			"Lock table %s does not exist in DynamoDB. Will need to create it just this first time.",
 			tableName,
 		)
+
 		return client.CreateLockTable(ctx, l, tableName, tags)
 	}
 

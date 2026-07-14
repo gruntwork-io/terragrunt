@@ -122,6 +122,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 							"Runner Pool Controller: skipping %s; fail-fast cancelled before dispatch",
 							e.Component.Path(),
 						)
+
 						continue
 					}
 

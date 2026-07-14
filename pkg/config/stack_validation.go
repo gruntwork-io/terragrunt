@@ -166,6 +166,7 @@ func validateConfigElementsGeneric(
 				validationErrors,
 				fmt.Errorf("%s at index %d is nil", elementType, i),
 			)
+
 			continue
 		}
 

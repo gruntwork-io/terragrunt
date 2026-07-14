@@ -450,6 +450,7 @@ func mergeOneInclude(
 		}
 	case pathVal.Type() != cty.String:
 		reason := "include path must be a string, got " + pathVal.Type().FriendlyName()
+
 		return resolvedInclude{}, IncludeValidationError{
 			IncludeName: inc.Name,
 			Reason:      reason,
@@ -460,6 +461,7 @@ func mergeOneInclude(
 	includePath := pathVal.AsString()
 	if includePath == "" {
 		reason := "include path must evaluate to a non-empty string"
+
 		return resolvedInclude{}, IncludeValidationError{
 			IncludeName: inc.Name,
 			Reason:      reason,

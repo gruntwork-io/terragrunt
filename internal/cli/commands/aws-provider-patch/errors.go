@@ -18,6 +18,7 @@ type TypeInferenceError struct {
 
 func (err TypeInferenceError) Error() string {
 	val := err.value
+
 	return fmt.Sprintf(
 		`Could not determine underlying type of JSON string %s. This usually happens when the JSON string is malformed, or if the value is not properly quoted (e.g., "%s"). Underlying error: %s`,
 		val,
@@ -33,6 +34,7 @@ type MalformedJSONValError struct {
 
 func (err MalformedJSONValError) Error() string {
 	val := err.value
+
 	return fmt.Sprintf(
 		`Error unmarshaling JSON string %s. This usually happens when the JSON string is malformed, or if the value is not properly quoted (e.g., "%s"). Underlying error: %s`,
 		val,

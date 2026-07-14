@@ -159,6 +159,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 			"Illegal token",
 			"Unrecognized character '"+p.curToken.Literal+"'",
 		)
+
 		return nil
 	case EOF:
 		p.addErrorWithCode(
@@ -166,6 +167,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 			"Unexpected end of input",
 			"Expression is incomplete",
 		)
+
 		return nil
 	case PIPE:
 		p.addErrorWithCode(
@@ -179,6 +181,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 			"Unexpected token",
 			"Unexpected '"+p.curToken.Literal+"'",
 		)
+
 		return nil
 	default:
 		p.addErrorWithCode(
@@ -186,6 +189,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 			"Unexpected token",
 			"Unexpected '"+p.curToken.Literal+"'",
 		)
+
 		return nil
 	}
 
@@ -373,6 +377,7 @@ func (p *Parser) parseBracedPath() Expression {
 			"Empty path expression",
 			"Braced path expression cannot be empty",
 		)
+
 		return nil
 	}
 
@@ -407,6 +412,7 @@ func (p *Parser) parseBracedPath() Expression {
 			"Invalid glob pattern",
 			"Invalid glob pattern '"+pathValue+"': "+err.Error(),
 		)
+
 		return nil
 	}
 
@@ -464,6 +470,7 @@ func (p *Parser) parseGitFilter() Expression {
 			"Empty Git filter",
 			"Git filter expression cannot be empty",
 		)
+
 		return nil
 	}
 
@@ -480,6 +487,7 @@ func (p *Parser) parseGitFilter() Expression {
 			"Missing Git reference",
 			"Expected Git reference in filter",
 		)
+
 		return nil
 	}
 
@@ -503,6 +511,7 @@ func (p *Parser) parseGitFilter() Expression {
 				"Missing Git reference",
 				"Expected second Git reference after '...'",
 			)
+
 			return nil
 		}
 

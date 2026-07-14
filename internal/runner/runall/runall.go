@@ -159,6 +159,7 @@ func Run(
 						"Running stack clean for %s, as part of generate command",
 						opts.WorkingDir,
 					)
+
 					return clean.CleanStacks(l, opts)
 				})
 			if errClean != nil {

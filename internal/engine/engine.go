@@ -1144,6 +1144,7 @@ func initialize(
 					exitCode := int(resp.ExitResult.GetCode())
 					if exitCode != 0 {
 						l.Errorf("Engine init failed with exit code %d", exitCode)
+
 						return nil, fmt.Errorf(
 							"%w with exit code %d",
 							ErrEngineInitFailed,
@@ -1225,6 +1226,7 @@ func shutdown(
 					exitCode := int(resp.ExitResult.GetCode())
 					if exitCode != 0 {
 						l.Errorf("Engine shutdown failed with exit code %d", exitCode)
+
 						return nil, fmt.Errorf(
 							"%w with exit code %d",
 							ErrEngineShutdownFailed,

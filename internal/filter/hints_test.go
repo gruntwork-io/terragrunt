@@ -499,6 +499,7 @@ func stripTimestampPrefix(s string) string {
 	timestampPattern := regexp.MustCompile(
 		`(?m)^(\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}:\d{2}[^\s]*\s+)`,
 	)
+
 	return timestampPattern.ReplaceAllString(s, "")
 }
 

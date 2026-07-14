@@ -1169,6 +1169,7 @@ func logTaskOutcome(ctx context.Context, l log.Logger, unitPath, command string,
 			outcome,
 			err,
 		)
+
 		return
 	}
 

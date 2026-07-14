@@ -60,6 +60,7 @@ func TestRestrictToStacks(t *testing.T) {
 			name: "infix expression restricted to stacks",
 			exprFn: func(t *testing.T) filter.Expression {
 				t.Helper()
+
 				return filter.NewInfixExpression(
 					mustAttr(t, "type", "stack"),
 					"|",
@@ -72,6 +73,7 @@ func TestRestrictToStacks(t *testing.T) {
 			name: "infix expression also restricted to stacks",
 			exprFn: func(t *testing.T) filter.Expression {
 				t.Helper()
+
 				return filter.NewInfixExpression(
 					mustAttr(t, "external", "true"),
 					"|",
@@ -84,6 +86,7 @@ func TestRestrictToStacks(t *testing.T) {
 			name: "infix expression not restricted to stacks",
 			exprFn: func(t *testing.T) filter.Expression {
 				t.Helper()
+
 				return filter.NewInfixExpression(
 					mustAttr(t, "name", "foo"),
 					"|",

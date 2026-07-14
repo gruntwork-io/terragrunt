@@ -284,6 +284,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 						ctx.TerragruntConfigPath,
 					),
 				)
+
 				continue
 			}
 

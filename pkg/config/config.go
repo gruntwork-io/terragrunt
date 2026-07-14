@@ -2062,6 +2062,7 @@ func convertToTerragruntConfig(
 					block.Name,
 				),
 			)
+
 			continue
 		}
 

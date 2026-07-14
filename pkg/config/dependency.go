@@ -459,6 +459,7 @@ func dependencyBlocksToModuleDependencies(
 				"Skipping dependency %q: ConfigPath is not a valid known string value",
 				decodedDependencyBlock.Name,
 			)
+
 			continue
 		}
 

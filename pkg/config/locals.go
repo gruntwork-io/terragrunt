@@ -84,6 +84,7 @@ func EvaluateLocalsBlock(
 					pctx.LogShowAbsPaths,
 				),
 			)
+
 			return evaluatedLocals, err
 		}
 	}
@@ -129,6 +130,7 @@ func attemptEvaluateLocals(
 			"Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s",
 			file.ConfigPath,
 		)
+
 		return nil, evaluatedLocals, false, err
 	}
 
@@ -140,6 +142,7 @@ func attemptEvaluateLocals(
 			"Could not convert include to the execution ctx to evaluate additional locals in file %s",
 			file.ConfigPath,
 		)
+
 		return nil, evaluatedLocals, false, err
 	}
 

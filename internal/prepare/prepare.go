@@ -172,6 +172,7 @@ func PrepareSource(
 				runCfg,
 				r,
 			)
+
 			return err
 		})
 	if err != nil {

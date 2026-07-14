@@ -374,6 +374,7 @@ func (s *GitStore) acquire(
 
 	if err := v.FS.MkdirAll(repoPath, DefaultDirPerms); err != nil {
 		session.cleanup()
+
 		return nil, fmt.Errorf(
 			"create bare repo dir %s: %w",
 			repoPath,
@@ -384,6 +385,7 @@ func (s *GitStore) acquire(
 	initialized, err := bareRepoInitialized(v.FS, repoPath)
 	if err != nil {
 		session.cleanup()
+
 		return nil, fmt.Errorf(
 			"inspect bare repo %s: %w",
 			repoPath,

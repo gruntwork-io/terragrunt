@@ -792,6 +792,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 						"Successfully started provider caching for %s",
 						cache.Provider,
 					)
+
 					return nil
 				}
 

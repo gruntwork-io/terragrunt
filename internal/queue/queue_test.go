@@ -1166,6 +1166,7 @@ func TestQueueClaimForRunningRacesFailEntryWithRacing(t *testing.T) {
 				i,
 				entryB.Status,
 			)
+
 			continue
 		}
 

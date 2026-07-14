@@ -172,6 +172,7 @@ func FuzzResolveStackFilePath(f *testing.F) {
 				target,
 				got,
 			)
+
 			return
 		}
 
