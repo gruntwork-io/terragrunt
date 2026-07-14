@@ -8,6 +8,7 @@ sidebar:
 
 import { Aside, Card } from '@astrojs/starlight/components';
 import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 ## Easy Wins
 
@@ -309,11 +310,19 @@ You can learn more about benchmarking in Go by reading the [official documentati
 
 Use profiling tools like [pprof](https://github.com/google/pprof) to get a more detailed view of the performance of Terragrunt.
 
+<Before version="v1.1.1">
+
+Runtime profiling for Terragrunt ships with v1.1.1.
+
+</Before>
+
+<Since version="v1.1.1">
+
+##### Runtime CPU Profiling with `TG_PROFILE_CPU`
+
 <Aside type="tip" title="Experimental">
 Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
 </Aside>
-
-##### Runtime CPU Profiling with `TG_PROFILE_CPU`
 
 You can profile Terragrunt during normal operation by setting `TG_PROFILE_CPU`:
 
@@ -332,6 +341,10 @@ TG_PROFILE_CPU=terragrunt_cpu.prof TOFU_CPU_PROFILE=tofu_cpu.prof terragrunt run
 ```
 
 ##### Directory Collection with `TG_PROFILE_DIR`
+
+<Aside type="tip" title="Experimental">
+Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
+</Aside>
 
 For `run --all`, point Terragrunt at a directory instead of individual files:
 
@@ -374,6 +387,10 @@ Behavior details:
 
 ##### Memory Profiling with `TG_PROFILE_MEM`
 
+<Aside type="tip" title="Experimental">
+Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
+</Aside>
+
 You can capture a heap memory profile of the Terragrunt process by setting:
 
 ```shell
@@ -390,6 +407,10 @@ TG_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
 
 ##### Goroutine Profiles with `TG_PROFILE_GOROUTINE`
 
+<Aside type="tip" title="Experimental">
+Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
+</Aside>
+
 You can capture a goroutine profile (stack traces of all goroutines) at the end of the run by setting:
 
 ```shell
@@ -399,6 +420,10 @@ TG_PROFILE_GOROUTINE=terragrunt_goroutine.prof terragrunt run -- plan
 For `run --all`, use `TG_PROFILE_DIR` to collect the goroutine profile alongside CPU and memory profiles.
 
 ##### CLI Flags for Profiling
+
+<Aside type="tip" title="Experimental">
+Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
+</Aside>
 
 You can also enable profiling using CLI flags:
 
@@ -427,6 +452,10 @@ The corresponding environment variables (`TG_PROFILE_CPU`, `TG_PROFILE_MEM`, `TG
 
 ##### Environment Variable Reference
 
+<Aside type="tip" title="Experimental">
+Profiling is part of the [`profiling` experiment](/reference/experiments/active#profiling). Enable it with `--experiment=profiling` or `TG_EXPERIMENT=profiling`.
+</Aside>
+
 | Variable | Description |
 |----------|-------------|
 | `TG_EXPERIMENT=profiling` | Enables the `profiling` experiment, required for all profiling flags and `TG_PROFILE_*` variables (equivalent to `--experiment=profiling`). |
@@ -449,6 +478,8 @@ It can be helpful to use the web interface to view the profile data using flame 
 ```shell
 go tool pprof -http=:8080 /tmp/profiles/terragrunt_cpu.prof
 ```
+
+</Since>
 
 ##### Profiling in Tests
 
