@@ -220,13 +220,13 @@ func BuildRequestURL(
 func GetLatestModuleVersion(
 	ctx context.Context,
 	l log.Logger,
-	httpClient *http.Client,
+	c vhttp.Client,
 	registryDomain, moduleRegistryBasePath, modulePath string,
 ) (string, error) {
 	versions, err := listModuleVersions(
 		ctx,
 		l,
-		httpClient,
+		c,
 		registryDomain,
 		moduleRegistryBasePath,
 		modulePath,
@@ -270,7 +270,7 @@ func GetLatestModuleVersion(
 func GetMatchingModuleVersion(
 	ctx context.Context,
 	l log.Logger,
-	httpClient *http.Client,
+	c vhttp.Client,
 	registryDomain, moduleRegistryBasePath, modulePath, constraint string,
 ) (string, error) {
 	constraints, err := goversion.NewConstraint(constraint)
@@ -281,7 +281,7 @@ func GetMatchingModuleVersion(
 	versions, err := listModuleVersions(
 		ctx,
 		l,
-		httpClient,
+		c,
 		registryDomain,
 		moduleRegistryBasePath,
 		modulePath,
@@ -314,12 +314,11 @@ func GetMatchingModuleVersion(
 // PinModuleVersion resolves constraint against the OpenTofu or Terraform module
 // registry addressed by the tfr:// source and returns the source URL rewritten
 // to pin the exact version that satisfies the constraint. tofuImpl selects the
-// default registry host when the source omits it; a nil httpClient uses a
-// default client.
+// default registry host when the source omits it.
 func PinModuleVersion(
 	ctx context.Context,
 	l log.Logger,
-	httpClient *http.Client,
+	c vhttp.Client,
 	tofuImpl tfimpl.Type,
 	source, constraint string,
 ) (string, error) {
@@ -333,7 +332,7 @@ func PinModuleVersion(
 		registryDomain = tfimpl.DefaultRegistryDomain(tofuImpl)
 	}
 
-	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, l, httpClient, registryDomain)
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, l, c, registryDomain)
 	if err != nil {
 		return "", err
 	}
@@ -343,7 +342,7 @@ func PinModuleVersion(
 	version, err := GetMatchingModuleVersion(
 		ctx,
 		l,
-		httpClient,
+		c,
 		registryDomain,
 		moduleRegistryBasePath,
 		modulePath,
@@ -391,8 +390,7 @@ type VersionResolver struct {
 }
 
 // NewVersionResolver returns a VersionResolver with an empty cache and a
-// [github.com/gruntwork-io/terragrunt/internal/vhttp.NewOSClient] for
-// registry-protocol requests.
+// [vhttp.NewOSClient] for registry-protocol requests.
 func NewVersionResolver() *VersionResolver {
 	return &VersionResolver{
 		httpClient: vhttp.NewOSClient(),
@@ -401,8 +399,8 @@ func NewVersionResolver() *VersionResolver {
 }
 
 // WithHTTPClient overrides the HTTP client used for registry-protocol
-// requests. Intended for tests routing through an in-memory
-// [github.com/gruntwork-io/terragrunt/internal/vhttp.Client].
+// requests. Intended for tests routing through a
+// [net/http/httptest.Server].
 func (r *VersionResolver) WithHTTPClient(c vhttp.Client) *VersionResolver {
 	r.httpClient = c
 	return r
@@ -472,7 +470,7 @@ func (r *VersionResolver) store(key, pinned string) {
 func listModuleVersions(
 	ctx context.Context,
 	l log.Logger,
-	httpClient *http.Client,
+	c vhttp.Client,
 	registryDomain, moduleRegistryBasePath, modulePath string,
 ) ([]*goversion.Version, error) {
 	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
@@ -495,7 +493,7 @@ func listModuleVersions(
 		}
 	}
 
-	bodyData, _, err := httpGETAndGetResponse(ctx, l, httpClient, versionsURL)
+	bodyData, _, err := httpGETAndGetResponse(ctx, l, c, versionsURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query module versions for %s: %w", modulePath, err)
 	}
