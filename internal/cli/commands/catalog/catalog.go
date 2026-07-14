@@ -85,7 +85,7 @@ func runTUI(
 	loadLogger := l.WithOptions(log.WithOutput(io.Discard), log.WithHooks(viewtui.NewWarnHook(warnCh)))
 
 	return tui.Run(
-		ctx, l, v, opts, v.Writers.ErrWriter, warnCh,
+		ctx, l, v, opts, warnCh,
 		newLoadFunc(loadLogger, v, opts, tempDirs, repoURL),
 	)
 }
