@@ -349,7 +349,7 @@ func runCommand(
 	savedConsole := exec.SaveConsoleState()
 	defer savedConsole.Restore()
 
-	if err := cmd.Start(l); err != nil { //nolint:contextcheck // context already passed to exec.Command
+	if err := cmd.Start(l); err != nil { //nolint:contextcheck // ctx already in exec.Command
 		err = util.ProcessExecutionError{
 			Err:             err,
 			Args:            cmdOpts.Args,

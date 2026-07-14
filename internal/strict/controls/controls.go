@@ -114,9 +114,9 @@ func New() strict.Controls {
 	skipDependenciesInputsControl := &Control{
 		Name:        SkipDependenciesInputs,
 		Description: "Controls whether to allow the deprecated dependency inputs feature. Dependency inputs are now disabled by default for performance. Use dependency outputs instead.",
-		Error: errors.New(
+		Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 			"reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs.",
-		), //nolint:staticcheck // user-facing message intentionally written as full sentences
+		),
 		Warning: "Reading inputs from dependencies has been deprecated and is now disabled by default for performance. Use dependency outputs instead.",
 		Status:  strict.CompletedStatus,
 	}
@@ -124,9 +124,9 @@ func New() strict.Controls {
 	requireExplicitBootstrapControl := &Control{
 		Name:        RequireExplicitBootstrap,
 		Description: "Don't bootstrap backends by default. When enabled, users must supply `--backend-bootstrap` explicitly to automatically bootstrap backend resources.",
-		Error: errors.New(
+		Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 			"bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead.",
-		), //nolint:staticcheck // user-facing message intentionally written as full sentences
+		),
 		Warning: "Bootstrapping backend resources by default is deprecated functionality, and will not be the default behavior in a future version of Terragrunt. Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.",
 		Status:  strict.CompletedStatus,
 	}
@@ -219,92 +219,92 @@ func New() strict.Controls {
 		&Control{
 			Name:        RootTerragruntHCL,
 			Description: "Throw an error when users try to reference a root terragrunt.hcl file using find_in_parent_folders.",
-			Error: errors.New(
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 				"Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl",
-			), //nolint:staticcheck // user-facing message intentionally written as full sentences
+			),
 			Warning: "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl",
 		},
 
 		&Control{
 			Name:        BareInclude,
 			Description: "Prevents the use of the `include` block without a label.",
-			Error: errors.New(
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 				"Using an `include` block without a label is deprecated. Please use the `include` block with a label instead.",
-			), //nolint:staticcheck // user-facing message intentionally written as full sentences
+			),
 			Warning: "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://docs.terragrunt.com/migrate/bare-include/",
 		},
 
 		&Control{
 			Name:        DoubleStar,
 			Description: "Use the `**` glob pattern to select all files in a directory and its subdirectories.",
-			Error: errors.New(
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 				"Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
-			), //nolint:staticcheck // user-facing message intentionally written as full sentences
+			),
 			Warning: "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
 			Status:  strict.CompletedStatus,
 		},
 		&Control{
 			Name:        QueueExcludeExternal,
 			Description: "Prevents the use of the deprecated `--queue-exclude-external` flag.",
-			Error: errors.New(
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 				"The `--queue-exclude-external` flag is no longer supported. External dependencies are now excluded by default. Use --queue-include-external to include them.",
-			), //nolint:staticcheck // user-facing message intentionally written as full sentences
+			),
 			Warning: "The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.",
 		},
 		&Control{
 			Name:        QueueStrictInclude,
 			Description: "Prevents the use of the deprecated `--queue-strict-include` flag.",
-			Error: errors.New(
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 				"The `--queue-strict-include` flag is no longer supported. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior.",
-			), //nolint:staticcheck // user-facing message intentionally written as full sentences
+			),
 			Warning: "The `--queue-strict-include` flag is deprecated and will be removed in a future version of Terragrunt. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior.",
 		},
 		&Control{
 			Name:        UnitsThatInclude,
 			Description: "Prevents the use of the deprecated `--units-that-include` flag.",
-			Error: errors.New(
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 				"The `--units-that-include` flag is no longer supported. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.",
-			), //nolint:staticcheck // user-facing message intentionally written as full sentences
+			),
 			Warning: "The `--units-that-include` flag is deprecated and will be removed in a future version of Terragrunt. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.",
 		},
 		&Control{
 			Name:        DisableCommandValidation,
 			Description: "Prevents the use of the deprecated `--disable-command-validation` flag. Command validation has been removed entirely.",
-			Error: errors.New(
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 				"The `--disable-command-validation` flag is no longer supported. Command validation has been removed entirely, and you can pass any command to `terragrunt run`.",
-			), //nolint:staticcheck // user-facing message intentionally written as full sentences
+			),
 			Warning: "The `--disable-command-validation` flag is deprecated and will be removed in a future version of Terragrunt. Command validation has been removed entirely, and you can pass any command to `terragrunt run`.",
 		},
 		&Control{
 			Name:        NoDestroyDependenciesCheck,
 			Description: "Prevents the use of the deprecated `--no-destroy-dependencies-check` flag. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
-			Error: errors.New(
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 				"The `--no-destroy-dependencies-check` flag is no longer supported. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
-			), //nolint:staticcheck // user-facing message intentionally written as full sentences
+			),
 			Warning: "The `--no-destroy-dependencies-check` flag is deprecated and will be removed in a future version of Terragrunt. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
 		},
 		&Control{
 			Name:        InternalTFLint,
 			Description: "Prevents the use of the deprecated embedded version of tflint, instead treating `tflint` as a normal hook.",
-			Error: errors.New(
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 				"The embedded version of tflint is no longer supported. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally.",
-			), //nolint:staticcheck // user-facing message intentionally written as full sentences
+			),
 			Warning: "The embedded version of tflint is deprecated and will be removed in a future version of Terragrunt. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally and avoid this warning.",
 		},
 		&Control{
 			Name:        DeprecatedHiddenFlag,
 			Description: "Prevents the use of the deprecated `--hidden` flag.",
-			Error: errors.New(
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 				"The `--hidden` flag is no longer supported. Hidden directories are now included by default. Use `--no-hidden` to exclude them.",
-			), //nolint:staticcheck // user-facing message intentionally written as full sentences
+			),
 			Warning: "The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.",
 		},
 		&Control{
 			Name:        DisableDependentModules,
 			Description: "Prevents the use of the deprecated `--disable-dependent-modules` flag.",
-			Error: errors.New(
+			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
 				"The `--disable-dependent-modules` flag is no longer supported. Dependent modules discovery has been removed from `terragrunt render`.",
-			), //nolint:staticcheck // user-facing message intentionally written as full sentences
+			),
 			Warning: "The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.",
 		},
 		&Control{

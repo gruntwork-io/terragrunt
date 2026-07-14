@@ -106,9 +106,9 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 
 	// Subtest 2: Credentials injected when absent from process env.
 	// Models: first run, auth-provider loaded creds into opts.Env, process env was empty.
-	t.Run(
+	t.Run( //nolint:paralleltest // mutates process env
 		"new_creds_set_when_absent_from_process_env",
-		func(t *testing.T) { //nolint:paralleltest // mutates process env
+		func(t *testing.T) {
 			os.Unsetenv(authKey) //nolint:errcheck
 
 			l := logger.CreateLogger()
@@ -138,9 +138,9 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 	// Subtest 3: Missing credentials cause decrypt failure.
 	// Reproduces the ORIGINAL bug: auth-provider hasn't run yet, opts.Env has no
 	// auth token, process env has no auth token → SOPS can't authenticate to KMS.
-	t.Run(
+	t.Run( //nolint:paralleltest // mutates process env
 		"missing_creds_fails_decrypt",
-		func(t *testing.T) { //nolint:paralleltest // mutates process env
+		func(t *testing.T) {
 			os.Unsetenv(authKey) //nolint:errcheck
 
 			l := logger.CreateLogger()
@@ -159,9 +159,9 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 	// Subtest 4: Concurrent goroutines with DIFFERENT auth tokens are isolated.
 	// Models production: multiple units decrypt in parallel, each with different
 	// auth-provider credentials. The lock must ensure each sees its OWN token.
-	t.Run(
+	t.Run( //nolint:paralleltest // mutates process env
 		"concurrent_different_creds_isolated",
-		func(t *testing.T) { //nolint:paralleltest // mutates process env
+		func(t *testing.T) {
 			const numGoroutines = 5
 
 			os.Unsetenv(authKey) //nolint:errcheck

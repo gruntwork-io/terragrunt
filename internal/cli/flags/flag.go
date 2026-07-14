@@ -94,8 +94,7 @@ func (newFlag *Flag) Value() clihelper.FlagValue {
 
 			newFlag.Flag.Value().
 				Getter(deprecatedFlagValue.GetName()).
-				Set(newValue)
-			//nolint:errcheck
+				Set(newValue) //nolint:errcheck
 		}
 	}
 
