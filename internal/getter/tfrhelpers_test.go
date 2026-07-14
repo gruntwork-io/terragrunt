@@ -38,7 +38,7 @@ func TestVersionResolverMemoizesWithRacing(t *testing.T) {
 	server := httptest.NewTLSServer(mux)
 	t.Cleanup(server.Close)
 
-	resolver := getter.NewVersionResolver()
+	resolver := getter.NewVersionResolver().WithHTTPClient(server.Client())
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 
 	var wg sync.WaitGroup
@@ -50,7 +50,7 @@ func TestVersionResolverMemoizesWithRacing(t *testing.T) {
 			defer wg.Done()
 
 			pinned, err := resolver.Pin(
-				t.Context(), logger.CreateLogger(), server.Client(), tfimpl.OpenTofu, source, "~> 3.0",
+				t.Context(), logger.CreateLogger(), tfimpl.OpenTofu, source, "~> 3.0",
 			)
 			assert.NoError(t, err)
 			assert.Equal(t, source+"?version=3.3.0", pinned)
