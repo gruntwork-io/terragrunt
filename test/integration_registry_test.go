@@ -174,6 +174,10 @@ func TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *testin
 func TestTerraformRegistryVersionConstraintRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, so the experiment-disabled error this test pins cannot occur")
+	}
+
 	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintModulePath)
 	helpers.CleanupTerraformFolder(t, modPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, modPath)
