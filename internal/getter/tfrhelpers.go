@@ -380,17 +380,32 @@ func SourceHasVersionConstraint(source string) bool {
 
 // VersionResolver memoizes constraint resolution so that repeated or concurrent
 // requests for the same module and constraint query the registry once instead
-// of once each. It is safe for concurrent use; construct one with
-// NewVersionResolver and share it for the lifetime of a run.
+// of once each, over a single shared connection pool. It is safe for concurrent
+// use; construct one with NewVersionResolver and share it for the lifetime of
+// a run.
 type VersionResolver struct {
-	cache  map[string]string
-	flight singleflight.Group
-	mu     sync.Mutex
+	httpClient *http.Client
+	cache      map[string]string
+	flight     singleflight.Group
+	mu         sync.Mutex
 }
 
-// NewVersionResolver returns a VersionResolver with an empty cache.
+// NewVersionResolver returns a VersionResolver with an empty cache and a
+// [github.com/hashicorp/go-cleanhttp.DefaultClient] for registry-protocol
+// requests.
 func NewVersionResolver() *VersionResolver {
-	return &VersionResolver{cache: make(map[string]string)}
+	return &VersionResolver{
+		httpClient: cleanhttp.DefaultClient(),
+		cache:      make(map[string]string),
+	}
+}
+
+// WithHTTPClient overrides the HTTP client used for registry-protocol
+// requests. Intended for tests routing through a
+// [net/http/httptest.Server].
+func (r *VersionResolver) WithHTTPClient(c *http.Client) *VersionResolver {
+	r.httpClient = c
+	return r
 }
 
 // Pin resolves constraint for the tfr:// source and returns the source URL
@@ -400,7 +415,6 @@ func NewVersionResolver() *VersionResolver {
 func (r *VersionResolver) Pin(
 	ctx context.Context,
 	l log.Logger,
-	httpClient *http.Client,
 	tofuImpl tfimpl.Type,
 	source, constraint string,
 ) (string, error) {
@@ -415,7 +429,7 @@ func (r *VersionResolver) Pin(
 			return pinned, nil
 		}
 
-		pinned, err := PinModuleVersion(ctx, l, httpClient, tofuImpl, source, constraint)
+		pinned, err := PinModuleVersion(ctx, l, r.httpClient, tofuImpl, source, constraint)
 		if err != nil {
 			return nil, err
 		}
