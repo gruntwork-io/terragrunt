@@ -28,6 +28,11 @@ func WithTFRegistry(g *RegistryGetter) Option {
 	return func(b *builder) { b.tfRegistry = g }
 }
 
+// WithOCI registers the supplied OCIGetter for oci:// sources.
+func WithOCI(g *OCIGetter) Option {
+	return func(b *builder) { b.oci = g }
+}
+
 // WithCAS registers CASGetter, which intercepts git/file sources and routes
 // them through Terragrunt's content-addressable storage. v supplies the
 // filesystem and git runner used by every CAS operation.
@@ -84,6 +89,7 @@ type builder struct {
 
 	fileCopy         *FileCopyGetter
 	tfRegistry       *RegistryGetter
+	oci              *OCIGetter
 	casStore         *cas.CAS
 	casCloneOpts     *cas.CloneOptions
 	casVenv          cas.Venv

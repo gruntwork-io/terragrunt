@@ -1276,3 +1276,59 @@ func TestBuildDownloadClientRejectsNonOSFilesystem(t *testing.T) {
 	require.ErrorIs(t, err, run.ErrNonOSFilesystem)
 	assert.Nil(t, client)
 }
+
+// TestBuildDownloadClientOCIExperimentGate verifies that the oci getter is
+// registered only when the oci experiment is enabled: without it, oci://
+// sources keep failing with the generic go-getter error; with it, the typed
+// OCI validation error proves the getter runs.
+func TestBuildDownloadClientOCIExperimentGate(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		enabled bool
+	}{
+		{
+			name:    "experiment disabled keeps oci unregistered",
+			enabled: false,
+		},
+		{
+			name:    "experiment enabled registers the oci getter",
+			enabled: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
+			require.NoError(t, err)
+
+			if tc.enabled {
+				require.NoError(t, terragruntOptions.Experiments.EnableExperiment(experiment.OCI))
+			}
+
+			client, err := run.BuildDownloadClient(
+				logger.CreateLogger(),
+				venv.OSVenv(),
+				configbridge.NewRunOptions(terragruntOptions),
+				&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+			)
+			require.NoError(t, err)
+
+			_, found := findGetter[*getter.OCIGetter](client.Getters)
+			assert.Equal(t, tc.enabled, found)
+
+			dst := filepath.Join(t.TempDir(), "module")
+
+			_, err = client.Get(t.Context(), &getter.Request{
+				Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?bogus=1",
+				Dst:     dst,
+				GetMode: getter.ModeDir,
+			})
+			require.Error(t, err)
+			assert.Equal(t, tc.enabled, errors.Is(err, getter.OCIUnsupportedQueryParamError{Param: "bogus"}))
+		})
+	}
+}

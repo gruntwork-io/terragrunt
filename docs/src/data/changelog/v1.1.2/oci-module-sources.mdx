@@ -1,0 +1,14 @@
+---
+version: "v1.1.2"
+category: "experiments-updated"
+---
+
+#### `oci` - Downloading modules from OCI registries
+
+The `oci` experiment now downloads source code (including OpenTofu modules) from OCI Distribution registries. With the experiment enabled, `oci://` schema URLs work in Terragrunt configurations (including `terraform.source` attributes), pinned by `tag` or `digest` and defaulting to the `latest` tag, with `//subdir` selectors supported. Artifacts follow the same publishing contract OpenTofu 1.10 consumes natively.
+
+Authentication covers static credentials via interim `TG_TMP_OCI_*` environment variables and read-only ambient discovery of Docker and containers auth files. Credential helpers (such as `ecr-login`) are not invoked yet, so registries that need per-run token minting only work while an externally obtained login is present in an ambient file.
+
+Without the experiment, `oci://` sources keep failing to download, unchanged.
+
+For setup steps, see the [experiment documentation](/reference/experiments/active#oci).

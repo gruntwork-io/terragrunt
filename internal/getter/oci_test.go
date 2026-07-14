@@ -301,6 +301,67 @@ func TestOCIGetterGetFileUnsupported(t *testing.T) {
 	assert.ErrorIs(t, err, getter.ErrOCIGetFileUnsupported)
 }
 
+func TestNewClientWithOCIDetectOrdering(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "wired" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+
+	client := getter.NewClient(
+		getter.WithLogger(logger.CreateLogger()),
+		getter.WithOCI(newTestOCIGetter(staticStore(store))),
+	)
+
+	dst := filepath.Join(t.TempDir(), "module")
+
+	// The full default protocol set (git, http(s), s3, gcs, file) is
+	// registered; a successful fake-store download proves the OCI getter
+	// claimed the source before any generic getter shadowed it.
+	_, err := client.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"1.0.0"}, store.gotRefs)
+	assert.FileExists(t, filepath.Join(dst, "main.tf"))
+}
+
+func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
+	t.Parallel()
+
+	client := getter.NewClient(getter.WithLogger(logger.CreateLogger()))
+	dst := filepath.Join(t.TempDir(), "module")
+
+	_, err := client.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?bogus=1",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.Error(t, err)
+	// Without WithOCI no getter recognizes the scheme, so the typed OCI
+	// validation error never appears.
+	assert.NotErrorIs(t, err, getter.OCIUnsupportedQueryParamError{Param: "bogus"})
+}
+
+func TestDefaultGenericFetchersOCIConfig(t *testing.T) {
+	t.Parallel()
+
+	_, found := getter.DefaultGenericFetchers()[getter.SchemeOCI]
+	assert.False(t, found, "oci fetcher must be absent without WithOCIConfig")
+
+	fetchers := getter.DefaultGenericFetchers(getter.WithOCIConfig(logger.CreateLogger(), vfs.NewOSFS()))
+
+	g, found := fetchers[getter.SchemeOCI]
+	require.True(t, found, "oci fetcher must be present with WithOCIConfig")
+
+	ociGetter, castOK := g.(*getter.OCIGetter)
+	require.True(t, castOK, "oci fetcher must be an OCIGetter")
+	assert.NotNil(t, ociGetter.NewStore, "oci fetcher must carry the default store")
+}
+
 // fakeStore is an in-memory OCIRepositoryStore serving one manifest and its
 // layer blobs; it records every resolved ref.
 type fakeStore struct {

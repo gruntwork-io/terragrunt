@@ -578,6 +578,14 @@ func tryCASDownload(
 	casProtocol := getter.NewCASProtocolGetter(l, c, venv)
 	casProtocol.Mutable = mutable
 
+	dispatchOpts := []getter.GenericFetcherOption{
+		getter.WithTFRConfig(l, opts.TofuImplementation, venv.FS),
+	}
+
+	if opts.Experiments.Evaluate(experiment.OCI) {
+		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(l, venv.FS))
+	}
+
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
 	// (from CAS-rewritten stacks); CASGetter handles git:: and other remote
 	// sources via CAS. No fallback getters here, so a failure means the
@@ -585,9 +593,7 @@ func tryCASDownload(
 	client := &getter.Client{
 		Getters: []getter.Getter{
 			casProtocol,
-			getter.NewCASGetter(l, c, venv, &cloneOpts, getter.WithDefaultGenericDispatch(
-				getter.WithTFRConfig(l, opts.TofuImplementation, venv.FS),
-			)),
+			getter.NewCASGetter(l, c, venv, &cloneOpts, getter.WithDefaultGenericDispatch(dispatchOpts...)),
 		},
 	}
 
@@ -622,7 +628,8 @@ func tryCASDownload(
 // BuildDownloadClient constructs the go-getter client used for the standard
 // (non-CAS) download path. The customizations layered on top of the default
 // protocol set are: FileCopyGetter (copies local sources instead of
-// symlinking) and RegistryGetter (resolves tfr:// sources).
+// symlinking), RegistryGetter (resolves tfr:// sources), and, behind the oci
+// experiment, OCIGetter (resolves oci:// sources).
 //
 // v.FS must be the OS-backed filesystem from [vfs.NewOSFS]; it backs the
 // file-copy getter and the registry getter's archive expansion, both of
@@ -640,7 +647,7 @@ func BuildDownloadClient(
 		return nil, ErrNonOSFilesystem
 	}
 
-	return getter.NewClient(
+	clientOpts := []getter.Option{
 		getter.WithLogger(l),
 		getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).
 			WithLogger(l).
@@ -649,7 +656,17 @@ func BuildDownloadClient(
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
 			WithTofuImplementation(opts.TofuImplementation)),
-	), nil
+	}
+
+	if opts.Experiments.Evaluate(experiment.OCI) {
+		clientOpts = append(clientOpts, getter.WithOCI(&getter.OCIGetter{
+			NewStore: getter.NewOCIRepositoryStore(v.FS),
+			Logger:   l,
+			FS:       v.FS,
+		}))
+	}
+
+	return getter.NewClient(clientOpts...), nil
 }
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory
