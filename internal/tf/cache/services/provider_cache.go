@@ -525,7 +525,6 @@ type ProviderService struct {
 	// fs is the filesystem for file operations.
 	fs vfs.FS
 
-	// httpClient performs upstream registry and provider fetches.
 	httpClient vhttp.Client
 
 	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.

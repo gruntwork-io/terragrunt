@@ -12,16 +12,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 )
 
 // New returns an in-memory venv: a no-op mem exec, an in-memory filesystem,
-// an empty (non-nil) environment, deterministic platform handles, and both
-// writers wired to [io.Discard]. Refine it with venv.Venv's fluent With methods.
+// a fail-closed no-network HTTP client, an empty (non-nil) environment,
+// deterministic platform handles, and both writers wired to [io.Discard].
+// Refine it with venv.Venv's fluent With methods.
 func New() venv.Venv {
 	return venv.Venv{
 		Exec: vexec.NewMemExec(func(context.Context, vexec.Invocation) vexec.Result { return vexec.Result{} }),
 		FS:   vfs.NewMemMapFS(),
+		HTTP: vhttp.NewNoNetworkClient(),
 		Env:  map[string]string{},
 		Platform: &venv.Platform{
 			UserHomeDir: func() (string, error) {

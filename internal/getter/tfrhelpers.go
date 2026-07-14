@@ -108,7 +108,7 @@ func (e NoMatchingVersionErr) Error() string {
 func GetModuleRegistryURLBasePath(
 	ctx context.Context,
 	l log.Logger,
-	httpClient vhttp.Client,
+	c vhttp.Client,
 	domain string,
 ) (string, error) {
 	sdURL := url.URL{
@@ -117,7 +117,7 @@ func GetModuleRegistryURLBasePath(
 		Path:   serviceDiscoveryPath,
 	}
 
-	bodyData, _, err := httpGETAndGetResponse(ctx, l, httpClient, &sdURL)
+	bodyData, _, err := httpGETAndGetResponse(ctx, l, c, &sdURL)
 	if err != nil {
 		return "", err
 	}
@@ -141,10 +141,10 @@ func GetModuleRegistryURLBasePath(
 func GetTerraformGetHeader(
 	ctx context.Context,
 	l log.Logger,
-	httpClient vhttp.Client,
+	c vhttp.Client,
 	url *url.URL,
 ) (string, error) {
-	body, header, err := httpGETAndGetResponse(ctx, l, httpClient, url)
+	body, header, err := httpGETAndGetResponse(ctx, l, c, url)
 	if err != nil {
 		return "", ModuleDownloadErr{sourceURL: url.String(), details: "error receiving HTTP data"}
 	}
@@ -572,13 +572,9 @@ func applyHostToken(req *http.Request) (*http.Request, error) {
 func httpGETAndGetResponse(
 	ctx context.Context,
 	l log.Logger,
-	httpClient vhttp.Client,
+	c vhttp.Client,
 	getURL *url.URL,
 ) ([]byte, *http.Header, error) {
-	if httpClient == nil {
-		httpClient = vhttp.NewOSClient()
-	}
-
 	if getURL == nil {
 		return nil, nil, errors.New("httpGETAndGetResponse received nil getURL")
 	}
@@ -593,7 +589,7 @@ func httpGETAndGetResponse(
 		return nil, nil, fmt.Errorf("applying registry auth token for %s: %w", getURL, err)
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := c.Do(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("executing registry HTTP request to %s: %w", getURL, err)
 	}

@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"gopkg.in/ini.v1"
 )
@@ -79,7 +80,7 @@ type RepoOpts struct {
 // vfs.NewMemMapFS(). Note that performing an actual remote clone (i.e.
 // CloneURL is a URL, not a local path) requires the OS filesystem because
 // the underlying go-getter writes through the real OS.
-func NewRepo(ctx context.Context, l log.Logger, fsys vfs.FS, opts *RepoOpts) (*Repo, error) {
+func NewRepo(ctx context.Context, l log.Logger, fsys vfs.FS, c vhttp.Client, opts *RepoOpts) (*Repo, error) {
 	if opts == nil {
 		opts = &RepoOpts{}
 	}
@@ -95,7 +96,7 @@ func NewRepo(ctx context.Context, l log.Logger, fsys vfs.FS, opts *RepoOpts) (*R
 		rootWorkingDir:   opts.RootWorkingDir,
 	}
 
-	if err := repo.clone(ctx, l, fsys); err != nil {
+	if err := repo.clone(ctx, l, fsys, c); err != nil {
 		return nil, err
 	}
 
@@ -270,7 +271,7 @@ type CloneOptions struct {
 	TargetPath string
 }
 
-func (repo *Repo) clone(ctx context.Context, l log.Logger, fsys vfs.FS) error {
+func (repo *Repo) clone(ctx context.Context, l log.Logger, fsys vfs.FS, c vhttp.Client) error {
 	cloneURL := repo.resolveCloneURL()
 
 	// Handle local directory case
@@ -295,7 +296,7 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger, fsys vfs.FS) error {
 		return nil
 	}
 
-	return repo.performClone(ctx, l, fsys, &opts)
+	return repo.performClone(ctx, l, fsys, c, &opts)
 }
 
 func (repo *Repo) resolveCloneURL() string {
@@ -418,7 +419,7 @@ func (repo *Repo) cloneCompleted(fsys vfs.FS) bool {
 	return exists
 }
 
-func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, opts *CloneOptions) error {
+func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, c vhttp.Client, opts *CloneOptions) error {
 	var clientOpts []getter.Option
 
 	if repo.allowCAS {
@@ -431,7 +432,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, o
 			return err
 		}
 
-		c, err := cas.New(cas.WithCloneDepth(cloneDepth))
+		casStore, err := cas.New(cas.WithCloneDepth(cloneDepth))
 		if err != nil {
 			return err
 		}
@@ -446,7 +447,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, o
 			IncludedGitFiles: includedGitFiles,
 		}
 
-		clientOpts = append(clientOpts, getter.WithCAS(c, venv, &cloneOpts))
+		clientOpts = append(clientOpts, getter.WithCAS(casStore, venv, &cloneOpts), getter.WithHTTP(c))
 	}
 
 	client := getter.NewClient(clientOpts...)

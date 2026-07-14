@@ -41,9 +41,9 @@ type Release struct {
 type GitHubAPIClientOption func(*GitHubAPIClient)
 
 // WithHTTPClient sets the HTTP client for the GitHub client.
-func WithHTTPClient(httpClient vhttp.Client) GitHubAPIClientOption {
-	return func(c *GitHubAPIClient) {
-		c.httpClient = httpClient
+func WithHTTPClient(c vhttp.Client) GitHubAPIClientOption {
+	return func(gh *GitHubAPIClient) {
+		gh.httpClient = c
 	}
 }
 

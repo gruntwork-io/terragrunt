@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,7 +61,7 @@ func TestFindModules(t *testing.T) {
 
 			ctx := t.Context()
 
-			repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: tc.repoPath})
+			repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), vhttp.NewNoNetworkClient(), &module.RepoOpts{CloneURL: tc.repoPath})
 			require.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())

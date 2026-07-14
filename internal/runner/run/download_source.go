@@ -478,7 +478,7 @@ func downloadSource(
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
-		done, err := tryCASDownload(ctx, l, src, opts, cfg.Terraform.Mutable)
+		done, err := tryCASDownload(ctx, l, v, src, opts, cfg.Terraform.Mutable)
 		if err != nil {
 			return err
 		}
@@ -515,6 +515,7 @@ func downloadSource(
 func tryCASDownload(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	src *tf.Source,
 	opts *Options,
 	mutable bool,
@@ -573,6 +574,7 @@ func tryCASDownload(
 
 	dispatchOpts := []getter.GenericFetcherOption{
 		getter.WithTFRConfig(l, opts.TofuImplementation, casVenv.FS),
+		getter.WithHTTPClient(v.HTTP),
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
@@ -644,6 +646,7 @@ func BuildDownloadClient(
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
+			WithHTTPClient(v.HTTP).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}
 

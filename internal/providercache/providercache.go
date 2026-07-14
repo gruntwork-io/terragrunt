@@ -32,7 +32,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -88,46 +87,19 @@ type ProviderCache struct {
 	opts            *pcoptions.ProviderCacheOptions
 	cliCfg          *cliconfig.Config
 	providerService *services.ProviderService
-	fs              vfs.FS
-	httpClient      vhttp.Client
 }
 
-// NewProviderCache creates a new ProviderCache with sensible defaults.
-// Use builder methods like WithFS() to customize the configuration.
+// NewProviderCache creates an uninitialized ProviderCache; call
+// [ProviderCache.Init] to wire it to a venv and options.
 func NewProviderCache() *ProviderCache {
-	return &ProviderCache{
-		fs:         vfs.NewOSFS(),
-		httpClient: vhttp.NewOSClient(),
-	}
+	return &ProviderCache{}
 }
 
-// WithFS sets the filesystem for file operations and returns the ProviderCache
-// for method chaining. If not called, defaults to the real OS filesystem.
-func (pc *ProviderCache) WithFS(fs vfs.FS) *ProviderCache {
-	pc.fs = fs
-	return pc
-}
-
-// WithHTTPClient sets the HTTP client used for upstream provider and registry
-// requests. If not called, defaults to [vhttp.NewOSClient].
-func (pc *ProviderCache) WithHTTPClient(c vhttp.Client) *ProviderCache {
-	pc.httpClient = c
-	return pc
-}
-
-// FS returns the configured filesystem.
-func (pc *ProviderCache) FS() vfs.FS {
-	return pc.fs
-}
-
-// HTTPClient returns the configured HTTP client.
-func (pc *ProviderCache) HTTPClient() vhttp.Client {
-	return pc.httpClient
-}
-
-// Init initializes the ProviderCache with the given logger and options.
-// Call this after configuring the ProviderCache with builder methods.
-func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) error {
+// Init initializes the ProviderCache with the given logger, venv, and
+// options. v supplies the filesystem and outbound HTTP client for all
+// cache-server traffic; there are no defaults, so a missed wiring fails
+// loudly instead of silently reaching the real network or filesystem.
+func (pc *ProviderCache) Init(l log.Logger, v *venv.Venv, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) error {
 	pc.opts = pcOpts
 
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
@@ -156,7 +128,7 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	}
 
 	// Pass filesystem to LoadUserConfig
-	cliCfg, err := cliconfig.LoadUserConfig(cliconfig.WithFS(pc.FS()))
+	cliCfg, err := cliconfig.LoadUserConfig(cliconfig.WithFS(v.FS))
 	if err != nil {
 		return err
 	}
@@ -166,15 +138,15 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 		return err
 	}
 
-	providerService := services.NewProviderService(pcOpts.Dir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(pc.FS()), services.WithHTTPClient(pc.HTTPClient()))
-	proxyProviderHandler := handlers.NewProxyProviderHandler(l, pc.HTTPClient(), cliCfg.CredentialsSource())
+	providerService := services.NewProviderService(pcOpts.Dir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(v.FS), services.WithHTTPClient(v.HTTP))
+	proxyProviderHandler := handlers.NewProxyProviderHandler(l, v.HTTP, cliCfg.CredentialsSource())
 
 	// Custom hosts need handlers, but must not pollute pcOpts.RegistryNames — FilterRegistriesByImplementation
 	// relies on that slice containing only the standard registries to detect impl-based filtering.
 	// See: https://github.com/gruntwork-io/terragrunt/issues/5916
 	registryNamesForHandlers := AppendCustomHostRegistries(cliCfg.Hosts, pcOpts.RegistryNames)
 
-	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, pc.HTTPClient(), registryNamesForHandlers)
+	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, v.HTTP, registryNamesForHandlers)
 	if err != nil {
 		return fmt.Errorf("creating provider handlers failed: %w", err)
 	}
@@ -183,7 +155,7 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	// This avoids .well-known/terraform.json lookups for registries that don't support it.
 	populateCustomHostDiscoveryCache(cliCfg.Hosts, providerHandlers)
 
-	proxyModuleHandler := handlers.NewProxyModuleHandler(l, cliCfg.CredentialsSource(), providerHandlers, registryNamesForHandlers)
+	proxyModuleHandler := handlers.NewProxyModuleHandler(l, v.HTTP, cliCfg.CredentialsSource(), providerHandlers, registryNamesForHandlers)
 
 	cacheServer := cache.NewServer(
 		cache.WithHostname(pcOpts.Hostname),
@@ -204,12 +176,11 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	return nil
 }
 
-// InitServer creates and initializes a new ProviderCache with the given logger,
-// HTTP client, and options. This is a convenience function that combines
-// NewProviderCache(), WithHTTPClient, and Init().
-func InitServer(l log.Logger, httpClient vhttp.Client, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) (*ProviderCache, error) {
-	pc := NewProviderCache().WithHTTPClient(httpClient)
-	if err := pc.Init(l, pcOpts, rootWorkingDir); err != nil {
+// InitServer creates and initializes a new ProviderCache backed by v's
+// filesystem and outbound HTTP client.
+func InitServer(l log.Logger, v *venv.Venv, pcOpts *pcoptions.ProviderCacheOptions, rootWorkingDir string) (*ProviderCache, error) {
+	pc := NewProviderCache()
+	if err := pc.Init(l, v, pcOpts, rootWorkingDir); err != nil {
 		return nil, err
 	}
 
@@ -288,7 +259,7 @@ func (pc *ProviderCache) warmUpCache(
 	)
 
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
-	if err := pc.createLocalCLIConfig(ctx, tfOpts.TofuImplementation, cliConfigFilename, cacheRequestID); err != nil {
+	if err := pc.createLocalCLIConfig(ctx, v, tfOpts.TofuImplementation, cliConfigFilename, cacheRequestID); err != nil {
 		return nil, err
 	}
 
@@ -375,7 +346,7 @@ func (pc *ProviderCache) runTerraformWithCache(
 	args clihelper.Args,
 ) (*util.CmdOutput, error) {
 	// Create terraform cli config file that uses provider cache dir
-	if err := pc.createLocalCLIConfig(ctx, tfOpts.TofuImplementation, cliConfigFilename, ""); err != nil {
+	if err := pc.createLocalCLIConfig(ctx, v, tfOpts.TofuImplementation, cliConfigFilename, ""); err != nil {
 		return nil, err
 	}
 
@@ -464,7 +435,7 @@ func argsRequestReadonlyLockfile(args []string) bool {
 // It creates two types of configuration depending on the `cacheRequestID` variable set.
 // 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have the opportunity later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
 // 2. If `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
-func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementation tfimpl.Type, filename string, cacheRequestID string) error {
+func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, v *venv.Venv, implementation tfimpl.Type, filename string, cacheRequestID string) error {
 	cfg := pc.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
@@ -488,7 +459,7 @@ func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementatio
 		cliconfig.NewProviderInstallationDirect(nil, nil),
 	)
 
-	return pc.saveCLIConfig(cfg, filename)
+	return pc.saveCLIConfig(v.FS, cfg, filename)
 }
 
 // configureRegistryHosts sets up host redirects for each registry, routing both
@@ -546,8 +517,7 @@ func (pc *ProviderCache) registrySupportsModules(ctx context.Context, registryNa
 }
 
 // saveCLIConfig writes the CLI config to disk, creating the directory if needed.
-func (pc *ProviderCache) saveCLIConfig(cfg *cliconfig.Config, filename string) error {
-	fs := pc.FS()
+func (pc *ProviderCache) saveCLIConfig(fs vfs.FS, cfg *cliconfig.Config, filename string) error {
 	cfgDir := filepath.Dir(filename)
 
 	cfgDirExists, err := vfs.FileExists(fs, cfgDir)

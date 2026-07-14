@@ -141,8 +141,7 @@ func GetTFVersion(
 
 	// Override venv for this call: discard output and strip TF_CLI_ARGS* so
 	// they don't interfere with "--version".
-	versionV := *v
-	versionV.Writers = versionV.Writers.WithWriter(io.Discard).WithErrWriter(io.Discard)
+	versionV := v.WithWriter(io.Discard).WithErrWriter(io.Discard)
 
 	envCopy := make(map[string]string, len(v.Env))
 	for key, val := range v.Env {

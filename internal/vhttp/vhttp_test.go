@@ -108,7 +108,7 @@ func TestRespond(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-	assert.Equal(t, http.StatusText(http.StatusCreated), resp.Status)
+	assert.Equal(t, "201 Created", resp.Status)
 	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 	assert.Equal(t, `{"ok":true}`, string(body))
 	assert.Equal(t, int64(len(`{"ok":true}`)), resp.ContentLength)
@@ -162,7 +162,7 @@ func TestNewOSClientWithTimeout_AppliesTimeout(t *testing.T) {
 }
 
 // TestMemClient_DoWithRacing exercises concurrent Do calls so CI runs it
-// under -race. Naming suffix mandated by project convention.
+// under -race.
 func TestMemClient_DoWithRacing(t *testing.T) {
 	t.Parallel()
 

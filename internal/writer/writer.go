@@ -13,22 +13,22 @@ type Writers struct {
 	ErrWriter io.Writer
 }
 
-// WithWriter copies w, replaces Writer on the copy, and returns a pointer
+// WithWriter copies ws, replaces Writer on the copy, and returns a pointer
 // to it. The other fields are preserved so callers that only override
 // stdout never silently drop future additions to [Writers].
-func (w *Writers) WithWriter(out io.Writer) *Writers {
-	c := *w
-	c.Writer = out
+func (ws *Writers) WithWriter(w io.Writer) *Writers {
+	c := *ws
+	c.Writer = w
 
 	return &c
 }
 
-// WithErrWriter copies w, replaces ErrWriter on the copy, and returns a
+// WithErrWriter copies ws, replaces ErrWriter on the copy, and returns a
 // pointer to it. The other fields are preserved so callers that only
 // override stderr never silently drop future additions to [Writers].
-func (w *Writers) WithErrWriter(err io.Writer) *Writers {
-	c := *w
-	c.ErrWriter = err
+func (ws *Writers) WithErrWriter(w io.Writer) *Writers {
+	c := *ws
+	c.ErrWriter = w
 
 	return &c
 }

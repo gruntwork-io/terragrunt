@@ -317,7 +317,7 @@ func RunAction(
 
 	// Run provider cache server
 	if opts.ProviderCacheOptions.Enabled {
-		server, err := providercache.InitServer(l, v.HTTP, &opts.ProviderCacheOptions, opts.RootWorkingDir)
+		server, err := providercache.InitServer(l, v, &opts.ProviderCacheOptions, opts.RootWorkingDir)
 		if err != nil {
 			return err
 		}

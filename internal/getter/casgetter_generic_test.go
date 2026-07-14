@@ -12,6 +12,7 @@ import (
 
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
@@ -99,7 +100,8 @@ func TestCASGetter_HTTPArchiveCachesSecondRun(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{}, getter.WithDefaultGenericDispatch())
+	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{},
+		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
 
 	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
 
@@ -162,7 +164,8 @@ func TestCASGetter_HTTPArchiveFalseSkipsExtraction(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{}, getter.WithDefaultGenericDispatch())
+	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{},
+		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
 
 	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
 
@@ -217,7 +220,8 @@ func TestCASGetter_HTTPMissingETagFallsBackToContentHash(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{}, getter.WithDefaultGenericDispatch())
+	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{},
+		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
 
 	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
 

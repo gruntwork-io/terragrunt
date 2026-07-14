@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -35,13 +36,21 @@ func WithOCI(g *OCIGetter) Option {
 
 // WithCAS registers CASGetter, which intercepts git/file sources and routes
 // them through Terragrunt's content-addressable storage. v supplies the
-// filesystem and git runner used by every CAS operation.
+// filesystem and git runner used by every CAS operation; [WithHTTP] must
+// also be set since the CAS dispatch probes over HTTP.
 func WithCAS(c *cas.CAS, v cas.Venv, cloneOpts *cas.CloneOptions) Option {
 	return func(b *builder) {
 		b.casStore = c
 		b.casVenv = v
 		b.casCloneOpts = cloneOpts
 	}
+}
+
+// WithHTTP sets the outbound-HTTP client the CAS dispatch resolvers and
+// tfr fetcher ride on (unlike [WithHTTPAuth], which only attaches headers
+// to the bare http getter). Required with [WithCAS].
+func WithHTTP(c vhttp.Client) Option {
+	return func(b *builder) { b.httpClient = c }
 }
 
 // WithHTTPSAuth substitutes the https getter with an HttpGetter that sends
@@ -93,6 +102,7 @@ type builder struct {
 	casStore         *cas.CAS
 	casCloneOpts     *cas.CloneOptions
 	casVenv          cas.Venv
+	httpClient       vhttp.Client
 	httpExtraHeader  http.Header
 	httpsExtraHeader http.Header
 	decompressors    map[string]Decompressor

@@ -41,10 +41,10 @@ type ProxyProviderHandler struct {
 	*helpers.ReverseProxy
 }
 
-func NewProxyProviderHandler(l log.Logger, httpClient vhttp.Client, credsSource *cliconfig.CredentialsSource) *ProxyProviderHandler {
+func NewProxyProviderHandler(l log.Logger, c vhttp.Client, credsSource *cliconfig.CredentialsSource) *ProxyProviderHandler {
 	return &ProxyProviderHandler{
-		CommonProviderHandler: NewCommonProviderHandler(l, httpClient, nil, nil),
-		ReverseProxy:          &helpers.ReverseProxy{CredsSource: credsSource, Logger: l},
+		CommonProviderHandler: NewCommonProviderHandler(l, c, nil, nil),
+		ReverseProxy:          &helpers.ReverseProxy{CredsSource: credsSource, Logger: l, Transport: c.Transport},
 	}
 }
 

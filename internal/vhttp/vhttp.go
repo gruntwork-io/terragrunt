@@ -18,8 +18,10 @@ package vhttp
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"time"
 )
 
@@ -33,9 +35,8 @@ type Client = *http.Client
 // transport wired into an in-memory [Client] returned by [NewMemClient].
 type Handler func(ctx context.Context, req *http.Request) (*http.Response, error)
 
-// NewOSClient returns a [Client] backed by a fresh transport that
-// disables keepalives and idle-connection reuse, matching what
-// hashicorp/go-cleanhttp.DefaultClient produces.
+// NewOSClient returns a [Client] backed by a pooled clone of the stdlib
+// default transport, isolated from other users of http.DefaultTransport.
 func NewOSClient() Client {
 	return &http.Client{Transport: newOSTransport()}
 }
@@ -43,6 +44,16 @@ func NewOSClient() Client {
 // NewOSClientWithTimeout returns a [Client] whose Timeout is set to d.
 func NewOSClientWithTimeout(d time.Duration) Client {
 	return &http.Client{Transport: newOSTransport(), Timeout: d}
+}
+
+// WithTimeout returns a copy of c whose Timeout is d. The transport is
+// shared with c, so its connection pool — and any virtualization
+// installed by [NewMemClient] or [NewNoNetworkClient] — carries over.
+func WithTimeout(c Client, d time.Duration) Client {
+	cc := *c
+	cc.Timeout = d
+
+	return &cc
 }
 
 // NewMemClient returns a [Client] whose every request is dispatched to h
@@ -66,17 +77,22 @@ func Respond(status int, body []byte, headers http.Header) *http.Response {
 
 	return &http.Response{
 		StatusCode:    status,
-		Status:        http.StatusText(status),
+		Status:        fmt.Sprintf("%d %s", status, http.StatusText(status)),
 		Header:        headers,
 		Body:          io.NopCloser(bytes.NewReader(body)),
 		ContentLength: int64(len(body)),
 	}
 }
 
+// newOSTransport keeps keepalive pooling on: venv clients live for the
+// whole run and issue many requests to the same registry hosts, so
+// disabling reuse (cleanhttp's throwaway-client recipe) would pay a fresh
+// TCP+TLS handshake per request. The per-host idle cap is raised above the
+// stdlib default of 2 for concurrent provider-cache warm-ups, mirroring
+// cleanhttp.DefaultPooledTransport.
 func newOSTransport() *http.Transport {
 	t := http.DefaultTransport.(*http.Transport).Clone()
-	t.DisableKeepAlives = true
-	t.MaxIdleConnsPerHost = -1
+	t.MaxIdleConnsPerHost = runtime.GOMAXPROCS(0) + 1
 
 	return t
 }

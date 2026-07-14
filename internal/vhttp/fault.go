@@ -25,16 +25,5 @@ func NewNoNetworkClient() Client {
 type noNetworkTransport struct{}
 
 func (noNetworkTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	method := http.MethodGet
-
-	urlStr := ""
-
-	if req != nil {
-		method = req.Method
-		if req.URL != nil {
-			urlStr = req.URL.String()
-		}
-	}
-
-	return nil, &url.Error{Op: method, URL: urlStr, Err: ErrNoNetwork}
+	return nil, &url.Error{Op: req.Method, URL: req.URL.String(), Err: ErrNoNetwork}
 }

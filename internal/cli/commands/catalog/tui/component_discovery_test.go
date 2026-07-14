@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ func TestDiscoverComponents_WithCustomFS(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 	assert.Equal(t, "foo", components[0].Dir)
@@ -60,7 +61,7 @@ func newFakeRepo(t *testing.T, fsys vfs.FS, repoDir string) *module.Repo {
 
 	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644))
 
-	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), fsys, &module.RepoOpts{
+	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), fsys, vhttp.NewNoNetworkClient(), &module.RepoOpts{
 		CloneURL:       repoDir,
 		Path:           repoDir,
 		RootWorkingDir: repoDir,
@@ -113,7 +114,7 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 
 	got := map[string]tui.ComponentKind{}
@@ -180,7 +181,7 @@ func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 
 	got := map[string]tui.ComponentKind{}
@@ -217,7 +218,7 @@ func TestDiscoverComponents_RepoRootAsComponent(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 
 	require.Len(t, components, 1, "only the root template should surface")
@@ -245,7 +246,7 @@ func TestDiscoverComponents_HonorsIgnoreFile(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 
 	got := map[string]tui.ComponentKind{}
@@ -283,7 +284,7 @@ func TestDiscoverComponents_ExtraIgnoreFile(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).WithExtraIgnoreFile(extraPath).Discover(repo)
+	components, err := tui.NewComponentDiscovery().WithExtraIgnoreFile(extraPath).Discover(fsys, repo)
 	require.NoError(t, err)
 
 	got := map[string]tui.ComponentKind{}
@@ -309,7 +310,7 @@ func TestDiscoverComponents_EmptyRepo(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	assert.Empty(t, components)
 }
@@ -372,7 +373,7 @@ func TestComponentDiscovery_WithWalkWithSymlinksIsChainable(t *testing.T) {
 	chained := cd.WithWalkWithSymlinks()
 	assert.Same(t, cd, chained, "WithWalkWithSymlinks should return the same builder for chaining")
 
-	components, err := cd.Discover(repo)
+	components, err := cd.Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 	assert.Equal(t, tui.ComponentKindModule, components[0].Kind)

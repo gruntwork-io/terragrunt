@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	gogetter "github.com/hashicorp/go-getter/v2"
@@ -29,7 +30,7 @@ func TestWithCASRegistersCASGetter(t *testing.T) {
 	v, err := cas.OSVenv()
 	require.NoError(t, err)
 
-	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}))
+	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}), getter.WithHTTP(vhttp.NewNoNetworkClient()))
 
 	assert.True(t, hasGetter[*getter.CASGetter](client.Getters), "WithCAS must register CASGetter")
 	assert.True(t, hasGetter[*getter.CASProtocolGetter](client.Getters), "WithCAS must register CASProtocolGetter")
@@ -48,7 +49,7 @@ func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 	v, err := cas.OSVenv()
 	require.NoError(t, err)
 
-	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}))
+	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}), getter.WithHTTP(vhttp.NewNoNetworkClient()))
 
 	req := &getter.Request{Src: "cas::sha1:0000000000000000000000000000000000000000"}
 

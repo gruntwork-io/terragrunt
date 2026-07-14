@@ -172,8 +172,7 @@ func (runner *UnitRunner) Run(
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
 
-		jsonV := *v
-		jsonV.Writers = jsonV.Writers.WithWriter(&stdout)
+		jsonV := v.WithWriter(&stdout)
 
 		runOpts := configbridge.NewRunOptions(jsonOptions)
 		if err := run.Run(ctx, jsonLogger, &jsonV, runOpts, adhocReport, cfg, credsGetter); err != nil {

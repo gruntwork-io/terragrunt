@@ -32,10 +32,10 @@ var availablePlatforms []*models.Platform = []*models.Platform{
 type ProviderHandlers []ProviderHandler
 
 // NewProviderHandlers constructs the slice of [ProviderHandler]s described by
-// cliCfg's provider_installation block. httpClient is threaded into every
+// cliCfg's provider_installation block. c is threaded into every
 // handler that issues outbound HTTP (direct, network mirror, proxy, and the
 // service-discovery cache shared by all of them).
-func NewProviderHandlers(cliCfg *cliconfig.Config, l log.Logger, httpClient vhttp.Client, registryNames []string) (ProviderHandlers, error) {
+func NewProviderHandlers(cliCfg *cliconfig.Config, l log.Logger, c vhttp.Client, registryNames []string) (ProviderHandlers, error) {
 	var (
 		providerHandlers = make([]ProviderHandler, 0, len(cliCfg.ProviderInstallation.Methods))
 		excludeAddrs     = make([]string, 0, len(cliCfg.ProviderInstallation.Methods))
@@ -49,16 +49,16 @@ func NewProviderHandlers(cliCfg *cliconfig.Config, l log.Logger, httpClient vhtt
 	for _, method := range cliCfg.ProviderInstallation.Methods {
 		switch method := method.(type) {
 		case *cliconfig.ProviderInstallationFilesystemMirror:
-			providerHandlers = append(providerHandlers, NewFilesystemMirrorProviderHandler(l, httpClient, method))
+			providerHandlers = append(providerHandlers, NewFilesystemMirrorProviderHandler(l, c, method))
 		case *cliconfig.ProviderInstallationNetworkMirror:
-			networkMirrorHandler, err := NewNetworkMirrorProviderHandler(l, httpClient, method, cliCfg.CredentialsSource())
+			networkMirrorHandler, err := NewNetworkMirrorProviderHandler(l, c, method, cliCfg.CredentialsSource())
 			if err != nil {
 				return nil, err
 			}
 
 			providerHandlers = append(providerHandlers, networkMirrorHandler)
 		case *cliconfig.ProviderInstallationDirect:
-			providerHandlers = append(providerHandlers, NewDirectProviderHandler(l, httpClient, method, cliCfg.CredentialsSource()))
+			providerHandlers = append(providerHandlers, NewDirectProviderHandler(l, c, method, cliCfg.CredentialsSource()))
 			directIsDefined = true
 		}
 
@@ -67,7 +67,7 @@ func NewProviderHandlers(cliCfg *cliconfig.Config, l log.Logger, httpClient vhtt
 
 	if !directIsDefined {
 		// In a case if none of direct provider installation methods `cliCfg.ProviderInstallation.Methods` are specified.
-		providerHandlers = append(providerHandlers, NewDirectProviderHandler(l, httpClient, new(cliconfig.ProviderInstallationDirect), cliCfg.CredentialsSource()))
+		providerHandlers = append(providerHandlers, NewDirectProviderHandler(l, c, new(cliconfig.ProviderInstallationDirect), cliCfg.CredentialsSource()))
 	}
 
 	return providerHandlers, nil
