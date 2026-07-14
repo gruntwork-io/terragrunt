@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"errors"
-	"io"
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
@@ -133,13 +132,12 @@ func NewWelcomeModel(
 // while discovery runs in the background, then transitions to the component
 // list if components are found. warnCh carries warnings captured from the
 // background loaders, surfaced as toasts. Post-exit messages are written to
-// errWriter after the tea program restores the main terminal.
+// the venv's error writer after the tea program restores the main terminal.
 func Run(
 	ctx context.Context,
 	l log.Logger,
 	v venv.Venv,
 	opts *options.TerragruntOptions,
-	errWriter io.Writer,
 	warnCh <-chan viewtui.Warning,
 	loadFunc LoadFunc,
 ) error {
@@ -151,7 +149,7 @@ func Run(
 
 	finalModel, err := tea.NewProgram(model, tea.WithContext(ctx)).Run()
 
-	EmitExitMessage(finalModel, errWriter, l)
+	EmitExitMessage(finalModel, v.Writers.ErrWriter, l)
 
 	if err != nil {
 		cause := context.Cause(ctx)

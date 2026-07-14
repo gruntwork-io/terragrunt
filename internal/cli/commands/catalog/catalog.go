@@ -57,7 +57,7 @@ func Run(
 	loadLogger := l.WithOptions(log.WithOutput(io.Discard), log.WithHooks(viewtui.NewWarnHook(warnCh)))
 
 	return tui.Run(
-		ctx, l, v, opts, v.Writers.ErrWriter, warnCh,
+		ctx, l, v, opts, warnCh,
 		func(
 			ctx context.Context, status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 		) error {
