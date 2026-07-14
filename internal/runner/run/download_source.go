@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/hashicorp/go-cleanhttp"
 )
 
 // ErrNonOSFilesystem is returned by DownloadTerraformSource when Options.FS
@@ -66,7 +68,18 @@ func DownloadTerraformSource(
 
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.StrictControls)
 
-	terraformSource, err := tf.NewSource(l, source, opts.DownloadDir, opts.UnitDir, walkWithSymlinks)
+	source, err := resolveTerraformModuleVersion(ctx, l, source, opts, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	terraformSource, err := tf.NewSource(
+		l,
+		source,
+		opts.DownloadDir,
+		opts.UnitDir,
+		walkWithSymlinks,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +115,11 @@ func DownloadTerraformSource(
 		l.Debugf(
 			"Copying files from %s into %s",
 			util.RelPathForLog(opts.UnitDir, opts.UnitDir, opts.LogShowAbsPaths),
-			util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.LogShowAbsPaths),
+			util.RelPathForLog(
+				opts.RootWorkingDir,
+				terraformSource.WorkingDir,
+				opts.LogShowAbsPaths,
+			),
 		)
 
 		// Always include the .tflint.hcl file, if it exists
@@ -116,12 +133,18 @@ func DownloadTerraformSource(
 			copyOpts = append(copyOpts, util.WithFastCopy())
 		}
 
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "copy_folder_contents", map[string]any{
-			"src":  opts.UnitDir,
-			"dest": terraformSource.WorkingDir,
-		}, func(_ context.Context) error {
-			return util.CopyFolderContents(l, opts.UnitDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
-		})
+		err = telemetry.TelemeterFromContext(ctx).
+			Collect(ctx, "copy_folder_contents", map[string]any{
+				"src":  opts.UnitDir,
+				"dest": terraformSource.WorkingDir,
+			}, func(_ context.Context) error {
+				return util.CopyFolderContents(
+					l,
+					opts.UnitDir,
+					terraformSource.WorkingDir,
+					ModuleManifestName,
+					copyOpts...)
+			})
 		if err != nil {
 			return nil, err
 		}
@@ -145,6 +168,86 @@ func DownloadTerraformSource(
 	return updatedOpts, nil
 }
 
+var (
+	// moduleVersionResolver memoizes tfr:// constraint resolution for the
+	// process so that units sharing a source and constraint query the registry
+	// once instead of once each.
+	moduleVersionResolver = getter.NewVersionResolver()
+
+	// moduleVersionClient is shared across resolutions so they reuse a single
+	// connection pool.
+	moduleVersionClient = cleanhttp.DefaultClient()
+)
+
+// resolveTerraformModuleVersion rewrites a config-provided tfr:// source to pin
+// the exact version that satisfies the terraform block's `version` constraint.
+// A --source / TG_SOURCE override is a bare URL that must carry an exact pin
+// itself, so a constraint there is rejected rather than resolved.
+func resolveTerraformModuleVersion(
+	ctx context.Context,
+	l log.Logger,
+	source string,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+) (string, error) {
+	if getter.SourceHasVersionConstraint(source) {
+		return "", SourceVersionConstraintErr{Source: source}
+	}
+
+	if opts.Source != "" {
+		return source, nil
+	}
+
+	constraint := cfg.Terraform.Version
+	if constraint == "" {
+		return source, nil
+	}
+
+	sourceURL, err := url.Parse(source)
+	if err != nil {
+		return "", err
+	}
+
+	if sourceURL.Scheme != getter.SchemeTFR {
+		l.Debugf(
+			"Ignoring version constraint %q: source %q is not a tfr:// registry URL",
+			constraint,
+			source,
+		)
+
+		return source, nil
+	}
+
+	pinned, err := moduleVersionResolver.Pin(
+		ctx,
+		l,
+		moduleVersionClient,
+		opts.TofuImplementation,
+		source,
+		constraint,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	l.Debugf("Resolved version constraint %q for source %s to %s", constraint, source, pinned)
+
+	return pinned, nil
+}
+
+// SourceVersionConstraintErr is returned when a tfr:// source pins its module
+// with a version constraint in the ?version= query instead of an exact version.
+type SourceVersionConstraintErr struct {
+	Source string
+}
+
+func (e SourceVersionConstraintErr) Error() string {
+	return fmt.Sprintf(
+		"the source %q sets a version constraint in its ?version= query, which accepts an exact version only; express a constraint with the terraform block's version attribute instead.",
+		e.Source,
+	)
+}
+
 // DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been
 // downloaded. It returns true if a download was performed, or false if the existing cache was up to date.
 //
@@ -164,7 +267,10 @@ func DownloadTerraformSourceIfNecessary(
 	}
 
 	if opts.SourceUpdate {
-		l.Debugf("The --source-update flag is set, so deleting the temporary folder %s before downloading source.", terraformSource.DownloadDir)
+		l.Debugf(
+			"The --source-update flag is set, so deleting the temporary folder %s before downloading source.",
+			terraformSource.DownloadDir,
+		)
 
 		if err := opts.FS.RemoveAll(terraformSource.DownloadDir); err != nil {
 			return false, err
@@ -229,21 +335,34 @@ func DownloadTerraformSourceIfNecessary(
 		r,
 		func(childCtx context.Context) error {
 			if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
-				sourceURL := strings.TrimPrefix(terraformSource.CanonicalSourceURL.String(), fileURIScheme)
+				sourceURL := strings.TrimPrefix(
+					terraformSource.CanonicalSourceURL.String(),
+					fileURIScheme,
+				)
 
-				return util.NotifyIfSlow(childCtx, l, util.SpinnerWriter(), time.Second, util.SlowNotifyMsg{
-					Spinner: "Downloading source from " + sourceURL + "...",
-					Done:    "Downloaded source from " + sourceURL,
-				}, func() error {
-					return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
-				})
+				return util.NotifyIfSlow(
+					childCtx,
+					l,
+					util.SpinnerWriter(),
+					time.Second,
+					util.SlowNotifyMsg{
+						Spinner: "Downloading source from " + sourceURL + "...",
+						Done:    "Downloaded source from " + sourceURL,
+					},
+					func() error {
+						return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
+					},
+				)
 			}
 
 			return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
 		},
 	)
 	if downloadErr != nil {
-		return false, DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
+		return false, DownloadingTerraformSourceErr{
+			ErrMsg: downloadErr,
+			URL:    terraformSource.CanonicalSourceURL.String(),
+		}
 	}
 
 	if err := terraformSource.WriteVersionFile(l); err != nil {
@@ -258,7 +377,11 @@ func DownloadTerraformSourceIfNecessary(
 	// if source versions are different or calculating version failed, create file to run init
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
 	if (previousVersion != "" && previousVersion != currentVersion) || err != nil {
-		l.Debugf("Requesting re-init, source version has changed from %s to %s recently.", previousVersion, currentVersion)
+		l.Debugf(
+			"Requesting re-init, source version has changed from %s to %s recently.",
+			previousVersion,
+			currentVersion,
+		)
 
 		initFile := filepath.Join(terraformSource.WorkingDir, ModuleInitRequiredFile)
 
@@ -296,7 +419,11 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *Optio
 	}
 
 	if !hasFiles {
-		l.Debugf("Working dir %s exists but contains no Terraform or OpenTofu files, so assuming code needs to be downloaded again.", terraformSource.WorkingDir)
+		l.Debugf(
+			"Working dir %s exists but contains no Terraform or OpenTofu files, so assuming code needs to be downloaded again.",
+			terraformSource.WorkingDir,
+		)
+
 		return false, nil
 	}
 
@@ -398,10 +525,19 @@ func downloadSource(
 // should fall through to the standard getter.
 // Returns (false, err) for fatal misconfiguration the user must fix
 // (e.g. an invalid CASCloneDepth). Caller must propagate the error.
-func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Options, mutable bool) (bool, error) {
+func tryCASDownload(
+	ctx context.Context,
+	l log.Logger,
+	src *tf.Source,
+	opts *Options,
+	mutable bool,
+) (bool, error) {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
 
-	l.Debugf("CAS enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
+	l.Debugf(
+		"CAS enabled: attempting to use Content Addressable Storage for source: %s",
+		canonicalSourceURL,
+	)
 
 	if err := cas.ValidateCASCloneDepth(opts.CASCloneDepth); err != nil {
 		return false, err
@@ -410,7 +546,12 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 	c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth))
 	if err != nil {
 		l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
-		cas.RecordFallback(ctx, l, cas.FallbackReasonInitError, map[string]any{"url": canonicalSourceURL})
+		cas.RecordFallback(
+			ctx,
+			l,
+			cas.FallbackReasonInitError,
+			map[string]any{"url": canonicalSourceURL},
+		)
 
 		return false, nil
 	}
@@ -418,7 +559,12 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 	venv, err := cas.OSVenv()
 	if err != nil {
 		l.Warnf("Failed to initialize CAS environment: %v. Falling back to standard getter.", err)
-		cas.RecordFallback(ctx, l, cas.FallbackReasonInitError, map[string]any{"url": canonicalSourceURL})
+		cas.RecordFallback(
+			ctx,
+			l,
+			cas.FallbackReasonInitError,
+			map[string]any{"url": canonicalSourceURL},
+		)
 
 		return false, nil
 	}
@@ -451,7 +597,12 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 		Pwd: opts.CacheDir,
 	}); err != nil {
 		l.Warnf("CAS download failed: %v. Falling back to standard getter.", err)
-		cas.RecordFallback(ctx, l, cas.FallbackReasonGetterError, map[string]any{"url": canonicalSourceURL})
+		cas.RecordFallback(
+			ctx,
+			l,
+			cas.FallbackReasonGetterError,
+			map[string]any{"url": canonicalSourceURL},
+		)
 
 		// Clear any partial CAS output before the fallback runs; mixing
 		// leftover CAS files with the standard getter's output leaves the
@@ -479,7 +630,12 @@ func tryCASDownload(ctx context.Context, l log.Logger, src *tf.Source, opts *Opt
 // abstraction. Returns [ErrNonOSFilesystem] otherwise.
 //
 // Exported so tests can assert the protocol set directly.
-func BuildDownloadClient(l log.Logger, v venv.Venv, opts *Options, cfg *runcfg.RunConfig) (*getter.Client, error) {
+func BuildDownloadClient(
+	l log.Logger,
+	v venv.Venv,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+) (*getter.Client, error) {
 	if !vfs.IsOSFS(v.FS) {
 		return nil, ErrNonOSFilesystem
 	}
@@ -498,13 +654,23 @@ func BuildDownloadClient(l log.Logger, v venv.Venv, opts *Options, cfg *runcfg.R
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory
 func ValidateWorkingDir(terraformSource *tf.Source) error {
-	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
+	workingLocalDir := strings.ReplaceAll(
+		terraformSource.WorkingDir,
+		terraformSource.DownloadDir+filepath.FromSlash("/"),
+		"",
+	)
 	if util.IsFile(terraformSource.WorkingDir) {
-		return WorkingDirNotDir{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
+		return WorkingDirNotDir{
+			Dir:    workingLocalDir,
+			Source: terraformSource.CanonicalSourceURL.String(),
+		}
 	}
 
 	if !util.IsDir(terraformSource.WorkingDir) {
-		return WorkingDirNotFound{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
+		return WorkingDirNotFound{
+			Dir:    workingLocalDir,
+			Source: terraformSource.CanonicalSourceURL.String(),
+		}
 	}
 
 	return nil
