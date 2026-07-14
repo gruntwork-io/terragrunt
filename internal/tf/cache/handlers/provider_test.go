@@ -25,14 +25,70 @@ func TestIsOfflineError(t *testing.T) {
 		expected bool
 	}{
 		// *url.Error wrapping various transport failures — all caught by the single *url.Error check.
-		{err: &url.Error{Op: "Get", URL: "https://registry.terraform.io/.well-known/terraform.json", Err: syscall.ECONNREFUSED}, desc: "connection refused", expected: true},
-		{err: &url.Error{Op: "Get", URL: "https://registry.terraform.io/.well-known/terraform.json", Err: syscall.ECONNRESET}, desc: "connection reset", expected: true},
-		{err: &url.Error{Op: "Get", URL: "https://registry.terraform.io/.well-known/terraform.json", Err: syscall.ENETUNREACH}, desc: "network unreachable", expected: true},
-		{err: &url.Error{Op: "Get", URL: "https://registry.terraform.io/.well-known/terraform.json", Err: &net.DNSError{Err: "no such host", Name: "registry.terraform.io", IsNotFound: true}}, desc: "DNS not found", expected: true},
-		{err: &url.Error{Op: "Get", URL: "https://registry.terraform.io/.well-known/terraform.json", Err: &net.DNSError{Err: "server misbehaving", Name: "blocked-registry.invalid"}}, desc: "DNS temporary failure", expected: true},
-		{err: &url.Error{Op: "Get", URL: "https://registry.terraform.io/.well-known/terraform.json", Err: errors.New("tls: failed to verify certificate")}, desc: "TLS error", expected: true},
+		{
+			err: &url.Error{
+				Op:  "Get",
+				URL: "https://registry.terraform.io/.well-known/terraform.json",
+				Err: syscall.ECONNREFUSED,
+			},
+			desc:     "connection refused",
+			expected: true,
+		},
+		{
+			err: &url.Error{
+				Op:  "Get",
+				URL: "https://registry.terraform.io/.well-known/terraform.json",
+				Err: syscall.ECONNRESET,
+			},
+			desc:     "connection reset",
+			expected: true,
+		},
+		{
+			err: &url.Error{
+				Op:  "Get",
+				URL: "https://registry.terraform.io/.well-known/terraform.json",
+				Err: syscall.ENETUNREACH,
+			},
+			desc:     "network unreachable",
+			expected: true,
+		},
+		{
+			err: &url.Error{
+				Op:  "Get",
+				URL: "https://registry.terraform.io/.well-known/terraform.json",
+				Err: &net.DNSError{
+					Err:        "no such host",
+					Name:       "registry.terraform.io",
+					IsNotFound: true,
+				},
+			},
+			desc:     "DNS not found",
+			expected: true,
+		},
+		{
+			err: &url.Error{
+				Op:  "Get",
+				URL: "https://registry.terraform.io/.well-known/terraform.json",
+				Err: &net.DNSError{Err: "server misbehaving", Name: "blocked-registry.invalid"},
+			},
+			desc:     "DNS temporary failure",
+			expected: true,
+		},
+		{
+			err: &url.Error{
+				Op:  "Get",
+				URL: "https://registry.terraform.io/.well-known/terraform.json",
+				Err: errors.New("tls: failed to verify certificate"),
+			},
+			desc:     "TLS error",
+			expected: true,
+		},
 		// Non-transport errors — should NOT be treated as offline.
-		{err: errors.New("random error"), desc: "a random error that should not be offline", expected: false},
+		{
+			err:      errors.New("random error"),
+			desc:     "a random error that should not be offline",
+			expected: false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -40,7 +96,14 @@ func TestIsOfflineError(t *testing.T) {
 			t.Parallel()
 
 			result := handlers.IsOfflineError(tc.err)
-			assert.Equal(t, tc.expected, result, "Expected result for %v is %v", tc.desc, tc.expected)
+			assert.Equal(
+				t,
+				tc.expected,
+				result,
+				"Expected result for %v is %v",
+				tc.desc,
+				tc.expected,
+			)
 		})
 	}
 }

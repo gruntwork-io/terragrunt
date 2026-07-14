@@ -89,7 +89,10 @@ func (c *Content) Link(
 		// leak back into the shared store and so the destination carries the
 		// requested mode.
 		if !o.forceCopy {
-			if info, statErr := v.FS.Stat(sourcePath); statErr == nil && info.Mode().Perm() == desired {
+			if info, statErr := v.FS.Stat(
+				sourcePath,
+			); statErr == nil &&
+				info.Mode().Perm() == desired {
 				if err := vfs.Link(v.FS, sourcePath, targetPath); err == nil {
 					return nil
 				}

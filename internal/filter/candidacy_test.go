@@ -35,7 +35,10 @@ func TestIsNegated(t *testing.T) {
 			name: "double negation",
 			exprFn: func(t *testing.T) filter.Expression {
 				t.Helper()
-				return filter.NewPrefixExpression("!", filter.NewPrefixExpression("!", mustPath(t, "./foo")))
+				return filter.NewPrefixExpression(
+					"!",
+					filter.NewPrefixExpression("!", mustPath(t, "./foo")),
+				)
 			},
 			expected: true,
 		},

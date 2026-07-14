@@ -129,12 +129,23 @@ func (r *RegistryGetter) Get(ctx context.Context, req *getter.Request) error {
 	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := SourceDirSubdir(srcURL.Path)
 
-	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, r.Logger, r.HTTPClient, registryDomain)
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(
+		ctx,
+		r.Logger,
+		r.HTTPClient,
+		registryDomain,
+	)
 	if err != nil {
 		return err
 	}
 
-	version, err := r.resolveVersion(ctx, queryValues, registryDomain, moduleRegistryBasePath, modulePath)
+	version, err := r.resolveVersion(
+		ctx,
+		queryValues,
+		registryDomain,
+		moduleRegistryBasePath,
+		modulePath,
+	)
 	if err != nil {
 		return err
 	}
@@ -192,7 +203,11 @@ func (r *RegistryGetter) delegateGet(ctx context.Context, dst, src string) error
 // getSubdir downloads the source into a temp dir, then copies the requested
 // subdirectory into dstPath. This is how the registry getter handles
 // `MODULE/subdir` selectors.
-func (r *RegistryGetter) getSubdir(ctx context.Context, l log.Logger, dstPath, sourceURL, subDir string) error {
+func (r *RegistryGetter) getSubdir(
+	ctx context.Context,
+	l log.Logger,
+	dstPath, sourceURL, subDir string,
+) error {
 	// Hand the consumer a non-existent path inside an existing parent so
 	// go-getter can create the destination itself, and clean up the parent
 	// on return.
@@ -249,7 +264,13 @@ func copySubdirContents(l log.Logger, fs vfs.FS, srcRoot, subDir, dstPath, sourc
 		}
 	}(manifestPath)
 
-	return util.CopyFolderContentsWithFilter(l, sourcePath, dstPath, manifestFname, func(string) bool { return true })
+	return util.CopyFolderContentsWithFilter(
+		l,
+		sourcePath,
+		dstPath,
+		manifestFname,
+		func(string) bool { return true },
+	)
 }
 
 // resolveVersion determines the module version to download. If a version is
@@ -286,7 +307,11 @@ func (r *RegistryGetter) resolveVersion(
 		return "", err
 	}
 
-	r.Logger.Infof("No version specified for module %s, using latest version %s", modulePath, latestVersion)
+	r.Logger.Infof(
+		"No version specified for module %s, using latest version %s",
+		modulePath,
+		latestVersion,
+	)
 
 	return latestVersion, nil
 }

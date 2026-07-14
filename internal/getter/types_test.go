@@ -49,7 +49,11 @@ func TestRegistryGetterDetect(t *testing.T) {
 		want bool
 	}{
 		{name: "forced tfr", req: &getter.Request{Forced: "tfr", Src: "anything"}, want: true},
-		{name: "tfr scheme", req: &getter.Request{Src: "tfr://example.com/foo/bar/baz?version=1"}, want: true},
+		{
+			name: "tfr scheme",
+			req:  &getter.Request{Src: "tfr://example.com/foo/bar/baz?version=1"},
+			want: true,
+		},
 		{name: "https scheme", req: &getter.Request{Src: "https://example.com/foo"}, want: false},
 		{name: "no scheme", req: &getter.Request{Src: "github.com/foo/bar"}, want: false},
 	}
@@ -111,8 +115,17 @@ func TestGitGetterForcesEnableSymlinks(t *testing.T) {
 			req := &getter.Request{DisableSymlinks: tc.callerValue}
 			require.NoError(t, g.Get(t.Context(), req))
 
-			assert.False(t, stub.observedDisableSymlinks, "GitGetter must enable symlinks for the inner Get")
-			assert.Equal(t, tc.callerValue, req.DisableSymlinks, "GitGetter must restore the caller's flag")
+			assert.False(
+				t,
+				stub.observedDisableSymlinks,
+				"GitGetter must enable symlinks for the inner Get",
+			)
+			assert.Equal(
+				t,
+				tc.callerValue,
+				req.DisableSymlinks,
+				"GitGetter must restore the caller's flag",
+			)
 		})
 	}
 }

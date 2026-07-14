@@ -292,7 +292,12 @@ func TestGetTerraformSourceURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := runcfg.GetTerraformSourceURL(tc.source, tc.sourceMap, tc.originalConfigPath, tc.cfg)
+			result, err := runcfg.GetTerraformSourceURL(
+				tc.source,
+				tc.sourceMap,
+				tc.originalConfigPath,
+				tc.cfg,
+			)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)

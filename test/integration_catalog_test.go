@@ -38,10 +38,26 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	_, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
+	_, err := module.NewRepo(
+		ctx,
+		logger.CreateLogger(),
+		vfs.NewOSFS(),
+		&module.RepoOpts{
+			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
+			Path:     tempDir,
+		},
+	)
 	require.NoError(t, err)
 
-	_, err = module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
+	_, err = module.NewRepo(
+		ctx,
+		logger.CreateLogger(),
+		vfs.NewOSFS(),
+		&module.RepoOpts{
+			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
+			Path:     tempDir,
+		},
+	)
 	require.NoError(t, err)
 }
 
@@ -52,7 +68,15 @@ func TestScaffoldGitRepo(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
+	repo, err := module.NewRepo(
+		ctx,
+		logger.CreateLogger(),
+		vfs.NewOSFS(),
+		&module.RepoOpts{
+			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
+			Path:     tempDir,
+		},
+	)
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())
@@ -67,7 +91,15 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
+	repo, err := module.NewRepo(
+		ctx,
+		logger.CreateLogger(),
+		vfs.NewOSFS(),
+		&module.RepoOpts{
+			CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules.git",
+			Path:     tempDir,
+		},
+	)
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())
@@ -89,7 +121,14 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
 
-	err = scaffold.Run(ctx, createLogger(), venv.OSVenv(), opts, auroraModule.TerraformSourcePath(), "")
+	err = scaffold.Run(
+		ctx,
+		createLogger(),
+		venv.OSVenv(),
+		opts,
+		auroraModule.TerraformSourcePath(),
+		"",
+	)
 	require.NoError(t, err)
 
 	cfg := readConfig(t, opts)
@@ -97,7 +136,11 @@ func TestScaffoldGitModule(t *testing.T) {
 	assert.Len(t, cfg.Inputs, 1)
 	_, found := cfg.Inputs["vpc_id"]
 	assert.True(t, found)
-	assert.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora")
+	assert.Contains(
+		t,
+		*cfg.Terraform.Source,
+		"git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora",
+	)
 }
 
 func TestScaffoldGitModuleHttps(t *testing.T) {
@@ -137,7 +180,14 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
 
-	err = scaffold.Run(ctx, createLogger(), venv.OSVenv(), opts, auroraModule.TerraformSourcePath(), "")
+	err = scaffold.Run(
+		ctx,
+		createLogger(),
+		venv.OSVenv(),
+		opts,
+		auroraModule.TerraformSourcePath(),
+		"",
+	)
 	require.NoError(t, err)
 
 	cfg := readConfig(t, opts)
@@ -145,7 +195,11 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	assert.Len(t, cfg.Inputs, 1)
 	_, found := cfg.Inputs["vpc_id"]
 	assert.True(t, found)
-	assert.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora?ref=v0.0.5")
+	assert.Contains(
+		t,
+		*cfg.Terraform.Source,
+		"git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora?ref=v0.0.5",
+	)
 
 	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+opts.WorkingDir)
 }
@@ -179,12 +233,19 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 
 	assert.FileExists(t, opts.WorkingDir+"/terragrunt.hcl")
 
-	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.WorkingDir, "terragrunt.hcl"))
+	opts, err := options.NewTerragruntOptionsForTest(
+		filepath.Join(opts.WorkingDir, "terragrunt.hcl"),
+	)
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
 	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
-	cfg, err := config.ReadTerragruntConfig(t.Context(), l, pctx, config.DefaultParserOptions(l, opts.StrictControls))
+	cfg, err := config.ReadTerragruntConfig(
+		t.Context(),
+		l,
+		pctx,
+		config.DefaultParserOptions(l, opts.StrictControls),
+	)
 	require.NoError(t, err)
 
 	return cfg
@@ -243,7 +304,9 @@ func TestCatalogIgnoreFileFlagAction(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts, err := options.NewTerragruntOptionsForTest(filepath.Join(workDir, "terragrunt.hcl"))
+			opts, err := options.NewTerragruntOptionsForTest(
+				filepath.Join(workDir, "terragrunt.hcl"),
+			)
 			require.NoError(t, err)
 
 			opts.WorkingDir = workDir
@@ -273,10 +336,26 @@ func TestCatalogDiscoveryWithIgnoreFiles(t *testing.T) {
 	repoDir := helpers.TmpDirWOSymlinks(t)
 
 	writeFixtureFile(t, filepath.Join(repoDir, "modules", "vpc", "main.tf"), "# vpc module")
-	writeFixtureFile(t, filepath.Join(repoDir, "templates", "service", ".boilerplate", "boilerplate.yml"), "variables: []\n")
-	writeFixtureFile(t, filepath.Join(repoDir, "examples", "vpc", "main.tf"), "# ignored by repo file")
-	writeFixtureFile(t, filepath.Join(repoDir, "integration", "vpc", "main.tf"), "# ignored by extra file")
-	writeFixtureFile(t, filepath.Join(repoDir, "stash", "keep", "main.tf"), "# re-included by extra negation")
+	writeFixtureFile(
+		t,
+		filepath.Join(repoDir, "templates", "service", ".boilerplate", "boilerplate.yml"),
+		"variables: []\n",
+	)
+	writeFixtureFile(
+		t,
+		filepath.Join(repoDir, "examples", "vpc", "main.tf"),
+		"# ignored by repo file",
+	)
+	writeFixtureFile(
+		t,
+		filepath.Join(repoDir, "integration", "vpc", "main.tf"),
+		"# ignored by extra file",
+	)
+	writeFixtureFile(
+		t,
+		filepath.Join(repoDir, "stash", "keep", "main.tf"),
+		"# re-included by extra negation",
+	)
 	writeFixtureFile(t, filepath.Join(repoDir, "stash", "drop", "main.tf"), "# still excluded")
 
 	writeFixtureFile(t, filepath.Join(repoDir, ".terragrunt-catalog-ignore"),
@@ -348,7 +427,10 @@ func TestCatalogNonTTYFailsFast(t *testing.T) {
 	require.ErrorIs(t, err, tui.ErrNoTerminal)
 }
 
-func ignoreFileAction(t *testing.T, opts *options.TerragruntOptions) clihelper.FlagActionFunc[string] {
+func ignoreFileAction(
+	t *testing.T,
+	opts *options.TerragruntOptions,
+) clihelper.FlagActionFunc[string] {
 	t.Helper()
 
 	flagList := catalog.NewFlags(opts, nil)
@@ -385,5 +467,8 @@ func seedFakeGit(t *testing.T, repoDir string) {
 [remote "origin"]
 	url = github.com/gruntwork-io/fake-repo
 `), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0644),
+	)
 }

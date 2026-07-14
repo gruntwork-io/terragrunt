@@ -46,7 +46,11 @@ func BenchmarkFormat(b *testing.B) {
 
 			formatter := logformat.NewFormatter(logformat.NewKeyValueFormatPlaceholders())
 			formatter.SetDisabledColors(true)
-			l := log.New(log.WithOutput(io.Discard), log.WithLevel(log.ErrorLevel), log.WithFormatter(formatter))
+			l := log.New(
+				log.WithOutput(io.Discard),
+				log.WithLevel(log.ErrorLevel),
+				log.WithFormatter(formatter),
+			)
 			ctx := context.Background()
 
 			b.ResetTimer()

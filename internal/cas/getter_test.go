@@ -45,7 +45,10 @@ func TestCASGetterDetect(t *testing.T) {
 
 	tmp := helpers.TmpDirWOSymlinks(t)
 
-	require.NoError(t, vfs.WriteFile(g.Venv.FS, filepath.Join(tmp, "fake-module", "main.tf"), []byte(""), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(g.Venv.FS, filepath.Join(tmp, "fake-module", "main.tf"), []byte(""), 0644),
+	)
 
 	tests := []struct {
 		expectedErr error
@@ -175,7 +178,10 @@ func TestCASGetterLocalDir(t *testing.T) {
 	fakeModuleSubdir := filepath.Join(fakeModule, "subdir")
 
 	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(fakeModule, "main.tf"), []byte(""), 0644))
-	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(fakeModuleSubdir, "subfile.tf"), []byte(""), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(v.FS, filepath.Join(fakeModuleSubdir, "subfile.tf"), []byte(""), 0644),
+	)
 
 	fakeDest := filepath.Join(tmp, "fake-dest")
 

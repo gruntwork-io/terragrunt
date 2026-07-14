@@ -98,8 +98,16 @@ func TestHgResolver_PassesRevAsArg(t *testing.T) {
 	_, err := r.Probe(t.Context(), "https://example.com/repo?rev=feature-x")
 	require.NoError(t, err)
 
-	assert.Equal(t,
-		[]string{"identify", "--template", "{node}\n", "--rev=feature-x", "--", "https://example.com/repo"},
+	assert.Equal(
+		t,
+		[]string{
+			"identify",
+			"--template",
+			"{node}\n",
+			"--rev=feature-x",
+			"--",
+			"https://example.com/repo",
+		},
 		gotArgs,
 	)
 }
@@ -182,7 +190,10 @@ func TestHgResolver_AcceptsRevWithShellMetacharacters(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: vexec.NewMemExec(handler)}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo?rev="+url.QueryEscape("tip ; echo pwned"))
+	_, err := r.Probe(
+		t.Context(),
+		"https://example.com/repo?rev="+url.QueryEscape("tip ; echo pwned"),
+	)
 	require.NoError(t, err)
 	assert.Contains(t, gotArgs, "--rev=tip ; echo pwned",
 		"shell metacharacters must reach hg as part of a single argv element")

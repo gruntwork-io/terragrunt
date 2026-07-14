@@ -150,7 +150,8 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 		// Skip descent for kinds that own their whole subtree so nested
 		// artifacts (boilerplate.yml, generated .terragrunt-stack output,
 		// nested .tf files inside a unit) don't surface as separate components.
-		if kind == ComponentKindTemplate || kind == ComponentKindUnit || kind == ComponentKindStack {
+		if kind == ComponentKindTemplate || kind == ComponentKindUnit ||
+			kind == ComponentKindStack {
 			return fs.SkipDir
 		}
 
@@ -225,7 +226,12 @@ func isSkippableDir(name string) bool {
 	return strings.HasPrefix(name, ".")
 }
 
-func newComponent(fsys vfs.FS, repo *module.Repo, repoPath, cloneURL, relDir string, kind ComponentKind) (*Component, error) {
+func newComponent(
+	fsys vfs.FS,
+	repo *module.Repo,
+	repoPath, cloneURL, relDir string,
+	kind ComponentKind,
+) (*Component, error) {
 	doc, err := FindComponentDoc(fsys, filepath.Join(repoPath, relDir))
 	if err != nil {
 		return nil, err

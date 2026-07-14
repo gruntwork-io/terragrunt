@@ -66,7 +66,12 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
-		prepared, err := prepare.PrepareConfig(ctx, l, v.WithEnvCloned(), unitOpts.TerragruntOptions)
+		prepared, err := prepare.PrepareConfig(
+			ctx,
+			l,
+			v.WithEnvCloned(),
+			unitOpts.TerragruntOptions,
+		)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -97,7 +102,9 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error
 
 func runRender(l log.Logger, w io.Writer, opts *Options, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
-		return errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
+		return errors.New(
+			"terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl",
+		)
 	}
 
 	switch opts.Format {

@@ -29,7 +29,12 @@ func TestExitCodeUnix(t *testing.T) {
 	l := logger.CreateLogger()
 
 	for index := 0; index <= 255; index++ {
-		cmd := exec.Command(t.Context(), vexec.NewOSExec(), "testdata/test_exit_code.sh", strconv.Itoa(index))
+		cmd := exec.Command(
+			t.Context(),
+			vexec.NewOSExec(),
+			"testdata/test_exit_code.sh",
+			strconv.Itoa(index),
+		)
 		err := cmd.Run(l)
 
 		if index == 0 {
@@ -57,7 +62,12 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := exec.Command(t.Context(), vexec.NewOSExec(), "testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
+	cmd := exec.Command(
+		t.Context(),
+		vexec.NewOSExec(),
+		"testdata/test_sigint_wait.sh",
+		strconv.Itoa(expectedWait),
+	)
 
 	runChannel := make(chan error)
 
@@ -78,8 +88,13 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, expectedWait, retCode)
-	assert.WithinDuration(t, time.Now(), start.Add(time.Duration(expectedWait)*time.Second), time.Second,
-		"Expected to wait 5 (+/-1) seconds after SIGINT")
+	assert.WithinDuration(
+		t,
+		time.Now(),
+		start.Add(time.Duration(expectedWait)*time.Second),
+		time.Second,
+		"Expected to wait 5 (+/-1) seconds after SIGINT",
+	)
 }
 
 // There isn't a proper way to catch interrupts in Windows batch scripts, so this test exists only for Unix.

@@ -49,9 +49,22 @@ func TestExecCommand(t *testing.T) {
 			err = os.Mkdir(downloadDirPath, os.ModePerm)
 			require.NoError(t, err)
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --working-dir "+rootPath+" "+strings.Join(tc.args, " ")+" -- "+scriptPath)
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt exec --working-dir "+rootPath+" "+strings.Join(
+					tc.args,
+					" ",
+				)+" -- "+scriptPath,
+			)
 			require.NoError(t, err)
-			assert.Contains(t, stdout, "The first arg is arg1. The second arg is arg2. The script is running in the directory "+filepath.Join(rootPath, tc.runInDir))
+			assert.Contains(
+				t,
+				stdout,
+				"The first arg is arg1. The second arg is arg2. The script is running in the directory "+filepath.Join(
+					rootPath,
+					tc.runInDir,
+				),
+			)
 		})
 	}
 }
@@ -92,7 +105,11 @@ func TestExecCommandTfPath(t *testing.T) {
 
 			tfPath := ""
 			if tc.tfPath != "" {
-				tfPath = "--tf-path " + filepath.Join(tmpEnvPath, testFixtureExecCmdTfPath, tc.tfPath)
+				tfPath = "--tf-path " + filepath.Join(
+					tmpEnvPath,
+					testFixtureExecCmdTfPath,
+					tc.tfPath,
+				)
 			}
 
 			err = os.Mkdir(downloadDirPath, os.ModePerm)
@@ -101,9 +118,20 @@ func TestExecCommandTfPath(t *testing.T) {
 			depPath := filepath.Join(tmpEnvPath, testFixtureExecCmdTfPath, "dep")
 			depStdout := bytes.Buffer{}
 			depStderr := bytes.Buffer{}
-			require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive -no-color --no-color --log-format=pretty --working-dir "+depPath, &depStdout, &depStderr))
+			require.NoError(
+				t,
+				helpers.RunTerragruntCommand(
+					t,
+					"terragrunt apply -auto-approve --non-interactive -no-color --no-color --log-format=pretty --working-dir "+depPath,
+					&depStdout,
+					&depStderr,
+				),
+			)
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --log-level debug exec "+tfPath+" --working-dir "+rootPath+"  -- "+scriptPath)
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt --log-level debug exec "+tfPath+" --working-dir "+rootPath+"  -- "+scriptPath,
+			)
 			require.NoError(t, err)
 			assert.Contains(t, stdout, tc.expected)
 		})

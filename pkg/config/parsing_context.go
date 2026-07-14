@@ -114,7 +114,11 @@ type ParsingContext struct {
 	skipAutoIncludeMerge bool
 }
 
-func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {
+func NewParsingContext(
+	ctx context.Context,
+	l log.Logger,
+	opts ...Option,
+) (context.Context, *ParsingContext) {
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
 		FilesRead:        NewFilesRead(),
@@ -215,7 +219,10 @@ func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingConte
 	}
 
 	c := ctx.Clone()
-	c.ParserOptions = slices.Concat(ctx.ParserOptions, []hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)})
+	c.ParserOptions = slices.Concat(
+		ctx.ParserOptions,
+		[]hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)},
+	)
 
 	return c
 }
@@ -253,7 +260,10 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 // reads another via read_terragrunt_config.
 //
 // To parse a dependency as an independent unit, use [ParsingContext.WithDependencyConfigPath].
-func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
+func (ctx *ParsingContext) WithConfigPath(
+	l log.Logger,
+	configPath string,
+) (log.Logger, *ParsingContext, error) {
 	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
 		configPath = filepath.Clean(filepath.Join(ctx.WorkingDir, configPath))
@@ -291,7 +301,10 @@ func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.
 // and additionally resets OriginalTerragruntConfigPath to the dependency's path.
 // This ensures that get_original_terragrunt_dir() resolves to the dependency's
 // own directory rather than the caller's.
-func (ctx *ParsingContext) WithDependencyConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
+func (ctx *ParsingContext) WithDependencyConfigPath(
+	l log.Logger,
+	configPath string,
+) (log.Logger, *ParsingContext, error) {
 	l, c, err := ctx.WithConfigPath(l, configPath)
 	if err != nil {
 		return l, nil, err

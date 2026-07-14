@@ -116,7 +116,17 @@ dependency "hitchhiker" {
 func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
-	filename, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "regressions", "multiple-dependency-load-sync", "main", "terragrunt.hcl"))
+	filename, err := filepath.Abs(
+		filepath.Join(
+			"../..",
+			"test",
+			"fixtures",
+			"regressions",
+			"multiple-dependency-load-sync",
+			"main",
+			"terragrunt.hcl",
+		),
+	)
 	require.NoError(t, err)
 
 	ctx, pctx := newTestParsingContext(t, filename)
@@ -178,7 +188,14 @@ dependency "enabled" {
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not panic - disabled deps bypass config_path validation
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Only enabled dependency should be in the paths
@@ -234,7 +251,13 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	ctxB, pctxB := newTestParsingContext(t, unitBFilename)
 	pctxB.OriginalTerragruntConfigPath = unitBFilename
 
-	unitBConfig, err := config.ParseConfigFile(ctxB, pctxB, logger.CreateLogger(), unitBFilename, nil)
+	unitBConfig, err := config.ParseConfigFile(
+		ctxB,
+		pctxB,
+		logger.CreateLogger(),
+		unitBFilename,
+		nil,
+	)
 	require.NoError(t, err)
 	require.NotNil(t, unitBConfig)
 	assert.Equal(t, "myapp", unitBConfig.Locals["app_name"])
@@ -260,7 +283,14 @@ dependency "enabled" {
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not error - disabled deps bypass config_path validation
-	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		l,
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Only enabled dependency should be in the paths
@@ -273,7 +303,18 @@ dependency "enabled" {
 func TestExposedIncludeFullParseSurfacesNoOutputsError(t *testing.T) {
 	t.Parallel()
 
-	childPath, err := filepath.Abs(filepath.Join("..", "..", "test", "fixtures", "regressions", "exposed-include-partial-parse-error", "child", "terragrunt.hcl"))
+	childPath, err := filepath.Abs(
+		filepath.Join(
+			"..",
+			"..",
+			"test",
+			"fixtures",
+			"regressions",
+			"exposed-include-partial-parse-error",
+			"child",
+			"terragrunt.hcl",
+		),
+	)
 	require.NoError(t, err)
 
 	ctx, pctx := newTestParsingContext(t, childPath)

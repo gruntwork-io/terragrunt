@@ -22,7 +22,10 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = srv.Close() })
 
-		require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# test repo"), "initial commit"))
+		require.NoError(
+			t,
+			srv.CommitFile(t.Context(), "README.md", []byte("# test repo"), "initial commit"),
+		)
 
 		url, err := srv.Start(t.Context())
 		require.NoError(t, err)

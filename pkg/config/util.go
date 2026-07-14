@@ -12,7 +12,12 @@ import (
 //
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder
-func CopyLockFile(l log.Logger, rootWorkingDir string, logShowAbsPaths bool, sourceFolder, destinationFolder string) error {
+func CopyLockFile(
+	l log.Logger,
+	rootWorkingDir string,
+	logShowAbsPaths bool,
+	sourceFolder, destinationFolder string,
+) error {
 	sourceLockFilePath := filepath.Join(sourceFolder, tf.TerraformLockFile)
 	destinationLockFilePath := filepath.Join(destinationFolder, tf.TerraformLockFile)
 

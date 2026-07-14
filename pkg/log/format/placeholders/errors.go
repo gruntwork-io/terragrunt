@@ -30,7 +30,11 @@ func (err InvalidPlaceholderNameError) Error() string {
 		name = err.str[:index+1]
 	}
 
-	return fmt.Sprintf("invalid placeholder name %q, available names: %s", name, strings.Join(err.opts.Names(), ","))
+	return fmt.Sprintf(
+		"invalid placeholder name %q, available names: %s",
+		name,
+		strings.Join(err.opts.Names(), ","),
+	)
 }
 
 // InvalidPlaceholderOptionError is an invalid `placeholder` option error.

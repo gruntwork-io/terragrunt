@@ -30,7 +30,9 @@ func TestRegistryGetterRootDir(t *testing.T) {
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
 	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
-	src := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws?version=3.3.0"
+	src := "tfr://" + server.Listener.Addr().
+		String() +
+		"/terraform-aws-modules/vpc/aws?version=3.3.0"
 	client := newRegistryTestClient(t, server.Client(), tfimpl.Terraform)
 
 	_, err := client.Get(t.Context(), &getter.Request{
@@ -85,7 +87,8 @@ func TestRegistryGetterSubdirInTerraformGetHeader(t *testing.T) {
 	mux.HandleFunc(
 		"/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
 		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip//modules/vpc-endpoints")
+			w.Header().
+				Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip//modules/vpc-endpoints")
 			w.WriteHeader(http.StatusNoContent)
 		},
 	)
@@ -103,7 +106,9 @@ func TestRegistryGetterSubdirInTerraformGetHeader(t *testing.T) {
 	dstPath := helpers.TmpDirWOSymlinks(t)
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
 
-	src := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws?version=3.3.0"
+	src := "tfr://" + server.Listener.Addr().
+		String() +
+		"/terraform-aws-modules/vpc/aws?version=3.3.0"
 	client := newRegistryTestClient(t, server.Client(), tfimpl.Terraform)
 
 	_, err := client.Get(t.Context(), &getter.Request{

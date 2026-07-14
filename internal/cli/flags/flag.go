@@ -78,7 +78,8 @@ func (newFlag *Flag) Value() clihelper.FlagValue {
 			continue
 		}
 
-		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue != nil && deprecatedFlagValue.IsSet() {
+		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue != nil &&
+			deprecatedFlagValue.IsSet() {
 			newValue := deprecatedFlagValue.String()
 
 			if newFlag.Flag.Value().IsNegativeBoolFlag() && deprecatedFlagValue.IsBoolFlag() {
@@ -91,7 +92,10 @@ func (newFlag *Flag) Value() clihelper.FlagValue {
 				newValue = deprecatedFlag.newValueFn(deprecatedFlagValue)
 			}
 
-			newFlag.Flag.Value().Getter(deprecatedFlagValue.GetName()).Set(newValue) //nolint:errcheck
+			newFlag.Flag.Value().
+				Getter(deprecatedFlagValue.GetName()).
+				Set(newValue)
+			//nolint:errcheck
 		}
 	}
 
@@ -128,7 +132,8 @@ func (newFlag *Flag) RunAction(ctx context.Context, cliCtx *clihelper.Context) e
 			return err
 		}
 
-		if deprecated.Flag == nil || deprecated.Flag == newFlag.Flag || !deprecated.Value().IsSet() {
+		if deprecated.Flag == nil || deprecated.Flag == newFlag.Flag ||
+			!deprecated.Value().IsSet() {
 			continue
 		}
 

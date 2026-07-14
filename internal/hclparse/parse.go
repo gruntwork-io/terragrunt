@@ -144,7 +144,12 @@ func validateParseStackFileInput(fs vfs.FS, input *ParseStackFileInput) {
 	}
 
 	if input.StackDir == "" {
-		panic(fmt.Sprintf("hclparse.ParseStackFile: input.StackDir is empty (filename=%q)", input.Filename))
+		panic(
+			fmt.Sprintf(
+				"hclparse.ParseStackFile: input.StackDir is empty (filename=%q)",
+				input.Filename,
+			),
+		)
 	}
 }
 
@@ -228,8 +233,12 @@ func publishComponentRefs(body hcl.Body, evalCtx *hcl.EvalContext, stackDir stri
 		return
 	}
 
-	evalCtx.Variables[VarUnit] = BuildComponentRefMap(buildDiscoveryUnitRefs(headers.Units, stackDir))
-	evalCtx.Variables[VarStack] = BuildComponentRefMap(buildDiscoveryStackRefs(headers.Stacks, stackDir))
+	evalCtx.Variables[VarUnit] = BuildComponentRefMap(
+		buildDiscoveryUnitRefs(headers.Units, stackDir),
+	)
+	evalCtx.Variables[VarStack] = BuildComponentRefMap(
+		buildDiscoveryStackRefs(headers.Stacks, stackDir),
+	)
 }
 
 // maxLocalsIterations bounds the fixed-point loop in evaluateLocals as a safeguard against pathological inputs.
@@ -263,7 +272,11 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 }
 
 // attemptEvaluateLocals runs one fixed-point pass; returns true if at least one local was evaluated.
-func attemptEvaluateLocals(remaining map[string]*hclsyntax.Attribute, evaluated map[string]cty.Value, evalCtx *hcl.EvalContext) bool {
+func attemptEvaluateLocals(
+	remaining map[string]*hclsyntax.Attribute,
+	evaluated map[string]cty.Value,
+	evalCtx *hcl.EvalContext,
+) bool {
 	progress := false
 
 	for _, name := range slices.Sorted(maps.Keys(remaining)) {
@@ -284,7 +297,10 @@ func attemptEvaluateLocals(remaining map[string]*hclsyntax.Attribute, evaluated 
 }
 
 // reportUnresolvedLocals classifies a stuck set of locals as either a cycle or a hard eval error.
-func reportUnresolvedLocals(remaining map[string]*hclsyntax.Attribute, evalCtx *hcl.EvalContext) error {
+func reportUnresolvedLocals(
+	remaining map[string]*hclsyntax.Attribute,
+	evalCtx *hcl.EvalContext,
+) error {
 	sortedNames := slices.Sorted(maps.Keys(remaining))
 
 	for _, name := range sortedNames {
@@ -298,7 +314,10 @@ func reportUnresolvedLocals(remaining map[string]*hclsyntax.Attribute, evalCtx *
 }
 
 // diagsAreLocalForwardRefOnly reports whether every diagnostic references only still-unresolved locals.
-func diagsAreLocalForwardRefOnly(diags hcl.Diagnostics, remaining map[string]*hclsyntax.Attribute) bool {
+func diagsAreLocalForwardRefOnly(
+	diags hcl.Diagnostics,
+	remaining map[string]*hclsyntax.Attribute,
+) bool {
 	for _, d := range diags {
 		if d.Expression == nil {
 			return false
@@ -371,7 +390,13 @@ type resolvedInclude struct {
 }
 
 // mergeIncludes resolves include paths and merges included Remain bodies.
-func mergeIncludes(fs vfs.FS, parsedFile *StackFileHCL, stackDir string, evalCtx *hcl.EvalContext, srcByFilename map[string][]byte) (hcl.Body, error) {
+func mergeIncludes(
+	fs vfs.FS,
+	parsedFile *StackFileHCL,
+	stackDir string,
+	evalCtx *hcl.EvalContext,
+	srcByFilename map[string][]byte,
+) (hcl.Body, error) {
 	bodies := []hcl.Body{parsedFile.Remain}
 
 	for _, inc := range parsedFile.Includes {
@@ -393,7 +418,12 @@ func mergeIncludes(fs vfs.FS, parsedFile *StackFileHCL, stackDir string, evalCtx
 }
 
 // mergeOneInclude reads and parses one included file.
-func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *hcl.EvalContext) (resolvedInclude, error) {
+func mergeOneInclude(
+	fs vfs.FS,
+	inc *StackIncludeHCL,
+	stackDir string,
+	evalCtx *hcl.EvalContext,
+) (resolvedInclude, error) {
 	pathVal, diags := inc.Path.Value(evalCtx)
 	if diags.HasErrors() {
 		return resolvedInclude{}, IncludeValidationError{
@@ -407,18 +437,34 @@ func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *
 
 	switch {
 	case pathVal.IsNull():
-		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path must not be null", Err: diagAt(pathRange, "include path must not be null")}
+		return resolvedInclude{}, IncludeValidationError{
+			IncludeName: inc.Name,
+			Reason:      "include path must not be null",
+			Err:         diagAt(pathRange, "include path must not be null"),
+		}
 	case !pathVal.IsKnown():
-		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "include path is unknown", Err: diagAt(pathRange, "include path is unknown")}
+		return resolvedInclude{}, IncludeValidationError{
+			IncludeName: inc.Name,
+			Reason:      "include path is unknown",
+			Err:         diagAt(pathRange, "include path is unknown"),
+		}
 	case pathVal.Type() != cty.String:
 		reason := "include path must be a string, got " + pathVal.Type().FriendlyName()
-		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: reason, Err: diagAt(pathRange, reason)}
+		return resolvedInclude{}, IncludeValidationError{
+			IncludeName: inc.Name,
+			Reason:      reason,
+			Err:         diagAt(pathRange, reason),
+		}
 	}
 
 	includePath := pathVal.AsString()
 	if includePath == "" {
 		reason := "include path must evaluate to a non-empty string"
-		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: reason, Err: diagAt(pathRange, reason)}
+		return resolvedInclude{}, IncludeValidationError{
+			IncludeName: inc.Name,
+			Reason:      reason,
+			Err:         diagAt(pathRange, reason),
+		}
 	}
 
 	if !filepath.IsAbs(includePath) {
@@ -436,11 +482,17 @@ func mergeOneInclude(fs vfs.FS, inc *StackIncludeHCL, stackDir string, evalCtx *
 	}
 
 	if included.Locals != nil {
-		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "must not define locals"}
+		return resolvedInclude{}, IncludeValidationError{
+			IncludeName: inc.Name,
+			Reason:      "must not define locals",
+		}
 	}
 
 	if len(included.Includes) > 0 {
-		return resolvedInclude{}, IncludeValidationError{IncludeName: inc.Name, Reason: "must not define nested includes"}
+		return resolvedInclude{}, IncludeValidationError{
+			IncludeName: inc.Name,
+			Reason:      "must not define nested includes",
+		}
 	}
 
 	return resolvedInclude{Remain: included.Remain, Src: data, Path: includePath}, nil
@@ -466,7 +518,12 @@ func AutoIncludeKey(kind AutoIncludeKind, name string) string {
 }
 
 // resolveAutoIncludes resolves autoinclude blocks for all units and stacks; keys are namespaced as "unit:name" and "stack:name".
-func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx *hcl.EvalContext, srcByFilename map[string][]byte) (map[string]*AutoIncludeResolved, error) {
+func resolveAutoIncludes(
+	units []*UnitBlockHCL,
+	stacks []*StackBlockHCL,
+	evalCtx *hcl.EvalContext,
+	srcByFilename map[string][]byte,
+) (map[string]*AutoIncludeResolved, error) {
 	autoIncludes := make(map[string]*AutoIncludeResolved)
 
 	for _, unit := range units {
@@ -474,7 +531,13 @@ func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx, KindUnit, unit.Name, autoIncludeSourceBytes(srcByFilename, unit.AutoInclude))
+		resolved, err := resolveAutoInclude(
+			unit.AutoInclude,
+			evalCtx,
+			KindUnit,
+			unit.Name,
+			autoIncludeSourceBytes(srcByFilename, unit.AutoInclude),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -489,7 +552,13 @@ func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx, KindStack, stack.Name, autoIncludeSourceBytes(srcByFilename, stack.AutoInclude))
+		resolved, err := resolveAutoInclude(
+			stack.AutoInclude,
+			evalCtx,
+			KindStack,
+			stack.Name,
+			autoIncludeSourceBytes(srcByFilename, stack.AutoInclude),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -503,7 +572,13 @@ func resolveAutoIncludes(units []*UnitBlockHCL, stacks []*StackBlockHCL, evalCtx
 }
 
 // resolveAutoInclude resolves a single autoinclude block, attaches the eval context, tags it with the component kind so the generator picks the right filename, and records the originating file's bytes for include-aware expression slicing.
-func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, kind AutoIncludeKind, name string, sourceBytes []byte) (*AutoIncludeResolved, error) {
+func resolveAutoInclude(
+	autoInclude *AutoIncludeHCL,
+	evalCtx *hcl.EvalContext,
+	kind AutoIncludeKind,
+	name string,
+	sourceBytes []byte,
+) (*AutoIncludeResolved, error) {
 	resolved, diags := autoInclude.ResolveForKind(evalCtx, kind, name)
 	if diags.HasErrors() {
 		if typed := autoIncludeTypedErr(diags); typed != nil {

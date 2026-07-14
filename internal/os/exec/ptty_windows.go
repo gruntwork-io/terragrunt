@@ -56,7 +56,10 @@ func enableVirtualTerminalInput(logger log.Logger, file *os.File) {
 		return
 	}
 
-	if err := windows.SetConsoleMode(handle, mode|windows.ENABLE_VIRTUAL_TERMINAL_INPUT); err != nil {
+	if err := windows.SetConsoleMode(
+		handle,
+		mode|windows.ENABLE_VIRTUAL_TERMINAL_INPUT,
+	); err != nil {
 		logger.Debugf("virtual terminal input not supported: %v", err)
 		// Restore original mode in case the failed call left the handle in a bad state.
 		_ = windows.SetConsoleMode(handle, mode)
@@ -75,7 +78,9 @@ func PrepareStdinForPrompt(logger log.Logger) {
 		return
 	}
 
-	required := uint32(windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT)
+	required := uint32(
+		windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT,
+	)
 	if mode&required != required {
 		if err := windows.SetConsoleMode(handle, mode|required); err != nil {
 			logger.Debugf("failed to restore stdin console mode for prompt: %v", err)
@@ -96,7 +101,10 @@ func enableVirtualTerminalProcessing(logger log.Logger, file *os.File) bool {
 		return false
 	}
 
-	if err := windows.SetConsoleMode(handle, mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING); err != nil {
+	if err := windows.SetConsoleMode(
+		handle,
+		mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+	); err != nil {
 		logger.Errorf("failed to set console mode: %v", err)
 		_ = windows.SetConsoleMode(handle, mode)
 

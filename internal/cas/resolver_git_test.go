@@ -178,7 +178,9 @@ func TestGitResolver_ProbeSCPURLWithBranchUsesSeparateArgs(t *testing.T) {
 
 	runner := newStubGitRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		capturedArgs = inv.Args
-		return vexec.Result{Stdout: []byte("deadbeefcafefacedeadbeefcafefacedeadbeef\trefs/heads/main\n")}
+		return vexec.Result{
+			Stdout: []byte("deadbeefcafefacedeadbeefcafefacedeadbeef\trefs/heads/main\n"),
+		}
 	})
 
 	r := &cas.GitResolver{Venv: cas.Venv{Git: runner}, Branch: "main"}
@@ -203,7 +205,9 @@ func TestGitResolver_ProbeHTTPURLWithBranchUsesSeparateArgs(t *testing.T) {
 
 	runner := newStubGitRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		capturedArgs = inv.Args
-		return vexec.Result{Stdout: []byte("deadbeefcafefacedeadbeefcafefacedeadbeef\trefs/heads/main\n")}
+		return vexec.Result{
+			Stdout: []byte("deadbeefcafefacedeadbeefcafefacedeadbeef\trefs/heads/main\n"),
+		}
 	})
 
 	r := &cas.GitResolver{Venv: cas.Venv{Git: runner}, Branch: "main"}

@@ -63,7 +63,10 @@ func (s *Store) TryAcquireLock(v Venv, hash string) (vfs.Unlocker, bool, error) 
 //   - needsWrite: true if content doesn't exist and caller should write it
 //   - lock: the acquired lock (nil if needsWrite is false)
 //   - error: any error that occurred
-func (s *Store) EnsureWithWait(v Venv, hash string) (needsWrite bool, lock vfs.Unlocker, err error) {
+func (s *Store) EnsureWithWait(
+	v Venv,
+	hash string,
+) (needsWrite bool, lock vfs.Unlocker, err error) {
 	partitionDir := filepath.Join(s.path, hash[:2])
 	path := filepath.Join(partitionDir, hash)
 

@@ -115,7 +115,10 @@ func (ctrl *Control) Evaluate(ctx context.Context) error {
 		return ctrl.Error
 	}
 
-	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.Warning != "" && !ctrl.isSuppressed() {
+	if logger := log.LoggerFromContext(
+		ctx,
+	); logger != nil && ctrl.Warning != "" &&
+		!ctrl.isSuppressed() {
 		ctrl.OnceWarn.Do(func() {
 			logger.Warn(ctrl.Warning)
 		})

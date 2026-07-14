@@ -38,11 +38,20 @@ type Config struct {
 
 // PrepareConfig reads and parses the terragrunt configuration, fetches credentials,
 // and performs version constraint checks. This is the first stage of preparation.
-func PrepareConfig(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) (*Config, error) {
+func PrepareConfig(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) (*Config, error) {
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
 	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
-	provider := externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts))
+	provider := externalcmd.NewProvider(
+		l,
+		opts.AuthProviderCmd,
+		configbridge.ShellRunOptsFromOpts(opts),
+	)
 
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider); err != nil {
 		return nil, err
@@ -150,12 +159,21 @@ func PrepareSource(
 
 	// Always download/copy source to cache directory for consistency.
 	// When no source is specified, sourceURL will be "." (current directory).
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "download_terraform_source", map[string]any{
-		"sourceUrl": sourceURL,
-	}, func(ctx context.Context, l log.Logger) error {
-		updatedRunOpts, err = run.DownloadTerraformSource(ctx, l, v, sourceURL, runOpts, runCfg, r)
-		return err
-	})
+	err = telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "download_terraform_source", map[string]any{
+			"sourceUrl": sourceURL,
+		}, func(ctx context.Context, l log.Logger) error {
+			updatedRunOpts, err = run.DownloadTerraformSource(
+				ctx,
+				l,
+				v,
+				sourceURL,
+				runOpts,
+				runCfg,
+				r,
+			)
+			return err
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -174,13 +192,23 @@ func PrepareSource(
 
 // PrepareGenerate handles code generation configs, both generate blocks and generate attribute of remote_state.
 // It requires PrepareSource to have been called first.
-func PrepareGenerate(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
+func PrepareGenerate(
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	cfg *runcfg.RunConfig,
+) error {
 	return run.GenerateConfig(l, v.FS, configbridge.NewRunOptions(opts), cfg)
 }
 
 // PrepareInputsAsEnvVars sets terragrunt inputs as environment variables.
 // It requires PrepareGenerate to have been called first.
-func PrepareInputsAsEnvVars(l log.Logger, v venv.Venv, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
+func PrepareInputsAsEnvVars(
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+	cfg *runcfg.RunConfig,
+) error {
 	runOpts := configbridge.NewRunOptions(opts)
 
 	// Check for terraform code
@@ -213,5 +241,13 @@ func PrepareInit(
 	}
 
 	// Run terraform init via the non-init command preparation path.
-	return run.PrepareNonInitCommand(ctx, l, v, configbridge.NewRunOptions(originalOpts), runOpts, cfg, r)
+	return run.PrepareNonInitCommand(
+		ctx,
+		l,
+		v,
+		configbridge.NewRunOptions(originalOpts),
+		runOpts,
+		cfg,
+		r,
+	)
 }

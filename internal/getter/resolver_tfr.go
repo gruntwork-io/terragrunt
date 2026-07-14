@@ -105,7 +105,12 @@ func (r *TFRResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 	ctx, cancel := context.WithTimeout(ctx, tfrResolverTimeout)
 	defer cancel()
 
-	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, r.Logger, r.HTTPClient, registryDomain)
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(
+		ctx,
+		r.Logger,
+		r.HTTPClient,
+		registryDomain,
+	)
 	if err != nil {
 		return "", cas.ErrNoVersionMetadata
 	}

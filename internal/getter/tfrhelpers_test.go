@@ -28,12 +28,17 @@ func TestVersionResolverMemoizesWithRacing(t *testing.T) {
 		_, err := w.Write([]byte(`{"modules.v1":"/v1/modules/"}`))
 		assert.NoError(t, err)
 	})
-	mux.HandleFunc("/v1/modules/foo/bar/baz/versions", func(w http.ResponseWriter, _ *http.Request) {
-		versionsHits.Add(1)
+	mux.HandleFunc(
+		"/v1/modules/foo/bar/baz/versions",
+		func(w http.ResponseWriter, _ *http.Request) {
+			versionsHits.Add(1)
 
-		_, err := w.Write([]byte(`{"modules":[{"versions":[{"version":"3.3.0"},{"version":"2.0.0"}]}]}`))
-		assert.NoError(t, err)
-	})
+			_, err := w.Write(
+				[]byte(`{"modules":[{"versions":[{"version":"3.3.0"},{"version":"2.0.0"}]}]}`),
+			)
+			assert.NoError(t, err)
+		},
+	)
 
 	server := httptest.NewTLSServer(mux)
 	t.Cleanup(server.Close)

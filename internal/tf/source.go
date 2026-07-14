@@ -46,7 +46,12 @@ const matchCount = 2
 //
 // A ctrls slice that does not contain the control falls back to applying the
 // rewrite silently.
-func RewriteLegacyGCSPublicSource(ctx context.Context, l log.Logger, source string, ctrls strict.Controls) string {
+func RewriteLegacyGCSPublicSource(
+	ctx context.Context,
+	l log.Logger,
+	source string,
+	ctrls strict.Controls,
+) string {
 	if !publicGoogleAPIsStorage.MatchString(source) {
 		return source
 	}
@@ -85,7 +90,13 @@ type Source struct {
 }
 
 func (src Source) String() string {
-	return fmt.Sprintf("Source{CanonicalSourceURL = %v, DownloadDir = %v, WorkingDir = %v, VersionFile = %v}", src.CanonicalSourceURL, src.DownloadDir, src.WorkingDir, src.VersionFile)
+	return fmt.Sprintf(
+		"Source{CanonicalSourceURL = %v, DownloadDir = %v, WorkingDir = %v, VersionFile = %v}",
+		src.CanonicalSourceURL,
+		src.DownloadDir,
+		src.WorkingDir,
+		src.VersionFile,
+	)
 }
 
 // EncodeSourceVersion encodes a version number for the given source. When calculating a version number, we take the query
@@ -196,7 +207,13 @@ func (src Source) WriteVersionFile(l log.Logger) error {
 //  1. Always download source URLs pointing to local file paths.
 //  2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
-func NewSource(l log.Logger, source string, downloadDir string, workingDir string, walkDirWithSymlinks bool) (*Source, error) {
+func NewSource(
+	l log.Logger,
+	source string,
+	downloadDir string,
+	workingDir string,
+	walkDirWithSymlinks bool,
+) (*Source, error) {
 	canonicalWorkingDir := filepath.Clean(workingDir)
 
 	canonicalSourceURL, err := ToSourceURL(source, canonicalWorkingDir)
@@ -362,7 +379,10 @@ func SplitSourceURL(l log.Logger, sourceURL *url.URL) (*url.URL, string, error) 
 	_, err := os.Stat(sourceURL.Path)
 	if err != nil {
 		// log warning message to notify user that sourceUrl.Path may not work
-		l.Warnf("No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceURL.Path)
+		l.Warnf(
+			"No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.",
+			sourceURL.Path,
+		)
 	}
 
 	return sourceURL, "", nil

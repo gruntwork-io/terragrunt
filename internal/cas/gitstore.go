@@ -238,7 +238,11 @@ func (s *GitStore) ensureKnownCommit(
 // win.
 //
 // Panics when v.FS is not OS-backed; git only sees the real disk.
-func (s *GitStore) ProbeCachedCommit(ctx context.Context, v Venv, url, rawRef string) (string, bool) {
+func (s *GitStore) ProbeCachedCommit(
+	ctx context.Context,
+	v Venv,
+	url, rawRef string,
+) (string, bool) {
 	if !vfs.IsOSFS(v.FS) {
 		panic(ErrGitStoreFSNotOS)
 	}
@@ -326,19 +330,32 @@ func (s *repoSession) cleanup() {
 // acquire claims the per-URL flock and returns a [repoSession] carrying
 // the locked handle. `git init --bare` runs only on first use of a store
 // entry; subsequent calls detect HEAD and skip the spawn.
-func (s *GitStore) acquire(ctx context.Context, v Venv, l log.Logger, url string) (*repoSession, error) {
+func (s *GitStore) acquire(
+	ctx context.Context,
+	v Venv,
+	l log.Logger,
+	url string,
+) (*repoSession, error) {
 	if !vfs.IsOSFS(v.FS) {
 		return nil, ErrGitStoreFSNotOS
 	}
 
 	if err := v.FS.MkdirAll(s.rootPath, DefaultDirPerms); err != nil {
-		return nil, fmt.Errorf("create git store at %s: %w", s.rootPath, errors.Join(ErrGitStorePath, err))
+		return nil, fmt.Errorf(
+			"create git store at %s: %w",
+			s.rootPath,
+			errors.Join(ErrGitStorePath, err),
+		)
 	}
 
 	dir, repoPath, lockPath := s.repoPaths(url)
 
 	if err := v.FS.MkdirAll(dir, DefaultDirPerms); err != nil {
-		return nil, fmt.Errorf("create git store entry %s: %w", dir, errors.Join(ErrGitStorePath, err))
+		return nil, fmt.Errorf(
+			"create git store entry %s: %w",
+			dir,
+			errors.Join(ErrGitStorePath, err),
+		)
 	}
 
 	lockCtx, cancel := context.WithTimeout(ctx, gitStoreLockTimeout)
@@ -357,13 +374,21 @@ func (s *GitStore) acquire(ctx context.Context, v Venv, l log.Logger, url string
 
 	if err := v.FS.MkdirAll(repoPath, DefaultDirPerms); err != nil {
 		session.cleanup()
-		return nil, fmt.Errorf("create bare repo dir %s: %w", repoPath, errors.Join(ErrGitStorePath, err))
+		return nil, fmt.Errorf(
+			"create bare repo dir %s: %w",
+			repoPath,
+			errors.Join(ErrGitStorePath, err),
+		)
 	}
 
 	initialized, err := bareRepoInitialized(v.FS, repoPath)
 	if err != nil {
 		session.cleanup()
-		return nil, fmt.Errorf("inspect bare repo %s: %w", repoPath, errors.Join(ErrGitStorePath, err))
+		return nil, fmt.Errorf(
+			"inspect bare repo %s: %w",
+			repoPath,
+			errors.Join(ErrGitStorePath, err),
+		)
 	}
 
 	if !initialized {

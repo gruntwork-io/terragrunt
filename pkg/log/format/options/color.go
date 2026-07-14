@@ -108,7 +108,10 @@ func (val *ColorList) Parse(str string) error {
 	}
 
 	if err := val.MapValue.Parse(str); err != nil {
-		return fmt.Errorf("available values: 0..255,%s", strings.Join(slices.Collect(maps.Values(val.list)), ","))
+		return fmt.Errorf(
+			"available values: 0..255,%s",
+			strings.Join(slices.Collect(maps.Values(val.list)), ","),
+		)
 	}
 
 	return nil

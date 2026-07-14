@@ -9,8 +9,16 @@ func NewDeprecatedReplacedCommand(command, newCommand string) *Control {
 	return &Control{
 		Name:        command,
 		Description: "replaced with: " + newCommand,
-		Error:       fmt.Errorf("the `%s` command is no longer supported, use `%s` instead", command, newCommand),
-		Warning:     fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version of Terragrunt. Use `%s` instead.", command, newCommand),
+		Error: fmt.Errorf(
+			"the `%s` command is no longer supported, use `%s` instead",
+			command,
+			newCommand,
+		),
+		Warning: fmt.Sprintf(
+			"The `%s` command is deprecated and will be removed in a future version of Terragrunt. Use `%s` instead.",
+			command,
+			newCommand,
+		),
 	}
 }
 
@@ -20,6 +28,9 @@ func NewDeprecatedCommand(command string) *Control {
 		Name:        command,
 		Description: "no replaced command",
 		Error:       fmt.Errorf("the `%s` command is no longer supported", command),
-		Warning:     fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version of Terragrunt.", command),
+		Warning: fmt.Sprintf(
+			"The `%s` command is deprecated and will be removed in a future version of Terragrunt.",
+			command,
+		),
 	}
 }

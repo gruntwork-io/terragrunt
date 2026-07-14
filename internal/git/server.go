@@ -173,7 +173,14 @@ func (s *Server) CommitSubmodule(ctx context.Context, path, url, commitHash, msg
 	// requiring the submodule to be checked out locally.
 	cacheinfo := fmt.Sprintf("160000,%s,%s", commitHash, path)
 
-	if err := s.gitIn(ctx, s.workDir, "update-index", "--add", "--cacheinfo", cacheinfo); err != nil {
+	if err := s.gitIn(
+		ctx,
+		s.workDir,
+		"update-index",
+		"--add",
+		"--cacheinfo",
+		cacheinfo,
+	); err != nil {
 		return fmt.Errorf("update-index for submodule %s: %w", path, err)
 	}
 
@@ -412,7 +419,12 @@ func (s *Server) push(ctx context.Context) error {
 func (s *Server) gitIn(ctx context.Context, dir string, args ...string) error {
 	out, err := s.gitCommand(ctx, dir, args...).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		return fmt.Errorf(
+			"git %s: %w\n%s",
+			strings.Join(args, " "),
+			err,
+			strings.TrimSpace(string(out)),
+		)
 	}
 
 	return nil
@@ -428,7 +440,12 @@ func (s *Server) gitOut(ctx context.Context, dir string, args ...string) (string
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return "", fmt.Errorf(
+			"git %s: %w\n%s",
+			strings.Join(args, " "),
+			err,
+			strings.TrimSpace(stderr.String()),
+		)
 	}
 
 	return strings.TrimSpace(stdout.String()), nil

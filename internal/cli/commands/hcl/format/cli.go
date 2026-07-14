@@ -27,54 +27,89 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
 	flagSet := clihelper.Flags{
-		flags.NewFlag(&clihelper.GenericFlag[string]{
-			Name:        FileFlagName,
-			EnvVars:     tgPrefix.EnvVars(FileFlagName),
-			Destination: &opts.HclFile,
-			Usage:       "The path to a single HCL file that the command should run on.",
-		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-file"), opts.StrictControls),         // `TG_HCLFMT_FILE`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("hclfmt-file"), opts.StrictControls), // `TERRAGRUNT_HCLFMT_FILE`
+		flags.NewFlag(
+			&clihelper.GenericFlag[string]{
+				Name:        FileFlagName,
+				EnvVars:     tgPrefix.EnvVars(FileFlagName),
+				Destination: &opts.HclFile,
+				Usage:       "The path to a single HCL file that the command should run on.",
+			},
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("hclfmt-file"),
+				opts.StrictControls,
+			), // `TG_HCLFMT_FILE`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("hclfmt-file"),
+				opts.StrictControls,
+			), // `TERRAGRUNT_HCLFMT_FILE`
 		),
 
-		flags.NewFlag(&clihelper.SliceFlag[string]{
-			Name:        ExcludeDirFlagName,
-			EnvVars:     tgPrefix.EnvVars(ExcludeDirFlagName),
-			Destination: &opts.HclExclude,
-			Usage:       "Skip HCL formatting in given directories.",
-		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-exclude-dir"), opts.StrictControls),         // `TG_HCLFMT_EXCLUDE_DIR`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("hclfmt-exclude-dir"), opts.StrictControls), // `TERRAGRUNT_EXCLUDE_DIR`
+		flags.NewFlag(
+			&clihelper.SliceFlag[string]{
+				Name:        ExcludeDirFlagName,
+				EnvVars:     tgPrefix.EnvVars(ExcludeDirFlagName),
+				Destination: &opts.HclExclude,
+				Usage:       "Skip HCL formatting in given directories.",
+			},
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("hclfmt-exclude-dir"),
+				opts.StrictControls,
+			), // `TG_HCLFMT_EXCLUDE_DIR`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("hclfmt-exclude-dir"),
+				opts.StrictControls,
+			), // `TERRAGRUNT_EXCLUDE_DIR`
 		),
 
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        CheckFlagName,
-			EnvVars:     tgPrefix.EnvVars(CheckFlagName),
-			Destination: &opts.Check,
-			Usage:       "Return a status code of zero when all files are formatted correctly, and a status code of one when they aren't.",
-		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-check"), opts.StrictControls),  // `TG_HCLFMT_CHECK`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("check"), opts.StrictControls), // `TERRAGRUNT_CHECK`
+		flags.NewFlag(
+			&clihelper.BoolFlag{
+				Name:        CheckFlagName,
+				EnvVars:     tgPrefix.EnvVars(CheckFlagName),
+				Destination: &opts.Check,
+				Usage:       "Return a status code of zero when all files are formatted correctly, and a status code of one when they aren't.",
+			},
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("hclfmt-check"),
+				opts.StrictControls,
+			), // `TG_HCLFMT_CHECK`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("check"),
+				opts.StrictControls,
+			), // `TERRAGRUNT_CHECK`
 		),
 
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        DiffFlagName,
-			EnvVars:     tgPrefix.EnvVars(DiffFlagName),
-			Destination: &opts.Diff,
-			Usage:       "Print diff between original and modified file versions.",
-		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-diff"), opts.StrictControls),  // `TG_HCLFMT_DIFF`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("diff"), opts.StrictControls), // `TERRAGRUNT_DIFF`
+		flags.NewFlag(
+			&clihelper.BoolFlag{
+				Name:        DiffFlagName,
+				EnvVars:     tgPrefix.EnvVars(DiffFlagName),
+				Destination: &opts.Diff,
+				Usage:       "Print diff between original and modified file versions.",
+			},
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("hclfmt-diff"),
+				opts.StrictControls,
+			), // `TG_HCLFMT_DIFF`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("diff"),
+				opts.StrictControls,
+			), // `TERRAGRUNT_DIFF`
 		),
 
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        StdinFlagName,
-			EnvVars:     tgPrefix.EnvVars(StdinFlagName),
-			Destination: &opts.HclFromStdin,
-			Usage:       "Format HCL from stdin and print result to stdout.",
-		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-stdin"), opts.StrictControls),         // `TG_HCLFMT_STDIN`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("hclfmt-stdin"), opts.StrictControls), // `TERRAGRUNT_HCLFMT_STDIN`
+		flags.NewFlag(
+			&clihelper.BoolFlag{
+				Name:        StdinFlagName,
+				EnvVars:     tgPrefix.EnvVars(StdinFlagName),
+				Destination: &opts.HclFromStdin,
+				Usage:       "Format HCL from stdin and print result to stdout.",
+			},
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("hclfmt-stdin"),
+				opts.StrictControls,
+			), // `TG_HCLFMT_STDIN`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("hclfmt-stdin"),
+				opts.StrictControls,
+			), // `TERRAGRUNT_HCLFMT_STDIN`
 		),
 	}
 

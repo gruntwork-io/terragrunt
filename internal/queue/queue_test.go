@@ -343,7 +343,13 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	assert.Contains(t, paths, "C")
 
 	for _, entry := range readyEntries {
-		assert.Equal(t, queue.StatusReady, entry.Status, "Entry %s should have StatusReady", entry.Component.Path())
+		assert.Equal(
+			t,
+			queue.StatusReady,
+			entry.Status,
+			"Entry %s should have StatusReady",
+			entry.Component.Path(),
+		)
 	}
 
 	// Mark B as running and complete it
@@ -413,9 +419,21 @@ func TestQueue_FailFast(t *testing.T) {
 	for _, entry := range q.Entries {
 		switch entry.Component.Path() {
 		case "A":
-			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Component.Path())
+			assert.Equal(
+				t,
+				queue.StatusFailed,
+				entry.Status,
+				"Entry %s should have StatusFailed",
+				entry.Component.Path(),
+			)
 		case "B", "C":
-			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Component.Path())
+			assert.Equal(
+				t,
+				queue.StatusEarlyExit,
+				entry.Status,
+				"Entry %s should have StatusEarlyExit",
+				entry.Component.Path(),
+			)
 		}
 	}
 
@@ -695,9 +713,21 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	for _, entry := range q.Entries {
 		switch entry.Component.Path() {
 		case "A":
-			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Component.Path())
+			assert.Equal(
+				t,
+				queue.StatusFailed,
+				entry.Status,
+				"Entry %s should have StatusFailed",
+				entry.Component.Path(),
+			)
 		case "B", "C":
-			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Component.Path())
+			assert.Equal(
+				t,
+				queue.StatusEarlyExit,
+				entry.Status,
+				"Entry %s should have StatusEarlyExit",
+				entry.Component.Path(),
+			)
 		}
 	}
 
@@ -922,7 +952,12 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_MaintainsOrder(t *testing.T) {
 	// Step 1: Only C should be ready (it has no dependents)
 	readyEntries := q.GetReadyWithDependencies(l)
 	assert.Len(t, readyEntries, 1, "Initially only C should be ready for destruction")
-	assert.Equal(t, "C", readyEntries[0].Component.Path(), "C should be the first entry ready for destruction")
+	assert.Equal(
+		t,
+		"C",
+		readyEntries[0].Component.Path(),
+		"C should be the first entry ready for destruction",
+	)
 
 	// Mark C as succeeded
 	entryC := readyEntries[0]
@@ -992,11 +1027,21 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 	// With IgnoreDependencyErrors = true, B should NOT be marked as early exit
 	// Instead, B should still be ready to run
 	assert.Equal(t, queue.StatusFailed, q.EntryByPath("C").Status, "C should be failed")
-	assert.Equal(t, queue.StatusReady, q.EntryByPath("B").Status, "B should still be ready (not early exit)")
+	assert.Equal(
+		t,
+		queue.StatusReady,
+		q.EntryByPath("B").Status,
+		"B should still be ready (not early exit)",
+	)
 
 	// Step 2: B should now be ready even though C failed
 	readyEntries = q.GetReadyWithDependencies(l)
-	assert.Len(t, readyEntries, 1, "After C fails, B should still be ready due to IgnoreDependencyErrors")
+	assert.Len(
+		t,
+		readyEntries,
+		1,
+		"After C fails, B should still be ready due to IgnoreDependencyErrors",
+	)
 	assert.Equal(t, "B", readyEntries[0].Component.Path())
 
 	// Mark B as succeeded
@@ -1113,10 +1158,24 @@ func TestQueueClaimForRunningRacesFailEntryWithRacing(t *testing.T) {
 		require.Equal(t, queue.StatusFailed, entryA.Status, "iteration %d: A status", i)
 
 		if claimed {
-			require.Equal(t, queue.StatusRunning, entryB.Status, "iteration %d: claim true but B is %v", i, entryB.Status)
+			require.Equal(
+				t,
+				queue.StatusRunning,
+				entryB.Status,
+				"iteration %d: claim true but B is %v",
+				i,
+				entryB.Status,
+			)
 			continue
 		}
 
-		require.Equal(t, queue.StatusEarlyExit, entryB.Status, "iteration %d: claim false but B is %v", i, entryB.Status)
+		require.Equal(
+			t,
+			queue.StatusEarlyExit,
+			entryB.Status,
+			"iteration %d: claim false but B is %v",
+			i,
+			entryB.Status,
+		)
 	}
 }

@@ -267,11 +267,18 @@ func FromComponents(components []component.Component, useDisplayPath bool) Liste
 // populated with its dependents (components that depend on it) instead of its
 // dependencies. This causes GenerateDAGTree to render the tree from leaves inward,
 // which reflects the execution order for destroy commands.
-func FromComponentsReversed(components []component.Component, useDisplayPath bool) ListedComponents {
+func FromComponentsReversed(
+	components []component.Component,
+	useDisplayPath bool,
+) ListedComponents {
 	return fromComponents(components, useDisplayPath, true)
 }
 
-func fromComponents(components []component.Component, useDisplayPath bool, reverse bool) ListedComponents {
+func fromComponents(
+	components []component.Component,
+	useDisplayPath bool,
+	reverse bool,
+) ListedComponents {
 	listed := make(ListedComponents, 0, len(components))
 	byPath := make(map[string]*ListedComponent, len(components))
 
@@ -295,7 +302,11 @@ func fromComponents(components []component.Component, useDisplayPath bool, rever
 	return listed
 }
 
-func wireRelationships(components []component.Component, byPath map[string]*ListedComponent, reverse bool) {
+func wireRelationships(
+	components []component.Component,
+	byPath map[string]*ListedComponent,
+	reverse bool,
+) {
 	for _, c := range components {
 		lc := byPath[c.Path()]
 

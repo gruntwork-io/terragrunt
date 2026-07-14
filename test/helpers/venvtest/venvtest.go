@@ -20,9 +20,11 @@ import (
 // writers wired to [io.Discard]. Refine it with venv.Venv's fluent With methods.
 func New() venv.Venv {
 	return venv.Venv{
-		Exec: vexec.NewMemExec(func(context.Context, vexec.Invocation) vexec.Result { return vexec.Result{} }),
-		FS:   vfs.NewMemMapFS(),
-		Env:  map[string]string{},
+		Exec: vexec.NewMemExec(
+			func(context.Context, vexec.Invocation) vexec.Result { return vexec.Result{} },
+		),
+		FS:  vfs.NewMemMapFS(),
+		Env: map[string]string{},
 		Platform: &venv.Platform{
 			UserHomeDir: func() (string, error) {
 				return "", nil

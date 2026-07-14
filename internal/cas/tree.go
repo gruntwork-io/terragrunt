@@ -153,7 +153,13 @@ func linkTree(
 		g.Go(func() error {
 			switch work.itemType {
 			case "link":
-				err := blobContent.Link(ctx, v, work.entry.Hash, work.path, gitFilePerm(work.entry.Mode), linkOpts...)
+				err := blobContent.Link(
+					ctx,
+					v,
+					work.entry.Hash,
+					work.path,
+					gitFilePerm(work.entry.Mode),
+					linkOpts...)
 				if err != nil {
 					return fmt.Errorf("link blob %s: %w", work.path, err)
 				}
@@ -163,7 +169,11 @@ func linkTree(
 					return fmt.Errorf("read symlink blob %s: %w", work.entry.Hash, err)
 				}
 
-				if err := vfs.ValidateSymlinkTarget(rootDir, work.path, string(target)); err != nil {
+				if err := vfs.ValidateSymlinkTarget(
+					rootDir,
+					work.path,
+					string(target),
+				); err != nil {
 					return err
 				}
 

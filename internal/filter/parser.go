@@ -154,18 +154,38 @@ func (p *Parser) parseExpression(precedence int) Expression {
 
 		p.nextToken()
 	case ILLEGAL:
-		p.addErrorWithCode(ErrorCodeIllegalToken, "Illegal token", "Unrecognized character '"+p.curToken.Literal+"'")
+		p.addErrorWithCode(
+			ErrorCodeIllegalToken,
+			"Illegal token",
+			"Unrecognized character '"+p.curToken.Literal+"'",
+		)
 		return nil
 	case EOF:
-		p.addErrorWithCode(ErrorCodeUnexpectedEOF, "Unexpected end of input", "Expression is incomplete")
+		p.addErrorWithCode(
+			ErrorCodeUnexpectedEOF,
+			"Unexpected end of input",
+			"Expression is incomplete",
+		)
 		return nil
 	case PIPE:
-		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "Missing left-hand side of '|' operator")
+		p.addErrorWithCode(
+			ErrorCodeUnexpectedToken,
+			"Unexpected token",
+			"Missing left-hand side of '|' operator",
+		)
 	case EQUAL, RBRACE, RBRACKET, ELLIPSIS, CARET:
-		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "Unexpected '"+p.curToken.Literal+"'")
+		p.addErrorWithCode(
+			ErrorCodeUnexpectedToken,
+			"Unexpected token",
+			"Unexpected '"+p.curToken.Literal+"'",
+		)
 		return nil
 	default:
-		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "Unexpected '"+p.curToken.Literal+"'")
+		p.addErrorWithCode(
+			ErrorCodeUnexpectedToken,
+			"Unexpected token",
+			"Unexpected '"+p.curToken.Literal+"'",
+		)
 		return nil
 	}
 
@@ -207,7 +227,18 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		switch p.curToken.Type {
 		case PIPE:
 			leftExpr = p.parseInfixExpression(leftExpr)
-		case ILLEGAL, EOF, IDENT, PATH, BANG, EQUAL, LBRACE, RBRACE, LBRACKET, RBRACKET, ELLIPSIS, CARET:
+		case ILLEGAL,
+			EOF,
+			IDENT,
+			PATH,
+			BANG,
+			EQUAL,
+			LBRACE,
+			RBRACE,
+			LBRACKET,
+			RBRACKET,
+			ELLIPSIS,
+			CARET:
 			return leftExpr
 		default:
 			return leftExpr
@@ -264,7 +295,10 @@ func (p *Parser) parsePrefixExpression() Expression {
 		// Clear any errors from parseExpression (like generic EOF error)
 		// and add our specific error with the EOF title for consistency
 		p.errors = nil
-		p.addMissingOperandError("Unexpected end of input", "Missing target expression for '!' operator")
+		p.addMissingOperandError(
+			"Unexpected end of input",
+			"Missing target expression for '!' operator",
+		)
 
 		return nil
 	}
@@ -296,7 +330,10 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 		// Clear any errors from parseExpression (like generic EOF error)
 		// and add our specific error with the EOF title for consistency
 		p.errors = nil
-		p.addMissingOperandError("Unexpected end of input", "Missing right-hand side of '|' operator")
+		p.addMissingOperandError(
+			"Unexpected end of input",
+			"Missing right-hand side of '|' operator",
+		)
 
 		return nil
 	}
@@ -331,7 +368,11 @@ func (p *Parser) parseBracedPath() Expression {
 	p.nextToken()
 
 	if p.curToken.Type == RBRACE {
-		p.addErrorWithCode(ErrorCodeEmptyExpression, "Empty path expression", "Braced path expression cannot be empty")
+		p.addErrorWithCode(
+			ErrorCodeEmptyExpression,
+			"Empty path expression",
+			"Braced path expression cannot be empty",
+		)
 		return nil
 	}
 
@@ -361,7 +402,11 @@ func (p *Parser) parseBracedPath() Expression {
 
 	expr, err := NewPathFilter(pathValue)
 	if err != nil {
-		p.addErrorWithCode(ErrorCodeInvalidGlob, "Invalid glob pattern", "Invalid glob pattern '"+pathValue+"': "+err.Error())
+		p.addErrorWithCode(
+			ErrorCodeInvalidGlob,
+			"Invalid glob pattern",
+			"Invalid glob pattern '"+pathValue+"': "+err.Error(),
+		)
 		return nil
 	}
 
@@ -414,7 +459,11 @@ func (p *Parser) parseGitFilter() Expression {
 	p.nextToken()
 
 	if p.curToken.Type == RBRACKET {
-		p.addErrorWithCode(ErrorCodeEmptyGitFilter, "Empty Git filter", "Git filter expression cannot be empty")
+		p.addErrorWithCode(
+			ErrorCodeEmptyGitFilter,
+			"Empty Git filter",
+			"Git filter expression cannot be empty",
+		)
 		return nil
 	}
 
@@ -426,7 +475,11 @@ func (p *Parser) parseGitFilter() Expression {
 	}
 
 	if len(fromRefParts) == 0 {
-		p.addErrorWithCode(ErrorCodeMissingGitRef, "Missing Git reference", "Expected Git reference in filter")
+		p.addErrorWithCode(
+			ErrorCodeMissingGitRef,
+			"Missing Git reference",
+			"Expected Git reference in filter",
+		)
 		return nil
 	}
 
@@ -445,7 +498,11 @@ func (p *Parser) parseGitFilter() Expression {
 		}
 
 		if len(toRefParts) == 0 {
-			p.addErrorWithCode(ErrorCodeMissingGitRef, "Missing Git reference", "Expected second Git reference after '...'")
+			p.addErrorWithCode(
+				ErrorCodeMissingGitRef,
+				"Missing Git reference",
+				"Expected second Git reference after '...'",
+			)
 			return nil
 		}
 

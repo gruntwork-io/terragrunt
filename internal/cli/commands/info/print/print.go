@@ -32,7 +32,12 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	return runPrint(ctx, l, v, opts)
 }
 
-func runPrint(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runPrint(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
 	if err != nil {
 		// Even on error, try to print what info we have
@@ -46,7 +51,14 @@ func runPrint(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terr
 	}
 
 	// Download source
-	updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, report.NewReport())
+	updatedOpts, err := prepare.PrepareSource(
+		ctx,
+		l,
+		v,
+		prepared.Opts,
+		prepared.Cfg,
+		report.NewReport(),
+	)
 	if err != nil {
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)

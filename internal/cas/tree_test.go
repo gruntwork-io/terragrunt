@@ -236,7 +236,13 @@ func TestLinkTreeSymlinks(t *testing.T) {
 
 				info, err := vfs.Lstat(v.FS, full)
 				require.NoError(t, err)
-				assert.NotZero(t, info.Mode()&os.ModeSymlink, "%s is not a symlink (mode=%s)", full, info.Mode())
+				assert.NotZero(
+					t,
+					info.Mode()&os.ModeSymlink,
+					"%s is not a symlink (mode=%s)",
+					full,
+					info.Mode(),
+				)
 
 				got, err := vfs.Readlink(v.FS, full)
 				require.NoError(t, err)

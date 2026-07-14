@@ -58,7 +58,10 @@ func newFakeRepo(t *testing.T, fsys vfs.FS, repoDir string) *module.Repo {
 	url = github.com/gruntwork-io/fake-repo
 `), 0o644))
 
-	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fsys, filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644),
+	)
 
 	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), fsys, &module.RepoOpts{
 		CloneURL:       repoDir,
@@ -90,19 +93,39 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 	writeFileFS(t, fsys, filepath.Join(repoDir, "foo", "main.tf"), "# vpc terraform")
 
 	// bar/ has a .boilerplate/ subdir. Template at bar/.
-	writeFileFS(t, fsys, filepath.Join(repoDir, "bar", ".boilerplate", "boilerplate.yml"), "variables: []\n")
-	writeFileFS(t, fsys, filepath.Join(repoDir, "bar", ".boilerplate", "README.md"), "# bar template boilerplate dir")
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "bar", ".boilerplate", "boilerplate.yml"),
+		"variables: []\n",
+	)
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "bar", ".boilerplate", "README.md"),
+		"# bar template boilerplate dir",
+	)
 
 	// baz/ has a top-level boilerplate.yml. Template at baz/.
 	writeFileFS(t, fsys, filepath.Join(repoDir, "baz", "boilerplate.yml"), "variables: []\n")
 
 	// qux/ has both main.tf AND a .boilerplate/. Template wins.
 	writeFileFS(t, fsys, filepath.Join(repoDir, "qux", "main.tf"), "# mixed")
-	writeFileFS(t, fsys, filepath.Join(repoDir, "qux", ".boilerplate", "boilerplate.yml"), "variables: []\n")
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "qux", ".boilerplate", "boilerplate.yml"),
+		"variables: []\n",
+	)
 
 	// Nested boilerplate.yml inside bar/.boilerplate/ must NOT surface as
 	// a separate template (bar/ already SkipDir'd the subtree).
-	writeFileFS(t, fsys, filepath.Join(repoDir, "bar", ".boilerplate", "nested", "boilerplate.yml"), "variables: []\n")
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "bar", ".boilerplate", "nested", "boilerplate.yml"),
+		"variables: []\n",
+	)
 
 	// Hidden dirs at top level must be skipped entirely.
 	writeFileFS(t, fsys, filepath.Join(repoDir, ".terraform", "main.tf"), "# should be skipped")
@@ -133,7 +156,13 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 
 	// Sanity-check the .boilerplate subtree was skipped.
 	for dir := range got {
-		assert.NotContains(t, dir, ".boilerplate", "no component should be derived from a .boilerplate subtree: %s", dir)
+		assert.NotContains(
+			t,
+			dir,
+			".boilerplate",
+			"no component should be derived from a .boilerplate subtree: %s",
+			dir,
+		)
 	}
 }
 
@@ -162,21 +191,46 @@ func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
 
 	// templated-stack/ has a .boilerplate/ alongside a terragrunt.stack.hcl →
 	// template wins.
-	writeFileFS(t, fsys, filepath.Join(repoDir, "templated-stack", ".boilerplate", "boilerplate.yml"), "variables: []\n")
-	writeFileFS(t, fsys, filepath.Join(repoDir, "templated-stack", "terragrunt.stack.hcl"), "# stack")
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "templated-stack", ".boilerplate", "boilerplate.yml"),
+		"variables: []\n",
+	)
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "templated-stack", "terragrunt.stack.hcl"),
+		"# stack",
+	)
 
 	// templated-unit/ has a .boilerplate/ alongside a terragrunt.hcl →
 	// template wins.
-	writeFileFS(t, fsys, filepath.Join(repoDir, "templated-unit", ".boilerplate", "boilerplate.yml"), "variables: []\n")
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "templated-unit", ".boilerplate", "boilerplate.yml"),
+		"variables: []\n",
+	)
 	writeFileFS(t, fsys, filepath.Join(repoDir, "templated-unit", "terragrunt.hcl"), "# unit")
 
 	// A nested .tf file under a unit must NOT surface as a second module.
 	// The unit's subtree is SkipDir'd.
-	writeFileFS(t, fsys, filepath.Join(repoDir, "unit-a", "nested", "main.tf"), "# should not surface")
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "unit-a", "nested", "main.tf"),
+		"# should not surface",
+	)
 
 	// A nested unit under a stack must NOT surface. The stack's subtree is
 	// SkipDir'd.
-	writeFileFS(t, fsys, filepath.Join(repoDir, "stack-a", "generated", "terragrunt.hcl"), "# should not surface")
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "stack-a", "generated", "terragrunt.hcl"),
+		"# should not surface",
+	)
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
@@ -209,7 +263,12 @@ func TestDiscoverComponents_RepoRootAsComponent(t *testing.T) {
 	repoDir := testRepoDir
 
 	// Repo root has a .boilerplate dir → root is a template.
-	writeFileFS(t, fsys, filepath.Join(repoDir, ".boilerplate", "boilerplate.yml"), "variables: []\n")
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, ".boilerplate", "boilerplate.yml"),
+		"variables: []\n",
+	)
 
 	// A child module that must NOT surface: once the root is classified as
 	// a template, the walker SkipDirs the whole tree.
@@ -236,9 +295,19 @@ func TestDiscoverComponents_HonorsIgnoreFile(t *testing.T) {
 	repoDir := testRepoDir
 
 	writeFileFS(t, fsys, filepath.Join(repoDir, "foo", "main.tf"), "# module")
-	writeFileFS(t, fsys, filepath.Join(repoDir, "examples", "foo", "main.tf"), "# example, should be ignored")
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "examples", "foo", "main.tf"),
+		"# example, should be ignored",
+	)
 	writeFileFS(t, fsys, filepath.Join(repoDir, "test", "drop", "main.tf"), "# should be ignored")
-	writeFileFS(t, fsys, filepath.Join(repoDir, "test", "keep", "main.tf"), "# re-included via negation")
+	writeFileFS(
+		t,
+		fsys,
+		filepath.Join(repoDir, "test", "keep", "main.tf"),
+		"# re-included via negation",
+	)
 
 	writeFileFS(t, fsys, filepath.Join(repoDir, ".terragrunt-catalog-ignore"),
 		"# skip examples and everything under it\nexamples\nexamples/**\ntest/**\n!test/keep\n")
@@ -258,7 +327,12 @@ func TestDiscoverComponents_HonorsIgnoreFile(t *testing.T) {
 		"test/keep": tui.ComponentKindModule,
 	}
 
-	assert.Equal(t, want, got, "ignore file should exclude examples/** and test/** except test/keep")
+	assert.Equal(
+		t,
+		want,
+		got,
+		"ignore file should exclude examples/** and test/** except test/keep",
+	)
 }
 
 // TestDiscoverComponents_ExtraIgnoreFile asserts that an extra ignore file
@@ -283,7 +357,10 @@ func TestDiscoverComponents_ExtraIgnoreFile(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).WithExtraIgnoreFile(extraPath).Discover(repo)
+	components, err := tui.NewComponentDiscovery().
+		WithFS(fsys).
+		WithExtraIgnoreFile(extraPath).
+		Discover(repo)
 	require.NoError(t, err)
 
 	got := map[string]tui.ComponentKind{}
@@ -296,7 +373,12 @@ func TestDiscoverComponents_ExtraIgnoreFile(t *testing.T) {
 		"stash/keep": tui.ComponentKindModule,
 	}
 
-	assert.Equal(t, want, got, "extra ignore file should extend repo rules and re-include via negation")
+	assert.Equal(
+		t,
+		want,
+		got,
+		"extra ignore file should extend repo rules and re-include via negation",
+	)
 }
 
 // TestDiscoverComponents_EmptyRepo returns no components for an empty tree.

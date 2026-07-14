@@ -70,7 +70,12 @@ func TestTerragruntSourceMap(t *testing.T) {
 				action = "run --all"
 			}
 
-			tgArgs := fmt.Sprintf("terragrunt %s --non-interactive --working-dir %s %s -- apply -auto-approve", action, tgPath, sourceMapArgs)
+			tgArgs := fmt.Sprintf(
+				"terragrunt %s --non-interactive --working-dir %s %s -- apply -auto-approve",
+				action,
+				tgPath,
+				sourceMapArgs,
+			)
 			helpers.RunTerragrunt(t, tgArgs)
 		})
 	}
@@ -84,7 +89,10 @@ func TestGetTerragruntSourceHCL(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetTerragruntSourceHcl)
 	terraformSource := "" // get_terragrunt_source_cli_flag() only returns the source when it is passed in via the CLI
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+	)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -92,7 +100,12 @@ func TestGetTerragruntSourceHCL(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
+			&stdout,
+			&stderr,
+		),
 	)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -109,7 +122,14 @@ func TestGetTerragruntSourceCLI(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetTerragruntSourceCli)
 	terraformSource := "terraform_config_cli"
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --source %s", rootPath, terraformSource))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --non-interactive --working-dir %s --source %s",
+			rootPath,
+			terraformSource,
+		),
+	)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -117,7 +137,16 @@ func TestGetTerragruntSourceCLI(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --non-interactive --working-dir %s --source %s", rootPath, terraformSource), &stdout, &stderr),
+		helpers.RunTerragruntCommand(
+			t,
+			fmt.Sprintf(
+				"terragrunt output -no-color -json --non-interactive --working-dir %s --source %s",
+				rootPath,
+				terraformSource,
+			),
+			&stdout,
+			&stderr,
+		),
 	)
 
 	outputs := map[string]helpers.TerraformOutput{}

@@ -20,7 +20,11 @@ func (c *Client) DownloadJobLogs(ctx context.Context, jobID int64, outputPath st
 }
 
 // DownloadRunLogs downloads all logs for a workflow run to the given directory.
-func (c *Client) DownloadRunLogs(ctx context.Context, runID int64, outputDir string) (string, error) {
+func (c *Client) DownloadRunLogs(
+	ctx context.Context,
+	runID int64,
+	outputDir string,
+) (string, error) {
 	url, _, err := c.client.Actions.GetWorkflowRunLogs(ctx, c.owner, c.repo, runID, true)
 	if err != nil {
 		return "", fmt.Errorf("failed to get run logs URL: %w", err)

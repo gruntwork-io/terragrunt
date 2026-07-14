@@ -77,7 +77,9 @@ func TestCASGetter_TFRRoutesThroughCAS(t *testing.T) {
 
 	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
 
-	src := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws?version=3.3.0"
+	src := "tfr://" + server.Listener.Addr().
+		String() +
+		"/terraform-aws-modules/vpc/aws?version=3.3.0"
 
 	first := filepath.Join(helpers.TmpDirWOSymlinks(t), "first")
 	_, err = client.Get(t.Context(), &gogetter.Request{
@@ -138,7 +140,9 @@ func TestCASGetter_TFRBareSchemeIsClaimed(t *testing.T) {
 	)
 
 	req := &gogetter.Request{
-		Src: "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws?version=3.3.0",
+		Src: "tfr://" + server.Listener.Addr().
+			String() +
+			"/terraform-aws-modules/vpc/aws?version=3.3.0",
 	}
 
 	ok, err := g.Detect(req)

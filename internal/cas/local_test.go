@@ -97,7 +97,12 @@ func TestComputeLocalRootHash_IgnoresAbsolutePath(t *testing.T) {
 	hashB, err := c.ComputeLocalRootHash(v, dirB, cas.HashSHA256)
 	require.NoError(t, err)
 
-	assert.Equal(t, hashA, hashB, "identical contents at different absolute paths must hash identically")
+	assert.Equal(
+		t,
+		hashA,
+		hashB,
+		"identical contents at different absolute paths must hash identically",
+	)
 }
 
 // TestStoreLocalDirectoryConcurrentWithRacing pins the blob-then-tree

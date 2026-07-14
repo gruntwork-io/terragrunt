@@ -83,7 +83,10 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 	}
 
 	if cfg.tfrLogger != nil {
-		m[SchemeTFR] = NewRegistryGetter(cfg.tfrLogger, cfg.tfrFS).WithTofuImplementation(cfg.tfrImpl)
+		m[SchemeTFR] = NewRegistryGetter(
+			cfg.tfrLogger,
+			cfg.tfrFS,
+		).WithTofuImplementation(cfg.tfrImpl)
 	}
 
 	return m
@@ -153,7 +156,10 @@ func buildGetters(b *builder) []Getter {
 
 		if b.tfRegistry != nil {
 			fetchers[SchemeTFR] = b.tfRegistry
-			resolverOpts = append(resolverOpts, WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation, b.tfRegistry.FS))
+			resolverOpts = append(
+				resolverOpts,
+				WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation, b.tfRegistry.FS),
+			)
 		}
 
 		if b.oci != nil {

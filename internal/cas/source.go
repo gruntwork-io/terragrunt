@@ -181,7 +181,11 @@ func (c *CAS) MakeFetchTempDir(l log.Logger, v Venv) (string, func(), error) {
 // through the same path the local-source flow uses.
 //
 // Requires v.FS.
-func (c *CAS) IngestDirectory(l log.Logger, v Venv, sourceDir, suggestedKey string) (string, error) {
+func (c *CAS) IngestDirectory(
+	l log.Logger,
+	v Venv,
+	sourceDir, suggestedKey string,
+) (string, error) {
 	v.RequireFS()
 
 	hash, treeData, err := c.buildLocalTree(v, sourceDir, DefaultLocalHashAlgorithm)
@@ -194,7 +198,14 @@ func (c *CAS) IngestDirectory(l log.Logger, v Venv, sourceDir, suggestedKey stri
 		treeKey = hash
 	}
 
-	if err := c.storeFetchedContent(l, v, sourceDir, treeKey, treeData, DefaultLocalHashAlgorithm); err != nil {
+	if err := c.storeFetchedContent(
+		l,
+		v,
+		sourceDir,
+		treeKey,
+		treeData,
+		DefaultLocalHashAlgorithm,
+	); err != nil {
 		return "", fmt.Errorf("store %s: %w", sourceDir, err)
 	}
 
@@ -215,7 +226,11 @@ func (c *CAS) probeSource(ctx context.Context, l log.Logger, src SourceRequest) 
 		// signal" answer, not a degradation, so only real probe errors
 		// count as fallbacks.
 		if !errors.Is(err, ErrNoVersionMetadata) {
-			l.Debugf("cas: source probe for %s failed (falling back to content hash): %v", src.URL, err)
+			l.Debugf(
+				"cas: source probe for %s failed (falling back to content hash): %v",
+				src.URL,
+				err,
+			)
 			RecordFallback(ctx, l, FallbackReasonProbeFailure, map[string]any{
 				"url":    src.URL,
 				"scheme": src.Scheme,

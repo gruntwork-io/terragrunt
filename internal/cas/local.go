@@ -41,7 +41,14 @@ func (c *CAS) StoreLocalDirectory(
 		return fmt.Errorf("failed to hash local directory %s: %w", sourceDir, err)
 	}
 
-	if err = c.storeFetchedContent(l, v, sourceDir, hash, treeData, DefaultLocalHashAlgorithm); err != nil {
+	if err = c.storeFetchedContent(
+		l,
+		v,
+		sourceDir,
+		hash,
+		treeData,
+		DefaultLocalHashAlgorithm,
+	); err != nil {
 		return fmt.Errorf("failed to store local content: %w", err)
 	}
 
@@ -112,7 +119,9 @@ func (c *CAS) buildLocalTree(v Venv, dir string, alg HashAlgorithm) (string, []b
 			return nil
 		}
 
-		treeData = append(treeData, fmt.Appendf(nil, "%s blob %s\t%s\n", mode, blobHash, relPath)...)
+		treeData = append(
+			treeData,
+			fmt.Appendf(nil, "%s blob %s\t%s\n", mode, blobHash, relPath)...)
 		rootBuf = append(rootBuf, fmt.Appendf(nil, "%s %s %s\n", relPath, mode, blobHash)...)
 
 		return nil

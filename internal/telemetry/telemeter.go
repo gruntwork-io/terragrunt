@@ -109,7 +109,11 @@ func (tlm *Telemeter) Collect(
 		// This should not happen in normal operation. Log a stack trace to help
 		// diagnose if this nil guard is the one preventing a panic.
 		if l := telemeterLoggerFromContext(ctx); l != nil {
-			l.Debugf("Telemeter.Collect called with nil receiver for %q, bypassing telemetry. Stack:\n%s", name, debug.Stack())
+			l.Debugf(
+				"Telemeter.Collect called with nil receiver for %q, bypassing telemetry. Stack:\n%s",
+				name,
+				debug.Stack(),
+			)
 		}
 
 		return fn(ctx, l)

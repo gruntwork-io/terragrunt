@@ -49,7 +49,8 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 
 	if cache := controller.ProviderService.GetProviderCache(provider); cache != nil {
 		if path := cache.ArchivePath(); path != "" {
-			controller.ProviderService.Logger().Debugf("Download cached provider %s", cache.Provider)
+			controller.ProviderService.Logger().
+				Debugf("Download cached provider %s", cache.Provider)
 			return ctx.File(path)
 		}
 	}

@@ -75,7 +75,9 @@ func (cfg Config) GetTFInitArgs() Config {
 	// on the S3 config structs. HCL ternary type unification can convert
 	// bools to strings, which causes generated backend blocks to contain
 	// "true"/"false" string literals instead of true/false boolean literals.
-	return Config(backend.NormalizeBoolValues(backend.Config(filtered), &ExtendedRemoteStateConfigS3{}))
+	return Config(
+		backend.NormalizeBoolValues(backend.Config(filtered), &ExtendedRemoteStateConfigS3{}),
+	)
 }
 
 func (cfg Config) Normalize(logger log.Logger) Config {
@@ -88,7 +90,8 @@ func (cfg Config) Normalize(logger log.Logger) Config {
 	// "lock_table" attribute is either set to NULL in the state file or missing
 	// from it altogether. Display a deprecation warning when the "lock_table"
 	// attribute is being used.
-	if util.KindOf(normalized[configLockTableKey]) == reflect.String && normalized[configLockTableKey] != "" {
+	if util.KindOf(normalized[configLockTableKey]) == reflect.String &&
+		normalized[configLockTableKey] != "" {
 		logger.Warnf("%s\n", lockTableDeprecationMessage)
 
 		normalized[configDynamoDBTableKey] = normalized[configLockTableKey]

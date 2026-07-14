@@ -105,7 +105,10 @@ func (o *ShellOptions) WithTelemetry(t *telemetry.Options) *ShellOptions {
 }
 
 // WithEngine sets the engine configuration and options.
-func (o *ShellOptions) WithEngine(cfg *engine.EngineConfig, opts *engine.EngineOptions) *ShellOptions {
+func (o *ShellOptions) WithEngine(
+	cfg *engine.EngineConfig,
+	opts *engine.EngineOptions,
+) *ShellOptions {
 	o.EngineConfig = cfg
 	o.EngineOptions = opts
 
@@ -159,7 +162,14 @@ func (o *ShellOptions) NoEngine() bool {
 // [vexec.NewMemExec] so external binaries like tofu/terraform are never forked.
 //
 // Requires a non-nil v.Env.
-func RunCommand(ctx context.Context, l log.Logger, v venv.Venv, runOpts *ShellOptions, command string, args ...string) error {
+func RunCommand(
+	ctx context.Context,
+	l log.Logger,
+	v venv.Venv,
+	runOpts *ShellOptions,
+	command string,
+	args ...string,
+) error {
 	_, err := RunCommandWithOutput(ctx, l, v, runOpts, "", false, false, command, args...)
 
 	return err
@@ -194,40 +204,41 @@ func RunCommandWithOutput(
 		commandDir = runOpts.WorkingDir
 	}
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "run_"+filepath.Base(command), map[string]any{
-		"binary":      filepath.Base(command),
-		"binary_path": command,
-		"args":        fmt.Sprintf("%v", args),
-		"dir":         commandDir,
-	}, func(ctx context.Context, l log.Logger) error {
-		runErr := runCommand(ctx, l, v, runOpts, RunCommandOptions{
-			CommandDir:     commandDir,
-			SuppressStdout: suppressStdout,
-			NeedsPTY:       needsPTY,
-			Command:        command,
-			Args:           args,
-			Output:         &output,
-		})
+	err := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "run_"+filepath.Base(command), map[string]any{
+			"binary":      filepath.Base(command),
+			"binary_path": command,
+			"args":        fmt.Sprintf("%v", args),
+			"dir":         commandDir,
+		}, func(ctx context.Context, l log.Logger) error {
+			runErr := runCommand(ctx, l, v, runOpts, RunCommandOptions{
+				CommandDir:     commandDir,
+				SuppressStdout: suppressStdout,
+				NeedsPTY:       needsPTY,
+				Command:        command,
+				Args:           args,
+				Output:         &output,
+			})
 
-		if span := trace.SpanFromContext(ctx); span.IsRecording() {
-			exitCode := 0
+			if span := trace.SpanFromContext(ctx); span.IsRecording() {
+				exitCode := 0
 
-			if runErr != nil {
-				exitCode = -1
-				if code, codeErr := util.GetExitCode(runErr); codeErr == nil {
-					exitCode = code
+				if runErr != nil {
+					exitCode = -1
+					if code, codeErr := util.GetExitCode(runErr); codeErr == nil {
+						exitCode = code
+					}
 				}
+
+				span.SetAttributes(
+					attribute.Int("exit_code", exitCode),
+					attribute.Int("stdout_bytes", output.Stdout.Len()),
+					attribute.Int("stderr_bytes", output.Stderr.Len()),
+				)
 			}
 
-			span.SetAttributes(
-				attribute.Int("exit_code", exitCode),
-				attribute.Int("stdout_bytes", output.Stdout.Len()),
-				attribute.Int("stderr_bytes", output.Stderr.Len()),
-			)
-		}
-
-		return runErr
-	})
+			return runErr
+		})
 
 	return &output, err
 }
@@ -265,7 +276,11 @@ func runCommand(
 
 	// Pass the traceparent to the child process if it is available in the context.
 	if traceParent := telemetry.TraceParentFromContext(ctx, runOpts.Telemetry); traceParent != "" {
-		l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", cmdOpts.Command, cmdOpts.Args))
+		l.Debugf(
+			"Setting trace parent=%q for command %s",
+			traceParent,
+			fmt.Sprintf("%s %v", cmdOpts.Command, cmdOpts.Args),
+		)
 		v.Env[telemetry.TraceParentEnv] = traceParent
 	}
 
@@ -277,8 +292,13 @@ func runCommand(
 
 	if cmdOpts.Command == runOpts.TFPath {
 		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
-			l.Debugf("Using engine to run command: %s %s", cmdOpts.Command, strings.Join(cmdOpts.Args, " "))
+		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) &&
+			!runOpts.NoEngine() {
+			l.Debugf(
+				"Using engine to run command: %s %s",
+				cmdOpts.Command,
+				strings.Join(cmdOpts.Args, " "),
+			)
 
 			engineV := v.
 				WithWriter(writer.NewWrappedWriter(cmdStdout, v.Writers.Writer)).

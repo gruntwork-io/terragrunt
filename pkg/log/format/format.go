@@ -150,5 +150,8 @@ func ParseFormat(str string) (Placeholders, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("available values: %s", strings.Join(slices.Collect(maps.Keys(presets)), ","))
+	return nil, fmt.Errorf(
+		"available values: %s",
+		strings.Join(slices.Collect(maps.Keys(presets)), ","),
+	)
 }

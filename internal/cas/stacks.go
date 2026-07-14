@@ -236,7 +236,11 @@ func ResolveInRepoSource(repoRoot, dirPath, source string) (string, error) {
 
 // detectRepoHashAlgorithm queries the git object format of a cloned repository
 // using the supplied runner so callers control the git/vexec binding.
-func detectRepoHashAlgorithm(ctx context.Context, runner *git.GitRunner, repoDir string) (HashAlgorithm, error) {
+func detectRepoHashAlgorithm(
+	ctx context.Context,
+	runner *git.GitRunner,
+	repoDir string,
+) (HashAlgorithm, error) {
 	format, err := runner.WithWorkDir(repoDir).ObjectFormat(ctx)
 	if err != nil {
 		return "", err
@@ -290,27 +294,52 @@ func (c *CAS) processStackFile(
 			continue
 		}
 
-		l.Debugf("Processing CAS source rewrite for %s %q with source %q", block.BlockType, block.Name, block.Source)
+		l.Debugf(
+			"Processing CAS source rewrite for %s %q with source %q",
+			block.BlockType,
+			block.Name,
+			block.Source,
+		)
 
 		targetDir, err := ResolveInRepoSource(repoRoot, dirPath, block.Source)
 		if err != nil {
-			return fmt.Errorf("failed to resolve source for %s %q: %w", block.BlockType, block.Name, err)
+			return fmt.Errorf(
+				"failed to resolve source for %s %q: %w",
+				block.BlockType,
+				block.Name,
+				err,
+			)
 		}
 
 		if err := c.processDirectory(ctx, l, v, repoRoot, targetDir, refHash, hashAlg); err != nil {
-			return fmt.Errorf("failed to process %s %q source: %w", block.BlockType, block.Name, err)
+			return fmt.Errorf(
+				"failed to process %s %q source: %w",
+				block.BlockType,
+				block.Name,
+				err,
+			)
 		}
 
 		synthHash, err := c.buildSyntheticTree(l, v, targetDir, refHash, repoRoot, hashAlg)
 		if err != nil {
-			return fmt.Errorf("failed to build synthetic tree for %s %q: %w", block.BlockType, block.Name, err)
+			return fmt.Errorf(
+				"failed to build synthetic tree for %s %q: %w",
+				block.BlockType,
+				block.Name,
+				err,
+			)
 		}
 
 		newSource := FormatCASRef(synthHash)
 
 		content, err = RewriteStackBlockSource(content, block.BlockType, block.Name, newSource)
 		if err != nil {
-			return fmt.Errorf("failed to rewrite source for %s %q: %w", block.BlockType, block.Name, err)
+			return fmt.Errorf(
+				"failed to rewrite source for %s %q: %w",
+				block.BlockType,
+				block.Name,
+				err,
+			)
 		}
 
 		l.Debugf("Rewrote %s %q source to %s", block.BlockType, block.Name, newSource)
@@ -459,7 +488,9 @@ func (c *CAS) buildSyntheticTree(
 				return fmt.Errorf("failed to store symlink blob %s: %w", path, err)
 			}
 
-			treeData = append(treeData, fmt.Appendf(nil, "%s blob %s\t%s\n", gitSymlinkMode, blobHash, relPath)...)
+			treeData = append(
+				treeData,
+				fmt.Appendf(nil, "%s blob %s\t%s\n", gitSymlinkMode, blobHash, relPath)...)
 
 		case info.Mode().IsRegular():
 			fileHash, err := hashFileAlg(v.FS, path, hashAlg)
@@ -472,7 +503,9 @@ func (c *CAS) buildSyntheticTree(
 			}
 
 			mode := gitTreeMode(info.Mode())
-			treeData = append(treeData, fmt.Appendf(nil, "%s blob %s\t%s\n", mode, fileHash, relPath)...)
+			treeData = append(
+				treeData,
+				fmt.Appendf(nil, "%s blob %s\t%s\n", mode, fileHash, relPath)...)
 		}
 
 		return nil
@@ -621,7 +654,15 @@ func (c *CAS) processLocalStackComponent(
 		return nil, fmt.Errorf("failed to compute local root hash: %w", err)
 	}
 
-	if err := c.processDirectory(ctx, l, v, repoRoot, contentDir, rootHash, DefaultLocalHashAlgorithm); err != nil {
+	if err := c.processDirectory(
+		ctx,
+		l,
+		v,
+		repoRoot,
+		contentDir,
+		rootHash,
+		DefaultLocalHashAlgorithm,
+	); err != nil {
 		cleanup()
 
 		return nil, fmt.Errorf("failed to process local source for CAS: %w", err)

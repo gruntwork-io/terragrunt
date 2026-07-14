@@ -169,9 +169,24 @@ func (keys PagerKeyMap) ShortHelp() []key.Binding {
 // key.Map interface.
 func (keys PagerKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{keys.Up, keys.Down, keys.PageDown, keys.PageUp},                              // first column
-		{keys.Navigation, keys.NavigationBack, keys.Choose, keys.ScaffoldInteractive}, // second column
-		{keys.ToggleWrap, keys.Help, keys.Quit, keys.ForceQuit},                       // third column
+		{
+			keys.Up,
+			keys.Down,
+			keys.PageDown,
+			keys.PageUp,
+		}, // first column
+		{
+			keys.Navigation,
+			keys.NavigationBack,
+			keys.Choose,
+			keys.ScaffoldInteractive,
+		}, // second column
+		{
+			keys.ToggleWrap,
+			keys.Help,
+			keys.Quit,
+			keys.ForceQuit,
+		}, // third column
 	}
 }
 

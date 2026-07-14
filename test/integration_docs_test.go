@@ -30,11 +30,17 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
-		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt plan --non-interactive --working-dir "+rootPath,
+		)
 		require.NoError(t, err)
 		assert.Contains(t, stdout, "Plan: 1 to add, 0 to change, 0 to destroy.")
 
-		stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+		stdout, _, err = helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+		)
 		require.NoError(t, err)
 		assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 
@@ -49,10 +55,16 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan -var content='Hello, Terragrunt!' --non-interactive --working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt plan -var content='Hello, Terragrunt!' --non-interactive --working-dir "+rootPath,
+		)
 		require.NoError(t, err)
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve -var content='Hello, Terragrunt!' --non-interactive --working-dir "+rootPath)
+		_, _, err = helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt apply -auto-approve -var content='Hello, Terragrunt!' --non-interactive --working-dir "+rootPath,
+		)
 		require.NoError(t, err)
 	})
 
@@ -65,10 +77,16 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -var content='Hello, Terragrunt!'")
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -var content='Hello, Terragrunt!'",
+		)
 		require.NoError(t, err)
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -var content='Hello, Terragrunt!'")
+		_, _, err = helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -var content='Hello, Terragrunt!'",
+		)
 		require.NoError(t, err)
 	})
 
@@ -81,10 +99,16 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -var content='Hello, Terragrunt!'")
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -var content='Hello, Terragrunt!'",
+		)
 		require.NoError(t, err)
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -var content='Hello, Terragrunt!'")
+		_, _, err = helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -var content='Hello, Terragrunt!'",
+		)
 		require.NoError(t, err)
 	})
 
@@ -97,10 +121,16 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+		)
 		require.NoError(t, err)
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
+		_, _, err = helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all apply --non-interactive --working-dir "+rootPath,
+		)
 		require.NoError(t, err)
 	})
 
@@ -113,10 +143,16 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+		)
 		require.NoError(t, err)
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
+		_, _, err = helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all apply --non-interactive --working-dir "+rootPath,
+		)
 		require.NoError(t, err)
 	})
 
@@ -129,7 +165,10 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+		)
 		require.Error(t, err)
 	})
 
@@ -142,7 +181,10 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+		)
 		require.NoError(t, err)
 	})
 
@@ -155,7 +197,10 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+		)
 		require.NoError(t, err)
 	})
 }
@@ -193,9 +238,27 @@ func TestStacksWithLocalState(t *testing.T) {
 
 	// Verify local state files were created in .terragrunt-local-state
 	// Note: path_relative_to_include() returns "live/.terragrunt-stack/foo" etc.
-	fooStatePath := filepath.Join(localStatePath, "live", ".terragrunt-stack", "foo", "tofu.tfstate")
-	barStatePath := filepath.Join(localStatePath, "live", ".terragrunt-stack", "bar", "tofu.tfstate")
-	bazStatePath := filepath.Join(localStatePath, "live", ".terragrunt-stack", "baz", "tofu.tfstate")
+	fooStatePath := filepath.Join(
+		localStatePath,
+		"live",
+		".terragrunt-stack",
+		"foo",
+		"tofu.tfstate",
+	)
+	barStatePath := filepath.Join(
+		localStatePath,
+		"live",
+		".terragrunt-stack",
+		"bar",
+		"tofu.tfstate",
+	)
+	bazStatePath := filepath.Join(
+		localStatePath,
+		"live",
+		".terragrunt-stack",
+		"baz",
+		"tofu.tfstate",
+	)
 
 	require.FileExists(t, fooStatePath)
 	require.FileExists(t, barStatePath)
@@ -235,14 +298,20 @@ func TestStacksWithLocalState(t *testing.T) {
 
 	// Step 4: Verify that existing state is recognized after regeneration
 	// Run plan to make sure it recognizes existing resources
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run plan --non-interactive --working-dir "+livePath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --working-dir "+livePath,
+	)
 	require.NoError(t, err)
 
 	// The plan output should indicate no changes are needed since resources already exist
 	assert.Contains(t, stdout, "No changes")
 
 	// Step 5: Destroy resources to clean up
-	helpers.RunTerragrunt(t, "terragrunt stack run destroy --non-interactive --working-dir "+livePath)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt stack run destroy --non-interactive --working-dir "+livePath,
+	)
 
 	// Verify state files still exist but are now empty/clean
 	require.FileExists(t, fooStatePath)
@@ -294,7 +363,10 @@ func TestStacksWithLocalStateFileStructure(t *testing.T) {
 	require.DirExists(t, liveStateDir)
 
 	// Clean up
-	helpers.RunTerragrunt(t, "terragrunt stack run destroy --non-interactive --working-dir "+livePath)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt stack run destroy --non-interactive --working-dir "+livePath,
+	)
 }
 
 func TestFilterDocumentationExamples(t *testing.T) {
@@ -653,7 +725,11 @@ func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
 			for _, query := range tc.filterQueries {
 				filterArgs = append(filterArgs, fmt.Sprintf("--filter %s", query))
 			}
-			command := fmt.Sprintf("terragrunt find %s --working-dir %s", strings.Join(filterArgs, " "), workingDir)
+			command := fmt.Sprintf(
+				"terragrunt find %s --working-dir %s",
+				strings.Join(filterArgs, " "),
+				workingDir,
+			)
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 			require.NoError(t, err, "Command should succeed")
 
@@ -681,7 +757,11 @@ func generateAttributeBasedFixture(t *testing.T, baseDir string) {
 	require.NoError(t, os.MkdirAll(rootDir, 0755))
 
 	// Create unit1
-	createTerragruntUnitWithDependency(t, filepath.Join(rootDir, "unit1"), "../../dependencies/dependency-of-app1")
+	createTerragruntUnitWithDependency(
+		t,
+		filepath.Join(rootDir, "unit1"),
+		"../../dependencies/dependency-of-app1",
+	)
 	// Create stack1
 	createTerragruntStack(t, filepath.Join(rootDir, "stack1"))
 
@@ -897,37 +977,52 @@ func generateSourceBasedFixture(t *testing.T, baseDir string) {
 	// Create github-acme-foo with source github.com/acme/foo
 	githubAcmeFooDir := filepath.Join(rootDir, "github-acme-foo")
 	require.NoError(t, os.MkdirAll(githubAcmeFooDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(githubAcmeFooDir, "terragrunt.hcl"), []byte(`terraform {
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(githubAcmeFooDir, "terragrunt.hcl"), []byte(`terraform {
   source = "github.com/acme/foo"
 }
-`), 0644))
+`), 0644),
+	)
 	require.NoError(t, os.WriteFile(filepath.Join(githubAcmeFooDir, "main.tf"), []byte(""), 0644))
 
 	// Create github-acme-bar with source git::git@github.com:acme/bar
 	githubAcmeBarDir := filepath.Join(rootDir, "github-acme-bar")
 	require.NoError(t, os.MkdirAll(githubAcmeBarDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(githubAcmeBarDir, "terragrunt.hcl"), []byte(`terraform {
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(githubAcmeBarDir, "terragrunt.hcl"), []byte(`terraform {
   source = "git::git@github.com:acme/bar"
 }
-`), 0644))
+`), 0644),
+	)
 	require.NoError(t, os.WriteFile(filepath.Join(githubAcmeBarDir, "main.tf"), []byte(""), 0644))
 
 	// Create gitlab-example-baz with source gitlab.com/example/baz
 	gitlabExampleBazDir := filepath.Join(rootDir, "gitlab-example-baz")
 	require.NoError(t, os.MkdirAll(gitlabExampleBazDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(gitlabExampleBazDir, "terragrunt.hcl"), []byte(`terraform {
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(gitlabExampleBazDir, "terragrunt.hcl"), []byte(`terraform {
   source = "gitlab.com/example/baz"
 }
-`), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(gitlabExampleBazDir, "main.tf"), []byte(""), 0644))
+`), 0644),
+	)
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(gitlabExampleBazDir, "main.tf"), []byte(""), 0644),
+	)
 
 	// Create local-module with source ./module
 	localModuleDir := filepath.Join(rootDir, "local-module")
 	require.NoError(t, os.MkdirAll(localModuleDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(localModuleDir, "terragrunt.hcl"), []byte(`terraform {
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(localModuleDir, "terragrunt.hcl"), []byte(`terraform {
   source = "./module"
 }
-`), 0644))
+`), 0644),
+	)
 	// Create the module directory with main.tf
 	moduleDir := filepath.Join(localModuleDir, "module")
 	require.NoError(t, os.MkdirAll(moduleDir, 0755))
@@ -936,10 +1031,13 @@ func generateSourceBasedFixture(t *testing.T, baseDir string) {
 	// Create other-unit with source s3://bucket/module (for non-matching examples)
 	otherUnitDir := filepath.Join(rootDir, "other-unit")
 	require.NoError(t, os.MkdirAll(otherUnitDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(otherUnitDir, "terragrunt.hcl"), []byte(`terraform {
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(otherUnitDir, "terragrunt.hcl"), []byte(`terraform {
   source = "s3://bucket/module"
 }
-`), 0644))
+`), 0644),
+	)
 	require.NoError(t, os.WriteFile(filepath.Join(otherUnitDir, "main.tf"), []byte(""), 0644))
 }
 
@@ -948,14 +1046,28 @@ func generateSourceBasedFixture(t *testing.T, baseDir string) {
 func createTerragruntUnit(t *testing.T, dir string) {
 	require.NoError(t, os.MkdirAll(dir, 0755))
 	// Create minimal terragrunt.hcl file
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte("terraform {\n  source = \".\"\n}"), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(dir, "terragrunt.hcl"),
+			[]byte("terraform {\n  source = \".\"\n}"),
+			0644,
+		),
+	)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(""), 0644))
 }
 
 func createTerragruntStack(t *testing.T, dir string) {
 	require.NoError(t, os.MkdirAll(dir, 0755))
 	// Create minimal terragrunt.stack.hcl file
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.stack.hcl"), []byte("terraform {\n  source = \".\"\n}"), 0644))
+	require.NoError(
+		t,
+		os.WriteFile(
+			filepath.Join(dir, "terragrunt.stack.hcl"),
+			[]byte("terraform {\n  source = \".\"\n}"),
+			0644,
+		),
+	)
 }
 
 func createTerragruntUnitWithDependency(t *testing.T, dir, dep string) {

@@ -32,7 +32,11 @@ func TestWithCASRegistersCASGetter(t *testing.T) {
 	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}))
 
 	assert.True(t, hasGetter[*getter.CASGetter](client.Getters), "WithCAS must register CASGetter")
-	assert.True(t, hasGetter[*getter.CASProtocolGetter](client.Getters), "WithCAS must register CASProtocolGetter")
+	assert.True(
+		t,
+		hasGetter[*getter.CASProtocolGetter](client.Getters),
+		"WithCAS must register CASProtocolGetter",
+	)
 }
 
 // TestWithCASRoutesCASProtocolURLs pins that a `cas::` source URL routes to
@@ -61,7 +65,12 @@ func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 		}
 
 		_, isProtocolGetter := g.(*getter.CASProtocolGetter)
-		assert.True(t, isProtocolGetter, "first getter to match cas:: must be CASProtocolGetter, got %T", g)
+		assert.True(
+			t,
+			isProtocolGetter,
+			"first getter to match cas:: must be CASProtocolGetter, got %T",
+			g,
+		)
 
 		return
 	}
@@ -178,7 +187,11 @@ func TestWithHTTPSAuthSetsBuilderField(t *testing.T) {
 
 	// The https getter (second in registration order) carries the auth header.
 	assert.Equal(t, "yes", httpGetters[1].Header.Get("X-Test"))
-	assert.Empty(t, httpGetters[0].Header.Get("X-Test"), "plain http getter must not carry the https-only auth")
+	assert.Empty(
+		t,
+		httpGetters[0].Header.Get("X-Test"),
+		"plain http getter must not carry the https-only auth",
+	)
 }
 
 // TestFileCopyGetIncludeExcludeFiltersHonor pins the include/exclude glob
@@ -308,7 +321,8 @@ func TestFileCopyGetterWithFSPanicsOnNonOSFS(t *testing.T) {
 func TestRegistryGetterWithFSPanicsOnNonOSFS(t *testing.T) {
 	t.Parallel()
 
-	assert.PanicsWithValue(t,
+	assert.PanicsWithValue(
+		t,
 		"getter.RegistryGetter.WithFS: requires an OS-backed filesystem",
 		func() { getter.NewRegistryGetter(logger.CreateLogger(), vfs.NewOSFS()).WithFS(vfs.NewMemMapFS()) },
 	)

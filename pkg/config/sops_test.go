@@ -75,130 +75,172 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 	// Subtest 1: Existing process env vars are preserved (not overridden).
 	// Models: CI runner has real AWS_SESSION_TOKEN, auth-provider returns empty token.
 	// sopsDecryptFileImpl must NOT override the real token with empty — SOPS uses process env.
-	t.Run("existing_process_env_preserved", func(t *testing.T) { //nolint:paralleltest // mutates process env
-		t.Setenv(authKey, "real-ci-token")
+	t.Run(
+		"existing_process_env_preserved",
+		func(t *testing.T) { //nolint:paralleltest // mutates process env
+			t.Setenv(authKey, "real-ci-token")
 
-		l := logger.CreateLogger()
-		ctx := WithConfigValues(t.Context())
-		_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
-		pctx.WorkingDir = filepath.Dir(secretFile)
-		// pctx.Venv.Env has empty value for authKey (like auth-provider returning empty session token)
-		pctx.Venv.Env = map[string]string{authKey: ""}
+			l := logger.CreateLogger()
+			ctx := WithConfigValues(t.Context())
+			_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
+			pctx.WorkingDir = filepath.Dir(secretFile)
+			// pctx.Venv.Env has empty value for authKey (like auth-provider returning empty session token)
+			pctx.Venv.Env = map[string]string{authKey: ""}
 
-		result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
-		require.NoError(t, err, "decrypt must succeed using existing process env credentials")
-		assert.Contains(t, result, `"value":"secret-from-unit-01"`)
+			result, err := sopsDecryptFileImpl(
+				ctx,
+				pctx,
+				l,
+				secretFile,
+				"json",
+				authRequiringDecryptFn,
+			)
+			require.NoError(t, err, "decrypt must succeed using existing process env credentials")
+			assert.Contains(t, result, `"value":"secret-from-unit-01"`)
 
-		// Process env must still have the real token — not overridden
-		assert.Equal(t, "real-ci-token", os.Getenv(authKey),
-			"existing process env var must not be overridden")
-	})
+			// Process env must still have the real token — not overridden
+			assert.Equal(t, "real-ci-token", os.Getenv(authKey),
+				"existing process env var must not be overridden")
+		},
+	)
 
 	// Subtest 2: Credentials injected when absent from process env.
 	// Models: first run, auth-provider loaded creds into opts.Env, process env was empty.
-	t.Run("new_creds_set_when_absent_from_process_env", func(t *testing.T) { //nolint:paralleltest // mutates process env
-		os.Unsetenv(authKey) //nolint:errcheck
+	t.Run(
+		"new_creds_set_when_absent_from_process_env",
+		func(t *testing.T) { //nolint:paralleltest // mutates process env
+			os.Unsetenv(authKey) //nolint:errcheck
 
-		l := logger.CreateLogger()
-		ctx := WithConfigValues(t.Context())
-		_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
-		pctx.WorkingDir = filepath.Dir(secretFile)
-		pctx.Venv.Env = map[string]string{authKey: "fresh-token"}
+			l := logger.CreateLogger()
+			ctx := WithConfigValues(t.Context())
+			_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
+			pctx.WorkingDir = filepath.Dir(secretFile)
+			pctx.Venv.Env = map[string]string{authKey: "fresh-token"}
 
-		result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
-		require.NoError(t, err, "decrypt must succeed with fresh credentials from opts.Env")
-		assert.Contains(t, result, `"value":"secret-from-unit-01"`)
+			result, err := sopsDecryptFileImpl(
+				ctx,
+				pctx,
+				l,
+				secretFile,
+				"json",
+				authRequiringDecryptFn,
+			)
+			require.NoError(t, err, "decrypt must succeed with fresh credentials from opts.Env")
+			assert.Contains(t, result, `"value":"secret-from-unit-01"`)
 
-		// Process env must be unset (not empty string) after decrypt
-		_, exists := os.LookupEnv(authKey)
-		assert.False(t, exists,
-			"env var must be unset after decrypt, not set to empty string")
-	})
+			// Process env must be unset (not empty string) after decrypt
+			_, exists := os.LookupEnv(authKey)
+			assert.False(t, exists,
+				"env var must be unset after decrypt, not set to empty string")
+		},
+	)
 
 	// Subtest 3: Missing credentials cause decrypt failure.
 	// Reproduces the ORIGINAL bug: auth-provider hasn't run yet, opts.Env has no
 	// auth token, process env has no auth token → SOPS can't authenticate to KMS.
-	t.Run("missing_creds_fails_decrypt", func(t *testing.T) { //nolint:paralleltest // mutates process env
-		os.Unsetenv(authKey) //nolint:errcheck
+	t.Run(
+		"missing_creds_fails_decrypt",
+		func(t *testing.T) { //nolint:paralleltest // mutates process env
+			os.Unsetenv(authKey) //nolint:errcheck
 
-		l := logger.CreateLogger()
-		ctx := WithConfigValues(t.Context())
-		_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
-		pctx.WorkingDir = filepath.Dir(secretFile)
-		// Empty env — simulates auth-provider NOT having run (the original bug)
-		pctx.Venv.Env = map[string]string{}
+			l := logger.CreateLogger()
+			ctx := WithConfigValues(t.Context())
+			_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
+			pctx.WorkingDir = filepath.Dir(secretFile)
+			// Empty env — simulates auth-provider NOT having run (the original bug)
+			pctx.Venv.Env = map[string]string{}
 
-		_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
-		require.Error(t, err,
-			"decrypt must fail without auth credentials — reproduces original issue #5515")
-	})
+			_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
+			require.Error(t, err,
+				"decrypt must fail without auth credentials — reproduces original issue #5515")
+		},
+	)
 
 	// Subtest 4: Concurrent goroutines with DIFFERENT auth tokens are isolated.
 	// Models production: multiple units decrypt in parallel, each with different
 	// auth-provider credentials. The lock must ensure each sees its OWN token.
-	t.Run("concurrent_different_creds_isolated", func(t *testing.T) { //nolint:paralleltest // mutates process env
-		const numGoroutines = 5
+	t.Run(
+		"concurrent_different_creds_isolated",
+		func(t *testing.T) { //nolint:paralleltest // mutates process env
+			const numGoroutines = 5
 
-		os.Unsetenv(authKey) //nolint:errcheck
+			os.Unsetenv(authKey) //nolint:errcheck
 
-		files := generateTestSecretFiles(t, numGoroutines)
+			files := generateTestSecretFiles(t, numGoroutines)
 
-		var wg sync.WaitGroup
+			var wg sync.WaitGroup
 
-		barrier := make(chan struct{})
+			barrier := make(chan struct{})
 
-		var failures atomic.Int32
+			var failures atomic.Int32
 
-		ctx := WithConfigValues(t.Context())
+			ctx := WithConfigValues(t.Context())
 
-		for i, f := range files {
-			wg.Add(1)
+			for i, f := range files {
+				wg.Add(1)
 
-			go func(idx int, filePath string) {
-				defer wg.Done()
+				go func(idx int, filePath string) {
+					defer wg.Done()
 
-				<-barrier
+					<-barrier
 
-				expectedToken := fmt.Sprintf("token-%d", idx)
+					expectedToken := fmt.Sprintf("token-%d", idx)
 
-				// Each goroutine's decryptFn verifies it sees ITS OWN token
-				tokenCheckFn := func(path string, _ string) ([]byte, error) {
-					actual := os.Getenv(authKey)
-					if actual != expectedToken {
-						return nil, fmt.Errorf("goroutine %d: expected %q, got %q", idx, expectedToken, actual)
+					// Each goroutine's decryptFn verifies it sees ITS OWN token
+					tokenCheckFn := func(path string, _ string) ([]byte, error) {
+						actual := os.Getenv(authKey)
+						if actual != expectedToken {
+							return nil, fmt.Errorf(
+								"goroutine %d: expected %q, got %q",
+								idx,
+								expectedToken,
+								actual,
+							)
+						}
+
+						return os.ReadFile(path)
 					}
 
-					return os.ReadFile(path)
-				}
+					l := logger.CreateLogger()
+					_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
+					pctx.WorkingDir = filepath.Dir(filePath)
+					pctx.Venv.Env = map[string]string{authKey: expectedToken}
 
-				l := logger.CreateLogger()
-				_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
-				pctx.WorkingDir = filepath.Dir(filePath)
-				pctx.Venv.Env = map[string]string{authKey: expectedToken}
+					result, decryptErr := sopsDecryptFileImpl(
+						ctx,
+						pctx,
+						l,
+						filePath,
+						"json",
+						tokenCheckFn,
+					)
+					if decryptErr != nil {
+						t.Logf("goroutine %d failed: %v", idx, decryptErr)
+						failures.Add(1)
 
-				result, decryptErr := sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", tokenCheckFn)
-				if decryptErr != nil {
-					t.Logf("goroutine %d failed: %v", idx, decryptErr)
-					failures.Add(1)
+						return
+					}
 
-					return
-				}
+					expectedPrefix := `{"value":"secret-from-unit-`
+					if len(result) < len(expectedPrefix) ||
+						result[:len(expectedPrefix)] != expectedPrefix {
+						t.Logf("goroutine %d: wrong content: %s", idx, result)
+						failures.Add(1)
+					}
+				}(i, f)
+			}
 
-				expectedPrefix := `{"value":"secret-from-unit-`
-				if len(result) < len(expectedPrefix) || result[:len(expectedPrefix)] != expectedPrefix {
-					t.Logf("goroutine %d: wrong content: %s", idx, result)
-					failures.Add(1)
-				}
-			}(i, f)
-		}
+			close(barrier)
+			wg.Wait()
 
-		close(barrier)
-		wg.Wait()
+			require.Zero(
+				t,
+				failures.Load(),
+				"all goroutines must see their own auth token during decrypt — env isolation failed",
+			)
 
-		require.Zero(t, failures.Load(),
-			"all goroutines must see their own auth token during decrypt — env isolation failed")
-
-		assert.Empty(t, os.Getenv(authKey),
-			"process env must be clean after all concurrent decrypts")
-	})
+			assert.Empty(t, os.Getenv(authKey),
+				"process env must be clean after all concurrent decrypts")
+		},
+	)
 }

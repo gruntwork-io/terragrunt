@@ -44,10 +44,21 @@ func TestCommandOutputOrder(t *testing.T) {
 
 func noop[T any](t T) {}
 
-func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, stdout []string, stderr []string) {
+func testCommandOutputOrder(
+	t *testing.T,
+	withPtty bool,
+	fullOutput []string,
+	stdout []string,
+	stderr []string,
+) {
 	t.Helper()
 
-	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, fullOutput, stdout, stderr), withPtty)
+	testCommandOutput(
+		t,
+		noop[*options.TerragruntOptions],
+		assertOutputs(t, fullOutput, stdout, stderr),
+		withPtty,
+	)
 }
 
 func testCommandOutput(
