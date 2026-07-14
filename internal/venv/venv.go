@@ -44,6 +44,11 @@ var ErrVenvFSUnset = errors.New("venv.Venv.FS is required but unset")
 // test that forgot to set Exec rather than a runtime condition.
 var ErrVenvExecUnset = errors.New("venv.Venv.Exec is required but unset")
 
+// ErrVenvHTTPUnset is the panic value [Venv.RequireHTTP] raises when HTTP is
+// nil. Production callers build the Venv through [OSVenv], so it points at a
+// test that forgot to set HTTP rather than a runtime condition.
+var ErrVenvHTTPUnset = errors.New("venv.Venv.HTTP is required but unset")
+
 // ErrVenvGOOSUnset is the panic value [Venv.RequireGOOS] raises when GOOS is empty.
 var ErrVenvGOOSUnset = errors.New("venv.Venv.Platform.GOOS is required but unset")
 
@@ -191,6 +196,16 @@ func (v Venv) RequireFS() {
 func (v Venv) RequireExec() {
 	if v.Exec == nil {
 		panic(ErrVenvExecUnset)
+	}
+}
+
+// RequireHTTP panics with [ErrVenvHTTPUnset] when HTTP is nil. Functions
+// that probe over HTTP call this as their first statement so a missing
+// handle panics at the offending call site instead of inside an unrelated
+// stack frame.
+func (v Venv) RequireHTTP() {
+	if v.HTTP == nil {
+		panic(ErrVenvHTTPUnset)
 	}
 }
 

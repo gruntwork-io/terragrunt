@@ -400,6 +400,27 @@ func TestNewCASGetter_PanicsOnNilVenvExec(t *testing.T) {
 	})
 }
 
+// TestNewCASGetter_PanicsOnNilVenvHTTPWithDispatch pins the
+// construction-time rejection of a Venv missing HTTP when
+// WithDefaultGenericDispatch needs it for resolver probes. Without an
+// explicit WithHTTPClient override, the venv's client is the only
+// source, so its absence surfaces at the offending NewCASGetter call.
+func TestNewCASGetter_PanicsOnNilVenvHTTPWithDispatch(t *testing.T) {
+	t.Parallel()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v := *venv.OSVenv()
+	v.HTTP = nil
+
+	require.PanicsWithValue(t, venv.ErrVenvHTTPUnset, func() {
+		getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
+			getter.WithDefaultGenericDispatch())
+	})
+}
+
 // TestCASGetterDetect_PanicsOnNilVenvFS pins the in-Detect repeat of
 // the constructor check. Only reachable when a caller hand-assembles
 // CASGetter and skips NewCASGetter.

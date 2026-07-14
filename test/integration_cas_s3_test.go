@@ -11,7 +11,6 @@ import (
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -34,8 +33,13 @@ func TestAwsCASS3ChecksumProbe(t *testing.T) {
 
 	v := *venv.OSVenv()
 
-	g := tggetter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
-		tggetter.WithDefaultGenericDispatch(tggetter.WithHTTPClient(vhttp.NewOSClient())))
+	g := tggetter.NewCASGetter(
+		logger.CreateLogger(),
+		c,
+		v,
+		&tgcas.CloneOptions{},
+		tggetter.WithDefaultGenericDispatch(),
+	)
 	client := &tggetter.Client{Getters: []tggetter.Getter{g}}
 
 	src := "s3::https://s3-" + region + ".amazonaws.com/" + bucket + "/" + key

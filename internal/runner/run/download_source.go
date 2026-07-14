@@ -595,7 +595,6 @@ func tryCASDownload(
 
 	dispatchOpts := []getter.GenericFetcherOption{
 		getter.WithTFRConfig(l, opts.TofuImplementation, v.FS),
-		getter.WithHTTPClient(v.HTTP),
 	}
 
 	if ociEnabled {
