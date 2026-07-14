@@ -22,11 +22,11 @@ type Client struct {
 	cache       *xsync.Map[string, []byte]
 }
 
-// NewClient returns a [Client] that dispatches requests through httpClient.
+// NewClient returns a [Client] that dispatches requests through c.
 // Pass [vhttp.NewOSClient] in production or a [vhttp.NewMemClient] in tests.
-func NewClient(httpClient vhttp.Client, credsSource *cliconfig.CredentialsSource) *Client {
+func NewClient(c vhttp.Client, credsSource *cliconfig.CredentialsSource) *Client {
 	return &Client{
-		httpClient:  httpClient,
+		httpClient:  c,
 		credsSource: credsSource,
 		cache:       xsync.NewMap[string, []byte](),
 	}

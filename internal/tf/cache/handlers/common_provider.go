@@ -25,11 +25,11 @@ type CommonProviderHandler struct {
 }
 
 // NewCommonProviderHandler returns a new `CommonProviderHandler` instance with the defined values.
-// httpClient is used for service-discovery requests; pass [vhttp.NewOSClient]
+// c is used for service-discovery requests; pass [vhttp.NewOSClient]
 // in production or a [vhttp.NewMemClient] in tests.
 func NewCommonProviderHandler(
 	l log.Logger,
-	httpClient vhttp.Client,
+	c vhttp.Client,
 	includes, excludes *[]string,
 ) *CommonProviderHandler {
 	var includeProviders, excludeProviders models.Providers
@@ -44,7 +44,7 @@ func NewCommonProviderHandler(
 
 	return &CommonProviderHandler{
 		logger:            l,
-		httpClient:        httpClient,
+		httpClient:        c,
 		includeProviders:  includeProviders,
 		excludeProviders:  excludeProviders,
 		discoveryURLCache: xsync.NewMap[string, *RegistryURLs](),

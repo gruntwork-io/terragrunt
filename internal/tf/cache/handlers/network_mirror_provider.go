@@ -27,7 +27,7 @@ type NetworkMirrorProviderHandler struct {
 
 func NewNetworkMirrorProviderHandler(
 	l log.Logger,
-	httpClient vhttp.Client,
+	c vhttp.Client,
 	networkMirror *cliconfig.ProviderInstallationNetworkMirror,
 	credsSource *cliconfig.CredentialsSource,
 ) (*NetworkMirrorProviderHandler, error) {
@@ -39,11 +39,11 @@ func NewNetworkMirrorProviderHandler(
 	return &NetworkMirrorProviderHandler{
 		CommonProviderHandler: NewCommonProviderHandler(
 			l,
-			httpClient,
+			c,
 			networkMirror.Include,
 			networkMirror.Exclude,
 		),
-		client:           helpers.NewClient(httpClient, credsSource),
+		client:           helpers.NewClient(c, credsSource),
 		networkMirrorURL: networkMirrorURL,
 	}, nil
 }

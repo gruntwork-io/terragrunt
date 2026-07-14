@@ -1465,8 +1465,7 @@ func getTerragruntOutputJSONFromInitFolder(
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	// Discard streamed stdout; the JSON is read from the returned CmdOutput.
-	discardV := *pctx.Venv
-	discardV.Writers = discardV.Writers.WithWriter(io.Discard)
+	discardV := pctx.Venv.WithWriter(io.Discard)
 
 	out, err := tf.RunCommandWithOutput(
 		bareCtx,
@@ -1621,8 +1620,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	// Discard streamed stdout; the JSON is read from the returned CmdOutput.
-	discardV := *pctx.Venv
-	discardV.Writers = discardV.Writers.WithWriter(io.Discard)
+	discardV := pctx.Venv.WithWriter(io.Discard)
 
 	out, err := tf.RunCommandWithOutput(
 		bareCtx,
@@ -1824,10 +1822,7 @@ func runTerragruntOutputJSON(
 	runOpts.AuthProviderCmd = pctx.AuthProviderCmd
 	runOpts.CASCloneDepth = pctx.CASCloneDepth
 
-	runV := *pctx.Venv
-	runV.Writers = runV.Writers.WithWriter(stdoutBufferWriter)
-
-	err = run.Run(ctx, l, &runV, runOpts, report.NewReport(), runCfg, credsGetter)
+	err = run.Run(ctx, l, pctx.Venv, runOpts, report.NewReport(), runCfg, credsGetter)
 	if err != nil {
 		return nil, err
 	}
@@ -1928,8 +1923,7 @@ func runTerraformInitForDependencyOutput(
 	initRunOpts := tfRunOptsFromPctx(pctx)
 	initRunOpts.ShellOptions.WorkingDir = workingDir
 
-	initV := *pctx.Venv
-	initV.Writers = initV.Writers.WithErrWriter(&stderr)
+	initV := pctx.Venv.WithErrWriter(&stderr)
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 

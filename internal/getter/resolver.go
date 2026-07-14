@@ -2,6 +2,7 @@ package getter
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
 // SourceResolver is re-exported so callers configuring CASGetter only
@@ -19,13 +20,23 @@ type SourceResolver = cas.SourceResolver
 // resolver entry is harmless. Pass [WithTFRConfig] to align its logger and
 // tofu implementation with the fetcher so the probe and the fetch resolve
 // against the same registry host.
+//
+// [WithHTTPClient] is required — the http, https, and tfr resolvers all
+// probe over it — and its absence panics rather than silently probing
+// through un-injected OS clients.
 func DefaultSourceResolvers(opts ...GenericFetcherOption) map[string]SourceResolver {
 	var cfg genericFetcherConfig
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
-	tfr := NewTFRResolver()
+	if cfg.httpClient == nil {
+		panic(
+			"getter.DefaultSourceResolvers: WithHTTPClient is required; wire the venv client at construction",
+		)
+	}
+
+	tfr := NewTFRResolver().WithHTTPClient(vhttp.WithTimeout(cfg.httpClient, tfrResolverTimeout))
 	if cfg.tfrLogger != nil {
 		tfr.WithLogger(cfg.tfrLogger)
 	}
@@ -34,9 +45,17 @@ func DefaultSourceResolvers(opts ...GenericFetcherOption) map[string]SourceResol
 		tfr.WithTofuImplementation(cfg.tfrImpl)
 	}
 
+	probeClient := vhttp.WithTimeout(cfg.httpClient, httpResolverTimeout)
+
+	httpRes := NewHTTPResolver()
+	httpRes.Client = probeClient
+
+	httpsRes := NewHTTPSResolver()
+	httpsRes.Client = probeClient
+
 	resolvers := map[string]SourceResolver{
-		SchemeHTTP:  NewHTTPResolver(),
-		SchemeHTTPS: NewHTTPSResolver(),
+		SchemeHTTP:  httpRes,
+		SchemeHTTPS: httpsRes,
 		SchemeS3:    NewS3Resolver(),
 		SchemeGCS:   NewGCSResolver(),
 		SchemeHg:    NewHgResolver(),

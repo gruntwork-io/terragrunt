@@ -33,7 +33,7 @@ func TestCopyCmd_CopiesIntoWorkingDirectory(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 	require.Equal(t, tui.ComponentKindUnit, components[0].Kind)
@@ -75,7 +75,7 @@ inputs = {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
@@ -122,7 +122,7 @@ func TestCopyCmd_LeavesExistingValuesFileAlone(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
@@ -155,7 +155,7 @@ func TestCopyCmd_RefusesToOverwriteExistingFile(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
@@ -173,13 +173,25 @@ func TestCopyCmd_RefusesToOverwriteExistingFile(t *testing.T) {
 	assert.Equal(t, filepath.Join(workingDir, "terragrunt.stack.hcl"), destErr.Path)
 }
 
+func TestCopyCmd_PanicsWithoutFS(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = t.TempDir()
+
+	assert.Panics(t, func() {
+		err := tui.NewCopyCmd(logger.CreateLogger(), opts, nil).Run()
+		t.Errorf("Run returned %v instead of panicking", err)
+	})
+}
+
 func TestCopyCmd_RejectsNilComponent(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = t.TempDir()
 
-	err := tui.NewCopyCmd(logger.CreateLogger(), opts, nil).Run()
+	err := tui.NewCopyCmd(logger.CreateLogger(), opts, nil).WithFS(vfs.NewMemMapFS()).Run()
 	require.ErrorIs(t, err, tui.ErrNilComponent)
 }
 
@@ -192,7 +204,7 @@ func TestCopyCmd_RejectsEmptyWorkingDir(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
@@ -212,7 +224,7 @@ func TestCopyCmd_FailsWhenSourceMissing(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
@@ -245,7 +257,7 @@ func TestCopyCmd_SkipsSymlinks(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
@@ -253,7 +265,10 @@ func TestCopyCmd_SkipsSymlinks(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
 
-	require.NoError(t, tui.NewCopyCmd(logger.CreateLogger(), opts, components[0]).Run())
+	require.NoError(
+		t,
+		tui.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run(),
+	)
 
 	assert.FileExists(t, filepath.Join(workingDir, "real.txt"))
 	assert.NoFileExists(t, filepath.Join(workingDir, "link.txt"))
@@ -270,7 +285,7 @@ func TestCopyCmd_WithFSUsesInjectedFilesystem(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
@@ -342,7 +357,7 @@ func TestCopyCmd_RejectsValuesStubWhenPathIsDirectory(t *testing.T) {
 
 	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := tui.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	components, err := tui.NewComponentDiscovery().Discover(fsys, repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 

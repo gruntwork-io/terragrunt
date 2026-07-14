@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -475,11 +476,6 @@ func newCASGetterForDetect(t *testing.T) *getter.CASGetter {
 
 	v := *venv.OSVenv()
 
-	return getter.NewCASGetter(
-		logger.CreateLogger(),
-		c,
-		v,
-		&tgcas.CloneOptions{},
-		getter.WithDefaultGenericDispatch(),
-	)
+	return getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
+		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewNoNetworkClient())))
 }

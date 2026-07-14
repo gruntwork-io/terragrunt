@@ -76,8 +76,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, v *venv.Venv, path string
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitV := *v
-	gitV.Writers = gitV.Writers.WithWriter(&stdout).WithErrWriter(&stderr)
+	gitV := v.WithWriter(&stdout).WithErrWriter(&stderr)
 
 	gitRunOpts := NewShellOptions().WithWorkingDir(path)
 
@@ -209,8 +208,7 @@ func GitRepoTags(
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitV := *v
-	gitV.Writers = gitV.Writers.WithWriter(&stdout).WithErrWriter(&stderr)
+	gitV := v.WithWriter(&stdout).WithErrWriter(&stderr)
 
 	gitRunOpts := NewShellOptions().WithWorkingDir(workingDir)
 

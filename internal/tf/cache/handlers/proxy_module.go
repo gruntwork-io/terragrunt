@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/labstack/echo/v4"
 )
@@ -36,12 +37,17 @@ type ProxyModuleHandler struct {
 // authenticated requests to arbitrary upstream hosts.
 func NewProxyModuleHandler(
 	l log.Logger,
+	c vhttp.Client,
 	credsSource *cliconfig.CredentialsSource,
 	discoverer RegistryURLDiscoverer,
 	registryNames []string,
 ) *ProxyModuleHandler {
 	return &ProxyModuleHandler{
-		ReverseProxy:  &helpers.ReverseProxy{CredsSource: credsSource, Logger: l},
+		ReverseProxy: &helpers.ReverseProxy{
+			CredsSource: credsSource,
+			Logger:      l,
+			Transport:   c.Transport,
+		},
 		discoverer:    discoverer,
 		registryNames: slices.Clone(registryNames),
 	}

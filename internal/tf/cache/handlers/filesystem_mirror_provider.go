@@ -24,17 +24,12 @@ type FilesystemMirrorProviderHandler struct {
 
 func NewFilesystemMirrorProviderHandler(
 	l log.Logger,
-	httpClient vhttp.Client,
+	c vhttp.Client,
 	method *cliconfig.ProviderInstallationFilesystemMirror,
 ) *FilesystemMirrorProviderHandler {
 	return &FilesystemMirrorProviderHandler{
-		CommonProviderHandler: NewCommonProviderHandler(
-			l,
-			httpClient,
-			method.Include,
-			method.Exclude,
-		),
-		filesystemMirrorPath: method.Path,
+		CommonProviderHandler: NewCommonProviderHandler(l, c, method.Include, method.Exclude),
+		filesystemMirrorPath:  method.Path,
 	}
 }
 

@@ -16,12 +16,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
-// Fetch dispatches req through client and copies the (possibly
+// Fetch dispatches req through c and copies the (possibly
 // gzip-decoded) response body into dst.
-func Fetch(ctx context.Context, client vhttp.Client, req *http.Request, dst io.Writer) error {
+func Fetch(ctx context.Context, c vhttp.Client, req *http.Request, dst io.Writer) error {
 	req.Header.Add("Accept-Encoding", "gzip")
 
-	resp, err := client.Do(req)
+	resp, err := c.Do(req)
 	if err != nil {
 		return err
 	}
@@ -49,15 +49,15 @@ func Fetch(ctx context.Context, client vhttp.Client, req *http.Request, dst io.W
 	return nil
 }
 
-// FetchToFile downloads req's response through client into the file at dst.
-func FetchToFile(ctx context.Context, client vhttp.Client, req *http.Request, dst string) error {
+// FetchToFile downloads req's response through c into the file at dst.
+func FetchToFile(ctx context.Context, c vhttp.Client, req *http.Request, dst string) error {
 	file, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer file.Close() //nolint:errcheck
 
-	if err := Fetch(ctx, client, req, file); err != nil {
+	if err := Fetch(ctx, c, req, file); err != nil {
 		return err
 	}
 

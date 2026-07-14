@@ -39,8 +39,8 @@ func (urls *RegistryURLs) String() string {
 }
 
 // DiscoveryURL performs Terraform service discovery against registryName
-// over client, parsing the well-known terraform.json document.
-func DiscoveryURL(ctx context.Context, client vhttp.Client, registryName string) (*RegistryURLs, error) {
+// over c, parsing the well-known terraform.json document.
+func DiscoveryURL(ctx context.Context, c vhttp.Client, registryName string) (*RegistryURLs, error) {
 	url := fmt.Sprintf("https://%s/%s", registryName, wellKnownURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -48,7 +48,7 @@ func DiscoveryURL(ctx context.Context, client vhttp.Client, registryName string)
 		return nil, err
 	}
 
-	resp, err := client.Do(req)
+	resp, err := c.Do(req)
 	if err != nil {
 		return nil, err
 	}

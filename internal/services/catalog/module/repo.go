@@ -495,7 +495,7 @@ func (repo *Repo) performClone(
 			return err
 		}
 
-		c, err := cas.New(cas.WithCloneDepth(cloneDepth))
+		casStore, err := cas.New(cas.WithCloneDepth(cloneDepth))
 		if err != nil {
 			return err
 		}
@@ -509,7 +509,11 @@ func (repo *Repo) performClone(
 			IncludedGitFiles: includedGitFiles,
 		}
 
-		clientOpts = append(clientOpts, getter.WithCAS(c, v, &cloneOpts))
+		clientOpts = append(
+			clientOpts,
+			getter.WithCAS(casStore, v, &cloneOpts),
+			getter.WithHTTP(v.HTTP),
+		)
 	}
 
 	client := getter.NewClient(clientOpts...)

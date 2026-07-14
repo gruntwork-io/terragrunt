@@ -682,11 +682,16 @@ func createConfig(
 	})
 
 	versionV := venvtest.New().WithExec(versionExec).WithEnv(venv.OSVenv().Env)
-	_, ver, impl, err := run.PopulateTFVersion(t.Context(), l, &versionV, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(opts),
-		WorkingDir:   opts.WorkingDir,
-		VersionFiles: opts.VersionManagerFileName,
-	})
+	_, ver, impl, err := run.PopulateTFVersion(
+		t.Context(),
+		l,
+		&versionV,
+		run.PopulateTFVersionInput{
+			TFOpts:       configbridge.TFRunOptsFromOpts(opts),
+			WorkingDir:   opts.WorkingDir,
+			VersionFiles: opts.VersionManagerFileName,
+		},
+	)
 	require.NoError(t, err)
 
 	opts.TerraformVersion = ver
@@ -1536,7 +1541,11 @@ func TestBuildDownloadClientOCIExperimentGate(t *testing.T) {
 				GetMode: getter.ModeDir,
 			})
 			require.Error(t, err)
-			assert.Equal(t, tc.enabled, errors.Is(err, getter.OCIUnsupportedQueryParamError{Param: "bogus"}))
+			assert.Equal(
+				t,
+				tc.enabled,
+				errors.Is(err, getter.OCIUnsupportedQueryParamError{Param: "bogus"}),
+			)
 		})
 	}
 }

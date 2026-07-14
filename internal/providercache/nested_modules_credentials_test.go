@@ -108,8 +108,12 @@ func TestNestedModuleCredentials(t *testing.T) {
 		vhttp.NewNoNetworkClient(),
 		credsSource,
 	)
+	// The module proxy's data path rides the injected client's transport, so
+	// hand it the httptest server's client; the provider handler keeps the
+	// no-network client since this test never exercises provider traffic.
 	proxyModuleHandler := handlers.NewProxyModuleHandler(
 		l,
+		upstream.Client(),
 		credsSource,
 		discoverer,
 		[]string{registryName},

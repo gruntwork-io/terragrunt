@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -28,7 +29,10 @@ func TestNewRepoRejectsSymlinkRootBeforeCleanup(t *testing.T) {
 	require.NoError(t, os.WriteFile(sentinel, []byte("do not remove\n"), 0o644))
 	require.NoError(t, os.Symlink(attackerParent, predictableRoot))
 
-	_, err := module.NewRepo(t.Context(), logger.CreateLogger(), *venv.OSVenv(), &module.RepoOpts{
+	v := *venv.OSVenv()
+	v.HTTP = vhttp.NewNoNetworkClient()
+
+	_, err := module.NewRepo(t.Context(), logger.CreateLogger(), v, &module.RepoOpts{
 		CloneURL: cloneURL,
 		Path:     predictableRoot,
 	})

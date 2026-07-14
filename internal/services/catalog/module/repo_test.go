@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -67,10 +68,13 @@ func TestFindModules(t *testing.T) {
 
 			ctx := t.Context()
 
+			v := *venv.OSVenv()
+			v.HTTP = vhttp.NewNoNetworkClient()
+
 			repo, err := module.NewRepo(
 				ctx,
 				logger.CreateLogger(),
-				*venv.OSVenv(),
+				v,
 				&module.RepoOpts{CloneURL: tc.repoPath},
 			)
 			require.NoError(t, err)

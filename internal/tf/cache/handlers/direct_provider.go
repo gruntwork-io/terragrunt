@@ -24,18 +24,13 @@ type DirectProviderHandler struct {
 
 func NewDirectProviderHandler(
 	l log.Logger,
-	httpClient vhttp.Client,
+	c vhttp.Client,
 	method *cliconfig.ProviderInstallationDirect,
 	credsSource *cliconfig.CredentialsSource,
 ) *DirectProviderHandler {
 	return &DirectProviderHandler{
-		CommonProviderHandler: NewCommonProviderHandler(
-			l,
-			httpClient,
-			method.Include,
-			method.Exclude,
-		),
-		client: helpers.NewClient(httpClient, credsSource),
+		CommonProviderHandler: NewCommonProviderHandler(l, c, method.Include, method.Exclude),
+		client:                helpers.NewClient(c, credsSource),
 	}
 }
 

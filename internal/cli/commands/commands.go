@@ -332,7 +332,7 @@ func RunAction(
 	if opts.ProviderCacheOptions.Enabled {
 		server, err := providercache.InitServer(
 			l,
-			v.HTTP,
+			v,
 			&opts.ProviderCacheOptions,
 			opts.RootWorkingDir,
 		)

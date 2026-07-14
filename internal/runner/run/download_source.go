@@ -498,7 +498,7 @@ func downloadSource(
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
-		done, err := tryCASDownload(ctx, l, *v, src, opts, cfg.Terraform.Mutable)
+		done, err := tryCASDownload(ctx, l, v, src, opts, cfg.Terraform.Mutable)
 		if err != nil {
 			return err
 		}
@@ -535,7 +535,7 @@ func downloadSource(
 func tryCASDownload(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	src *tf.Source,
 	opts *Options,
 	mutable bool,
@@ -590,15 +590,16 @@ func tryCASDownload(
 		Mutable:          mutable,
 	}
 
-	casProtocol := getter.NewCASProtocolGetter(l, c, v)
+	casProtocol := getter.NewCASProtocolGetter(l, c, *v)
 	casProtocol.Mutable = mutable
 
 	dispatchOpts := []getter.GenericFetcherOption{
 		getter.WithTFRConfig(l, opts.TofuImplementation, v.FS),
+		getter.WithHTTPClient(v.HTTP),
 	}
 
 	if ociEnabled {
-		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(l, v, v.FS))
+		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(l, *v, v.FS))
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
@@ -611,7 +612,7 @@ func tryCASDownload(
 			getter.NewCASGetter(
 				l,
 				c,
-				v,
+				*v,
 				&cloneOpts,
 				getter.WithDefaultGenericDispatch(dispatchOpts...),
 			),
@@ -676,6 +677,7 @@ func BuildDownloadClient(
 			WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...).
 			WithFastCopy(controls.IsFastCopyEnabled(opts.StrictControls))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v.FS).
+			WithHTTPClient(v.HTTP).
 			WithTofuImplementation(opts.TofuImplementation)),
 	}
 

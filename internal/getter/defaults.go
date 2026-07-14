@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	gcs "github.com/hashicorp/go-getter/gcs/v2"
 	getter "github.com/hashicorp/go-getter/v2"
@@ -31,13 +32,14 @@ const (
 type GenericFetcherOption func(*genericFetcherConfig)
 
 type genericFetcherConfig struct {
+	httpExtra   http.Header
+	httpsExtra  http.Header
+	httpClient  vhttp.Client
 	tfrLogger   log.Logger
 	tfrFS       vfs.FS
 	ociLogger   log.Logger
 	ociFS       vfs.FS
 	ociNewStore OCINewStoreFunc
-	httpExtra   http.Header
-	httpsExtra  http.Header
 	tfrImpl     tfimpl.Type
 }
 
@@ -54,6 +56,16 @@ func WithOCIConfig(l log.Logger, v venv.Venv, fs vfs.FS) GenericFetcherOption {
 		c.ociFS = fs
 		c.ociNewStore = newStore
 	}
+}
+
+// WithHTTPClient threads the venv's outbound-HTTP client into the
+// generic-dispatch fetchers and resolvers, so CAS probes and tfr fetches
+// honor the same virtualization and connection pool as the rest of the
+// run. Resolver timeout caps are preserved via [vhttp.WithTimeout].
+// Required by [DefaultSourceResolvers], and by [DefaultGenericFetchers]
+// when [WithTFRConfig] registers the tfr fetcher.
+func WithHTTPClient(c vhttp.Client) GenericFetcherOption {
+	return func(cfg *genericFetcherConfig) { cfg.httpClient = c }
 }
 
 // WithHTTPExtraHeaders attaches header to the bare http getter so
@@ -102,10 +114,15 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 	}
 
 	if cfg.tfrLogger != nil {
-		m[SchemeTFR] = NewRegistryGetter(
-			cfg.tfrLogger,
-			cfg.tfrFS,
-		).WithTofuImplementation(cfg.tfrImpl)
+		if cfg.httpClient == nil {
+			panic(
+				"getter.DefaultGenericFetchers: WithHTTPClient is required when WithTFRConfig registers the tfr fetcher",
+			)
+		}
+
+		m[SchemeTFR] = NewRegistryGetter(cfg.tfrLogger, cfg.tfrFS).
+			WithHTTPClient(cfg.httpClient).
+			WithTofuImplementation(cfg.tfrImpl)
 	}
 
 	if cfg.ociLogger != nil {
@@ -170,6 +187,10 @@ func buildGetters(b *builder) []Getter {
 	}
 
 	if b.casStore != nil {
+		if b.httpClient == nil {
+			panic("getter: WithCAS requires WithHTTP; wire the venv client at construction")
+		}
+
 		fetchers := map[string]getter.Getter{
 			SchemeS3:    s3Getter,
 			SchemeGCS:   gcsGetter,
@@ -179,12 +200,11 @@ func buildGetters(b *builder) []Getter {
 			SchemeSMB:   smbClientGetter,
 		}
 
-		resolverOpts := []GenericFetcherOption(nil)
+		resolverOpts := []GenericFetcherOption{WithHTTPClient(b.httpClient)}
 
 		if b.tfRegistry != nil {
 			fetchers[SchemeTFR] = b.tfRegistry
-			resolverOpts = append(
-				resolverOpts,
+			resolverOpts = append(resolverOpts,
 				WithTFRConfig(b.logger, b.tfRegistry.TofuImplementation, b.tfRegistry.FS),
 			)
 		}

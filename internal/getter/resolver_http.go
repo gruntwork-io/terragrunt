@@ -30,14 +30,20 @@ type HTTPResolver struct {
 
 // NewHTTPResolver returns a resolver for the http scheme.
 func NewHTTPResolver() *HTTPResolver {
-	return &HTTPResolver{scheme: "http", Client: vhttp.NewOSClientWithTimeout(httpResolverTimeout)}
+	return &HTTPResolver{
+		scheme: SchemeHTTP,
+		Client: vhttp.NewOSClientWithTimeout(httpResolverTimeout),
+	}
 }
 
 // NewHTTPSResolver returns a resolver for the https scheme. The same
 // type handles both; separate constructors keep the [SourceResolver]
 // Scheme() contract honest for each instance.
 func NewHTTPSResolver() *HTTPResolver {
-	return &HTTPResolver{scheme: "https", Client: vhttp.NewOSClientWithTimeout(httpResolverTimeout)}
+	return &HTTPResolver{
+		scheme: SchemeHTTPS,
+		Client: vhttp.NewOSClientWithTimeout(httpResolverTimeout),
+	}
 }
 
 // Scheme returns the URL scheme this resolver handles ("http" or
