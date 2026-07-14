@@ -321,6 +321,57 @@ func TestOCIGetterGetFileUnsupported(t *testing.T) {
 	assert.ErrorIs(t, err, getter.ErrOCIGetFileUnsupported)
 }
 
+func TestOCIGetterGetRemovesStaleFiles(t *testing.T) {
+	t.Parallel()
+
+	dst := filepath.Join(t.TempDir(), "module")
+
+	fetch := func(files map[string]string) {
+		zipBytes := moduleZipBytes(t, files)
+		layer := zipLayerDesc(zipBytes)
+		manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+		store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+
+		_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+			Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+			Dst:     dst,
+			GetMode: gogetter.ModeDir,
+		})
+		require.NoError(t, err)
+	}
+
+	fetch(map[string]string{"main.tf": `output "v1" {}`, "obsolete.tf": `output "gone" {}`})
+	require.FileExists(t, filepath.Join(dst, "obsolete.tf"))
+
+	fetch(map[string]string{"main.tf": `output "v2" {}`})
+	assert.FileExists(t, filepath.Join(dst, "main.tf"))
+	assert.NoFileExists(t, filepath.Join(dst, "obsolete.tf"), "files removed between versions must not survive")
+}
+
+func TestOCIGetterGetMalformedArchivePreservesDestination(t *testing.T) {
+	t.Parallel()
+
+	dst := filepath.Join(t.TempDir(), "module")
+	sentinel := filepath.Join(dst, "keep.tf")
+	require.NoError(t, os.MkdirAll(dst, 0o755))
+	require.NoError(t, os.WriteFile(sentinel, []byte(`output "keep" {}`), 0o644))
+
+	// The blob digest matches, but the bytes are not a zip archive, so
+	// extraction fails in staging and the destination must stay intact.
+	notAZip := []byte("not a zip archive")
+	layer := zipLayerDesc(notAZip)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+	store := newFakeStore(manifestBytes, &manifestDesc, notAZip, &layer)
+
+	_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.Error(t, err)
+	assert.FileExists(t, sentinel, "a failed extraction must not corrupt the destination")
+}
+
 // fakeStore is an in-memory OCIRepositoryStore serving one manifest and its
 // layer blobs; it records every resolved ref.
 type fakeStore struct {

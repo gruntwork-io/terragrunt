@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -35,8 +36,8 @@ var ErrOCIGetFileUnsupported = errors.New("GetFile is not supported for the OCI 
 // ErrOCIGetterNotConfigured reports an OCIGetter used without its NewStore
 // seam, logger, or filesystem.
 var ErrOCIGetterNotConfigured = errors.New(
-	"oci getter is not fully configured (missing repository store, logger, or filesystem); " +
-		"this is a bug in Terragrunt, please open an issue",
+	"oci getter is not fully configured (missing repository store, logger, or filesystem). " +
+		"This is a bug in Terragrunt. Please open an issue",
 )
 
 // ErrOCIMissingRegistryDomain reports an oci source without a registry host.
@@ -217,16 +218,15 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
-	if subDir == "" {
-		return (&getter.ZipDecompressor{}).Decompress(req.Dst, zipPath, true, req.Umask)
-	}
-
+	// Extract into a staging directory and replace req.Dst only after full
+	// success, so a malformed archive never corrupts an existing destination
+	// and files removed between module versions do not survive.
 	unzipPath := filepath.Join(parent, "unzip")
 	if err := (&getter.ZipDecompressor{}).Decompress(unzipPath, zipPath, true, req.Umask); err != nil {
-		return err
+		return fmt.Errorf("extracting OCI module archive: %w", err)
 	}
 
-	return copySubdirContents(g.Logger, g.FS, unzipPath, subDir, req.Dst, req.Src)
+	return copySubdirContents(g.Logger, g.FS, parent, path.Join("unzip", subDir), req.Dst, req.Src)
 }
 
 // GetFile always fails, per [ErrOCIGetFileUnsupported].
