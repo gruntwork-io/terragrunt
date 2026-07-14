@@ -2,7 +2,6 @@ package run_test
 
 import (
 	"context"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,7 +20,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
@@ -221,6 +219,5 @@ func newRunE2EOpts(t *testing.T, s runE2EScaffold, command string, extraArgs ...
 		Telemetry:                    &telemetry.Options{},
 		OriginalIAMRoleOptions:       iam.RoleOptions{},
 		IAMRoleOptions:               iam.RoleOptions{},
-		Writers:                      writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 }

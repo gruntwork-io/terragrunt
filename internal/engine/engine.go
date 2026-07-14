@@ -77,7 +77,6 @@ type (
 )
 
 type ExecutionOptions struct {
-	Writers           writer.Writers
 	EngineOptions     *EngineOptions
 	EngineConfig      *EngineConfig
 	UnitDir           string
@@ -924,13 +923,13 @@ func invoke(
 		stdoutLogLevel := log.StdoutLevel
 		stderrLogLevel := log.StderrLevel
 
-		stdoutWriter := writer.ExtractOriginalWriter(runOptions.Writers.Writer)
-		stderrWriter := writer.ExtractOriginalWriter(runOptions.Writers.ErrWriter)
+		stdoutWriter := writer.ExtractOriginalWriter(v.Writers.Writer)
+		stderrWriter := writer.ExtractOriginalWriter(v.Writers.ErrWriter)
 
 		if runOptions.Headless && !runOptions.ForwardTFStdout {
 			stdoutLogLevel = log.InfoLevel
 			stderrLogLevel = log.ErrorLevel
-			stdoutWriter = writer.ExtractOriginalWriter(runOptions.Writers.ErrWriter)
+			stdoutWriter = writer.ExtractOriginalWriter(v.Writers.ErrWriter)
 		}
 
 		var (
@@ -1090,7 +1089,7 @@ func initialize(
 
 		l.Debugf("Reading init output for engine in %s", runOptions.CacheDir)
 
-		return ReadEngineOutput(runOptions, true, func() (*OutputLine, error) {
+		return ReadEngineOutput(v, true, func() (*OutputLine, error) {
 			output, err := request.Recv()
 			if err != nil {
 				return nil, err
@@ -1162,7 +1161,7 @@ func shutdown(
 
 		l.Debugf("Reading shutdown output for engine in %s", runOptions.CacheDir)
 
-		return ReadEngineOutput(runOptions, true, func() (*OutputLine, error) {
+		return ReadEngineOutput(v, true, func() (*OutputLine, error) {
 			output, err := request.Recv()
 			if err != nil {
 				return nil, err
@@ -1220,9 +1219,9 @@ type outputFn func() (*OutputLine, error)
 
 // ReadEngineOutput reads the output from the engine, since grpc plugins don't have common type,
 // use lambda function to read bytes from the stream
-func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output outputFn) error {
-	cmdStdout := runOptions.Writers.Writer
-	cmdStderr := runOptions.Writers.ErrWriter
+func ReadEngineOutput(v venv.Venv, forceStdErr bool, output outputFn) error {
+	cmdStdout := v.Writers.Writer
+	cmdStderr := v.Writers.ErrWriter
 
 	for {
 		response, err := output()

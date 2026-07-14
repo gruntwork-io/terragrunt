@@ -269,6 +269,7 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	omitWhenNilFields := map[string]bool{
 		"UpdateSourceWithCAS": true,
 		"Mutable":             true,
+		"Version":             true,
 	}
 
 	var terraformConfigFields []string

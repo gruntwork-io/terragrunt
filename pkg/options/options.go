@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -29,7 +28,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -79,7 +77,6 @@ type ctxKey byte
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	Writers writer.Writers
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
@@ -328,14 +325,9 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 }
 
 // NewTerragruntOptions creates a new TerragruntOptions object with
-// reasonable defaults for real usage
+// reasonable defaults for real usage.
 func NewTerragruntOptions() *TerragruntOptions {
-	return NewTerragruntOptionsWithWriters(os.Stdout, os.Stderr)
-}
-
-func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		Writers:                  writer.Writers{Writer: stdout, ErrWriter: stderr},
 		TFPath:                   DefaultWrappedPath,
 		ExcludesFile:             defaultExcludesFile,
 		FiltersFile:              defaultFiltersFile,

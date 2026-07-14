@@ -109,7 +109,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 				return
 			}
 
-			if writeErr := r.WriteSummary(opts.Writers.Writer); writeErr != nil {
+			if writeErr := r.WriteSummary(v.Writers.Writer); writeErr != nil {
 				l.Warnf("Failed to write summary: %v", writeErr)
 			}
 		}()
@@ -222,7 +222,7 @@ func RunAllOnStack(
 	}
 
 	if prompt != "" {
-		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
+		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, v.Writers.ErrWriter)
 		if err != nil {
 			return err
 		}

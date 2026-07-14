@@ -500,11 +500,14 @@ func providersNeedInit(opts *Options, env map[string]string) bool {
 	return (!util.FileExists(pluginsPath) && !util.FileExists(providersPath)) || !util.FileExists(terraformLockPath)
 }
 
-func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, error) {
+// prepareInitOptions clones opts for a `terraform init` invocation. The
+// caller is responsible for discarding stdout via the venv when running
+// init with a non plan/apply parent command.
+func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, bool, error) {
 	// Need to clone the options, so the TerraformCliArgs can be configured to run the init command
 	l, initOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
-		return l, nil, err
+		return l, nil, false, err
 	}
 
 	initOptions.TerraformCliArgs = iacargs.New().SetCommand(tf.CommandNameInit)
@@ -515,16 +518,14 @@ func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, erro
 	initOutputForCommands := []string{tf.CommandNamePlan, tf.CommandNameApply}
 	terraformCommand := opts.TerraformCliArgs.First()
 
-	if !slices.Contains(initOutputForCommands, terraformCommand) {
-		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
-		initOptions.Writers.Writer = io.Discard
-	}
+	// Some commands return JSON, so init stdout must be suppressed.
+	suppressInitStdout := !slices.Contains(initOutputForCommands, terraformCommand)
 
 	if l.Formatter().DisabledColors() || opts.TerraformCliArgs.Contains(tf.FlagNameNoColor) {
 		initOptions.TerraformCliArgs.AppendFlag(tf.FlagNameNoColor)
 	}
 
-	return l, initOptions, nil
+	return l, initOptions, suppressInitStdout, nil
 }
 
 // Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
@@ -753,12 +754,17 @@ func runTerraformInitRunCfg(
 		return nil
 	}
 
-	l, initOptions, err := prepareInitOptions(l, opts)
+	l, initOptions, suppressInitStdout, err := prepareInitOptions(l, opts)
 	if err != nil {
 		return err
 	}
 
-	if err := runTerragruntWithConfig(ctx, l, v, originalOpts, initOptions, cfg, r); err != nil {
+	initV := v
+	if suppressInitStdout {
+		initV = initV.WithWriter(io.Discard)
+	}
+
+	if err := runTerragruntWithConfig(ctx, l, initV, originalOpts, initOptions, cfg, r); err != nil {
 		return err
 	}
 
