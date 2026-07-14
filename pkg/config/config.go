@@ -952,11 +952,11 @@ func (cfg *TerraformConfig) ValidateVersion(experiments experiment.Experiments, 
 
 	sourceURL, err := url.Parse(source)
 	if err != nil || sourceURL.Scheme != "tfr" {
-		return VersionAttributeNonRegistrySourceError{Source: source, ConfigPath: configPath}
+		return VersionAttributeNonRegistrySourceError{ConfigPath: configPath}
 	}
 
 	if sourceURL.Query().Has("version") {
-		return VersionAttributeSourceConstraintConflictError{Source: source, ConfigPath: configPath}
+		return VersionAttributeSourceConstraintConflictError{ConfigPath: configPath}
 	}
 
 	return nil
