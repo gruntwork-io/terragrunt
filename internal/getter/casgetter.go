@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -83,10 +84,25 @@ func WithInnerClientBuilder(b InnerClientBuilder) CASGetterOption {
 // [WithGenericFetchers]([DefaultGenericFetchers]) and [WithGenericResolvers]
 // ([DefaultSourceResolvers]). opts are forwarded to both helpers so HTTP
 // auth headers reach the fetcher and tfr config reaches both.
+//
+// Probes and tfr fetches go through the venv's HTTP client unless
+// [WithHTTPClient] overrides it; a venv with no HTTP handle panics with
+// [cas.ErrVenvHTTPUnset] at construction.
 func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 	return func(g *CASGetter) {
-		g.fetchers = DefaultGenericFetchers(opts...)
-		g.resolvers = DefaultSourceResolvers(opts...)
+		var cfg genericFetcherConfig
+		for _, opt := range opts {
+			opt(&cfg)
+		}
+
+		c := cfg.httpClient
+		if c == nil {
+			g.Venv.RequireHTTP()
+			c = g.Venv.HTTP
+		}
+
+		g.fetchers = DefaultGenericFetchers(slices.Concat(opts, []GenericFetcherOption{WithHTTPClient(c)})...)
+		g.resolvers = DefaultSourceResolvers(c, opts...)
 	}
 }
 

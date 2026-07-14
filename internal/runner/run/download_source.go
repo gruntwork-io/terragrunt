@@ -563,6 +563,10 @@ func tryCASDownload(
 		return false, nil
 	}
 
+	// CAS probes and fetches go through the run's outbound client, not the
+	// OS default from OSVenv.
+	casVenv.HTTP = v.HTTP
+
 	cloneOpts := cas.CloneOptions{
 		Dir:              src.DownloadDir,
 		IncludedGitFiles: []string{"HEAD", "config"},
@@ -574,7 +578,6 @@ func tryCASDownload(
 
 	dispatchOpts := []getter.GenericFetcherOption{
 		getter.WithTFRConfig(l, opts.TofuImplementation, casVenv.FS),
-		getter.WithHTTPClient(v.HTTP),
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources

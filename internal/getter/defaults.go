@@ -39,12 +39,12 @@ type genericFetcherConfig struct {
 	tfrImpl    tfimpl.Type
 }
 
-// WithHTTPClient threads the venv's outbound-HTTP client into the
-// generic-dispatch fetchers and resolvers, so CAS probes and tfr fetches
-// honor the same virtualization and connection pool as the rest of the
-// run. Resolver timeout caps are preserved via [vhttp.WithTimeout].
-// Required by [DefaultSourceResolvers], and by [DefaultGenericFetchers]
-// when [WithTFRConfig] registers the tfr fetcher.
+// WithHTTPClient overrides the outbound-HTTP client the generic-dispatch
+// fetchers and resolvers probe and fetch through, replacing the venv
+// client [WithDefaultGenericDispatch] supplies. Required by
+// [DefaultGenericFetchers] when [WithTFRConfig] registers the tfr
+// fetcher; [DefaultSourceResolvers] takes its client as a parameter
+// instead.
 func WithHTTPClient(c vhttp.Client) GenericFetcherOption {
 	return func(cfg *genericFetcherConfig) { cfg.httpClient = c }
 }
@@ -171,7 +171,7 @@ func buildGetters(b *builder) []Getter {
 			SchemeSMB:   smbClientGetter,
 		}
 
-		resolverOpts := []GenericFetcherOption{WithHTTPClient(b.httpClient)}
+		var resolverOpts []GenericFetcherOption
 
 		if b.tfRegistry != nil {
 			fetchers[SchemeTFR] = b.tfRegistry
@@ -188,7 +188,7 @@ func buildGetters(b *builder) []Getter {
 			NewCASProtocolGetter(b.logger, b.casStore, b.casVenv),
 			NewCASGetter(b.logger, b.casStore, b.casVenv, b.casCloneOpts,
 				WithGenericFetchers(fetchers),
-				WithGenericResolvers(DefaultSourceResolvers(resolverOpts...)),
+				WithGenericResolvers(DefaultSourceResolvers(b.httpClient, resolverOpts...)),
 			),
 		)
 	}

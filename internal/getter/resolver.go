@@ -21,20 +21,16 @@ type SourceResolver = cas.SourceResolver
 // tofu implementation with the fetcher so the probe and the fetch resolve
 // against the same registry host.
 //
-// [WithHTTPClient] is required — the http, https, and tfr resolvers all
-// probe over it — and its absence panics rather than silently probing
-// through un-injected OS clients.
-func DefaultSourceResolvers(opts ...GenericFetcherOption) map[string]SourceResolver {
+// The http, https, and tfr resolvers all probe over c. [CASGetter]
+// callers normally go through [WithDefaultGenericDispatch], which
+// supplies the venv's client.
+func DefaultSourceResolvers(c vhttp.Client, opts ...GenericFetcherOption) map[string]SourceResolver {
 	var cfg genericFetcherConfig
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
-	if cfg.httpClient == nil {
-		panic("getter.DefaultSourceResolvers: WithHTTPClient is required; wire the venv client at construction")
-	}
-
-	tfr := NewTFRResolver().WithHTTPClient(vhttp.WithTimeout(cfg.httpClient, tfrResolverTimeout))
+	tfr := NewTFRResolver().WithHTTPClient(vhttp.WithTimeout(c, tfrResolverTimeout))
 	if cfg.tfrLogger != nil {
 		tfr.WithLogger(cfg.tfrLogger)
 	}
@@ -43,7 +39,7 @@ func DefaultSourceResolvers(opts ...GenericFetcherOption) map[string]SourceResol
 		tfr.WithTofuImplementation(cfg.tfrImpl)
 	}
 
-	probeClient := vhttp.WithTimeout(cfg.httpClient, httpResolverTimeout)
+	probeClient := vhttp.WithTimeout(c, httpResolverTimeout)
 
 	httpRes := NewHTTPResolver()
 	httpRes.Client = probeClient

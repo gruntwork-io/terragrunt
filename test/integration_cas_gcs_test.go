@@ -12,7 +12,6 @@ import (
 
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
@@ -45,8 +44,7 @@ func TestGcpCASGCSMD5Probe(t *testing.T) {
 	v, err := tgcas.OSVenv()
 	require.NoError(t, err)
 
-	g := tggetter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
-		tggetter.WithDefaultGenericDispatch(tggetter.WithHTTPClient(vhttp.NewOSClient())))
+	g := tggetter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{}, tggetter.WithDefaultGenericDispatch())
 	client := &tggetter.Client{Getters: []tggetter.Getter{g}}
 
 	// The bare v2 gcs.Getter's parseURL only recognizes
