@@ -24,6 +24,7 @@ const (
 	registryFixtureSubdirModulePath                   = "subdir"
 	registryFixtureSubdirWithReferenceModulePath      = "subdir-with-reference"
 	registryFixtureVersionConstraintModulePath        = "version-constraint"
+	registryFixtureVersionConstraintMultiModulePath   = "version-constraint-multi"
 	registryFixtureVersionConstraintNoMatchModulePath = "version-constraint-no-match"
 	registryFixtureVersionConstraintInQueryModulePath = "version-constraint-in-query"
 
@@ -124,6 +125,47 @@ func TestTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	gotVersion, err := util.ReadFileAsString(pinned.VersionFile)
 	require.NoError(t, err)
 	assert.Equal(t, wantVersion, gotVersion)
+}
+
+// TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing applies
+// several units sharing a module source and version constraint in a single
+// run --all, which resolves them concurrently through the run's shared
+// version resolver. The WithRacing suffix puts the shared resolver under the
+// race detector in CI; every unit must land on the same 0.0.2 pin.
+func TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintMultiModulePath)
+	helpers.CleanupTerraformFolder(t, modPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, modPath)
+	rootPath := filepath.Join(tmpEnvPath, modPath)
+
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all --non-interactive --experiment version-attribute --working-dir "+rootPath+" -- apply -auto-approve",
+	)
+
+	l := logger.CreateLogger()
+
+	for _, unit := range []string{"unit-a", "unit-b", "unit-c"} {
+		unitPath := filepath.Join(rootPath, unit)
+
+		pinned, err := tf.NewSource(
+			l,
+			registryTestModuleSource+"?version=0.0.2",
+			filepath.Join(unitPath, ".terragrunt-cache"),
+			unitPath,
+			false,
+		)
+		require.NoError(t, err)
+
+		wantVersion, err := pinned.EncodeSourceVersion(l)
+		require.NoError(t, err)
+
+		gotVersion, err := util.ReadFileAsString(pinned.VersionFile)
+		require.NoError(t, err)
+		assert.Equal(t, wantVersion, gotVersion, unit)
+	}
 }
 
 // TestTerraformRegistryVersionConstraintRequiresExperiment pins the typed
