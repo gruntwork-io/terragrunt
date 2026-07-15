@@ -344,11 +344,15 @@ func TestOCIGetterGetRemovesStaleFiles(t *testing.T) {
 	require.FileExists(t, filepath.Join(dst, "obsolete.tf"))
 
 	fetch(map[string]string{"main.tf": `output "v2" {}`})
-	assert.FileExists(t, filepath.Join(dst, "main.tf"))
+
+	got, err := os.ReadFile(filepath.Join(dst, "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, `output "v2" {}`, string(got), "the second version's content must replace the first")
 	assert.NoFileExists(t, filepath.Join(dst, "obsolete.tf"), "files removed between versions must not survive")
+	assert.NoFileExists(t, filepath.Join(dst, ".tgmanifest"), "the copy manifest must not leak into the destination")
 }
 
-func TestOCIGetterGetMalformedArchivePreservesDestination(t *testing.T) {
+func TestOCIGetterGetFailedExtractionPreservesDestination(t *testing.T) {
 	t.Parallel()
 
 	dst := filepath.Join(t.TempDir(), "module")
@@ -356,12 +360,16 @@ func TestOCIGetterGetMalformedArchivePreservesDestination(t *testing.T) {
 	require.NoError(t, os.MkdirAll(dst, 0o755))
 	require.NoError(t, os.WriteFile(sentinel, []byte(`output "keep" {}`), 0o644))
 
-	// The blob digest matches, but the bytes are not a zip archive, so
-	// extraction fails in staging and the destination must stay intact.
-	notAZip := []byte("not a zip archive")
-	layer := zipLayerDesc(notAZip)
+	// First entry extracts cleanly; the second trips go-getter's zip-slip
+	// guard mid-loop, so extraction fails after writing has begun. Staging
+	// must keep both the failure and the first entry out of the destination.
+	zipBytes := orderedModuleZipBytes(t, []zipEntry{
+		{name: "main.tf", body: `output "leaked" {}`},
+		{name: "../escape.tf", body: `output "escape" {}`},
+	})
+	layer := zipLayerDesc(zipBytes)
 	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
-	store := newFakeStore(manifestBytes, &manifestDesc, notAZip, &layer)
+	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
 
 	_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
 		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
@@ -370,6 +378,7 @@ func TestOCIGetterGetMalformedArchivePreservesDestination(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.FileExists(t, sentinel, "a failed extraction must not corrupt the destination")
+	assert.NoFileExists(t, filepath.Join(dst, "main.tf"), "a failed extraction must not leak partial contents")
 }
 
 // fakeStore is an in-memory OCIRepositoryStore serving one manifest and its
@@ -457,6 +466,34 @@ func moduleZipBytes(t *testing.T, files map[string]string) []byte {
 		require.NoError(t, err)
 
 		_, err = w.Write([]byte(body))
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, zw.Close())
+
+	return buf.Bytes()
+}
+
+// zipEntry is one file in an order-preserving zip.
+type zipEntry struct {
+	name string
+	body string
+}
+
+// orderedModuleZipBytes builds a zip whose entries keep the given order, for
+// tests where extraction must fail on a specific later entry.
+func orderedModuleZipBytes(t *testing.T, entries []zipEntry) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	zw := zip.NewWriter(&buf)
+
+	for _, entry := range entries {
+		w, err := zw.Create(entry.name)
+		require.NoError(t, err)
+
+		_, err = w.Write([]byte(entry.body))
 		require.NoError(t, err)
 	}
 

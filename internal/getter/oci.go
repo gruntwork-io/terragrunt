@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -37,7 +36,7 @@ var ErrOCIGetFileUnsupported = errors.New("GetFile is not supported for the OCI 
 // seam, logger, or filesystem.
 var ErrOCIGetterNotConfigured = errors.New(
 	"oci getter is not fully configured (missing repository store, logger, or filesystem). " +
-		"This is a bug in Terragrunt. Please open an issue",
+		"This is a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt",
 )
 
 // ErrOCIMissingRegistryDomain reports an oci source without a registry host.
@@ -221,12 +220,15 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 	// Extract into a staging directory and replace req.Dst only after full
 	// success, so a malformed archive never corrupts an existing destination
 	// and files removed between module versions do not survive.
+	// go-getter's client strips the //subdir selector before Get, so subDir
+	// is empty in production; the client copies the requested subdir out of
+	// req.Dst afterward. copySubdirContents handles a direct call too.
 	unzipPath := filepath.Join(parent, "unzip")
 	if err := (&getter.ZipDecompressor{}).Decompress(unzipPath, zipPath, true, req.Umask); err != nil {
 		return fmt.Errorf("extracting OCI module archive: %w", err)
 	}
 
-	return copySubdirContents(g.Logger, g.FS, parent, path.Join("unzip", subDir), req.Dst, req.Src)
+	return copySubdirContents(g.Logger, g.FS, unzipPath, subDir, req.Dst, req.Src)
 }
 
 // GetFile always fails, per [ErrOCIGetFileUnsupported].
