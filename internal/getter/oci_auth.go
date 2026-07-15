@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
@@ -19,12 +21,7 @@ import (
 	"oras.land/oras-go/v2/registry/remote/retry"
 )
 
-// Interim static-credential environment variables for oci:// sources. The
-// TG_TMP_ prefix marks them as a temporary, undocumented surface: do NOT
-// rely on them; the durable configured-credential surface is a pending
-// design decision and these will be replaced by it. When TG_TMP_OCI_REGISTRY
-// is unset the credentials are sent to EVERY registry the run contacts, so a
-// token can leave the intended host; set TG_TMP_OCI_REGISTRY to scope them.
+// Interim, undocumented static-credential env vars (unscoped without TG_TMP_OCI_REGISTRY).
 const (
 	EnvOCIUsername = "TG_TMP_OCI_USERNAME"
 	EnvOCIPassword = "TG_TMP_OCI_PASSWORD"
@@ -32,35 +29,24 @@ const (
 	EnvOCIRegistry = "TG_TMP_OCI_REGISTRY"
 )
 
-// ErrOCIStaticCredentialConflict reports both a token and a username or
-// password set in the static-credential environment.
+// ErrOCIStaticCredentialConflict reports both a token and a username or password set.
 var ErrOCIStaticCredentialConflict = errors.New("cannot set both a token and a username or password for oci sources")
 
-// ErrOCIStaticCredentialIncomplete reports a username without a password, or
-// the reverse, in the static-credential environment.
+// ErrOCIStaticCredentialIncomplete reports a username without a password, or the reverse.
 var ErrOCIStaticCredentialIncomplete = errors.New("oci static credentials require both a username and a password")
+
+// ErrOCINonOSFilesystem reports a non-OS-backed filesystem oras cannot read through.
+var ErrOCINonOSFilesystem = errors.New("oci credential discovery requires an OS-backed filesystem")
 
 // The default store must satisfy the seam the getter consumes.
 var _ OCIRepositoryStore = (*remote.Repository)(nil)
 
-// ociUserAgent identifies Terragrunt to registry operators, versioned so
-// traffic can be correlated to a release.
+// ociUserAgent is the versioned User-Agent sent to registries.
 func ociUserAgent() string {
 	return "terragrunt/" + version.GetVersion()
 }
 
-// NewOCIRepositoryStore returns the default Tier-1 [OCINewStoreFunc]: static
-// credentials from v.Env when set, otherwise read-only ambient discovery of
-// Docker and containers auth files through v. It never invokes credential
-// helpers, so registries needing per-run token minting (e.g. Amazon ECR)
-// only work for the lifetime of an externally obtained login in one of the
-// ambient files. Ambient files that exist but cannot be used are skipped
-// with a warning, so one corrupt file never breaks downloads that need
-// weaker or no credentials.
-//
-// Credential discovery and the auth-token cache are resolved once and shared
-// across every store this run constructs, so a run --all does not re-read the
-// files or re-mint tokens per unit.
+// NewOCIRepositoryStore returns the default Tier-1 store: static env creds, else ambient discovery.
 func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 	resolveCredential := sync.OnceValues(func() (auth.CredentialFunc, error) {
 		return ociCredentialFunc(l, v)
@@ -68,6 +54,10 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 	cache := auth.NewCache()
 
 	return func(_ context.Context, registryDomain, repositoryName string) (OCIRepositoryStore, error) {
+		if !vfs.IsOSFS(v.FS) {
+			return nil, ErrOCINonOSFilesystem
+		}
+
 		credentialFn, err := resolveCredential()
 		if err != nil {
 			return nil, err
@@ -89,36 +79,48 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 	}
 }
 
-// ociCredentialFunc resolves the credential source once: static credentials
-// from the environment take precedence over ambient discovery.
+// ociCredentialFunc resolves static env credentials, falling back to ambient discovery.
 func ociCredentialFunc(l log.Logger, v venv.Venv) (auth.CredentialFunc, error) {
-	staticCred, found, err := ociStaticCredential(v.Env)
+	staticCred, found, err := ociStaticCredential(v)
 	if err != nil {
 		return nil, err
 	}
 
-	if found {
-		// Scope the credential to TG_TMP_OCI_REGISTRY when set so a token is
-		// not offered to every registry the run touches; otherwise apply it
-		// unconditionally (the documented interim behavior).
-		if registry := v.Env[EnvOCIRegistry]; registry != "" {
-			return auth.StaticCredential(registry, staticCred), nil
-		}
+	if !found {
+		return ociAmbientCredentialFunc(l, v, runtime.GOOS), nil
+	}
 
+	registry := v.Env[EnvOCIRegistry]
+	if registry == "" {
+		// Unscoped: the credential applies to every registry the run contacts.
 		return func(_ context.Context, _ string) (auth.Credential, error) {
 			return staticCred, nil
 		}, nil
 	}
 
-	return ociAmbientCredentialFunc(l, v, runtime.GOOS), nil
+	// Scoped: static serves its registry, the rest still resolve ambient.
+	scoped := auth.StaticCredential(registry, staticCred)
+	ambient := ociAmbientCredentialFunc(l, v, runtime.GOOS)
+
+	return func(ctx context.Context, hostport string) (auth.Credential, error) {
+		cred, err := scoped(ctx, hostport)
+		if err != nil {
+			return auth.EmptyCredential, err
+		}
+
+		if cred != auth.EmptyCredential {
+			return cred, nil
+		}
+
+		return ambient(ctx, hostport)
+	}, nil
 }
 
-// ociStaticCredential reads the interim static credentials from env: either
-// a token or a username plus password.
-func ociStaticCredential(env map[string]string) (auth.Credential, bool, error) {
-	username := env[EnvOCIUsername]
-	password := env[EnvOCIPassword]
-	token := env[EnvOCIToken]
+// ociStaticCredential reads a token or a username plus password from v.Env.
+func ociStaticCredential(v venv.Venv) (auth.Credential, bool, error) {
+	username := v.Env[EnvOCIUsername]
+	password := v.Env[EnvOCIPassword]
+	token := v.Env[EnvOCIToken]
 
 	if token != "" && (username != "" || password != "") {
 		return auth.EmptyCredential, false, ErrOCIStaticCredentialConflict
@@ -139,20 +141,13 @@ func ociStaticCredential(env map[string]string) (auth.Credential, bool, error) {
 	return auth.EmptyCredential, false, nil
 }
 
-// ociAmbientStore pairs a credential store with the file it was loaded from
-// so warnings can name the offending path.
+// ociAmbientStore pairs a credential store with its source file, so warnings can name it.
 type ociAmbientStore struct {
 	store credentials.Store
 	path  string
 }
 
-// ociAmbientCredentialFunc opens the ambient credential files that exist, in
-// [ociAmbientCredentialPaths] order, and returns a credential function that
-// consults them most-recent-first. File stores parse credentials only;
-// credential helpers are never invoked. A missing candidate is skipped
-// silently; one that cannot be opened, or whose entry for the requested
-// registry is malformed, is skipped so a corrupt file never breaks anonymous
-// pulls or higher-priority credentials.
+// ociAmbientCredentialFunc consults existing ambient files in order, skipping unusable ones.
 func ociAmbientCredentialFunc(l log.Logger, v venv.Venv, goos string) auth.CredentialFunc {
 	candidates := ociAmbientCredentialPaths(v, goos)
 	stores := make([]ociAmbientStore, 0, len(candidates))
@@ -183,9 +178,7 @@ func ociAmbientCredentialFunc(l log.Logger, v venv.Venv, goos string) auth.Crede
 		}
 
 		for _, ambient := range stores {
-			// A per-file lookup error means this file's entry for the
-			// registry is malformed; warn without the error value (it can
-			// echo decoded credential material) and fall through.
+			// Malformed entry: warn without the error (it can echo decoded secrets) and fall through.
 			cred, err := ambient.store.Get(ctx, registry)
 			if err != nil {
 				l.Warnf("Skipping unusable OCI credential entry for %s in %s", registry, ambient.path)
@@ -202,17 +195,7 @@ func ociAmbientCredentialFunc(l log.Logger, v venv.Venv, goos string) auth.Crede
 	}
 }
 
-// ociAmbientCredentialPaths returns the ambient credential file candidates in
-// the containers-auth search order OpenTofu uses, so a source authenticating
-// via ambient files resolves the same credentials under tofu and Terragrunt
-// on the given goos. goos is injected (rather than read from runtime.GOOS) so
-// the list is testable for every platform from any host.
-//
-// This is best-effort parity, not an exact contract. Known divergences from
-// tofu, tracked separately: legacy $HOME/.dockercfg (bare-map format oras
-// cannot parse) is not searched; credential helpers and a global credsStore
-// are not honored; and lookups are domain-scoped rather than tofu's
-// most-specific repository-path match.
+// ociAmbientCredentialPaths returns tofu's containers-auth candidates for goos (best-effort parity).
 func ociAmbientCredentialPaths(v venv.Venv, goos string) []string {
 	var paths []string
 
@@ -225,8 +208,7 @@ func ociAmbientCredentialPaths(v venv.Venv, goos string) []string {
 
 	home := ociUserHome(v, goos)
 
-	// Windows and macOS: the literal ~/.config location, always searched
-	// even when XDG_CONFIG_HOME below redirects the default.
+	// Windows and macOS: the literal ~/.config location, always searched.
 	if (goos == "windows" || goos == "darwin") && home != "" {
 		paths = append(paths, filepath.Join(home, ".config", "containers", "auth.json"))
 	}
@@ -240,17 +222,16 @@ func ociAmbientCredentialPaths(v venv.Venv, goos string) []string {
 		paths = append(paths, filepath.Join(configDir, "containers", "auth.json"))
 	}
 
-	// The literal Docker CLI config location. DOCKER_CONFIG is intentionally
-	// not honored, matching tofu.
+	// The literal Docker CLI config location; DOCKER_CONFIG is not honored, matching tofu.
 	if home != "" {
 		paths = append(paths, filepath.Join(home, ".docker", "config.json"))
 	}
 
-	return paths
+	// Drop the ~/.config duplicate the macOS/Windows slot and XDG default can produce.
+	return slices.Compact(paths)
 }
 
-// ociUserHome resolves the home directory from v.Env the way Go's
-// os.UserHomeDir does: USERPROFILE on Windows, HOME elsewhere.
+// ociUserHome resolves the home directory: USERPROFILE on Windows, HOME elsewhere.
 func ociUserHome(v venv.Venv, goos string) string {
 	if goos == "windows" {
 		return v.Env["USERPROFILE"]

@@ -360,9 +360,7 @@ func TestOCIGetterGetFailedExtractionPreservesDestination(t *testing.T) {
 	require.NoError(t, os.MkdirAll(dst, 0o755))
 	require.NoError(t, os.WriteFile(sentinel, []byte(`output "keep" {}`), 0o644))
 
-	// First entry extracts cleanly; the second trips go-getter's zip-slip
-	// guard mid-loop, so extraction fails after writing has begun. Staging
-	// must keep both the failure and the first entry out of the destination.
+	// First entry extracts, the second trips the zip-slip guard mid-loop; staging keeps both out of dst.
 	zipBytes := orderedModuleZipBytes(t, []zipEntry{
 		{name: "main.tf", body: `output "leaked" {}`},
 		{name: "../escape.tf", body: `output "escape" {}`},
@@ -480,8 +478,7 @@ type zipEntry struct {
 	body string
 }
 
-// orderedModuleZipBytes builds a zip whose entries keep the given order, for
-// tests where extraction must fail on a specific later entry.
+// orderedModuleZipBytes builds a zip that preserves entry order.
 func orderedModuleZipBytes(t *testing.T, entries []zipEntry) []byte {
 	t.Helper()
 

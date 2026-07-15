@@ -129,9 +129,39 @@ func TestOCIStaticCredentialsScopedToRegistry(t *testing.T) {
 	assert.Equal(t, auth.EmptyCredential, credentialFor(t, other, "other.example.com"))
 }
 
-// TestOCIAmbientCredentialConfigOrder covers the platform-agnostic part of the
-// search order: XDG_CONFIG_HOME wins over the Docker config, and DOCKER_CONFIG
-// is ignored so the literal ~/.docker/config.json is used.
+// TestOCIStaticCredentialsScopedStillResolvesAmbient: scoping a static credential
+// must not disable ambient discovery for the registries it declines.
+func TestOCIStaticCredentialsScopedStillResolvesAmbient(t *testing.T) {
+	t.Parallel()
+
+	const otherRegistry = "other.example.com"
+
+	home := t.TempDir()
+	writeAuthFile(t, filepath.Join(home, ".docker", "config.json"), otherRegistry, "ambient-user", "ambient-pass")
+
+	env := map[string]string{
+		getter.EnvOCIToken:    "scoped-token",
+		getter.EnvOCIRegistry: testRegistry,
+	}
+
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), credentialVenv(home, env))
+
+	// The scoped registry uses the static token.
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+	assert.Equal(t, auth.Credential{AccessToken: "scoped-token"}, credentialFor(t, store, testRegistry))
+
+	// A registry the static credential declines still falls through to ambient.
+	other, err := newStore(t.Context(), otherRegistry, "modules/vpc")
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		auth.Credential{Username: "ambient-user", Password: "ambient-pass"},
+		credentialFor(t, other, otherRegistry),
+	)
+}
+
+// TestOCIAmbientCredentialConfigOrder: XDG_CONFIG_HOME beats Docker config; DOCKER_CONFIG ignored.
 func TestOCIAmbientCredentialConfigOrder(t *testing.T) {
 	t.Parallel()
 
@@ -162,8 +192,7 @@ func TestOCIAmbientCredentialConfigOrder(t *testing.T) {
 	assert.Equal(t, "home-docker", credentialFor(t, store, testRegistry).Username)
 }
 
-// TestOCIAmbientCredentialXDGRuntimeDir covers the Linux-only runtime-dir
-// candidate: highest priority on Linux, ignored elsewhere.
+// TestOCIAmbientCredentialXDGRuntimeDir: runtime-dir wins on Linux, ignored elsewhere.
 func TestOCIAmbientCredentialXDGRuntimeDir(t *testing.T) {
 	t.Parallel()
 
@@ -203,6 +232,16 @@ func TestOCIAmbientCredentialScopedToRegistry(t *testing.T) {
 	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, "other-registry.example.com"))
 }
 
+func TestNewOCIRepositoryStoreRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	v := venv.Venv{FS: vfs.NewMemMapFS(), Env: map[string]string{"HOME": t.TempDir()}}
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), v)
+
+	_, err := newStore(t.Context(), testRegistry, "modules/vpc")
+	require.ErrorIs(t, err, getter.ErrOCINonOSFilesystem)
+}
+
 func TestOCIAmbientCredentialNoFiles(t *testing.T) {
 	t.Parallel()
 
@@ -214,36 +253,38 @@ func TestOCIAmbientCredentialNoFiles(t *testing.T) {
 	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
 }
 
-// TestOCIAmbientCredentialInvalidFileSkipped covers a file that fails to open
-// (invalid top-level JSON): it is skipped and a valid lower-priority file
-// still resolves.
+// TestOCIAmbientCredentialInvalidFileSkipped: an unopenable file is skipped, a valid one still resolves.
 func TestOCIAmbientCredentialInvalidFileSkipped(t *testing.T) {
 	t.Parallel()
 
 	home := t.TempDir()
+	xdgConfig := t.TempDir()
 
-	badPath := filepath.Join(home, ".docker", "config.json")
+	// High priority: invalid top-level JSON, so the file cannot be opened as a store.
+	badPath := filepath.Join(xdgConfig, "containers", "auth.json")
 	require.NoError(t, os.MkdirAll(filepath.Dir(badPath), 0o755))
 	require.NoError(t, os.WriteFile(badPath, []byte("not json"), 0o600))
+	// Lower priority: valid.
+	writeAuthFile(t, filepath.Join(home, ".docker", "config.json"), testRegistry, "good-user", "good-pass")
 
-	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), credentialVenv(home, nil))
+	newStore := getter.NewOCIRepositoryStore(
+		logger.CreateLogger(),
+		credentialVenv(home, map[string]string{"XDG_CONFIG_HOME": xdgConfig}),
+	)
 
 	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
 	require.NoError(t, err)
-	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
+	assert.Equal(t, "good-user", credentialFor(t, store, testRegistry).Username)
 }
 
-// TestOCIAmbientCredentialMalformedEntryFallsThrough covers a file that opens
-// cleanly (valid JSON) but whose entry for the registry is malformed: the
-// chain must fall through to a valid lower-priority file rather than abort.
+// TestOCIAmbientCredentialMalformedEntryFallsThrough: a malformed entry falls through, not aborts.
 func TestOCIAmbientCredentialMalformedEntryFallsThrough(t *testing.T) {
 	t.Parallel()
 
 	home := t.TempDir()
 	xdgConfig := t.TempDir()
 
-	// High priority: valid JSON, but the auth value decodes to "nocolon"
-	// (no username:password separator), which oras rejects at lookup time.
+	// High priority: valid JSON but the auth value decodes to "nocolon", rejected at lookup.
 	writeRawAuthFile(
 		t,
 		filepath.Join(xdgConfig, "containers", "auth.json"),
@@ -263,10 +304,7 @@ func TestOCIAmbientCredentialMalformedEntryFallsThrough(t *testing.T) {
 	assert.Equal(t, "good-user", credentialFor(t, store, testRegistry).Username)
 }
 
-// credentialVenv builds a hermetic Venv for credential discovery: an OS-backed
-// filesystem (oras parses real files), the platform's home variable pointing at
-// home, and extra env entries layered on top, so host credentials never leak in
-// and tests stay parallel.
+// credentialVenv builds a hermetic OS-backed Venv with home and extra env set.
 func credentialVenv(home string, extra map[string]string) venv.Venv {
 	env := map[string]string{}
 	if runtime.GOOS == "windows" {
@@ -298,16 +336,14 @@ func credentialFor(t *testing.T, store getter.OCIRepositoryStore, registry strin
 	return cred
 }
 
-// writeAuthFile writes a config.json-format credential file granting
-// user/pass for registry.
+// writeAuthFile writes a config.json-format credential file granting user/pass for registry.
 func writeAuthFile(t *testing.T, path, registry, user, pass string) {
 	t.Helper()
 
 	writeRawAuthFile(t, path, registry, base64.StdEncoding.EncodeToString([]byte(user+":"+pass)))
 }
 
-// writeRawAuthFile writes a config.json-format credential file with a
-// caller-supplied base64 auth value, so tests can plant malformed entries.
+// writeRawAuthFile writes a config.json credential file with a raw base64 auth value.
 func writeRawAuthFile(t *testing.T, path, registry, encodedAuth string) {
 	t.Helper()
 

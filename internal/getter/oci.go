@@ -23,9 +23,8 @@ const (
 	// ociDefaultTag is the tag used when the source pins neither a tag nor a
 	// digest, matching OpenTofu.
 	ociDefaultTag = "latest"
-	// ociLayerSizeWarnThreshold is the declared layer size above which the
-	// getter warns before downloading, pending a hard limit.
-	ociLayerSizeWarnThreshold = 1 << 30
+	// ociLayerSizeWarnThreshold warns before an anomalously large layer, pending a hard limit.
+	ociLayerSizeWarnThreshold = 50 << 20
 )
 
 // ErrOCIGetFileUnsupported reports that oci sources always resolve to module
@@ -199,8 +198,7 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		)
 	}
 
-	// Hand extraction a temp parent so a partial download never lands in
-	// req.Dst, and clean up the parent on return.
+	// Extract under a temp parent so a partial download never lands in req.Dst.
 	parent, err := vfs.MkdirTemp(g.FS, "", "getter")
 	if err != nil {
 		return err
@@ -217,12 +215,7 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
-	// Extract into a staging directory and replace req.Dst only after full
-	// success, so a malformed archive never corrupts an existing destination
-	// and files removed between module versions do not survive.
-	// go-getter's client strips the //subdir selector before Get, so subDir
-	// is empty in production; the client copies the requested subdir out of
-	// req.Dst afterward. copySubdirContents handles a direct call too.
+	// Stage extraction, then replace req.Dst only on full success (subDir empty in prod).
 	unzipPath := filepath.Join(parent, "unzip")
 	if err := (&getter.ZipDecompressor{}).Decompress(unzipPath, zipPath, true, req.Umask); err != nil {
 		return fmt.Errorf("extracting OCI module archive: %w", err)
