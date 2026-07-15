@@ -98,8 +98,7 @@ func TestOCIStaticCredentials(t *testing.T) {
 			store, err := newStore(t.Context(), testRegistry, "modules/vpc")
 
 			if tc.wantErrIs != nil {
-				require.Error(t, err)
-				assert.ErrorIs(t, err, tc.wantErrIs)
+				require.ErrorIs(t, err, tc.wantErrIs)
 
 				return
 			}
