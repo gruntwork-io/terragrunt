@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -352,6 +354,42 @@ func TestOCIGetterGetRemovesStaleFiles(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(dst, ".tgmanifest"), "the copy manifest must not leak into the destination")
 }
 
+func TestOCIGetterGetNoManifestLeak(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{
+		"main.tf":             `output "root" {}`,
+		"subdir/sub.tf":       `output "sub" {}`,
+		"subdir/deep/deep.tf": `output "deep" {}`,
+	})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+
+	dst := filepath.Join(t.TempDir(), "module")
+
+	_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+
+	// Assert the nested tree landed, so the walk below cannot pass vacuously.
+	require.FileExists(t, filepath.Join(dst, "subdir", "deep", "deep.tf"))
+
+	err = filepath.WalkDir(dst, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		assert.NotEqual(t, ".tgmanifest", d.Name(), "copy manifest must not leak into the module tree")
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestOCIGetterGetFailedExtractionPreservesDestination(t *testing.T) {
 	t.Parallel()
 
@@ -377,6 +415,101 @@ func TestOCIGetterGetFailedExtractionPreservesDestination(t *testing.T) {
 	require.Error(t, err)
 	assert.FileExists(t, sentinel, "a failed extraction must not corrupt the destination")
 	assert.NoFileExists(t, filepath.Join(dst, "main.tf"), "a failed extraction must not leak partial contents")
+}
+
+// TestOCIGetterGetRejectsTooManyFiles: a digest-valid archive must not exhaust inodes.
+func TestOCIGetterGetRejectsTooManyFiles(t *testing.T) {
+	t.Parallel()
+
+	entries := make([]zipEntry, 0, getter.MaxDecompressedFiles+1)
+	for i := range getter.MaxDecompressedFiles + 1 {
+		entries = append(entries, zipEntry{name: fmt.Sprintf("f%d.tf", i), body: ""})
+	}
+
+	zipBytes := orderedModuleZipBytes(t, entries)
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+
+	dst := filepath.Join(t.TempDir(), "module")
+
+	_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.Error(t, err)
+	assert.NoDirExists(t, dst, "an over-limit archive must not land in the destination")
+}
+
+// TestOCIGetterExtractModuleRejectsOversizedContent: a digest-valid archive must
+// not exhaust the disk. The bound is driven directly so the test does not have to
+// stage a production-sized archive.
+func TestOCIGetterExtractModuleRejectsOversizedContent(t *testing.T) {
+	t.Parallel()
+
+	zipPath := filepath.Join(t.TempDir(), "module.zip")
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "oversized" {}`})
+	require.NoError(t, os.WriteFile(zipPath, zipBytes, 0o600))
+
+	dst := filepath.Join(t.TempDir(), "module")
+
+	const sizeLimit, filesLimit = 8, 2
+
+	err := newTestOCIGetter(nil).ExtractModuleWithLimits(
+		zipPath, "", dst, "oci://example.com/vpc", 0, sizeLimit, filesLimit,
+	)
+	require.Error(t, err)
+	assert.NoDirExists(t, dst, "an oversized archive must not land in the destination")
+}
+
+// TestOCIGetterGetRestoresDestinationWhenPromotionFails: the previous module must
+// survive a failure in the swap that replaces it.
+func TestOCIGetterGetRestoresDestinationWhenPromotionFails(t *testing.T) {
+	t.Parallel()
+
+	dst := filepath.Join(t.TempDir(), "module")
+	sentinel := filepath.Join(dst, "keep.tf")
+	require.NoError(t, os.MkdirAll(dst, 0o755))
+	require.NoError(t, os.WriteFile(sentinel, []byte(`output "keep" {}`), 0o644))
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "new" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+
+	g := newTestOCIGetter(staticStore(store))
+	// Fail the swap that moves the staged tree in, after the previous tree moved out.
+	g.FS = &renameFailFS{FS: g.FS, failOn: 2}
+
+	_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.ErrorIs(t, err, errRenameFailed)
+	assert.FileExists(t, sentinel, "a failed promotion must restore the previous module")
+	assert.NoFileExists(t, filepath.Join(dst, "main.tf"), "a failed promotion must not leave the new module behind")
+}
+
+// errRenameFailed is the injected fault renameFailFS returns.
+var errRenameFailed = errors.New("rename failed")
+
+// renameFailFS fails the failOn-th Rename, to drive a promotion failure.
+type renameFailFS struct {
+	vfs.FS
+	failOn int
+	calls  int
+}
+
+func (fs *renameFailFS) Rename(oldname, newname string) error {
+	fs.calls++
+
+	if fs.calls == fs.failOn {
+		return errRenameFailed
+	}
+
+	return fs.FS.Rename(oldname, newname)
 }
 
 // fakeStore is an in-memory OCIRepositoryStore serving one manifest and its

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -23,8 +24,14 @@ const (
 	// ociDefaultTag is the tag used when the source pins neither a tag nor a
 	// digest, matching OpenTofu.
 	ociDefaultTag = "latest"
-	// ociLayerSizeWarnThreshold warns before an anomalously large layer, pending a hard limit.
+	// ociLayerSizeWarnThreshold warns before downloading an anomalously large layer.
 	ociLayerSizeWarnThreshold = 50 << 20
+	// ociMaxDecompressedSize caps the bytes a module layer may expand to, so a
+	// digest-valid archive cannot exhaust the disk.
+	ociMaxDecompressedSize int64 = 512 << 20
+	// ociMaxDecompressedFiles caps the entries a module layer may expand to, so a
+	// digest-valid archive cannot exhaust inodes.
+	ociMaxDecompressedFiles = 10000
 )
 
 // ErrOCIGetFileUnsupported reports that oci sources always resolve to module
@@ -198,7 +205,7 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		)
 	}
 
-	// Extract under a temp parent so a partial download never lands in req.Dst.
+	// Download under a temp parent so a partial download never lands in req.Dst.
 	parent, err := vfs.MkdirTemp(g.FS, "", "getter")
 	if err != nil {
 		return err
@@ -215,13 +222,7 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
-	// Stage extraction, then replace req.Dst only on full success (subDir empty in prod).
-	unzipPath := filepath.Join(parent, "unzip")
-	if err := (&getter.ZipDecompressor{}).Decompress(unzipPath, zipPath, true, req.Umask); err != nil {
-		return fmt.Errorf("extracting OCI module archive: %w", err)
-	}
-
-	return copySubdirContents(g.Logger, g.FS, unzipPath, subDir, req.Dst, req.Src)
+	return g.extractModule(zipPath, subDir, req.Dst, req.Src, req.Umask)
 }
 
 // GetFile always fails, per [ErrOCIGetFileUnsupported].
@@ -338,4 +339,96 @@ func (g *OCIGetter) fetchModuleZip(
 	}
 
 	return zipFile.Name(), nil
+}
+
+// extractModule expands the module zip under the shipped extraction bounds.
+func (g *OCIGetter) extractModule(zipPath, subDir, dstPath, source string, umask os.FileMode) error {
+	return g.extractModuleWithLimits(
+		zipPath,
+		subDir,
+		dstPath,
+		source,
+		umask,
+		ociMaxDecompressedSize,
+		ociMaxDecompressedFiles,
+	)
+}
+
+// extractModuleWithLimits expands the module zip into a staging directory beside
+// dstPath, bounded by sizeLimit and filesLimit, then promotes the requested
+// subDir into dstPath. source only labels errors.
+func (g *OCIGetter) extractModuleWithLimits(
+	zipPath, subDir, dstPath, source string,
+	umask os.FileMode,
+	sizeLimit int64,
+	filesLimit int,
+) error {
+	const ownerWriteGlobalReadExecutePerms = 0755
+
+	dstParent := filepath.Dir(dstPath)
+	if err := g.FS.MkdirAll(dstParent, ownerWriteGlobalReadExecutePerms); err != nil {
+		return fmt.Errorf("creating destination path %s: %w", dstParent, err)
+	}
+
+	// Stage beside dstPath so promoting the tree is a same-filesystem rename.
+	staging, err := vfs.MkdirTemp(g.FS, dstParent, ".terragrunt-oci")
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := g.FS.RemoveAll(staging); err != nil {
+			g.Logger.Warnf("Error removing staging directory %s: %v", staging, err)
+		}
+	}()
+
+	unzipPath := filepath.Join(staging, "unzip")
+	if err := vfs.NewZipDecompressor(
+		vfs.WithFileSizeLimit(sizeLimit),
+		vfs.WithFilesLimit(filesLimit),
+	).Unzip(g.Logger, g.FS, unzipPath, zipPath, umask); err != nil {
+		return fmt.Errorf("extracting OCI module archive: %w", err)
+	}
+
+	sourcePath, err := SubdirGlob(unzipPath, subDir)
+	if err != nil {
+		return fmt.Errorf("resolving module subdir %q: %w", subDir, err)
+	}
+
+	if _, err := g.FS.Stat(sourcePath); err != nil {
+		return ModuleDownloadErr{
+			sourceURL: source,
+			details:   fmt.Sprintf("could not stat download path %s: %s", sourcePath, err),
+		}
+	}
+
+	return g.promoteModule(staging, sourcePath, dstPath)
+}
+
+// promoteModule swaps sourcePath into dstPath through renames, restoring the
+// previous contents when the swap fails. The displaced tree parks in staging,
+// which the caller removes.
+func (g *OCIGetter) promoteModule(staging, sourcePath, dstPath string) error {
+	backupPath := filepath.Join(staging, "previous")
+
+	_, statErr := g.FS.Stat(dstPath)
+	replacing := statErr == nil
+
+	if replacing {
+		if err := g.FS.Rename(dstPath, backupPath); err != nil {
+			return fmt.Errorf("clearing destination path %s: %w", dstPath, err)
+		}
+	}
+
+	if err := g.FS.Rename(sourcePath, dstPath); err != nil {
+		if replacing {
+			if restoreErr := g.FS.Rename(backupPath, dstPath); restoreErr != nil {
+				g.Logger.Warnf("Error restoring destination path %s: %v", dstPath, restoreErr)
+			}
+		}
+
+		return fmt.Errorf("moving module into destination path %s: %w", dstPath, err)
+	}
+
+	return nil
 }
