@@ -653,7 +653,7 @@ func BuildDownloadClient(
 
 	if opts.Experiments.Evaluate(experiment.OCI) {
 		clientOpts = append(clientOpts, getter.WithOCI(&getter.OCIGetter{
-			NewStore: getter.NewOCIRepositoryStore(v.FS),
+			NewStore: getter.NewOCIRepositoryStore(l),
 			Logger:   l,
 			FS:       v.FS,
 		}))

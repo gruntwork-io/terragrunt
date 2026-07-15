@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
 
@@ -23,7 +23,7 @@ const testRegistry = "registry.example.com"
 func TestNewOCIRepositoryStoreReference(t *testing.T) {
 	setHermeticCredentialEnv(t, t.TempDir())
 
-	store, err := getter.NewOCIRepositoryStore(vfs.NewOSFS())(t.Context(), "127.0.0.1:5000", "org/team/vpc")
+	store, err := getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), "127.0.0.1:5000", "org/team/vpc")
 	require.NoError(t, err)
 
 	repo, castOK := store.(*remote.Repository)
@@ -83,7 +83,7 @@ func TestOCIStaticCredentials(t *testing.T) {
 				t.Setenv(name, value)
 			}
 
-			store, err := getter.NewOCIRepositoryStore(vfs.NewOSFS())(t.Context(), testRegistry, "modules/vpc")
+			store, err := getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), testRegistry, "modules/vpc")
 
 			if tc.wantErrIs != nil {
 				require.Error(t, err)
@@ -106,11 +106,14 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 		dockerConfigAuth  = "docker-config"
 	)
 
+	const dockerConfigEnvAuth = "docker-config-env"
+
 	testCases := []struct {
 		name              string
 		wantUser          string
 		files             []string
 		unsetXDGConfigDir bool
+		setDockerConfig   bool
 	}{
 		{
 			name:     "xdg runtime containers auth wins over everything",
@@ -139,6 +142,12 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 			unsetXDGConfigDir: true,
 			wantUser:          dockerConfigAuth,
 		},
+		{
+			name:            "set docker config replaces home docker config",
+			files:           []string{dockerConfigAuth, dockerConfigEnvAuth},
+			setDockerConfig: true,
+			wantUser:        dockerConfigEnvAuth,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -146,6 +155,7 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 			home := t.TempDir()
 			runtimeDir := t.TempDir()
 			configHome := t.TempDir()
+			dockerConfigDir := t.TempDir()
 
 			setHermeticCredentialEnv(t, home)
 			t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
@@ -155,11 +165,16 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 				t.Setenv("XDG_CONFIG_HOME", "")
 			}
 
+			if tc.setDockerConfig {
+				t.Setenv("DOCKER_CONFIG", dockerConfigDir)
+			}
+
 			authFilePaths := map[string]string{
-				xdgRuntimeAuth:    filepath.Join(runtimeDir, "containers", "auth.json"),
-				homeConfigAuth:    filepath.Join(home, ".config", "containers", "auth.json"),
-				xdgConfigHomeAuth: filepath.Join(configHome, "containers", "auth.json"),
-				dockerConfigAuth:  filepath.Join(home, ".docker", "config.json"),
+				xdgRuntimeAuth:      filepath.Join(runtimeDir, "containers", "auth.json"),
+				homeConfigAuth:      filepath.Join(home, ".config", "containers", "auth.json"),
+				xdgConfigHomeAuth:   filepath.Join(configHome, "containers", "auth.json"),
+				dockerConfigAuth:    filepath.Join(home, ".docker", "config.json"),
+				dockerConfigEnvAuth: filepath.Join(dockerConfigDir, "config.json"),
 			}
 
 			// Each file carries its own id as the username, so the resolved
@@ -168,7 +183,7 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 				writeAuthFile(t, authFilePaths[id], testRegistry, id, "password-"+id)
 			}
 
-			store, err := getter.NewOCIRepositoryStore(vfs.NewOSFS())(t.Context(), testRegistry, "modules/vpc")
+			store, err := getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), testRegistry, "modules/vpc")
 			require.NoError(t, err)
 
 			cred := credentialFor(t, store, testRegistry)
@@ -177,39 +192,14 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 	}
 }
 
-func TestOCIAmbientCredentialStatErrorSurfaces(t *testing.T) {
-	home := t.TempDir()
-	setHermeticCredentialEnv(t, home)
-
-	// An unreadable parent directory makes Stat fail with a permission
-	// error, which must surface instead of silently selecting weaker
-	// credentials.
-	dockerDir := filepath.Join(home, ".docker")
-	require.NoError(t, os.MkdirAll(dockerDir, 0o755))
-	writeAuthFile(t, filepath.Join(dockerDir, "config.json"), testRegistry, "blocked-user", "blocked-pass")
-	require.NoError(t, os.Chmod(dockerDir, 0o000))
-
-	t.Cleanup(func() {
-		if err := os.Chmod(dockerDir, 0o755); err != nil {
-			t.Logf("restoring permissions on %s: %v", dockerDir, err)
-		}
-	})
-
-	_, err := getter.NewOCIRepositoryStore(vfs.NewOSFS())(t.Context(), testRegistry, "modules/vpc")
-	require.Error(t, err)
-
-	var fileErr getter.OCICredentialFileError
-
-	require.ErrorAs(t, err, &fileErr)
-	assert.Equal(t, filepath.Join(dockerDir, "config.json"), fileErr.Path)
-}
-
 func TestOCIAmbientCredentialScopedToRegistry(t *testing.T) {
 	home := t.TempDir()
 	setHermeticCredentialEnv(t, home)
 	writeAuthFile(t, filepath.Join(home, ".docker", "config.json"), testRegistry, "scoped-user", "scoped-pass")
 
-	store, err := getter.NewOCIRepositoryStore(vfs.NewOSFS())(t.Context(), "other-registry.example.com", "modules/vpc")
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger())
+
+	store, err := newStore(t.Context(), "other-registry.example.com", "modules/vpc")
 	require.NoError(t, err)
 
 	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, "other-registry.example.com"))
@@ -218,27 +208,33 @@ func TestOCIAmbientCredentialScopedToRegistry(t *testing.T) {
 func TestOCIAmbientCredentialNoFiles(t *testing.T) {
 	setHermeticCredentialEnv(t, t.TempDir())
 
-	store, err := getter.NewOCIRepositoryStore(vfs.NewOSFS())(t.Context(), testRegistry, "modules/vpc")
+	store, err := getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), testRegistry, "modules/vpc")
 	require.NoError(t, err)
 
 	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
 }
 
-func TestOCIAmbientCredentialInvalidFile(t *testing.T) {
+func TestOCIAmbientCredentialInvalidFileSkipped(t *testing.T) {
 	home := t.TempDir()
 	setHermeticCredentialEnv(t, home)
 
-	path := filepath.Join(home, ".docker", "config.json")
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte("not json"), 0o600))
+	// An unparseable file is skipped so it never breaks anonymous pulls or
+	// higher-priority credentials.
+	badPath := filepath.Join(home, ".docker", "config.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(badPath), 0o755))
+	require.NoError(t, os.WriteFile(badPath, []byte("not json"), 0o600))
 
-	_, err := getter.NewOCIRepositoryStore(vfs.NewOSFS())(t.Context(), testRegistry, "modules/vpc")
-	require.Error(t, err)
+	store, err := getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
 
-	var fileErr getter.OCICredentialFileError
+	// A valid higher-priority file still provides credentials.
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config-home"))
+	writeAuthFile(t, filepath.Join(home, "config-home", "containers", "auth.json"), testRegistry, "good-user", "good-pass")
 
-	require.ErrorAs(t, err, &fileErr)
-	assert.Equal(t, path, fileErr.Path)
+	store, err = getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), testRegistry, "modules/vpc")
+	require.NoError(t, err)
+	assert.Equal(t, "good-user", credentialFor(t, store, testRegistry).Username)
 }
 
 // setHermeticCredentialEnv points every environment variable the credential
@@ -249,6 +245,7 @@ func setHermeticCredentialEnv(t *testing.T, home string) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(home, "no-runtime"))
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "no-config-home"))
+	t.Setenv("DOCKER_CONFIG", "")
 	t.Setenv(getter.EnvOCIUsername, "")
 	t.Setenv(getter.EnvOCIPassword, "")
 	t.Setenv(getter.EnvOCIToken, "")

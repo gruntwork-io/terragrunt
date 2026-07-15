@@ -101,7 +101,7 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 
 	if cfg.ociLogger != nil {
 		m[SchemeOCI] = &OCIGetter{
-			NewStore: NewOCIRepositoryStore(cfg.ociFS),
+			NewStore: NewOCIRepositoryStore(cfg.ociLogger),
 			Logger:   cfg.ociLogger,
 			FS:       cfg.ociFS,
 		}

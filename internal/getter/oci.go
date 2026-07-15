@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/url"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -28,6 +29,9 @@ const (
 	// ociMaxManifestSize bounds manifest downloads so a registry cannot force
 	// an unbounded allocation, matching OpenTofu.
 	ociMaxManifestSize = 4 << 20
+	// ociLayerSizeWarnThreshold is the declared layer size above which the
+	// getter warns before downloading, pending a hard limit.
+	ociLayerSizeWarnThreshold = 1 << 30
 )
 
 // ErrOCIGetFileUnsupported reports that oci sources always resolve to module
@@ -36,7 +40,10 @@ var ErrOCIGetFileUnsupported = errors.New("GetFile is not supported for the OCI 
 
 // ErrOCIGetterNotConfigured reports an OCIGetter used without its NewStore
 // seam, logger, or filesystem.
-var ErrOCIGetterNotConfigured = errors.New("oci getter requires a repository store, a logger, and a filesystem")
+var ErrOCIGetterNotConfigured = errors.New(
+	"oci getter is not fully configured (missing repository store, logger, or filesystem). " +
+		"This is a bug in Terragrunt. Please open an issue",
+)
 
 // ErrOCIMissingRegistryDomain reports an oci source without a registry host.
 var ErrOCIMissingRegistryDomain = errors.New("oci source is missing a registry domain")
@@ -261,6 +268,13 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 		return err
 	}
 
+	if layer.Size > ociLayerSizeWarnThreshold {
+		g.Logger.Warnf(
+			"OCI layer %s declares %d bytes, above the %d byte threshold; downloading it may be slow",
+			layer.Digest, layer.Size, ociLayerSizeWarnThreshold,
+		)
+	}
+
 	// Hand extraction a temp parent so a partial download never lands in
 	// req.Dst, and clean up the parent on return.
 	parent, err := vfs.MkdirTemp(g.FS, "", "getter")
@@ -282,7 +296,7 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 	// Extract into a staging directory and replace req.Dst only after full
 	// success, so a malformed archive never corrupts an existing destination
 	// and files removed between module versions do not survive.
-	unzipPath := path.Join(parent, "unzip")
+	unzipPath := filepath.Join(parent, "unzip")
 	if err := (&getter.ZipDecompressor{}).Decompress(unzipPath, zipPath, true, req.Umask); err != nil {
 		return fmt.Errorf("extracting OCI module archive: %w", err)
 	}
