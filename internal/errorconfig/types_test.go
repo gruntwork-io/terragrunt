@@ -120,6 +120,59 @@ func TestExtractErrorMessage_StillMatchesTimeoutInStderrWithFlags(t *testing.T) 
 		"timeout pattern should match when stderr actually contains 'timeout'; cleaned message: %s", msg)
 }
 
+func TestExtractErrorMessage_IncludesStdout(t *testing.T) {
+	t.Parallel()
+
+	// Some invocations (notably remote/cloud-backend runs) stream diagnostics to
+	// stdout rather than stderr. Those must still be matchable by retryable_errors.
+	// See issue #6495.
+	var stdout bytes.Buffer
+	stdout.WriteString("Error: Failed to install provider")
+
+	err := util.ProcessExecutionError{
+		Err:        errors.New("exit status 1"),
+		Command:    "tofu",
+		Args:       []string{"plan"},
+		WorkingDir: "/some/path",
+		Output:     util.CmdOutput{Stdout: stdout},
+	}
+
+	msg := errorconfig.ExtractErrorMessage(err)
+	assert.Contains(t, msg, "Failed to install provider")
+
+	pattern := regexp.MustCompile(`.*Failed to install provider.*`)
+	patterns := []*errorconfig.Pattern{{Pattern: pattern}}
+	assert.True(t, errorconfig.MatchesAnyRegexpPattern(msg, patterns),
+		"pattern should match diagnostics emitted on stdout; cleaned message: %s", msg)
+}
+
+func TestExtractErrorMessage_StdoutInclusionStillExcludesCommandFlags(t *testing.T) {
+	t.Parallel()
+
+	// Including stdout must not reintroduce #5088: the command string and its flags
+	// are still excluded, so a pattern must not match text that only appears in flags.
+	var stdout bytes.Buffer
+	stdout.WriteString("Plan: 1 to add, 0 to change, 0 to destroy.")
+
+	err := util.ProcessExecutionError{
+		Err:        errors.New("exit status 1"),
+		Command:    "tofu",
+		Args:       []string{"plan", "-lock-timeout=120m", "-input=false"},
+		WorkingDir: "/some/path",
+		Output:     util.CmdOutput{Stdout: stdout},
+	}
+
+	timeoutPattern := regexp.MustCompile(`(?s).*timeout.*`)
+	patterns := []*errorconfig.Pattern{
+		{Pattern: timeoutPattern},
+	}
+
+	msg := errorconfig.ExtractErrorMessage(err)
+	matched := errorconfig.MatchesAnyRegexpPattern(msg, patterns)
+	assert.False(t, matched,
+		"timeout pattern must not match command flags even with stdout included; cleaned message: %s", msg)
+}
+
 func TestExtractErrorMessage_NonProcessError(t *testing.T) {
 	t.Parallel()
 

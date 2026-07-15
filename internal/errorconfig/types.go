@@ -126,11 +126,15 @@ func (c *Config) AttemptErrorRecovery(l log.Logger, err error, currentAttempt in
 func ExtractErrorMessage(err error) string {
 	var errText string
 
-	// For ProcessExecutionError, match only against stderr and the underlying error,
-	// not the full command string with flags.
+	// For ProcessExecutionError, match against stdout, stderr, and the underlying
+	// error. Some invocations (notably remote/cloud-backend runs) stream diagnostics
+	// to stdout rather than stderr, so stdout must be included for retryable_errors to
+	// match (see #6495). The command string and its flags are still intentionally
+	// excluded to avoid false matches on flag names such as -lock-timeout (see #5088).
 	var processErr util.ProcessExecutionError
 	if errors.As(err, &processErr) {
-		errText = processErr.Output.Stderr.String() + "\n" + processErr.Err.Error()
+		errText = processErr.Output.Stdout.String() + "\n" +
+			processErr.Output.Stderr.String() + "\n" + processErr.Err.Error()
 	} else {
 		errText = err.Error()
 	}
