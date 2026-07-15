@@ -6,10 +6,10 @@ import (
 	"fmt"
 	iofs "io/fs"
 	"net/http"
-	"os"
 	"path/filepath"
 	"runtime"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
@@ -42,15 +42,16 @@ var ErrOCIStaticCredentialIncomplete = errors.New("oci static credentials requir
 var _ OCIRepositoryStore = (*remote.Repository)(nil)
 
 // NewOCIRepositoryStore returns the default Tier-1 [OCINewStoreFunc]: static
-// environment credentials when set, otherwise read-only ambient discovery of
-// Docker and containers auth files. It never invokes credential helpers, so
-// registries needing per-run token minting (e.g. Amazon ECR) only work for
-// the lifetime of an externally obtained login in one of the ambient files.
-// Ambient files that exist but cannot be used are skipped with a warning, so
-// one corrupt file never breaks downloads that need weaker or no credentials.
-func NewOCIRepositoryStore(l log.Logger) OCINewStoreFunc {
+// credentials from v.Env when set, otherwise read-only ambient discovery of
+// Docker and containers auth files through v. It never invokes credential
+// helpers, so registries needing per-run token minting (e.g. Amazon ECR)
+// only work for the lifetime of an externally obtained login in one of the
+// ambient files. Ambient files that exist but cannot be used are skipped
+// with a warning, so one corrupt file never breaks downloads that need
+// weaker or no credentials.
+func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 	return func(_ context.Context, registryDomain, repositoryName string) (OCIRepositoryStore, error) {
-		credentialFn, err := ociCredentialFunc(l)
+		credentialFn, err := ociCredentialFunc(l, v)
 		if err != nil {
 			return nil, err
 		}
@@ -71,10 +72,10 @@ func NewOCIRepositoryStore(l log.Logger) OCINewStoreFunc {
 	}
 }
 
-// ociCredentialFunc resolves the credential source once: static environment
-// credentials take precedence over ambient discovery.
-func ociCredentialFunc(l log.Logger) (auth.CredentialFunc, error) {
-	staticCred, found, err := ociStaticCredential()
+// ociCredentialFunc resolves the credential source once: static credentials
+// from the environment take precedence over ambient discovery.
+func ociCredentialFunc(l log.Logger, v venv.Venv) (auth.CredentialFunc, error) {
+	staticCred, found, err := ociStaticCredential(v.Env)
 	if err != nil {
 		return nil, err
 	}
@@ -85,15 +86,15 @@ func ociCredentialFunc(l log.Logger) (auth.CredentialFunc, error) {
 		}, nil
 	}
 
-	return ociAmbientCredentialFunc(l), nil
+	return ociAmbientCredentialFunc(l, v), nil
 }
 
-// ociStaticCredential reads the interim static-credential environment:
-// either a token or a username plus password.
-func ociStaticCredential() (auth.Credential, bool, error) {
-	username := os.Getenv(EnvOCIUsername)
-	password := os.Getenv(EnvOCIPassword)
-	token := os.Getenv(EnvOCIToken)
+// ociStaticCredential reads the interim static credentials from env: either
+// a token or a username plus password.
+func ociStaticCredential(env map[string]string) (auth.Credential, bool, error) {
+	username := env[EnvOCIUsername]
+	password := env[EnvOCIPassword]
+	token := env[EnvOCIToken]
 
 	if token != "" && (username != "" || password != "") {
 		return auth.EmptyCredential, false, ErrOCIStaticCredentialConflict
@@ -120,12 +121,12 @@ func ociStaticCredential() (auth.Credential, bool, error) {
 // candidate that is missing is skipped silently; one that exists but cannot
 // be read or parsed is skipped with a warning, so a corrupt file lower in
 // the chain never breaks anonymous pulls or higher-priority credentials.
-func ociAmbientCredentialFunc(l log.Logger) auth.CredentialFunc {
-	candidates := ociAmbientCredentialPaths()
+func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) auth.CredentialFunc {
+	candidates := ociAmbientCredentialPaths(v.Env)
 	stores := make([]credentials.Store, 0, len(candidates))
 
 	for _, path := range candidates {
-		if _, err := os.Stat(path); err != nil {
+		if _, err := v.FS.Stat(path); err != nil {
 			if !errors.Is(err, iofs.ErrNotExist) {
 				l.Warnf("Skipping OCI credential file %s: %v", path, err)
 			}
@@ -159,21 +160,18 @@ func ociAmbientCredentialFunc(l log.Logger) auth.CredentialFunc {
 // directory applies to Linux only, a set XDG_CONFIG_HOME replaces the
 // default ~/.config location, and a set DOCKER_CONFIG replaces the default
 // ~/.docker location.
-func ociAmbientCredentialPaths() []string {
+func ociAmbientCredentialPaths(env map[string]string) []string {
 	var paths []string
 
 	if runtime.GOOS == "linux" {
-		if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
+		if dir := env["XDG_RUNTIME_DIR"]; dir != "" {
 			paths = append(paths, filepath.Join(dir, "containers", "auth.json"))
 		}
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = ""
-	}
+	home := ociUserHome(env)
 
-	configDir := os.Getenv("XDG_CONFIG_HOME")
+	configDir := env["XDG_CONFIG_HOME"]
 	if configDir == "" && home != "" {
 		configDir = filepath.Join(home, ".config")
 	}
@@ -182,7 +180,7 @@ func ociAmbientCredentialPaths() []string {
 		paths = append(paths, filepath.Join(configDir, "containers", "auth.json"))
 	}
 
-	dockerConfigDir := os.Getenv("DOCKER_CONFIG")
+	dockerConfigDir := env["DOCKER_CONFIG"]
 	if dockerConfigDir == "" && home != "" {
 		dockerConfigDir = filepath.Join(home, ".docker")
 	}
@@ -192,4 +190,14 @@ func ociAmbientCredentialPaths() []string {
 	}
 
 	return paths
+}
+
+// ociUserHome resolves the home directory from env: HOME on Unix,
+// USERPROFILE on Windows.
+func ociUserHome(env map[string]string) string {
+	if home := env["HOME"]; home != "" {
+		return home
+	}
+
+	return env["USERPROFILE"]
 }

@@ -1,4 +1,3 @@
-//nolint:paralleltest,tparallel // Every test here uses t.Setenv and therefore can't run in parallel.
 package getter_test
 
 import (
@@ -10,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
@@ -21,9 +22,11 @@ import (
 const testRegistry = "registry.example.com"
 
 func TestNewOCIRepositoryStoreReference(t *testing.T) {
-	setHermeticCredentialEnv(t, t.TempDir())
+	t.Parallel()
 
-	store, err := getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), "127.0.0.1:5000", "org/team/vpc")
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), credentialVenv(t.TempDir(), nil))
+
+	store, err := newStore(t.Context(), "127.0.0.1:5000", "org/team/vpc")
 	require.NoError(t, err)
 
 	repo, castOK := store.(*remote.Repository)
@@ -33,6 +36,8 @@ func TestNewOCIRepositoryStoreReference(t *testing.T) {
 }
 
 func TestOCIStaticCredentials(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		wantErrIs error
 		env       map[string]string
@@ -74,16 +79,15 @@ func TestOCIStaticCredentials(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			home := t.TempDir()
-			setHermeticCredentialEnv(t, home)
 			// Ambient file present to prove static credentials win over it.
 			writeAuthFile(t, filepath.Join(home, ".docker", "config.json"), testRegistry, "ambient-user", "ambient-pass")
 
-			for name, value := range tc.env {
-				t.Setenv(name, value)
-			}
+			newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), credentialVenv(home, tc.env))
 
-			store, err := getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), testRegistry, "modules/vpc")
+			store, err := newStore(t.Context(), testRegistry, "modules/vpc")
 
 			if tc.wantErrIs != nil {
 				require.Error(t, err)
@@ -99,48 +103,52 @@ func TestOCIStaticCredentials(t *testing.T) {
 }
 
 func TestOCIAmbientCredentialPrecedence(t *testing.T) {
+	t.Parallel()
+
 	const (
-		xdgRuntimeAuth    = "xdg-runtime-containers"
-		homeConfigAuth    = "home-config-containers"
-		xdgConfigHomeAuth = "xdg-config-home-containers"
-		dockerConfigAuth  = "docker-config"
+		xdgRuntimeAuth      = "xdg-runtime-containers"
+		homeConfigAuth      = "home-config-containers"
+		xdgConfigHomeAuth   = "xdg-config-home-containers"
+		dockerConfigAuth    = "docker-config"
+		dockerConfigEnvAuth = "docker-config-env"
 	)
 
-	const dockerConfigEnvAuth = "docker-config-env"
-
 	testCases := []struct {
-		name              string
-		wantUser          string
-		files             []string
-		unsetXDGConfigDir bool
-		setDockerConfig   bool
+		name             string
+		wantUser         string
+		files            []string
+		setXDGConfigDir  bool
+		setDockerConfig  bool
+		setXDGRuntimeDir bool
 	}{
 		{
-			name:     "xdg runtime containers auth wins over everything",
-			files:    []string{xdgRuntimeAuth, homeConfigAuth, xdgConfigHomeAuth, dockerConfigAuth},
-			wantUser: xdgRuntimeAuth,
+			name:             "xdg runtime containers auth wins over everything",
+			files:            []string{xdgRuntimeAuth, homeConfigAuth, xdgConfigHomeAuth, dockerConfigAuth},
+			setXDGRuntimeDir: true,
+			setXDGConfigDir:  true,
+			wantUser:         xdgRuntimeAuth,
 		},
 		{
-			name:     "xdg config home wins over docker config",
-			files:    []string{homeConfigAuth, xdgConfigHomeAuth, dockerConfigAuth},
-			wantUser: xdgConfigHomeAuth,
+			name:            "xdg config home wins over docker config",
+			files:           []string{homeConfigAuth, xdgConfigHomeAuth, dockerConfigAuth},
+			setXDGConfigDir: true,
+			wantUser:        xdgConfigHomeAuth,
 		},
 		{
-			name:     "set xdg config home replaces home config",
+			name:            "set xdg config home replaces home config",
+			files:           []string{homeConfigAuth, dockerConfigAuth},
+			setXDGConfigDir: true,
+			wantUser:        dockerConfigAuth,
+		},
+		{
+			name:     "home config used when xdg config home is unset",
 			files:    []string{homeConfigAuth, dockerConfigAuth},
+			wantUser: homeConfigAuth,
+		},
+		{
+			name:     "docker config used when no containers auth exists",
+			files:    []string{dockerConfigAuth},
 			wantUser: dockerConfigAuth,
-		},
-		{
-			name:              "home config used when xdg config home is unset",
-			files:             []string{homeConfigAuth, dockerConfigAuth},
-			unsetXDGConfigDir: true,
-			wantUser:          homeConfigAuth,
-		},
-		{
-			name:              "docker config used when no containers auth exists",
-			files:             []string{dockerConfigAuth},
-			unsetXDGConfigDir: true,
-			wantUser:          dockerConfigAuth,
 		},
 		{
 			name:            "set docker config replaces home docker config",
@@ -152,21 +160,24 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			home := t.TempDir()
 			runtimeDir := t.TempDir()
 			configHome := t.TempDir()
 			dockerConfigDir := t.TempDir()
 
-			setHermeticCredentialEnv(t, home)
-			t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
-			t.Setenv("XDG_CONFIG_HOME", configHome)
+			env := map[string]string{}
+			if tc.setXDGRuntimeDir {
+				env["XDG_RUNTIME_DIR"] = runtimeDir
+			}
 
-			if tc.unsetXDGConfigDir {
-				t.Setenv("XDG_CONFIG_HOME", "")
+			if tc.setXDGConfigDir {
+				env["XDG_CONFIG_HOME"] = configHome
 			}
 
 			if tc.setDockerConfig {
-				t.Setenv("DOCKER_CONFIG", dockerConfigDir)
+				env["DOCKER_CONFIG"] = dockerConfigDir
 			}
 
 			authFilePaths := map[string]string{
@@ -183,7 +194,9 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 				writeAuthFile(t, authFilePaths[id], testRegistry, id, "password-"+id)
 			}
 
-			store, err := getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), testRegistry, "modules/vpc")
+			newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), credentialVenv(home, env))
+
+			store, err := newStore(t.Context(), testRegistry, "modules/vpc")
 			require.NoError(t, err)
 
 			cred := credentialFor(t, store, testRegistry)
@@ -193,11 +206,12 @@ func TestOCIAmbientCredentialPrecedence(t *testing.T) {
 }
 
 func TestOCIAmbientCredentialScopedToRegistry(t *testing.T) {
+	t.Parallel()
+
 	home := t.TempDir()
-	setHermeticCredentialEnv(t, home)
 	writeAuthFile(t, filepath.Join(home, ".docker", "config.json"), testRegistry, "scoped-user", "scoped-pass")
 
-	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger())
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), credentialVenv(home, nil))
 
 	store, err := newStore(t.Context(), "other-registry.example.com", "modules/vpc")
 	require.NoError(t, err)
@@ -206,17 +220,20 @@ func TestOCIAmbientCredentialScopedToRegistry(t *testing.T) {
 }
 
 func TestOCIAmbientCredentialNoFiles(t *testing.T) {
-	setHermeticCredentialEnv(t, t.TempDir())
+	t.Parallel()
 
-	store, err := getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), testRegistry, "modules/vpc")
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), credentialVenv(t.TempDir(), nil))
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
 	require.NoError(t, err)
 
 	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
 }
 
 func TestOCIAmbientCredentialInvalidFileSkipped(t *testing.T) {
+	t.Parallel()
+
 	home := t.TempDir()
-	setHermeticCredentialEnv(t, home)
 
 	// An unparseable file is skipped so it never breaks anonymous pulls or
 	// higher-priority credentials.
@@ -224,31 +241,37 @@ func TestOCIAmbientCredentialInvalidFileSkipped(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(badPath), 0o755))
 	require.NoError(t, os.WriteFile(badPath, []byte("not json"), 0o600))
 
-	store, err := getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), testRegistry, "modules/vpc")
+	newStore := getter.NewOCIRepositoryStore(logger.CreateLogger(), credentialVenv(home, nil))
+
+	store, err := newStore(t.Context(), testRegistry, "modules/vpc")
 	require.NoError(t, err)
 	assert.Equal(t, auth.EmptyCredential, credentialFor(t, store, testRegistry))
 
 	// A valid higher-priority file still provides credentials.
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config-home"))
-	writeAuthFile(t, filepath.Join(home, "config-home", "containers", "auth.json"), testRegistry, "good-user", "good-pass")
+	configHome := t.TempDir()
+	writeAuthFile(t, filepath.Join(configHome, "containers", "auth.json"), testRegistry, "good-user", "good-pass")
 
-	store, err = getter.NewOCIRepositoryStore(logger.CreateLogger())(t.Context(), testRegistry, "modules/vpc")
+	newStore = getter.NewOCIRepositoryStore(
+		logger.CreateLogger(),
+		credentialVenv(home, map[string]string{"XDG_CONFIG_HOME": configHome}),
+	)
+
+	store, err = newStore(t.Context(), testRegistry, "modules/vpc")
 	require.NoError(t, err)
 	assert.Equal(t, "good-user", credentialFor(t, store, testRegistry).Username)
 }
 
-// setHermeticCredentialEnv points every environment variable the credential
-// search reads at hermetic values so host credentials never leak into tests.
-func setHermeticCredentialEnv(t *testing.T, home string) {
-	t.Helper()
+// credentialVenv builds a hermetic Venv for credential discovery: an
+// OS-backed filesystem (oras parses real files), HOME pointing at home, and
+// extra env entries layered on top, so host credentials never leak in and
+// tests stay parallel.
+func credentialVenv(home string, extra map[string]string) venv.Venv {
+	env := map[string]string{"HOME": home}
+	for name, value := range extra {
+		env[name] = value
+	}
 
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(home, "no-runtime"))
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "no-config-home"))
-	t.Setenv("DOCKER_CONFIG", "")
-	t.Setenv(getter.EnvOCIUsername, "")
-	t.Setenv(getter.EnvOCIPassword, "")
-	t.Setenv(getter.EnvOCIToken, "")
+	return venv.Venv{FS: vfs.NewOSFS(), Env: env}
 }
 
 // credentialFor resolves the credential the store would send for registry.
