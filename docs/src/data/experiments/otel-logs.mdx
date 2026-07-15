@@ -1,6 +1,6 @@
 ---
 name: otel-logs
-since: "1.1.1"
+since: "1.1.2"
 ---
 
 Export Terragrunt's logs as an OpenTelemetry logs signal.
@@ -9,18 +9,18 @@ Export Terragrunt's logs as an OpenTelemetry logs signal.
 
 When enabled, Terragrunt emits its log output as OpenTelemetry log records in addition to the existing traces and metrics signals. The exporter is selected with `TG_TELEMETRY_LOGS_EXPORTER`:
 
-- `none` — no log exporting (the default).
-- `console` — write log records to the console as JSON.
-- `otlpHttp` — export logs to an OpenTelemetry collector over HTTP.
-- `otlpGrpc` — export logs to an OpenTelemetry collector over gRPC.
+- `none` - no log exporting (the default).
+- `console` - write log records to the console as JSON.
+- `otlpHttp` - export logs to an OpenTelemetry collector over HTTP.
+- `otlpGrpc` - export logs to an OpenTelemetry collector over gRPC.
 
-The OTLP exporters read their endpoint from the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable. Set `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true` to skip server certificate validation when collecting locally.
+The OTLP exporters read their endpoint from the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable. Set `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true` to disable TLS and send logs over an insecure connection. Only use this for local collection.
 
 ```bash
 TG_TELEMETRY_LOGS_EXPORTER=otlpHttp terragrunt run --all --experiment otel-logs -- apply
 ```
 
-Each record carries the trace and span IDs of the unit that emitted it, so a failed unit's logs link back to its span in the backend — for example, clicking a unit's span in the trace view surfaces exactly the logs it produced. Without the experiment enabled, the logs exporter stays inert regardless of `TG_TELEMETRY_LOGS_EXPORTER`.
+Records emitted while a unit's span is active carry that span's trace and span IDs, so a failed unit's logs link back to its span in the backend: clicking a unit's span in the trace view surfaces exactly the logs it produced. Run-level records emitted outside any span are exported without correlation IDs. Without the experiment enabled, the logs exporter stays inert regardless of `TG_TELEMETRY_LOGS_EXPORTER`.
 
 ### `otel-logs` - How to provide feedback
 

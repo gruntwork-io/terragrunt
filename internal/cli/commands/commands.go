@@ -165,14 +165,6 @@ func WrapWithTelemetry(
 
 		ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
 
-		// Engines emit telemetry during shutdown, so stop them before the
-		// telemeter's deferred Shutdown flushes (deferred calls run LIFO).
-		defer func() {
-			if err := engine.Shutdown(ctx, l, opts.Experiments, opts.EngineOptions.NoEngine); err != nil {
-				_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
-			}
-		}()
-
 		cmdName := fmt.Sprintf(
 			"%s %s", cliCtx.Command.Name, opts.TerraformCommand,
 		)
@@ -182,6 +174,15 @@ func WrapWithTelemetry(
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,
 		}, func(childCtx context.Context, l log.Logger) error {
+			// Engines emit telemetry during shutdown, so stop them while the
+			// command span is still open (and before the telemeter's deferred
+			// Shutdown flushes) to keep their records correlated with it.
+			defer func() {
+				if err := engine.Shutdown(childCtx, l, opts.Experiments, opts.EngineOptions.NoEngine); err != nil {
+					_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
+				}
+			}()
+
 			if err := initialSetup(cliCtx, l, opts); err != nil {
 				return err
 			}

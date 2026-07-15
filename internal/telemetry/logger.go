@@ -65,8 +65,7 @@ func NewLogsExporter(ctx context.Context, writer io.Writer, opts *Options) (log.
 		exporterType = noneLogsExporterType
 	}
 
-	// TODO: Remove this lint suppression
-	switch exporterType { //nolint:exhaustive
+	switch exporterType {
 	case otlpHTTPLogsExporterType:
 		var config []otlploghttp.Option
 		if opts.LogsExporterInsecureEndpoint {
@@ -83,6 +82,8 @@ func NewLogsExporter(ctx context.Context, writer io.Writer, opts *Options) (log.
 		return otlploggrpc.New(ctx, config...)
 	case consoleLogsExporterType:
 		return stdoutlog.New(stdoutlog.WithWriter(writer))
+	case noneLogsExporterType:
+		return nil, nil
 	default:
 		return nil, nil
 	}

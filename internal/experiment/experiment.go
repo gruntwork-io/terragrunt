@@ -83,7 +83,8 @@ const (
 	// constraint expressed through the version attribute on the terraform block.
 	VersionAttribute = "version-attribute"
 	// OtelLogs enables the OpenTelemetry logs signal, exporting Terragrunt's log
-	// records over OTLP and correlating them with traces via the active span.
+	// records through the configured logs exporter and correlating them with
+	// traces via the active span.
 	OtelLogs = "otel-logs"
 )
 

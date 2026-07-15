@@ -1,5 +1,5 @@
 ---
-version: "v1.1.1"
+version: "v1.1.2"
 category: "experiments-added"
 ---
 
@@ -18,4 +18,4 @@ Enable the new [`otel-logs`](/reference/experiments/active#otel-logs) experiment
 TG_TELEMETRY_LOGS_EXPORTER=otlpHttp terragrunt run --all --experiment otel-logs -- apply
 ```
 
-The OTLP exporters read the endpoint from the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable. Set `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true` to skip server certificate validation when collecting locally. Exported records carry the active trace and span IDs, so a failed unit's logs link to its span in the backend. Without the experiment enabled, the logs exporter stays inert regardless of `TG_TELEMETRY_LOGS_EXPORTER`.
+The OTLP exporters read the endpoint from the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable. Set `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true` to disable TLS when collecting locally. Records emitted while a span is active carry its trace and span IDs, so a failed unit's logs link to its span in the backend. Without the experiment enabled, the logs exporter stays inert regardless of `TG_TELEMETRY_LOGS_EXPORTER`.
