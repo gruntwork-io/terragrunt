@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go"
@@ -646,6 +645,120 @@ func TestOCIGetterGetRejectsOversizedContent(t *testing.T) {
 	assert.NoDirExists(t, dst, "an oversized archive must not land in the destination")
 }
 
+// TestOCIGetterGetRejectsLayerSize: invalid declared layer sizes fail before any fetch.
+func TestOCIGetterGetRejectsLayerSize(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		size int64
+	}{
+		{name: "oversized layer", size: 1 << 40},
+		{name: "zero size layer", size: 0},
+		{name: "negative size layer", size: -1},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "sized" {}`})
+			layer := zipLayerDesc(zipBytes)
+			layer.Size = tc.size
+			manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			// Drop the layer blob so any premature fetch fails the assertion below.
+			delete(store.blobs, layer.Digest.String())
+
+			g := newTestOCIGetter(staticStore(store))
+			dst := filepath.Join(t.TempDir(), "module")
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+				Dst:     dst,
+				GetMode: gogetter.ModeDir,
+			})
+			require.ErrorIs(t, err, getter.OCILayerSizeError{Size: tc.size})
+		})
+	}
+}
+
+// TestOCIGetterGetKeepsBackupWhenRestoreFails: the displaced module must survive a double rename failure.
+func TestOCIGetterGetKeepsBackupWhenRestoreFails(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "next" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+
+	parentDir := t.TempDir()
+	dst := filepath.Join(parentDir, "module")
+	require.NoError(t, os.MkdirAll(dst, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dst, "old.tf"), []byte(`output "old" {}`), 0o600))
+
+	g := newTestOCIGetter(staticStore(store))
+	g.FS = &renameFailFromFS{FS: g.FS, failFrom: 2}
+
+	_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dst,
+		GetMode: gogetter.ModeDir,
+	})
+	require.Error(t, err)
+
+	var restoreErr getter.OCIRestoreError
+
+	require.ErrorAs(t, err, &restoreErr)
+	assert.NotEmpty(t, restoreErr.BackupPath)
+
+	backups, globErr := filepath.Glob(filepath.Join(parentDir, ".terragrunt-oci*", "previous", "old.tf"))
+	require.NoError(t, globErr)
+	require.Len(t, backups, 1, "the previous module must remain recoverable")
+}
+
+// TestOCIGetterGetHonorsUmask: the promoted module root must respect the request umask.
+func TestOCIGetterGetHonorsUmask(t *testing.T) {
+	t.Parallel()
+
+	moduleFiles := map[string]string{
+		"main.tf":       `output "root" {}`,
+		"subdir/sub.tf": `output "sub" {}`,
+	}
+	zipBytes := moduleZipBytes(t, moduleFiles)
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	testCases := []struct {
+		name string
+		src  string
+	}{
+		{name: "whole module", src: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"},
+		{name: "subdir selector", src: "oci://127.0.0.1:5000/terraform-modules/vpc//subdir?tag=1.0.0"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			dst := filepath.Join(t.TempDir(), "module")
+
+			_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+				Src:     tc.src,
+				Dst:     dst,
+				GetMode: gogetter.ModeDir,
+				Umask:   0o077,
+			})
+			require.NoError(t, err)
+
+			info, statErr := os.Stat(dst)
+			require.NoError(t, statErr)
+			assert.Equal(t, os.FileMode(0o700), info.Mode().Perm(), "module root must respect the umask")
+		})
+	}
+}
+
 // TestOCIGetterGetRestoresDestinationWhenPromotionFails: the previous module must
 // survive a failure in the swap that replaces it.
 func TestOCIGetterGetRestoresDestinationWhenPromotionFails(t *testing.T) {
@@ -720,27 +833,11 @@ func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
 	assert.NotErrorIs(t, err, getter.OCIUnsupportedQueryParamError{Param: "bogus"})
 }
 
-func TestDefaultGenericFetchersOCIConfig(t *testing.T) {
+func TestDefaultGenericFetchersExcludeOCI(t *testing.T) {
 	t.Parallel()
 
 	_, found := getter.DefaultGenericFetchers()[getter.SchemeOCI]
-	assert.False(t, found, "oci fetcher must be absent without WithOCIConfig")
-
-	v := venvtest.New().WithEnv(map[string]string{
-		getter.EnvOCIToken:    "token",
-		getter.EnvOCIUsername: "user",
-	})
-	fetchers := getter.DefaultGenericFetchers(getter.WithOCIConfig(logger.CreateLogger(), v))
-
-	g, found := fetchers[getter.SchemeOCI]
-	require.True(t, found, "oci fetcher must be present with WithOCIConfig")
-
-	ociGetter, castOK := g.(*getter.OCIGetter)
-	require.True(t, castOK, "oci fetcher must be an OCIGetter")
-	assert.NotNil(t, ociGetter.NewStore, "oci fetcher must carry the default store")
-
-	_, err := ociGetter.NewStore(t.Context(), testRegistry, "modules/vpc")
-	require.ErrorIs(t, err, getter.ErrOCIStaticCredentialConflict)
+	assert.False(t, found, "generic dispatch must never route oci sources")
 }
 
 // errRenameFailed is the injected fault renameFailFS returns.
@@ -913,4 +1010,20 @@ func manifestFor(t *testing.T, artifactType string, layers ...ociv1.Descriptor) 
 		Digest:    digest.FromBytes(manifestBytes),
 		Size:      int64(len(manifestBytes)),
 	}
+}
+
+// renameFailFromFS fails every Rename from call number failFrom onward.
+type renameFailFromFS struct {
+	vfs.FS
+	calls    int
+	failFrom int
+}
+
+func (f *renameFailFromFS) Rename(oldname, newname string) error {
+	f.calls++
+	if f.calls >= f.failFrom {
+		return errRenameFailed
+	}
+
+	return f.FS.Rename(oldname, newname)
 }

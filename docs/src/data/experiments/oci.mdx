@@ -27,9 +27,11 @@ Specify either `tag` or `digest`; omitting both selects the `latest` tag.
 `//subdir` selectors are supported. Authentication covers static credentials
 via the interim `TG_TMP_OCI_*` environment variables and read-only ambient
 discovery of Docker and containers auth files, following the containers-auth
-search order OpenTofu uses. The static variables apply to every registry the
-process contacts, not a single host, so do not set them when talking to
-unrelated or untrusted registries. Credential helpers (such as `ecr-login`)
+search order OpenTofu uses. Static credentials can be limited to one registry with
+`TG_TMP_OCI_REGISTRY`; other registries then fall back to ambient discovery.
+Without it, the static credentials may be offered to any registry the process
+contacts, so scope them or avoid setting them when talking to unrelated or
+untrusted registries. Credential helpers (such as `ecr-login`)
 are not invoked yet, so registries that need per-run token minting only work
 while an externally obtained login is present in an ambient file. When the
 experiment is disabled, `oci://` sources remain unsupported.

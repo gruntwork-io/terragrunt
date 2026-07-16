@@ -31,6 +31,8 @@ const (
 	ociMaxManifestSize = 4 << 20
 	// ociLayerSizeWarnThreshold warns before downloading an anomalously large layer.
 	ociLayerSizeWarnThreshold = 50 << 20
+	// ociMaxLayerSize rejects layer descriptors above this size before fetching.
+	ociMaxLayerSize int64 = 512 << 20
 	// ociMaxDecompressedSize caps the bytes a module layer may expand to, so a
 	// digest-valid archive cannot exhaust the disk.
 	ociMaxDecompressedSize int64 = 512 << 20
@@ -161,6 +163,34 @@ func (err OCILayerCountError) Error() string {
 	return fmt.Sprintf("expected exactly one %q layer, found %d", MediaTypeModuleZip, err.Count)
 }
 
+// OCILayerSizeError reports a layer descriptor whose declared size is outside (0, ociMaxLayerSize].
+type OCILayerSizeError struct {
+	Size int64
+}
+
+func (err OCILayerSizeError) Error() string {
+	return fmt.Sprintf("layer size %d is outside the accepted range (0, %d]", err.Size, ociMaxLayerSize)
+}
+
+// OCIRestoreError reports a failed destination swap whose previous contents could not be put back.
+type OCIRestoreError struct {
+	PromoteErr error
+	RestoreErr error
+	BackupPath string
+}
+
+func (err OCIRestoreError) Error() string {
+	return fmt.Sprintf(
+		"moving module into destination failed: %v; restoring the previous contents failed: %v; backup retained at %s",
+		err.PromoteErr, err.RestoreErr, err.BackupPath,
+	)
+}
+
+// Unwrap exposes both failures to errors.Is and errors.As.
+func (err OCIRestoreError) Unwrap() []error {
+	return []error{err.PromoteErr, err.RestoreErr}
+}
+
 // OCIDigestVerificationError reports blob bytes that do not match the digest
 // the manifest layer descriptor promised.
 type OCIDigestVerificationError struct {
@@ -275,6 +305,10 @@ func (g *OCIGetter) Get(ctx context.Context, req *getter.Request) error {
 	layer, err := resolveModuleZipLayer(ctx, store, ref)
 	if err != nil {
 		return err
+	}
+
+	if layer.Size <= 0 || layer.Size > ociMaxLayerSize {
+		return OCILayerSizeError{Size: layer.Size}
 	}
 
 	if layer.Size > ociLayerSizeWarnThreshold {
@@ -489,7 +523,14 @@ func (g *OCIGetter) extractModuleWithLimits(
 		return err
 	}
 
+	var keepStaging bool
+
 	defer func() {
+		if keepStaging {
+			g.Logger.Warnf("Keeping staging directory %s: it holds the previous module contents", staging)
+			return
+		}
+
 		if err := g.FS.RemoveAll(staging); err != nil {
 			g.Logger.Warnf("Error removing staging directory %s: %v", staging, err)
 		}
@@ -515,7 +556,14 @@ func (g *OCIGetter) extractModuleWithLimits(
 		}
 	}
 
-	return g.promoteModule(staging, sourcePath, dstPath)
+	err = g.promoteModule(staging, sourcePath, dstPath)
+
+	var restoreErr OCIRestoreError
+	if errors.As(err, &restoreErr) {
+		keepStaging = true
+	}
+
+	return err
 }
 
 // promoteModule swaps sourcePath into dstPath through renames, restoring the
@@ -534,13 +582,16 @@ func (g *OCIGetter) promoteModule(staging, sourcePath, dstPath string) error {
 	}
 
 	if err := g.FS.Rename(sourcePath, dstPath); err != nil {
-		if replacing {
-			if restoreErr := g.FS.Rename(backupPath, dstPath); restoreErr != nil {
-				g.Logger.Warnf("Error restoring destination path %s: %v", dstPath, restoreErr)
-			}
+		promoteErr := fmt.Errorf("moving module into destination path %s: %w", dstPath, err)
+		if !replacing {
+			return promoteErr
 		}
 
-		return fmt.Errorf("moving module into destination path %s: %w", dstPath, err)
+		if restoreErr := g.FS.Rename(backupPath, dstPath); restoreErr != nil {
+			return OCIRestoreError{PromoteErr: promoteErr, RestoreErr: restoreErr, BackupPath: backupPath}
+		}
+
+		return promoteErr
 	}
 
 	return nil
