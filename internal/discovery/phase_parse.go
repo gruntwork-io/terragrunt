@@ -315,12 +315,12 @@ func parseComponent(
 	phase := parsePhaseFromContext(ctx)
 	depth := parseDepthFromContext(ctx)
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_parse_component", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "discovery_parse_component", map[string]any{
 		"path":      c.Path(),
 		"phase":     phase,
 		"depth":     depth,
 		"cache_hit": false,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		l.Debugf("Discovery: parsing %s (phase=%s, depth=%d)", c.Path(), phase, depth)
 
 		parseOpts := opts.Clone()

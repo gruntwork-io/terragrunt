@@ -308,11 +308,11 @@ func readUnitOutput(
 ) (map[string]cty.Value, error) {
 	var output map[string]cty.Value
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "unit_output", map[string]any{
 		"unit_name":   unit.Name,
 		"unit_source": unit.Source,
 		"unit_path":   unit.Path,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		var outputErr error
 
 		output, outputErr = unit.ReadOutputs(ctx, l, pctx, unitDir)

@@ -455,14 +455,14 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v venv.Venv, stackOpts
 		unitPath := u.Path()
 		unitName := filepath.Base(unitPath)
 
-		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx, unitLogger, "runner_pool_task", map[string]any{
 			"unit_path":              unitPath,
 			"unit_name":              unitName,
 			"terraform_command":      unitOpts.TerraformCommand,
 			"terraform_cli_args":     unitOpts.TerraformCliArgs,
 			"working_dir":            unitOpts.WorkingDir,
 			"terragrunt_config_path": unitOpts.TerragruntConfigPath,
-		}, func(childCtx context.Context) error {
+		}, func(childCtx context.Context, unitLogger log.Logger) error {
 			l.Debugf("Runner Pool Task: starting unit=%s command=%s", unitPath, unitOpts.TerraformCommand)
 
 			// Wrap the writer to buffer unit-scoped output. Build a per-unit
@@ -495,11 +495,11 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v venv.Venv, stackOpts
 
 			var cfg *config.TerragruntConfig
 
-			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, "unit_read_config", map[string]any{
+			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, unitLogger, "unit_read_config", map[string]any{
 				"unit_path":              unitPath,
 				"unit_name":              unitName,
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
-			}, func(readCtx context.Context) error {
+			}, func(readCtx context.Context, unitLogger log.Logger) error {
 				parseCtx, pctx := configbridge.NewParsingContext(readCtx, unitLogger, unitOpts)
 				pctx = pctx.WithVenv(unitV)
 
@@ -526,11 +526,11 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, v venv.Venv, stackOpts
 
 			runCfg := cfg.ToRunConfig(unitLogger)
 
-			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, "unit_run", map[string]any{
+			err = telemetry.TelemeterFromContext(childCtx).Collect(childCtx, unitLogger, "unit_run", map[string]any{
 				"unit_path":         unitPath,
 				"unit_name":         unitName,
 				"terraform_command": unitOpts.TerraformCommand,
-			}, func(runCtx context.Context) error {
+			}, func(runCtx context.Context, unitLogger log.Logger) error {
 				return unitRunner.Run(
 					runCtx,
 					unitLogger,

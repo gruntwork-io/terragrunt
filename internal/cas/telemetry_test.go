@@ -29,7 +29,7 @@ func TestFetchSource_ProbeFailureRecordsFallback(t *testing.T) {
 
 	tlm, err := telemetry.NewTelemeter(t.Context(), l, "terragrunt", "v0.0.0-test", &buf, &telemetry.Options{
 		TraceExporter: "console",
-	})
+	}, false)
 	require.NoError(t, err)
 	require.NotNil(t, tlm)
 

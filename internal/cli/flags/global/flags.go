@@ -58,6 +58,8 @@ const (
 	TraceparentFlagName                             = "traceparent"
 	TelemetryMetricExporterFlagName                 = "telemetry-metric-exporter"
 	TelemetryMetricExporterInsecureEndpointFlagName = "telemetry-metric-exporter-insecure-endpoint"
+	TelemetryLogsExporterFlagName                   = "telemetry-logs-exporter"
+	TelemetryLogsExporterInsecureEndpointFlagName   = "telemetry-logs-exporter-insecure-endpoint"
 
 	// Renamed flags.
 
@@ -309,6 +311,16 @@ func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-metric-exporter-insecure-endpoint"), opts.StrictControls),
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-metric-exporter-insecure-endpoint"), opts.StrictControls)),
+
+		flags.NewFlag(&clihelper.GenericFlag[string]{
+			EnvVars:     tgPrefix.EnvVars(TelemetryLogsExporterFlagName),
+			Destination: &opts.Telemetry.LogsExporter,
+		}),
+
+		flags.NewFlag(&clihelper.BoolFlag{
+			EnvVars:     tgPrefix.EnvVars(TelemetryLogsExporterInsecureEndpointFlagName),
+			Destination: &opts.Telemetry.LogsExporterInsecureEndpoint,
+		}),
 	}
 }
 
