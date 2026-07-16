@@ -56,6 +56,8 @@ const (
 	// stringCompParams is the exact number of arguments expected by the
 	// startswith, endswith, and strcontains helpers (haystack + needle).
 	stringCompParams = 2
+
+	terragruntWithCacheFlag = "--terragrunt-with-cache"
 )
 
 // RunCmdCacheEntry stores run_cmd results including output for replay.
@@ -877,7 +879,61 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	return TerragruntConfigAsCty(config)
 }
 
-// Create a cty Function that can be used to for calling read_terragrunt_config.
+// parseReadTerragruntConfigArgs extracts the optional --terragrunt-with-cache flag,
+// config path, and optional default value from read_terragrunt_config call arguments.
+func parseReadTerragruntConfigArgs(args []cty.Value) (useCache bool, configPath string, defaultVal *cty.Value, err error) {
+	if len(args) == 0 {
+		return false, "", nil, WrongNumberOfParamsError{
+			Func:     FuncNameReadTerragruntConfig,
+			Expected: "1 or 2",
+			Actual:   0,
+		}
+	}
+
+	remaining := args
+	if args[0].Type() == cty.String {
+		switch args[0].AsString() {
+		case terragruntWithCacheFlag:
+			useCache = true
+			remaining = args[1:]
+		default:
+			if strings.HasPrefix(args[0].AsString(), "--terragrunt-") {
+				return false, "", nil, UnknownReadTerragruntConfigOptionError{Option: args[0].AsString()}
+			}
+		}
+	}
+
+	numParams := len(remaining)
+	switch {
+	case useCache && (numParams == 0 || numParams > matchedPats):
+		return false, "", nil, WrongNumberOfParamsError{
+			Func:     FuncNameReadTerragruntConfig,
+			Expected: "2 or 3 (with --terragrunt-with-cache)",
+			Actual:   len(args),
+		}
+	case !useCache && (numParams == 0 || numParams > matchedPats):
+		return false, "", nil, WrongNumberOfParamsError{
+			Func:     FuncNameReadTerragruntConfig,
+			Expected: "1 or 2",
+			Actual:   len(args),
+		}
+	}
+
+	strArgs, err := ctySliceToStringSlice(remaining[:1])
+	if err != nil {
+		return false, "", nil, err
+	}
+
+	configPath = strArgs[0]
+
+	if numParams == matchedPats {
+		defaultVal = &remaining[1]
+	}
+
+	return useCache, configPath, defaultVal, nil
+}
+
+// Create a cty Function that can be used to call read_terragrunt_config.
 func readTerragruntConfigAsFuncImpl(ctx context.Context, pctx *ParsingContext, l log.Logger) function.Function {
 	return function.New(&function.Spec{
 		// Takes one required string param
@@ -887,25 +943,50 @@ func readTerragruntConfigAsFuncImpl(ctx context.Context, pctx *ParsingContext, l
 		// We don't know the return type until we parse the terragrunt config, so we use a dynamic type
 		Type: function.StaticReturnType(cty.DynamicPseudoType),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			numParams := len(args)
-
-			if numParams == 0 || numParams > 2 {
-				return cty.NilVal, WrongNumberOfParamsError{Func: "read_terragrunt_config", Expected: "1 or 2", Actual: numParams}
-			}
-
-			strArgs, err := ctySliceToStringSlice(args[:1])
+			useCache, targetConfigPath, defaultVal, err := parseReadTerragruntConfigArgs(args)
 			if err != nil {
 				return cty.NilVal, err
 			}
 
-			var defaultVal *cty.Value = nil
-			if numParams == matchedPats {
-				defaultVal = &args[1]
+			if !useCache {
+				return ParseTerragruntConfig(ctx, pctx, l, targetConfigPath, defaultVal)
 			}
 
-			targetConfigPath := strArgs[0]
+			targetConfig := getCleanedTargetConfigPath(targetConfigPath, pctx.TerragruntConfigPath)
+			readConfigCache := cache.ContextCache[cty.Value](ctx, ReadTerragruntConfigCacheContextKey)
+			cacheKey := fmt.Sprintf("parse-terragrunt-config-%v-hasDefault=%t", targetConfig, defaultVal != nil)
 
-			return ParseTerragruntConfig(ctx, pctx, l, targetConfigPath, defaultVal)
+			if cachedConfig, found := readConfigCache.Get(ctx, cacheKey); found {
+				l.Debugf("%s: cache hit for %s", FuncNameReadTerragruntConfig, targetConfig)
+
+				return cachedConfig, nil
+			}
+
+			l.Debugf("%s: cache miss for %s", FuncNameReadTerragruntConfig, targetConfig)
+
+			attrs := map[string]any{
+				"config_path":        pctx.TerragruntConfigPath,
+				"working_dir":        pctx.WorkingDir,
+				"target_config_path": targetConfigPath,
+				"has_default":        defaultVal != nil,
+			}
+
+			var result cty.Value
+
+			err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_read_terragrunt_config_with_cache", attrs, func(childCtx context.Context) error {
+				var innerErr error
+
+				result, innerErr = ParseTerragruntConfig(childCtx, pctx, l, targetConfigPath, defaultVal)
+
+				return innerErr
+			})
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			readConfigCache.Put(ctx, cacheKey, result)
+
+			return result, nil
 		},
 	})
 }

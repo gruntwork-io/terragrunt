@@ -944,6 +944,28 @@ Notes:
 
 - `read_terragrunt_config` can be also used to read `terragrunt.stack.hcl` and `terragrunt.values.hcl` files.
 
+### Special Parameters
+
+The `read_terragrunt_config` function accepts special flags that alter how the function evaluates configuration files. Placing these `--terragrunt-` prefixed flags as the first argument of a `read_terragrunt_config` call will adjust its behavior.
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `--terragrunt-with-cache` | Caches the parsed configuration in-memory for the current Terragrunt invocation, keyed by absolute file path. Subsequent reads of the same file return the first parse result. Useful when the same shared configuration file is read many times during `run --all`. | `read_terragrunt_config("--terragrunt-with-cache", find_in_parent_folders("common.hcl"))` |
+
+Unlike `run_cmd`, `read_terragrunt_config` does not cache by default. Pass `--terragrunt-with-cache` only when you want to reuse a previously parsed result.
+
+**Scope and invalidation:** The cache is in-memory and per process — it is not persisted between Terragrunt runs. The first successful parse wins: subsequent reads in the same invocation return that cached value, even if the underlying file changes later during parsing.
+
+**Warning:** When using `--terragrunt-with-cache`, context-dependent functions like [`get_original_terragrunt_dir()`](#get_original_terragrunt_dir) return the value from the first parse, not the current calling context. This can cause issues when the same configuration file is accessed from different modules. If you need `original_terragrunt_dir` to reflect the current parsing context, call `read_terragrunt_config` without the flag.
+
+#### Example
+
+```hcl
+locals {
+  global_accts = read_terragrunt_config("--terragrunt-with-cache", find_in_parent_folders("global-accounts.hcl")).locals
+}
+```
+
 ## sops_decrypt_file
 
 `sops_decrypt_file(file_path)` decrypts a yaml, json, ini, env or "raw text" file encrypted with `sops`.
