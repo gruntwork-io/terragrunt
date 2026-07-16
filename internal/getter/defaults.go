@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	gcs "github.com/hashicorp/go-getter/gcs/v2"
@@ -33,7 +34,7 @@ type genericFetcherConfig struct {
 	tfrLogger  log.Logger
 	tfrFS      vfs.FS
 	ociLogger  log.Logger
-	ociFS      vfs.FS
+	ociVenv    venv.Venv
 	httpExtra  http.Header
 	httpsExtra http.Header
 	tfrImpl    tfimpl.Type
@@ -69,10 +70,10 @@ func WithTFRConfig(l log.Logger, impl tfimpl.Type, fs vfs.FS) GenericFetcherOpti
 // unset, oci is omitted from the generic-dispatch maps so [CASGetter]
 // cannot route oci:// through CAS. The standard (non-CAS) client registers
 // its own [OCIGetter] via [WithOCI] and is unaffected.
-func WithOCIConfig(l log.Logger, fs vfs.FS) GenericFetcherOption {
+func WithOCIConfig(l log.Logger, v venv.Venv) GenericFetcherOption {
 	return func(c *genericFetcherConfig) {
 		c.ociLogger = l
-		c.ociFS = fs
+		c.ociVenv = v
 	}
 }
 
@@ -101,9 +102,9 @@ func DefaultGenericFetchers(opts ...GenericFetcherOption) map[string]getter.Gett
 
 	if cfg.ociLogger != nil {
 		m[SchemeOCI] = &OCIGetter{
-			NewStore: NewOCIRepositoryStore(cfg.ociLogger),
+			NewStore: NewOCIRepositoryStore(cfg.ociLogger, cfg.ociVenv),
 			Logger:   cfg.ociLogger,
-			FS:       cfg.ociFS,
+			FS:       cfg.ociVenv.FS,
 		}
 	}
 

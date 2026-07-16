@@ -2,14 +2,20 @@ package getter
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	iofs "io/fs"
+	"maps"
 	"net/http"
-	"os"
 	"path/filepath"
-	"runtime"
+	"slices"
+	"strings"
+	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/version"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
@@ -17,83 +23,134 @@ import (
 	"oras.land/oras-go/v2/registry/remote/retry"
 )
 
-// Interim static-credential environment variables for oci:// sources,
-// applying to every registry. The TG_TMP_ prefix marks them as a temporary
-// surface: do NOT rely on them; the durable configured-credential surface is
-// a pending design decision and these will be replaced by it.
+// Interim, undocumented static-credential env vars (unscoped without TG_TMP_OCI_REGISTRY).
 const (
 	EnvOCIUsername = "TG_TMP_OCI_USERNAME"
 	EnvOCIPassword = "TG_TMP_OCI_PASSWORD"
 	EnvOCIToken    = "TG_TMP_OCI_TOKEN"
+	EnvOCIRegistry = "TG_TMP_OCI_REGISTRY"
 )
 
-// ociUserAgent identifies Terragrunt to registry operators.
-const ociUserAgent = "terragrunt"
+// ociDockerHubKey is the lookup key every Docker Hub spelling folds onto.
+const ociDockerHubKey = "docker.io"
 
-// ErrOCIStaticCredentialConflict reports both a token and a username or
-// password set in the static-credential environment.
+// ociDockerHubRegistries are the registry hosts login tools use for Docker Hub.
+// Docker also writes the legacy index.docker.io/v1 URL, handled separately by
+// ociCanonicalAuthKey after URL normalization.
+var ociDockerHubRegistries = []string{
+	"docker.io",
+	"index.docker.io",
+	"registry-1.docker.io",
+}
+
+// ErrOCIStaticCredentialConflict reports both a token and a username or password set.
 var ErrOCIStaticCredentialConflict = errors.New("cannot set both a token and a username or password for oci sources")
 
-// ErrOCIStaticCredentialIncomplete reports a username without a password, or
-// the reverse, in the static-credential environment.
+// ErrOCIStaticCredentialIncomplete reports a username without a password, or the reverse.
 var ErrOCIStaticCredentialIncomplete = errors.New("oci static credentials require both a username and a password")
 
 // The default store must satisfy the seam the getter consumes.
 var _ OCIRepositoryStore = (*remote.Repository)(nil)
 
+// ociUserAgent is the versioned User-Agent sent to registries.
+func ociUserAgent() string {
+	return "terragrunt/" + version.GetVersion()
+}
+
+// ociCredentialFactory binds credential resolution to one repository, since the
+// most specific ambient entry depends on the repository being pulled.
+type ociCredentialFactory func(repositoryName string) auth.CredentialFunc
+
 // NewOCIRepositoryStore returns the default Tier-1 [OCINewStoreFunc]: static
 // environment credentials when set, otherwise read-only ambient discovery of
 // Docker and containers auth files. It never invokes credential helpers, so
-// registries needing per-run token minting (e.g. Amazon ECR) only work for
-// the lifetime of an externally obtained login in one of the ambient files.
-// Ambient files that exist but cannot be used are skipped with a warning, so
-// one corrupt file never breaks downloads that need weaker or no credentials.
-func NewOCIRepositoryStore(l log.Logger) OCINewStoreFunc {
+// registries needing per-run token minting (e.g. Amazon ECR) only work for the
+// lifetime of an externally obtained login in one of the ambient files.
+func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
+	v.RequireFS()
+	v.RequireEnv()
+	v.RequireGOOS()
+	v.RequireUserHomeDir()
+
+	resolveCredential := sync.OnceValues(func() (ociCredentialFactory, error) {
+		return ociCredentialFunc(l, v)
+	})
+	caches := &ociCacheSet{caches: map[string]auth.Cache{}}
+
 	return func(_ context.Context, registryDomain, repositoryName string) (OCIRepositoryStore, error) {
-		credentialFn, err := ociCredentialFunc(l)
+		credentialFor, err := resolveCredential()
 		if err != nil {
 			return nil, err
 		}
 
-		repo, err := remote.NewRepository(registryDomain + "/" + repositoryName)
+		reference := registryDomain + "/" + repositoryName
+
+		repo, err := remote.NewRepository(reference)
 		if err != nil {
 			return nil, fmt.Errorf("parsing OCI repository reference: %w", err)
 		}
 
 		repo.Client = &auth.Client{
 			Client:     retry.DefaultClient,
-			Cache:      auth.NewCache(),
-			Credential: credentialFn,
-			Header:     http.Header{"User-Agent": []string{ociUserAgent}},
+			Cache:      caches.get(reference),
+			Credential: credentialFor(repositoryName),
+			Header:     http.Header{"User-Agent": []string{ociUserAgent()}},
 		}
 
 		return repo, nil
 	}
 }
 
-// ociCredentialFunc resolves the credential source once: static environment
-// credentials take precedence over ambient discovery.
-func ociCredentialFunc(l log.Logger) (auth.CredentialFunc, error) {
-	staticCred, found, err := ociStaticCredential()
+// ociCredentialFunc resolves static environment credentials, falling back to
+// ambient discovery through the Venv.
+func ociCredentialFunc(l log.Logger, v venv.Venv) (ociCredentialFactory, error) {
+	staticCred, found, err := ociStaticCredential(v)
 	if err != nil {
 		return nil, err
 	}
 
-	if found {
-		return func(_ context.Context, _ string) (auth.Credential, error) {
-			return staticCred, nil
+	ambient := ociAmbientCredentialFunc(l, v)
+
+	if !found {
+		return ambient, nil
+	}
+
+	registry := v.Env[EnvOCIRegistry]
+	if registry == "" {
+		// Unscoped: the credential applies to every registry the run contacts.
+		return func(_ string) auth.CredentialFunc {
+			return func(_ context.Context, _ string) (auth.Credential, error) {
+				return staticCred, nil
+			}
 		}, nil
 	}
 
-	return ociAmbientCredentialFunc(l), nil
+	// Scoped: static serves its registry, the rest still resolve ambient.
+	scoped := auth.StaticCredential(registry, staticCred)
+
+	return func(repositoryName string) auth.CredentialFunc {
+		ambientFn := ambient(repositoryName)
+
+		return func(ctx context.Context, hostport string) (auth.Credential, error) {
+			cred, err := scoped(ctx, hostport)
+			if err != nil {
+				return auth.EmptyCredential, err
+			}
+
+			if cred != auth.EmptyCredential {
+				return cred, nil
+			}
+
+			return ambientFn(ctx, hostport)
+		}
+	}, nil
 }
 
-// ociStaticCredential reads the interim static-credential environment:
-// either a token or a username plus password.
-func ociStaticCredential() (auth.Credential, bool, error) {
-	username := os.Getenv(EnvOCIUsername)
-	password := os.Getenv(EnvOCIPassword)
-	token := os.Getenv(EnvOCIToken)
+// ociStaticCredential reads a token or a username plus password from v.Env.
+func ociStaticCredential(v venv.Venv) (auth.Credential, bool, error) {
+	username := v.Env[EnvOCIUsername]
+	password := v.Env[EnvOCIPassword]
+	token := v.Env[EnvOCIToken]
 
 	if token != "" && (username != "" || password != "") {
 		return auth.EmptyCredential, false, ErrOCIStaticCredentialConflict
@@ -114,66 +171,94 @@ func ociStaticCredential() (auth.Credential, bool, error) {
 	return auth.EmptyCredential, false, nil
 }
 
-// ociAmbientCredentialFunc chains read-only file stores over the ambient
-// credential files that exist, in [ociAmbientCredentialPaths] order. File
-// stores parse credentials only; credential helpers are never invoked. A
-// candidate that is missing is skipped silently; one that exists but cannot
-// be read or parsed is skipped with a warning, so a corrupt file lower in
-// the chain never breaks anonymous pulls or higher-priority credentials.
-func ociAmbientCredentialFunc(l log.Logger) auth.CredentialFunc {
-	candidates := ociAmbientCredentialPaths()
-	stores := make([]credentials.Store, 0, len(candidates))
+// ociAmbientStore keeps one Venv-read auth file and its canonical key index.
+type ociAmbientStore struct {
+	auths map[string]json.RawMessage
+	// declared maps a lookup key to every spelling the file uses for it. Only
+	// keys present here are ever requested, because a hostname-only lookup can
+	// return an arbitrary repository-scoped entry when no exact key exists.
+	declared map[string][]string
+	path     string
+}
 
-	for _, path := range candidates {
-		if _, err := os.Stat(path); err != nil {
+// ociAmbientCredentialFunc consults ambient files in order. Each file is read
+// only through v.FS, and only the selected entry is decoded, so one malformed
+// entry cannot hide valid credentials elsewhere in the same file.
+func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
+	candidates := ociAmbientCredentialPaths(v)
+	stores := make([]ociAmbientStore, 0, len(candidates))
+
+	for _, candidate := range candidates {
+		auths, declared, err := ociAuthFile(v, candidate)
+		if err != nil {
 			if !errors.Is(err, iofs.ErrNotExist) {
-				l.Warnf("Skipping OCI credential file %s: %v", path, err)
+				l.Warnf("Skipping unparseable OCI credential file %s: %v", candidate, err)
 			}
 
 			continue
 		}
 
-		store, err := credentials.NewFileStore(path)
-		if err != nil {
-			l.Warnf("Skipping unparseable OCI credential file %s: %v", path, err)
-
-			continue
-		}
-
-		stores = append(stores, store)
+		stores = append(stores, ociAmbientStore{
+			auths:    auths,
+			declared: declared,
+			path:     candidate,
+		})
 	}
 
-	if len(stores) == 0 {
-		return func(_ context.Context, _ string) (auth.Credential, error) {
+	return func(repositoryName string) auth.CredentialFunc {
+		return func(ctx context.Context, hostport string) (auth.Credential, error) {
+			// Most specific key first, so a repository-scoped entry beats a
+			// registry-wide one and no other namespace's entry can answer.
+			for _, key := range ociCredentialKeys(hostport, repositoryName) {
+				for _, ambient := range stores {
+					declaredAliases, ok := ambient.declared[key]
+					if !ok {
+						continue
+					}
+
+					for _, declared := range declaredAliases {
+						cred, err := ociCredentialFromAuthConfig(ctx, ambient.auths[declared])
+						if err != nil {
+							// The decoder error can contain credential material, so do not log it.
+							l.Warnf("Skipping unusable OCI credential entry for %s in %s", declared, ambient.path)
+
+							continue
+						}
+
+						if cred != auth.EmptyCredential {
+							return cred, nil
+						}
+					}
+				}
+			}
+
 			return auth.EmptyCredential, nil
 		}
 	}
-
-	return credentials.Credential(credentials.NewStoreWithFallbacks(stores[0], stores[1:]...))
 }
 
-// ociAmbientCredentialPaths returns the ambient credential file candidates
-// in the containers-auth search order OpenTofu follows, part of the
-// portability contract: a source string authenticating via ambient files
-// must resolve the same credentials under tofu and Terragrunt. The runtime
-// directory applies to Linux only, a set XDG_CONFIG_HOME replaces the
-// default ~/.config location, and a set DOCKER_CONFIG replaces the default
-// ~/.docker location.
-func ociAmbientCredentialPaths() []string {
+// ociAmbientCredentialPaths returns OpenTofu's containers-auth candidates in
+// precedence order. The runtime file is Linux-only; macOS and Windows search
+// literal ~/.config before XDG config; DOCKER_CONFIG is intentionally ignored.
+func ociAmbientCredentialPaths(v venv.Venv) []string {
 	var paths []string
 
-	if runtime.GOOS == "linux" {
-		if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
+	if v.Platform.GOOS == "linux" {
+		if dir := v.Env["XDG_RUNTIME_DIR"]; dir != "" {
 			paths = append(paths, filepath.Join(dir, "containers", "auth.json"))
 		}
 	}
 
-	home, err := os.UserHomeDir()
+	home, err := v.Platform.UserHomeDir()
 	if err != nil {
 		home = ""
 	}
 
-	configDir := os.Getenv("XDG_CONFIG_HOME")
+	if (v.Platform.GOOS == "windows" || v.Platform.GOOS == "darwin") && home != "" {
+		paths = append(paths, filepath.Join(home, ".config", "containers", "auth.json"))
+	}
+
+	configDir := v.Env["XDG_CONFIG_HOME"]
 	if configDir == "" && home != "" {
 		configDir = filepath.Join(home, ".config")
 	}
@@ -182,14 +267,123 @@ func ociAmbientCredentialPaths() []string {
 		paths = append(paths, filepath.Join(configDir, "containers", "auth.json"))
 	}
 
-	dockerConfigDir := os.Getenv("DOCKER_CONFIG")
-	if dockerConfigDir == "" && home != "" {
-		dockerConfigDir = filepath.Join(home, ".docker")
+	if home != "" {
+		paths = append(paths, filepath.Join(home, ".docker", "config.json"))
 	}
 
-	if dockerConfigDir != "" {
-		paths = append(paths, filepath.Join(dockerConfigDir, "config.json"))
+	return slices.Compact(paths)
+}
+
+// ociCredentialKeys returns the lookup keys serving repositoryName on hostport,
+// most specific first: the repository-scoped containers-auth entries, then the
+// registry itself.
+func ociCredentialKeys(hostport, repositoryName string) []string {
+	registry := ociCanonicalAuthKey(hostport)
+	if registry == "" {
+		return nil
 	}
 
-	return paths
+	var keys []string
+
+	if repositoryName != "" {
+		segments := strings.Split(repositoryName, "/")
+		for i := len(segments); i > 0; i-- {
+			keys = append(keys, registry+"/"+strings.Join(segments[:i], "/"))
+		}
+	}
+
+	return append(keys, registry)
+}
+
+// ociCanonicalAuthKey folds an auth file key, or a request host, onto the key
+// the resolver matches on, so the Docker Hub spellings and a legacy config's
+// scheme all meet in one place.
+func ociCanonicalAuthKey(key string) string {
+	stripped := strings.TrimPrefix(key, "https://")
+	stripped = strings.TrimPrefix(stripped, "http://")
+	stripped = strings.TrimRight(stripped, "/")
+
+	if stripped == "index.docker.io/v1" {
+		return ociDockerHubKey
+	}
+
+	registry, repository, found := strings.Cut(stripped, "/")
+	if slices.Contains(ociDockerHubRegistries, registry) {
+		registry = ociDockerHubKey
+	}
+
+	if !found || repository == "" {
+		return registry
+	}
+
+	return registry + "/" + repository
+}
+
+// ociAuthFile reads an auth file through v.FS and builds its exact-key index.
+func ociAuthFile(v venv.Venv, path string) (map[string]json.RawMessage, map[string][]string, error) {
+	data, err := vfs.ReadFile(v.FS, path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var file struct {
+		Auths map[string]json.RawMessage `json:"auths"`
+	}
+
+	if err := json.Unmarshal(data, &file); err != nil {
+		return nil, nil, err
+	}
+
+	declaredKeys := make(map[string][]string, len(file.Auths))
+
+	// Sorted, so multiple spellings of one key resolve the same way on every run.
+	for _, declared := range slices.Sorted(maps.Keys(file.Auths)) {
+		canonical := ociCanonicalAuthKey(declared)
+		declaredKeys[canonical] = append(declaredKeys[canonical], declared)
+	}
+
+	return file.Auths, declaredKeys, nil
+}
+
+// ociCredentialFromAuthConfig delegates one selected entry to ORAS's Docker
+// config decoder without letting ORAS normalize the file's real lookup key.
+func ociCredentialFromAuthConfig(ctx context.Context, raw json.RawMessage) (auth.Credential, error) {
+	const syntheticKey = "terragrunt.invalid"
+
+	data, err := json.Marshal(struct {
+		Auths map[string]json.RawMessage `json:"auths"`
+	}{
+		Auths: map[string]json.RawMessage{syntheticKey: raw},
+	})
+	if err != nil {
+		return auth.EmptyCredential, err
+	}
+
+	store, err := credentials.NewMemoryStoreFromDockerConfig(data)
+	if err != nil {
+		return auth.EmptyCredential, err
+	}
+
+	return store.Get(ctx, syntheticKey)
+}
+
+// ociCacheSet hands out one auth cache per repository, so a credential cached
+// for one repository is never replayed for another on the same host.
+type ociCacheSet struct {
+	caches map[string]auth.Cache
+	mu     sync.Mutex
+}
+
+func (s *ociCacheSet) get(reference string) auth.Cache {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if cache, ok := s.caches[reference]; ok {
+		return cache
+	}
+
+	cache := auth.NewCache()
+	s.caches[reference] = cache
+
+	return cache
 }

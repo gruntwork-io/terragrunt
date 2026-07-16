@@ -478,7 +478,7 @@ func downloadSource(
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
-		done, err := tryCASDownload(ctx, l, src, opts, cfg.Terraform.Mutable)
+		done, err := tryCASDownload(ctx, l, v, src, opts, cfg.Terraform.Mutable)
 		if err != nil {
 			return err
 		}
@@ -515,6 +515,7 @@ func downloadSource(
 func tryCASDownload(
 	ctx context.Context,
 	l log.Logger,
+	v venv.Venv,
 	src *tf.Source,
 	opts *Options,
 	mutable bool,
@@ -549,7 +550,7 @@ func tryCASDownload(
 		return false, nil
 	}
 
-	venv, err := cas.OSVenv()
+	casVenv, err := cas.OSVenv()
 	if err != nil {
 		l.Warnf("Failed to initialize CAS environment: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
@@ -568,15 +569,15 @@ func tryCASDownload(
 		Mutable:          mutable,
 	}
 
-	casProtocol := getter.NewCASProtocolGetter(l, c, venv)
+	casProtocol := getter.NewCASProtocolGetter(l, c, casVenv)
 	casProtocol.Mutable = mutable
 
 	dispatchOpts := []getter.GenericFetcherOption{
-		getter.WithTFRConfig(l, opts.TofuImplementation, venv.FS),
+		getter.WithTFRConfig(l, opts.TofuImplementation, casVenv.FS),
 	}
 
 	if opts.Experiments.Evaluate(experiment.OCI) {
-		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(l, venv.FS))
+		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(l, v))
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
@@ -586,7 +587,7 @@ func tryCASDownload(
 	client := &getter.Client{
 		Getters: []getter.Getter{
 			casProtocol,
-			getter.NewCASGetter(l, c, venv, &cloneOpts, getter.WithDefaultGenericDispatch(dispatchOpts...)),
+			getter.NewCASGetter(l, c, casVenv, &cloneOpts, getter.WithDefaultGenericDispatch(dispatchOpts...)),
 		},
 	}
 
@@ -653,7 +654,7 @@ func BuildDownloadClient(
 
 	if opts.Experiments.Evaluate(experiment.OCI) {
 		clientOpts = append(clientOpts, getter.WithOCI(&getter.OCIGetter{
-			NewStore: getter.NewOCIRepositoryStore(l),
+			NewStore: getter.NewOCIRepositoryStore(l, v),
 			Logger:   l,
 			FS:       v.FS,
 		}))

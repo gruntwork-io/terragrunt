@@ -76,7 +76,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, v venv.Venv, runOpt
 	}
 
 	if !runOpts.ShellOptions.ForwardTFStdout {
-		outWriter, errWriter := logTFOutput(l, v.Writers, runOpts, args)
+		outWriter, errWriter := logTFOutput(l, *v.Writers, runOpts, args)
 		v = v.WithWriter(outWriter).WithErrWriter(errWriter)
 	}
 
