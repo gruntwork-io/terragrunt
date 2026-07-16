@@ -75,11 +75,11 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 	)
 
 	// Wrap discovery with telemetry
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "list_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
 		"no_hidden":    opts.NoHidden,
 		"dependencies": opts.Dependencies || opts.Mode == ModeDAG,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		components, discoverErr = d.Discover(ctx, l, v, opts.TerragruntOptions)
 
 		if span := trace.SpanFromContext(ctx); span.IsRecording() {
@@ -96,10 +96,10 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 	case ModeNormal:
 		components = components.Sort()
 	case ModeDAG:
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_mode_dag", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "list_mode_dag", map[string]any{
 			"working_dir":  opts.WorkingDir,
 			"config_count": len(components),
-		}, func(ctx context.Context) error {
+		}, func(ctx context.Context, l log.Logger) error {
 			q, queueErr := queue.NewQueue(components)
 			if queueErr != nil {
 				return queueErr
@@ -120,10 +120,10 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 
 	var listedComponents dag.ListedComponents
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discovered_to_listed", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "list_discovered_to_listed", map[string]any{
 		"working_dir":  opts.WorkingDir,
 		"config_count": len(components),
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		listedComponents = discoveredToListed(l, components, opts)
 
 		if span := trace.SpanFromContext(ctx); span.IsRecording() {

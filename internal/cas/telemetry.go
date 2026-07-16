@@ -53,9 +53,10 @@ func RecordFallback(ctx context.Context, l log.Logger, reason FallbackReason, at
 
 	maps.Copy(all, attrs)
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_fallback", all, func(context.Context) error {
-		return nil
-	})
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "cas_fallback", all,
+		func(context.Context, log.Logger) error {
+			return nil
+		})
 	if err != nil {
 		l.Debugf("cas: failed to record fallback telemetry: %v", err)
 	}

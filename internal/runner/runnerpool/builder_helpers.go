@@ -29,8 +29,8 @@ const (
 )
 
 // doWithTelemetry is a small helper to standardize telemetry collection calls.
-func doWithTelemetry(ctx context.Context, name string, fields map[string]any, fn func(context.Context) error) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, name, fields, fn)
+func doWithTelemetry(ctx context.Context, l log.Logger, name string, fields map[string]any, fn func(context.Context, log.Logger) error) error {
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, name, fields, fn)
 }
 
 // resolveWorkingDir determines the canonical working directory for discovery.
@@ -129,10 +129,10 @@ func discoverWithRetry(
 
 	var discovered component.Components
 
-	err := doWithTelemetry(ctx, telemetryDiscovery, map[string]any{
+	err := doWithTelemetry(ctx, l, telemetryDiscovery, map[string]any{
 		"working_dir":       opts.WorkingDir,
 		"terraform_command": opts.TerraformCommand,
-	}, func(childCtx context.Context) error {
+	}, func(childCtx context.Context, l log.Logger) error {
 		var discoveryErr error
 
 		discovered, discoveryErr = d.Discover(childCtx, l, v, opts)
@@ -159,10 +159,10 @@ func createRunner(
 ) (common.StackRunner, error) {
 	var rnr common.StackRunner
 
-	err := doWithTelemetry(ctx, telemetryCreation, map[string]any{
+	err := doWithTelemetry(ctx, l, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
 		"terraform_command":  opts.TerraformCommand,
-	}, func(childCtx context.Context) error {
+	}, func(childCtx context.Context, l log.Logger) error {
 		var err2 error
 
 		rnr, err2 = NewRunnerPoolStack(childCtx, l, opts, comps, runnerOpts...)

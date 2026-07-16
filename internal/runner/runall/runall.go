@@ -145,10 +145,10 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 
 		// Clean stack folders before calling `generate` when the `--source-update` flag is passed
 		if opts.SourceUpdate {
-			errClean := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_clean", map[string]any{
+			errClean := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "stack_clean", map[string]any{
 				"stack_config_path": opts.TerragruntStackConfigPath,
 				"working_dir":       opts.WorkingDir,
-			}, func(ctx context.Context) error {
+			}, func(ctx context.Context, l log.Logger) error {
 				l.Debugf("Running stack clean for %s, as part of generate command", opts.WorkingDir)
 				return clean.CleanStacks(l, opts)
 			})
@@ -159,10 +159,10 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 
 		// Generate the stack configuration with telemetry tracking
 		gen := generate.NewGenerator()
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "stack_generate", map[string]any{
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
-		}, func(ctx context.Context) error {
+		}, func(ctx context.Context, l log.Logger) error {
 			return gen.GenerateStacks(ctx, l, v, opts, wts)
 		})
 
@@ -238,10 +238,10 @@ func RunAllOnStack(
 
 	var runErr error
 
-	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
+	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "run_all_on_stack", map[string]any{
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		err := rnr.Run(ctx, l, v, opts, r)
 		if err != nil {
 			// At this stage, we can't handle the error any further, so we just log it and return nil.

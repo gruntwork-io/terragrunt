@@ -96,6 +96,12 @@ require (
 	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/wI2L/jsondiff v0.7.1
 	github.com/xeipuuv/gojsonschema v1.2.0
+	go.opentelemetry.io/contrib/bridges/otellogrus v0.19.0
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.20.0
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.20.0
+	go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.20.0
+	go.opentelemetry.io/otel/log v0.20.0
+	go.opentelemetry.io/otel/sdk/log v0.20.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.53.0
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90

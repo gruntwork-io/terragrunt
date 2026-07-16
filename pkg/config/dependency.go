@@ -297,7 +297,7 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 
 	var result *cty.Value
 
-	err = TraceParseDependencies(ctx, file.ConfigPath, pctx.SkipOutputsResolution, len(decodedDependency.Dependencies), dependencyNames, func(ctx context.Context) error {
+	err = TraceParseDependencies(ctx, l, file.ConfigPath, pctx.SkipOutputsResolution, len(decodedDependency.Dependencies), dependencyNames, func(ctx context.Context, l log.Logger) error {
 		var depErr error
 
 		result, depErr = dependencyBlocksToCtyValue(ctx, pctx, l, decodedDependency.Dependencies)
@@ -936,7 +936,7 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 		fetchAttrs["dependency_name"] = name
 	}
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "dependency_output_fetch", fetchAttrs, func(fetchCtx context.Context) error {
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "dependency_output_fetch", fetchAttrs, func(fetchCtx context.Context, l log.Logger) error {
 		jsonCache := cache.ContextCache[[]byte](fetchCtx, JSONOutputCacheContextKey)
 		if cached, found := jsonCache.Get(fetchCtx, targetConfig); found {
 			l.Debugf("%s was run before. Using cached output.", targetConfig)
@@ -1432,10 +1432,10 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 
 	var jsonOutputs []byte
 
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "dependency_output_state_s3", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "dependency_output_state_s3", map[string]any{
 		"bucket": bucket,
 		"key":    key,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		s3ConfigExtended, err := s3backend.Config(remoteState.BackendConfig).ParseExtendedS3Config()
 		if err != nil {
 			return fmt.Errorf("parsing s3 backend config for s3://%s/%s: %w", bucket, key, err)

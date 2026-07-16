@@ -27,10 +27,10 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 }
 
 func runBootstrap(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "backend_bootstrap", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "backend_bootstrap", map[string]any{
 		"working_dir":            opts.WorkingDir,
 		"terragrunt_config_path": opts.TerragruntConfigPath,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 		pctx = pctx.WithVenv(v)
 
@@ -53,11 +53,11 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terrag
 
 	units := components.Filter(component.UnitKind).Sort()
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "backend_bootstrap_all", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "backend_bootstrap_all", map[string]any{
 		"working_dir": opts.WorkingDir,
 		"unit_count":  len(units),
 		"fail_fast":   opts.FailFast,
-	}, func(ctx context.Context) error {
+	}, func(ctx context.Context, l log.Logger) error {
 		var errs []error
 
 		for _, unit := range units {
