@@ -1284,6 +1284,10 @@ func TestBuildDownloadClientRejectsNonOSFilesystem(t *testing.T) {
 func TestBuildDownloadClientOCIExperimentGate(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping the disabled-vs-enabled comparison in experiment mode")
+	}
+
 	testCases := []struct {
 		name    string
 		enabled bool

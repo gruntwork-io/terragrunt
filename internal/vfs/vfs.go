@@ -601,6 +601,13 @@ const defaultZipDirMode os.FileMode = 0755
 // maxSymlinkTargetSize bounds a symlink target read, far above any real path.
 const maxSymlinkTargetSize = 4096
 
+// ZipDecompressedSizeLimitError reports an extraction exceeding its configured decompressed size limit.
+type ZipDecompressedSizeLimitError struct{}
+
+func (ZipDecompressedSizeLimitError) Error() string {
+	return "decompressed size exceeds limit"
+}
+
 // ZipDecompressor handles zip archive extraction with configurable limits.
 type ZipDecompressor struct {
 	// FileSizeLimit limits total decompressed size in bytes. Zero means no limit.
@@ -824,7 +831,7 @@ func (r *limitedReader) Read(p []byte) (int, error) {
 
 	n, err := r.reader.Read(probe[:])
 	if n > 0 {
-		return 0, errors.New("decompressed size exceeds limit")
+		return 0, ZipDecompressedSizeLimitError{}
 	}
 
 	if err == nil {
@@ -1200,7 +1207,7 @@ func (z *ZipDecompressor) extractSymlink(
 
 	if z.FileSizeLimit > 0 {
 		if *totalSize+int64(len(targetBytes)) > z.FileSizeLimit {
-			return errors.New("decompressed size exceeds limit")
+			return ZipDecompressedSizeLimitError{}
 		}
 
 		*totalSize += int64(len(targetBytes))

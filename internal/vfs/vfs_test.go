@@ -575,7 +575,9 @@ func TestUnzipSymlinkLimits(t *testing.T) {
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
 		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(2)).Unzip(l, fs, "/dst", "/archive.zip", 0)
-		require.ErrorContains(t, err, "decompressed size exceeds limit")
+
+		var limitErr vfs.ZipDecompressedSizeLimitError
+		require.ErrorAs(t, err, &limitErr)
 	})
 
 	t.Run("symlink target above the hard cap is rejected", func(t *testing.T) {
@@ -813,8 +815,8 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 
 		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(10)).Unzip(l, fs, "/dst", "/archive.zip", 0)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "exceeds limit")
+		var limitErr vfs.ZipDecompressedSizeLimitError
+		require.ErrorAs(t, err, &limitErr)
 	})
 
 	t.Run("cumulative size limit across files", func(t *testing.T) {
@@ -831,8 +833,8 @@ func TestUnzipFileSizeLimit(t *testing.T) {
 
 		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(25)).Unzip(l, fs, "/dst", "/archive.zip", 0)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "exceeds limit")
+		var limitErr vfs.ZipDecompressedSizeLimitError
+		require.ErrorAs(t, err, &limitErr)
 	})
 
 	t.Run("no limit when FileSizeLimit is zero", func(t *testing.T) {

@@ -185,6 +185,26 @@ type ociAmbientStore struct {
 // only through v.FS, and only the selected entry is decoded, so one malformed
 // entry cannot hide valid credentials elsewhere in the same file.
 func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
+	stores := loadOCIAmbientStores(l, v)
+
+	return func(repositoryName string) auth.CredentialFunc {
+		return func(ctx context.Context, hostport string) (auth.Credential, error) {
+			// Most specific key first, so a repository-scoped entry beats a
+			// registry-wide one and no other namespace's entry can answer.
+			for _, key := range ociCredentialKeys(hostport, repositoryName) {
+				for _, ambient := range stores {
+					if cred := ociCredentialFromAmbientStore(ctx, l, ambient, key); cred != auth.EmptyCredential {
+						return cred, nil
+					}
+				}
+			}
+
+			return auth.EmptyCredential, nil
+		}
+	}
+}
+
+func loadOCIAmbientStores(l log.Logger, v venv.Venv) []ociAmbientStore {
 	candidates := ociAmbientCredentialPaths(v)
 	stores := make([]ociAmbientStore, 0, len(candidates))
 
@@ -205,36 +225,30 @@ func ociAmbientCredentialFunc(l log.Logger, v venv.Venv) ociCredentialFactory {
 		})
 	}
 
-	return func(repositoryName string) auth.CredentialFunc {
-		return func(ctx context.Context, hostport string) (auth.Credential, error) {
-			// Most specific key first, so a repository-scoped entry beats a
-			// registry-wide one and no other namespace's entry can answer.
-			for _, key := range ociCredentialKeys(hostport, repositoryName) {
-				for _, ambient := range stores {
-					declaredAliases, ok := ambient.declared[key]
-					if !ok {
-						continue
-					}
+	return stores
+}
 
-					for _, declared := range declaredAliases {
-						cred, err := ociCredentialFromAuthConfig(ctx, ambient.auths[declared])
-						if err != nil {
-							// The decoder error can contain credential material, so do not log it.
-							l.Warnf("Skipping unusable OCI credential entry for %s in %s", declared, ambient.path)
+func ociCredentialFromAmbientStore(
+	ctx context.Context,
+	l log.Logger,
+	ambient ociAmbientStore,
+	key string,
+) auth.Credential {
+	for _, declared := range ambient.declared[key] {
+		cred, err := ociCredentialFromAuthConfig(ctx, ambient.auths[declared])
+		if err != nil {
+			// The decoder error can contain credential material, so do not log it.
+			l.Warnf("Skipping unusable OCI credential entry for %s in %s", declared, ambient.path)
 
-							continue
-						}
+			continue
+		}
 
-						if cred != auth.EmptyCredential {
-							return cred, nil
-						}
-					}
-				}
-			}
-
-			return auth.EmptyCredential, nil
+		if cred != auth.EmptyCredential {
+			return cred
 		}
 	}
+
+	return auth.EmptyCredential
 }
 
 // ociAmbientCredentialPaths returns OpenTofu's containers-auth candidates in

@@ -343,24 +343,32 @@ func (g *OCIGetter) GetFile(_ context.Context, _ *getter.Request) error {
 	return ErrOCIGetFileUnsupported
 }
 
+func validateOCIQueryParams(queryValues url.Values) error {
+	for param, values := range queryValues {
+		if param != ociTagQueryKey && param != ociDigestQueryKey {
+			return OCIUnsupportedQueryParamError{Param: param}
+		}
+
+		if len(values) > 1 {
+			return OCIDuplicateQueryParamError{Param: param}
+		}
+
+		if len(values) == 0 || values[0] == "" {
+			return OCIEmptyQueryParamError{Param: param}
+		}
+	}
+
+	return nil
+}
+
 // ociRefFromQuery validates the source query and returns the reference to
 // resolve: the digest when pinned, the tag otherwise, defaulting to
 // [ociDefaultTag] when neither key is present. Each key must appear at most
 // once with a non-empty value that satisfies its grammar, so a typo can
 // never silently resolve a different reference.
 func ociRefFromQuery(queryValues url.Values) (string, error) {
-	for param, values := range queryValues {
-		if param != ociTagQueryKey && param != ociDigestQueryKey {
-			return "", OCIUnsupportedQueryParamError{Param: param}
-		}
-
-		if len(values) > 1 {
-			return "", OCIDuplicateQueryParamError{Param: param}
-		}
-
-		if values[0] == "" {
-			return "", OCIEmptyQueryParamError{Param: param}
-		}
+	if err := validateOCIQueryParams(queryValues); err != nil {
+		return "", err
 	}
 
 	_, hasTag := queryValues[ociTagQueryKey]

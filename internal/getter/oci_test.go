@@ -447,11 +447,11 @@ func TestOCIGetterGetManifestHardening(t *testing.T) {
 		Size:      int64(len(mismatchedBytes)),
 	}
 
-	testCases := []struct { //nolint:govet // fieldalignment: keyed literals; readability over 8 bytes
+	testCases := []struct {
 		wantErrIs     error
+		manifestDesc  ociv1.Descriptor
 		name          string
 		manifestBytes []byte
-		manifestDesc  ociv1.Descriptor
 	}{
 
 		{

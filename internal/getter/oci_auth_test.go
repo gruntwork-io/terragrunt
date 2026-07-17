@@ -466,6 +466,7 @@ func TestOCIAmbientCredentialCanonicalAliasFallsThrough(t *testing.T) {
 	invalidAuth := base64.StdEncoding.EncodeToString([]byte("missing-colon"))
 	data, err := json.Marshal(map[string]any{
 		"auths": map[string]any{
+			"http://" + testRegistry + "/":  map[string]string{},
 			"https://" + testRegistry + "/": map[string]string{"auth": invalidAuth},
 			testRegistry:                    map[string]string{"auth": validAuth},
 		},
