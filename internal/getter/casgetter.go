@@ -495,7 +495,8 @@ func (g *CASGetter) pinOCIDigest(ctx context.Context, scheme, rawURL, suggestedK
 
 	resolver, ok := g.resolvers[scheme].(ociDigestResolver)
 	if !ok {
-		return rawURL, suggestedKey
+		// No digest contract: content-hash rather than trust a mutable probe key.
+		return rawURL, ""
 	}
 
 	digestValue, err := resolver.ResolveDigest(ctx, rawURL)

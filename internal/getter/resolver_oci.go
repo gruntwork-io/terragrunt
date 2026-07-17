@@ -64,6 +64,9 @@ func (r *OCIResolver) ResolveDigest(ctx context.Context, rawURL string) (string,
 	queryValues.Del("archive")
 	srcURL.RawQuery = queryValues.Encode()
 
+	// Discarding the subdir is safe: go-getter clients strip //subdir before
+	// dispatch, so the cached tree is always the full root and the client
+	// applies the selector after materialization.
 	registryDomain, repositoryName, _, ref, err := parseOCISource(srcURL)
 	if err != nil {
 		return "", err

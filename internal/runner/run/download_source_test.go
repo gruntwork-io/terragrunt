@@ -956,8 +956,15 @@ func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
 			t.Parallel()
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			// A TLS server the test owns: the client rejects its self-signed
+			// cert deterministically, with no assumptions about closed ports.
+			registry := httptest.NewTLSServer(http.NotFoundHandler())
+			t.Cleanup(registry.Close)
+
+			registryAddr := registry.Listener.Addr().String()
 			src := &tf.Source{
-				CanonicalSourceURL: parseURL(t, "oci://127.0.0.1:1/terraform-modules/vpc?tag=1.0.0"),
+				CanonicalSourceURL: parseURL(t, "oci://"+registryAddr+"/terraform-modules/vpc?tag=1.0.0"),
 				DownloadDir:        tmpDir,
 				WorkingDir:         tmpDir,
 				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
@@ -992,7 +999,7 @@ func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
 				cfg,
 				report.NewReport(),
 			)
-			require.Error(t, err, "the registry at port 1 is unreachable")
+			require.Error(t, err, "the fake registry's cert is untrusted, so every fetch fails")
 
 			const casAttempt = "CAS enabled: attempting to use Content Addressable Storage"
 

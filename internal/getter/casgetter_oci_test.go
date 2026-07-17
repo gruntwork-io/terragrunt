@@ -123,6 +123,80 @@ func TestCASGetterDoesNotClaimOCIWithoutFetcher(t *testing.T) {
 	assert.NotEqual(t, getter.SchemeOCI, req.Forced, "oci must not be claimed without a registered oci fetcher")
 }
 
+// TestCASGetterOCISubdirSelectionSharesOneEntry proves root and subdir
+// requests can safely share one cache entry: the client strips //subdir
+// before dispatch, the cached tree is always the full root, and the client
+// applies the selector after materialization.
+func TestCASGetterOCISubdirSelectionSharesOneEntry(t *testing.T) {
+	t.Parallel()
+
+	resolver := &movingTagResolver{tagDigest: "sha256:aaaa"}
+	fetcher := &treeModuleGetter{}
+
+	_, client := newOCICASHarness(t, resolver, fetcher)
+
+	dstRoot := filepath.Join(t.TempDir(), "root")
+
+	_, err := client.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dstRoot,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+	assert.FileExists(t, filepath.Join(dstRoot, "main.tf"))
+	assert.FileExists(t, filepath.Join(dstRoot, "subdir", "sub.tf"))
+
+	// The subdir request hits the same entry yet receives only the subtree.
+	dstSub := filepath.Join(t.TempDir(), "sub")
+
+	_, err = client.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc//subdir?tag=1.0.0",
+		Dst:     dstSub,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, fetcher.gets.Load(), "the subdir request must be served from the shared entry")
+	assert.FileExists(t, filepath.Join(dstSub, "sub.tf"))
+	assert.NoFileExists(t, filepath.Join(dstSub, "main.tf"), "the root tree must not leak into a subdir request")
+	assert.NoFileExists(t, filepath.Join(dstSub, "subdir"), "the selector must be applied, not the full tree")
+}
+
+// TestCASGetterOCIProbeOnlyResolverNeverKeysMutableTags pins the fallback for
+// custom resolvers without the digest contract: the fetched bytes must be
+// content-hashed, never stored under the mutable probe key.
+func TestCASGetterOCIProbeOnlyResolverNeverKeysMutableTags(t *testing.T) {
+	t.Parallel()
+
+	keyA := tgcas.ContentKey("oci-manifest", "sha256:aaaa")
+
+	resolver := &probeOnlyResolver{key: keyA}
+	fetcher := &countingModuleGetter{}
+
+	_, client := newOCICASHarness(t, resolver, fetcher)
+
+	dstOne := filepath.Join(t.TempDir(), "one")
+
+	_, err := client.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dstOne,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, fetcher.gets.Load())
+	assert.Contains(t, fetcher.lastSrc(), "tag=1.0.0", "a probe-only resolver cannot pin the fetch")
+
+	// Key A must be unpopulated, so a request probing the same key re-fetches.
+	dstTwo := filepath.Join(t.TempDir(), "two")
+
+	_, err = client.Get(t.Context(), &gogetter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+		Dst:     dstTwo,
+		GetMode: gogetter.ModeDir,
+	})
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, fetcher.gets.Load(), "a hit would mean mutable-tag bytes were stored under the probe key")
+}
+
 // newOCICASHarness builds a CASGetter over a fresh store with the fakes wired in.
 func newOCICASHarness(
 	t *testing.T, resolver getter.SourceResolver, fetcher gogetter.Getter,
@@ -233,5 +307,47 @@ func (f *countingModuleGetter) Mode(_ context.Context, _ *url.URL) (gogetter.Mod
 }
 
 func (f *countingModuleGetter) Detect(_ *gogetter.Request) (bool, error) {
+	return true, nil
+}
+
+// probeOnlyResolver implements only the base resolver contract, no digest pinning.
+type probeOnlyResolver struct {
+	key string
+}
+
+func (r *probeOnlyResolver) Scheme() string { return getter.SchemeOCI }
+
+func (r *probeOnlyResolver) Probe(context.Context, string) (string, error) {
+	return r.key, nil
+}
+
+// treeModuleGetter writes a two-level module tree and counts downloads.
+type treeModuleGetter struct {
+	gets atomic.Int32
+}
+
+func (f *treeModuleGetter) Get(_ context.Context, req *gogetter.Request) error {
+	f.gets.Add(1)
+
+	if err := os.MkdirAll(filepath.Join(req.Dst, "subdir"), 0o755); err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(filepath.Join(req.Dst, "main.tf"), []byte(`output "root" {}`), 0o644); err != nil {
+		return err
+	}
+
+	return os.WriteFile(filepath.Join(req.Dst, "subdir", "sub.tf"), []byte(`output "sub" {}`), 0o644)
+}
+
+func (f *treeModuleGetter) GetFile(_ context.Context, _ *gogetter.Request) error {
+	return getter.ErrOCIGetFileUnsupported
+}
+
+func (f *treeModuleGetter) Mode(_ context.Context, _ *url.URL) (gogetter.Mode, error) {
+	return gogetter.ModeDir, nil
+}
+
+func (f *treeModuleGetter) Detect(_ *gogetter.Request) (bool, error) {
 	return true, nil
 }
