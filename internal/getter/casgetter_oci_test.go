@@ -23,16 +23,11 @@ import (
 // digest-specific content: the fetch is bound to the digest resolved at
 // download start, so a tag moving A to B and back to A can neither mis-key
 // the cache nor materialize the wrong manifest's bytes.
-// Valid manifest digests the OCI fakes share, satisfying the digest grammar
-// production enforces.
-var (
-	digestA = digest.FromString("manifest-a").String()
-	digestB = digest.FromString("manifest-b").String()
-)
-
 func TestCASGetterOCITagFetchIsDigestPinned(t *testing.T) {
 	t.Parallel()
 
+	digestA := testManifestDigest("manifest-a")
+	digestB := testManifestDigest("manifest-b")
 	resolver := &movingTagResolver{tagDigest: digestA}
 	fetcher := &digestModuleGetter{}
 	// First download: the tag moves A to B mid-fetch. Second download: it
@@ -112,6 +107,7 @@ func TestCASGetterOCITagFetchIsDigestPinned(t *testing.T) {
 func TestCASGetterOCIResolveFailureFallsBackToContentHash(t *testing.T) {
 	t.Parallel()
 
+	digestA := testManifestDigest("manifest-a")
 	resolver := &movingTagResolver{tagDigest: digestA, failTagAfter: 1}
 	fetcher := &countingModuleGetter{}
 
@@ -187,7 +183,7 @@ func TestCASGetterOCISubdirSelectionSharesOneEntry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolver := &movingTagResolver{tagDigest: digestA}
+			resolver := &movingTagResolver{tagDigest: testManifestDigest("manifest-a")}
 			fetcher := &treeModuleGetter{}
 
 			_, client := newOCICASHarness(t, resolver, fetcher)
@@ -231,7 +227,7 @@ func TestCASGetterOCISubdirSelectionSharesOneEntry(t *testing.T) {
 func TestCASGetterOCIProbeOnlyResolverNeverKeysMutableTags(t *testing.T) {
 	t.Parallel()
 
-	keyA := tgcas.ContentKey("oci-manifest", digestA)
+	keyA := tgcas.ContentKey("oci-manifest", testManifestDigest("manifest-a"))
 
 	resolver := &probeOnlyResolver{key: keyA}
 	fetcher := &countingModuleGetter{}
@@ -469,4 +465,9 @@ func (f *digestModuleGetter) Mode(_ context.Context, _ *url.URL) (gogetter.Mode,
 
 func (f *digestModuleGetter) Detect(_ *gogetter.Request) (bool, error) {
 	return true, nil
+}
+
+// testManifestDigest derives a valid manifest digest from a seed.
+func testManifestDigest(seed string) string {
+	return digest.FromString(seed).String()
 }
