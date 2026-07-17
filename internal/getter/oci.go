@@ -208,13 +208,13 @@ func (err OCIDigestVerificationError) Unwrap() error {
 
 // OCIRepositoryStore is the narrow seam between the OCI getter and the
 // registry client that serves it. Resolve turns a tag or digest reference
-// into a manifest descriptor; Fetch streams the blob a descriptor points at.
-// The method set intentionally matches oras-go's content.Fetcher signature so
-// manifest and blob helpers work through the seam without adapters, and unit
-// tests can drive the getter with a fake store and no network.
+// into a manifest descriptor; Fetch streams the blob a descriptor points at,
+// taking the descriptor by pointer to keep call frames small. oras-go's
+// by-value client is bridged by [OCIRemoteStore], and unit tests can drive
+// the getter with a fake store and no network.
 type OCIRepositoryStore interface {
 	Resolve(ctx context.Context, ref string) (ociv1.Descriptor, error)
-	Fetch(ctx context.Context, desc ociv1.Descriptor) (io.ReadCloser, error)
+	Fetch(ctx context.Context, desc *ociv1.Descriptor) (io.ReadCloser, error)
 }
 
 // OCINewStoreFunc builds the [OCIRepositoryStore] serving one repository on
@@ -415,8 +415,13 @@ func resolveModuleZipLayer(ctx context.Context, store OCIRepositoryStore, ref st
 		return ociv1.Descriptor{}, OCIManifestSizeError{Size: manifestDesc.Size}
 	}
 
-	manifestBytes, err := content.FetchAll(ctx, store, manifestDesc)
+	manifestReader, err := store.Fetch(ctx, &manifestDesc)
 	if err != nil {
+		return ociv1.Descriptor{}, fmt.Errorf("fetching OCI manifest %s: %w", manifestDesc.Digest, err)
+	}
+
+	manifestBytes, readErr := content.ReadAll(manifestReader, manifestDesc)
+	if err := errors.Join(readErr, manifestReader.Close()); err != nil {
 		return ociv1.Descriptor{}, fmt.Errorf("fetching OCI manifest %s: %w", manifestDesc.Digest, err)
 	}
 
@@ -457,7 +462,7 @@ func (g *OCIGetter) fetchModuleZip(
 	layer *ociv1.Descriptor,
 	parent string,
 ) (string, error) {
-	blob, err := store.Fetch(ctx, *layer)
+	blob, err := store.Fetch(ctx, layer)
 	if err != nil {
 		return "", fmt.Errorf("fetching OCI layer %s: %w", layer.Digest, err)
 	}

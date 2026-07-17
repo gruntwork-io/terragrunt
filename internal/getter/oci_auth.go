@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	iofs "io/fs"
 	"maps"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	ociv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
 	"oras.land/oras-go/v2/registry/remote/credentials"
@@ -49,8 +51,23 @@ var ErrOCIStaticCredentialConflict = errors.New("cannot set both a token and a u
 // ErrOCIStaticCredentialIncomplete reports a username without a password, or the reverse.
 var ErrOCIStaticCredentialIncomplete = errors.New("oci static credentials require both a username and a password")
 
+// OCIRemoteStore adapts oras' by-value Fetch to the pointer-taking [OCIRepositoryStore] seam.
+type OCIRemoteStore struct {
+	Repo *remote.Repository
+}
+
+// Resolve delegates reference resolution to the oras repository.
+func (s OCIRemoteStore) Resolve(ctx context.Context, ref string) (ociv1.Descriptor, error) {
+	return s.Repo.Resolve(ctx, ref)
+}
+
+// Fetch delegates blob fetching to the oras repository.
+func (s OCIRemoteStore) Fetch(ctx context.Context, desc *ociv1.Descriptor) (io.ReadCloser, error) {
+	return s.Repo.Fetch(ctx, *desc)
+}
+
 // The default store must satisfy the seam the getter consumes.
-var _ OCIRepositoryStore = (*remote.Repository)(nil)
+var _ OCIRepositoryStore = OCIRemoteStore{}
 
 // ociUserAgent is the versioned User-Agent sent to registries.
 func ociUserAgent() string {
@@ -97,7 +114,7 @@ func NewOCIRepositoryStore(l log.Logger, v venv.Venv) OCINewStoreFunc {
 			Header:     http.Header{"User-Agent": []string{ociUserAgent()}},
 		}
 
-		return repo, nil
+		return OCIRemoteStore{Repo: repo}, nil
 	}
 }
 

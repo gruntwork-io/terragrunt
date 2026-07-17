@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
 
 	"github.com/stretchr/testify/assert"
@@ -35,10 +34,13 @@ func TestNewOCIRepositoryStoreReference(t *testing.T) {
 	store, err := newStore(t.Context(), "127.0.0.1:5000", "org/team/vpc")
 	require.NoError(t, err)
 
-	repo, castOK := store.(*remote.Repository)
-	require.True(t, castOK, "default store must be an oras remote repository")
-	assert.Equal(t, "127.0.0.1:5000", repo.Reference.Registry)
-	assert.Equal(t, "org/team/vpc", repo.Reference.Repository)
+	remoteStore, castOK := store.(getter.OCIRemoteStore)
+	require.True(t, castOK, "default store must be the oras-backed remote store")
+	assert.Equal(t, "127.0.0.1:5000", remoteStore.Repo.Reference.Registry)
+	assert.Equal(t, "org/team/vpc", remoteStore.Repo.Reference.Repository)
+
+	_, err = newStore(t.Context(), "127.0.0.1:5000", "ORG/Bad")
+	require.ErrorContains(t, err, "parsing OCI repository reference")
 }
 
 func TestOCIStaticCredentials(t *testing.T) {
@@ -562,10 +564,10 @@ func credentialVenvForGOOS(goos, home string, extra map[string]string) venv.Venv
 func credentialFor(t *testing.T, store getter.OCIRepositoryStore, registry string) auth.Credential {
 	t.Helper()
 
-	repo, castOK := store.(*remote.Repository)
-	require.True(t, castOK, "default store must be an oras remote repository")
+	remoteStore, castOK := store.(getter.OCIRemoteStore)
+	require.True(t, castOK, "default store must be the oras-backed remote store")
 
-	client, castOK := repo.Client.(*auth.Client)
+	client, castOK := remoteStore.Repo.Client.(*auth.Client)
 	require.True(t, castOK, "default store must use an oras auth client")
 
 	cred, err := client.Credential(t.Context(), registry)

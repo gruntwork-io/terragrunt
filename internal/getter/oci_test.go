@@ -888,8 +888,7 @@ func (s *fakeStore) Resolve(_ context.Context, ref string) (ociv1.Descriptor, er
 	return s.manifestDesc, nil
 }
 
-//nolint:gocritic // hugeParam: by-value descriptor is mandated by the OCIRepositoryStore seam
-func (s *fakeStore) Fetch(_ context.Context, desc ociv1.Descriptor) (io.ReadCloser, error) {
+func (s *fakeStore) Fetch(_ context.Context, desc *ociv1.Descriptor) (io.ReadCloser, error) {
 	if desc.Digest == s.manifestDesc.Digest {
 		return io.NopCloser(bytes.NewReader(s.manifestBytes)), nil
 	}
